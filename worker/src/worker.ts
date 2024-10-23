@@ -1,9 +1,9 @@
 import path from 'path'
 import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
-import * as crypto from 'crypto'
 import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
+import * as crypto from '@pnpm/crypto.polyfill'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import {
@@ -127,7 +127,7 @@ function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile }: Tarb
     // Compensate for the possibility of non-uniform Base64 padding
     const normalizedRemoteHash: string = Buffer.from(integrityHash, 'base64').toString('hex')
 
-    const calculatedHash: string = crypto.createHash(algo).update(buffer).digest('hex')
+    const calculatedHash: string = crypto.hash(algo, buffer, 'hex')
     if (calculatedHash !== normalizedRemoteHash) {
       return {
         status: 'error',

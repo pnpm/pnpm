@@ -1,5 +1,15 @@
 # @pnpm/build-modules
 
+## 14.0.4
+
+### Patch Changes
+
+- @pnpm/worker@1.0.12
+- @pnpm/lifecycle@17.1.5
+- @pnpm/fs.hard-link-dir@4.0.0
+- @pnpm/patching.apply-patch@3.1.1
+- @pnpm/link-bins@10.0.11
+
 ## 14.0.3
 
 ### Patch Changes

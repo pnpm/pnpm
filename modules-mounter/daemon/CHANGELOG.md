@@ -1,5 +1,13 @@
 # @pnpm/mount-modules
 
+## 0.6.18
+
+### Patch Changes
+
+- Updated dependencies [db7ff76]
+  - @pnpm/store.cafs@4.0.1
+  - @pnpm/config@21.8.4
+
 ## 0.6.17
 
 ### Patch Changes

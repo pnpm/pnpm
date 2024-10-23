@@ -23,6 +23,8 @@
 1. Run `pnpm run compile` to create an initial build of pnpm from the source in the repository.
 1. Now you can change any source code file and run `pd [command] [flags]` to run `pnpm` directly from the source code by compiling all the files without typechecking in memory.
 1. Alternatively, for recompiling all the projects with typechecking after your changes, again run `pnpm run compile` in the root of the repository. To run a task that will recompile the projects on change, run `pnpm run watch`.
+1. Install [`git-lfs` following the directions from its docs](https://github.com/git-lfs/git-lfs#installing). This is required to run certain tests that require large files.
+   - Run `git lfs pull` after installing for good measure. This is required if Git LFS was installed after cloning the pnpm git repo.
 1. In order to run all the tests in the repository, run `pnpm run test-main`. You may also run tests of specific projects by running `pnpm test` inside a project's directory or using `pnpm --filter <project name> test`.
 
 Some of the e2e tests run node-gyp, so you might need to install some build-essentials on your system for those tests to pass. On Fedora, install these:

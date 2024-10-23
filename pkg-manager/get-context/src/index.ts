@@ -346,7 +346,7 @@ async function purgeModulesDirsOfImporters (
   importers: ImporterToPurge[]
 ): Promise<void> {
   if (opts.confirmModulesPurge ?? true) {
-    const confirmed = await enquirer.prompt({
+    const confirmed = await enquirer.prompt<{ question: boolean }>({
       type: 'confirm',
       name: 'question',
       message: importers.length === 1
@@ -354,7 +354,7 @@ async function purgeModulesDirsOfImporters (
         : 'The modules directories will be removed and reinstalled from scratch. Proceed?',
       initial: true,
     })
-    if (!confirmed) {
+    if (!confirmed.question) {
       throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
     }
   }

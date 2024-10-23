@@ -1,5 +1,17 @@
 # @pnpm/headless
 
+## 23.2.7
+
+### Patch Changes
+
+- @pnpm/package-requester@25.2.9
+- @pnpm/worker@1.0.12
+- @pnpm/build-modules@14.0.4
+- @pnpm/lifecycle@17.1.5
+- @pnpm/symlink-dependency@8.0.8
+- @pnpm/link-bins@10.0.11
+- @pnpm/real-hoist@3.0.13
+
 ## 23.2.6
 
 ### Patch Changes

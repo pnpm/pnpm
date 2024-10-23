@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-installation
 
+## 17.2.6
+
+### Patch Changes
+
+- Updated dependencies [a943fc9]
+  - @pnpm/core@15.3.7
+  - @pnpm/plugin-commands-rebuild@12.1.1
+  - @pnpm/package-store@20.4.1
+  - @pnpm/store-connection-manager@8.4.1
+  - @pnpm/plugin-commands-env@5.1.10
+  - @pnpm/cli-utils@4.0.6
+  - @pnpm/config@21.8.4
+  - @pnpm/outdated@15.1.6
+
 ## 17.2.5
 
 ### Patch Changes

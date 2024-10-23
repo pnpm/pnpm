@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/worker",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "A worker for extracting package taralls to the store",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,6 +34,7 @@
   "dependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/crypto.polyfill": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pkg-requires-build": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
