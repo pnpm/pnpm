@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import * as crypto from '@pnpm/crypto.polyfill'
 import fs from 'fs'
 
 export function createShortHash (input: string): string {
@@ -6,15 +6,11 @@ export function createShortHash (input: string): string {
 }
 
 export function createHexHash (input: string): string {
-  const hash = crypto.createHash('sha256')
-  hash.update(input)
-  return hash.digest('hex')
+  return crypto.hash('sha256', input, 'hex')
 }
 
 export function createHash (input: string): string {
-  const hash = crypto.createHash('sha256')
-  hash.update(input)
-  return `sha256-${hash.digest('base64')}`
+  return `sha256-${crypto.hash('sha256', input, 'base64')}`
 }
 
 export async function createHashFromFile (file: string): Promise<string> {

@@ -29,6 +29,9 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/crypto/hash#readme",
+  "dependencies": {
+    "@pnpm/crypto.polyfill": "workspace:*"
+  },
   "devDependencies": {
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/prepare": "workspace:*"

@@ -1629,6 +1629,10 @@ importers:
         version: 1.3.31
 
   crypto/hash:
+    dependencies:
+      '@pnpm/crypto.polyfill':
+        specifier: workspace:*
+        version: link:../polyfill
     devDependencies:
       '@pnpm/crypto.hash':
         specifier: workspace:*
