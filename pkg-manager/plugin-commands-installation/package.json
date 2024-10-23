@@ -81,6 +81,7 @@
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/pnpmfile": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/write-project-manifest": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/semver-diff": "catalog:",
     "@pnpm/sort-packages": "workspace:*",

@@ -1,7 +1,6 @@
 import path from 'path'
 import {
   docsUrl,
-  readProjectManifest,
   tryReadProjectManifest,
   type ReadProjectManifestOpts,
 } from '@pnpm/cli-utils'
@@ -11,10 +10,10 @@ import { DEPENDENCIES_FIELDS, type ProjectManifest, type Project } from '@pnpm/t
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import { type StoreController } from '@pnpm/package-store'
 import { createOrConnectStoreControllerCached, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
-  install,
   type WorkspacePackages,
 } from '@pnpm/core'
 import { logger } from '@pnpm/logger'
@@ -22,6 +21,7 @@ import pick from 'ramda/src/pick'
 import partition from 'ramda/src/partition'
 import renderHelp from 'render-help'
 import { getSaveType } from './getSaveType'
+import * as install from './install'
 
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
@@ -31,6 +31,8 @@ type LinkOpts = CreateStoreControllerOptions & Pick<Config,
 | 'bin'
 | 'cliOptions'
 | 'engineStrict'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
 | 'saveDev'
 | 'saveOptional'
 | 'saveProd'
@@ -38,7 +40,7 @@ type LinkOpts = CreateStoreControllerOptions & Pick<Config,
 | 'workspacePackagePatterns'
 | 'sharedWorkspaceLockfile'
 | 'globalDirPrefix'
-> & Partial<Pick<Config, 'linkWorkspacePackages'>>
+> & Partial<Pick<Config, 'linkWorkspacePackages'>> & install.InstallCommandOptions
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -112,8 +114,6 @@ export async function handler (
   opts: LinkOpts,
   params?: string[]
 ): Promise<void> {
-  const cwd = process.cwd()
-
   const storeControllerCache = new Map<string, Promise<{ dir: string, ctrl: StoreController }>>()
   let workspacePackagesArr: Project[]
   let workspacePackages!: WorkspacePackages
@@ -138,17 +138,20 @@ export async function handler (
 
   // "pnpm link"
   if ((params == null) || (params.length === 0)) {
+    const cwd = process.cwd()
     if (path.relative(linkOpts.dir, cwd) === '') {
       throw new PnpmError('LINK_BAD_PARAMS', 'You must provide a parameter')
     }
 
     await checkPeerDeps(cwd, opts)
 
-    const { manifest, writeProjectManifest } = await tryReadProjectManifest(linkOpts.globalDirPrefix, opts)
-    const newManifest = manifest ?? {}
-    await addLinkToManifest(opts, newManifest, cwd, linkOpts.globalDirPrefix)
-    await writeProjectManifest(newManifest)
-    await install(newManifest, linkOpts)
+    const newManifest = opts.rootProjectManifest ?? {}
+    await addLinkToManifest(opts, newManifest, cwd, linkOpts.dir)
+    await writeProjectManifest(path.join(opts.rootProjectManifestDir, 'package.json'), newManifest)
+    await install.handler({
+      ...linkOpts,
+      rootProjectManifest: newManifest,
+    })
     return
   }
 
@@ -177,9 +180,7 @@ export async function handler (
     globalPkgNames.forEach((pkgName) => pkgPaths.push(path.join(opts.globalDirPrefix, 'node_modules', pkgName)))
   }
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir, opts)
-
-  const newManifest = manifest ?? {}
+  const newManifest = opts.rootProjectManifest ?? {}
   await Promise.all(
     pkgPaths.map(async (dir) => {
       await addLinkToManifest(opts, newManifest, dir, opts.dir)
@@ -187,8 +188,11 @@ export async function handler (
     })
   )
 
-  await writeProjectManifest(newManifest)
-  await install(newManifest, linkOpts)
+  await writeProjectManifest(path.join(opts.rootProjectManifestDir, 'package.json'), newManifest)
+  await install.handler({
+    ...linkOpts,
+    rootProjectManifest: newManifest,
+  })
 }
 
 async function addLinkToManifest (opts: ReadProjectManifestOpts, manifest: ProjectManifest, linkedDepDir: string, dependentDir: string) {
