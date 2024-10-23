@@ -45,9 +45,7 @@ import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.pre
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/manifest-utils'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
-import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { removeBin } from '@pnpm/remove-bins'
 import {
   getWantedDependencies,
   type DependenciesGraph,
@@ -70,10 +68,8 @@ import {
   type ReadPackageHook,
   type ProjectRootDir,
 } from '@pnpm/types'
-import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
 import isSubdir from 'is-subdir'
-import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import mapValues from 'ramda/src/map'
 import clone from 'ramda/src/clone'
@@ -133,16 +129,7 @@ export interface UninstallSomeDepsMutation {
   targetDependenciesField?: DependenciesField
 }
 
-export interface UnlinkDepsMutation {
-  mutation: 'unlink'
-}
-
-export interface UnlinkSomeDepsMutation {
-  mutation: 'unlinkSome'
-  dependencyNames: string[]
-}
-
-export type DependenciesMutation = InstallDepsMutation | InstallSomeDepsMutation | UninstallSomeDepsMutation | UnlinkDepsMutation | UnlinkSomeDepsMutation
+export type DependenciesMutation = InstallDepsMutation | InstallSomeDepsMutation | UninstallSomeDepsMutation
 
 type Opts = Omit<InstallOptions, 'allProjects'> & {
   preferredVersions?: PreferredVersions
@@ -567,70 +554,6 @@ Note that in CI environments, this setting is enabled by default.`,
         await installSome({
           ...projectOpts,
           updatePackageManifest: (projectOpts as InstallSomeDepsMutation).updatePackageManifest !== false,
-        })
-        break
-      }
-      case 'unlink': {
-        const packageDirs = await readModulesDir(projectOpts.modulesDir)
-        const externalPackages = await pFilter(
-          packageDirs!,
-          async (packageDir: string) => isExternalLink(ctx.storeDir, projectOpts.modulesDir, packageDir)
-        )
-        const allDeps = getAllDependenciesFromManifest(projectOpts.manifest)
-        const packagesToInstall: string[] = []
-        for (const pkgName of externalPackages) {
-          await rimraf(path.join(projectOpts.modulesDir, pkgName))
-          if (allDeps[pkgName]) {
-            packagesToInstall.push(pkgName)
-          }
-        }
-        if (packagesToInstall.length === 0) {
-          return {
-            updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
-          }
-        }
-
-        // TODO: install only those that were unlinked
-        // but don't update their version specs in package.json
-        await installCase({ ...projectOpts, mutation: 'install' })
-        break
-      }
-      case 'unlinkSome': {
-        if (projectOpts.manifest?.name && opts.globalBin) {
-          await removeBin(path.join(opts.globalBin, projectOpts.manifest?.name))
-        }
-        const packagesToInstall: string[] = []
-        const allDeps = getAllDependenciesFromManifest(projectOpts.manifest)
-        for (const depName of project.dependencyNames) {
-          try {
-            if (!await isExternalLink(ctx.storeDir, projectOpts.modulesDir, depName)) {
-              logger.warn({
-                message: `${depName} is not an external link`,
-                prefix: project.rootDir,
-              })
-              continue
-            }
-          } catch (err: any) { // eslint-disable-line
-            if (err['code'] !== 'ENOENT') throw err
-          }
-          await rimraf(path.join(projectOpts.modulesDir, depName))
-          if (allDeps[depName]) {
-            packagesToInstall.push(depName)
-          }
-        }
-        if (packagesToInstall.length === 0) {
-          return {
-            updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
-          }
-        }
-
-        // TODO: install only those that were unlinked
-        // but don't update their version specs in package.json
-        await installSome({
-          ...projectOpts,
-          dependencySelectors: packagesToInstall,
-          mutation: 'installSome',
-          updatePackageManifest: false,
         })
         break
       }
