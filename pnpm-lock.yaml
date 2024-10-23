@@ -5800,6 +5800,9 @@ importers:
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: link:../workspace/find-packages
+      '@pnpm/workspace.packages-list-cache':
+        specifier: workspace:*
+        version: link:../workspace/packages-list-cache
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../workspace/pkgs-graph
