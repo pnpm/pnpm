@@ -29,7 +29,6 @@ import {
   type InstallOptions,
   type MutatedProject,
   mutateModules,
-  type MutateModulesResult,
   type ProjectOptions,
   type UpdateMatchingFunction,
   type WorkspacePackages,
