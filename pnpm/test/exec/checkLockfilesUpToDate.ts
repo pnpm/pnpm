@@ -16,7 +16,7 @@ describe('single project workspace', () => {
       },
       scripts: {
         start: 'echo hello from script',
-        'check-env:linux': 'echo pnpm_run_skip_deps_check is $pnpm_run_skip_deps_check',
+        checkEnv: 'node -p "\'pnpm_run_skip_deps_check is \' + process.env.pnpm_run_skip_deps_check"',
       },
     }
 
@@ -96,8 +96,8 @@ describe('single project workspace', () => {
     }
 
     // should set env.pnpm_run_skip_deps_check for the script
-    if (process.platform === 'linux') {
-      const { status, stdout } = execPnpmSync([...config, 'run', 'check-env:linux'])
+    {
+      const { status, stdout } = execPnpmSync([...config, 'run', 'checkEnv'])
       expect(status).toBe(0)
       expect(stdout.toString()).toContain('pnpm_run_skip_deps_check is true')
     }
