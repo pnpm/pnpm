@@ -270,9 +270,9 @@ test('install should not fail if the used pnpm version does not satisfy the pnpm
     packageManager: 'pnpm@0.0.0',
   })
 
-  expect(execPnpmSync(['install']).status).toBe(0)
+  expect(execPnpmSync(['install', '--config.manage-package-manager-versions=false']).status).toBe(0)
 
-  const { status, stderr } = execPnpmSync(['install', '--config.package-manager-strict-version=true'])
+  const { status, stderr } = execPnpmSync(['install', '--config.manage-package-manager-versions=false', '--config.package-manager-strict-version=true'])
 
   expect(status).toBe(1)
   expect(stderr.toString()).toContain('This project is configured to use v0.0.0 of pnpm. Your current pnpm is')
@@ -286,7 +286,7 @@ test('install should fail if the project requires a different package manager', 
     packageManager: 'yarn@4.0.0',
   })
 
-  const { status, stderr } = execPnpmSync(['install'])
+  const { status, stderr } = execPnpmSync(['install', '--config.manage-package-manager-versions=false'])
 
   expect(status).toBe(1)
   expect(stderr.toString()).toContain('This project is configured to use yarn')
