@@ -11,8 +11,6 @@ import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
-import { type StoreController } from '@pnpm/package-store'
-import { createOrConnectStoreControllerCached, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
   type WorkspacePackages,
 } from '@pnpm/core'
@@ -27,7 +25,7 @@ import * as install from './install'
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const isFilespec = isWindows ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/ : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
 
-type LinkOpts = CreateStoreControllerOptions & Pick<Config,
+type LinkOpts = Pick<Config,
 | 'bin'
 | 'cliOptions'
 | 'engineStrict'
@@ -114,7 +112,6 @@ export async function handler (
   opts: LinkOpts,
   params?: string[]
 ): Promise<void> {
-  const storeControllerCache = new Map<string, Promise<{ dir: string, ctrl: StoreController }>>()
   let workspacePackagesArr: Project[]
   let workspacePackages!: WorkspacePackages
   if (opts.workspaceDir) {
@@ -127,10 +124,7 @@ export async function handler (
     workspacePackages = new Map()
   }
 
-  const store = await createOrConnectStoreControllerCached(storeControllerCache, opts)
   const linkOpts = Object.assign(opts, {
-    storeController: store.ctrl,
-    storeDir: store.dir,
     targetDependenciesField: getSaveType(opts),
     workspacePackages,
     binsDir: opts.bin,
