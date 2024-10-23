@@ -102,6 +102,8 @@ test('should check for outdated dependencies for single project', async () => {
   }
 })
 
+test.todo('single project with no dependencies')
+
 // test.todo('should not check if env.pnpm_run_skip_deps_check is defined')
 
 test.todo('should not prevent nested `pnpm run` after having mutated the manifests')
