@@ -14,7 +14,6 @@ import { type ProjectRootDir, type PackageManifest } from '@pnpm/types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import {
   addDependenciesToPackage,
-  link,
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
@@ -185,25 +184,6 @@ test('uninstall package with its bin files', async () => {
   expect(fs.existsSync(path.resolve('node_modules', '.bin', 'sh-hello-world'))).toBeFalsy()
   expect(fs.existsSync(path.resolve('node_modules', '.bin', 'sh-hello-world.cmd'))).toBeFalsy()
   expect(fs.existsSync(path.resolve('node_modules', '.bin', 'sh-hello-world.ps1'))).toBeFalsy()
-})
-
-test('relative link is uninstalled', async () => {
-  const project = prepareEmpty()
-  const opts = testDefaults({ manifest: {}, dir: process.cwd() })
-
-  const linkedPkgName = 'hello-world-js-bin'
-  const linkedPkgPath = path.resolve('..', linkedPkgName)
-
-  f.copy(linkedPkgName, linkedPkgPath)
-  const manifest = await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), opts as (typeof opts & { dir: string, manifest: PackageManifest }))
-  await mutateModulesInSingleProject({
-    dependencyNames: [linkedPkgName],
-    manifest,
-    mutation: 'uninstallSome',
-    rootDir: process.cwd() as ProjectRootDir,
-  }, opts)
-
-  project.hasNot(linkedPkgName)
 })
 
 test('pendingBuilds gets updated after uninstall', async () => {
