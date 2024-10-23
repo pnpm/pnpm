@@ -68,7 +68,6 @@ import {
   type ReadPackageHook,
   type ProjectRootDir,
 } from '@pnpm/types'
-import isInnerLink from 'is-inner-link'
 import isSubdir from 'is-subdir'
 import pLimit from 'p-limit'
 import mapValues from 'ramda/src/map'
@@ -670,12 +669,6 @@ Note that in CI environments, this setting is enabled by default.`,
 
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number): boolean {
   return ((Date.now() - new Date(prunedAt).valueOf()) / (1000 * 60)) > maxAgeInMinutes
-}
-
-async function isExternalLink (storeDir: string, modules: string, pkgName: string): Promise<boolean> {
-  const link = await isInnerLink(modules, pkgName)
-
-  return !link.isInner
 }
 
 function pkgHasDependencies (manifest: ProjectManifest): boolean {

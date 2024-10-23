@@ -9,7 +9,6 @@ import {
 import { type Lockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { fixtures } from '@pnpm/test-fixtures'
 import { type ProjectRootDir, type PackageManifest } from '@pnpm/types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import {
@@ -21,8 +20,6 @@ import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import existsSymlink from 'exists-link'
 import { testDefaults } from './utils'
-
-const f = fixtures(__dirname)
 
 test('uninstall package with no dependencies', async () => {
   const project = prepareEmpty()

@@ -1,16 +1,7 @@
-import fs from 'fs'
 import path from 'path'
-import {
-  addDependenciesToPackage,
-  install,
-} from '@pnpm/core'
+import { install } from '@pnpm/core'
 import { fixtures } from '@pnpm/test-fixtures'
 import { prepareEmpty } from '@pnpm/prepare'
-import { addDistTag } from '@pnpm/registry-mock'
-import { type RootLog } from '@pnpm/core-loggers'
-import sinon from 'sinon'
-import writeJsonFile from 'write-json-file'
-import symlink from 'symlink-dir'
 import { testDefaults } from './utils'
 
 const f = fixtures(__dirname)
