@@ -30,6 +30,7 @@ test('linking multiple packages', async () => {
     bin: path.join(globalDir, 'bin'),
     dir: globalDir,
     globalDirPrefix: globalDir,
+    rootProjectManifestDir: globalDir,
   })
 
   process.chdir('..')
@@ -39,6 +40,7 @@ test('linking multiple packages', async () => {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     globalDirPrefix: globalDir,
+    rootProjectManifestDir: process.cwd(),
   }, ['linked-foo', '../linked-bar'])
 
   project.has('linked-foo')
@@ -62,50 +64,16 @@ test('link global bin', async function () {
 
   await link.handler({
     ...DEFAULT_OPTS,
-    cliOptions: {
-      global: true,
-    },
     bin: globalBin,
     dir: globalDir,
-    globalDirPrefix: '',
+    globalDirPrefix: globalDir,
+    rootProjectManifestDir: globalDir,
   })
   process.env[PATH] = oldPath
 
   isExecutable((value) => {
     expect(value).toBeTruthy()
   }, path.join(globalBin, 'package-with-bin'))
-})
-
-test('link to global bin from the specified directory', async function () {
-  prepare()
-  process.chdir('..')
-
-  const globalDir = path.resolve('global')
-  const globalBin = path.join(globalDir, 'bin')
-  const oldPath = process.env[PATH]
-  process.env[PATH] = `${globalBin}${path.delimiter}${oldPath ?? ''}`
-  fs.mkdirSync(globalBin, { recursive: true })
-
-  await writePkg('./dir/package-with-bin-in-dir', { name: 'package-with-bin-in-dir', version: '1.0.0', bin: 'bin.js' })
-  fs.writeFileSync('./dir/package-with-bin-in-dir/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
-
-  const projectToLinkDir = path.resolve('./dir/package-with-bin-in-dir')
-  process.chdir(projectToLinkDir)
-  await link.handler({
-    ...DEFAULT_OPTS,
-    cliOptions: {
-      global: true,
-      dir: projectToLinkDir,
-    },
-    bin: globalBin,
-    dir: globalDir,
-    globalDirPrefix: '',
-  })
-  process.env[PATH] = oldPath
-
-  isExecutable((value) => {
-    expect(value).toBeTruthy()
-  }, path.join(globalBin, 'package-with-bin-in-dir'))
 })
 
 test('link a global package to the specified directory', async function () {
@@ -126,12 +94,10 @@ test('link a global package to the specified directory', async function () {
   // link to global
   await link.handler({
     ...DEFAULT_OPTS,
-    cliOptions: {
-      global: true,
-    },
     bin: globalBin,
     dir: globalDir,
-    globalDirPrefix: '',
+    globalDirPrefix: globalDir,
+    rootProjectManifestDir: globalDir,
   })
 
   process.chdir('..')
@@ -140,14 +106,12 @@ test('link a global package to the specified directory', async function () {
   // link from global
   await link.handler({
     ...DEFAULT_OPTS,
-    cliOptions: {
-      global: true,
-      dir: projectDir,
-    },
-    bin: globalBin,
-    dir: globalDir,
+    // bin: globalBin,
+    dir: projectDir,
     saveProd: true, // @pnpm/config sets this setting to true when global is true. This should probably be changed.
-    globalDirPrefix: '',
+    globalDirPrefix: globalDir,
+    rootProjectManifest: { dependencies: { 'global-package-with-bin': '0.0.0' } },
+    rootProjectManifestDir: projectDir,
   }, ['global-package-with-bin'])
 
   process.env[PATH] = oldPath
@@ -172,19 +136,20 @@ test('relative link', async () => {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     globalDirPrefix: '',
+    rootProjectManifest: {
+      dependencies: {
+        '@pnpm.e2e/hello-world-js-bin': '*',
+      },
+    },
+    rootProjectManifestDir: process.cwd(),
   }, [`../${linkedPkgName}`])
 
   project.isExecutable('.bin/hello-world-js-bin')
 
-  // The linked package has been installed successfully as well with bins linked
-  // to node_modules/.bin
-  const linkedProject = assertProject(linkedPkgPath)
-  linkedProject.isExecutable('.bin/cowsay')
-
   const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
-    specifier: '*', // specifier of linked dependency added to ${WANTED_LOCKFILE}
-    version: 'link:../hello-world-js-bin', // link added to wanted lockfile
+    specifier: 'link:../hello-world-js-bin',
+    version: 'link:../hello-world-js-bin',
   })
 
   const currentLockfile = project.readCurrentLockfile()
