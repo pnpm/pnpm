@@ -4,9 +4,9 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import isWindows from 'is-windows'
 import crossSpawn from 'cross-spawn'
 
-const binDir = path.join(__dirname, '../..', isWindows() ? 'dist' : 'bin')
-const pnpmBinLocation = path.join(binDir, 'pnpm.cjs')
-const pnpxBinLocation = path.join(__dirname, '../../bin/pnpx.cjs')
+export const binDir = path.join(__dirname, '../..', isWindows() ? 'dist' : 'bin')
+export const pnpmBinLocation = path.join(binDir, 'pnpm.cjs')
+export const pnpxBinLocation = path.join(__dirname, '../../bin/pnpx.cjs')
 
 // The default timeout for tests is 4 minutes. Set a timeout for execPnpm calls
 // for 3 minutes to make it more clear what specific part of a test is timing
