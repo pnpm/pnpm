@@ -2,11 +2,22 @@ import AdmZip from 'adm-zip'
 import { Response } from 'node-fetch'
 import path from 'path'
 import { Readable } from 'stream'
-import { getNodeDir, getNodeBinDir, getNodeVersionsBaseDir, type NvmNodeCommandOptions } from '../lib/node'
+import tar from 'tar-stream'
+import {
+  getNodeDir,
+  getNodeBinDir,
+  getNodeVersionsBaseDir,
+  type NvmNodeCommandOptions,
+  prepareExecutionEnv,
+} from '../lib/node'
 import { tempDir } from '@pnpm/prepare'
 
 const fetchMock = jest.fn(async (url: string) => {
-  if (url.endsWith('.zip')) {
+  if (url.endsWith('.tar.gz')) {
+    const pack = tar.pack()
+    pack.finalize()
+    return new Response(pack) // pack is a readable stream
+  } else if (url.endsWith('.zip')) {
     // The Windows code path for pnpm's node bootstrapping expects a subdir
     // within the .zip file.
     const pkgName = path.basename(url, '.zip')
@@ -31,8 +42,7 @@ test('check API (placeholder test)', async () => {
   expect(typeof getNodeDir).toBe('function')
 })
 
-// TODO: unskip. The mock function should return a valid tarball
-test.skip('install Node uses node-mirror:release option', async () => {
+test('install Node uses node-mirror:release option', async () => {
   tempDir()
   const configDir = path.resolve('config')
 
@@ -55,8 +65,7 @@ test.skip('install Node uses node-mirror:release option', async () => {
   }
 })
 
-// TODO: unskip. The mock function should return a valid tarball
-test.skip('install an rc version of Node.js', async () => {
+test('install an rc version of Node.js', async () => {
   tempDir()
   const configDir = path.resolve('config')
 
@@ -83,4 +92,20 @@ test('get node version base dir', async () => {
   expect(typeof getNodeVersionsBaseDir).toBe('function')
   const versionDir = getNodeVersionsBaseDir(process.cwd())
   expect(versionDir).toBe(path.resolve(process.cwd(), 'nodejs'))
+})
+
+describe('prepareExecutionEnv', () => {
+  test('should not proceed to fetch Node.js if the process is already running in wanted node version', async () => {
+    fetchMock.mockImplementationOnce(() => {
+      throw new Error('prepareExecutionEnv should not proceed to fetch Node.js when wanted version is running')
+    })
+
+    await prepareExecutionEnv({
+      bin: '',
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, {
+      executionEnv: { nodeVersion: process.versions.node },
+    })
+  })
 })

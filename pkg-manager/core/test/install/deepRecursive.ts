@@ -12,7 +12,7 @@ test('a package with a huge amount of circular dependencies and many peer depend
       fastUnpack: true,
       lockfileOnly: true,
       registries: {
-        '@teambit': 'https://node.bit.dev/',
+        '@teambit': 'https://node-registry.bit.cloud/',
       },
       strictPeerDependencies: false,
     })

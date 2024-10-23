@@ -1,5 +1,15 @@
 # @pnpm/package-store
 
+## 20.4.1
+
+### Patch Changes
+
+- Updated dependencies [db7ff76]
+  - @pnpm/store.cafs@4.0.1
+  - @pnpm/package-requester@25.2.9
+  - @pnpm/create-cafs-store@7.0.10
+  - @pnpm/worker@1.0.12
+
 ## 20.4.0
 
 ### Minor Changes

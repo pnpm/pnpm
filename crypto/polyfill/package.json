@@ -1,0 +1,38 @@
+{
+  "name": "@pnpm/crypto.polyfill",
+  "version": "0.0.0",
+  "description": "Polyfill for functions in the crypto library",
+  "funding": "https://opencollective.com/pnpm",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "engines": {
+    "node": ">=18.12"
+  },
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "pnpm run compile",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/crypto/polyfill",
+  "keywords": [
+    "pnpm9",
+    "pnpm",
+    "crypto"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/crypto/polyfill#readme",
+  "devDependencies": {
+    "@pnpm/crypto.polyfill": "workspace:*"
+  }
+}

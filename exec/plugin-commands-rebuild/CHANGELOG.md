@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-rebuild
 
+## 12.1.1
+
+### Patch Changes
+
+- Updated dependencies [db7ff76]
+  - @pnpm/store.cafs@4.0.1
+  - @pnpm/worker@1.0.12
+  - @pnpm/store-connection-manager@8.4.1
+  - @pnpm/cli-utils@4.0.6
+  - @pnpm/config@21.8.4
+  - @pnpm/lifecycle@17.1.5
+  - @pnpm/link-bins@10.0.11
+
 ## 12.1.0
 
 ### Minor Changes

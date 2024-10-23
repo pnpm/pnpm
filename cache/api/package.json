@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cache.api",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "API for controlling the cache",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

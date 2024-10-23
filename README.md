@@ -190,6 +190,11 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
+      <td align="center" valign="middle">
+        <a href="https://vite.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://pnpm.io/img/users/vitejs.svg" width="65">
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
