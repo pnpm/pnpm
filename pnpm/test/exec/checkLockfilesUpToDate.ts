@@ -104,6 +104,8 @@ describe('single project workspace', () => {
   })
 
   test.todo('no dependencies')
+
+  test.todo('should not prevent nested `pnpm run` after having mutated the manifests')
 })
 
 describe('multi-project workspace', () => {
