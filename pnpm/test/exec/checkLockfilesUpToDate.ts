@@ -103,7 +103,46 @@ describe('single project workspace', () => {
     }
   })
 
-  test.todo('no dependencies')
+  test('no dependencies', async () => {
+    const manifest: ProjectManifest = {
+      name: 'root',
+      private: true,
+      scripts: {
+        start: 'echo hello from script',
+        'check-env:linux': 'echo pnpm_run_skip_deps_check is $pnpm_run_skip_deps_check',
+      },
+    }
+
+    prepare(manifest)
+
+    const cacheDir = path.resolve('cache')
+    const config = [
+      CHECK_DEPS_BEFORE_RUN_SCRIPTS,
+      `--config.cache-dir=${cacheDir}`,
+    ]
+
+    // attempting to execute a script without the lockfile should fail
+    {
+      const { status, stdout } = execPnpmSync([...config, 'start'])
+      expect(status).not.toBe(0)
+      expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND')
+    }
+
+    await execPnpm([...config, 'install'])
+
+    // installing dependencies on a single package workspace should not create a packages list cache
+    {
+      const packagesList = await loadPackagesList({ cacheDir, workspaceDir: process.cwd() })
+      expect(packagesList).toBeUndefined()
+    }
+
+    // should be able to execute a script after the lockfile has been created
+    {
+      const { status, stdout } = execPnpmSync([...config, 'start'])
+      expect(status).toBe(0)
+      expect(stdout.toString()).toContain('hello from script')
+    }
+  })
 
   test.todo('should not prevent nested `pnpm run` after having mutated the manifests')
 })
