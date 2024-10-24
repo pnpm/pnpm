@@ -288,6 +288,12 @@ describe('multi-project workspace', () => {
       expect(status).not.toBe(0)
       expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
     }
+    // attempting to execute a script recursively without installing dependencies should fail
+    {
+      const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
+      expect(status).not.toBe(0)
+      expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    }
     // attempting to execute a script with filter without installing dependencies should fail
     {
       const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
