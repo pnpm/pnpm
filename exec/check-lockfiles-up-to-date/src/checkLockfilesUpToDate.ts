@@ -37,6 +37,7 @@ import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { loadPackagesList, updatePackagesList } from '@pnpm/workspace.packages-list-cache'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { assertLockfilesEqual } from './assertLockfilesEqual'
+import { removeUndefinedFromObject } from './removeUndefinedFromObject'
 import { statManifestFile } from './statManifestFile'
 
 export type CheckLockfilesUpToDateOptions = Pick<Config,
@@ -84,7 +85,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       })
     }
 
-    if (!equals(packagesList.catalogs ?? {}, catalogs ?? {})) {
+    if (!equals(removeUndefinedFromObject(packagesList.catalogs), removeUndefinedFromObject(catalogs))) {
       throw new PnpmError('RUN_CHECK_DEPS_OUTDATED', 'Catalogs cache outdated', {
         hint: 'Run `pnpm install` to update the catalogs cache',
       })
