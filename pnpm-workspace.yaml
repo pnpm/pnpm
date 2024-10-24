@@ -25,6 +25,7 @@ packages:
   - pkg-manifest/*
   - patching/*
   - pnpm
+  - pnpm/dev
   - tools/*
   - worker
   - pnpm/artifacts/*

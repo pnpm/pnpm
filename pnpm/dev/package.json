@@ -2,5 +2,18 @@
   "name": "pd",
   "version": "1.0.0",
   "bin": "pd.js",
-  "private": true
+  "private": true,
+  "scripts": {
+    "test": "pnpm run _test",
+    "_test": "node pd.js --version"
+  },
+  "dependencies": {
+    "@pnpm/find-workspace-dir": "workspace:*",
+    "@pnpm/workspace.read-manifest": "workspace:*",
+    "@pnpm/workspace.find-packages": "workspace:*",
+    "esbuild": "catalog:"
+  },
+  "devDependencies": {
+    "pd": "workspace:*"
+  }
 }

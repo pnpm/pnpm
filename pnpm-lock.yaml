@@ -5962,6 +5962,25 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  pnpm/dev:
+    dependencies:
+      '@pnpm/find-workspace-dir':
+        specifier: workspace:*
+        version: link:../../workspace/find-workspace-dir
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:*
+        version: link:../../workspace/find-packages
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-manifest
+      esbuild:
+        specifier: 'catalog:'
+        version: 0.19.12
+    devDependencies:
+      pd:
+        specifier: workspace:*
+        version: 'link:'
+
   releasing/plugin-commands-deploy:
     dependencies:
       '@pnpm/catalogs.resolver':
