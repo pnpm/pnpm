@@ -4219,6 +4219,12 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
+      ci-info:
+        specifier: 'catalog:'
+        version: 3.9.0
+      enquirer:
+        specifier: 'catalog:'
+        version: 2.4.1
       is-inner-link:
         specifier: 'catalog:'
         version: 4.0.0
@@ -4316,9 +4322,6 @@ importers:
       '@yarnpkg/core':
         specifier: 'catalog:'
         version: 4.0.5(typanion@3.14.0)
-      ci-info:
-        specifier: 'catalog:'
-        version: 3.9.0
       deep-require-cwd:
         specifier: 'catalog:'
         version: 1.0.0
@@ -4395,9 +4398,6 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -4413,15 +4413,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@zkochan/rimraf':
-        specifier: 'catalog:'
-        version: 3.0.2
       ci-info:
         specifier: 'catalog:'
         version: 3.9.0
-      enquirer:
-        specifier: 'catalog:'
-        version: 2.4.1
       path-absolute:
         specifier: 'catalog:'
         version: 1.0.1
@@ -13879,6 +13873,7 @@ packages:
 
   uid-number@0.0.6:
     resolution: {integrity: sha512-c461FXIljswCuscZn67xq9PpszkPT6RjheWFQTgCyabJrTUozElanb0YEqv2UGgk247YpcJkFBuSGNvBlpXM9w==}
+    deprecated: This package is no longer supported.
 
   umask@1.1.0:
     resolution: {integrity: sha512-lE/rxOhmiScJu9L6RTNVgB/zZbF+vGC0/p6D3xnkAePI2o0sMyFG966iR5Ki50OI/0mNi2yaRnxfLsPmEZF/JA==}

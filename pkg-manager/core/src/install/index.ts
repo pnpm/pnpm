@@ -84,6 +84,8 @@ import {
 } from './extendInstallOptions'
 import { linkPackages } from './link'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
+import { validateModules } from './validateModules'
+import { isCI } from 'ci-info'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -234,14 +236,38 @@ export async function mutateModules (
 
   const installsOnly = allMutationsAreInstalls(projects)
   if (!installsOnly) opts.strictPeerDependencies = false
-  // @ts-expect-error
-  opts['forceNewModules'] = installsOnly
   const rootProjectManifest = opts.allProjects.find(({ rootDir }) => rootDir === opts.lockfileDir)?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
     // so reading its manifest explicitly here.
     await safeReadProjectManifestOnly(opts.lockfileDir)
 
-  const ctx = await getContext(opts)
+  let ctx = await getContext(opts)
+
+  if (!opts.lockfileOnly && ctx.modulesFile != null) {
+    const { purged } = await validateModules(ctx.modulesFile, Object.values(ctx.projects), {
+      forceNewModules: installsOnly,
+      include: opts.include,
+      lockfileDir: opts.lockfileDir,
+      modulesDir: opts.modulesDir ?? 'node_modules',
+      registries: opts.registries,
+      storeDir: opts.storeDir,
+      virtualStoreDir: ctx.virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      confirmModulesPurge: opts.confirmModulesPurge && !isCI,
+
+      forceHoistPattern: opts.forceHoistPattern,
+      hoistPattern: opts.hoistPattern,
+      currentHoistPattern: ctx.currentHoistPattern,
+
+      forcePublicHoistPattern: opts.forcePublicHoistPattern,
+      publicHoistPattern: opts.publicHoistPattern,
+      currentPublicHoistPattern: ctx.currentPublicHoistPattern,
+      global: opts.global,
+    })
+    if (purged) {
+      ctx = await getContext(opts)
+    }
+  }
 
   if (opts.hooks.preResolution) {
     await opts.hooks.preResolution({
