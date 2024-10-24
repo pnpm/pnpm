@@ -300,6 +300,15 @@ describe('multi-project workspace', () => {
       expect(status).not.toBe(0)
       expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
     }
+
+    await execPnpm([...config, 'install'])
+
+    // should be able to execute a script in root after dependencies having been installed
+    {
+      const { status, stdout } = execPnpmSync([...config, 'start'])
+      expect(status).toBe(0)
+      expect(stdout.toString()).toContain('hello from root')
+    }
   })
 
   test.todo('should not prevent nested `pnpm run` after having mutated the manifests')
