@@ -229,7 +229,7 @@ describe('multi-project workspace', () => {
         name: 'root',
         private: true,
         dependencies: {
-          '@pnpm/foo': '=100.0.0',
+          '@pnpm.e2e/foo': '=100.0.0',
         },
         scripts: {
           start: 'echo hello from root',
@@ -239,7 +239,7 @@ describe('multi-project workspace', () => {
         name: 'foo',
         private: true,
         dependencies: {
-          '@pnpm/foo': '=100.0.0',
+          '@pnpm.e2e/foo': '=100.0.0',
         },
         scripts: {
           start: 'echo hello from foo',
@@ -249,7 +249,7 @@ describe('multi-project workspace', () => {
         name: 'bar',
         private: true,
         dependencies: {
-          '@pnpm/foo': '=100.0.0',
+          '@pnpm.e2e/foo': '=100.0.0',
         },
         scripts: {
           start: 'echo hello from bar',
