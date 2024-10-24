@@ -309,6 +309,27 @@ describe('multi-project workspace', () => {
       expect(status).toBe(0)
       expect(stdout.toString()).toContain('hello from root')
     }
+    // should be able to execute a script in a workspace package after dependencies having been installed
+    {
+      const { status, stdout } = execPnpmSync([...config, 'start'], {
+        cwd: projects.foo.dir(),
+      })
+      expect(status).toBe(0)
+      expect(stdout.toString()).toContain('hello from foo')
+    }
+    // should be able to execute a script recursively after dependencies having been installed
+    {
+      const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
+      expect(status).toBe(0)
+      expect(stdout.toString()).toContain('hello from foo')
+      expect(stdout.toString()).toContain('hello from bar')
+    }
+    // should be able to execute a script with filter after dependencies having been installed
+    {
+      const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
+      expect(status).toBe(0)
+      expect(stdout.toString()).toContain('hello from foo')
+    }
   })
 
   test.todo('should not prevent nested `pnpm run` after having mutated the manifests')
