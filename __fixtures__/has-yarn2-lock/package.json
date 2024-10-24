@@ -2,7 +2,7 @@
   "name": "has-yarn2-lock",
   "version": "0.0.0",
   "dependencies": {
-    "minimatch": "^3.0.4",
+    "minimatch": "^3.0.5",
     "rimraf": "2.5.1"
   },
   "devDependencies": {
