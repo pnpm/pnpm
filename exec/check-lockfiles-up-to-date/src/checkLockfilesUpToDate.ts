@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import util from 'util'
 import equals from 'ramda/src/equals'
+import filter from 'ramda/src/filter'
 import once from 'ramda/src/once'
 import { type Config, type OptionsFromRootManifest, getOptionsFromRootManifest } from '@pnpm/config'
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
@@ -37,7 +38,6 @@ import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { loadPackagesList, updatePackagesList } from '@pnpm/workspace.packages-list-cache'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { assertLockfilesEqual } from './assertLockfilesEqual'
-import { removeUndefinedFromObject } from './removeUndefinedFromObject'
 import { statManifestFile } from './statManifestFile'
 
 export type CheckLockfilesUpToDateOptions = Pick<Config,
@@ -85,7 +85,10 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       })
     }
 
-    if (!equals(removeUndefinedFromObject(packagesList.catalogs), removeUndefinedFromObject(catalogs))) {
+    if (!equals(
+      filter(value => !!value, packagesList.catalogs ?? {}),
+      filter(value => !!value, catalogs ?? {})
+    )) {
       throw new PnpmError('RUN_CHECK_DEPS_OUTDATED', 'Catalogs cache outdated', {
         hint: 'Run `pnpm install` to update the catalogs cache',
       })
