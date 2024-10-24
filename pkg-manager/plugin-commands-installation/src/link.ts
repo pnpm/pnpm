@@ -144,6 +144,7 @@ export async function handler (
     await writeProjectManifest(path.join(opts.rootProjectManifestDir, 'package.json'), newManifest)
     await install.handler({
       ...linkOpts,
+      frozenLockfileIfExists: false,
       rootProjectManifest: newManifest,
     })
     return
@@ -185,6 +186,7 @@ export async function handler (
   await writeProjectManifest(path.join(opts.rootProjectManifestDir, 'package.json'), newManifest)
   await install.handler({
     ...linkOpts,
+    frozenLockfileIfExists: false,
     rootProjectManifest: newManifest,
   })
 }
