@@ -81,6 +81,6 @@ test('throws error if pnpm tools dir is corrupt', () => {
     fs.rmSync(path.join(toolDir, 'bin/pnpm.cmd'))
   }
 
-  const { stdout } = execPnpmSync(['help'], { env })
-  expect(stdout.toString()).toContain('Failed to switch pnpm to v9.3.0. Looks like pnpm CLI is missing')
+  const { stderr } = execPnpmSync(['help'], { env })
+  expect(stderr.toString()).toContain('Failed to switch pnpm to v9.3.0. Looks like pnpm CLI is missing')
 })
