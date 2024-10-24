@@ -288,12 +288,12 @@ describe('multi-project workspace', () => {
       expect(status).not.toBe(0)
       expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
     }
-    // // attempting to execute a script with filter without installing dependencies should fail
-    // {
-    //   const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
-    //   expect(status).not.toBe(0)
-    //   expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
-    // }
+    // attempting to execute a script with filter without installing dependencies should fail
+    {
+      const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
+      expect(status).not.toBe(0)
+      expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    }
   })
 
   test.todo('should not prevent nested `pnpm run` after having mutated the manifests')

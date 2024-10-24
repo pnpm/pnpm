@@ -199,6 +199,13 @@ export async function handler (
 ): Promise<string | { exitCode: number } | undefined> {
   let dir: string
   let [scriptName, ...passedThruArgs] = params
+
+  // checkDepsBeforeRunScripts is outside of shouldRunCheck because TypeScript's tagged union
+  // only works when the tag is directly placed in the condition.
+  if (opts.checkDepsBeforeRunScripts && shouldRunCheck(process.env, scriptName)) {
+    await checkLockfilesUpToDate(opts)
+  }
+
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
       return runRecursive(params, opts) as Promise<undefined>
@@ -216,12 +223,6 @@ export async function handler (
   }
   if (opts.fallbackCommandUsed && (scriptName === 't' || scriptName === 'tst')) {
     scriptName = 'test'
-  }
-
-  // checkDepsBeforeRunScripts is outside of shouldRunCheck because TypeScript's tagged union
-  // only works when the tag is directly placed in the condition.
-  if (opts.checkDepsBeforeRunScripts && shouldRunCheck(process.env, scriptName)) {
-    await checkLockfilesUpToDate(opts)
   }
 
   const specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName)
