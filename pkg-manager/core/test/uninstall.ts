@@ -9,8 +9,10 @@ import {
 import { type Lockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { fixtures } from '@pnpm/test-fixtures'
 import { type ProjectRootDir, type PackageManifest } from '@pnpm/types'
 import { sync as readYamlFile } from 'read-yaml-file'
+import symlinkDir from 'symlink-dir'
 import {
   addDependenciesToPackage,
   mutateModules,
@@ -20,6 +22,8 @@ import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import existsSymlink from 'exists-link'
 import { testDefaults } from './utils'
+
+const f = fixtures(__dirname)
 
 test('uninstall package with no dependencies', async () => {
   const project = prepareEmpty()
@@ -181,6 +185,26 @@ test('uninstall package with its bin files', async () => {
   expect(fs.existsSync(path.resolve('node_modules', '.bin', 'sh-hello-world'))).toBeFalsy()
   expect(fs.existsSync(path.resolve('node_modules', '.bin', 'sh-hello-world.cmd'))).toBeFalsy()
   expect(fs.existsSync(path.resolve('node_modules', '.bin', 'sh-hello-world.ps1'))).toBeFalsy()
+})
+
+test('relative link is uninstalled', async () => {
+  const project = prepareEmpty()
+  const opts = testDefaults({ manifest: {}, dir: process.cwd() })
+
+  const linkedPkgName = 'hello-world-js-bin'
+  const linkedPkgPath = path.resolve('..', linkedPkgName)
+
+  f.copy(linkedPkgName, linkedPkgPath)
+  symlinkDir.sync(linkedPkgPath, path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin'))
+  project.has('@pnpm.e2e/hello-world-js-bin')
+  await mutateModulesInSingleProject({
+    dependencyNames: ['@pnpm.e2e/hello-world-js-bin'],
+    manifest: {},
+    mutation: 'uninstallSome',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, opts)
+
+  project.hasNot('@pnpm.e2e/hello-world-js-bin')
 })
 
 test('pendingBuilds gets updated after uninstall', async () => {
