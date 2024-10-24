@@ -93,12 +93,14 @@ export interface ChildProcess {
 export function execPnpmSync (
   args: string[],
   opts?: {
-    env: Record<string, string>
+    cwd?: string
+    env?: Record<string, string>
     stdio?: StdioOptions
     timeout?: number
   }
 ): ChildProcess {
   const execResult = crossSpawn.sync(process.execPath, [pnpmBinLocation, ...args], {
+    cwd: opts?.cwd,
     env: {
       ...createEnv(),
       ...opts?.env,
