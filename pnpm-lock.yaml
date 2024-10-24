@@ -5054,6 +5054,9 @@ importers:
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../../workspace/pkgs-graph
+      '@pnpm/write-project-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/write-project-manifest
       '@yarnpkg/core':
         specifier: 'catalog:'
         version: 4.0.5(typanion@3.14.0)
@@ -5093,9 +5096,6 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 3.1.0
-      path-absolute:
-        specifier: 'catalog:'
-        version: 1.0.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'

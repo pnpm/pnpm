@@ -1,14 +1,13 @@
-import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
+import path from 'path'
+import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
-import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { mutateModulesInSingleProject } from '@pnpm/core'
-import { type ProjectRootDir } from '@pnpm/types'
+import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import renderHelp from 'render-help'
-import { cliOptionsTypes, rcOptionsTypes } from './install'
-import { recursive } from './recursive'
+import * as install from './install'
 
-export { cliOptionsTypes, rcOptionsTypes }
+export const cliOptionsTypes = install.cliOptionsTypes
+
+export const rcOptionsTypes = install.rcOptionsTypes
 
 export const commandNames = ['unlink', 'dislink']
 
@@ -41,57 +40,25 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 }
 
 export async function handler (
-  opts: CreateStoreControllerOptions &
-  Pick<Config,
-  | 'allProjects'
-  | 'allProjectsGraph'
-  | 'bail'
-  | 'bin'
-  | 'engineStrict'
-  | 'hooks'
-  | 'linkWorkspacePackages'
-  | 'saveWorkspaceProtocol'
-  | 'selectedProjectsGraph'
-  | 'rawLocalConfig'
-  | 'registries'
-  | 'rootProjectManifest'
-  | 'rootProjectManifestDir'
-  | 'pnpmfile'
-  | 'workspaceDir'
-  > & {
-    recursive?: boolean
-  },
+  opts: install.InstallCommandOptions,
   params: string[]
-): Promise<void> {
-  if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
-    await recursive(opts.allProjects, params, {
-      ...opts,
-      allProjectsGraph: opts.allProjectsGraph!,
-      selectedProjectsGraph: opts.selectedProjectsGraph,
-      workspaceDir: opts.workspaceDir,
-    }, 'unlink')
-    return
-  }
-  const store = await createOrConnectStoreController(opts)
-  const unlinkOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
-    globalBin: opts.bin,
-    storeController: store.ctrl,
-    storeDir: store.dir,
-  })
+): Promise<undefined | string> {
+  if (!opts.rootProjectManifest?.pnpm?.overrides) return 'Nothing to unlink'
 
   if (!params || (params.length === 0)) {
-    await mutateModulesInSingleProject({
-      dependencyNames: params,
-      manifest: await readProjectManifestOnly(opts.dir, opts),
-      mutation: 'unlinkSome',
-      rootDir: opts.dir as ProjectRootDir,
-    }, unlinkOpts)
-    return
+    for (const selector in opts.rootProjectManifest.pnpm.overrides) {
+      if (opts.rootProjectManifest.pnpm.overrides[selector].startsWith('link:')) {
+        delete opts.rootProjectManifest.pnpm.overrides[selector]
+      }
+    }
+  } else {
+    for (const selector in opts.rootProjectManifest.pnpm.overrides) {
+      if (opts.rootProjectManifest.pnpm.overrides[selector].startsWith('link:') && params.includes(selector)) {
+        delete opts.rootProjectManifest.pnpm.overrides[selector]
+      }
+    }
   }
-  await mutateModulesInSingleProject({
-    manifest: await readProjectManifestOnly(opts.dir, opts),
-    mutation: 'unlink',
-    rootDir: opts.dir as ProjectRootDir,
-  }, unlinkOpts)
+  await writeProjectManifest(path.join(opts.rootProjectManifestDir, 'package.json'), opts.rootProjectManifest)
+  await install.handler(opts)
+  return undefined
 }

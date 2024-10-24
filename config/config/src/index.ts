@@ -260,16 +260,16 @@ export async function getConfig (opts: {
     return undefined
   })()
   pnpmConfig.pnpmHomeDir = getDataDir(process)
+  let globalDirRoot
+  if (pnpmConfig.globalDir) {
+    globalDirRoot = pnpmConfig.globalDir
+  } else {
+    globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
+  }
+  pnpmConfig.globalPkgDir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
   if (cliOptions['global']) {
-    let globalDirRoot
-    if (pnpmConfig.globalDir) {
-      globalDirRoot = pnpmConfig.globalDir
-    } else {
-      globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
-    }
-    pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
-
+    pnpmConfig.dir = pnpmConfig.globalPkgDir
     pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
     if (pnpmConfig.bin) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })
