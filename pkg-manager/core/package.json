@@ -64,6 +64,8 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",
     "@zkochan/rimraf": "catalog:",
+    "ci-info": "catalog:",
+    "enquirer": "catalog:",
     "is-inner-link": "catalog:",
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
