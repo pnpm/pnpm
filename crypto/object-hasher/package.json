@@ -30,11 +30,13 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/crypto/object-hasher#readme",
   "dependencies": {
-    "object-hash": "catalog:"
+    "object-hash": "catalog:",
+    "ramda": "catalog:"
   },
   "devDependencies": {
     "@pnpm/crypto.object-hasher": "workspace:*",
-    "@types/object-hash": "catalog:"
+    "@types/object-hash": "catalog:",
+    "@types/ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

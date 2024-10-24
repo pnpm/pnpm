@@ -6,7 +6,6 @@ import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import {
   restart,
   run,
-  test as testCommand,
 } from '@pnpm/plugin-commands-script-runners'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
@@ -137,14 +136,14 @@ test('test: pass the args to the command that is specified in the build script o
   fs.writeFileSync('args.json', '[]', 'utf8')
   fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  await testCommand.handler({
+  await run.handler({
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
     pnpmHomeDir: '',
     rawConfig: {},
-  }, ['arg', '--flag=true', '--help', '-h'])
+  }, ['test', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
   expect(args).toStrictEqual([['arg', '--flag=true', '--help', '-h']])

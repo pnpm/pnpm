@@ -41,7 +41,7 @@ test('CLI fails when store status finds modified packages', async () => {
       storeDir,
       userConfig: {},
       dlxCacheMaxAge: 0,
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, ['status'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
@@ -94,6 +94,6 @@ test('CLI does not fail when store status does not find modified packages', asyn
     storeDir,
     userConfig: {},
     dlxCacheMaxAge: 0,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['status'])
 })

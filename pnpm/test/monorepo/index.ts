@@ -76,47 +76,6 @@ test('incorrect workspace manifest', async () => {
   expect(status).toBe(1)
 })
 
-test('linking a package inside a monorepo', async () => {
-  const projects = preparePackages([
-    {
-      name: 'project-1',
-      version: '1.0.0',
-    },
-    {
-      name: 'project-2',
-      version: '2.0.0',
-    },
-    {
-      name: 'project-3',
-      version: '3.0.0',
-    },
-    {
-      name: 'project-4',
-      version: '4.0.0',
-    },
-  ])
-
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-
-  process.chdir('project-1')
-
-  await execPnpm(['link', 'project-2'])
-
-  await execPnpm(['link', 'project-3', '--save-dev'])
-
-  await execPnpm(['link', 'project-4', '--save-optional'])
-
-  const { default: pkg } = await import(path.resolve('package.json'))
-
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': '^2.0.0' }) // spec of linked package added to dependencies
-  expect(pkg?.devDependencies).toStrictEqual({ 'project-3': '^3.0.0' }) // spec of linked package added to devDependencies
-  expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
-
-  projects['project-1'].has('project-2')
-  projects['project-1'].has('project-3')
-  projects['project-1'].has('project-4')
-})
-
 test('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies', async () => {
   const projects = preparePackages([
     {
@@ -335,7 +294,7 @@ test('topological order of packages with self-dependencies in monorepo is correc
 
   expect(server1.getLines()).toStrictEqual(['project-2', 'project-3', 'project-1'])
 
-  await execPnpm(['recursive', 'test'])
+  await execPnpm(['-r', 'test'])
 
   expect(server2.getLines()).toStrictEqual(['project-2', 'project-3', 'project-1'])
 })
@@ -400,7 +359,7 @@ test('test-pattern is respected by the test script', async () => {
 
   await execPnpm(['install'])
 
-  await execPnpm(['recursive', 'test', '--filter', '...[origin/main]'])
+  await execPnpm(['--filter', '...[origin/main]', 'test'])
 
   // Expecting only project-2 and project-4 to run since they were changed above.
   expect(server.getLines().sort()).toEqual(['project-2', 'project-4'])

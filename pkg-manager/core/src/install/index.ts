@@ -13,7 +13,7 @@ import {
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
-import * as crypto from '@pnpm/crypto.polyfill'
+import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import {
   calcPatchHashes,
   createOverridesMapFromParsed,
@@ -45,9 +45,7 @@ import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.pre
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/manifest-utils'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
-import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { removeBin } from '@pnpm/remove-bins'
 import {
   getWantedDependencies,
   type DependenciesGraph,
@@ -70,17 +68,13 @@ import {
   type ReadPackageHook,
   type ProjectRootDir,
 } from '@pnpm/types'
-import rimraf from '@zkochan/rimraf'
-import isInnerLink from 'is-inner-link'
 import isSubdir from 'is-subdir'
-import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import mapValues from 'ramda/src/map'
 import clone from 'ramda/src/clone'
 import isEmpty from 'ramda/src/isEmpty'
 import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
-import sortKeys from 'sort-keys'
 import { parseWantedDependencies } from '../parseWantedDependencies'
 import { removeDeps } from '../uninstall/removeDeps'
 import {
@@ -90,6 +84,8 @@ import {
 } from './extendInstallOptions'
 import { linkPackages } from './link'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
+import { validateModules } from './validateModules'
+import { isCI } from 'ci-info'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -134,20 +130,12 @@ export interface UninstallSomeDepsMutation {
   targetDependenciesField?: DependenciesField
 }
 
-export interface UnlinkDepsMutation {
-  mutation: 'unlink'
-}
-
-export interface UnlinkSomeDepsMutation {
-  mutation: 'unlinkSome'
-  dependencyNames: string[]
-}
-
-export type DependenciesMutation = InstallDepsMutation | InstallSomeDepsMutation | UninstallSomeDepsMutation | UnlinkDepsMutation | UnlinkSomeDepsMutation
+export type DependenciesMutation = InstallDepsMutation | InstallSomeDepsMutation | UninstallSomeDepsMutation
 
 type Opts = Omit<InstallOptions, 'allProjects'> & {
   preferredVersions?: PreferredVersions
   pruneDirectDependencies?: boolean
+  binsDir?: string
 } & InstallMutationOptions
 
 export async function install (
@@ -172,6 +160,7 @@ export async function install (
         buildIndex: 0,
         manifest,
         rootDir,
+        binsDir: opts.binsDir,
       }],
     }
   )
@@ -247,14 +236,38 @@ export async function mutateModules (
 
   const installsOnly = allMutationsAreInstalls(projects)
   if (!installsOnly) opts.strictPeerDependencies = false
-  // @ts-expect-error
-  opts['forceNewModules'] = installsOnly
   const rootProjectManifest = opts.allProjects.find(({ rootDir }) => rootDir === opts.lockfileDir)?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
     // so reading its manifest explicitly here.
     await safeReadProjectManifestOnly(opts.lockfileDir)
 
-  const ctx = await getContext(opts)
+  let ctx = await getContext(opts)
+
+  if (!opts.lockfileOnly && ctx.modulesFile != null) {
+    const { purged } = await validateModules(ctx.modulesFile, Object.values(ctx.projects), {
+      forceNewModules: installsOnly,
+      include: opts.include,
+      lockfileDir: opts.lockfileDir,
+      modulesDir: opts.modulesDir ?? 'node_modules',
+      registries: opts.registries,
+      storeDir: opts.storeDir,
+      virtualStoreDir: ctx.virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      confirmModulesPurge: opts.confirmModulesPurge && !isCI,
+
+      forceHoistPattern: opts.forceHoistPattern,
+      hoistPattern: opts.hoistPattern,
+      currentHoistPattern: ctx.currentHoistPattern,
+
+      forcePublicHoistPattern: opts.forcePublicHoistPattern,
+      publicHoistPattern: opts.publicHoistPattern,
+      currentPublicHoistPattern: ctx.currentPublicHoistPattern,
+      global: opts.global,
+    })
+    if (purged) {
+      ctx = await getContext(opts)
+    }
+  }
 
   if (opts.hooks.preResolution) {
     await opts.hooks.preResolution({
@@ -330,7 +343,7 @@ export async function mutateModules (
         }
       )
     }
-    const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : createObjectChecksum(opts.packageExtensions!)
+    const packageExtensionsChecksum = hashObjectNullableWithPrefix(opts.packageExtensions)
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
@@ -569,70 +582,6 @@ Note that in CI environments, this setting is enabled by default.`,
         })
         break
       }
-      case 'unlink': {
-        const packageDirs = await readModulesDir(projectOpts.modulesDir)
-        const externalPackages = await pFilter(
-          packageDirs!,
-          async (packageDir: string) => isExternalLink(ctx.storeDir, projectOpts.modulesDir, packageDir)
-        )
-        const allDeps = getAllDependenciesFromManifest(projectOpts.manifest)
-        const packagesToInstall: string[] = []
-        for (const pkgName of externalPackages) {
-          await rimraf(path.join(projectOpts.modulesDir, pkgName))
-          if (allDeps[pkgName]) {
-            packagesToInstall.push(pkgName)
-          }
-        }
-        if (packagesToInstall.length === 0) {
-          return {
-            updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
-          }
-        }
-
-        // TODO: install only those that were unlinked
-        // but don't update their version specs in package.json
-        await installCase({ ...projectOpts, mutation: 'install' })
-        break
-      }
-      case 'unlinkSome': {
-        if (projectOpts.manifest?.name && opts.globalBin) {
-          await removeBin(path.join(opts.globalBin, projectOpts.manifest?.name))
-        }
-        const packagesToInstall: string[] = []
-        const allDeps = getAllDependenciesFromManifest(projectOpts.manifest)
-        for (const depName of project.dependencyNames) {
-          try {
-            if (!await isExternalLink(ctx.storeDir, projectOpts.modulesDir, depName)) {
-              logger.warn({
-                message: `${depName} is not an external link`,
-                prefix: project.rootDir,
-              })
-              continue
-            }
-          } catch (err: any) { // eslint-disable-line
-            if (err['code'] !== 'ENOENT') throw err
-          }
-          await rimraf(path.join(projectOpts.modulesDir, depName))
-          if (allDeps[depName]) {
-            packagesToInstall.push(depName)
-          }
-        }
-        if (packagesToInstall.length === 0) {
-          return {
-            updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
-          }
-        }
-
-        // TODO: install only those that were unlinked
-        // but don't update their version specs in package.json
-        await installSome({
-          ...projectOpts,
-          dependencySelectors: packagesToInstall,
-          mutation: 'installSome',
-          updatePackageManifest: false,
-        })
-        break
-      }
       }
     }
     /* eslint-enable no-await-in-loop */
@@ -744,19 +693,8 @@ Note that in CI environments, this setting is enabled by default.`,
   }
 }
 
-export function createObjectChecksum (obj: Record<string, unknown>): string {
-  const s = JSON.stringify(sortKeys(obj, { deep: true }))
-  return crypto.hash('md5', s, 'hex')
-}
-
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number): boolean {
   return ((Date.now() - new Date(prunedAt).valueOf()) / (1000 * 60)) > maxAgeInMinutes
-}
-
-async function isExternalLink (storeDir: string, modules: string, pkgName: string): Promise<boolean> {
-  const link = await isInnerLink(modules, pkgName)
-
-  return !link.isInner
 }
 
 function pkgHasDependencies (manifest: ProjectManifest): boolean {

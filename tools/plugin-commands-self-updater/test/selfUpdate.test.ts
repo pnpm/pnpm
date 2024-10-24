@@ -53,7 +53,7 @@ function prepareOptions (dir: string) {
     pnpmfile: '',
     rawConfig: {},
     cacheDir: path.join(dir, '.cache'),
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     dir: process.cwd(),
     managePackageManagerVersions: false,
   }

@@ -5,14 +5,13 @@ import {
   createCafs,
   getFilePathByModeInCafs,
 } from '@pnpm/store.cafs'
-import type { Cafs, PackageFilesResponse } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFilesResponse, type PackageFiles, type SideEffectsDiff } from '@pnpm/cafs-types'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import {
   type ImportIndexedPackage,
   type ImportIndexedPackageAsync,
   type ImportPackageFunction,
   type ImportPackageFunctionAsync,
-  type PackageFileInfo,
 } from '@pnpm/store-controller-types'
 import memoize from 'mem'
 import pathTemp from 'path-temp'
@@ -86,9 +85,9 @@ function getFlatMap (
   targetEngine?: string
 ): { filesMap: Record<string, string>, isBuilt: boolean } {
   let isBuilt!: boolean
-  let filesIndex!: Record<string, PackageFileInfo>
+  let filesIndex!: PackageFiles
   if (targetEngine && ((filesResponse.sideEffects?.[targetEngine]) != null)) {
-    filesIndex = filesResponse.sideEffects?.[targetEngine]
+    filesIndex = applySideEffectsDiff(filesResponse.filesIndex as PackageFiles, filesResponse.sideEffects?.[targetEngine])
     isBuilt = true
   } else if (!filesResponse.unprocessed) {
     return {
@@ -101,6 +100,16 @@ function getFlatMap (
   }
   const filesMap = mapValues(({ integrity, mode }) => getFilePathByModeInCafs(cafsDir, integrity, mode), filesIndex)
   return { filesMap, isBuilt }
+}
+
+function applySideEffectsDiff (baseFiles: PackageFiles, { added, deleted }: SideEffectsDiff): PackageFiles {
+  const filesWithSideEffects: PackageFiles = { ...added }
+  for (const fileName in baseFiles) {
+    if (!deleted?.includes(fileName) && !filesWithSideEffects[fileName]) {
+      filesWithSideEffects[fileName] = baseFiles[fileName]
+    }
+  }
+  return filesWithSideEffects
 }
 
 export function createCafsStore (

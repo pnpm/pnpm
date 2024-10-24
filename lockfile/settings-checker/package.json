@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/settings-checker#readme",
   "dependencies": {
-    "@pnpm/crypto.base32-hash": "workspace:*",
+    "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/parse-overrides": "workspace:*",
     "p-map-values": "catalog:",

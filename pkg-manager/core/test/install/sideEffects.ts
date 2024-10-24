@@ -83,13 +83,13 @@ test('using side effects cache', async () => {
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
 
   const cafsDir = path.join(opts.storeDir, 'files')
-  const filesIndexFile = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'))
+  const filesIndexFile = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
   const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
-  expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'generated-by-preinstall.js'])
-  expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'generated-by-postinstall.js'])
-  delete filesIndex.sideEffects![sideEffectsKey]['generated-by-postinstall.js']
+  expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'added', 'generated-by-preinstall.js'])
+  expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'added', 'generated-by-postinstall.js'])
+  delete filesIndex.sideEffects![sideEffectsKey].added?.['generated-by-postinstall.js']
   writeJsonFile.sync(filesIndexFile, filesIndex)
 
   rimraf('node_modules')
@@ -157,7 +157,7 @@ test('uploading errors do not interrupt installation', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
 
   const cafsDir = path.join(opts.storeDir, 'files')
-  const filesIndexFile = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'))
+  const filesIndexFile = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeFalsy()
 })
@@ -175,9 +175,9 @@ test('a postinstall script does not modify the original sources added to the sto
   expect(fs.readFileSync('node_modules/@pnpm/postinstall-modifies-source/empty-file.txt', 'utf8')).toContain('hello')
 
   const cafsDir = path.join(opts.storeDir, 'files')
-  const filesIndexFile = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0'))
+  const filesIndexFile = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0'), '@pnpm/postinstall-modifies-source@1.0.0')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
-  const patchedFileIntegrity = filesIndex.sideEffects?.[`${ENGINE_NAME}-${hashObject({})}`]['empty-file.txt']?.integrity
+  const patchedFileIntegrity = filesIndex.sideEffects?.[`${ENGINE_NAME}-${hashObject({})}`].added?.['empty-file.txt']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
   const originalFileIntegrity = filesIndex.files['empty-file.txt'].integrity
   expect(originalFileIntegrity).toBeTruthy()
@@ -198,12 +198,12 @@ test('a corrupted side-effects cache is ignored', async () => {
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
 
   const cafsDir = path.join(opts.storeDir, 'files')
-  const filesIndexFile = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'))
+  const filesIndexFile = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
   const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
-  expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'generated-by-preinstall.js'])
-  const sideEffectFileStat = filesIndex.sideEffects![sideEffectsKey]['generated-by-preinstall.js']
+  expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'added', 'generated-by-preinstall.js'])
+  const sideEffectFileStat = filesIndex.sideEffects![sideEffectsKey].added!['generated-by-preinstall.js']
   const sideEffectFile = getFilePathByModeInCafs(cafsDir, sideEffectFileStat.integrity, sideEffectFileStat.mode)
   expect(fs.existsSync(sideEffectFile)).toBeTruthy()
   rimraf(sideEffectFile) // we remove the side effect file to break the store

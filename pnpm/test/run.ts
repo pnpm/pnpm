@@ -86,7 +86,7 @@ test('exit code of child process is preserved', async () => {
   expect(result.status).toBe(87)
 })
 
-test('test -r: pass the args to the command that is specified in the build script of a package.json manifest', async () => {
+test('recursive test: pass the args to the command that is specified in the build script of a package.json manifest', async () => {
   preparePackages([{
     name: 'project',
     scripts: {
@@ -94,7 +94,7 @@ test('test -r: pass the args to the command that is specified in the build scrip
     },
   }])
 
-  const result = execPnpmSync(['test', '-r', 'arg', '--', '--flag=true'])
+  const result = execPnpmSync(['-r', 'test', 'arg', '--flag=true'])
 
   expect((result.stdout as Buffer).toString('utf8')).toMatch(/ts-node test "arg" "--flag=true"/)
 })

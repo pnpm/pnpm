@@ -28,7 +28,7 @@ test('listing packages', async () => {
       dev: false,
       dir: process.cwd(),
       optional: false,
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, [])
 
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
@@ -44,7 +44,7 @@ is-positive 1.0.0`)
       dir: process.cwd(),
       optional: false,
       production: false,
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, [])
 
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
@@ -58,7 +58,7 @@ is-negative 1.0.0`)
   {
     const output = await list.handler({
       dir: process.cwd(),
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, [])
 
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
@@ -95,7 +95,7 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
   const output = await list.handler({
     dir: process.cwd(),
     lockfileDir: path.resolve('..'),
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, [])
 
   expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
@@ -117,7 +117,7 @@ test.skip('list on a project with skipped optional dependencies', async () => {
     const output = await list.handler({
       depth: 10,
       dir: process.cwd(),
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, [])
 
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
@@ -134,7 +134,7 @@ pkg-with-optional 1.0.0
     const output = await list.handler({
       depth: 10,
       dir: process.cwd(),
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, ['not-compatible-with-any-os'])
 
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
@@ -149,7 +149,7 @@ pkg-with-optional 1.0.0
   {
     const output = await why.handler({
       dir: process.cwd(),
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, ['not-compatible-with-any-os'])
 
     expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
@@ -186,7 +186,7 @@ test('listing packages should not fail on package that has local file directory 
     dev: false,
     dir: pkgDir,
     optional: false,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, [])
 
   expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only

@@ -76,6 +76,9 @@
       "path": "../../pkg-manifest/read-project-manifest"
     },
     {
+      "path": "../../pkg-manifest/write-project-manifest"
+    },
+    {
       "path": "../../resolving/resolver-base"
     },
     {
