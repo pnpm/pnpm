@@ -4,7 +4,8 @@
   "bin": "pd.js",
   "private": true,
   "scripts": {
-    "test": "node pd.js --version"
+    "test": "pnpm run _test",
+    "_test": "node pd.js --version"
   },
   "dependencies": {
     "@pnpm/find-workspace-dir": "workspace:*",
