@@ -1,8 +1,9 @@
 import fs from 'fs'
 import path from 'path'
-import { prepare } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import { loadPackagesList } from '@pnpm/workspace.packages-list-cache'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
 
 const CHECK_DEPS_BEFORE_RUN_SCRIPTS = '--config.check-deps-before-run-scripts=true'
@@ -229,4 +230,6 @@ describe('multi-project workspace', () => {
   test.todo('should check for outdated dependencies before `pnpm run` on one of the package in the workspace')
 
   test.todo('should check for outdated dependencies before recursive run')
+
+  test.todo('should check for outdated catalogs')
 })
