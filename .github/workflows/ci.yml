@@ -59,8 +59,6 @@ jobs:
           # .verdaccio-cache
         # key: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-${{ github.run_id }}
         # restore-keys: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-
-    - name: Check that pd works # This is a pnpm CLI version used during local development that is compiled without type checks
-      run: node pnpm/dev/pd.js --version
     - name: run tests (main)
       timeout-minutes: 60
       if: github.ref == 'refs/heads/main'
