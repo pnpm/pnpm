@@ -152,28 +152,7 @@ export async function handler (
 
   const [pkgPaths, pkgNames] = partition((inp) => isFilespec.test(inp), params)
 
-  if (pkgNames.length > 0) {
-    let globalPkgNames!: string[]
-    if (opts.workspaceDir) {
-      workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, {
-        ...opts,
-        patterns: opts.workspacePackagePatterns,
-      })
-
-      const pkgsFoundInWorkspace = workspacePackagesArr
-        .filter(({ manifest }) => manifest.name && pkgNames.includes(manifest.name))
-      pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.rootDir))
-
-      if ((pkgsFoundInWorkspace.length > 0) && !linkOpts.targetDependenciesField) {
-        linkOpts.targetDependenciesField = 'dependencies'
-      }
-
-      globalPkgNames = pkgNames.filter((pkgName) => !pkgsFoundInWorkspace.some((pkgFromWorkspace) => pkgFromWorkspace.manifest.name === pkgName))
-    } else {
-      globalPkgNames = pkgNames
-    }
-    globalPkgNames.forEach((pkgName) => pkgPaths.push(path.join(opts.globalDirPrefix, 'node_modules', pkgName)))
-  }
+  pkgNames.forEach((pkgName) => pkgPaths.push(path.join(opts.globalDirPrefix, 'node_modules', pkgName)))
 
   const newManifest = opts.rootProjectManifest ?? {}
   await Promise.all(
