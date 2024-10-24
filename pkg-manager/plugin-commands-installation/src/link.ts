@@ -37,7 +37,7 @@ type LinkOpts = Pick<Config,
 | 'workspaceDir'
 | 'workspacePackagePatterns'
 | 'sharedWorkspaceLockfile'
-| 'globalDirPrefix'
+| 'globalPkgDir'
 > & Partial<Pick<Config, 'linkWorkspacePackages'>> & install.InstallCommandOptions
 
 export const rcOptionsTypes = cliOptionsTypes
@@ -68,21 +68,13 @@ export function help (): string {
       {
         title: 'Options',
 
-        list: [
-          ...UNIVERSAL_OPTIONS,
-          {
-            description: 'Link package to/from global node_modules',
-            name: '--global',
-            shortAlias: '-g',
-          },
-        ],
+        list: UNIVERSAL_OPTIONS,
       },
     ],
     url: docsUrl('link'),
     usages: [
-      'pnpm link <dir>',
-      'pnpm link --global (in package dir)',
-      'pnpm link --global <pkg>',
+      'pnpm link <dir|pkg name>',
+      'pnpm link',
     ],
   })
 }
@@ -152,7 +144,7 @@ export async function handler (
 
   const [pkgPaths, pkgNames] = partition((inp) => isFilespec.test(inp), params)
 
-  pkgNames.forEach((pkgName) => pkgPaths.push(path.join(opts.globalDirPrefix, 'node_modules', pkgName)))
+  pkgNames.forEach((pkgName) => pkgPaths.push(path.join(opts.globalPkgDir, 'node_modules', pkgName)))
 
   const newManifest = opts.rootProjectManifest ?? {}
   await Promise.all(

@@ -266,10 +266,10 @@ export async function getConfig (opts: {
   } else {
     globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
   }
-  pnpmConfig.globalDirPrefix = path.join(globalDirRoot, LAYOUT_VERSION.toString())
+  pnpmConfig.globalPkgDir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
   if (cliOptions['global']) {
-    pnpmConfig.dir = pnpmConfig.globalDirPrefix
+    pnpmConfig.dir = pnpmConfig.globalPkgDir
     pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
     if (pnpmConfig.bin) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })

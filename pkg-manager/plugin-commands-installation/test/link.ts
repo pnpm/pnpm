@@ -24,12 +24,12 @@ test('linking multiple packages', async () => {
 
   process.chdir('linked-foo')
 
-  console.log('linking linked-foo to global package')
+  // linking linked-foo to global package
   await link.handler({
     ...DEFAULT_OPTS,
     bin: path.join(globalDir, 'bin'),
     dir: globalDir,
-    globalDirPrefix: globalDir,
+    globalPkgDir: globalDir,
     rootProjectManifestDir: globalDir,
   })
 
@@ -39,7 +39,7 @@ test('linking multiple packages', async () => {
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    globalDirPrefix: globalDir,
+    globalPkgDir: globalDir,
     rootProjectManifestDir: process.cwd(),
   }, ['linked-foo', '../linked-bar'])
 
@@ -66,7 +66,7 @@ test('link global bin', async function () {
     ...DEFAULT_OPTS,
     bin: globalBin,
     dir: globalDir,
-    globalDirPrefix: globalDir,
+    globalPkgDir: globalDir,
     rootProjectManifestDir: globalDir,
   })
   process.env[PATH] = oldPath
@@ -96,7 +96,7 @@ test('link a global package to the specified directory', async function () {
     ...DEFAULT_OPTS,
     bin: globalBin,
     dir: globalDir,
-    globalDirPrefix: globalDir,
+    globalPkgDir: globalDir,
     rootProjectManifestDir: globalDir,
   })
 
@@ -109,7 +109,7 @@ test('link a global package to the specified directory', async function () {
     // bin: globalBin,
     dir: projectDir,
     saveProd: true, // @pnpm/config sets this setting to true when global is true. This should probably be changed.
-    globalDirPrefix: globalDir,
+    globalPkgDir: globalDir,
     rootProjectManifest: { dependencies: { 'global-package-with-bin': '0.0.0' } },
     rootProjectManifestDir: projectDir,
   }, ['global-package-with-bin'])
@@ -135,7 +135,7 @@ test('relative link', async () => {
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    globalDirPrefix: '',
+    globalPkgDir: '',
     rootProjectManifest: {
       dependencies: {
         '@pnpm.e2e/hello-world-js-bin': '*',
@@ -170,7 +170,7 @@ test('absolute link', async () => {
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    globalDirPrefix: '',
+    globalPkgDir: '',
     rootProjectManifestDir: process.cwd(),
     rootProjectManifest: {
       dependencies: {
@@ -228,7 +228,7 @@ test('link --production', async () => {
     ...DEFAULT_OPTS,
     cliOptions: { production: true },
     dir: process.cwd(),
-    globalDirPrefix: '',
+    globalPkgDir: '',
     rootProjectManifestDir: process.cwd(),
     rootProjectManifest: targetManifest,
   }, ['../source'])
@@ -245,7 +245,7 @@ test('link fails if nothing is linked', async () => {
     link.handler({
       ...DEFAULT_OPTS,
       dir: '',
-      globalDirPrefix: '',
+      globalPkgDir: '',
     }, [])
   ).rejects.toThrow(/You must provide a parameter/)
 })
@@ -272,7 +272,7 @@ test('logger warns about peer dependencies when linking', async () => {
     ...DEFAULT_OPTS,
     bin: path.join(globalDir, 'bin'),
     dir: globalDir,
-    globalDirPrefix: globalDir,
+    globalPkgDir: globalDir,
     rootProjectManifestDir: globalDir,
   })
 
@@ -282,7 +282,7 @@ test('logger warns about peer dependencies when linking', async () => {
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    globalDirPrefix: globalDir,
+    globalPkgDir: globalDir,
   }, ['linked-with-peer-deps'])
 
   expect(warnMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -310,7 +310,7 @@ test('logger should not warn about peer dependencies when it is an empty object'
 
   await link.handler({
     ...DEFAULT_OPTS,
-    globalDirPrefix: '',
+    globalPkgDir: '',
     bin: path.join(globalDir, 'bin'),
     dir: globalDir,
     rootProjectManifestDir: globalDir,
@@ -321,7 +321,7 @@ test('logger should not warn about peer dependencies when it is an empty object'
 
   await link.handler({
     ...DEFAULT_OPTS,
-    globalDirPrefix: globalDir,
+    globalPkgDir: globalDir,
     dir: process.cwd(),
     rootProjectManifestDir: process.cwd(),
   }, ['linked-with-empty-peer-deps'])
