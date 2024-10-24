@@ -6,15 +6,17 @@ const childProcess = require('child_process')
 const { createRequire } = require('module')
 const { findWorkspacePackagesNoCheck } = require('@pnpm/workspace.find-packages')
 const { findWorkspaceDir } = require('@pnpm/find-workspace-dir')
+const { readWorkspaceManifest } = require('@pnpm/workspace.read-manifest')
 
 const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'package.json'), 'utf8'))
 
 ;(async () => {
   const workspaceDir = await findWorkspaceDir(__dirname)
-  const pkgs = await findWorkspacePackagesNoCheck(workspaceDir)
+  const workspaceManifest = await readWorkspaceManifest(workspaceDir)
+  const pkgs = await findWorkspacePackagesNoCheck(workspaceDir, { patterns: workspaceManifest.packages })
   const localPackages = pkgs.map(pkg => pkg.manifest.name)
-  const dirByPackageName = pkgs.reduce((acc, pkg) => {
-    acc[pkg.manifest.name] = pkg.dir
+  const dirByPackageName = pkgs.reduce((acc, { manifest, rootDirRealPath }) => {
+    acc[manifest.name] = rootDirRealPath
     return acc
   })
 

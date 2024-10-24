@@ -5774,6 +5774,9 @@ importers:
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../workspace/pkgs-graph
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../workspace/read-manifest
       '@pnpm/write-project-manifest':
         specifier: workspace:*
         version: link:../pkg-manifest/write-project-manifest
