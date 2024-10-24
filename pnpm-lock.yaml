@@ -5774,9 +5774,6 @@ importers:
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../workspace/pkgs-graph
-      '@pnpm/workspace.read-manifest':
-        specifier: workspace:*
-        version: link:../workspace/read-manifest
       '@pnpm/write-project-manifest':
         specifier: workspace:*
         version: link:../pkg-manifest/write-project-manifest
@@ -5962,6 +5959,16 @@ importers:
   pnpm/artifacts/win-x64:
     devDependencies:
       '@pnpm/win-x64':
+        specifier: workspace:*
+        version: 'link:'
+
+  pnpm/dev:
+    dependencies:
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-manifest
+    devDependencies:
+      pd:
         specifier: workspace:*
         version: 'link:'
 

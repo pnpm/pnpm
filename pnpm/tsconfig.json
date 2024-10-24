@@ -176,9 +176,6 @@
     },
     {
       "path": "../workspace/pkgs-graph"
-    },
-    {
-      "path": "../workspace/read-manifest"
     }
   ]
 }
