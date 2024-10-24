@@ -223,6 +223,79 @@ describe('single project workspace', () => {
 })
 
 describe('multi-project workspace', () => {
+  test('single dependency', async () => {
+    const manifests: Record<string, ProjectManifest> = {
+      root: {
+        name: 'root',
+        private: true,
+        dependencies: {
+          '@pnpm/foo': '=100.0.0',
+        },
+        scripts: {
+          start: 'echo hello from root',
+        },
+      },
+      foo: {
+        name: 'foo',
+        private: true,
+        dependencies: {
+          '@pnpm/foo': '=100.0.0',
+        },
+        scripts: {
+          start: 'echo hello from foo',
+        },
+      },
+      bar: {
+        name: 'bar',
+        private: true,
+        dependencies: {
+          '@pnpm/foo': '=100.0.0',
+        },
+        scripts: {
+          start: 'echo hello from bar',
+        },
+      },
+    }
+
+    const projects = preparePackages([
+      {
+        location: '.',
+        package: manifests.root,
+      },
+      manifests.foo,
+      manifests.bar,
+    ])
+
+    const cacheDir = path.resolve('cache')
+    const config = [
+      CHECK_DEPS_BEFORE_RUN_SCRIPTS,
+      `--config.cache-dir=${cacheDir}`,
+    ]
+
+    writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+    // attempting to execute a script in root without installing dependencies should fail
+    {
+      const { status, stdout } = execPnpmSync([...config, 'start'])
+      expect(status).not.toBe(0)
+      expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    }
+    // attempting to execute a script in a workspace package without installing dependencies should fail
+    {
+      const { status, stdout } = execPnpmSync([...config, 'start'], {
+        cwd: projects.foo.dir(),
+      })
+      expect(status).not.toBe(0)
+      expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    }
+    // // attempting to execute a script with filter without installing dependencies should fail
+    // {
+    //   const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
+    //   expect(status).not.toBe(0)
+    //   expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    // }
+  })
+
   test.todo('should not prevent nested `pnpm run` after having mutated the manifests')
 
   test.todo('should check for outdated dependencies before `pnpm run` on the root package')
