@@ -53,6 +53,7 @@
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/env.path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.check-lockfiles-up-to-date": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/log.group": "catalog:",
     "@pnpm/package-bins": "workspace:*",

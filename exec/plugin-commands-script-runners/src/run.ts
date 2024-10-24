@@ -11,6 +11,12 @@ import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import {
+  type CheckLockfilesUpToDateOptions,
+  DISABLE_DEPS_CHECK_ENV,
+  checkLockfilesUpToDate,
+  shouldRunCheck,
+} from '@pnpm/exec.check-lockfiles-up-to-date'
+import {
   runLifecycleHook,
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
@@ -158,6 +164,7 @@ export type RunOpts =
   & { recursive?: boolean }
   & Pick<Config,
   | 'bin'
+  | 'checkDepsBeforeRunScripts'
   | 'dir'
   | 'enablePrePostScripts'
   | 'engineStrict'
@@ -181,6 +188,10 @@ export type RunOpts =
     }
     fallbackCommandUsed?: boolean
   }
+  & (
+    | { checkDepsBeforeRunScripts?: false }
+    | { checkDepsBeforeRunScripts: true } & CheckLockfilesUpToDateOptions
+  )
 
 export async function handler (
   opts: RunOpts,
@@ -188,6 +199,13 @@ export async function handler (
 ): Promise<string | { exitCode: number } | undefined> {
   let dir: string
   let [scriptName, ...passedThruArgs] = params
+
+  // checkDepsBeforeRunScripts is outside of shouldRunCheck because TypeScript's tagged union
+  // only works when the tag is directly placed in the condition.
+  if (opts.checkDepsBeforeRunScripts && shouldRunCheck(process.env, scriptName)) {
+    await checkLockfilesUpToDate(opts)
+  }
+
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
       return runRecursive(params, opts) as Promise<undefined>
@@ -250,6 +268,7 @@ so you may run "pnpm -w run ${scriptName}"`,
   const extraEnv = {
     ...opts.extraEnv,
     ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
+    ...opts.checkDepsBeforeRunScripts ? DISABLE_DEPS_CHECK_ENV : undefined,
   }
 
   const lifecycleOpts: RunLifecycleHookOptions = {
