@@ -35,7 +35,7 @@ export function calcDepState<T extends string> (
     result += `;deps=${hashObjectWithoutSorting(depStateObj)}`
   }
   if (opts.patchFileHash) {
-    result += `;patch:${opts.patchFileHash}`
+    result += `;patch=${opts.patchFileHash}`
   }
   return result
 }
