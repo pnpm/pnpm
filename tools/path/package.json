@@ -27,12 +27,14 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/tools/path#readme",
-  "dependencies": {},
   "devDependencies": {
     "@pnpm/tools.path": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

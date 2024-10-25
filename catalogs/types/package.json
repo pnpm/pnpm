@@ -34,5 +34,8 @@
   },
   "devDependencies": {
     "@pnpm/catalogs.types": "workspace:*"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

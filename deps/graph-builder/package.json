@@ -53,5 +53,8 @@
     "@pnpm/types": "workspace:*",
     "path-exists": "catalog:",
     "ramda": "catalog:"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

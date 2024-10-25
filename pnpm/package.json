@@ -184,5 +184,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./package.json"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

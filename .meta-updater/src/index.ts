@@ -319,6 +319,13 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
     delete manifest.dependencies['@types/ramda']
   }
+  if (scripts.test) {
+    Object.assign(manifest, {
+      jest: {
+        preset: '@pnpm/jest-config',
+      },
+    })
+  }
   return {
     ...manifest,
     bugs: {

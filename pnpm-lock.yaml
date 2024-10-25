@@ -711,18 +711,15 @@ importers:
       '@pnpm/eslint-config':
         specifier: workspace:*
         version: link:__utils__/eslint-config
+      '@pnpm/jest-config':
+        specifier: workspace:*
+        version: link:__utils__/jest-config
       '@pnpm/meta-updater':
         specifier: 'catalog:'
         version: 2.0.3
-      '@pnpm/registry-mock':
-        specifier: 'catalog:'
-        version: 3.43.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/tsconfig':
         specifier: workspace:*
         version: link:__utils__/tsconfig
-      '@pnpm/worker':
-        specifier: workspace:*
-        version: link:worker
       '@types/jest':
         specifier: ^29.5.12
         version: 29.5.12
@@ -774,9 +771,6 @@ importers:
       typescript:
         specifier: 5.5.4
         version: 5.5.4
-      verdaccio:
-        specifier: 5.20.1
-        version: 5.20.1(encoding@0.1.13)(typanion@3.14.0)
 
   .meta-updater:
     dependencies:
@@ -939,6 +933,22 @@ importers:
         version: 9.2.2
     devDependencies:
       '@pnpm/get-release-text':
+        specifier: workspace:*
+        version: 'link:'
+
+  __utils__/jest-config:
+    dependencies:
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 3.43.0(encoding@0.1.13)(typanion@3.14.0)
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:../../worker
+      tree-kill:
+        specifier: 'catalog:'
+        version: 1.2.2
+    devDependencies:
+      '@pnpm/jest-config':
         specifier: workspace:*
         version: 'link:'
 
@@ -5950,6 +5960,25 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  pnpm/dev:
+    dependencies:
+      '@pnpm/find-workspace-dir':
+        specifier: workspace:*
+        version: link:../../workspace/find-workspace-dir
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:*
+        version: link:../../workspace/find-packages
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-manifest
+      esbuild:
+        specifier: 'catalog:'
+        version: 0.19.12
+    devDependencies:
+      pd:
+        specifier: workspace:*
+        version: 'link:'
+
   releasing/plugin-commands-deploy:
     dependencies:
       '@pnpm/catalogs.resolver':
@@ -10661,6 +10690,7 @@ packages:
   eslint@8.57.0:
     resolution: {integrity: sha512-dZ6+mexnaTIbSBZWgou51U6OmzIhYM2VcNdtiTtI7qPNZm35Akpr0f6vtw3w1Kmn5PYo+tZVfh13WrhpS6oLqQ==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
 
   esm@3.2.25:

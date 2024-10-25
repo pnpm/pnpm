@@ -33,9 +33,9 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/dependencies-hierarchy#readme",
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
@@ -58,5 +58,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

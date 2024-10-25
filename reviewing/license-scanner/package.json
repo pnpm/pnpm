@@ -36,11 +36,11 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.walker": "workspace:*",
-    "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
@@ -61,5 +61,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

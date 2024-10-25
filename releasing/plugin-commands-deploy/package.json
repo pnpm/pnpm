@@ -58,5 +58,8 @@
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.1.0"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

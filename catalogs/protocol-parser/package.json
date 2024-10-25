@@ -35,5 +35,8 @@
   },
   "devDependencies": {
     "@pnpm/catalogs.protocol-parser": "workspace:*"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

@@ -46,5 +46,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }
