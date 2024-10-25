@@ -36,8 +36,8 @@
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/get-context": "workspace:*",
-    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -57,5 +57,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

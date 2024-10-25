@@ -39,9 +39,9 @@
     "write-yaml-file": "catalog:"
   },
   "dependencies": {
+    "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/types": "workspace:*",
     "p-map-values": "catalog:",
     "ramda": "catalog:"
@@ -49,5 +49,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

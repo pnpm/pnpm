@@ -34,5 +34,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/crypto/polyfill#readme",
   "devDependencies": {
     "@pnpm/crypto.polyfill": "workspace:*"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

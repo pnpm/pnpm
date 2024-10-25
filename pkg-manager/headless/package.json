@@ -65,6 +65,9 @@
     "prepareFixtures": "git clean -fdx test/fixtures && rm -rf \"test/fixtures/*/pnpm-lock.yaml\" && registry-mock prepare && concurrently --success=first --kill-others registry-mock \"pnpm run runPrepareFixtures\"",
     "compile": "tsc --build && pnpm run lint --fix"
   },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  },
   "dependencies": {
     "@pnpm/build-modules": "workspace:*",
     "@pnpm/builder.policy": "catalog:",

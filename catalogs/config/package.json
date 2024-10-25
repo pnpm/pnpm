@@ -40,5 +40,8 @@
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/workspace.read-manifest": "workspace:*"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

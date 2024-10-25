@@ -52,9 +52,9 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/git-resolver": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
+    "@pnpm/lockfile.merger": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/lockfile.merger": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
     "@zkochan/rimraf": "catalog:",
@@ -70,5 +70,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

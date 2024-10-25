@@ -49,5 +49,8 @@
   "keywords": [
     "pnpm9"
   ],
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/completion/plugin-commands-completion#readme"
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/completion/plugin-commands-completion#readme",
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
 }

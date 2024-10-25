@@ -32,5 +32,8 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/dedupe.types": "workspace:*"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }
