@@ -723,9 +723,6 @@ importers:
       '@pnpm/tsconfig':
         specifier: workspace:*
         version: link:__utils__/tsconfig
-      '@pnpm/worker':
-        specifier: workspace:*
-        version: link:worker
       '@types/jest':
         specifier: ^29.5.12
         version: 29.5.12
@@ -777,9 +774,6 @@ importers:
       typescript:
         specifier: 5.5.4
         version: 5.5.4
-      verdaccio:
-        specifier: 5.20.1
-        version: 5.20.1(encoding@0.1.13)(typanion@3.14.0)
 
   .meta-updater:
     dependencies:
@@ -950,6 +944,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 3.43.0(encoding@0.1.13)(typanion@3.14.0)
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:../../worker
       tree-kill:
         specifier: 'catalog:'
         version: 1.2.2
