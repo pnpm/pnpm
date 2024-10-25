@@ -4,7 +4,7 @@ import path from 'path'
 import { readProjectManifest, tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import tempy from 'tempy'
 
-const fixtures = path.join(__dirname, '../fixtures')
+const fixtures = path.join(__dirname, '../__fixtures__')
 
 test('readProjectManifest()', async () => {
   expect(
