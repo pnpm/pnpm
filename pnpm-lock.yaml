@@ -714,6 +714,9 @@ importers:
       '@pnpm/eslint-config':
         specifier: workspace:*
         version: link:__utils__/eslint-config
+      '@pnpm/jest-config':
+        specifier: workspace:*
+        version: link:__utils__/jest-config
       '@pnpm/meta-updater':
         specifier: 'catalog:'
         version: 2.0.3
@@ -942,7 +945,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  __utils__/jest-global:
+  __utils__/jest-config:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
@@ -950,6 +953,10 @@ importers:
       tree-kill:
         specifier: 'catalog:'
         version: 1.2.2
+    devDependencies:
+      '@pnpm/jest-config':
+        specifier: workspace:*
+        version: 'link:'
 
   __utils__/prepare:
     dependencies:

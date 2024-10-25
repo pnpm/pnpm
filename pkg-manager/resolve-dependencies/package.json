@@ -35,16 +35,16 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/lockfile.preferred-versions": "workspace:*",
+    "@pnpm/lockfile.pruner": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/lockfile.preferred-versions": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/patching.types": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
-    "@pnpm/lockfile.pruner": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
@@ -81,5 +81,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

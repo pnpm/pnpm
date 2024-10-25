@@ -1,0 +1,13 @@
+{
+  "name": "@pnpm/jest-config",
+  "version": "1.0.0",
+  "private": true,
+  "main": "jest-preset.js",
+  "dependencies": {
+    "@pnpm/registry-mock": "catalog:",
+    "tree-kill": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/jest-config": "workspace:*"
+  }
+}

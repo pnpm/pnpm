@@ -44,5 +44,8 @@
     "@pnpm/fetch": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
     "@types/semver": "catalog:"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

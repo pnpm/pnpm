@@ -52,5 +52,8 @@
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "catalog:",
     "node-fetch": "catalog:"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

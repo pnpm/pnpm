@@ -34,8 +34,8 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
-    "@zkochan/rimraf": "catalog:",
     "@types/ramda": "catalog:",
+    "@zkochan/rimraf": "catalog:",
     "execa": "catalog:"
   },
   "dependencies": {
@@ -54,5 +54,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

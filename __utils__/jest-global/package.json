@@ -1,7 +1,0 @@
-{
-  "private": true,
-  "dependencies": {
-    "@pnpm/registry-mock": "catalog:",
-    "tree-kill": "catalog:"
-  }
-}
