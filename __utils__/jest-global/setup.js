@@ -1,4 +1,6 @@
 const { start, prepare } = require('@pnpm/registry-mock')
+const { promisify } = require('util')
+const kill = promisify(require('tree-kill'))
 
 module.exports = () => {
   if (process.env.PNPM_REGISTRY_MOCK_PORT == null) return
@@ -22,6 +24,6 @@ module.exports = () => {
   })
   global.killServer = () => {
     killed = true
-    server.kill()
+    return kill(server.pid)
   }
 }

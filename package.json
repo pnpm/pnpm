@@ -38,7 +38,6 @@
     "@commitlint/prompt-cli": "^17.8.1",
     "@pnpm/eslint-config": "workspace:*",
     "@pnpm/meta-updater": "catalog:",
-    "@pnpm/registry-mock": "catalog:",
     "@pnpm/tsconfig": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "@types/jest": "^29.5.12",

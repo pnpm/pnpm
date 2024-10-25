@@ -717,9 +717,6 @@ importers:
       '@pnpm/meta-updater':
         specifier: 'catalog:'
         version: 2.0.3
-      '@pnpm/registry-mock':
-        specifier: 'catalog:'
-        version: 3.43.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/tsconfig':
         specifier: workspace:*
         version: link:__utils__/tsconfig
@@ -944,6 +941,15 @@ importers:
       '@pnpm/get-release-text':
         specifier: workspace:*
         version: 'link:'
+
+  __utils__/jest-global:
+    dependencies:
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 3.43.0(encoding@0.1.13)(typanion@3.14.0)
+      tree-kill:
+        specifier: 'catalog:'
+        version: 1.2.2
 
   __utils__/prepare:
     dependencies:
@@ -10692,6 +10698,7 @@ packages:
   eslint@8.57.0:
     resolution: {integrity: sha512-dZ6+mexnaTIbSBZWgou51U6OmzIhYM2VcNdtiTtI7qPNZm35Akpr0f6vtw3w1Kmn5PYo+tZVfh13WrhpS6oLqQ==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
 
   esm@3.2.25:
