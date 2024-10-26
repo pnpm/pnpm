@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import workerThreads from 'worker_threads'
 import util from 'util'
 import renameOverwrite from 'rename-overwrite'
 import type ssri from 'ssri'
@@ -81,7 +82,7 @@ export function optimisticRenameOverwrite (temp: string, fileDest: string): void
  */
 export function pathTemp (file: string): string {
   const basename = removeSuffix(path.basename(file))
-  return path.join(path.dirname(file), `${basename}${process.pid}`)
+  return path.join(path.dirname(file), `${basename}${process.pid}-${workerThreads.threadId}`)
 }
 
 function removeSuffix (filePath: string): string {
