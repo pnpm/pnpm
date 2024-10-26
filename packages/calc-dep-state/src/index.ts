@@ -32,10 +32,10 @@ export function calcDepState<T extends string> (
   let result = ENGINE_NAME
   if (opts.isBuilt) {
     const depStateObj = calcDepStateObj(depPath, depsGraph, cache, new Set())
-    result += `-${hashObjectWithoutSorting(depStateObj)}`
+    result += `;deps=${hashObjectWithoutSorting(depStateObj)}`
   }
   if (opts.patchFileHash) {
-    result += `-${opts.patchFileHash}`
+    result += `;patch=${opts.patchFileHash}`
   }
   return result
 }
