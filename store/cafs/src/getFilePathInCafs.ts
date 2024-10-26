@@ -39,7 +39,7 @@ export function getIndexFilePathInCafs (
   // 1. Validate that the integrity in the lockfile corresponds to the correct package,
   //    which might not be the case after a poorly resolved Git conflict.
   // 2. Allow the same content to be referenced by different packages or different versions of the same package.
-  return path.join(cafsDir, `${path.join(hex.slice(0, 2), hex.slice(2))}-${pkgId.replace(/[\\/:*?"<>|]/g, '+')}.json`)
+  return path.join(cafsDir, `indices/${path.join(hex.slice(0, 2), hex.slice(2))}-${pkgId.replace(/[\\/:*?"<>|]/g, '+')}.json`)
 }
 
 function contentPathFromIntegrity (
@@ -51,7 +51,7 @@ function contentPathFromIntegrity (
 }
 
 export function contentPathFromHex (fileType: FileType, hex: string): string {
-  const p = path.join(hex.slice(0, 2), hex.slice(2))
+  const p = path.join('files', hex.slice(0, 2), hex.slice(2))
   switch (fileType) {
   case 'exec':
     return `${p}-exec`

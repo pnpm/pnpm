@@ -27,6 +27,7 @@ import {
   type SymlinkAllModulesMessage,
   type TarballExtractMessage,
   type HardLinkDirMessage,
+  type InitStoreMessage,
 } from './types'
 
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
@@ -38,7 +39,14 @@ const cafsStoreCache = new Map<string, Cafs>()
 const cafsLocker = new Map<string, number>()
 
 async function handleMessage (
-  message: TarballExtractMessage | LinkPkgMessage | AddDirToStoreMessage | ReadPkgFromCafsMessage | SymlinkAllModulesMessage | HardLinkDirMessage | false
+  message: TarballExtractMessage |
+    LinkPkgMessage |
+    AddDirToStoreMessage |
+    ReadPkgFromCafsMessage |
+    SymlinkAllModulesMessage |
+    HardLinkDirMessage |
+    InitStoreMessage |
+    false
 ): Promise<void> {
   if (message === false) {
     parentPort!.off('message', handleMessage)
@@ -56,6 +64,10 @@ async function handleMessage (
     }
     case 'add-dir': {
       parentPort!.postMessage(addFilesFromDir(message))
+      break
+    }
+    case 'init-store': {
+      parentPort!.postMessage(initStore(message))
       break
     }
     case 'readPkgFromCafs': {
@@ -157,6 +169,19 @@ interface AddFilesFromDirResult {
     manifest?: DependencyManifest
     requiresBuild: boolean
   }
+}
+
+function initStore ({ storeDir }: InitStoreMessage): { status: string } {
+  const h = '0123456789abcdef'.split('')
+  for (const dir of ['files', 'indices']) {
+    fs.mkdirSync(path.join(storeDir, dir))
+    for (const l1 of h) {
+      for (const l2 of h) {
+        fs.mkdirSync(path.join(storeDir, dir, `${l1}${l2}`))
+      }
+    }
+  }
+  return { status: 'success' }
 }
 
 function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, files }: AddDirToStoreMessage): AddFilesFromDirResult {

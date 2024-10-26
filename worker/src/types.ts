@@ -5,6 +5,11 @@ export interface PkgNameVersion {
   version?: string
 }
 
+export interface InitStoreMessage {
+  type: 'init-store'
+  storeDir: string
+}
+
 export interface TarballExtractMessage {
   type: 'extract'
   buffer: Buffer

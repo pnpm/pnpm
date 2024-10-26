@@ -1,3 +1,5 @@
+import path from 'path'
+import fs from 'fs'
 import { createCafsStore, createPackageImporterAsync, type CafsLocker } from '@pnpm/create-cafs-store'
 import { type Fetchers } from '@pnpm/fetcher-base'
 import { createPackageRequester } from '@pnpm/package-requester'
@@ -6,7 +8,7 @@ import {
   type ImportIndexedPackageAsync,
   type StoreController,
 } from '@pnpm/store-controller-types'
-import { addFilesFromDir, importPackage } from '@pnpm/worker'
+import { addFilesFromDir, importPackage, initStoreDir } from '@pnpm/worker'
 import { prune } from './prune'
 
 export { type CafsLocker }
@@ -33,6 +35,9 @@ export function createPackageStore (
   }
 ): StoreController {
   const storeDir = initOpts.storeDir
+  if (!fs.existsSync(path.join(storeDir, 'files'))) {
+    initStoreDir(storeDir).catch()
+  }
   const cafs = createCafsStore(storeDir, {
     cafsLocker: initOpts.cafsLocker,
     packageImportMethod: initOpts.packageImportMethod,

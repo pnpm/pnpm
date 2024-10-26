@@ -250,3 +250,24 @@ export async function hardLinkDir (src: string, destDirs: string[]): Promise<voi
     } as HardLinkDirMessage)
   })
 }
+
+export async function initStoreDir (storeDir: string): Promise<void> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<void>((resolve, reject) => {
+    localWorker.once('message', ({ status, error }) => {
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError(error.code ?? 'INIT_CAFS_FAILED', error.message as string))
+        return
+      }
+      resolve()
+    })
+    localWorker.postMessage({
+      type: 'init-store',
+      storeDir,
+    })
+  })
+}

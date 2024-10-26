@@ -121,16 +121,15 @@ export function createCafsStore (
     cafsLocker?: CafsLocker
   }
 ): Cafs {
-  const cafsDir = path.join(storeDir, 'files')
   const baseTempDir = path.join(storeDir, 'tmp')
   const importPackage = createPackageImporter({
     importIndexedPackage: opts?.importPackage,
     packageImportMethod: opts?.packageImportMethod,
-    cafsDir,
+    cafsDir: storeDir,
   })
   return {
-    ...createCafs(cafsDir, opts),
-    cafsDir,
+    ...createCafs(storeDir, opts),
+    cafsDir: storeDir,
     importPackage,
     tempDir: async () => {
       const tmpDir = pathTemp(baseTempDir)
