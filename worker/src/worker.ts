@@ -39,14 +39,15 @@ const cafsStoreCache = new Map<string, Cafs>()
 const cafsLocker = new Map<string, number>()
 
 async function handleMessage (
-  message: TarballExtractMessage |
-    LinkPkgMessage |
-    AddDirToStoreMessage |
-    ReadPkgFromCafsMessage |
-    SymlinkAllModulesMessage |
-    HardLinkDirMessage |
-    InitStoreMessage |
-    false
+  message:
+  | TarballExtractMessage
+  | LinkPkgMessage
+  | AddDirToStoreMessage
+  | ReadPkgFromCafsMessage
+  | SymlinkAllModulesMessage
+  | HardLinkDirMessage
+  | InitStoreMessage
+  | false
 ): Promise<void> {
   if (message === false) {
     parentPort!.off('message', handleMessage)

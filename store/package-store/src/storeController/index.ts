@@ -36,7 +36,7 @@ export function createPackageStore (
 ): StoreController {
   const storeDir = initOpts.storeDir
   if (!fs.existsSync(path.join(storeDir, 'files'))) {
-    initStoreDir(storeDir).catch()
+    initStoreDir(storeDir).catch() // eslint-disable-line @typescript-eslint/no-floating-promises
   }
   const cafs = createCafsStore(storeDir, {
     cafsLocker: initOpts.cafsLocker,
