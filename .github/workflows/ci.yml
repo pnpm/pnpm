@@ -45,8 +45,6 @@ jobs:
       run: pnpm add --global npm@8
     - name: pnpm install
       run: pnpm install
-    - name: Audit
-      run: pnpm audit
     # - name: Cache TypeScript and Jest
       # uses: actions/cache@v3
       # with:

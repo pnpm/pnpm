@@ -85,7 +85,7 @@ async function checkPeerDeps (linkCwdDir: string, opts: LinkOpts) {
   if (manifest?.peerDependencies && Object.keys(manifest.peerDependencies).length > 0) {
     const packageName = manifest.name ?? path.basename(linkCwdDir) // Assuming the name property exists in newManifest
     const peerDeps = Object.entries(manifest.peerDependencies)
-      .map(([key, value]) => `  - ${key}@${value}`)
+      .map(([key, value]) => `  - ${key}@${String(value)}`)
       .join(', ')
 
     logger.warn({
