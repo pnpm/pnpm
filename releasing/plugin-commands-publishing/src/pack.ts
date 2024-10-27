@@ -15,6 +15,8 @@ import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import tar from 'tar-stream'
 import { runScriptsIfPresent } from './publish'
+import { globalInfo } from '@pnpm/logger'
+import chalk from 'chalk'
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
 const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: { cwd: string }) => Promise<string[]>
@@ -111,6 +113,8 @@ export async function handler (
       [path.join(dir, 'package.json')]: publishManifest as Record<string, unknown>,
     },
   })
+  // display order by name
+  globalInfo(`${chalk.blueBright('Tarball Contents')}\n${files.sort().join('\n')}`)
   const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   // cspell:disable-next-line
   if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(\..+)?/i.test(file))) {
@@ -138,10 +142,13 @@ export async function handler (
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['postpack'], entryManifest)
   }
+  let packPath
   if (opts.dir !== destDir) {
-    return path.join(destDir, tarballName)
+    packPath = path.join(destDir, tarballName)
+  } else {
+    packPath = path.relative(opts.dir, path.join(dir, tarballName))
   }
-  return path.relative(opts.dir, path.join(dir, tarballName))
+  return `\n${chalk.blueBright('Tarball Details')}\n${packPath}`
 }
 
 function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {

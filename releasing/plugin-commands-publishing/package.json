@@ -73,6 +73,7 @@
     "@pnpm/sort-packages": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
+    "chalk": "catalog:",
     "enquirer": "catalog:",
     "execa": "catalog:",
     "fast-glob": "catalog:",
