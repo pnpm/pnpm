@@ -353,7 +353,7 @@ export async function getPkgInfo (
     >
     const packageManifestFile = packageFileIndex['package.json']
     packageManifestDir = getFilePathByModeInCafs(
-      cafsDir,
+      opts.storeDir,
       packageManifestFile.integrity,
       packageManifestFile.mode
     )
@@ -389,7 +389,7 @@ export async function getPkgInfo (
 
   const licenseInfo = await parseLicense(
     { manifest, files: packageFileIndexInfo },
-    { cafsDir }
+    { cafsDir: opts.storeDir }
   )
 
   const packageInfo = {

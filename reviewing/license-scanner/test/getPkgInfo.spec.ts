@@ -29,6 +29,6 @@ describe('licences', () => {
           virtualStoreDirMaxLength: 120,
         }
       )
-    ).rejects.toThrow(`Failed to find package index file for bogus-package@1.0.0 (at ${path.join('store-dir', 'files', 'b2', '16-bogus-package@1.0.0.json')}), please consider running 'pnpm install'`)
+    ).rejects.toThrow(`Failed to find package index file for bogus-package@1.0.0 (at ${path.join('store-dir', 'index', 'b2', '16-bogus-package@1.0.0.json')}), please consider running 'pnpm install'`)
   })
 })
