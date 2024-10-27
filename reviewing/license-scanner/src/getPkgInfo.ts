@@ -324,8 +324,6 @@ export async function getPkgInfo (
   pkg: PackageInfo,
   opts: GetPackageInfoOptions
 ): Promise<PkgInfo> {
-  const cafsDir = path.join(opts.storeDir, 'files')
-
   // Retrieve file index for the requested package
   const packageResolution = pkgSnapshotToResolution(
     pkg.depPath,
@@ -337,7 +335,7 @@ export async function getPkgInfo (
     packageResolution as Resolution,
     pkg.id,
     {
-      cafsDir,
+      cafsDir: opts.storeDir,
       storeDir: opts.storeDir,
       lockfileDir: opts.dir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
