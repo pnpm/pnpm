@@ -173,14 +173,20 @@ interface AddFilesFromDirResult {
 }
 
 function initStore ({ storeDir }: InitStoreMessage): { status: string } {
-  const h = '0123456789abcdef'.split('')
-  for (const dir of ['files', 'indices']) {
-    fs.mkdirSync(path.join(storeDir, dir))
-    for (const l1 of h) {
-      for (const l2 of h) {
-        fs.mkdirSync(path.join(storeDir, dir, `${l1}${l2}`))
+  fs.mkdirSync(storeDir, { recursive: true })
+  try {
+    const h = '0123456789abcdef'.split('')
+    for (const dir of ['files', 'indices']) {
+      fs.mkdirSync(path.join(storeDir, dir))
+      for (const l1 of h) {
+        for (const l2 of h) {
+          fs.mkdirSync(path.join(storeDir, dir, `${l1}${l2}`))
+        }
       }
     }
+  } catch {
+    // If a parallel process has already started creating the directories in the store,
+    // then we just stop.
   }
   return { status: 'success' }
 }
