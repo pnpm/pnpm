@@ -144,6 +144,12 @@ export async function handler (
     workspacePackages,
   })
 
+  if (opts.cliOptions?.global && !opts.bin) {
+    throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
+      hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
+    })
+  }
+
   const linkCwdDir = opts.cliOptions?.dir && opts.cliOptions?.global ? path.resolve(opts.cliOptions.dir) : cwd
 
   // pnpm link
