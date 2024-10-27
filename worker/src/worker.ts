@@ -175,12 +175,13 @@ interface AddFilesFromDirResult {
 function initStore ({ storeDir }: InitStoreMessage): { status: string } {
   fs.mkdirSync(storeDir, { recursive: true })
   try {
-    const h = '0123456789abcdef'.split('')
-    for (const dir of ['files', 'index']) {
-      fs.mkdirSync(path.join(storeDir, dir))
-      for (const l1 of h) {
-        for (const l2 of h) {
-          fs.mkdirSync(path.join(storeDir, dir, `${l1}${l2}`))
+    const hexChars = '0123456789abcdef'.split('')
+    for (const subDir of ['files', 'index']) {
+      const subDirPath = path.join(storeDir, subDir)
+      fs.mkdirSync(subDirPath)
+      for (const hex1 of hexChars) {
+        for (const hex2 of hexChars) {
+          fs.mkdirSync(path.join(subDirPath, `${hex1}${hex2}`))
         }
       }
     }
