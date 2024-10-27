@@ -107,14 +107,13 @@ export function createPackageRequester (
     concurrency: networkConcurrency,
   })
 
-  const cafsDir = path.join(opts.storeDir, 'files')
-  const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, cafsDir)
+  const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, opts.storeDir)
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs)
   const fetchPackageToStore = fetchToStore.bind(null, {
-    readPkgFromCafs: _readPkgFromCafs.bind(null, cafsDir, opts.verifyStoreIntegrity),
+    readPkgFromCafs: _readPkgFromCafs.bind(null, opts.storeDir, opts.verifyStoreIntegrity),
     fetch,
     fetchingLocker: new Map(),
-    getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, cafsDir),
+    getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, opts.storeDir),
     getIndexFilePathInCafs,
     requestsQueue: Object.assign(requestsQueue, {
       counter: 0,

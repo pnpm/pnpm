@@ -17,7 +17,7 @@ export function createLocalTarballFetcher (): FetchFunction {
     const tarball = resolvePath(opts.lockfileDir, resolution.tarball.slice(5))
     const buffer = gfs.readFileSync(tarball)
     return addFilesFromTarball({
-      cafsDir: cafs.cafsDir,
+      storeDir: cafs.storeDir,
       buffer,
       filesIndexFile: opts.filesIndexFile,
       integrity: resolution.integrity,

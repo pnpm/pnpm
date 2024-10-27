@@ -161,7 +161,7 @@ export function createDownloader (
       }
       return addFilesFromTarball({
         buffer: data,
-        cafsDir: opts.cafs.cafsDir,
+        storeDir: opts.cafs.storeDir,
         readManifest: opts.readManifest,
         integrity: opts.integrity,
         filesIndexFile: opts.filesIndexFile,

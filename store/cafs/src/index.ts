@@ -47,14 +47,14 @@ export interface CafsFunctions {
   getFilePathByModeInCafs: (integrity: string | ssri.IntegrityLike, mode: number) => string
 }
 
-export function createCafs (cafsDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}): CafsFunctions {
-  const _writeBufferToCafs = writeBufferToCafs.bind(null, cafsLocker ?? new Map(), cafsDir)
+export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}): CafsFunctions {
+  const _writeBufferToCafs = writeBufferToCafs.bind(null, cafsLocker ?? new Map(), storeDir)
   const addBuffer = addBufferToCafs.bind(null, _writeBufferToCafs)
   return {
     addFilesFromDir: addFilesFromDir.bind(null, addBuffer),
     addFilesFromTarball: addFilesFromTarball.bind(null, addBuffer, ignoreFile ?? null),
-    getIndexFilePathInCafs: getIndexFilePathInCafs.bind(null, cafsDir),
-    getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, cafsDir),
+    getIndexFilePathInCafs: getIndexFilePathInCafs.bind(null, storeDir),
+    getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, storeDir),
   }
 }
 

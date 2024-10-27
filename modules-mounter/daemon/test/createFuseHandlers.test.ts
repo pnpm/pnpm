@@ -11,7 +11,7 @@ describe('FUSE handlers', () => {
   let handlers: FuseHandlers
   beforeAll(async () => {
     const fixture = path.join(__dirname, '__fixtures__/simple')
-    handlers = await createFuseHandlers(fixture, path.join(fixture, 'store/v3/files'))
+    handlers = await createFuseHandlers(fixture, path.join(fixture, 'store/v3'))
   })
 
   it('readdir', () => {

@@ -72,7 +72,7 @@ export interface AddToStoreResult {
 }
 
 export interface Cafs {
-  cafsDir: string
+  storeDir: string
   addFilesFromDir: (dir: string) => AddToStoreResult
   addFilesFromTarball: (buffer: Buffer) => AddToStoreResult
   getIndexFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string

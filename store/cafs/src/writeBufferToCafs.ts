@@ -8,13 +8,13 @@ import { writeFile } from './writeFile'
 
 export function writeBufferToCafs (
   locker: Map<string, number>,
-  cafsDir: string,
+  storeDir: string,
   buffer: Buffer,
   fileDest: string,
   mode: number | undefined,
   integrity: ssri.IntegrityLike
 ): { checkedAt: number, filePath: string } {
-  fileDest = path.join(cafsDir, fileDest)
+  fileDest = path.join(storeDir, fileDest)
   if (locker.has(fileDest)) {
     return {
       checkedAt: locker.get(fileDest)!,
