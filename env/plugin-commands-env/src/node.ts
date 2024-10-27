@@ -100,7 +100,7 @@ export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommand
     globalInfo(`Fetching Node.js ${opts.useNodeVersion} ...`)
     await fetchNode(fetch, opts.useNodeVersion, versionDir, {
       ...opts,
-      cafsDir: storeDir,
+      storeDir,
       retry: {
         maxTimeout: opts.fetchRetryMaxtimeout,
         minTimeout: opts.fetchRetryMintimeout,

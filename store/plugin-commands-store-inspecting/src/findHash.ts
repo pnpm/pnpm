@@ -48,15 +48,15 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
-  const cafsDir = path.join(storeDir, 'files')
-  const cafsChildrenDirs = fs.readdirSync(cafsDir, { withFileTypes: true }).filter(file => file.isDirectory())
+  const indexDir = path.join(storeDir, 'index')
+  const cafsChildrenDirs = fs.readdirSync(indexDir, { withFileTypes: true }).filter(file => file.isDirectory())
   const indexFiles: string[] = []; const result: FindHashResult[] = []
 
   for (const { name: dirName } of cafsChildrenDirs) {
     const dirIndexFiles = fs
-      .readdirSync(`${cafsDir}/${dirName}`)
+      .readdirSync(`${indexDir}/${dirName}`)
       .filter((fileName) => fileName.includes('.json'))
-      ?.map((fileName) => `${cafsDir}/${dirName}/${fileName}`)
+      ?.map((fileName) => `${indexDir}/${dirName}/${fileName}`)
 
     indexFiles.push(...dirIndexFiles)
   }
@@ -66,7 +66,7 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
 
     for (const [, file] of Object.entries(pkgFilesIndex.files)) {
       if (file?.integrity === hash) {
-        result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(cafsDir, '') })
+        result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
 
         // a package is only found once.
         continue
@@ -78,7 +78,7 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
         if (!added) continue
         for (const file of Object.values(added)) {
           if (file?.integrity === hash) {
-            result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(cafsDir, '') })
+            result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(indexDir, '') })
 
             // a package is only found once.
             continue

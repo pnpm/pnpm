@@ -158,7 +158,7 @@ async function parseLicense (
     | { local: true, files: Record<string, string> }
     | { local: false, files: PackageFiles }
   },
-  opts: { cafsDir: string }
+  opts: { storeDir: string }
 ): Promise<LicenseInfo> {
   let licenseField: unknown = pkg.manifest.license
   if ('licenses' in pkg.manifest) {
@@ -180,7 +180,7 @@ async function parseLicense (
       if (pkg.files.local) {
         licenseContents = await readFile(licensePackageFileInfo as string)
       } else {
-        licenseContents = await readLicenseFileFromCafs(opts.cafsDir, licensePackageFileInfo as PackageFileInfo)
+        licenseContents = await readLicenseFileFromCafs(opts.storeDir, licensePackageFileInfo as PackageFileInfo)
       }
       const licenseContent = licenseContents?.toString('utf-8')
       let name = 'Unknown'
@@ -203,12 +203,12 @@ async function parseLicense (
 
 /**
  * Fetch a file by integrity id from the content-addressable store
- * @param cafsDir the cafs directory
+ * @param storeDir the cafs directory
  * @param opts the options for reading file
  * @returns Promise<Buffer>
  */
-async function readLicenseFileFromCafs (cafsDir: string, { integrity, mode }: PackageFileInfo): Promise<Buffer> {
-  const fileName = getFilePathByModeInCafs(cafsDir, integrity, mode)
+async function readLicenseFileFromCafs (storeDir: string, { integrity, mode }: PackageFileInfo): Promise<Buffer> {
+  const fileName = getFilePathByModeInCafs(storeDir, integrity, mode)
   const fileContents = await readFile(fileName)
   return fileContents
 }
@@ -218,7 +218,6 @@ export type ReadPackageIndexFileResult =
   | { local: true, files: Record<string, string> }
 
 export interface ReadPackageIndexFileOptions {
-  cafsDir: string
   storeDir: string
   lockfileDir: string
   virtualStoreDirMaxLength: number
@@ -257,7 +256,7 @@ export async function readPackageIndexFile (
     const parsedId = parse(id)
     // Retrieve all the index file of all files included in the package
     pkgIndexFilePath = getIndexFilePathInCafs(
-      opts.cafsDir,
+      opts.storeDir,
       packageResolution.integrity as string,
       `${parsedId.name}@${parsedId.version}`
     )
@@ -335,7 +334,6 @@ export async function getPkgInfo (
     packageResolution as Resolution,
     pkg.id,
     {
-      cafsDir: opts.storeDir,
       storeDir: opts.storeDir,
       lockfileDir: opts.dir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
@@ -389,7 +387,7 @@ export async function getPkgInfo (
 
   const licenseInfo = await parseLicense(
     { manifest, files: packageFileIndexInfo },
-    { cafsDir: opts.storeDir }
+    { storeDir: opts.storeDir }
   )
 
   const packageInfo = {

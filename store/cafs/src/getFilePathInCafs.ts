@@ -19,16 +19,16 @@ export const modeIsExecutable = (mode: number): boolean => (mode & 0o111) !== 0
 export type FileType = 'exec' | 'nonexec' | 'index'
 
 export function getFilePathByModeInCafs (
-  cafsDir: string,
+  storeDir: string,
   integrity: string | IntegrityLike,
   mode: number
 ): string {
   const fileType = modeIsExecutable(mode) ? 'exec' : 'nonexec'
-  return path.join(cafsDir, contentPathFromIntegrity(integrity, fileType))
+  return path.join(storeDir, contentPathFromIntegrity(integrity, fileType))
 }
 
 export function getIndexFilePathInCafs (
-  cafsDir: string,
+  storeDir: string,
   integrity: string | IntegrityLike,
   pkgId: string
 ): string {
@@ -39,7 +39,7 @@ export function getIndexFilePathInCafs (
   // 1. Validate that the integrity in the lockfile corresponds to the correct package,
   //    which might not be the case after a poorly resolved Git conflict.
   // 2. Allow the same content to be referenced by different packages or different versions of the same package.
-  return path.join(cafsDir, `index/${path.join(hex.slice(0, 2), hex.slice(2))}-${pkgId.replace(/[\\/:*?"<>|]/g, '+')}.json`)
+  return path.join(storeDir, `index/${path.join(hex.slice(0, 2), hex.slice(2))}-${pkgId.replace(/[\\/:*?"<>|]/g, '+')}.json`)
 }
 
 function contentPathFromIntegrity (

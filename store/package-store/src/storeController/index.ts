@@ -63,7 +63,7 @@ export function createPackageStore (
     fetchPackage: packageRequester.fetchPackageToStore,
     getFilesIndexFilePath: packageRequester.getFilesIndexFilePath,
     importPackage: initOpts.importPackage
-      ? createPackageImporterAsync({ importIndexedPackage: initOpts.importPackage, cafsDir: cafs.cafsDir })
+      ? createPackageImporterAsync({ importIndexedPackage: initOpts.importPackage, storeDir: cafs.storeDir })
       : (targetDir, opts) => importPackage({
         ...opts,
         packageImportMethod: initOpts.packageImportMethod,
@@ -78,7 +78,7 @@ export function createPackageStore (
 
   async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }): Promise<void> {
     await addFilesFromDir({
-      cafsDir: cafs.cafsDir,
+      storeDir: cafs.storeDir,
       dir: builtPkgLocation,
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
       filesIndexFile: opts.filesIndexFile,

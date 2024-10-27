@@ -23,14 +23,14 @@ export function createPackageImporterAsync (
   opts: {
     importIndexedPackage?: ImportIndexedPackageAsync
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-    cafsDir: string
+    storeDir: string
   }
 ): ImportPackageFunctionAsync {
   const cachedImporterCreator = opts.importIndexedPackage
     ? () => opts.importIndexedPackage!
     : memoize(createIndexedPkgImporter)
   const packageImportMethod = opts.packageImportMethod
-  const gfm = getFlatMap.bind(null, opts.cafsDir)
+  const gfm = getFlatMap.bind(null, opts.storeDir)
   return async (to, opts) => {
     const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
     const willBeBuilt = !isBuilt && opts.requiresBuild
@@ -53,14 +53,14 @@ function createPackageImporter (
   opts: {
     importIndexedPackage?: ImportIndexedPackage
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-    cafsDir: string
+    storeDir: string
   }
 ): ImportPackageFunction {
   const cachedImporterCreator = opts.importIndexedPackage
     ? () => opts.importIndexedPackage!
     : memoize(createIndexedPkgImporter)
   const packageImportMethod = opts.packageImportMethod
-  const gfm = getFlatMap.bind(null, opts.cafsDir)
+  const gfm = getFlatMap.bind(null, opts.storeDir)
   return (to, opts) => {
     const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
     const willBeBuilt = !isBuilt && opts.requiresBuild
@@ -80,7 +80,7 @@ function createPackageImporter (
 }
 
 function getFlatMap (
-  cafsDir: string,
+  storeDir: string,
   filesResponse: PackageFilesResponse,
   targetEngine?: string
 ): { filesMap: Record<string, string>, isBuilt: boolean } {
@@ -98,7 +98,7 @@ function getFlatMap (
     filesIndex = filesResponse.filesIndex
     isBuilt = false
   }
-  const filesMap = mapValues(({ integrity, mode }) => getFilePathByModeInCafs(cafsDir, integrity, mode), filesIndex)
+  const filesMap = mapValues(({ integrity, mode }) => getFilePathByModeInCafs(storeDir, integrity, mode), filesIndex)
   return { filesMap, isBuilt }
 }
 
@@ -125,11 +125,11 @@ export function createCafsStore (
   const importPackage = createPackageImporter({
     importIndexedPackage: opts?.importPackage,
     packageImportMethod: opts?.packageImportMethod,
-    cafsDir: storeDir,
+    storeDir,
   })
   return {
     ...createCafs(storeDir, opts),
-    cafsDir: storeDir,
+    storeDir,
     importPackage,
     tempDir: async () => {
       const tmpDir = pathTemp(baseTempDir)

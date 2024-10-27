@@ -1,5 +1,3 @@
-import path from 'path'
-
 import { type Config } from '@pnpm/config'
 import { createResolver } from '@pnpm/client'
 import { type TarballResolution } from '@pnpm/lockfile.types'
@@ -68,7 +66,6 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
-  const cafsDir = path.join(storeDir, 'files')
   const { resolve } = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
@@ -84,7 +81,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
   )
 
   const filesIndexFile = getIndexFilePathInCafs(
-    cafsDir,
+    storeDir,
     (pkgSnapshot.resolution as TarballResolution).integrity!.toString(),
     `${alias}@${pref}`
   )

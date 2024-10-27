@@ -72,7 +72,7 @@ async function handleMessage (
       break
     }
     case 'readPkgFromCafs': {
-      let { cafsDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
+      let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
         pkgFilesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
@@ -94,11 +94,11 @@ async function handleMessage (
         readManifest = true
       }
       if (verifyStoreIntegrity) {
-        verifyResult = checkPkgFilesIntegrity(cafsDir, pkgFilesIndex, readManifest)
+        verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex, readManifest)
       } else {
         verifyResult = {
           passed: true,
-          manifest: readManifest ? readManifestFromStore(cafsDir, pkgFilesIndex) : undefined,
+          manifest: readManifest ? readManifestFromStore(storeDir, pkgFilesIndex) : undefined,
         }
       }
       const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, pkgFilesIndex.files)
@@ -134,7 +134,7 @@ async function handleMessage (
   }
 }
 
-function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile }: TarballExtractMessage) {
+function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile }: TarballExtractMessage) {
   if (integrity) {
     const [, algo, integrityHash] = integrity.match(INTEGRITY_REGEX)!
     // Compensate for the possibility of non-uniform Base64 padding
@@ -153,10 +153,10 @@ function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile }: Tarb
       }
     }
   }
-  if (!cafsCache.has(cafsDir)) {
-    cafsCache.set(cafsDir, createCafs(cafsDir))
+  if (!cafsCache.has(storeDir)) {
+    cafsCache.set(storeDir, createCafs(storeDir))
   }
-  const cafs = cafsCache.get(cafsDir)!
+  const cafs = cafsCache.get(storeDir)!
   const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
@@ -191,11 +191,11 @@ function initStore ({ storeDir }: InitStoreMessage): { status: string } {
   return { status: 'success' }
 }
 
-function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, files }: AddDirToStoreMessage): AddFilesFromDirResult {
-  if (!cafsCache.has(cafsDir)) {
-    cafsCache.set(cafsDir, createCafs(cafsDir))
+function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, files }: AddDirToStoreMessage): AddFilesFromDirResult {
+  if (!cafsCache.has(storeDir)) {
+    cafsCache.set(storeDir, createCafs(storeDir))
   }
-  const cafs = cafsCache.get(cafsDir)!
+  const cafs = cafsCache.get(storeDir)!
   const { filesIndex, manifest } = cafs.addFilesFromDir(dir, {
     files,
     readManifest: true,
