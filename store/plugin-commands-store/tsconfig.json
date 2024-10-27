@@ -37,6 +37,9 @@
       "path": "../../lockfile/utils"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/dependency-path"
     },
     {

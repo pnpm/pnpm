@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs'
+import { STORE_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
 import canLink from 'can-link'
@@ -8,8 +9,6 @@ import pathAbsolute from 'path-absolute'
 import pathTemp from 'path-temp'
 import rootLinkTarget from 'root-link-target'
 import touch from 'touch'
-
-const STORE_VERSION = 'v3'
 
 export function getStorePath (
   {

@@ -876,6 +876,9 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
 
   __utils__/eslint-config:
     dependencies:
@@ -7210,6 +7213,9 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -7427,6 +7433,9 @@ importers:
 
   store/store-path:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error

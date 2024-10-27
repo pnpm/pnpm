@@ -2,18 +2,6 @@
   "name": "@pnpm/assert-store",
   "description": "Utils for testing pnpm store",
   "version": "1.0.91",
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/"
-  },
-  "contributors": [
-    {
-      "name": "Tejasvi Nareddy",
-      "email": "tejunareddy@gmail.com",
-      "url": "https://www.tejunareddy.com"
-    }
-  ],
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -44,6 +32,7 @@
     "@pnpm/store.cafs": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/assert-store": "workspace:*"
+    "@pnpm/assert-store": "workspace:*",
+    "@pnpm/constants": "workspace:*"
   }
 }
