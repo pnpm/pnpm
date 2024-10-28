@@ -148,7 +148,7 @@ export async function getConfig (opts: {
     'ignore-workspace-root-check': false,
     'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
-    'manage-package-manager-versions': false,
+    'manage-package-manager-versions': true,
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
     'dlx-cache-max-age': 24 * 60, // 1 day
     'node-linker': 'isolated',
@@ -157,10 +157,7 @@ export async function getConfig (opts: {
     'package-manager-strict': process.env.COREPACK_ENABLE_STRICT !== '0',
     'package-manager-strict-version': false,
     'prefer-workspace-packages': false,
-    'public-hoist-pattern': [
-      '*eslint*',
-      '*prettier*',
-    ],
+    'public-hoist-pattern': [],
     'recursive-install': true,
     registry: npmDefaults.registry,
     'resolution-mode': 'highest',
@@ -185,7 +182,7 @@ export async function getConfig (opts: {
     'workspace-prefix': opts.workspaceDir,
     'embed-readme': false,
     'registry-supports-time-field': false,
-    'virtual-store-dir-max-length': 120,
+    'virtual-store-dir-max-length': isWindows() ? 60 : 120,
     'peers-suffix-max-length': 1000,
   }
 
@@ -263,16 +260,16 @@ export async function getConfig (opts: {
     return undefined
   })()
   pnpmConfig.pnpmHomeDir = getDataDir(process)
+  let globalDirRoot
+  if (pnpmConfig.globalDir) {
+    globalDirRoot = pnpmConfig.globalDir
+  } else {
+    globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
+  }
+  pnpmConfig.globalPkgDir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
   if (cliOptions['global']) {
-    let globalDirRoot
-    if (pnpmConfig.globalDir) {
-      globalDirRoot = pnpmConfig.globalDir
-    } else {
-      globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
-    }
-    pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
-
+    pnpmConfig.dir = pnpmConfig.globalPkgDir
     pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
     if (pnpmConfig.bin) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })

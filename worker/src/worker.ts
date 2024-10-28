@@ -1,7 +1,7 @@
 import path from 'path'
 import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
-import { type Cafs } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import * as crypto from '@pnpm/crypto.polyfill'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
@@ -10,9 +10,7 @@ import {
   type CafsFunctions,
   checkPkgFilesIntegrity,
   createCafs,
-  type PackageFileInfo,
   type PackageFilesIndex,
-  type SideEffects,
   type FilesIndex,
   optimisticRenameOverwrite,
   readManifestFromStore,
@@ -29,6 +27,7 @@ import {
   type SymlinkAllModulesMessage,
   type TarballExtractMessage,
   type HardLinkDirMessage,
+  type InitStoreMessage,
 } from './types'
 
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
@@ -40,7 +39,15 @@ const cafsStoreCache = new Map<string, Cafs>()
 const cafsLocker = new Map<string, number>()
 
 async function handleMessage (
-  message: TarballExtractMessage | LinkPkgMessage | AddDirToStoreMessage | ReadPkgFromCafsMessage | SymlinkAllModulesMessage | HardLinkDirMessage | false
+  message:
+  | TarballExtractMessage
+  | LinkPkgMessage
+  | AddDirToStoreMessage
+  | ReadPkgFromCafsMessage
+  | SymlinkAllModulesMessage
+  | HardLinkDirMessage
+  | InitStoreMessage
+  | false
 ): Promise<void> {
   if (message === false) {
     parentPort!.off('message', handleMessage)
@@ -60,8 +67,12 @@ async function handleMessage (
       parentPort!.postMessage(addFilesFromDir(message))
       break
     }
+    case 'init-store': {
+      parentPort!.postMessage(initStore(message))
+      break
+    }
     case 'readPkgFromCafs': {
-      let { cafsDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
+      let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
         pkgFilesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
@@ -83,11 +94,11 @@ async function handleMessage (
         readManifest = true
       }
       if (verifyStoreIntegrity) {
-        verifyResult = checkPkgFilesIntegrity(cafsDir, pkgFilesIndex, readManifest)
+        verifyResult = checkPkgFilesIntegrity(storeDir, pkgFilesIndex, readManifest)
       } else {
         verifyResult = {
           passed: true,
-          manifest: readManifest ? readManifestFromStore(cafsDir, pkgFilesIndex) : undefined,
+          manifest: readManifest ? readManifestFromStore(storeDir, pkgFilesIndex) : undefined,
         }
       }
       const requiresBuild = pkgFilesIndex.requiresBuild ?? pkgRequiresBuild(verifyResult.manifest, pkgFilesIndex.files)
@@ -123,7 +134,7 @@ async function handleMessage (
   }
 }
 
-function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile }: TarballExtractMessage) {
+function addTarballToStore ({ buffer, storeDir, integrity, filesIndexFile }: TarballExtractMessage) {
   if (integrity) {
     const [, algo, integrityHash] = integrity.match(INTEGRITY_REGEX)!
     // Compensate for the possibility of non-uniform Base64 padding
@@ -142,10 +153,10 @@ function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile }: Tarb
       }
     }
   }
-  if (!cafsCache.has(cafsDir)) {
-    cafsCache.set(cafsDir, createCafs(cafsDir))
+  if (!cafsCache.has(storeDir)) {
+    cafsCache.set(storeDir, createCafs(storeDir))
   }
-  const cafs = cafsCache.get(cafsDir)!
+  const cafs = cafsCache.get(storeDir)!
   const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   const requiresBuild = writeFilesIndexFile(filesIndexFile, { manifest: manifest ?? {}, files: filesIntegrity })
@@ -161,11 +172,31 @@ interface AddFilesFromDirResult {
   }
 }
 
-function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, files }: AddDirToStoreMessage): AddFilesFromDirResult {
-  if (!cafsCache.has(cafsDir)) {
-    cafsCache.set(cafsDir, createCafs(cafsDir))
+function initStore ({ storeDir }: InitStoreMessage): { status: string } {
+  fs.mkdirSync(storeDir, { recursive: true })
+  try {
+    const hexChars = '0123456789abcdef'.split('')
+    for (const subDir of ['files', 'index']) {
+      const subDirPath = path.join(storeDir, subDir)
+      fs.mkdirSync(subDirPath)
+      for (const hex1 of hexChars) {
+        for (const hex2 of hexChars) {
+          fs.mkdirSync(path.join(subDirPath, `${hex1}${hex2}`))
+        }
+      }
+    }
+  } catch {
+    // If a parallel process has already started creating the directories in the store,
+    // then we just stop.
   }
-  const cafs = cafsCache.get(cafsDir)!
+  return { status: 'success' }
+}
+
+function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, files }: AddDirToStoreMessage): AddFilesFromDirResult {
+  if (!cafsCache.has(storeDir)) {
+    cafsCache.set(storeDir, createCafs(storeDir))
+  }
+  const cafs = cafsCache.get(storeDir)!
   const { filesIndex, manifest } = cafs.addFilesFromDir(dir, {
     files,
     readManifest: true,
@@ -177,10 +208,18 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, f
     try {
       filesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
     } catch {
-      filesIndex = { name: manifest?.name, version: manifest?.version, files: filesIntegrity }
+      // If there is no existing index file, then we cannot store the side effects.
+      return {
+        status: 'success',
+        value: {
+          filesIndex: filesMap,
+          manifest,
+          requiresBuild: pkgRequiresBuild(manifest, filesIntegrity),
+        },
+      }
     }
     filesIndex.sideEffects = filesIndex.sideEffects ?? {}
-    filesIndex.sideEffects[sideEffectsCacheKey] = filesIntegrity
+    filesIndex.sideEffects[sideEffectsCacheKey] = calculateDiff(filesIndex.files, filesIntegrity)
     if (filesIndex.requiresBuild == null) {
       requiresBuild = pkgRequiresBuild(manifest, filesIntegrity)
     } else {
@@ -193,13 +232,37 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, f
   return { status: 'success', value: { filesIndex: filesMap, manifest, requiresBuild } }
 }
 
+function calculateDiff (baseFiles: PackageFiles, sideEffectsFiles: PackageFiles): SideEffectsDiff {
+  const deleted: string[] = []
+  const added: PackageFiles = {}
+  for (const file of new Set([...Object.keys(baseFiles), ...Object.keys(sideEffectsFiles)])) {
+    if (!sideEffectsFiles[file]) {
+      deleted.push(file)
+    } else if (
+      !baseFiles[file] ||
+      baseFiles[file].integrity !== sideEffectsFiles[file].integrity ||
+      baseFiles[file].mode !== sideEffectsFiles[file].mode
+    ) {
+      added[file] = sideEffectsFiles[file]
+    }
+  }
+  const diff: SideEffectsDiff = {}
+  if (deleted.length > 0) {
+    diff.deleted = deleted
+  }
+  if (Object.keys(added).length > 0) {
+    diff.added = added
+  }
+  return diff
+}
+
 interface ProcessFilesIndexResult {
-  filesIntegrity: Record<string, PackageFileInfo>
+  filesIntegrity: PackageFiles
   filesMap: Record<string, string>
 }
 
 function processFilesIndex (filesIndex: FilesIndex): ProcessFilesIndexResult {
-  const filesIntegrity: Record<string, PackageFileInfo> = {}
+  const filesIntegrity: PackageFiles = {}
   const filesMap: Record<string, string> = {}
   for (const [k, { checkedAt, filePath, integrity, mode, size }] of Object.entries(filesIndex)) {
     filesIntegrity[k] = {
@@ -263,7 +326,7 @@ function writeFilesIndexFile (
   filesIndexFile: string,
   { manifest, files, sideEffects }: {
     manifest: Partial<DependencyManifest>
-    files: Record<string, PackageFileInfo>
+    files: PackageFiles
     sideEffects?: SideEffects
   }
 ): boolean {

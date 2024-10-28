@@ -1,11 +1,15 @@
 import { PnpmError } from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, mutateModulesInSingleProject, install } from '@pnpm/core'
+import { hashObject as _hashObject } from '@pnpm/crypto.object-hasher'
 import { type ProjectRootDir, type PackageExtension, type ProjectManifest } from '@pnpm/types'
-import { createObjectChecksum } from '../../lib/install/index'
 import {
   testDefaults,
 } from '../utils'
+
+function hashObject (obj: Record<string, unknown>): string {
+  return `sha256-${_hashObject(obj)}`
+}
 
 test('manifests are extended with fields specified by packageExtensions', async () => {
   const project = prepareEmpty()
@@ -26,7 +30,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
   {
     const lockfile = project.readLockfile()
     expect(lockfile.snapshots['is-positive@1.0.0'].dependencies?.['@pnpm.e2e/bar']).toBe('100.1.0')
-    expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
+    expect(lockfile.packageExtensionsChecksum).toStrictEqual(hashObject({
       'is-positive': {
         dependencies: {
           '@pnpm.e2e/bar': '100.1.0',
@@ -48,7 +52,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
   {
     const lockfile = project.readLockfile()
     expect(lockfile.snapshots['is-positive@1.0.0'].dependencies?.['@pnpm.e2e/foobar']).toBe('100.0.0')
-    expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
+    expect(lockfile.packageExtensionsChecksum).toStrictEqual(hashObject({
       'is-positive': {
         dependencies: {
           '@pnpm.e2e/bar': '100.1.0',
@@ -68,7 +72,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
 
   {
     const lockfile = project.readLockfile()
-    expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
+    expect(lockfile.packageExtensionsChecksum).toStrictEqual(hashObject({
       'is-positive': {
         dependencies: {
           '@pnpm.e2e/bar': '100.1.0',

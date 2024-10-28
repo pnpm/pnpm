@@ -103,7 +103,7 @@ async function prepareGitHostedPkg (
   // the linking of files to the store is in progress.
   return {
     ...await addFilesFromDir({
-      cafsDir: cafs.cafsDir,
+      storeDir: cafs.storeDir,
       dir: pkgDir,
       files,
       filesIndexFile,

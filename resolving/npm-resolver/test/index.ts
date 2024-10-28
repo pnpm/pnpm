@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import path from 'path'
+import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import {
@@ -110,7 +111,7 @@ test('resolveFromNpm() should save metadata to a unique file when the package na
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, 'metadata/registry.npmjs.org/JSON_0ecd11c1d7a287401d148a23bbd7a2f8.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, `metadata/registry.npmjs.org/JSON_${createHexHash('JSON')}.json`)) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()

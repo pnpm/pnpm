@@ -1,9 +1,10 @@
 import path from 'path'
-import { add, install, link, prune } from '@pnpm/plugin-commands-installation'
+import { add, install, prune } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import symlinkDir from 'symlink-dir'
 import fs from 'fs'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
@@ -36,7 +37,7 @@ const DEFAULT_OPTIONS = {
   sort: true,
   userConfig: {},
   workspaceConcurrency: 1,
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 test('prune removes external link that is not in package.json', async () => {
@@ -44,12 +45,7 @@ test('prune removes external link that is not in package.json', async () => {
   const storeDir = path.resolve('store')
   f.copy('local-pkg', 'local')
 
-  await link.handler({
-    ...DEFAULT_OPTIONS,
-    cacheDir: path.resolve('cache'),
-    dir: process.cwd(),
-    storeDir,
-  }, ['./local'])
+  symlinkDir.sync(path.resolve('local'), path.join('node_modules/local-pkg'))
 
   project.has('local-pkg')
 

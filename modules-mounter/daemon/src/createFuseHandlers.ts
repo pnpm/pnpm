@@ -32,13 +32,13 @@ export interface FuseHandlers {
   readdir: (p: string, cb: (returnCode: number, files?: string[]) => void) => void
 }
 
-export async function createFuseHandlers (lockfileDir: string, cafsDir: string): Promise<FuseHandlers> {
+export async function createFuseHandlers (lockfileDir: string, storeDir: string): Promise<FuseHandlers> {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
   if (lockfile == null) throw new Error('Cannot generate a .pnp.cjs without a lockfile')
-  return createFuseHandlersFromLockfile(lockfile, cafsDir)
+  return createFuseHandlersFromLockfile(lockfile, storeDir)
 }
 
-export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: string): FuseHandlers {
+export function createFuseHandlersFromLockfile (lockfile: Lockfile, storeDir: string): FuseHandlers {
   const pkgSnapshotCache = new Map<string, { name: string, version: string, pkgSnapshot: PackageSnapshot, index: PackageFilesIndex }>()
   const virtualNodeModules = makeVirtualNodeModules(lockfile)
   return {
@@ -53,7 +53,7 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
         cb(-1)
         return
       }
-      const filePathInStore = getFilePathByModeInCafs(cafsDir, fileInfo.integrity, fileInfo.mode)
+      const filePathInStore = getFilePathByModeInCafs(storeDir, fileInfo.integrity, fileInfo.mode)
       fs.open(filePathInStore, flags, (err, fd) => {
         if (err != null) {
           cb(-1)
@@ -164,7 +164,7 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
       currentDirEntry = currentDirEntry.entries[parts.shift()!]
     }
     if (currentDirEntry?.entryType === 'index') {
-      const pkg = getPkgInfo(currentDirEntry.depPath, cafsDir)
+      const pkg = getPkgInfo(currentDirEntry.depPath, storeDir)
       if (pkg == null) {
         return null
       }
@@ -176,13 +176,14 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
     }
     return currentDirEntry
   }
-  function getPkgInfo (depPath: string, cafsDir: string) {
+  function getPkgInfo (depPath: string, storeDir: string) {
     if (!pkgSnapshotCache.has(depPath)) {
       const pkgSnapshot = lockfile.packages?.[depPath as DepPath]
       if (pkgSnapshot == null) return undefined
-      const indexPath = getIndexFilePathInCafs(cafsDir, (pkgSnapshot.resolution as TarballResolution).integrity!)
+      const nameVer = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      const indexPath = getIndexFilePathInCafs(storeDir, (pkgSnapshot.resolution as TarballResolution).integrity!, `${nameVer.name}@${nameVer.version}`)
       pkgSnapshotCache.set(depPath, {
-        ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
+        ...nameVer,
         pkgSnapshot,
         index: loadJsonFile.sync<PackageFilesIndex>(indexPath), // TODO: maybe make it async?
       })

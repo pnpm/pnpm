@@ -47,5 +47,5 @@ export const DEFAULT_OPTS = {
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }

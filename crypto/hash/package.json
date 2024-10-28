@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/crypto.base32-hash",
-  "version": "3.0.1",
-  "description": "Create a base32 hash",
+  "name": "@pnpm/crypto.hash",
+  "version": "0.0.0",
+  "description": "Generate hashes",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
@@ -15,12 +15,11 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/crypto.base32-hash",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/crypto/hash",
   "keywords": [
     "pnpm9",
     "hash",
-    "crypto",
-    "base32"
+    "crypto"
   ],
   "engines": {
     "node": ">=18.12"
@@ -29,13 +28,12 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/crypto.base32-hash#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/crypto/hash#readme",
   "dependencies": {
-    "@pnpm/crypto.polyfill": "workspace:*",
-    "rfc4648": "catalog:"
+    "@pnpm/crypto.polyfill": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/crypto.base32-hash": "workspace:*",
+    "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/prepare": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",

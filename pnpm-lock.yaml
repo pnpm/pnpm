@@ -181,11 +181,11 @@ catalogs:
       specifier: npm:@types/table@6.0.0
       version: 6.0.0
     '@yarnpkg/core':
-      specifier: 4.0.3
-      version: 4.0.3
+      specifier: 4.0.5
+      version: 4.0.5
     '@yarnpkg/extensions':
-      specifier: 2.0.1
-      version: 2.0.1
+      specifier: 2.0.3
+      version: 2.0.3
     '@yarnpkg/lockfile':
       specifier: ^1.1.0
       version: 1.1.0
@@ -528,9 +528,6 @@ catalogs:
     resolve-link-target:
       specifier: ^2.0.0
       version: 2.0.0
-    rfc4648:
-      specifier: ^1.5.3
-      version: 1.5.3
     rimraf:
       specifier: ^3.0.2
       version: 3.0.2
@@ -879,6 +876,9 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
 
   __utils__/eslint-config:
     dependencies:
@@ -1641,11 +1641,27 @@ importers:
         specifier: 'catalog:'
         version: 1.3.31
 
+  crypto/hash:
+    dependencies:
+      '@pnpm/crypto.polyfill':
+        specifier: workspace:*
+        version: link:../polyfill
+    devDependencies:
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+
   crypto/object-hasher:
     dependencies:
       object-hash:
         specifier: 'catalog:'
         version: 3.0.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
@@ -1653,6 +1669,9 @@ importers:
       '@types/object-hash':
         specifier: 'catalog:'
         version: 3.0.6
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
 
   crypto/polyfill:
     devDependencies:
@@ -2265,9 +2284,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/crypto.base32-hash':
+      '@pnpm/crypto.hash':
         specifier: workspace:*
-        version: link:../../packages/crypto.base32-hash
+        version: link:../../crypto/hash
       '@pnpm/env.path':
         specifier: workspace:*
         version: link:../../env/path
@@ -2779,9 +2798,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/crypto.base32-hash':
+      '@pnpm/crypto.hash':
         specifier: workspace:*
-        version: link:../../packages/crypto.base32-hash
+        version: link:../../crypto/hash
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -2833,7 +2852,7 @@ importers:
         version: link:../../packages/types
       '@yarnpkg/extensions':
         specifier: 'catalog:'
-        version: 2.0.1(@yarnpkg/core@4.0.3(typanion@3.14.0))
+        version: 2.0.3(@yarnpkg/core@4.0.5(typanion@3.14.0))
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -2858,7 +2877,7 @@ importers:
         version: 7.5.3
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.0.3(typanion@3.14.0)
+        version: 4.0.5(typanion@3.14.0)
 
   hooks/types:
     dependencies:
@@ -3283,9 +3302,9 @@ importers:
 
   lockfile/settings-checker:
     dependencies:
-      '@pnpm/crypto.base32-hash':
+      '@pnpm/crypto.hash':
         specifier: workspace:*
-        version: link:../../packages/crypto.base32-hash
+        version: link:../../crypto/hash
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../types
@@ -3482,6 +3501,9 @@ importers:
         specifier: 'catalog:'
         version: 2.2.6
     devDependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/mount-modules':
         specifier: workspace:*
         version: 'link:'
@@ -3602,27 +3624,11 @@ importers:
         specifier: workspace:*
         version: link:../logger
 
-  packages/crypto.base32-hash:
-    dependencies:
-      '@pnpm/crypto.polyfill':
-        specifier: workspace:*
-        version: link:../../crypto/polyfill
-      rfc4648:
-        specifier: 'catalog:'
-        version: 1.5.3
-    devDependencies:
-      '@pnpm/crypto.base32-hash':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../__utils__/prepare
-
   packages/dependency-path:
     dependencies:
-      '@pnpm/crypto.base32-hash':
+      '@pnpm/crypto.hash':
         specifier: workspace:*
-        version: link:../crypto.base32-hash
+        version: link:../../crypto/hash
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
@@ -4103,12 +4109,12 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/crypto.base32-hash':
+      '@pnpm/crypto.hash':
         specifier: workspace:*
-        version: link:../../packages/crypto.base32-hash
-      '@pnpm/crypto.polyfill':
+        version: link:../../crypto/hash
+      '@pnpm/crypto.object-hasher':
         specifier: workspace:*
-        version: link:../../crypto/polyfill
+        version: link:../../crypto/object-hasher
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
@@ -4229,6 +4235,12 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
+      ci-info:
+        specifier: 'catalog:'
+        version: 3.9.0
+      enquirer:
+        specifier: 'catalog:'
+        version: 2.4.1
       is-inner-link:
         specifier: 'catalog:'
         version: 4.0.0
@@ -4259,9 +4271,6 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.6.2
-      sort-keys:
-        specifier: 'catalog:'
-        version: 4.2.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -4275,9 +4284,6 @@ importers:
       '@pnpm/core':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/crypto.object-hasher':
-        specifier: workspace:*
-        version: link:../../crypto/object-hasher
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
@@ -4331,10 +4337,7 @@ importers:
         version: 10.0.20
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.0.3(typanion@3.14.0)
-      ci-info:
-        specifier: 'catalog:'
-        version: 3.9.0
+        version: 4.0.5(typanion@3.14.0)
       deep-require-cwd:
         specifier: 'catalog:'
         version: 1.0.0
@@ -4411,9 +4414,6 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -4429,15 +4429,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@zkochan/rimraf':
-        specifier: 'catalog:'
-        version: 3.0.2
       ci-info:
         specifier: 'catalog:'
         version: 3.9.0
-      enquirer:
-        specifier: 'catalog:'
-        version: 2.4.1
       path-absolute:
         specifier: 'catalog:'
         version: 1.0.1
@@ -5070,9 +5064,12 @@ importers:
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../../workspace/pkgs-graph
+      '@pnpm/write-project-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/write-project-manifest
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.0.3(typanion@3.14.0)
+        version: 4.0.5(typanion@3.14.0)
       '@yarnpkg/lockfile':
         specifier: 'catalog:'
         version: 1.1.0
@@ -5109,9 +5106,6 @@ importers:
       p-limit:
         specifier: 'catalog:'
         version: 3.1.0
-      path-absolute:
-        specifier: 'catalog:'
-        version: 1.0.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -5364,7 +5358,7 @@ importers:
         version: link:../../workspace/spec-parser
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.0.3(typanion@3.14.0)
+        version: 4.0.5(typanion@3.14.0)
       filenamify:
         specifier: 'catalog:'
         version: 4.3.0
@@ -5643,9 +5637,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../packages/core-loggers
-      '@pnpm/crypto.base32-hash':
+      '@pnpm/crypto.hash':
         specifier: workspace:*
-        version: link:../packages/crypto.base32-hash
+        version: link:../crypto/hash
       '@pnpm/default-reporter':
         specifier: workspace:*
         version: link:../cli/default-reporter
@@ -6313,9 +6307,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/crypto.polyfill':
+      '@pnpm/crypto.hash':
         specifier: workspace:*
-        version: link:../../crypto/polyfill
+        version: link:../../crypto/hash
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -7222,6 +7216,9 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
@@ -7439,6 +7436,9 @@ importers:
 
   store/store-path:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -9387,19 +9387,19 @@ packages:
     resolution: {integrity: sha512-KZVpiDKRi2gtrVtKwhz/ZUKBOicVNggxaYQzPBjULuOLJ/UypTmAz5a2g+utLMn+WogbLE3vLfmC+TWp8v3+aQ==}
     hasBin: true
 
-  '@yarnpkg/core@4.0.3':
-    resolution: {integrity: sha512-O+WGCjB9aIBxdRMBxXdsIy08MW4RbxfCS2AfywWb8DPS9H0LICahUJgNAaE0fwCsW7/gNzQbLYlh9DQQwzONrA==}
+  '@yarnpkg/core@4.0.5':
+    resolution: {integrity: sha512-6ib9l8P30GxHvxZo3170hr5PCy2qQnI4N4lXwNJxJnV0i46UlgLA4hlGp/kFVttteATGeckfduIDyWZgjn9sPw==}
     engines: {node: '>=18.12.0'}
 
   '@yarnpkg/core@4.1.2':
     resolution: {integrity: sha512-2jcHRIJwjOOdl7mFysdz5FLxl4JWWJJEwesaKMRYmVwcqXolItX/gXdL3AjTD0umlBySccK9TulRD2/YL2Y0YQ==}
     engines: {node: '>=18.12.0'}
 
-  '@yarnpkg/extensions@2.0.1':
-    resolution: {integrity: sha512-keiaqrAA+bISwaerRFkV3H2/TXB4j0cYnKsW0YVOn+daEFVrKYdW+mOdqsyljCyS24ZBY131/+bW0I6n01yH8g==}
+  '@yarnpkg/extensions@2.0.3':
+    resolution: {integrity: sha512-aBzcipnRR6jJy4ta8KHBvq7EG/1tGa9RCJ3n7RG38l+cCuEf41O5mcMKssoL0FzaBqnEn6q5qWZ4xa24c0d1RQ==}
     engines: {node: '>=18.12.0'}
     peerDependencies:
-      '@yarnpkg/core': ^4.0.3
+      '@yarnpkg/core': ^4.0.5
 
   '@yarnpkg/fslib@3.1.0':
     resolution: {integrity: sha512-wsj7/sUVSdXOIX/qwaON/Ky5GsP5gs9ry9DKwgLbWT7k3qw4/EcHAtfTtPhBYu33UibzBFI+fgB4wBRVH2XVaw==}
@@ -13915,6 +13915,7 @@ packages:
 
   uid-number@0.0.6:
     resolution: {integrity: sha512-c461FXIljswCuscZn67xq9PpszkPT6RjheWFQTgCyabJrTUozElanb0YEqv2UGgk247YpcJkFBuSGNvBlpXM9w==}
+    deprecated: This package is no longer supported.
 
   umask@1.1.0:
     resolution: {integrity: sha512-lE/rxOhmiScJu9L6RTNVgB/zZbF+vGC0/p6D3xnkAePI2o0sMyFG966iR5Ki50OI/0mNi2yaRnxfLsPmEZF/JA==}
@@ -16352,7 +16353,7 @@ snapshots:
       - encoding
       - supports-color
 
-  '@yarnpkg/core@4.0.3(typanion@3.14.0)':
+  '@yarnpkg/core@4.0.5(typanion@3.14.0)':
     dependencies:
       '@arcanis/slice-ansi': 1.1.1
       '@types/semver': 7.5.8
@@ -16414,9 +16415,9 @@ snapshots:
     transitivePeerDependencies:
       - typanion
 
-  '@yarnpkg/extensions@2.0.1(@yarnpkg/core@4.0.3(typanion@3.14.0))':
+  '@yarnpkg/extensions@2.0.3(@yarnpkg/core@4.0.5(typanion@3.14.0))':
     dependencies:
-      '@yarnpkg/core': 4.0.3(typanion@3.14.0)
+      '@yarnpkg/core': 4.0.5(typanion@3.14.0)
 
   '@yarnpkg/fslib@3.1.0':
     dependencies:

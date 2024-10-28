@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
+import { STORE_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import {
@@ -16,7 +17,7 @@ skipOnWindows('self-update stops the store server', async () => {
 
   spawnPnpm(['server', 'start'])
 
-  const serverJsonPath = path.resolve('../store/v3/server/server.json')
+  const serverJsonPath = path.resolve(`../store/${STORE_VERSION}/server/server.json`)
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
   expect(serverJson).toBeTruthy()
   expect(serverJson.connectionOptions).toBeTruthy()

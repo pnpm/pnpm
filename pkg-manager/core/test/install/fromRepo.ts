@@ -339,3 +339,14 @@ test('from subdirectories of a git repo', async () => {
     '@my-namespace/simple-react-app': 'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app',
   })
 })
+
+test('no hash character for github subdirectory install', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, [
+    'github:pnpm/only-allow#path:/&v1.2.1',
+  ], testDefaults())
+
+  expect(fs.readdirSync('./node_modules/.pnpm'))
+    .toContain('only-allow@https+++codeload.github.com+pnpm+only-allow+tar.gz+4d577a5a5862a43e752df37a1e8a0c71c3a0084a+path++')
+})

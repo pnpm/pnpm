@@ -107,14 +107,13 @@ export function createPackageRequester (
     concurrency: networkConcurrency,
   })
 
-  const cafsDir = path.join(opts.storeDir, 'files')
-  const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, cafsDir)
+  const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, opts.storeDir)
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs)
   const fetchPackageToStore = fetchToStore.bind(null, {
-    readPkgFromCafs: _readPkgFromCafs.bind(null, cafsDir, opts.verifyStoreIntegrity),
+    readPkgFromCafs: _readPkgFromCafs.bind(null, opts.storeDir, opts.verifyStoreIntegrity),
     fetch,
     fetchingLocker: new Map(),
-    getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, cafsDir),
+    getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, opts.storeDir),
     getIndexFilePathInCafs,
     requestsQueue: Object.assign(requestsQueue, {
       counter: 0,
@@ -308,7 +307,7 @@ interface FetchLock {
 
 function getFilesIndexFilePath (
   ctx: {
-    getIndexFilePathInCafs: (integrity: string) => string
+    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     storeDir: string
     virtualStoreDirMaxLength: number
   },
@@ -317,7 +316,7 @@ function getFilesIndexFilePath (
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
   const filesIndexFile = (opts.pkg.resolution as TarballResolution).integrity
-    ? ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!)
+    ? ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id)
     : path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
   return { filesIndexFile, target }
 }
@@ -334,7 +333,7 @@ function fetchToStore (
       opts: FetchOptions
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
-    getIndexFilePathInCafs: (integrity: string) => string
+    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     getFilePathByModeInCafs: (integrity: string, mode: number) => string
     requestsQueue: {
       add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T>

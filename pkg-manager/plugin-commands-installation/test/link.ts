@@ -1,9 +1,8 @@
 import fs from 'fs'
 import path from 'path'
-import { sync as readYamlFile } from 'read-yaml-file'
 import { install, link } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { assertProject, isExecutable } from '@pnpm/assert-project'
+import { isExecutable } from '@pnpm/assert-project'
 import { fixtures } from '@pnpm/test-fixtures'
 import { logger } from '@pnpm/logger'
 import { sync as loadJsonFile } from 'load-json-file'
@@ -26,28 +25,27 @@ test('linking multiple packages', async () => {
 
   process.chdir('linked-foo')
 
-  console.log('linking linked-foo to global package')
-  const linkOpts = {
+  // linking linked-foo to global package
+  await link.handler({
     ...DEFAULT_OPTS,
     bin: path.join(globalDir, 'bin'),
     dir: globalDir,
-  }
-  await link.handler({
-    ...linkOpts,
+    globalPkgDir: globalDir,
+    rootProjectManifestDir: globalDir,
   })
 
   process.chdir('..')
   process.chdir('project')
 
   await link.handler({
-    ...linkOpts,
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    globalPkgDir: globalDir,
+    rootProjectManifestDir: process.cwd(),
   }, ['linked-foo', '../linked-bar'])
 
   project.has('linked-foo')
   project.has('linked-bar')
-
-  const modules = readYamlFile<any>('../linked-bar/node_modules/.modules.yaml') // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(modules.hoistPattern).toStrictEqual(['*']) // the linked package used its own configs during installation // eslint-disable-line @typescript-eslint/dot-notation
 })
 
 test('link global bin', async function () {
@@ -67,46 +65,16 @@ test('link global bin', async function () {
 
   await link.handler({
     ...DEFAULT_OPTS,
-    cliOptions: {
-      global: true,
-    },
     bin: globalBin,
     dir: globalDir,
+    globalPkgDir: globalDir,
+    rootProjectManifestDir: globalDir,
   })
   process.env[PATH] = oldPath
 
   isExecutable((value) => {
     expect(value).toBeTruthy()
   }, path.join(globalBin, 'package-with-bin'))
-})
-
-test('link to global bin from the specified directory', async function () {
-  prepare()
-  process.chdir('..')
-
-  const globalDir = path.resolve('global')
-  const globalBin = path.join(globalDir, 'bin')
-  const oldPath = process.env[PATH]
-  process.env[PATH] = `${globalBin}${path.delimiter}${oldPath ?? ''}`
-  fs.mkdirSync(globalBin, { recursive: true })
-
-  await writePkg('./dir/package-with-bin-in-dir', { name: 'package-with-bin-in-dir', version: '1.0.0', bin: 'bin.js' })
-  fs.writeFileSync('./dir/package-with-bin-in-dir/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
-
-  await link.handler({
-    ...DEFAULT_OPTS,
-    cliOptions: {
-      global: true,
-      dir: path.resolve('./dir/package-with-bin-in-dir'),
-    },
-    bin: globalBin,
-    dir: globalDir,
-  })
-  process.env[PATH] = oldPath
-
-  isExecutable((value) => {
-    expect(value).toBeTruthy()
-  }, path.join(globalBin, 'package-with-bin-in-dir'))
 })
 
 test('link a global package to the specified directory', async function () {
@@ -127,11 +95,10 @@ test('link a global package to the specified directory', async function () {
   // link to global
   await link.handler({
     ...DEFAULT_OPTS,
-    cliOptions: {
-      global: true,
-    },
     bin: globalBin,
     dir: globalDir,
+    globalPkgDir: globalDir,
+    rootProjectManifestDir: globalDir,
   })
 
   process.chdir('..')
@@ -140,13 +107,12 @@ test('link a global package to the specified directory', async function () {
   // link from global
   await link.handler({
     ...DEFAULT_OPTS,
-    cliOptions: {
-      global: true,
-      dir: projectDir,
-    },
-    bin: globalBin,
-    dir: globalDir,
+    // bin: globalBin,
+    dir: projectDir,
     saveProd: true, // @pnpm/config sets this setting to true when global is true. This should probably be changed.
+    globalPkgDir: globalDir,
+    rootProjectManifest: { dependencies: { 'global-package-with-bin': '0.0.0' } },
+    rootProjectManifestDir: projectDir,
   }, ['global-package-with-bin'])
 
   process.env[PATH] = oldPath
@@ -170,19 +136,21 @@ test('relative link', async () => {
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
+    globalPkgDir: '',
+    rootProjectManifest: {
+      dependencies: {
+        '@pnpm.e2e/hello-world-js-bin': '*',
+      },
+    },
+    rootProjectManifestDir: process.cwd(),
   }, [`../${linkedPkgName}`])
 
   project.isExecutable('.bin/hello-world-js-bin')
 
-  // The linked package has been installed successfully as well with bins linked
-  // to node_modules/.bin
-  const linkedProject = assertProject(linkedPkgPath)
-  linkedProject.isExecutable('.bin/cowsay')
-
   const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
-    specifier: '*', // specifier of linked dependency added to ${WANTED_LOCKFILE}
-    version: 'link:../hello-world-js-bin', // link added to wanted lockfile
+    specifier: 'link:../hello-world-js-bin',
+    version: 'link:../hello-world-js-bin',
   })
 
   const currentLockfile = project.readCurrentLockfile()
@@ -203,18 +171,20 @@ test('absolute link', async () => {
   await link.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
+    globalPkgDir: '',
+    rootProjectManifestDir: process.cwd(),
+    rootProjectManifest: {
+      dependencies: {
+        '@pnpm.e2e/hello-world-js-bin': '*',
+      },
+    },
   }, [linkedPkgPath])
 
   project.isExecutable('.bin/hello-world-js-bin')
 
-  // The linked package has been installed successfully as well with bins linked
-  // to node_modules/.bin
-  const linkedProject = assertProject(linkedPkgPath)
-  linkedProject.isExecutable('.bin/cowsay')
-
   const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
-    specifier: '*', // specifier of linked dependency added to ${WANTED_LOCKFILE}
+    specifier: 'link:../hello-world-js-bin', // specifier of linked dependency added to ${WANTED_LOCKFILE}
     version: 'link:../hello-world-js-bin', // link added to wanted lockfile
   })
 
@@ -223,18 +193,19 @@ test('absolute link', async () => {
 })
 
 test('link --production', async () => {
-  const projects = preparePackages([
-    {
-      name: 'target',
-      version: '1.0.0',
+  const targetManifest = {
+    name: 'target',
+    version: '1.0.0',
 
-      dependencies: {
-        'is-positive': '1.0.0',
-      },
-      devDependencies: {
-        'is-negative': '1.0.0',
-      },
+    dependencies: {
+      'is-positive': '1.0.0',
     },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  }
+  const projects = preparePackages([
+    targetManifest,
     {
       name: 'source',
       version: '1.0.0',
@@ -258,10 +229,10 @@ test('link --production', async () => {
     ...DEFAULT_OPTS,
     cliOptions: { production: true },
     dir: process.cwd(),
+    globalPkgDir: '',
+    rootProjectManifestDir: process.cwd(),
+    rootProjectManifest: targetManifest,
   }, ['../source'])
-
-  projects['source'].has('is-positive')
-  projects['source'].hasNot('is-negative')
 
   // --production should not have effect on the target
   projects['target'].has('is-positive')
@@ -275,6 +246,7 @@ test('link fails if nothing is linked', async () => {
     link.handler({
       ...DEFAULT_OPTS,
       dir: '',
+      globalPkgDir: '',
     }, [])
   ).rejects.toThrow(/You must provide a parameter/)
 })
@@ -297,20 +269,21 @@ test('logger warns about peer dependencies when linking', async () => {
 
   process.chdir('linked-with-peer-deps')
 
-  const linkOpts = {
+  await link.handler({
     ...DEFAULT_OPTS,
     bin: path.join(globalDir, 'bin'),
     dir: globalDir,
-  }
-  await link.handler({
-    ...linkOpts,
+    globalPkgDir: globalDir,
+    rootProjectManifestDir: globalDir,
   })
 
   process.chdir('..')
   process.chdir('project')
 
   await link.handler({
-    ...linkOpts,
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    globalPkgDir: globalDir,
   }, ['linked-with-peer-deps'])
 
   expect(warnMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -336,20 +309,22 @@ test('logger should not warn about peer dependencies when it is an empty object'
 
   process.chdir('linked-with-empty-peer-deps')
 
-  const linkOpts = {
+  await link.handler({
     ...DEFAULT_OPTS,
+    globalPkgDir: '',
     bin: path.join(globalDir, 'bin'),
     dir: globalDir,
-  }
-  await link.handler({
-    ...linkOpts,
+    rootProjectManifestDir: globalDir,
   })
 
   process.chdir('..')
   process.chdir('project')
 
   await link.handler({
-    ...linkOpts,
+    ...DEFAULT_OPTS,
+    globalPkgDir: globalDir,
+    dir: process.cwd(),
+    rootProjectManifestDir: process.cwd(),
   }, ['linked-with-empty-peer-deps'])
 
   expect(warnMock).not.toHaveBeenCalledWith(expect.objectContaining({
@@ -370,6 +345,7 @@ test('link: fail when global bin directory is not found', async () => {
       ...DEFAULT_OPTS,
       bin: undefined as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       dir: globalDir,
+      globalPkgDir: globalDir,
       cliOptions: {
         global: true,
       },

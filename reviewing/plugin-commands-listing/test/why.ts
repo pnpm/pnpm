@@ -15,7 +15,7 @@ test('`pnpm why` should fail if no package name was provided', async () => {
   try {
     await why.handler({
       dir: process.cwd(),
-      virtualStoreDirMaxLength: 120,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, [])
   } catch (_err: any) { // eslint-disable-line
     err = _err
@@ -39,7 +39,7 @@ test('"why" should find non-direct dependency', async () => {
     dev: false,
     dir: process.cwd(),
     optional: false,
-    virtualStoreDirMaxLength: 120,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['@pnpm.e2e/dep-of-pkg-with-1-dep'])
 
   expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only

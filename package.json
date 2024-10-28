@@ -25,7 +25,7 @@
     "lint:meta": "pnpm run meta-updater --test",
     "copy-artifacts": "ts-node __utils__/scripts/src/copy-artifacts.ts",
     "make-release-description": "pnpm --filter=@pnpm/get-release-text run write-release-text",
-    "release": "pnpm --filter=@pnpm/exe publish --tag=next-9 --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=next-9 --access=public",
+    "release": "pnpm --filter=@pnpm/exe publish --tag=next-10 --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=next-10 --access=public",
     "dev-setup": "pnpm -C=./pnpm/dev link -g"
   },
   "devDependencies": {

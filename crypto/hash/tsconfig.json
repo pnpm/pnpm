@@ -13,7 +13,7 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../crypto/polyfill"
+      "path": "../polyfill"
     }
   ]
 }

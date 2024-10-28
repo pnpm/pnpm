@@ -37,6 +37,7 @@
     "@pnpm/logger": "^5.1.0"
   },
   "devDependencies": {
+    "@pnpm/constants": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/mount-modules": "workspace:*",
     "@types/normalize-path": "catalog:",

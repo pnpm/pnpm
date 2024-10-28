@@ -4,9 +4,9 @@ import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 
 export interface StoreAssertions {
-  getPkgIndexFilePath: (pkgName: string, version?: string) => string
-  cafsHas: (pkgName: string, version?: string) => void
-  cafsHasNot: (pkgName: string, version?: string) => void
+  getPkgIndexFilePath: (pkgName: string, version: string) => string
+  cafsHas: (pkgName: string, version: string) => void
+  cafsHasNot: (pkgName: string, version: string) => void
   storeHas: (pkgName: string, version?: string) => void
   storeHasNot: (pkgName: string, version?: string) => void
   resolve: (pkgName: string, version?: string, relativePath?: string) => string
@@ -22,16 +22,15 @@ export function assertStore (
   const notOk = (value: any) => expect(value).toBeFalsy()
   const ern = encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`
   const store = {
-    getPkgIndexFilePath (pkgName: string, version?: string): string {
-      const cafsDir = path.join(storePath, 'files')
-      const integrity = version ? getIntegrity(pkgName, version) : pkgName
-      return getIndexFilePathInCafs(cafsDir, integrity)
+    getPkgIndexFilePath (pkgName: string, version: string): string {
+      const integrity = getIntegrity(pkgName, version)
+      return getIndexFilePathInCafs(storePath, integrity, `${pkgName}@${version}`)
     },
-    cafsHas (pkgName: string, version?: string): void {
+    cafsHas (pkgName: string, version: string): void {
       const pathToCheck = store.getPkgIndexFilePath(pkgName, version)
       ok(fs.existsSync(pathToCheck))
     },
-    cafsHasNot (pkgName: string, version?: string): void {
+    cafsHasNot (pkgName: string, version: string): void {
       const pathToCheck = store.getPkgIndexFilePath(pkgName, version)
       notOk(fs.existsSync(pathToCheck))
     },

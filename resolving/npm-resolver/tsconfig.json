@@ -13,7 +13,7 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../crypto/polyfill"
+      "path": "../../crypto/hash"
     },
     {
       "path": "../../fs/graceful-fs"

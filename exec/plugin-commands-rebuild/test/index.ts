@@ -2,7 +2,7 @@
 import fs from 'fs'
 import path from 'path'
 import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
-import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
+import { ENGINE_NAME, STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { prepare } from '@pnpm/prepare'
@@ -74,13 +74,12 @@ test('rebuilds dependencies', async () => {
     ])
   }
 
-  const cafsDir = path.join(storeDir, 'v3/files')
-  const cacheIntegrityPath = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'))
+  const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
   const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
-  delete cacheIntegrity!.sideEffects[sideEffectsKey]['generated-by-postinstall.js']
+  const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
+  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'generated-by-postinstall.js'])
+  delete cacheIntegrity!.sideEffects[sideEffectsKey].added['generated-by-postinstall.js']
 })
 
 test('skipIfHasSideEffectsCache', async () => {
@@ -99,12 +98,11 @@ test('skipIfHasSideEffectsCache', async () => {
     `--cache-dir=${cacheDir}`,
   ])
 
-  const cafsDir = path.join(storeDir, 'v3/files')
-  const cacheIntegrityPath = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'))
+  const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
   let cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
-  const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
+  const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   cacheIntegrity.sideEffects = {
-    [sideEffectsKey]: { foo: 'bar' },
+    [sideEffectsKey]: { added: { foo: 'bar' } },
   }
   fs.writeFileSync(cacheIntegrityPath, JSON.stringify(cacheIntegrity, null, 2), 'utf8')
 
@@ -130,7 +128,7 @@ test('skipIfHasSideEffectsCache', async () => {
 
   cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'foo'])
+  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'foo'])
 })
 
 test('rebuild does not fail when a linked package is present', async () => {

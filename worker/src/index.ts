@@ -54,7 +54,7 @@ interface AddFilesResult {
   requiresBuild: boolean
 }
 
-type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files'>
+type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files'>
 
 export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<AddFilesResult> {
   if (!workerPool) {
@@ -72,7 +72,7 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
     })
     localWorker.postMessage({
       type: 'add-dir',
-      cafsDir: opts.cafsDir,
+      storeDir: opts.storeDir,
       dir: opts.dir,
       filesIndexFile: opts.filesIndexFile,
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
@@ -117,7 +117,7 @@ If you think that this is the case, then run "pnpm store prune" and rerun the co
   }
 }
 
-type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'cafsDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg'> & {
+type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg'> & {
   url: string
 }
 
@@ -145,7 +145,7 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
     localWorker.postMessage({
       type: 'extract',
       buffer: opts.buffer,
-      cafsDir: opts.cafsDir,
+      storeDir: opts.storeDir,
       integrity: opts.integrity,
       filesIndexFile: opts.filesIndexFile,
       readManifest: opts.readManifest,
@@ -155,7 +155,7 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
 }
 
 export async function readPkgFromCafs (
-  cafsDir: string,
+  storeDir: string,
   verifyStoreIntegrity: boolean,
   filesIndexFile: string,
   readManifest?: boolean
@@ -175,7 +175,7 @@ export async function readPkgFromCafs (
     })
     localWorker.postMessage({
       type: 'readPkgFromCafs',
-      cafsDir,
+      storeDir,
       filesIndexFile,
       readManifest,
       verifyStoreIntegrity,
@@ -248,5 +248,26 @@ export async function hardLinkDir (src: string, destDirs: string[]): Promise<voi
       src,
       destDirs,
     } as HardLinkDirMessage)
+  })
+}
+
+export async function initStoreDir (storeDir: string): Promise<void> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<void>((resolve, reject) => {
+    localWorker.once('message', ({ status, error }) => {
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError(error.code ?? 'INIT_CAFS_FAILED', error.message as string))
+        return
+      }
+      resolve()
+    })
+    localWorker.postMessage({
+      type: 'init-store',
+      storeDir,
+    })
   })
 }

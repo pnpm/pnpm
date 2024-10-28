@@ -3,6 +3,7 @@ import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { install } from '@pnpm/core'
+import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { sync as rimraf } from '@zkochan/rimraf'
@@ -32,7 +33,7 @@ test('patch package', async () => {
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
-  const patchFileHash = 'jnbpamcxayl5i4ehrkoext3any'
+  const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
     'is-positive@1.0.0': {
@@ -42,10 +43,10 @@ test('patch package', async () => {
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'files/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812c5d8da8a735e94c2a1ccb77b4583808ee8405313951e7146ac83ede3671dc292-index.json')
+  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
-  const sideEffectsKey = `${ENGINE_NAME}-${patchFileHash}`
-  const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey]['index.js']?.integrity
+  const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
+  const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey].added?.['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
   const originalFileIntegrity = filesIndex.files['index.js'].integrity
   expect(originalFileIntegrity).toBeTruthy()
@@ -199,7 +200,7 @@ test('patch package when scripts are ignored', async () => {
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
-  const patchFileHash = 'jnbpamcxayl5i4ehrkoext3any'
+  const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
     'is-positive@1.0.0': {
@@ -209,10 +210,10 @@ test('patch package when scripts are ignored', async () => {
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'files/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812c5d8da8a735e94c2a1ccb77b4583808ee8405313951e7146ac83ede3671dc292-index.json')
+  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
-  const sideEffectsKey = `${ENGINE_NAME}-${patchFileHash}`
-  const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey]['index.js']?.integrity
+  const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
+  const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey].added?.['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
   const originalFileIntegrity = filesIndex.files['index.js'].integrity
   expect(originalFileIntegrity).toBeTruthy()
@@ -286,7 +287,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
-  const patchFileHash = 'jnbpamcxayl5i4ehrkoext3any'
+  const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
     'is-positive@1.0.0': {
@@ -296,10 +297,10 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'files/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812c5d8da8a735e94c2a1ccb77b4583808ee8405313951e7146ac83ede3671dc292-index.json')
+  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
-  const sideEffectsKey = `${ENGINE_NAME}-${patchFileHash}`
-  const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey]['index.js']?.integrity
+  const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
+  const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey].added?.['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
   const originalFileIntegrity = filesIndex.files['index.js'].integrity
   expect(originalFileIntegrity).toBeTruthy()
@@ -376,10 +377,11 @@ test('patch package when the patched package has no dependencies and appears mul
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
+  const patchFileHash = await createHexHashFromFile(patchPath)
   const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
     'is-not-positive@1.0.0',
-    'is-positive@1.0.0(patch_hash=jnbpamcxayl5i4ehrkoext3any)',
+    `is-positive@1.0.0(patch_hash=${patchFileHash})`,
   ].sort())
 })
 
