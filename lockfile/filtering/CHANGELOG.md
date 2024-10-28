@@ -1,5 +1,14 @@
 # @pnpm/filter-lockfile
 
+## 1.0.7
+
+### Patch Changes
+
+- @pnpm/package-is-installable@9.0.11
+- @pnpm/dependency-path@5.1.7
+- @pnpm/lockfile.utils@1.0.4
+- @pnpm/lockfile.walker@1.0.4
+
 ## 1.0.6
 
 ### Patch Changes

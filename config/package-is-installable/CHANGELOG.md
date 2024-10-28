@@ -1,5 +1,12 @@
 # @pnpm/package-is-installable
 
+## 9.0.11
+
+### Patch Changes
+
+- Updated dependencies [d04f7f2]
+  - @pnpm/env.system-node-version@1.0.0
+
 ## 9.0.10
 
 ### Patch Changes

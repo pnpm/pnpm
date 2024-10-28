@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-env
 
+## 5.1.11
+
+### Patch Changes
+
+- d04f7f2: pnpm no longer downloads the required `use-node-version` if the running node version is the same as the wanted version
+
+  The required `use-node-version` is no longer downloaded if the running Node version is the same as the wanted version [#8673](https://github.com/pnpm/pnpm/pull/8673).
+
+- Updated dependencies [d04f7f2]
+  - @pnpm/env.system-node-version@1.0.0
+  - @pnpm/node.fetcher@4.0.16
+  - @pnpm/cli-utils@4.0.7
+  - @pnpm/config@21.8.5
+  - @pnpm/node.resolver@3.0.16
+
 ## 5.1.10
 
 ### Patch Changes

@@ -1,5 +1,38 @@
 # @pnpm/core
 
+## 15.3.8
+
+### Patch Changes
+
+- 222d10a: Use `crypto.hash`, when available, for improved performance [#8629](https://github.com/pnpm/pnpm/pull/8629).
+- Updated dependencies [f9a095c]
+- Updated dependencies [222d10a]
+- Updated dependencies [222d10a]
+  - @pnpm/get-context@12.0.7
+  - @pnpm/crypto.polyfill@1.0.0
+  - @pnpm/worker@1.0.13
+  - @pnpm/lockfile.verification@1.0.6
+  - @pnpm/crypto.base32-hash@3.0.1
+  - @pnpm/resolve-dependencies@36.0.6
+  - @pnpm/build-modules@14.0.5
+  - @pnpm/headless@23.2.8
+  - @pnpm/package-requester@25.2.10
+  - @pnpm/lockfile.settings-checker@1.0.1
+  - @pnpm/dependency-path@5.1.7
+  - @pnpm/lockfile.filtering@1.0.7
+  - @pnpm/lockfile.fs@1.0.5
+  - @pnpm/lockfile-to-pnp@4.1.14
+  - @pnpm/lockfile.pruner@0.0.6
+  - @pnpm/lockfile.utils@1.0.4
+  - @pnpm/lockfile.walker@1.0.4
+  - @pnpm/calc-dep-state@7.0.10
+  - @pnpm/hoist@9.1.15
+  - @pnpm/modules-cleaner@15.1.16
+  - @pnpm/lockfile.preferred-versions@1.0.14
+  - @pnpm/lifecycle@17.1.5
+  - @pnpm/symlink-dependency@8.0.8
+  - @pnpm/link-bins@10.0.11
+
 ## 15.3.7
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/cli-utils
 
+## 4.0.7
+
+### Patch Changes
+
+- @pnpm/package-is-installable@9.0.11
+- @pnpm/config@21.8.5
+- @pnpm/default-reporter@14.0.4
+
 ## 4.0.6
 
 ### Patch Changes
