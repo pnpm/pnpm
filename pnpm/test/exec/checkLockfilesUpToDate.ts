@@ -458,6 +458,8 @@ describe('multi-project workspace', () => {
     }
   })
 
+  test.todo('no dependencies')
+
   test.todo('should not prevent nested `pnpm run` after having mutated the manifests')
 
   test.todo('should check for outdated catalogs')
