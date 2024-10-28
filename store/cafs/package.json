@@ -12,7 +12,7 @@
     "prepublishOnly": "pnpm run compile"
   },
   "keywords": [
-    "pnpm9"
+    "pnpm10"
   ],
   "license": "MIT",
   "dependencies": {

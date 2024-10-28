@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/default-resolver",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm",
     "resolver",
     "npm"

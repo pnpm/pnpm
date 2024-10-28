@@ -47,7 +47,7 @@
     ".": "./lib/index.js"
   },
   "keywords": [
-    "pnpm9"
+    "pnpm10"
   ],
   "homepage": "https://github.com/pnpm/pnpm/blob/main/completion/plugin-commands-completion#readme",
   "jest": {

@@ -119,7 +119,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core#readme",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "dependency manager",
     "install",
     "installer",

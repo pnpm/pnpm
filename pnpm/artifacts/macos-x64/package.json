@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/macos-x64",
-  "version": "9.12.3",
+  "version": "10.0.0-alpha.0",
   "license": "MIT",
   "publishConfig": {
     "bin": {
@@ -20,7 +20,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "keywords": [
-    "pnpm9"
+    "pnpm10"
   ],
   "devDependencies": {
     "@pnpm/macos-x64": "workspace:*"

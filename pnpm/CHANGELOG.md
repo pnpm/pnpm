@@ -1,5 +1,45 @@
 # pnpm
 
+## 10.0.0-alpha.0
+
+### Major Changes
+
+- The `pnpm link` command adds overrides to the root `package.json`. In a workspace the override is added to the root of the workspace, so it links the dependency to all projects in a workspace.
+
+  To link a package globally, just run `pnpm link` from the package's directory. Previously, the command `pnpm link -g` was required to link a package globally.
+
+  Related PR: [#8653](https://github.com/pnpm/pnpm/pull/8653).
+
+- Use sha256 for hashing long paths inside `node_modules/.pnpm`.
+- Using SHA256 instead of md5 for hashing long peer dependency hashes in the lockfile. Should not affect a lot of users as the hashing is used for really long keys in the lockfile.
+- pnpm will now manage it's own versions according to the `packageManager` filed of `package.json`. To disable this, set `manage-package-manager-versions` to `false`.
+- `pnpm test` should pass all the params after the `test` keyword to the underlying script. This is similar to how `pnpm run test` works [#8619](https://github.com/pnpm/pnpm/pull/8619).
+- Changed the hash stored in the `packageExtensionsChecksum` field of `pnpm-lock.yaml` to SHA256.
+- Use an SHA256 hash for the side effects cache keys.
+- Do not hoist to the root of `node_modules` packages that contain the word `eslint` or `prettier` in their name. Changed the default value of the `public-hoist-pattern` setting [#8378](https://github.com/pnpm/pnpm/issues/8378).
+- Update the compatibility database (`@yarnpkg/extensions` to v2.0.3). This might change your lockfile.
+- Use SHA256 for storing the pnpmfile checksum in the lockfile [#8530](https://github.com/pnpm/pnpm/pull/8530).
+- Some registries allow identical content to be published under different package names or versions. To accommodate this, index files in the store are now stored using both the content hash and package identifier.
+
+  This approach ensures that we can:
+
+  1. Validate that the integrity in the lockfile corresponds to the correct package,
+     which might not be the case after a poorly resolved Git conflict.
+  2. Allow the same content to be referenced by different packages or different versions of the same package.
+
+  Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
+  Related issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
+
+- Allow passing CLI flags and options to `pnpm test` without `--` [#4821](https://github.com/pnpm/pnpm/issues/4821).
+- Changed the structure of the index files in the store to store side effects cache information more efficiently. In the new version, side effects do not list all the files of the package but just the differences [#8636](https://github.com/pnpm/pnpm/pull/8636).
+- The default value of `virtual-store-dir-max-length` on Windows reduced to 60 characters.
+- Escape the `#` character in directory names within the virtual store (`node_modules/.pnpm`) [#8557](https://github.com/pnpm/pnpm/pull/8557).
+- Store version bumped to v10. The new store layout has a different directory called "index" for storing the package content mappings. Previously these files were stored in the same directory where the package contents are (in "files"). The new store has also a new format for storing the mappings for side-effects cache.
+
+### Patch Changes
+
+- Don't validate (and possibly purge) `node_modules` in commands which should not modify it (e.g. `pnpm install --lockfile-only`) [#8657](https://github.com/pnpm/pnpm/pull/8657).
+
 ## 9.12.3
 
 ### Patch Changes

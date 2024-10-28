@@ -1,9 +1,9 @@
 {
   "name": "@pnpm/exe",
   "description": "Fast, disk space efficient package manager",
-  "version": "9.12.3",
+  "version": "10.0.0-alpha.0",
   "publishConfig": {
-    "tag": "next-9",
+    "tag": "next-10",
     "bin": {
       "pnpm": "pnpm"
     }
@@ -35,6 +35,6 @@
     "prepublishOnly": "pnpm --filter=pnpm run compile && ts-node ./scripts/build-artifacts.ts"
   },
   "keywords": [
-    "pnpm9"
+    "pnpm10"
   ]
 }

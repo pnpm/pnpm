@@ -16,7 +16,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/fs/packlist",
   "keywords": [
-    "pnpm9"
+    "pnpm10"
   ],
   "engines": {
     "node": ">=18.12"

@@ -16,7 +16,7 @@
     "@types/validate-npm-package-name": "catalog:"
   },
   "keywords": [
-    "pnpm9"
+    "pnpm10"
   ],
   "license": "MIT",
   "engines": {

@@ -21,7 +21,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/direct-dep-linker#readme",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm"
   ],
   "license": "MIT",

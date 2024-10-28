@@ -26,7 +26,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fetching/pick-fetcher#readme",
   "funding": "https://opencollective.com/pnpm",
   "keywords": [
-    "pnpm9"
+    "pnpm10"
   ],
   "devDependencies": {
     "@pnpm/fetcher-base": "workspace:*",
