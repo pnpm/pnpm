@@ -460,11 +460,5 @@ describe('multi-project workspace', () => {
 
   test.todo('should not prevent nested `pnpm run` after having mutated the manifests')
 
-  test.todo('should check for outdated dependencies before `pnpm run` on the root package')
-
-  test.todo('should check for outdated dependencies before `pnpm run` on one of the package in the workspace')
-
-  test.todo('should check for outdated dependencies before recursive run')
-
   test.todo('should check for outdated catalogs')
 })
