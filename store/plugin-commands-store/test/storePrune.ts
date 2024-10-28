@@ -214,7 +214,7 @@ test('prune does not fail if the store contains an unexpected directory', async 
   await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
 
   project.storeHas('is-negative', '2.1.0')
-  const alienDir = path.join(storeDir, 'v3/files/44/directory')
+  const alienDir = path.join(storeDir, STORE_VERSION, 'files/44/directory')
   fs.mkdirSync(alienDir)
 
   const reporter = jest.fn()
@@ -252,7 +252,7 @@ test('prune removes alien files from the store if the --force flag is used', asy
   await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
 
   project.storeHas('is-negative', '2.1.0')
-  const alienDir = path.join(storeDir, 'v3/files/44/directory')
+  const alienDir = path.join(storeDir, STORE_VERSION, 'files/44/directory')
   fs.mkdirSync(alienDir)
 
   const reporter = jest.fn()

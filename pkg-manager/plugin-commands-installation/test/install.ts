@@ -1,6 +1,7 @@
 import fs from 'fs'
 import delay from 'delay'
 import path from 'path'
+import { STORE_VERSION } from '@pnpm/constants'
 import { add, install } from '@pnpm/plugin-commands-installation'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { sync as rimraf } from '@zkochan/rimraf'
@@ -41,7 +42,7 @@ test('install with no store integrity validation', async () => {
   // We should have a short delay before modifying the file in the store.
   // Otherwise pnpm will not consider it to be modified.
   await delay(200)
-  const readmePath = path.join(DEFAULT_OPTS.storeDir, 'v3/files/9a/f6af85f55c111108eddf1d7ef7ef224b812e7c7bfabae41c79cf8bc9a910352536963809463e0af2799abacb975f22418a35a1d170055ef3fdc3b2a46ef1c5')
+  const readmePath = path.join(DEFAULT_OPTS.storeDir, STORE_VERSION, 'files/9a/f6af85f55c111108eddf1d7ef7ef224b812e7c7bfabae41c79cf8bc9a910352536963809463e0af2799abacb975f22418a35a1d170055ef3fdc3b2a46ef1c5')
   fs.writeFileSync(readmePath, 'modified', 'utf8')
 
   rimraf('node_modules')

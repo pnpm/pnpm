@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { STORE_VERSION } from '@pnpm/constants'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { type LockfileV9 as Lockfile } from '@pnpm/lockfile.types'
 import { sync as readYamlFile } from 'read-yaml-file'
@@ -122,7 +123,7 @@ skipOnWindows('recursive installation using server', async () => {
   const storeDir = path.resolve('store')
   spawnPnpm(['server', 'start'], { storeDir })
 
-  const serverJsonPath = path.resolve(storeDir, 'v3/server/server.json')
+  const serverJsonPath = path.resolve(storeDir, STORE_VERSION, 'server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
   expect(serverJson).toBeTruthy()
   expect(serverJson.connectionOptions).toBeTruthy()
