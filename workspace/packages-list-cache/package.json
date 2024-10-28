@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/packages-list-cache",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm",
     "mtime"
   ],
@@ -33,6 +33,7 @@
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:"
   },

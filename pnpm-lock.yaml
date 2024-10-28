@@ -7808,6 +7808,9 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types

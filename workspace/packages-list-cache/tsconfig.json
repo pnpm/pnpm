@@ -19,6 +19,9 @@
       "path": "../../crypto/hash"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     }
   ]

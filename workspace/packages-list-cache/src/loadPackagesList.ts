@@ -1,5 +1,6 @@
 import fs from 'fs'
 import util from 'util'
+import { logger } from '@pnpm/logger'
 import { getCacheFilePath } from './cacheFile'
 import { type PackagesList } from './types'
 
@@ -9,6 +10,7 @@ export interface LoadPackagesListOptions {
 }
 
 export async function loadPackagesList (opts: LoadPackagesListOptions): Promise<PackagesList | undefined> {
+  logger.debug({ msg: 'loading packages list' })
   const cacheFile = getCacheFilePath(opts)
   let cacheFileContent: string
   try {

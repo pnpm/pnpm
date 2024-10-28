@@ -1,9 +1,15 @@
 import path from 'path'
+import { logger } from '@pnpm/logger'
 import { preparePackages } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
 import { loadPackagesList, updatePackagesList } from '../src/index'
 
 const lastValidatedTimestamp = Date.now()
+
+const originalLoggerDebug = logger.debug
+afterEach(() => {
+  logger.debug = originalLoggerDebug
+})
 
 test('updatePackagesList()', async () => {
   preparePackages(['a', 'b', 'c', 'd'].map(name => ({
@@ -16,18 +22,21 @@ test('updatePackagesList()', async () => {
 
   expect(await loadPackagesList({ cacheDir, workspaceDir })).toBeUndefined()
 
+  logger.debug = jest.fn(originalLoggerDebug)
   await updatePackagesList({
     cacheDir,
     lastValidatedTimestamp,
     workspaceDir,
     allProjects: [],
   })
+  expect((logger.debug as jest.Mock).mock.calls).toStrictEqual([[{ msg: 'updating packages list' }]])
   expect(await loadPackagesList({ cacheDir, workspaceDir })).toStrictEqual({
     lastValidatedTimestamp,
     projectRootDirs: [],
     workspaceDir,
   })
 
+  logger.debug = jest.fn(originalLoggerDebug)
   await updatePackagesList({
     cacheDir,
     lastValidatedTimestamp,
@@ -44,6 +53,7 @@ test('updatePackagesList()', async () => {
       { rootDir: path.resolve('packages/b') as ProjectRootDir },
     ],
   })
+  expect((logger.debug as jest.Mock).mock.calls).toStrictEqual([[{ msg: 'updating packages list' }]])
   expect(await loadPackagesList({ cacheDir, workspaceDir })).toStrictEqual({
     catalogs: {
       default: {
