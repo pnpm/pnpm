@@ -428,7 +428,7 @@ describe('multi-project workspace', () => {
       expect(stdout.toString()).toContain('No manifest files are modified after the last validation. Exiting check.')
       expect(stdout.toString()).not.toContain('Some manifest files are modified after the last validation. Continuing check.')
     }
-    // should be able to a script in any workspace package after updating dependencies
+    // should be able to execute a script in any workspace package after updating dependencies
     {
       const { status, stdout } = execPnpmSync([...config, 'start'], {
         cwd: projects.foo.dir(),
@@ -443,14 +443,14 @@ describe('multi-project workspace', () => {
       expect(status).toBe(0)
       expect(stdout.toString()).toContain('hello from bar')
     }
-    // should be able to a script recursively after updating dependencies
+    // should be able to execute a script recursively after updating dependencies
     {
       const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
       expect(status).toBe(0)
       expect(stdout.toString()).toContain('hello from foo')
       expect(stdout.toString()).toContain('hello from bar')
     }
-    // should be able to a script with filter after updating dependencies
+    // should be able to execute a script with filter after updating dependencies
     {
       const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
       expect(status).toBe(0)
