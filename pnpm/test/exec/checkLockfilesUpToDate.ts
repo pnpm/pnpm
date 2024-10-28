@@ -62,18 +62,22 @@ describe('single project workspace', () => {
 
     // attempting to execute a script with outdated dependencies should fail
     {
-      const { status, stdout } = execPnpmSync([...config, 'start'])
+      const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
       expect(status).not.toBe(0)
       expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+      expect(stdout.toString()).not.toContain('The manifest file not newer than the lockfile. Exiting check.')
+      expect(stdout.toString()).toContain('The manifest is newer than the lockfile. Continuing check.')
     }
 
     await execPnpm([...config, 'install'])
 
     // should be able to execute a script after dependencies have been updated
     {
-      const { status, stdout } = execPnpmSync([...config, 'start'])
+      const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
       expect(status).toBe(0)
       expect(stdout.toString()).toContain('hello from script')
+      expect(stdout.toString()).toContain('The manifest file not newer than the lockfile. Exiting check.')
+      expect(stdout.toString()).not.toContain('The manifest is newer than the lockfile. Continuing check.')
     }
 
     project.writePackageJson({
