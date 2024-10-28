@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-store
 
+## 9.2.15
+
+### Patch Changes
+
+- Updated dependencies [f9a095c]
+- Updated dependencies [a1f4df2]
+  - @pnpm/get-context@12.0.7
+  - @pnpm/store.cafs@4.0.2
+  - @pnpm/dependency-path@5.1.7
+  - @pnpm/store-connection-manager@8.4.2
+  - @pnpm/cli-utils@4.0.7
+  - @pnpm/config@21.8.5
+  - @pnpm/lockfile.utils@1.0.4
+
 ## 9.2.14
 
 ### Patch Changes

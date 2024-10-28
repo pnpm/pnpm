@@ -1,5 +1,11 @@
 # @pnpm/store.cafs
 
+## 4.0.2
+
+### Patch Changes
+
+- a1f4df2: Fixed a race condition in temporary file creation in the store by including worker thread ID in filename. Previously, multiple worker threads could attempt to use the same temporary file. Temporary files now include both process ID and thread ID for uniqueness [#8703](https://github.com/pnpm/pnpm/pull/8703).
+
 ## 4.0.1
 
 ### Patch Changes

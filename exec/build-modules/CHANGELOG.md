@@ -1,5 +1,17 @@
 # @pnpm/build-modules
 
+## 14.0.5
+
+### Patch Changes
+
+- Updated dependencies [222d10a]
+  - @pnpm/worker@1.0.13
+  - @pnpm/calc-dep-state@7.0.10
+  - @pnpm/lifecycle@17.1.5
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.1.1
+  - @pnpm/link-bins@10.0.11
+
 ## 14.0.4
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/npm-resolver
 
+## 21.1.1
+
+### Patch Changes
+
+- 222d10a: Use `crypto.hash`, when available, for improved performance [#8629](https://github.com/pnpm/pnpm/pull/8629).
+- Updated dependencies [222d10a]
+- Updated dependencies [222d10a]
+  - @pnpm/crypto.polyfill@1.0.0
+
 ## 21.1.0
 
 ### Minor Changes

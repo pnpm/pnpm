@@ -1,5 +1,13 @@
 # @pnpm/crypto.base32-hash
 
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [222d10a]
+- Updated dependencies [222d10a]
+  - @pnpm/crypto.polyfill@1.0.0
+
 ## 3.0.0
 
 ### Major Changes

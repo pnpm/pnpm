@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-rebuild
 
+## 12.1.2
+
+### Patch Changes
+
+- Updated dependencies [f9a095c]
+- Updated dependencies [222d10a]
+- Updated dependencies [a1f4df2]
+  - @pnpm/get-context@12.0.7
+  - @pnpm/worker@1.0.13
+  - @pnpm/store.cafs@4.0.2
+  - @pnpm/dependency-path@5.1.7
+  - @pnpm/store-connection-manager@8.4.2
+  - @pnpm/cli-utils@4.0.7
+  - @pnpm/config@21.8.5
+  - @pnpm/lockfile.utils@1.0.4
+  - @pnpm/lockfile.walker@1.0.4
+  - @pnpm/calc-dep-state@7.0.10
+  - @pnpm/workspace.find-packages@4.0.12
+  - @pnpm/lifecycle@17.1.5
+  - @pnpm/link-bins@10.0.11
+
 ## 12.1.1
 
 ### Patch Changes

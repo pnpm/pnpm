@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-store-inspecting
 
+## 0.2.24
+
+### Patch Changes
+
+- Updated dependencies [a1f4df2]
+  - @pnpm/store.cafs@4.0.2
+  - @pnpm/client@11.1.12
+  - @pnpm/config@21.8.5
+
 ## 0.2.23
 
 ### Patch Changes

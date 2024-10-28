@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-publishing
 
+## 10.0.12
+
+### Patch Changes
+
+- Updated dependencies [d04f7f2]
+  - @pnpm/plugin-commands-env@5.1.11
+  - @pnpm/client@11.1.12
+  - @pnpm/cli-utils@4.0.7
+  - @pnpm/config@21.8.5
+  - @pnpm/lifecycle@17.1.5
+  - @pnpm/exportable-manifest@7.0.6
+
 ## 10.0.11
 
 ### Patch Changes

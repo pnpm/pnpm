@@ -1,5 +1,11 @@
 # @pnpm/lockfile.detect-dep-types
 
+## 2.0.9
+
+### Patch Changes
+
+- @pnpm/dependency-path@5.1.7
+
 ## 2.0.8
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # pnpm
 
+## 9.12.3
+
+### Patch Changes
+
+- Don't purge `node_modules`, when typing "n" in the prompt that asks whether to remove `node_modules` before installation [#8655](https://github.com/pnpm/pnpm/pull/8655).
+- Fix a bug causing pnpm to infinitely spawn itself when `manage-package-manager-versions=true` is set and the `.tools` directory is corrupt.
+- Use `crypto.hash`, when available, for improved performance [#8629](https://github.com/pnpm/pnpm/pull/8629).
+- Fixed a race condition in temporary file creation in the store by including worker thread ID in filename. Previously, multiple worker threads could attempt to use the same temporary file. Temporary files now include both process ID and thread ID for uniqueness [#8703](https://github.com/pnpm/pnpm/pull/8703).
+- All commands should read settings from the `package.json` at the root of the workspace [#8667](https://github.com/pnpm/pnpm/issues/8667).
+- When `manage-package-manager-versions` is set to `true`, errors spawning a self-managed version of `pnpm` will now be shown (instead of being silent).
+- Pass the find command to npm, it is an alias for npm search
+
 ## 9.12.2
 
 ### Patch Changes

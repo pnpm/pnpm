@@ -1,5 +1,11 @@
 # @pnpm/pnpmfile
 
+## 6.0.13
+
+### Patch Changes
+
+- @pnpm/crypto.base32-hash@3.0.1
+
 ## 6.0.12
 
 ### Patch Changes

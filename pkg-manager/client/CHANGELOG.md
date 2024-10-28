@@ -1,5 +1,14 @@
 # @pnpm/client
 
+## 11.1.12
+
+### Patch Changes
+
+- @pnpm/default-resolver@20.0.9
+- @pnpm/git-fetcher@13.0.16
+- @pnpm/tarball-fetcher@19.0.16
+- @pnpm/directory-fetcher@8.0.9
+
 ## 11.1.11
 
 ### Patch Changes
