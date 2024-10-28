@@ -10,6 +10,7 @@ import { sync as loadJsonFile } from 'load-json-file'
 import PATH from 'path-name'
 import writePkg from 'write-pkg'
 import { DEFAULT_OPTS } from './utils'
+import { type PnpmError } from '@pnpm/error'
 
 const f = fixtures(__dirname)
 
@@ -356,4 +357,25 @@ test('logger should not warn about peer dependencies when it is an empty object'
   }))
 
   warnMock.mockRestore()
+})
+
+test('link: fail when global bin directory is not found', async () => {
+  prepare()
+
+  const globalDir = path.resolve('global')
+
+  let err!: PnpmError
+  try {
+    await link.handler({
+      ...DEFAULT_OPTS,
+      bin: undefined as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      dir: globalDir,
+      cliOptions: {
+        global: true,
+      },
+    })
+  } catch (_err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_NO_GLOBAL_BIN_DIR')
 })
