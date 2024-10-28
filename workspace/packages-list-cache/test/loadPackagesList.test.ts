@@ -16,7 +16,7 @@ afterEach(() => {
   logger.debug = originalLoggerDebug
 })
 
-const expectedLoggerCalls =[[ { msg: 'loading packages list' }]]
+const expectedLoggerCalls = [[{ msg: 'loading packages list' }]]
 
 test('loadPackagesList() when cache dir does not exist', async () => {
   prepareEmpty()
