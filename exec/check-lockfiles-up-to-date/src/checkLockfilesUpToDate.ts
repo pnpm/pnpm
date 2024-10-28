@@ -24,7 +24,7 @@ import {
   getWorkspacePackagesByDirectory,
   satisfiesPackageManifest,
 } from '@pnpm/lockfile.verification'
-import { globalWarn } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { parseOverrides } from '@pnpm/parse-overrides'
 import { type WorkspacePackages } from '@pnpm/resolver-base'
@@ -115,7 +115,12 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         manifestStats.mtime.valueOf() > packagesList.lastValidatedTimestamp
     )
 
-    if (modifiedProjects.length === 0) return
+    if (modifiedProjects.length === 0) {
+      logger.debug({ msg: 'No manifest files are modified after the last validation. Exiting check.' })
+      return
+    }
+
+    logger.debug({ msg: 'Some manifest files are modified after the last validation. Continuing check.' })
 
     let readWantedLockfileAndDir: (projectDir: string) => Promise<{
       wantedLockfile: Lockfile
@@ -245,6 +250,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     }
 
     if (manifestStats.mtime.valueOf() > wantedLockfileStats.mtime.valueOf()) {
+      logger.debug({ msg: 'The manifest is newer than the lockfile. Continuing check.' })
       await assertWantedLockfileUpToDate({
         autoInstallPeers,
         config: opts,
@@ -260,6 +266,8 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir),
         wantedLockfileDir: rootProjectManifestDir,
       })
+    } else {
+      logger.debug({ msg: 'The manifest file not newer than the lockfile. Exiting check.' })
     }
 
     return
