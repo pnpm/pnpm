@@ -359,6 +359,15 @@ describe('multi-project workspace', () => {
       expect(stdout.toString()).toContain('Some manifest files are modified after the last validation. Continuing check.')
       expect(stdout.toString()).toContain('updating packages list')
     }
+    // should skip check after pnpm has updated the packages list
+    {
+      const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
+      expect(status).toBe(0)
+      expect(stdout.toString()).toContain('hello from root')
+      expect(stdout.toString()).toContain('No manifest files are modified after the last validation. Exiting check.')
+      expect(stdout.toString()).not.toContain('Some manifest files are modified after the last validation. Continuing check.')
+      expect(stdout.toString()).not.toContain('updating packages list')
+    }
 
     projects.foo.writePackageJson({
       ...manifests.foo,
