@@ -1,5 +1,14 @@
 # @pnpm/hoist
 
+## 9.1.15
+
+### Patch Changes
+
+- @pnpm/dependency-path@5.1.7
+- @pnpm/lockfile.utils@1.0.4
+- @pnpm/lockfile.walker@1.0.4
+- @pnpm/link-bins@10.0.11
+
 ## 9.1.14
 
 ### Patch Changes

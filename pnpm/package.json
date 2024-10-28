@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "9.12.2",
+  "version": "10.0.0-alpha.0",
   "bin": {
     "pnpm": "bin/pnpm.cjs",
     "pnpx": "bin/pnpx.cjs"
@@ -127,7 +127,7 @@
   },
   "homepage": "https://pnpm.io",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "dependency manager",
     "install",
     "installer",
@@ -185,5 +185,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./package.json"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

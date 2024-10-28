@@ -1,11 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
+import { STORE_VERSION } from '@pnpm/constants'
 import { store } from '@pnpm/plugin-commands-store'
 import { tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-
-const STORE_VERSION = 'v3'
 
 test('pnpm store add express@4.16.3', async () => {
   tempDir()

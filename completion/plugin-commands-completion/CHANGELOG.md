@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-completion
 
+## 1.0.23
+
+### Patch Changes
+
+- Updated dependencies [f066efc]
+  - @pnpm/parse-cli-args@8.0.3
+  - @pnpm/cli-utils@4.0.7
+  - @pnpm/workspace.find-packages@4.0.12
+
 ## 1.0.22
 
 ### Patch Changes

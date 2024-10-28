@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-installation
 
+## 17.2.7
+
+### Patch Changes
+
+- 6014522: Print ERR_PNPM_NO_GLOBAL_BIN_DIR error in `pnpm link --global` when global bin directory is not found
+- Updated dependencies [d04f7f2]
+- Updated dependencies [f9a095c]
+- Updated dependencies [222d10a]
+  - @pnpm/plugin-commands-env@5.1.11
+  - @pnpm/get-context@12.0.7
+  - @pnpm/core@15.3.8
+  - @pnpm/plugin-commands-rebuild@12.1.2
+  - @pnpm/outdated@15.1.7
+  - @pnpm/workspace.pkgs-graph@4.0.7
+  - @pnpm/package-store@20.4.2
+  - @pnpm/pnpmfile@6.0.13
+  - @pnpm/filter-workspace-packages@10.0.12
+  - @pnpm/store-connection-manager@8.4.2
+  - @pnpm/cli-utils@4.0.7
+  - @pnpm/config@21.8.5
+  - @pnpm/workspace.find-packages@4.0.12
+
 ## 17.2.6
 
 ### Patch Changes

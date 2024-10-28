@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/make-dedicated-lockfile",
-  "version": "0.6.18",
+  "version": "0.6.19",
   "description": "Creates a dedicated lockfile for a subset of workspace projects",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -22,7 +22,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/packages/make-dedicated-lockfile",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm",
     "make-dedicated-lockfile"
   ],
@@ -37,8 +37,8 @@
     "@pnpm/exportable-manifest": "workspace:*",
     "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
-    "@pnpm/logger": "workspace:*",
     "@pnpm/lockfile.pruner": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:",
@@ -54,5 +54,8 @@
   },
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

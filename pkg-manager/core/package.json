@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "15.3.7",
+  "version": "15.3.8",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -64,6 +64,8 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",
     "@zkochan/rimraf": "catalog:",
+    "ci-info": "catalog:",
+    "enquirer": "catalog:",
     "is-inner-link": "catalog:",
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
@@ -117,7 +119,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core#readme",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "dependency manager",
     "install",
     "installer",
@@ -156,5 +158,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

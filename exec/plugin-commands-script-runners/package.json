@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "12.0.9",
+  "version": "12.0.10",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -21,7 +21,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/exec/plugin-commands-script-runners",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm",
     "scripts"
   ],
@@ -81,5 +81,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

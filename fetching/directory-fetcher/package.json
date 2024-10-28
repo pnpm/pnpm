@@ -21,7 +21,7 @@
     "node": ">=18.12"
   },
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm",
     "fetcher"
   ],
@@ -49,5 +49,8 @@
   },
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

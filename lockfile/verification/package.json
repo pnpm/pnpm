@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.verification",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Checks a lockfile",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/verification",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm",
     "lockfile"
   ],
@@ -36,8 +36,8 @@
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/get-context": "workspace:*",
-    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -57,5 +57,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

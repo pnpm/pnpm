@@ -21,7 +21,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/local-resolver",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm",
     "resolver",
     "npm"
@@ -52,5 +52,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

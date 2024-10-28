@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "9.1.14",
+  "version": "9.1.15",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -24,7 +24,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/hoist#readme",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm"
   ],
   "license": "MIT",
@@ -58,5 +58,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

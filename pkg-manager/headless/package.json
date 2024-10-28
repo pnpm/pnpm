@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "23.2.7",
+  "version": "23.2.8",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -45,7 +45,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/headless#readme",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm",
     "install",
     "installer"
@@ -64,6 +64,9 @@
     "runPrepareFixtures": "node ../../pnpm/bin/pnpm.cjs i -r -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force --no-strict-peer-dependencies",
     "prepareFixtures": "git clean -fdx test/fixtures && rm -rf \"test/fixtures/*/pnpm-lock.yaml\" && registry-mock prepare && concurrently --success=first --kill-others registry-mock \"pnpm run runPrepareFixtures\"",
     "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:*",

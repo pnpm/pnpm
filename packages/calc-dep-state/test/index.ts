@@ -21,7 +21,7 @@ const depsGraph = {
 test('calcDepState()', () => {
   expect(calcDepState(depsGraph, {}, 'registry/foo@1.0.0', {
     isBuilt: true,
-  })).toBe(`${ENGINE_NAME}-${hashObject({
+  })).toBe(`${ENGINE_NAME};deps=${hashObject({
     'bar@1.0.0': { 'foo@1.0.0': {} },
   })}`)
 })

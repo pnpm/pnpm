@@ -1,5 +1,16 @@
 # @pnpm/resolve-dependencies
 
+## 36.0.6
+
+### Patch Changes
+
+- Updated dependencies [222d10a]
+  - @pnpm/npm-resolver@21.1.1
+  - @pnpm/dependency-path@5.1.7
+  - @pnpm/lockfile.pruner@0.0.6
+  - @pnpm/lockfile.utils@1.0.4
+  - @pnpm/lockfile.preferred-versions@1.0.14
+
 ## 36.0.5
 
 ### Patch Changes

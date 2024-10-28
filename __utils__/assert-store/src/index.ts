@@ -23,9 +23,8 @@ export function assertStore (
   const ern = encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`
   const store = {
     getPkgIndexFilePath (pkgName: string, version: string): string {
-      const cafsDir = path.join(storePath, 'files')
       const integrity = getIntegrity(pkgName, version)
-      return getIndexFilePathInCafs(cafsDir, integrity, `${pkgName}@${version}`)
+      return getIndexFilePathInCafs(storePath, integrity, `${pkgName}@${version}`)
     },
     cafsHas (pkgName: string, version: string): void {
       const pathToCheck = store.getPkgIndexFilePath(pkgName, version)

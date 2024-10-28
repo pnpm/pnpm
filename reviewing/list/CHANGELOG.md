@@ -1,5 +1,15 @@
 # @pnpm/list
 
+## 10.2.2
+
+### Patch Changes
+
+- 222d10a: Use `crypto.hash`, when available, for improved performance [#8629](https://github.com/pnpm/pnpm/pull/8629).
+- Updated dependencies [222d10a]
+- Updated dependencies [222d10a]
+  - @pnpm/crypto.polyfill@1.0.0
+  - @pnpm/reviewing.dependencies-hierarchy@3.2.2
+
 ## 10.2.1
 
 ### Patch Changes

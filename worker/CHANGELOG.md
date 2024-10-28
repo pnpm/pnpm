@@ -1,5 +1,19 @@
 # @pnpm/worker
 
+## 1.0.13
+
+### Patch Changes
+
+- 222d10a: Use `crypto.hash`, when available, for improved performance [#8629](https://github.com/pnpm/pnpm/pull/8629).
+- Updated dependencies [222d10a]
+- Updated dependencies [222d10a]
+- Updated dependencies [a1f4df2]
+  - @pnpm/crypto.polyfill@1.0.0
+  - @pnpm/store.cafs@4.0.2
+  - @pnpm/create-cafs-store@7.0.11
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/symlink-dependency@8.0.8
+
 ## 1.0.12
 
 ### Patch Changes

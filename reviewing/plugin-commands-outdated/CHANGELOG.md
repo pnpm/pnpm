@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-outdated
 
+## 12.1.2
+
+### Patch Changes
+
+- 3804a25: Add missing `--format` description in `pnpm outdated --help` command
+  - @pnpm/default-resolver@20.0.9
+  - @pnpm/outdated@15.1.7
+  - @pnpm/cli-utils@4.0.7
+  - @pnpm/config@21.8.5
+  - @pnpm/lockfile.fs@1.0.5
+
 ## 12.1.1
 
 ### Patch Changes

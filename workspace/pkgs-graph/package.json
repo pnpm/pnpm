@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.pkgs-graph",
-  "version": "4.0.6",
+  "version": "4.0.7",
   "description": "Create a graph from an array of packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -38,9 +38,12 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "keywords": [
-    "pnpm9"
+    "pnpm10"
   ],
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

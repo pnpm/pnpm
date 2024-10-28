@@ -34,7 +34,7 @@ export interface PackageFilesIndex {
 }
 
 export function checkPkgFilesIntegrity (
-  cafsDir: string,
+  storeDir: string,
   pkgIndex: PackageFilesIndex,
   readManifest?: boolean
 ): VerifyResult {
@@ -42,7 +42,7 @@ export function checkPkgFilesIntegrity (
   // but there's a smaller chance that the same file will be checked twice
   // so it's probably not worth the memory (this assumption should be verified)
   const verifiedFilesCache = new Set<string>()
-  const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, cafsDir)
+  const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir)
   const verified = _checkFilesIntegrity(pkgIndex.files, readManifest)
   if (!verified) return { passed: false }
   if (pkgIndex.sideEffects) {
@@ -63,7 +63,7 @@ export function checkPkgFilesIntegrity (
 
 function checkFilesIntegrity (
   verifiedFilesCache: Set<string>,
-  cafsDir: string,
+  storeDir: string,
   files: PackageFiles,
   readManifest?: boolean
 ): VerifyResult {
@@ -73,7 +73,7 @@ function checkFilesIntegrity (
     if (!fstat.integrity) {
       throw new Error(`Integrity checksum is missing for ${f}`)
     }
-    const filename = getFilePathByModeInCafs(cafsDir, fstat.integrity, fstat.mode)
+    const filename = getFilePathByModeInCafs(storeDir, fstat.integrity, fstat.mode)
     const readFile = readManifest && f === 'package.json'
     if (!readFile && verifiedFilesCache.has(filename)) continue
     const verifyResult = verifyFile(filename, fstat, readFile)

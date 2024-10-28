@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-completion",
-  "version": "1.0.22",
+  "version": "1.0.23",
   "description": "Commands for shell completions",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -47,7 +47,10 @@
     ".": "./lib/index.js"
   },
   "keywords": [
-    "pnpm9"
+    "pnpm10"
   ],
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/completion/plugin-commands-completion#readme"
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/completion/plugin-commands-completion#readme",
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
 }

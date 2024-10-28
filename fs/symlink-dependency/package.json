@@ -24,7 +24,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/symlink-dependency#readme",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm"
   ],
   "license": "MIT",
@@ -48,5 +48,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

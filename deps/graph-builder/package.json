@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/deps.graph-builder",
   "description": "A package for building a dependency graph from a lockfile",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -25,7 +25,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/deps/graph-builder#readme",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm"
   ],
   "license": "MIT",
@@ -53,5 +53,8 @@
     "@pnpm/types": "workspace:*",
     "path-exists": "catalog:",
     "ramda": "catalog:"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

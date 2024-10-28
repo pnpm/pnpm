@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/real-hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "3.0.13",
+  "version": "3.0.14",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -13,7 +13,7 @@
   ],
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/real-hoist#readme",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm"
   ],
   "license": "MIT",
@@ -44,5 +44,8 @@
   },
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

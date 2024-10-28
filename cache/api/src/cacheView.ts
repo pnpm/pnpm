@@ -17,7 +17,6 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
   const metaFilePaths = (await fastGlob(`${prefix}/${packageName}.json`, {
     cwd: opts.cacheDir,
   })).sort()
-  const cafsDir = path.join(opts.storeDir, 'files')
   const metaFilesByPath: Record<string, CachedVersions> = {}
   for (const filePath of metaFilePaths) {
     const metaObject = JSON.parse(fs.readFileSync(path.join(opts.cacheDir, filePath), 'utf8')) as PackageMeta
@@ -25,7 +24,7 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
     const nonCachedVersions: string[] = []
     for (const [version, manifest] of Object.entries(metaObject.versions)) {
       if (!manifest.dist.integrity) continue
-      const indexFilePath = getIndexFilePathInCafs(cafsDir, manifest.dist.integrity, `${manifest.name}@${manifest.version}`)
+      const indexFilePath = getIndexFilePathInCafs(opts.storeDir, manifest.dist.integrity, `${manifest.name}@${manifest.version}`)
       if (fs.existsSync(indexFilePath)) {
         cachedVersions.push(version)
       } else {

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "20.4.1",
+  "version": "20.4.2",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -42,7 +42,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/package-store#readme",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "store",
     "storage",
     "global store",
@@ -69,5 +69,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

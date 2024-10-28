@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store",
-  "version": "9.2.14",
+  "version": "9.2.15",
   "description": "Commands for controlling the store",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-store",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm",
     "scripts"
   ],
@@ -31,6 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-store#readme",
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*",
+    "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-script-runners": "workspace:*",
@@ -73,5 +74,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

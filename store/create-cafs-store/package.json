@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/create-cafs-store",
   "description": "Create a CAFS store controller",
-  "version": "7.0.10",
+  "version": "7.0.11",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -36,7 +36,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/create-cafs-store#readme",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "store",
     "storage",
     "global store",
@@ -61,5 +61,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

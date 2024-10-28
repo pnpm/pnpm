@@ -260,16 +260,16 @@ export async function getConfig (opts: {
     return undefined
   })()
   pnpmConfig.pnpmHomeDir = getDataDir(process)
+  let globalDirRoot
+  if (pnpmConfig.globalDir) {
+    globalDirRoot = pnpmConfig.globalDir
+  } else {
+    globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
+  }
+  pnpmConfig.globalPkgDir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
   if (cliOptions['global']) {
-    let globalDirRoot
-    if (pnpmConfig.globalDir) {
-      globalDirRoot = pnpmConfig.globalDir
-    } else {
-      globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
-    }
-    pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
-
+    pnpmConfig.dir = pnpmConfig.globalPkgDir
     pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
     if (pnpmConfig.bin) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })
@@ -510,6 +510,7 @@ function getProcessEnv (env: string): string | undefined {
 }
 
 function parsePackageManager (packageManager: string): { name: string, version: string | undefined } {
+  if (!packageManager.includes('@')) return { name: packageManager, version: undefined }
   const [name, pmReference] = packageManager.split('@')
   // pmReference is semantic versioning, not URL
   if (pmReference.includes(':')) return { name, version: undefined }

@@ -1,5 +1,16 @@
 # @pnpm/package-requester
 
+## 25.2.10
+
+### Patch Changes
+
+- Updated dependencies [222d10a]
+- Updated dependencies [a1f4df2]
+  - @pnpm/worker@1.0.13
+  - @pnpm/store.cafs@4.0.2
+  - @pnpm/package-is-installable@9.0.11
+  - @pnpm/dependency-path@5.1.7
+
 ## 25.2.9
 
 ### Patch Changes

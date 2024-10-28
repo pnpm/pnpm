@@ -25,6 +25,16 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
   await rimraf(path.join(storeDir, 'tmp'))
   globalInfo('Removed all cached metadata files')
   const pkgIndexFiles = [] as string[]
+  const indexDir = path.join(storeDir, 'index')
+  await Promise.all((await getSubdirsSafely(indexDir)).map(async (dir) => {
+    const subdir = path.join(indexDir, dir)
+    await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
+      const filePath = path.join(subdir, fileName)
+      if (fileName.endsWith('.json')) {
+        pkgIndexFiles.push(filePath)
+      }
+    }))
+  }))
   const removedHashes = new Set<string>()
   const dirs = await getSubdirsSafely(cafsDir)
   let fileCounter = 0

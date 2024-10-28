@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/env.system-node-version",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Detects the current system node version",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/env/system-node-version",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm",
     "env"
   ],
@@ -40,5 +40,8 @@
   },
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

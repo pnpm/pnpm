@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
+import { STORE_VERSION } from '@pnpm/constants'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
@@ -8,7 +9,6 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
 
-const STORE_VERSION = 'v3'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
@@ -214,7 +214,7 @@ test('prune does not fail if the store contains an unexpected directory', async 
   await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
 
   project.storeHas('is-negative', '2.1.0')
-  const alienDir = path.join(storeDir, 'v3/files/44/directory')
+  const alienDir = path.join(storeDir, STORE_VERSION, 'files/44/directory')
   fs.mkdirSync(alienDir)
 
   const reporter = jest.fn()
@@ -252,7 +252,7 @@ test('prune removes alien files from the store if the --force flag is used', asy
   await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
 
   project.storeHas('is-negative', '2.1.0')
-  const alienDir = path.join(storeDir, 'v3/files/44/directory')
+  const alienDir = path.join(storeDir, STORE_VERSION, 'files/44/directory')
   fs.mkdirSync(alienDir)
 
   const reporter = jest.fn()
@@ -373,8 +373,8 @@ test('prune removes cache directories that outlives dlx-cache-max-age', async ()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
-  fs.mkdirSync(path.join(storeDir, 'v3', 'files'), { recursive: true })
-  fs.mkdirSync(path.join(storeDir, 'v3', 'tmp'), { recursive: true })
+  fs.mkdirSync(path.join(storeDir, STORE_VERSION, 'files'), { recursive: true })
+  fs.mkdirSync(path.join(storeDir, STORE_VERSION, 'tmp'), { recursive: true })
 
   const now = new Date()
 

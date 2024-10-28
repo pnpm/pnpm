@@ -43,9 +43,9 @@ test('patch package', async () => {
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'files/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
+  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
-  const sideEffectsKey = `${ENGINE_NAME}-${patchFileHash}`
+  const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey].added?.['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
   const originalFileIntegrity = filesIndex.files['index.js'].integrity
@@ -210,9 +210,9 @@ test('patch package when scripts are ignored', async () => {
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'files/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
+  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
-  const sideEffectsKey = `${ENGINE_NAME}-${patchFileHash}`
+  const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey].added?.['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
   const originalFileIntegrity = filesIndex.files['index.js'].integrity
@@ -297,9 +297,9 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   })
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'files/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
+  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
-  const sideEffectsKey = `${ENGINE_NAME}-${patchFileHash}`
+  const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey].added?.['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
   const originalFileIntegrity = filesIndex.files['index.js'].integrity

@@ -172,7 +172,7 @@ test('server upload', async () => {
     files: {},
   }), 'utf8')
 
-  await storeCtrl.upload(path.join(__dirname, 'side-effect-fake-dir'), {
+  await storeCtrl.upload(path.join(__dirname, '__fixtures__/side-effect-fake-dir'), {
     sideEffectsCacheKey: fakeEngine,
     filesIndexFile,
   })
@@ -204,7 +204,7 @@ test('disable server upload', async () => {
 
   let thrown = false
   try {
-    await storeCtrl.upload(path.join(__dirname, 'side-effect-fake-dir'), {
+    await storeCtrl.upload(path.join(__dirname, '__fixtures__/side-effect-fake-dir'), {
       sideEffectsCacheKey: fakeEngine,
       filesIndexFile,
     })

@@ -1,0 +1,21 @@
+name: Audit
+
+on: [push, pull_request]
+
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+jobs:
+  audit:
+    name: Audit dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Commit
+      uses: actions/checkout@v4
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4.0.0
+      with:
+        standalone: true
+    - name: Audit
+      run: pnpm audit

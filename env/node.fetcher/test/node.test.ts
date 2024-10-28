@@ -35,7 +35,7 @@ test.skip('install Node using a custom node mirror', async () => {
   const nodeMirrorBaseUrl = 'https://pnpm-node-mirror-test.localhost/download/release/'
   const opts: FetchNodeOptions = {
     nodeMirrorBaseUrl,
-    cafsDir: path.resolve('files'),
+    storeDir: path.resolve('store'),
   }
 
   await fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)
@@ -49,7 +49,7 @@ test.skip('install Node using the default node mirror', async () => {
   tempDir()
 
   const opts: FetchNodeOptions = {
-    cafsDir: path.resolve('files'),
+    storeDir: path.resolve('store'),
   }
 
   await fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)
@@ -64,7 +64,7 @@ test('install Node using a custom node mirror', async () => {
   tempDir()
 
   const opts: FetchNodeOptions = {
-    cafsDir: path.resolve('files'),
+    storeDir: path.resolve('store'),
   }
 
   await expect(

@@ -12,9 +12,9 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type ProjectRootDir, type PackageManifest } from '@pnpm/types'
 import { sync as readYamlFile } from 'read-yaml-file'
+import symlinkDir from 'symlink-dir'
 import {
   addDependenciesToPackage,
-  link,
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
@@ -195,15 +195,16 @@ test('relative link is uninstalled', async () => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   f.copy(linkedPkgName, linkedPkgPath)
-  const manifest = await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), opts as (typeof opts & { dir: string, manifest: PackageManifest }))
+  symlinkDir.sync(linkedPkgPath, path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin'))
+  project.has('@pnpm.e2e/hello-world-js-bin')
   await mutateModulesInSingleProject({
-    dependencyNames: [linkedPkgName],
-    manifest,
+    dependencyNames: ['@pnpm.e2e/hello-world-js-bin'],
+    manifest: {},
     mutation: 'uninstallSome',
     rootDir: process.cwd() as ProjectRootDir,
   }, opts)
 
-  project.hasNot(linkedPkgName)
+  project.hasNot('@pnpm.e2e/hello-world-js-bin')
 })
 
 test('pendingBuilds gets updated after uninstall', async () => {

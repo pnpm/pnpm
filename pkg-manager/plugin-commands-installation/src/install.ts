@@ -308,6 +308,7 @@ export type InstallCommandOptions = Pick<Config,
     original: string[]
   }
   fixLockfile?: boolean
+  frozenLockfileIfExists?: boolean
   useBetaCli?: boolean
   pruneDirectDependencies?: boolean
   pruneStore?: boolean
@@ -330,9 +331,11 @@ export async function handler (opts: InstallCommandOptions): Promise<void> {
   const fetchFullMetadata: true | undefined = opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc && true
   const installDepsOptions: InstallDepsOptions = {
     ...opts,
-    frozenLockfileIfExists: isCI && !opts.lockfileOnly &&
+    frozenLockfileIfExists: opts.frozenLockfileIfExists ?? (
+      isCI && !opts.lockfileOnly &&
       typeof opts.rawLocalConfig['frozen-lockfile'] === 'undefined' &&
-      typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined',
+      typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined'
+    ),
     include,
     includeDirect: include,
     prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),

@@ -17,7 +17,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/store/store-path",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm",
     "store"
   ],
@@ -30,6 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/store-path#readme",
   "dependencies": {
+    "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "can-link": "catalog:",
@@ -50,5 +51,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

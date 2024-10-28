@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/node.resolver",
-  "version": "3.0.15",
+  "version": "3.0.16",
   "description": "Resolves a Node.js version specifier to an exact Node.js version",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
@@ -24,7 +24,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/env/node.resolver",
   "keywords": [
-    "pnpm9",
+    "pnpm10",
     "pnpm",
     "env",
     "node.js"
@@ -44,5 +44,8 @@
     "@pnpm/fetch": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
     "@types/semver": "catalog:"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }
