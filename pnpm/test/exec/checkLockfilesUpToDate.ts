@@ -348,6 +348,18 @@ describe('multi-project workspace', () => {
       expect(stdout.toString()).toContain('hello from foo')
     }
 
+    projects.foo.writePackageJson(manifests.foo)
+
+    // if the mtime of one manifest file changes but its content doesn't, pnpm run should update the packages list then run the script normally
+    {
+      const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
+      expect(status).toBe(0)
+      expect(stdout.toString()).toContain('hello from root')
+      expect(stdout.toString()).not.toContain('No manifest files are modified after the last validation. Exiting check.')
+      expect(stdout.toString()).toContain('Some manifest files are modified after the last validation. Continuing check.')
+      expect(stdout.toString()).toContain('updating packages list')
+    }
+
     projects.foo.writePackageJson({
       ...manifests.foo,
       dependencies: {
