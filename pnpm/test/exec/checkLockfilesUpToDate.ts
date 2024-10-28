@@ -80,6 +80,17 @@ describe('single project workspace', () => {
       expect(stdout.toString()).not.toContain('The manifest is newer than the lockfile. Continuing check.')
     }
 
+    // project.writePackageJson(manifest)
+
+    // // if the mtime of the manifest file changes but its content doesn't, pnpm run should update the packages list and execute the script
+    // {
+    //   const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
+    //   expect(status).toBe(0)
+    //   expect(stdout.toString()).toContain('hello from script')
+    //   expect(stdout.toString()).toContain('The manifest file not newer than the lockfile. Exiting check.')
+    //   expect(stdout.toString()).not.toContain('The manifest is newer than the lockfile. Continuing check.')
+    // }
+
     project.writePackageJson({
       ...manifest,
       dependencies: {}, // delete all dependencies
