@@ -9,7 +9,7 @@ import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
 const CHECK_DEPS_BEFORE_RUN_SCRIPTS = '--config.check-deps-before-run-scripts=true'
 
 describe('single project workspace', () => {
-  test.only('single dependency', async () => {
+  test('single dependency', async () => {
     const manifest: ProjectManifest = {
       name: 'root',
       private: true,
