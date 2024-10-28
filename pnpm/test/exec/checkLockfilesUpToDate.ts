@@ -456,6 +456,26 @@ describe('multi-project workspace', () => {
       expect(status).toBe(0)
       expect(stdout.toString()).toContain('hello from foo')
     }
+
+    manifests.baz = {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        start: 'echo hello from baz',
+      },
+    }
+    fs.mkdirSync(path.resolve('baz'), { recursive: true })
+    fs.writeFileSync(path.resolve('baz/package.json'), JSON.stringify(manifests.baz, undefined, 2) + '\n')
+
+    // attempting to execute a script without updating projects list should fail
+    {
+      const { status, stdout } = execPnpmSync([...config, 'start'])
+      expect(status).not.toBe(0)
+      expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_WORKSPACE_STRUCTURE_CHANGED')
+    }
   })
 
   test.todo('no dependencies')
