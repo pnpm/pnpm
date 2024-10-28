@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import workerThreads from 'worker_threads'
 import util from 'util'
 import renameOverwrite from 'rename-overwrite'
 import type ssri from 'ssri'
@@ -75,13 +76,21 @@ export function optimisticRenameOverwrite (temp: string, fileDest: string): void
 }
 
 /**
- * The process ID is appended to the file name to create a temporary file.
- * If the process fails, on rerun the new temp file may get a filename the got left over.
- * That is fine, the file will be overridden.
+ * Creates a unique temporary file path by appending both process ID and worker thread ID
+ * to the original filename.
+ *
+ * The process ID prevents conflicts between different processes, while the worker thread ID
+ * prevents race conditions between threads in the same process.
+ *
+ * If a process fails, its temporary file may remain. When the process is rerun, it will
+ * safely overwrite any existing temporary file with the same name.
+ *
+ * @param file - The original file path
+ * @returns A temporary file path in the format: {basename}{pid}{threadId}
  */
 export function pathTemp (file: string): string {
   const basename = removeSuffix(path.basename(file))
-  return path.join(path.dirname(file), `${basename}${process.pid}`)
+  return path.join(path.dirname(file), `${basename}${process.pid}${workerThreads.threadId}`)
 }
 
 function removeSuffix (filePath: string): string {
