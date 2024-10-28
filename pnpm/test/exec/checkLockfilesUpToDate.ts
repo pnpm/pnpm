@@ -330,6 +330,90 @@ describe('multi-project workspace', () => {
       expect(status).toBe(0)
       expect(stdout.toString()).toContain('hello from foo')
     }
+
+    projects.foo.writePackageJson({
+      ...manifests.foo,
+      dependencies: {
+        ...manifests.foo.dependencies,
+        '@pnpm.e2e/foo': '=100.1.0',
+      },
+    } as ProjectManifest)
+
+    // attempting to execute a script in root without updating dependencies should fail
+    {
+      const { status, stdout } = execPnpmSync([...config, 'start'])
+      expect(status).not.toBe(0)
+      expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+      expect(stdout.toString()).toContain('project of id foo')
+    }
+    // attempting to execute a script in any workspace package without updating dependencies should fail
+    {
+      const { status, stdout } = execPnpmSync([...config, 'start'], {
+        cwd: projects.foo.dir(),
+      })
+      expect(status).not.toBe(0)
+      expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+      expect(stdout.toString()).toContain('project of id foo')
+    }
+    {
+      const { status, stdout } = execPnpmSync([...config, 'start'], {
+        cwd: projects.bar.dir(),
+      })
+      expect(status).not.toBe(0)
+      expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+      expect(stdout.toString()).toContain('project of id foo')
+    }
+    // attempting to execute a script recursively without updating dependencies should fail
+    {
+      const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
+      expect(status).not.toBe(0)
+      expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+      expect(stdout.toString()).toContain('project of id foo')
+    }
+    // attempting to execute a script with filter without updating dependencies should fail
+    {
+      const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
+      expect(status).not.toBe(0)
+      expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+      expect(stdout.toString()).toContain('project of id foo')
+    }
+
+    await execPnpm([...config, 'install'])
+
+    // should be able to execute a script in root after updating dependencies
+    {
+      const { status, stdout } = execPnpmSync([...config, 'start'])
+      expect(status).toBe(0)
+      expect(stdout.toString()).toContain('hello from root')
+    }
+    // should be able to a script in any workspace package after updating dependencies
+    {
+      const { status, stdout } = execPnpmSync([...config, 'start'], {
+        cwd: projects.foo.dir(),
+      })
+      expect(status).toBe(0)
+      expect(stdout.toString()).toContain('hello from foo')
+    }
+    {
+      const { status, stdout } = execPnpmSync([...config, 'start'], {
+        cwd: projects.bar.dir(),
+      })
+      expect(status).toBe(0)
+      expect(stdout.toString()).toContain('hello from bar')
+    }
+    // should be able to a script recursively after updating dependencies
+    {
+      const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
+      expect(status).toBe(0)
+      expect(stdout.toString()).toContain('hello from foo')
+      expect(stdout.toString()).toContain('hello from bar')
+    }
+    // should be able to a script with filter after updating dependencies
+    {
+      const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
+      expect(status).toBe(0)
+      expect(stdout.toString()).toContain('hello from foo')
+    }
   })
 
   test.todo('should not prevent nested `pnpm run` after having mutated the manifests')
