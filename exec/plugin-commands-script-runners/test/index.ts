@@ -654,21 +654,25 @@ test('pnpm run with RegExp script selector with flag should throw error', async 
     },
   })
 
+  const flags = ['d', 'g', 'i', 'm', 'u', 'v', 'y', 's']
   let err!: Error
-  try {
-    await run.handler({
-      bin: 'node_modules/.bin',
-      dir: process.cwd(),
-      extraBinPaths: [],
-      extraEnv: {},
-      pnpmHomeDir: '',
-      rawConfig: {},
-      workspaceConcurrency: 1,
-    }, ['/build:.*/i'])
-  } catch (_err: any) { // eslint-disable-line
-    err = _err
-  }
-  expect(err.message).toBe('RegExp flags are not supported in script command selector')
+
+  flags.forEach(async flag => {
+    try {
+      await run.handler({
+        bin: 'node_modules/.bin',
+        dir: process.cwd(),
+        extraBinPaths: [],
+        extraEnv: {},
+        pnpmHomeDir: '',
+        rawConfig: {},
+        workspaceConcurrency: 1,
+      }, ['/build:.*/' + flag])
+    } catch (_err: any) { // eslint-disable-line
+      err = _err
+    }
+    expect(err.message).toBe('RegExp flags are not supported in script command selector')
+  })
 })
 
 test('pnpm run with slightly incorrect command suggests correct one', async () => {
