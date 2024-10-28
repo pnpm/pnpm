@@ -54,7 +54,7 @@ describe('single project workspace', () => {
 
     project.writePackageJson(manifest)
 
-    // if the mtime of the manifest file changes but its content doesn't, pnpm run should update the packages list and execute the script
+    // should be able to execute a script after the mtime of the manifest change but the content doesn't
     {
       const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
       expect(status).toBe(0)
