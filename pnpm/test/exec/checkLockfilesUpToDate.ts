@@ -318,6 +318,20 @@ describe('multi-project workspace', () => {
 
     await execPnpm([...config, 'install'])
 
+    // pnpm install should create a packages list cache
+    {
+      const packagesList = await loadPackagesList({ cacheDir, workspaceDir: process.cwd() })
+      expect(packagesList).toStrictEqual({
+        lastValidatedTimestamp: expect.any(Number),
+        projectRootDirs: [
+          path.resolve('.'),
+          path.resolve('foo'),
+          path.resolve('bar'),
+        ].sort(),
+        workspaceDir: process.cwd(),
+      })
+    }
+
     // should be able to execute a script in root after dependencies having been installed
     {
       const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
@@ -475,6 +489,23 @@ describe('multi-project workspace', () => {
       const { status, stdout } = execPnpmSync([...config, 'start'])
       expect(status).not.toBe(0)
       expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_WORKSPACE_STRUCTURE_CHANGED')
+    }
+
+    await execPnpm([...config, 'install'])
+
+    // pnpm install should update the packages list cache
+    {
+      const packagesList = await loadPackagesList({ cacheDir, workspaceDir: process.cwd() })
+      expect(packagesList).toStrictEqual({
+        lastValidatedTimestamp: expect.any(Number),
+        projectRootDirs: [
+          path.resolve('.'),
+          path.resolve('foo'),
+          path.resolve('bar'),
+          path.resolve('baz'),
+        ].sort(),
+        workspaceDir: process.cwd(),
+      })
     }
   })
 
