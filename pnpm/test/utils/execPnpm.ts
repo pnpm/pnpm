@@ -112,7 +112,12 @@ export function execPnpmSync (
   if (execResult.error) throw execResult.error
   if (execResult.signal) throw new Error(`Process terminated with signal ${execResult.signal}`)
   if (execResult.status !== 0 && opts?.expectSuccess) {
-    throw new Error(`Process exits with code ${execResult.status}\nSTDOUT:\n${execResult.stdout}\n${execResult.stderr}`)
+    const stdout = execResult.stdout?.toString().split('\n').map(line => `\t${line}`).join('\n')
+    const stderr = execResult.stderr?.toString().split('\n').map(line => `\t${line}`).join('\n')
+    let message = `Process exits with code ${execResult.status}`
+    if (stdout.trim()) message += `\nSTDOUT:\n${stdout}`
+    if (stderr.trim()) message += `\nSTDOUT:\n${stderr}`
+    throw new Error(message)
   }
   return execResult as ChildProcess
 }
