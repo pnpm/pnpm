@@ -358,7 +358,7 @@ test('no dependencies', async () => {
   }
 })
 
-test('should not prevent nested `pnpm run` after having mutated the manifests', async () => {
+test('nested `pnpm run` should not check for mutated manifest', async () => {
   const manifests: Record<string, ProjectManifest> = {
     foo: {
       name: 'foo',
