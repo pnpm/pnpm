@@ -9,6 +9,8 @@ import { execPnpm, execPnpmSync } from '../utils'
 const CHECK_DEPS_BEFORE_RUN_SCRIPTS = '--config.check-deps-before-run-scripts=true'
 
 test('single dependency', async () => {
+  const checkEnv = 'node --eval "assert.strictEqual(process.env.pnpm_run_skip_deps_check, \'true\')"'
+
   const manifests: Record<string, ProjectManifest> = {
     root: {
       name: 'root',
@@ -18,6 +20,7 @@ test('single dependency', async () => {
       },
       scripts: {
         start: 'echo hello from root',
+        checkEnv,
       },
     },
     foo: {
@@ -28,6 +31,7 @@ test('single dependency', async () => {
       },
       scripts: {
         start: 'echo hello from foo',
+        checkEnv,
       },
     },
     bar: {
@@ -38,6 +42,7 @@ test('single dependency', async () => {
       },
       scripts: {
         start: 'echo hello from bar',
+        checkEnv,
       },
     },
   }
@@ -249,6 +254,7 @@ test('single dependency', async () => {
     },
     scripts: {
       start: 'echo hello from baz',
+      checkEnv,
     },
   }
   fs.mkdirSync(path.resolve('baz'), { recursive: true })
@@ -284,6 +290,9 @@ test('single dependency', async () => {
     expect(status).toBe(0)
     expect(stdout.toString()).toContain('hello from root')
   }
+
+  // should set env.pnpm_run_skip_deps_check for all the scripts
+  await execPnpm([...config, '--recursive', 'run', 'checkEnv'])
 })
 
 test.todo('no dependencies')

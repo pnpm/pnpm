@@ -208,6 +208,12 @@ export async function handler (
 
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
+      if (opts.checkDepsBeforeRunScripts) {
+        opts.extraEnv = {
+          ...opts.extraEnv,
+          ...DISABLE_DEPS_CHECK_ENV,
+        }
+      }
       return runRecursive(params, opts) as Promise<undefined>
     }
     dir = Object.keys(opts.selectedProjectsGraph)[0]
