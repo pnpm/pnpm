@@ -199,7 +199,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
     expect(stdout.toString()).toContain('hello from the nested script')
   }
 
-  // non nested script should still fail
+  // non nested script (`start`) should still fail (after `nestedScript` modified the manifest)
   {
     const { status, stdout } = execPnpmSync([...config, 'start'])
     expect(status).not.toBe(0)
@@ -215,7 +215,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
     expect(stdout.toString()).toContain('hello from the nested script')
   }
 
-  // it shouldn't fail after the manifest has been rewritten with the same content
+  // it shouldn't fail after the manifest has been rewritten with the same content (by `nestedScript`)
   {
     const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('manifest mutated')
