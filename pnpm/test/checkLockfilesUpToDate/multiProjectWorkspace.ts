@@ -295,7 +295,78 @@ test('single dependency', async () => {
   await execPnpm([...config, '--recursive', 'run', 'checkEnv'])
 })
 
-test.todo('no dependencies')
+test('no dependencies', async () => {
+  const manifests: Record<string, ProjectManifest> = {
+    root: {
+      name: 'root',
+      private: true,
+      scripts: {
+        start: 'echo hello from root',
+      },
+    },
+    foo: {
+      name: 'foo',
+      private: true,
+      scripts: {
+        start: 'echo hello from foo',
+      },
+    },
+    bar: {
+      name: 'bar',
+      private: true,
+      scripts: {
+        start: 'echo hello from bar',
+      },
+    },
+  }
+
+  preparePackages([
+    {
+      location: '.',
+      package: manifests.root,
+    },
+    manifests.foo,
+    manifests.bar,
+  ])
+
+  const cacheDir = path.resolve('cache')
+  const config = [
+    CHECK_DEPS_BEFORE_RUN_SCRIPTS,
+    `--config.cache-dir=${cacheDir}`,
+  ]
+
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  // attempting to execute a script without `pnpm install` should fail
+  {
+    const { status, stdout } = execPnpmSync([...config, 'start'])
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+  }
+
+  await execPnpm([...config, 'install'])
+
+  // pnpm install should create a packages list cache
+  {
+    const packagesList = await loadPackagesList({ cacheDir, workspaceDir: process.cwd() })
+    expect(packagesList).toStrictEqual({
+      lastValidatedTimestamp: expect.any(Number),
+      projectRootDirs: [
+        path.resolve('.'),
+        path.resolve('foo'),
+        path.resolve('bar'),
+      ].sort(),
+      workspaceDir: process.cwd(),
+    })
+  }
+
+  // should be able to execute a script after `pnpm install`
+  {
+    const { status, stdout } = execPnpmSync([...config, 'start'])
+    expect(status).toBe(0)
+    expect(stdout.toString()).toContain('hello from root')
+  }
+})
 
 test.todo('should not prevent nested `pnpm run` after having mutated the manifests')
 
