@@ -111,10 +111,7 @@ test('single dependency', async () => {
   }
 
   // should set env.pnpm_run_skip_deps_check for the script
-  {
-    const { status } = execPnpmSync([...config, 'run', 'checkEnv'])
-    expect(status).toBe(0)
-  }
+  await execPnpm([...config, 'run', 'checkEnv'])
 })
 
 test('no dependencies', async () => {
