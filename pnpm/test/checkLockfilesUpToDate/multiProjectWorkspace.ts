@@ -102,7 +102,7 @@ test('single dependency', async () => {
     })
   }
 
-  // should be able to execute a script in root after dependencies having been installed
+  // should be able to execute a script in root after dependencies have been installed
   {
     const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
     expect(status).toBe(0)
@@ -110,7 +110,7 @@ test('single dependency', async () => {
     expect(stdout.toString()).toContain('No manifest files are modified after the last validation. Exiting check.')
     expect(stdout.toString()).not.toContain('Some manifest files are modified after the last validation. Continuing check.')
   }
-  // should be able to execute a script in a workspace package after dependencies having been installed
+  // should be able to execute a script in a workspace package after dependencies have been installed
   {
     const { status, stdout } = execPnpmSync([...config, 'start'], {
       cwd: projects.foo.dir(),
@@ -118,14 +118,14 @@ test('single dependency', async () => {
     expect(status).toBe(0)
     expect(stdout.toString()).toContain('hello from foo')
   }
-  // should be able to execute a script recursively after dependencies having been installed
+  // should be able to execute a script recursively after dependencies have been installed
   {
     const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
     expect(status).toBe(0)
     expect(stdout.toString()).toContain('hello from foo')
     expect(stdout.toString()).toContain('hello from bar')
   }
-  // should be able to execute a script with filter after dependencies having been installed
+  // should be able to execute a script with filter after dependencies have been installed
   {
     const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
     expect(status).toBe(0)
@@ -204,7 +204,7 @@ test('single dependency', async () => {
 
   await execPnpm([...config, 'install'])
 
-  // should be able to execute a script in root after updating dependencies
+  // should be able to execute a script in root after dependencies have been updated
   {
     const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
     expect(status).toBe(0)
@@ -212,7 +212,7 @@ test('single dependency', async () => {
     expect(stdout.toString()).toContain('No manifest files are modified after the last validation. Exiting check.')
     expect(stdout.toString()).not.toContain('Some manifest files are modified after the last validation. Continuing check.')
   }
-  // should be able to execute a script in any workspace package after updating dependencies
+  // should be able to execute a script in any workspace package after dependencies have been updated
   {
     const { status, stdout } = execPnpmSync([...config, 'start'], {
       cwd: projects.foo.dir(),
@@ -227,14 +227,14 @@ test('single dependency', async () => {
     expect(status).toBe(0)
     expect(stdout.toString()).toContain('hello from bar')
   }
-  // should be able to execute a script recursively after updating dependencies
+  // should be able to execute a script recursively after dependencies have been updated
   {
     const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
     expect(status).toBe(0)
     expect(stdout.toString()).toContain('hello from foo')
     expect(stdout.toString()).toContain('hello from bar')
   }
-  // should be able to execute a script with filter after updating dependencies
+  // should be able to execute a script with filter after dependencies have been updated
   {
     const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
     expect(status).toBe(0)
