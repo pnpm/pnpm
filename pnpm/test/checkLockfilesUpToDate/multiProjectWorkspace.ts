@@ -4,7 +4,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import { loadPackagesList } from '@pnpm/workspace.packages-list-cache'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm, execPnpmSync } from '../utils'
+import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
 
 const CHECK_DEPS_BEFORE_RUN_SCRIPTS = '--config.check-deps-before-run-scripts=true'
 
@@ -358,6 +358,106 @@ test('no dependencies', async () => {
   }
 })
 
-test.todo('should not prevent nested `pnpm run` after having mutated the manifests')
+test('should not prevent nested `pnpm run` after having mutated the manifests', async () => {
+  const manifests: Record<string, ProjectManifest> = {
+    foo: {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        nestedScript: 'echo hello from nested script of foo',
+      },
+    },
+    bar: {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        nestedScript: 'echo hello from nested script of bar',
+      },
+    },
+  }
+
+  const projects = preparePackages([
+    manifests.foo,
+    manifests.bar,
+  ])
+
+  for (const name in projects) {
+    const scriptPath = path.join(projects[name].dir(), 'mutate-manifest.js')
+    fs.writeFileSync(scriptPath, `
+      const fs = require('fs')
+      const manifest = require('./package.json')
+      manifest.dependencies['@pnpm.e2e/foo'] = '100.1.0'
+      const jsonText = JSON.stringify(manifest, undefined, 2)
+      fs.writeFileSync(require.resolve('./package.json'), jsonText)
+      console.log('manifest mutated: ${name}')
+    `)
+  }
+
+  const cacheDir = path.resolve('cache')
+  const config = [
+    CHECK_DEPS_BEFORE_RUN_SCRIPTS,
+    `--config.cache-dir=${cacheDir}`,
+  ]
+
+  // add to every manifest file a script named `start` which would inherit `config` and invoke `nestedScript`
+  for (const name in projects) {
+    manifests[name].scripts!.start =
+      `${process.execPath} mutate-manifest.js && ${process.execPath} ${pnpmBinLocation} ${config.join(' ')} run nestedScript`
+    projects[name].writePackageJson(manifests[name])
+  }
+
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  // attempting to execute a script without installing dependencies should fail
+  {
+    const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+  }
+
+  await execPnpm([...config, 'install'])
+
+  // mutating the manifest should not cause nested `pnpm run nestedScript` to fail
+  {
+    const { stdout } = execPnpmSync([...config, '--recursive', 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('manifest mutated: foo')
+    expect(stdout.toString()).toContain('hello from nested script of foo')
+    expect(stdout.toString()).toContain('manifest mutated: bar')
+    expect(stdout.toString()).toContain('hello from nested script of bar')
+  }
+
+  // non nested script (`start`) should still fail (after `nestedScript` modified the manifests)
+  {
+    const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+  }
+
+  await execPnpm([...config, 'install'])
+
+  // it shouldn't fail after the dependencies have been updated
+  {
+    const { stdout } = execPnpmSync([...config, '--recursive', 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('manifest mutated: foo')
+    expect(stdout.toString()).toContain('hello from nested script of foo')
+    expect(stdout.toString()).toContain('manifest mutated: bar')
+    expect(stdout.toString()).toContain('hello from nested script of bar')
+  }
+
+  // it shouldn't fail after the manifests have been rewritten with the same content (by `nestedScript`)
+  {
+    const { stdout } = execPnpmSync([...config, '--recursive', 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('manifest mutated: foo')
+    expect(stdout.toString()).toContain('hello from nested script of foo')
+    expect(stdout.toString()).toContain('manifest mutated: bar')
+    expect(stdout.toString()).toContain('hello from nested script of bar')
+  }
+})
 
 test.todo('should check for outdated catalogs')
