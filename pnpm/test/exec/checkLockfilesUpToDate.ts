@@ -507,6 +507,13 @@ describe('multi-project workspace', () => {
         workspaceDir: process.cwd(),
       })
     }
+
+    // should be able to execute a script after projects list have been updated
+    {
+      const { status, stdout } = execPnpmSync([...config, 'start'])
+      expect(status).toBe(0)
+      expect(stdout.toString()).toContain('hello from root')
+    }
   })
 
   test.todo('no dependencies')
