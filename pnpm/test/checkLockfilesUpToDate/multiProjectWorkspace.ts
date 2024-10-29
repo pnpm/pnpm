@@ -109,31 +109,28 @@ test('single dependency', async () => {
 
   // should be able to execute a script in root after dependencies have been installed
   {
-    const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
     expect(stdout.toString()).toContain('No manifest files are modified after the last validation. Exiting check.')
     expect(stdout.toString()).not.toContain('Some manifest files are modified after the last validation. Continuing check.')
   }
   // should be able to execute a script in a workspace package after dependencies have been installed
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'], {
+    const { stdout } = execPnpmSync([...config, 'start'], {
       cwd: projects.foo.dir(),
+      expectSuccess: true,
     })
-    expect(status).toBe(0)
     expect(stdout.toString()).toContain('hello from foo')
   }
   // should be able to execute a script recursively after dependencies have been installed
   {
-    const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, '--recursive', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from foo')
     expect(stdout.toString()).toContain('hello from bar')
   }
   // should be able to execute a script with filter after dependencies have been installed
   {
-    const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, '--filter=foo', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from foo')
   }
 
@@ -141,8 +138,7 @@ test('single dependency', async () => {
 
   // if the mtime of one manifest file changes but its content doesn't, pnpm run should update the packages list then run the script normally
   {
-    const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
     expect(stdout.toString()).not.toContain('No manifest files are modified after the last validation. Exiting check.')
     expect(stdout.toString()).toContain('Some manifest files are modified after the last validation. Continuing check.')
@@ -150,8 +146,7 @@ test('single dependency', async () => {
   }
   // should skip check after pnpm has updated the packages list
   {
-    const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
     expect(stdout.toString()).toContain('No manifest files are modified after the last validation. Exiting check.')
     expect(stdout.toString()).not.toContain('Some manifest files are modified after the last validation. Continuing check.')
@@ -211,38 +206,35 @@ test('single dependency', async () => {
 
   // should be able to execute a script in root after dependencies have been updated
   {
-    const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
     expect(stdout.toString()).toContain('No manifest files are modified after the last validation. Exiting check.')
     expect(stdout.toString()).not.toContain('Some manifest files are modified after the last validation. Continuing check.')
   }
   // should be able to execute a script in any workspace package after dependencies have been updated
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'], {
+    const { stdout } = execPnpmSync([...config, 'start'], {
       cwd: projects.foo.dir(),
+      expectSuccess: true,
     })
-    expect(status).toBe(0)
     expect(stdout.toString()).toContain('hello from foo')
   }
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'], {
+    const { stdout } = execPnpmSync([...config, 'start'], {
       cwd: projects.bar.dir(),
+      expectSuccess: true,
     })
-    expect(status).toBe(0)
     expect(stdout.toString()).toContain('hello from bar')
   }
   // should be able to execute a script recursively after dependencies have been updated
   {
-    const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, '--recursive', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from foo')
     expect(stdout.toString()).toContain('hello from bar')
   }
   // should be able to execute a script with filter after dependencies have been updated
   {
-    const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, '--filter=foo', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from foo')
   }
 
@@ -286,8 +278,7 @@ test('single dependency', async () => {
 
   // should be able to execute a script after projects list have been updated
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
   }
 
@@ -362,8 +353,7 @@ test('no dependencies', async () => {
 
   // should be able to execute a script after `pnpm install`
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
   }
 })

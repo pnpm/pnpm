@@ -45,8 +45,7 @@ test('single dependency', async () => {
 
   // should be able to execute a script after dependencies have been installed
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
   }
 
@@ -54,8 +53,7 @@ test('single dependency', async () => {
 
   // should be able to execute a script after the mtime of the manifest change but the content doesn't
   {
-    const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
     expect(stdout.toString()).not.toContain('The manifest file not newer than the lockfile. Exiting check.')
     expect(stdout.toString()).toContain('The manifest is newer than the lockfile. Continuing check.')
@@ -82,8 +80,7 @@ test('single dependency', async () => {
 
   // should be able to execute a script after dependencies have been updated
   {
-    const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
     expect(stdout.toString()).toContain('The manifest file not newer than the lockfile. Exiting check.')
     expect(stdout.toString()).not.toContain('The manifest is newer than the lockfile. Continuing check.')
@@ -105,8 +102,7 @@ test('single dependency', async () => {
 
   // should be able to execute a script without dependencies
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
   }
 
@@ -148,8 +144,7 @@ test('no dependencies', async () => {
 
   // should be able to execute a script after the lockfile has been created
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
   }
 })
@@ -199,8 +194,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
 
   // mutating the manifest should not cause nested `pnpm run nestedScript` to fail
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('manifest mutated')
     expect(stdout.toString()).toContain('hello from the nested script')
   }
@@ -216,16 +210,14 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
 
   // it shouldn't fail after having update the dependencies
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('manifest mutated')
     expect(stdout.toString()).toContain('hello from the nested script')
   }
 
   // it shouldn't fail after manifest having been rewritten with the same content
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
-    expect(status).toBe(0)
+    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('manifest mutated')
     expect(stdout.toString()).toContain('hello from the nested script')
   }

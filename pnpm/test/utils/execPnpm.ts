@@ -95,6 +95,7 @@ export function execPnpmSync (
   opts?: {
     cwd?: string
     env?: Record<string, string>
+    expectSuccess?: boolean // similar to expect(status).toBe(0), but also prints error messages, which makes it easier to debug failed tests
     stdio?: StdioOptions
     timeout?: number
   }
@@ -110,6 +111,9 @@ export function execPnpmSync (
   })
   if (execResult.error) throw execResult.error
   if (execResult.signal) throw new Error(`Process terminated with signal ${execResult.signal}`)
+  if (execResult.status !== 0 && opts?.expectSuccess) {
+    throw new Error(`Process exits with code ${execResult.status}\nSTDOUT:\n${execResult.stdout}\n${execResult.stderr}`)
+  }
   return execResult as ChildProcess
 }
 
