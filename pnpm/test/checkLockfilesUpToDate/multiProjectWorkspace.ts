@@ -97,6 +97,7 @@ test('single dependency', async () => {
   {
     const packagesList = await loadPackagesList({ cacheDir, workspaceDir: process.cwd() })
     expect(packagesList).toStrictEqual({
+      catalogs: {},
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
         path.resolve('.'),
@@ -265,6 +266,7 @@ test('single dependency', async () => {
   {
     const packagesList = await loadPackagesList({ cacheDir, workspaceDir: process.cwd() })
     expect(packagesList).toStrictEqual({
+      catalogs: {},
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
         path.resolve('.'),
@@ -341,6 +343,7 @@ test('no dependencies', async () => {
   {
     const packagesList = await loadPackagesList({ cacheDir, workspaceDir: process.cwd() })
     expect(packagesList).toStrictEqual({
+      catalogs: {},
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
         path.resolve('.'),
