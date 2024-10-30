@@ -460,4 +460,110 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
   }
 })
 
-test.todo('should check for outdated catalogs')
+test('should check for outdated catalogs', async () => {
+  const manifests: Record<string, ProjectManifest> = {
+    root: {
+      name: 'root',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+      scripts: {
+        start: 'echo hello from root',
+      },
+    },
+    foo: {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+      scripts: {
+        start: 'echo hello from foo',
+      },
+    },
+    bar: {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+      scripts: {
+        start: 'echo hello from bar',
+      },
+    },
+  }
+
+  preparePackages([
+    {
+      location: '.',
+      package: manifests.root,
+    },
+    manifests.foo,
+    manifests.bar,
+  ])
+
+  const cacheDir = path.resolve('cache')
+  const config = [
+    CHECK_DEPS_BEFORE_RUN_SCRIPTS,
+    `--config.cache-dir=${cacheDir}`,
+  ]
+
+  const workspaceManifest = {
+    catalog: {
+      '@pnpm.e2e/foo': '=100.0.0',
+    } as Record<string, string>,
+    packages: ['**', '!store/**'],
+  }
+  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+
+  // attempting to execute a script without installing dependencies should fail
+  {
+    const { status, stdout } = execPnpmSync([...config, 'start'])
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+  }
+
+  await execPnpm([...config, 'install'])
+
+  // pnpm install should create a packages list cache
+  {
+    const packagesList = await loadPackagesList({ cacheDir, workspaceDir: process.cwd() })
+    expect(packagesList).toStrictEqual({
+      catalogs: {
+        default: workspaceManifest.catalog,
+      },
+      lastValidatedTimestamp: expect.any(Number),
+      projectRootDirs: [
+        path.resolve('.'),
+        path.resolve('foo'),
+        path.resolve('bar'),
+      ].sort(),
+      workspaceDir: process.cwd(),
+    })
+  }
+
+  // should be able to execute a script after dependencies have been installed
+  {
+    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from root')
+  }
+
+  workspaceManifest.catalog.foo = '=100.1.0'
+  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+
+  // attempting to execute a script without updating dependencies should fail
+  {
+    const { status, stdout } = execPnpmSync([...config, 'start'])
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_OUTDATED')
+  }
+
+  await execPnpm([...config, 'install'])
+
+  // should be able to execute a script after dependencies have been updated
+  {
+    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from root')
+  }
+})
