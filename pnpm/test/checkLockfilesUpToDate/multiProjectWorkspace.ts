@@ -411,7 +411,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
   // add to every manifest file a script named `start` which would inherit `config` and invoke `nestedScript`
   for (const name in projects) {
     manifests[name].scripts!.start =
-      `${process.execPath} mutate-manifest.js && ${process.execPath} ${pnpmBinLocation} ${config.join(' ')} run nestedScript`
+      `node mutate-manifest.js && node ${pnpmBinLocation} ${config.join(' ')} run nestedScript`
     projects[name].writePackageJson(manifests[name])
   }
 
