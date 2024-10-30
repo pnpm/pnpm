@@ -41,6 +41,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'autoInstallPeers'
 | 'bail'
 | 'bin'
+| 'catalogs'
 | 'cliOptions'
 | 'dedupePeerDependents'
 | 'depth'
@@ -162,6 +163,7 @@ when running add/update with the --workspace option')
     await updatePackagesList({
       allProjects: opts.allProjects,
       cacheDir: opts.cacheDir,
+      catalogs: opts.catalogs,
       lastValidatedTimestamp: Date.now(),
       workspaceDir: opts.workspaceDir,
     })
