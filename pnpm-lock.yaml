@@ -2347,6 +2347,9 @@ importers:
       symlink-dir:
         specifier: 'catalog:'
         version: 6.0.3
+      tempy:
+        specifier: 'catalog:'
+        version: 1.0.1
       which:
         specifier: 'catalog:'
         version: '@pnpm/which@3.0.1'

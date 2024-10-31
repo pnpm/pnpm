@@ -70,6 +70,7 @@
     "ramda": "catalog:",
     "realpath-missing": "catalog:",
     "render-help": "catalog:",
+    "tempy": "catalog:",
     "symlink-dir": "catalog:",
     "which": "catalog:",
     "write-json-file": "catalog:"
