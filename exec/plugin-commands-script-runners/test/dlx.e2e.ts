@@ -294,6 +294,7 @@ test('dlx does not use cache when --ignore-modules-cache is specified', async ()
     cacheDir: path.resolve('cache'),
   }, ['shx', 'touch', 'foo'])
 
+  expect(fs.existsSync('foo')).toBe(true)
   expect(fs.readdirSync(path.resolve('cache'))).not.toContain('dlx')
 })
 
