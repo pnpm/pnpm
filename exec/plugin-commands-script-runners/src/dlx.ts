@@ -34,6 +34,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 
 export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
+  ignoreModulesCache: Boolean,
   package: [String, Array],
 })
 
@@ -44,6 +45,10 @@ export function help (): string {
       {
         title: 'Options',
         list: [
+          {
+            description: 'Do not use or save the modules cache',
+            name: '--ignore-modules-cache',
+          },
           {
             description: 'The package to install before running the command',
             name: '--package',
@@ -63,6 +68,7 @@ export function help (): string {
 }
 
 export type DlxCommandOptions = {
+  ignoreModulesCache?: boolean
   package?: string[]
   shellMode?: boolean
 } & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion'> & add.AddCommandOptions
@@ -74,7 +80,7 @@ export async function handler (
   const pkgs = opts.package ?? [command]
   let cache: FindCacheResult | undefined
   let prepareDir: string
-  if (pkgs.some(pkg => pkg.endsWith('@latest'))) {
+  if (!!opts.ignoreModulesCache || pkgs.some(pkg => pkg.endsWith('@latest'))) {
     prepareDir = tempy.directory({ prefix: 'pnpm-dlx-' })
   } else {
     cache = findCache(pkgs, {

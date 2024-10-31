@@ -283,6 +283,20 @@ test('dlx still saves cache even if execution fails', async () => {
   verifyDlxCache(createCacheKey('shx'))
 })
 
+test('dlx does not use cache when --ignore-modules-cache is specified', async () => {
+  prepareEmpty()
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    ignoreModulesCache: true,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+  }, ['shx', 'touch', 'foo'])
+
+  expect(fs.readdirSync(path.resolve('cache'))).not.toContain('dlx')
+})
+
 test('dlx does not use cache for latest pref (single package)', async () => {
   prepareEmpty()
 
