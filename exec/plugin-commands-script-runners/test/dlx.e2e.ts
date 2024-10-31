@@ -282,3 +282,34 @@ test('dlx still saves cache even if execution fails', async () => {
   expect(fs.readFileSync(path.resolve('not-a-dir'), 'utf-8')).toEqual(expect.anything())
   verifyDlxCache(createCacheKey('shx'))
 })
+
+test('dlx does not use cache for latest pref (single package)', async () => {
+  prepareEmpty()
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+  }, ['shx@latest', 'touch', 'foo'])
+
+  expect(fs.readdirSync(path.resolve('cache'))).not.toContain('dlx')
+})
+
+test('dlx does not use cache for latest pref (multiple packages)', async () => {
+  prepareEmpty()
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    package: [
+      'shx',
+      'is-positive@latest',
+    ],
+  }, ['shx', 'touch', 'foo'])
+
+  expect(fs.existsSync('foo')).toBe(true)
+  expect(fs.readdirSync(path.resolve('cache'))).not.toContain('dlx')
+})
