@@ -293,6 +293,7 @@ test('dlx does not use cache for latest pref (single package)', async () => {
     cacheDir: path.resolve('cache'),
   }, ['shx@latest', 'touch', 'foo'])
 
+  expect(fs.existsSync('foo')).toBe(true)
   expect(fs.readdirSync(path.resolve('cache'))).not.toContain('dlx')
 })
 
