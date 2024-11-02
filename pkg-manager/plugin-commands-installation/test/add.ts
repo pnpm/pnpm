@@ -353,3 +353,43 @@ test('add: fail when global bin directory is not found', async () => {
   }
   expect(err.code).toBe('ERR_PNPM_NO_GLOBAL_BIN_DIR')
 })
+
+test('add: fail trying to install pnpm', async () => {
+  prepareEmpty()
+
+  let err!: PnpmError
+  try {
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      bin: path.resolve('project/bin'),
+      dir: path.resolve('project'),
+      global: true,
+      linkWorkspacePackages: false,
+      saveWorkspaceProtocol: false,
+      workspace: false,
+    }, ['pnpm'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_GLOBAL_PNPM_INSTALL')
+})
+
+test('add: fail trying to install @pnpm/exe', async () => {
+  prepareEmpty()
+
+  let err!: PnpmError
+  try {
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      bin: path.resolve('project/bin'),
+      dir: path.resolve('project'),
+      global: true,
+      linkWorkspacePackages: false,
+      saveWorkspaceProtocol: false,
+      workspace: false,
+    }, ['@pnpm/exe'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_GLOBAL_PNPM_INSTALL')
+})
