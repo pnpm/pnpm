@@ -116,7 +116,9 @@ export async function listForPackages (
 
   const pkgs = await searchForPackages(packages, projectPaths, opts)
 
-  const prunedPkgs = pruneDependenciesTrees(pkgs ?? null, 10)
+  const prunedPkgs = opts.depth === Infinity
+    ? pkgs ?? []
+    : pruneDependenciesTrees(pkgs ?? null, 10)
 
   const print = getPrinter(opts.reportAs)
   return print(prunedPkgs, {
