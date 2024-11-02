@@ -789,6 +789,17 @@ test('installing with no modules directory', async () => {
   expect(fs.existsSync(path.join(prefix, 'node_modules'))).toBeFalsy()
 })
 
+test('installing with no modules directory and a patched dependency', async () => {
+  const prefix = f.prepare('simple-with-patch')
+
+  await headlessInstall(await testDefaults({
+    enableModulesDir: false,
+    lockfileDir: prefix,
+  }))
+
+  expect(fs.existsSync(path.join(prefix, 'node_modules'))).toBeFalsy()
+})
+
 test('installing with node-linker=hoisted', async () => {
   const prefix = f.prepare('has-several-versions-of-same-pkg')
 
