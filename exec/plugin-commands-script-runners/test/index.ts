@@ -643,7 +643,7 @@ test('pnpm run with RegExp script selector should work sequentially with --works
   expect(outputsA[0] < outputsB[0] && outputsA[1] < outputsB[1]).toBeTruthy()
 })
 
-test('pnpm run with RegExp script selector with flag should throw error', async () => {
+test.each(['d', 'g', 'i', 'm', 'u', 'v', 'y', 's'])('pnpm run with RegExp script selector with flag %s should throw error', async (flag) => {
   await using serverA = await createTestIpcServer()
   await using serverB = await createTestIpcServer()
 
@@ -653,27 +653,22 @@ test('pnpm run with RegExp script selector with flag should throw error', async 
       'build:b': `node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); console.log(Date.now()); },16)" | ${serverB.generateSendStdinScript()}`,
     },
   })
+  let err!: Error
 
-  const flags = ['d', 'g', 'i', 'm', 'u', 'v', 'y', 's']
-
-  test.each(flags)('pnpm run with RegExp script selector with flag %s should throw error', async (flag) => {
-    let err!: Error
-
-    try {
-      await run.handler({
-        bin: 'node_modules/.bin',
-        dir: process.cwd(),
-        extraBinPaths: [],
-        extraEnv: {},
-        pnpmHomeDir: '',
-        rawConfig: {},
-        workspaceConcurrency: 1,
-      }, ['/build:.*/' + flag])
-    } catch (_err: any) { // eslint-disable-line
-      err = _err
-    }
-    expect(err.message).toBe('RegExp flags are not supported in script command selector')
-  })
+  try {
+    await run.handler({
+      bin: 'node_modules/.bin',
+      dir: process.cwd(),
+      extraBinPaths: [],
+      extraEnv: {},
+      pnpmHomeDir: '',
+      rawConfig: {},
+      workspaceConcurrency: 1,
+    }, ['/build:.*/' + flag])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.message).toBe('RegExp flags are not supported in script command selector')
 })
 
 test('pnpm run with slightly incorrect command suggests correct one', async () => {
