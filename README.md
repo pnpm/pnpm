@@ -117,9 +117,7 @@ To quote the [Rush](https://rushjs.io/) team:
     <tr>
       <td align="center" valign="middle">
         <a href="https://route4me.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <picture>
-            <img src="https://pnpm.io/img/users/route4me.svg" width="220" />
-          </picture>
+          <img src="https://pnpm.io/img/users/route4me.svg" width="220" />
         </a>
       </td>
     </tr>
