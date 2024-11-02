@@ -655,9 +655,10 @@ test('pnpm run with RegExp script selector with flag should throw error', async 
   })
 
   const flags = ['d', 'g', 'i', 'm', 'u', 'v', 'y', 's']
-  let err!: Error
 
-  flags.forEach(async flag => {
+  test.each(flags)('pnpm run with RegExp script selector with flag %s should throw error', async (flag) => {
+    let err!: Error
+
     try {
       await run.handler({
         bin: 'node_modules/.bin',
