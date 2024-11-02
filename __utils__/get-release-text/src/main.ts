@@ -166,7 +166,7 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
   </tbody>
 </table>
 
-## Our Silver Sponsors
+## Silver Sponsors
 
 <table>
   <tbody>
