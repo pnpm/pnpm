@@ -4,7 +4,7 @@
 [Italiano](https://pnpm.io/it/) |
 [Português Brasileiro](https://pnpm.io/pt/)
 
-# <a href="#"> ![pnpm](https://i.imgur.com/qlW1eEG.png) </a>
+# <picture> ![pnpm](https://i.imgur.com/qlW1eEG.png) </picture>
 
 Fast, disk space efficient package manager:
 
