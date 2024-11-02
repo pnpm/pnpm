@@ -4,7 +4,13 @@
 [Italiano](https://pnpm.io/it/) |
 [Português Brasileiro](https://pnpm.io/pt/)
 
-# <picture> ![pnpm](https://i.imgur.com/qlW1eEG.png) </picture>
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="https://i.imgur.com/qlW1eEG.png">
+    <source media="(prefers-color-scheme: dark)"  srcset="https://i.imgur.com/qlW1eEG.png">
+    <img src="https://i.imgur.com/qlW1eEG.png" alt="pnpm">
+  </picture>
+</h1>
 
 Fast, disk space efficient package manager:
 
