@@ -653,8 +653,8 @@ test.each(['d', 'g', 'i', 'm', 'u', 'v', 'y', 's'])('pnpm run with RegExp script
       'build:b': `node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); console.log(Date.now()); },16)" | ${serverB.generateSendStdinScript()}`,
     },
   })
-  let err!: Error
 
+  let err!: Error
   try {
     await run.handler({
       bin: 'node_modules/.bin',
@@ -664,7 +664,7 @@ test.each(['d', 'g', 'i', 'm', 'u', 'v', 'y', 's'])('pnpm run with RegExp script
       pnpmHomeDir: '',
       rawConfig: {},
       workspaceConcurrency: 1,
-    }, ['/build:.*/' + flag])
+    }, [`/build:.*/${flag}`])
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
