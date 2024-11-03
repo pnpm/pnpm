@@ -643,7 +643,7 @@ test('pnpm run with RegExp script selector should work sequentially with --works
   expect(outputsA[0] < outputsB[0] && outputsA[1] < outputsB[1]).toBeTruthy()
 })
 
-test('pnpm run with RegExp script selector with flag should throw error', async () => {
+test.each(['d', 'g', 'i', 'm', 'u', 'v', 'y', 's'])('pnpm run with RegExp script selector with flag %s should throw error', async (flag) => {
   await using serverA = await createTestIpcServer()
   await using serverB = await createTestIpcServer()
 
@@ -664,7 +664,7 @@ test('pnpm run with RegExp script selector with flag should throw error', async 
       pnpmHomeDir: '',
       rawConfig: {},
       workspaceConcurrency: 1,
-    }, ['/build:.*/i'])
+    }, [`/build:.*/${flag}`])
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
