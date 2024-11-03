@@ -5796,9 +5796,6 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.5.3
-      '@types/which':
-        specifier: 'catalog:'
-        version: 2.0.2
       '@zkochan/retry':
         specifier: 'catalog:'
         version: 0.2.0
@@ -5886,9 +5883,6 @@ importers:
       tree-kill:
         specifier: 'catalog:'
         version: 1.2.2
-      which:
-        specifier: 'catalog:'
-        version: '@pnpm/which@3.0.1'
       write-json-file:
         specifier: 'catalog:'
         version: 4.3.0

@@ -86,7 +86,6 @@
     "@types/pnpm__byline": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
-    "@types/which": "catalog:",
     "@zkochan/retry": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "chalk": "catalog:",
@@ -116,7 +115,6 @@
     "symlink-dir": "catalog:",
     "tempy": "catalog:",
     "tree-kill": "catalog:",
-    "which": "catalog:",
     "write-json-file": "catalog:",
     "write-pkg": "catalog:",
     "write-yaml-file": "catalog:"

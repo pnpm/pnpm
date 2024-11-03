@@ -23,7 +23,6 @@ import { isCI } from 'ci-info'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
 import stripAnsi from 'strip-ansi'
-import which from 'which'
 import { checkForUpdates } from './checkForUpdates'
 import { pnpmCmds, rcOptionsTypes } from './cmd'
 import { formatUnknownOptionsError } from './formatError'
@@ -170,21 +169,8 @@ export async function main (inputArgv: string[]): Promise<void> {
     global[REPORTER_INITIALIZED] = reporterType
   }
 
-  const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && cliParams.includes(packageManager.name)
-
-  if (selfUpdate) {
+  if (cmd === 'self-update') {
     await pnpmCmds.server(config as any, ['stop']) // eslint-disable-line @typescript-eslint/no-explicit-any
-    try {
-      const currentPnpmDir = path.dirname(which.sync('pnpm'))
-      if (path.relative(currentPnpmDir, config.bin) !== '') {
-        console.log(`The location of the currently running pnpm differs from the location where pnpm will be installed
- Current pnpm location: ${currentPnpmDir}
- Target location: ${config.bin}
-`)
-      }
-    } catch {
-      // if pnpm not found, then ignore
-    }
   }
 
   if (
@@ -261,7 +247,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (
       config.updateNotifier !== false &&
       !isCI &&
-      !selfUpdate &&
+      cmd !== 'self-update' &&
       !config.offline &&
       !config.preferOffline &&
       !config.fallbackCommandUsed &&
