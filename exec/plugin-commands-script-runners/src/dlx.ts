@@ -95,10 +95,11 @@ export async function handler (
       await symlinkDir(cachedDir, cacheLink, { overwrite: true })
     } catch (error) {
       // EBUSY means that there is another dlx process running in parallel that has acquired the cache link first.
+      // Similarly, EEXIST means that another dlx process has created the cache link before this process.
       // The link created by the other process is just as up-to-date as the link the current process was attempting
       // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
       // the other link stay. The current process should yield.
-      if (!util.types.isNativeError(error) || !('code' in error) || error.code !== 'EBUSY') {
+      if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST')) {
         throw error
       }
     }
