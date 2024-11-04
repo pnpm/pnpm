@@ -112,8 +112,6 @@ export async function handler (
       [path.join(dir, 'package.json')]: publishManifest as Record<string, unknown>,
     },
   })
-  // display order by name
-  const packFiles = files.sort().join('\n')
   const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   // cspell:disable-next-line
   if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(\..+)?/i.test(file))) {
@@ -147,7 +145,7 @@ export async function handler (
   } else {
     packPath = path.relative(opts.dir, path.join(dir, tarballName))
   }
-  return `${chalk.blueBright('Tarball Contents')}\n${packFiles}\n\n${chalk.blueBright('Tarball Details')}\n${packPath}`
+  return `${chalk.blueBright('Tarball Contents')}\n${files.sort((a, b) => a.localeCompare(b, 'en')).join('\n')}\n\n${chalk.blueBright('Tarball Details')}\n${packPath}`
 }
 
 function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {
