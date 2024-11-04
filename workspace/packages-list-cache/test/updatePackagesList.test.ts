@@ -17,20 +17,18 @@ test('updatePackagesList()', async () => {
     package: { name },
   })))
 
-  const cacheDir = path.resolve('cache')
   const workspaceDir = process.cwd()
 
-  expect(await loadPackagesList({ cacheDir, workspaceDir })).toBeUndefined()
+  expect(await loadPackagesList(workspaceDir)).toBeUndefined()
 
   logger.debug = jest.fn(originalLoggerDebug)
   await updatePackagesList({
-    cacheDir,
     lastValidatedTimestamp,
     workspaceDir,
     allProjects: [],
   })
   expect((logger.debug as jest.Mock).mock.calls).toStrictEqual([[{ msg: 'updating packages list' }]])
-  expect(await loadPackagesList({ cacheDir, workspaceDir })).toStrictEqual({
+  expect(await loadPackagesList(workspaceDir)).toStrictEqual({
     lastValidatedTimestamp,
     projectRootDirs: [],
     workspaceDir,
@@ -38,7 +36,6 @@ test('updatePackagesList()', async () => {
 
   logger.debug = jest.fn(originalLoggerDebug)
   await updatePackagesList({
-    cacheDir,
     lastValidatedTimestamp,
     workspaceDir,
     catalogs: {
@@ -54,7 +51,7 @@ test('updatePackagesList()', async () => {
     ],
   })
   expect((logger.debug as jest.Mock).mock.calls).toStrictEqual([[{ msg: 'updating packages list' }]])
-  expect(await loadPackagesList({ cacheDir, workspaceDir })).toStrictEqual({
+  expect(await loadPackagesList(workspaceDir)).toStrictEqual({
     catalogs: {
       default: {
         foo: '0.1.2',

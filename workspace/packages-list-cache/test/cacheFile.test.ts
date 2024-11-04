@@ -1,13 +1,12 @@
 import path from 'path'
+import { prepareEmpty } from '@pnpm/prepare'
 import { getCacheFilePath } from '../src/cacheFile'
 
 test('getCacheFilePath()', () => {
+  prepareEmpty()
   expect(
-    getCacheFilePath({
-      cacheDir: path.resolve('cache'),
-      workspaceDir: '/home/user/repos/my-project',
-    })
+    getCacheFilePath(process.cwd())
   ).toStrictEqual(
-    path.resolve('cache/workspace-packages-lists/v1/0d2aa676fbaba5bfb6c3d15fd1ff4e52.json')
+    path.resolve(path.resolve('node_modules/.workspace-packages-list.json'))
   )
 })

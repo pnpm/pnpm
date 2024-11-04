@@ -43,7 +43,6 @@ import { statManifestFile } from './statManifestFile'
 export type CheckLockfilesUpToDateOptions = Pick<Config,
 | 'allProjects'
 | 'autoInstallPeers'
-| 'cacheDir'
 | 'catalogs'
 | 'excludeLinksFromLockfile'
 | 'linkWorkspacePackages'
@@ -59,7 +58,6 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
   const {
     allProjects,
     autoInstallPeers,
-    cacheDir,
     catalogs,
     excludeLinksFromLockfile,
     linkWorkspacePackages,
@@ -74,7 +72,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     : undefined
 
   if (allProjects && workspaceDir) {
-    const packagesList = await loadPackagesList({ cacheDir, workspaceDir })
+    const packagesList = await loadPackagesList(workspaceDir)
     if (!packagesList) {
       throw new PnpmError('RUN_CHECK_DEPS_NO_CACHE', 'Cannot check whether dependencies are outdated', {
         hint: 'Run `pnpm install` to create the cache',
@@ -192,7 +190,6 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     // update lastValidatedTimestamp to prevent pointless repeat
     await updatePackagesList({
       allProjects,
-      cacheDir,
       lastValidatedTimestamp: Date.now(),
       workspaceDir,
     })

@@ -6,7 +6,7 @@ import { loadPackagesList } from '@pnpm/workspace.packages-list-cache'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
 
-const CHECK_DEPS_BEFORE_RUN_SCRIPTS = '--config.check-deps-before-run-scripts=true'
+const CONFIG = ['--config.check-deps-before-run-scripts=true'] as const
 
 test('single dependency', async () => {
   const checkEnv = 'node --eval "assert.strictEqual(process.env.pnpm_run_skip_deps_check, \'true\')"'
@@ -56,23 +56,17 @@ test('single dependency', async () => {
     manifests.bar,
   ])
 
-  const cacheDir = path.resolve('cache')
-  const config = [
-    CHECK_DEPS_BEFORE_RUN_SCRIPTS,
-    `--config.cache-dir=${cacheDir}`,
-  ]
-
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   // attempting to execute a script in root without installing dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
   }
   // attempting to execute a script in a workspace package without installing dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'], {
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'], {
       cwd: projects.foo.dir(),
     })
     expect(status).not.toBe(0)
@@ -80,22 +74,22 @@ test('single dependency', async () => {
   }
   // attempting to execute a script recursively without installing dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, '--recursive', 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
   }
   // attempting to execute a script with filter without installing dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
   }
 
-  await execPnpm([...config, 'install'])
+  await execPnpm([...CONFIG, 'install'])
 
   // pnpm install should create a packages list cache
   {
-    const packagesList = await loadPackagesList({ cacheDir, workspaceDir: process.cwd() })
+    const packagesList = await loadPackagesList(process.cwd())
     expect(packagesList).toStrictEqual({
       catalogs: {},
       lastValidatedTimestamp: expect.any(Number),
@@ -110,14 +104,14 @@ test('single dependency', async () => {
 
   // should be able to execute a script in root after dependencies have been installed
   {
-    const { stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
     expect(stdout.toString()).toContain('No manifest files are modified after the last validation. Exiting check.')
     expect(stdout.toString()).not.toContain('Some manifest files are modified after the last validation. Continuing check.')
   }
   // should be able to execute a script in a workspace package after dependencies have been installed
   {
-    const { stdout } = execPnpmSync([...config, 'start'], {
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], {
       cwd: projects.foo.dir(),
       expectSuccess: true,
     })
@@ -125,13 +119,13 @@ test('single dependency', async () => {
   }
   // should be able to execute a script recursively after dependencies have been installed
   {
-    const { stdout } = execPnpmSync([...config, '--recursive', 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, '--recursive', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from foo')
     expect(stdout.toString()).toContain('hello from bar')
   }
   // should be able to execute a script with filter after dependencies have been installed
   {
-    const { stdout } = execPnpmSync([...config, '--filter=foo', 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from foo')
   }
 
@@ -139,7 +133,7 @@ test('single dependency', async () => {
 
   // if the mtime of one manifest file changes but its content doesn't, pnpm run should update the packages list then run the script normally
   {
-    const { stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
     expect(stdout.toString()).not.toContain('No manifest files are modified after the last validation. Exiting check.')
     expect(stdout.toString()).toContain('Some manifest files are modified after the last validation. Continuing check.')
@@ -147,7 +141,7 @@ test('single dependency', async () => {
   }
   // should skip check after pnpm has updated the packages list
   {
-    const { stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
     expect(stdout.toString()).toContain('No manifest files are modified after the last validation. Exiting check.')
     expect(stdout.toString()).not.toContain('Some manifest files are modified after the last validation. Continuing check.')
@@ -164,7 +158,7 @@ test('single dependency', async () => {
 
   // attempting to execute a script in root without updating dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
     expect(stdout.toString()).toContain('project of id foo')
@@ -173,7 +167,7 @@ test('single dependency', async () => {
   }
   // attempting to execute a script in any workspace package without updating dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'], {
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'], {
       cwd: projects.foo.dir(),
     })
     expect(status).not.toBe(0)
@@ -181,7 +175,7 @@ test('single dependency', async () => {
     expect(stdout.toString()).toContain('project of id foo')
   }
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'], {
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'], {
       cwd: projects.bar.dir(),
     })
     expect(status).not.toBe(0)
@@ -190,38 +184,38 @@ test('single dependency', async () => {
   }
   // attempting to execute a script recursively without updating dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, '--recursive', 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
     expect(stdout.toString()).toContain('project of id foo')
   }
   // attempting to execute a script with filter without updating dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
     expect(stdout.toString()).toContain('project of id foo')
   }
 
-  await execPnpm([...config, 'install'])
+  await execPnpm([...CONFIG, 'install'])
 
   // should be able to execute a script in root after dependencies have been updated
   {
-    const { stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
     expect(stdout.toString()).toContain('No manifest files are modified after the last validation. Exiting check.')
     expect(stdout.toString()).not.toContain('Some manifest files are modified after the last validation. Continuing check.')
   }
   // should be able to execute a script in any workspace package after dependencies have been updated
   {
-    const { stdout } = execPnpmSync([...config, 'start'], {
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], {
       cwd: projects.foo.dir(),
       expectSuccess: true,
     })
     expect(stdout.toString()).toContain('hello from foo')
   }
   {
-    const { stdout } = execPnpmSync([...config, 'start'], {
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], {
       cwd: projects.bar.dir(),
       expectSuccess: true,
     })
@@ -229,13 +223,13 @@ test('single dependency', async () => {
   }
   // should be able to execute a script recursively after dependencies have been updated
   {
-    const { stdout } = execPnpmSync([...config, '--recursive', 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, '--recursive', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from foo')
     expect(stdout.toString()).toContain('hello from bar')
   }
   // should be able to execute a script with filter after dependencies have been updated
   {
-    const { stdout } = execPnpmSync([...config, '--filter=foo', 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from foo')
   }
 
@@ -255,16 +249,16 @@ test('single dependency', async () => {
 
   // attempting to execute a script without updating projects list should fail
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_WORKSPACE_STRUCTURE_CHANGED')
   }
 
-  await execPnpm([...config, 'install'])
+  await execPnpm([...CONFIG, 'install'])
 
   // pnpm install should update the packages list cache
   {
-    const packagesList = await loadPackagesList({ cacheDir, workspaceDir: process.cwd() })
+    const packagesList = await loadPackagesList(process.cwd())
     expect(packagesList).toStrictEqual({
       catalogs: {},
       lastValidatedTimestamp: expect.any(Number),
@@ -280,12 +274,12 @@ test('single dependency', async () => {
 
   // should be able to execute a script after projects list have been updated
   {
-    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
   }
 
   // should set env.pnpm_run_skip_deps_check for all the scripts
-  await execPnpm([...config, '--recursive', 'run', 'checkEnv'])
+  await execPnpm([...CONFIG, '--recursive', 'run', 'checkEnv'])
 })
 
 test('no dependencies', async () => {
@@ -322,26 +316,20 @@ test('no dependencies', async () => {
     manifests.bar,
   ])
 
-  const cacheDir = path.resolve('cache')
-  const config = [
-    CHECK_DEPS_BEFORE_RUN_SCRIPTS,
-    `--config.cache-dir=${cacheDir}`,
-  ]
-
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   // attempting to execute a script without `pnpm install` should fail
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
   }
 
-  await execPnpm([...config, 'install'])
+  await execPnpm([...CONFIG, 'install'])
 
   // pnpm install should create a packages list cache
   {
-    const packagesList = await loadPackagesList({ cacheDir, workspaceDir: process.cwd() })
+    const packagesList = await loadPackagesList(process.cwd())
     expect(packagesList).toStrictEqual({
       catalogs: {},
       lastValidatedTimestamp: expect.any(Number),
@@ -356,7 +344,7 @@ test('no dependencies', async () => {
 
   // should be able to execute a script after `pnpm install`
   {
-    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
   }
 })
@@ -402,16 +390,10 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
     `)
   }
 
-  const cacheDir = path.resolve('cache')
-  const config = [
-    CHECK_DEPS_BEFORE_RUN_SCRIPTS,
-    `--config.cache-dir=${cacheDir}`,
-  ]
-
   // add to every manifest file a script named `start` which would inherit `config` and invoke `nestedScript`
   for (const name in projects) {
     manifests[name].scripts!.start =
-      `node mutate-manifest.js && node ${pnpmBinLocation} ${config.join(' ')} run nestedScript`
+      `node mutate-manifest.js && node ${pnpmBinLocation} ${CONFIG.join(' ')} run nestedScript`
     projects[name].writePackageJson(manifests[name])
   }
 
@@ -419,16 +401,16 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
 
   // attempting to execute a script without installing dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, '--recursive', 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
   }
 
-  await execPnpm([...config, 'install'])
+  await execPnpm([...CONFIG, 'install'])
 
   // mutating the manifest should not cause nested `pnpm run nestedScript` to fail
   {
-    const { stdout } = execPnpmSync([...config, '--recursive', 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, '--recursive', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('manifest mutated: foo')
     expect(stdout.toString()).toContain('hello from nested script of foo')
     expect(stdout.toString()).toContain('manifest mutated: bar')
@@ -437,16 +419,16 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
 
   // non nested script (`start`) should still fail (after `nestedScript` modified the manifests)
   {
-    const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, '--recursive', 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
   }
 
-  await execPnpm([...config, 'install'])
+  await execPnpm([...CONFIG, 'install'])
 
   // it shouldn't fail after the dependencies have been updated
   {
-    const { stdout } = execPnpmSync([...config, '--recursive', 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, '--recursive', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('manifest mutated: foo')
     expect(stdout.toString()).toContain('hello from nested script of foo')
     expect(stdout.toString()).toContain('manifest mutated: bar')
@@ -455,7 +437,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
 
   // it shouldn't fail after the manifests have been rewritten with the same content (by `nestedScript`)
   {
-    const { stdout } = execPnpmSync([...config, '--recursive', 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, '--recursive', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('manifest mutated: foo')
     expect(stdout.toString()).toContain('hello from nested script of foo')
     expect(stdout.toString()).toContain('manifest mutated: bar')
@@ -506,12 +488,6 @@ test('should check for outdated catalogs', async () => {
     manifests.bar,
   ])
 
-  const cacheDir = path.resolve('cache')
-  const config = [
-    CHECK_DEPS_BEFORE_RUN_SCRIPTS,
-    `--config.cache-dir=${cacheDir}`,
-  ]
-
   const workspaceManifest = {
     catalog: {
       '@pnpm.e2e/foo': '=100.0.0',
@@ -522,16 +498,16 @@ test('should check for outdated catalogs', async () => {
 
   // attempting to execute a script without installing dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
   }
 
-  await execPnpm([...config, 'install'])
+  await execPnpm([...CONFIG, 'install'])
 
   // pnpm install should create a packages list cache
   {
-    const packagesList = await loadPackagesList({ cacheDir, workspaceDir: process.cwd() })
+    const packagesList = await loadPackagesList(process.cwd())
     expect(packagesList).toStrictEqual({
       catalogs: {
         default: workspaceManifest.catalog,
@@ -548,7 +524,7 @@ test('should check for outdated catalogs', async () => {
 
   // should be able to execute a script after dependencies have been installed
   {
-    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
   }
 
@@ -557,16 +533,16 @@ test('should check for outdated catalogs', async () => {
 
   // attempting to execute a script without updating dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_OUTDATED')
   }
 
-  await execPnpm([...config, 'install'])
+  await execPnpm([...CONFIG, 'install'])
 
   // should be able to execute a script after dependencies have been updated
   {
-    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
   }
 })

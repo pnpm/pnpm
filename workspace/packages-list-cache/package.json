@@ -32,7 +32,6 @@
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
-    "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:"

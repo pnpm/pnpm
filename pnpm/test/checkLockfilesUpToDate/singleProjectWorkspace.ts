@@ -5,7 +5,7 @@ import { type ProjectManifest } from '@pnpm/types'
 import { loadPackagesList } from '@pnpm/workspace.packages-list-cache'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
 
-const CHECK_DEPS_BEFORE_RUN_SCRIPTS = '--config.check-deps-before-run-scripts=true'
+const CONFIG = ['--config.check-deps-before-run-scripts=true'] as const
 
 test('single dependency', async () => {
   const manifest: ProjectManifest = {
@@ -22,30 +22,24 @@ test('single dependency', async () => {
 
   const project = prepare(manifest)
 
-  const cacheDir = path.resolve('cache')
-  const config = [
-    CHECK_DEPS_BEFORE_RUN_SCRIPTS,
-    `--config.cache-dir=${cacheDir}`,
-  ]
-
   // attempting to execute a script without installing dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND')
   }
 
-  await execPnpm([...config, 'install'])
+  await execPnpm([...CONFIG, 'install'])
 
   // installing dependencies on a single package workspace should not create a packages list cache
   {
-    const packagesList = await loadPackagesList({ cacheDir, workspaceDir: process.cwd() })
+    const packagesList = await loadPackagesList(process.cwd())
     expect(packagesList).toBeUndefined()
   }
 
   // should be able to execute a script after dependencies have been installed
   {
-    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
   }
 
@@ -53,7 +47,7 @@ test('single dependency', async () => {
 
   // should be able to execute a script after the mtime of the manifest change but the content doesn't
   {
-    const { stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
     expect(stdout.toString()).not.toContain('The manifest file not newer than the lockfile. Exiting check.')
     expect(stdout.toString()).toContain('The manifest is newer than the lockfile. Continuing check.')
@@ -69,18 +63,18 @@ test('single dependency', async () => {
 
   // attempting to execute a script with outdated dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
     expect(stdout.toString()).not.toContain('The manifest file not newer than the lockfile. Exiting check.')
     expect(stdout.toString()).toContain('The manifest is newer than the lockfile. Continuing check.')
   }
 
-  await execPnpm([...config, 'install'])
+  await execPnpm([...CONFIG, 'install'])
 
   // should be able to execute a script after dependencies have been updated
   {
-    const { stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
     expect(stdout.toString()).toContain('The manifest file not newer than the lockfile. Exiting check.')
     expect(stdout.toString()).not.toContain('The manifest is newer than the lockfile. Continuing check.')
@@ -93,21 +87,21 @@ test('single dependency', async () => {
 
   // attempting to execute a script with redundant dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
   }
 
-  await execPnpm([...config, 'install'])
+  await execPnpm([...CONFIG, 'install'])
 
   // should be able to execute a script without dependencies
   {
-    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
   }
 
   // should set env.pnpm_run_skip_deps_check for the script
-  await execPnpm([...config, 'run', 'checkEnv'])
+  await execPnpm([...CONFIG, 'run', 'checkEnv'])
 })
 
 test('no dependencies', async () => {
@@ -121,30 +115,24 @@ test('no dependencies', async () => {
 
   prepare(manifest)
 
-  const cacheDir = path.resolve('cache')
-  const config = [
-    CHECK_DEPS_BEFORE_RUN_SCRIPTS,
-    `--config.cache-dir=${cacheDir}`,
-  ]
-
   // attempting to execute a script without the lockfile should fail
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND')
   }
 
-  await execPnpm([...config, 'install'])
+  await execPnpm([...CONFIG, 'install'])
 
   // installing dependencies on a single package workspace should not create a packages list cache
   {
-    const packagesList = await loadPackagesList({ cacheDir, workspaceDir: process.cwd() })
+    const packagesList = await loadPackagesList(process.cwd())
     expect(packagesList).toBeUndefined()
   }
 
   // should be able to execute a script after the lockfile has been created
   {
-    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
   }
 })
@@ -174,7 +162,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
 
   const cacheDir = path.resolve('cache')
   const config = [
-    CHECK_DEPS_BEFORE_RUN_SCRIPTS,
+    CONFIG,
     `--config.cache-dir=${cacheDir}`,
   ]
 
@@ -185,39 +173,39 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
 
   // attempting to execute a script without installing dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND')
   }
 
-  await execPnpm([...config, 'install'])
+  await execPnpm([...CONFIG, 'install'])
 
   // mutating the manifest should not cause nested `pnpm run nestedScript` to fail
   {
-    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('manifest mutated')
     expect(stdout.toString()).toContain('hello from the nested script')
   }
 
   // non nested script (`start`) should still fail (after `nestedScript` modified the manifest)
   {
-    const { status, stdout } = execPnpmSync([...config, 'start'])
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
   }
 
-  await execPnpm([...config, 'install'])
+  await execPnpm([...CONFIG, 'install'])
 
   // it shouldn't fail after the dependencies have been updated
   {
-    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('manifest mutated')
     expect(stdout.toString()).toContain('hello from the nested script')
   }
 
   // it shouldn't fail after the manifest has been rewritten with the same content (by `nestedScript`)
   {
-    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('manifest mutated')
     expect(stdout.toString()).toContain('hello from the nested script')
   }

@@ -162,7 +162,6 @@ when running add/update with the --workspace option')
   if (opts.allProjects && opts.workspaceDir) {
     await updatePackagesList({
       allProjects: opts.allProjects,
-      cacheDir: opts.cacheDir,
       catalogs: opts.catalogs,
       lastValidatedTimestamp: Date.now(),
       workspaceDir: opts.workspaceDir,

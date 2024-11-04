@@ -8,7 +8,6 @@ import { type ProjectsList } from './types'
 
 export interface UpdatePackagesListOptions {
   allProjects: ProjectsList
-  cacheDir: string
   catalogs?: Catalogs
   lastValidatedTimestamp: number
   workspaceDir: string
@@ -18,7 +17,7 @@ export async function updatePackagesList (opts: UpdatePackagesListOptions): Prom
   logger.debug({ msg: 'updating packages list' })
   const packagesList = createPackagesList(opts)
   const packagesListJSON = JSON.stringify(packagesList, undefined, 2) + '\n'
-  const cacheFile = getCacheFilePath(opts)
+  const cacheFile = getCacheFilePath(opts.workspaceDir)
   await fs.promises.mkdir(path.dirname(cacheFile), { recursive: true })
   await fs.promises.writeFile(cacheFile, packagesListJSON)
 }

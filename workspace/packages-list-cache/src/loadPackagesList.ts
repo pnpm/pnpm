@@ -4,14 +4,9 @@ import { logger } from '@pnpm/logger'
 import { getCacheFilePath } from './cacheFile'
 import { type PackagesList } from './types'
 
-export interface LoadPackagesListOptions {
-  cacheDir: string
-  workspaceDir: string
-}
-
-export async function loadPackagesList (opts: LoadPackagesListOptions): Promise<PackagesList | undefined> {
+export async function loadPackagesList (workspaceDir: string): Promise<PackagesList | undefined> {
   logger.debug({ msg: 'loading packages list' })
-  const cacheFile = getCacheFilePath(opts)
+  const cacheFile = getCacheFilePath(workspaceDir)
   let cacheFileContent: string
   try {
     cacheFileContent = await fs.promises.readFile(cacheFile, 'utf-8')
@@ -21,7 +16,5 @@ export async function loadPackagesList (opts: LoadPackagesListOptions): Promise<
     }
     throw error
   }
-  const value: PackagesList = JSON.parse(cacheFileContent)
-  if (value.workspaceDir !== opts.workspaceDir) return undefined // sometimes, collision happens
-  return value
+  return JSON.parse(cacheFileContent) as PackagesList
 }
