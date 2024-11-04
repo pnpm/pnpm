@@ -78,51 +78,42 @@ export async function handler (
   [command, ...args]: string[]
 ): Promise<{ exitCode: number }> {
   const pkgs = opts.package ?? [command]
-  let cache: FindCacheResult | undefined
-  let prepareDir: string
-  if (!!opts.ignoreModulesCache || pkgs.some(pkg => pkg.endsWith('@latest'))) {
-    prepareDir = tempy.directory({ prefix: 'pnpm-dlx-' })
-  } else {
-    cache = findCache(pkgs, {
-      dlxCacheMaxAge: opts.dlxCacheMaxAge,
-      cacheDir: opts.cacheDir,
-      registries: opts.registries,
-    })
-    prepareDir = cache.dir
-  }
-  if (!cache?.exists) {
-    if (cache) {
-      fs.mkdirSync(cache.dir, { recursive: true })
-    }
+  const cacheDir = !!opts.ignoreModulesCache || pkgs.some(pkg => pkg.endsWith('@latest'))
+    ? tempy.directory({ prefix: 'pnpm-dlx-' })
+    : opts.cacheDir
+  const cache = findCache(pkgs, {
+    cacheDir,
+    dlxCacheMaxAge: opts.dlxCacheMaxAge,
+    registries: opts.registries,
+  })
+  if (!cache.exists) {
     await add.handler({
       // Ideally the config reader should ignore these settings when the dlx command is executed.
       // This is a temporary solution until "@pnpm/config" is refactored.
       ...omit(['workspaceDir', 'rootProjectManifest'], opts),
-      bin: path.join(prepareDir, 'node_modules/.bin'),
-      dir: prepareDir,
-      lockfileDir: prepareDir,
-      rootProjectManifestDir: prepareDir, // This property won't be used as rootProjectManifest will be undefined
+      bin: path.join(cache.dir, 'node_modules/.bin'),
+      dir: cache.dir,
+      lockfileDir: cache.dir,
+      rootProjectManifestDir: cache.dir, // This property won't be used as rootProjectManifest will be undefined
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!
       saveDev: false,
       saveOptional: false,
       savePeer: false,
     }, pkgs)
-    if (cache) {
-      try {
-        await symlinkDir(cache.dir, cache.link, { overwrite: true })
-      } catch (error) {
-        // EBUSY means that there is another dlx process running in parallel that has acquired the cache link first.
-        // Similarly, EEXIST means that another dlx process has created the cache link before this process.
-        // The link created by the other process is just as up-to-date as the link the current process was attempting
-        // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
-        // the other link stay. The current process should yield.
-        if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST')) {
-          throw error
-        }
+    try {
+      await symlinkDir(cache.dir, cache.link, { overwrite: true })
+    } catch (error) {
+      // EBUSY means that there is another dlx process running in parallel that has acquired the cache link first.
+      // Similarly, EEXIST means that another dlx process has created the cache link before this process.
+      // The link created by the other process is just as up-to-date as the link the current process was attempting
+      // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
+      // the other link stay. The current process should yield.
+      if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST')) {
+        throw error
       }
     }
   }
-  const modulesDir = path.join(prepareDir, 'node_modules')
+  const modulesDir = path.join(cache.dir, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
   const env = makeEnv({
     userAgent: opts.userAgent,
@@ -130,7 +121,7 @@ export async function handler (
   })
   const binName = opts.package
     ? command
-    : await getBinName(modulesDir, await getPkgName(prepareDir))
+    : await getBinName(modulesDir, await getPkgName(cache.dir))
   try {
     await execa(binName, args, {
       cwd: process.cwd(),
