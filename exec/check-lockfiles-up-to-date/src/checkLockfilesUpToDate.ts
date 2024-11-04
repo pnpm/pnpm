@@ -82,8 +82,8 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     }
 
     if (!equals(
-      filter(value => !!value, packagesList.catalogs ?? {}),
-      filter(value => !!value, catalogs ?? {})
+      filter(value => value != null, packagesList.catalogs ?? {}),
+      filter(value => value != null, catalogs ?? {})
     )) {
       throw new PnpmError('RUN_CHECK_DEPS_OUTDATED', 'Catalogs cache outdated', {
         hint: 'Run `pnpm install` to update the catalogs cache',
