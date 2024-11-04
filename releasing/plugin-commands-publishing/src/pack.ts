@@ -15,7 +15,6 @@ import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import tar from 'tar-stream'
 import { runScriptsIfPresent } from './publish'
-import { globalInfo } from '@pnpm/logger'
 import chalk from 'chalk'
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
@@ -114,7 +113,7 @@ export async function handler (
     },
   })
   // display order by name
-  globalInfo(`${chalk.blueBright('Tarball Contents')}\n${files.sort().join('\n')}`)
+  const packFiles = files.sort().join('\n')
   const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   // cspell:disable-next-line
   if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(\..+)?/i.test(file))) {
@@ -148,7 +147,7 @@ export async function handler (
   } else {
     packPath = path.relative(opts.dir, path.join(dir, tarballName))
   }
-  return `\n${chalk.blueBright('Tarball Details')}\n${packPath}`
+  return `${chalk.blueBright('Tarball Contents')}\n${packFiles}\n\n${chalk.blueBright('Tarball Details')}\n${packPath}`
 }
 
 function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {

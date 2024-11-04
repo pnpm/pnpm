@@ -3,20 +3,8 @@ import path from 'path'
 import { pack } from '@pnpm/plugin-commands-publishing'
 import { prepare, tempDir } from '@pnpm/prepare'
 import tar from 'tar'
+import chalk from 'chalk'
 import { DEFAULT_OPTS } from './utils'
-import { globalInfo } from '@pnpm/logger'
-
-jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual('@pnpm/logger')
-  return {
-    ...originalModule,
-    globalInfo: jest.fn(),
-  }
-})
-
-beforeEach(() => {
-  ;(globalInfo as jest.Mock).mockClear()
-})
 
 test('pack: package with package.json', async () => {
   prepare({
@@ -437,12 +425,12 @@ test('pack: should display packed contents order by name', async () => {
   fs.writeFileSync('./a.js', 'a', 'utf8')
   fs.writeFileSync('./b.js', 'b', 'utf8')
 
-  await pack.handler({
+  const output = await pack.handler({
     ...DEFAULT_OPTS,
     argv: { original: [] },
     dir: process.cwd(),
     extraBinPaths: [],
   })
 
-  expect(globalInfo).toHaveBeenCalledWith(expect.stringContaining('a.js\nb.js\npackage.json\nsrc/index.ts'))
+  expect(output).toBe(`${chalk.blueBright('Tarball Contents')}\na.js\nb.js\npackage.json\nsrc/index.ts\n\n${chalk.blueBright('Tarball Details')}\ntest-publish-package.json-0.0.0.tgz`)
 })
