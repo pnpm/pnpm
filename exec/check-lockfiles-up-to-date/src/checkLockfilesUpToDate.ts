@@ -52,7 +52,6 @@ export type CheckLockfilesUpToDateOptions = Pick<Config,
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 | 'sharedWorkspaceLockfile'
-| 'virtualStoreDir'
 | 'workspaceDir'
 >
 
@@ -67,11 +66,8 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     rootProjectManifest,
     rootProjectManifestDir,
     sharedWorkspaceLockfile,
-    virtualStoreDir,
     workspaceDir,
   } = opts
-
-  if (!virtualStoreDir) return
 
   const rootManifestOptions = rootProjectManifest && rootProjectManifestDir
     ? getOptionsFromRootManifest(rootProjectManifestDir, rootProjectManifest)
