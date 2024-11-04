@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/exec.check-lockfiles-up-to-date",
+  "name": "@pnpm/deps.status",
   "version": "0.0.0",
-  "description": "Check for outdated dependencies before `pnpm run`",
+  "description": "Check dependencies status",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
@@ -19,7 +19,7 @@
     "start": "tsc --watch",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/exec/check-lockfiles-up-to-date",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/deps/status",
   "keywords": [
     "pnpm10",
     "pnpm",
@@ -29,7 +29,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/check-lockfiles-up-to-date#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/deps/status#readme",
   "dependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",
@@ -48,7 +48,7 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/exec.check-lockfiles-up-to-date": "workspace:*",
+    "@pnpm/deps.status": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
     "@types/ramda": "catalog:"

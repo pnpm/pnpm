@@ -9,13 +9,13 @@ import { type CompletionFunc } from '@pnpm/command'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
-import { PnpmError } from '@pnpm/error'
 import {
   type CheckLockfilesUpToDateOptions,
   DISABLE_DEPS_CHECK_ENV,
   checkLockfilesUpToDate,
   shouldRunCheck,
-} from '@pnpm/exec.check-lockfiles-up-to-date'
+} from '@pnpm/deps.status'
+import { PnpmError } from '@pnpm/error'
 import {
   runLifecycleHook,
   makeNodeRequireOption,

@@ -31,6 +31,9 @@
       "path": "../../crypto/hash"
     },
     {
+      "path": "../../deps/status"
+    },
+    {
       "path": "../../env/path"
     },
     {
@@ -71,9 +74,6 @@
     },
     {
       "path": "../../workspace/sort-packages"
-    },
-    {
-      "path": "../check-lockfiles-up-to-date"
     },
     {
       "path": "../lifecycle"

@@ -1,6 +1,6 @@
 ---
 "@pnpm/workspace.packages-list-cache": major
-"@pnpm/exec.check-lockfiles-up-to-date": major
+"@pnpm/deps.status": major
 ---
 
 Initial Release
