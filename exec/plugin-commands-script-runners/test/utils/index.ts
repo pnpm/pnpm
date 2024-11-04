@@ -87,6 +87,7 @@ export const DLX_DEFAULT_OPTS = {
   rootProjectManifestDir: '',
   sort: true,
   storeDir: path.join(tmp, 'store'),
+  symlink: true,
   userConfig: {},
   workspaceConcurrency: 1,
   supportedArchitectures: {
