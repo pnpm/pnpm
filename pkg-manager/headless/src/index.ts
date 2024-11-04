@@ -498,7 +498,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           .map(({ depPath }) => depPath)
       )
   }
-  if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
+  if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false) {
     const directNodes = new Set<string>()
     for (const id of union(importerIds, ['.'])) {
       const directDependencies = directDependenciesByImporterId[id]
