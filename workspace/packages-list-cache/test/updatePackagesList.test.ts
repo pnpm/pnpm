@@ -31,7 +31,6 @@ test('updatePackagesList()', async () => {
   expect(await loadPackagesList(workspaceDir)).toStrictEqual({
     lastValidatedTimestamp,
     projectRootDirs: [],
-    workspaceDir,
   })
 
   logger.debug = jest.fn(originalLoggerDebug)
@@ -64,6 +63,5 @@ test('updatePackagesList()', async () => {
       path.resolve('packages/c'),
       path.resolve('packages/d'),
     ],
-    workspaceDir,
   })
 })

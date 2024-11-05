@@ -98,7 +98,6 @@ test('single dependency', async () => {
         path.resolve('foo'),
         path.resolve('bar'),
       ].sort(),
-      workspaceDir: process.cwd(),
     })
   }
 
@@ -268,7 +267,6 @@ test('single dependency', async () => {
         path.resolve('bar'),
         path.resolve('baz'),
       ].sort(),
-      workspaceDir: process.cwd(),
     })
   }
 
@@ -338,7 +336,6 @@ test('no dependencies', async () => {
         path.resolve('foo'),
         path.resolve('bar'),
       ].sort(),
-      workspaceDir: process.cwd(),
     })
   }
 
@@ -518,7 +515,6 @@ test('should check for outdated catalogs', async () => {
         path.resolve('foo'),
         path.resolve('bar'),
       ].sort(),
-      workspaceDir: process.cwd(),
     })
   }
 

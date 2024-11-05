@@ -53,7 +53,6 @@ test('loadPackagesList() when cache file exists and is correct', async () => {
       path.resolve('packages/c') as ProjectRootDir,
       path.resolve('packages/d') as ProjectRootDir,
     ],
-    workspaceDir,
   }
   fs.writeFileSync(cacheFile, JSON.stringify(packagesList))
   expect(await loadPackagesList(workspaceDir)).toStrictEqual(packagesList)

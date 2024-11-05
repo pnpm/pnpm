@@ -7,5 +7,4 @@ export interface PackagesList {
   catalogs?: Catalogs
   lastValidatedTimestamp: number
   projectRootDirs: ProjectRootDir[]
-  workspaceDir: string
 }

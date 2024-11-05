@@ -8,19 +8,15 @@ const lastValidatedTimestamp = Date.now()
 test('createPackagesList() on empty list', () => {
   prepareEmpty()
 
-  const workspaceDir = process.cwd()
-
   expect(
     createPackagesList({
       allProjects: [],
       lastValidatedTimestamp,
-      workspaceDir,
     })
   ).toStrictEqual({
     catalogs: undefined,
     lastValidatedTimestamp,
     projectRootDirs: [],
-    workspaceDir,
   })
 })
 
@@ -29,8 +25,6 @@ test('createPackagesList() on non-empty list', () => {
     location: `./packages/${name}`,
     package: { name },
   })))
-
-  const workspaceDir = process.cwd()
 
   expect(
     createPackagesList({
@@ -46,7 +40,6 @@ test('createPackagesList() on non-empty list', () => {
           foo: '0.1.2',
         },
       },
-      workspaceDir,
     })
   ).toStrictEqual({
     catalogs: {
@@ -61,6 +54,5 @@ test('createPackagesList() on non-empty list', () => {
       path.resolve('packages/c'),
       path.resolve('packages/d'),
     ],
-    workspaceDir,
   })
 })
