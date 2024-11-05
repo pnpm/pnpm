@@ -46,6 +46,7 @@ test('loadPackagesList() when cache file exists and is correct', async () => {
         foo: '0.1.2',
       },
     },
+    filtered: false,
     lastValidatedTimestamp,
     projectRootDirs: [
       path.resolve('packages/a') as ProjectRootDir,

@@ -11,6 +11,7 @@ test('createPackagesList() on empty list', () => {
   expect(
     createPackagesList({
       allProjects: [],
+      filtered: false,
       lastValidatedTimestamp,
     })
   ).toStrictEqual({
@@ -34,6 +35,7 @@ test('createPackagesList() on non-empty list', () => {
         { rootDir: path.resolve('packages/a') as ProjectRootDir },
         { rootDir: path.resolve('packages/d') as ProjectRootDir },
       ],
+      filtered: false,
       lastValidatedTimestamp,
       catalogs: {
         default: {

@@ -25,6 +25,7 @@ test('updatePackagesList()', async () => {
   await updatePackagesList({
     lastValidatedTimestamp,
     workspaceDir,
+    filtered: false,
     allProjects: [],
   })
   expect((logger.debug as jest.Mock).mock.calls).toStrictEqual([[{ msg: 'updating packages list' }]])
@@ -42,6 +43,7 @@ test('updatePackagesList()', async () => {
         foo: '0.1.2',
       },
     },
+    filtered: false,
     allProjects: [
       { rootDir: path.resolve('packages/c') as ProjectRootDir },
       { rootDir: path.resolve('packages/a') as ProjectRootDir },

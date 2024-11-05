@@ -119,7 +119,10 @@ export type InstallDepsOptions = Pick<Config,
   includeOnlyPackageFiles?: boolean
   prepareExecutionEnv: PrepareExecutionEnv
   fetchFullMetadata?: boolean
-} & Partial<Pick<Config, 'pnpmHomeDir'>>
+} & Partial<Pick<Config,
+| 'filter'
+| 'pnpmHomeDir'
+>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
@@ -163,6 +166,7 @@ when running add/update with the --workspace option')
     await updatePackagesList({
       allProjects: opts.allProjects,
       catalogs: opts.catalogs,
+      filtered: (opts.filter?.length ?? 0) > 0,
       lastValidatedTimestamp: Date.now(),
       workspaceDir: opts.workspaceDir,
     })
