@@ -104,6 +104,51 @@ test('single dependency', async () => {
   await execPnpm([...CONFIG, 'run', 'checkEnv'])
 })
 
+test('deleting node_modules after install', async () => {
+  const manifest: ProjectManifest = {
+    name: 'root',
+    private: true,
+    dependencies: {
+      '@pnpm.e2e/foo': '100.0.0',
+    },
+    scripts: {
+      start: 'echo hello from script',
+    },
+  }
+
+  prepare(manifest)
+
+  // attempting to execute a script without installing dependencies should fail
+  {
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND')
+  }
+
+  await execPnpm([...CONFIG, 'install'])
+
+  // installing dependencies on a single package workspace should not create a packages list cache
+  {
+    const packagesList = loadPackagesList(process.cwd())
+    expect(packagesList).toBeUndefined()
+  }
+
+  // should be able to execute a script after dependencies have been installed
+  {
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from script')
+  }
+
+  fs.rmSync('node_modules', { recursive: true })
+
+  // attempting to execute a script after node_modules has been deleted should fail
+  {
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_DEPS')
+  }
+})
+
 test('no dependencies', async () => {
   const manifest: ProjectManifest = {
     name: 'root',

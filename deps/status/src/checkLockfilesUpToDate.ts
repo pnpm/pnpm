@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import util from 'util'
 import equals from 'ramda/src/equals'
+import isEmpty from 'ramda/src/isEmpty'
 import filter from 'ramda/src/filter'
 import once from 'ramda/src/once'
 import { type Config, type OptionsFromRootManifest, getOptionsFromRootManifest } from '@pnpm/config'
@@ -259,8 +260,15 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir),
         wantedLockfileDir: rootProjectManifestDir,
       })
-    } else {
+    } else if (currentLockfileStats) {
       logger.debug({ msg: 'The manifest file is not newer than the lockfile. Exiting check.' })
+    } else {
+      const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir)
+      if (!isEmpty(wantedLockfile.packages ?? {})) {
+        throw new PnpmError('RUN_CHECK_DEPS_NO_DEPS', 'The lockfile requires dependencies but none were installed', {
+          hint: 'Run `pnpm install` to install dependencies',
+        })
+      }
     }
 
     return
