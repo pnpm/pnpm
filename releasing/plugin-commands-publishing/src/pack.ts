@@ -139,13 +139,17 @@ export async function handler (
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['postpack'], entryManifest)
   }
-  let packPath
+  let packedTarballPath
   if (opts.dir !== destDir) {
-    packPath = path.join(destDir, tarballName)
+    packedTarballPath = path.join(destDir, tarballName)
   } else {
-    packPath = path.relative(opts.dir, path.join(dir, tarballName))
+    packedTarballPath = path.relative(opts.dir, path.join(dir, tarballName))
   }
-  return `${chalk.blueBright('Tarball Contents')}\n${files.sort((a, b) => a.localeCompare(b, 'en')).join('\n')}\n\n${chalk.blueBright('Tarball Details')}\n${packPath}`
+  return `${chalk.blueBright('Tarball Contents')}
+${files.sort((a, b) => a.localeCompare(b, 'en')).join('\n')}
+
+${chalk.blueBright('Tarball Details')}
+${packedTarballPath}`
 }
 
 function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {
