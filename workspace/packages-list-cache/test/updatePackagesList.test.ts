@@ -25,6 +25,7 @@ test('updatePackagesList()', async () => {
   await updatePackagesList({
     lastValidatedTimestamp,
     workspaceDir,
+    catalogs: undefined,
     filtered: false,
     allProjects: [],
   })

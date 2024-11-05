@@ -8,7 +8,7 @@ import { type ProjectsList } from './types'
 
 export interface UpdatePackagesListOptions {
   allProjects: ProjectsList
-  catalogs?: Catalogs
+  catalogs: Catalogs | undefined
   filtered: boolean
   lastValidatedTimestamp: number
   workspaceDir: string

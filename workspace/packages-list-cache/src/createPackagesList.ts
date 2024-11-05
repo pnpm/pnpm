@@ -3,7 +3,7 @@ import { type PackagesList, type ProjectsList } from './types'
 
 export interface CreatePackagesListOptions {
   allProjects: ProjectsList
-  catalogs?: Catalogs
+  catalogs: Catalogs | undefined
   filtered: boolean
   lastValidatedTimestamp: number
 }

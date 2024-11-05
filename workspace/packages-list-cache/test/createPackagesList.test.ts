@@ -11,6 +11,7 @@ test('createPackagesList() on empty list', () => {
   expect(
     createPackagesList({
       allProjects: [],
+      catalogs: undefined,
       filtered: false,
       lastValidatedTimestamp,
     })

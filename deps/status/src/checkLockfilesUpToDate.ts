@@ -196,6 +196,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     // update lastValidatedTimestamp to prevent pointless repeat
     await updatePackagesList({
       allProjects,
+      catalogs,
       filtered: false,
       lastValidatedTimestamp: Date.now(),
       workspaceDir,
