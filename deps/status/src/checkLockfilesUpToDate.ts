@@ -170,21 +170,23 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     const getWorkspacePackages = once(arrayOfWorkspacePackagesToMap.bind(null, allProjects))
     const getManifestsByDir = once(() => getWorkspacePackagesByDirectory(getWorkspacePackages()))
 
-    await Promise.all(modifiedProjects.map(async ({ project }) => {
-      const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
-
-      await assertWantedLockfileUpToDate({
+    const assertCtx: AssertWantedLockfileUpToDateContext = {
         autoInstallPeers,
         config: opts,
         excludeLinksFromLockfile,
         linkWorkspacePackages,
         getManifestsByDir,
         getWorkspacePackages,
+        rootDir: workspaceDir,
+        rootManifestOptions,
+    }
+
+    await Promise.all(modifiedProjects.map(async ({ project }) => {
+      const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
+      await assertWantedLockfileUpToDate(assertCtx, {
         projectDir: project.rootDir,
         projectId: getProjectId(project),
         projectManifest: project.manifest,
-        rootDir: workspaceDir,
-        rootManifestOptions,
         wantedLockfile,
         wantedLockfileDir,
       })
@@ -256,11 +258,12 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         linkWorkspacePackages,
         getManifestsByDir: () => ({}),
         getWorkspacePackages: () => undefined,
+        rootDir: rootProjectManifestDir,
+        rootManifestOptions,
+      }, {
         projectDir: rootProjectManifestDir,
         projectId: '.' as ProjectId,
         projectManifest: rootProjectManifest,
-        rootDir: rootProjectManifestDir,
-        rootManifestOptions,
         wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir),
         wantedLockfileDir: rootProjectManifestDir,
       })
@@ -284,23 +287,29 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
   globalWarn('Skipping check.')
 }
 
-interface AssertWantedLockfileUpToDateOptions {
+interface AssertWantedLockfileUpToDateContext {
   autoInstallPeers?: boolean
   config: CheckLockfilesUpToDateOptions
   excludeLinksFromLockfile?: boolean
   linkWorkspacePackages: boolean | 'deep'
   getManifestsByDir: () => Record<string, DependencyManifest>
   getWorkspacePackages: () => WorkspacePackages | undefined
+  rootDir: string
+  rootManifestOptions: OptionsFromRootManifest | undefined
+}
+
+interface AssertWantedLockfileUpToDateOptions {
   projectDir: string
   projectId: ProjectId
   projectManifest: ProjectManifest
-  rootDir: string
-  rootManifestOptions: OptionsFromRootManifest | undefined
   wantedLockfile: Lockfile
   wantedLockfileDir: string
 }
 
-async function assertWantedLockfileUpToDate (opts: AssertWantedLockfileUpToDateOptions): Promise<void> {
+async function assertWantedLockfileUpToDate (
+  ctx: AssertWantedLockfileUpToDateContext,
+  opts: AssertWantedLockfileUpToDateOptions
+): Promise<void> {
   const {
     autoInstallPeers,
     config,
@@ -308,11 +317,14 @@ async function assertWantedLockfileUpToDate (opts: AssertWantedLockfileUpToDateO
     linkWorkspacePackages,
     getManifestsByDir,
     getWorkspacePackages,
+    rootDir,
+    rootManifestOptions,
+  } = ctx
+
+  const {
     projectDir,
     projectId,
     projectManifest,
-    rootDir,
-    rootManifestOptions,
     wantedLockfile,
     wantedLockfileDir,
   } = opts
