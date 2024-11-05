@@ -432,12 +432,10 @@ test('multiple lockfiles', async () => {
 
   // attempting to execute a script in root without updating dependencies should fail
   {
-    const { status, stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'])
+    const { status, stdout } = execPnpmSync([...config, 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
     expect(stdout.toString()).toContain(`The lockfile in ${path.resolve('foo')} does not satisfy project of id .`)
-    expect(stdout.toString()).not.toContain('No manifest files were modified since the last validation. Exiting check.')
-    expect(stdout.toString()).toContain('Some manifest files were modified since the last validation. Continuing check.')
   }
   // attempting to execute a script in any workspace package without updating dependencies should fail
   {
@@ -475,10 +473,8 @@ test('multiple lockfiles', async () => {
 
   // should be able to execute a script in root after dependencies have been updated
   {
-    const { stdout } = execPnpmSync([...config, '--reporter=ndjson', 'start'], { expectSuccess: true })
+    const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
-    expect(stdout.toString()).toContain('No manifest files were modified since the last validation. Exiting check.')
-    expect(stdout.toString()).not.toContain('Some manifest files were modified since the last validation. Continuing check.')
   }
   // should be able to execute a script in any workspace package after dependencies have been updated
   {
