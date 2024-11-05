@@ -58,13 +58,17 @@ async function writeLockfile (
   wantedLockfile: Lockfile
 ): Promise<void> {
   const lockfilePath = path.join(pkgPath, lockfileFilename)
-
   const lockfileToStringify = convertToLockfileFile(wantedLockfile, {
     forceSharedFormat: true,
   })
+  return writeLockfileFile(lockfilePath, lockfileToStringify)
+}
 
-  const yamlDoc = yamlStringify(lockfileToStringify)
-
+export function writeLockfileFile (
+  lockfilePath: string,
+  wantedLockfile: LockfileFileV9
+): Promise<void> {
+  const yamlDoc = yamlStringify(wantedLockfile)
   return writeFileAtomic(lockfilePath, yamlDoc)
 }
 

@@ -26,7 +26,7 @@ export interface NormalizeLockfileOpts {
   forceSharedFormat: boolean
 }
 
-export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfileOpts): LockfileFile {
+export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfileOpts): LockfileFileV9 {
   const packages: Record<string, PackageInfo> = {}
   const snapshots: Record<string, PackageSnapshotV7> = {}
   for (const [depPath, pkg] of Object.entries(lockfile.packages ?? {})) {
@@ -55,7 +55,7 @@ export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfi
       ], pkg)
     }
   }
-  const newLockfile = {
+  const newLockfile: LockfileFileV9 = {
     ...lockfile,
     snapshots,
     packages,
@@ -65,7 +65,7 @@ export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfi
   if (newLockfile.settings?.peersSuffixMaxLength === 1000) {
     newLockfile.settings = omit(['peersSuffixMaxLength'], newLockfile.settings)
   }
-  return normalizeLockfile(newLockfile, opts)
+  return normalizeLockfile(newLockfile, opts) as LockfileFileV9
 }
 
 function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeLockfileOpts): LockfileFile {
