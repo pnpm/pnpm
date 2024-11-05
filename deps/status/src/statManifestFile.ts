@@ -17,5 +17,5 @@ export async function statManifestFile (projectRootDir: string): Promise<fs.Stat
     }
     return stats
   }))
-  return attempts.find(x => !!x)
+  return attempts.find(stats => stats != null)
 }
