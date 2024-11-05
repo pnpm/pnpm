@@ -3,6 +3,7 @@ import path from 'path'
 import { pack } from '@pnpm/plugin-commands-publishing'
 import { prepare, tempDir } from '@pnpm/prepare'
 import tar from 'tar'
+import chalk from 'chalk'
 import { DEFAULT_OPTS } from './utils'
 
 test('pack: package with package.json', async () => {
@@ -297,7 +298,7 @@ test('pack to custom destination directory', async () => {
     embedReadme: false,
   })
 
-  expect(output).toBe(path.resolve('custom-dest/custom-dest-0.0.0.tgz'))
+  expect(output).toContain(path.resolve('custom-dest/custom-dest-0.0.0.tgz'))
 })
 
 test('pack: custom pack-gzip-level', async () => {
@@ -411,4 +412,25 @@ test('pack: modify manifest in prepack script', async () => {
   expect(fs.existsSync('./package/package.json')).toBeTruthy()
   expect(fs.existsSync('./package/dist/index.js')).toBeTruthy()
   expect(fs.existsSync('./package/dist/bin.js')).toBeTruthy()
+})
+
+test('pack: should display packed contents order by name', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+  })
+
+  fs.mkdirSync('./src')
+  fs.writeFileSync('./src/index.ts', 'index', 'utf8')
+  fs.writeFileSync('./a.js', 'a', 'utf8')
+  fs.writeFileSync('./b.js', 'b', 'utf8')
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  expect(output).toBe(`${chalk.blueBright('Tarball Contents')}\na.js\nb.js\npackage.json\nsrc/index.ts\n\n${chalk.blueBright('Tarball Details')}\ntest-publish-package.json-0.0.0.tgz`)
 })
