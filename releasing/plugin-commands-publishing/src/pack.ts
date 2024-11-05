@@ -15,6 +15,7 @@ import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import tar from 'tar-stream'
 import { runScriptsIfPresent } from './publish'
+import chalk from 'chalk'
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
 const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: { cwd: string }) => Promise<string[]>
@@ -138,10 +139,17 @@ export async function handler (
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['postpack'], entryManifest)
   }
+  let packedTarballPath
   if (opts.dir !== destDir) {
-    return path.join(destDir, tarballName)
+    packedTarballPath = path.join(destDir, tarballName)
+  } else {
+    packedTarballPath = path.relative(opts.dir, path.join(dir, tarballName))
   }
-  return path.relative(opts.dir, path.join(dir, tarballName))
+  return `${chalk.blueBright('Tarball Contents')}
+${files.sort((a, b) => a.localeCompare(b, 'en')).join('\n')}
+
+${chalk.blueBright('Tarball Details')}
+${packedTarballPath}`
 }
 
 function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {
