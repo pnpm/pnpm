@@ -33,7 +33,7 @@ test('single dependency', async () => {
 
   // installing dependencies on a single package workspace should not create a packages list cache
   {
-    const packagesList = await loadPackagesList(process.cwd())
+    const packagesList = loadPackagesList(process.cwd())
     expect(packagesList).toBeUndefined()
   }
 
@@ -126,7 +126,7 @@ test('no dependencies', async () => {
 
   // installing dependencies on a single package workspace should not create a packages list cache
   {
-    const packagesList = await loadPackagesList(process.cwd())
+    const packagesList = loadPackagesList(process.cwd())
     expect(packagesList).toBeUndefined()
   }
 

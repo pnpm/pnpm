@@ -89,7 +89,7 @@ test('single dependency', async () => {
 
   // pnpm install should create a packages list cache
   {
-    const packagesList = await loadPackagesList(process.cwd())
+    const packagesList = loadPackagesList(process.cwd())
     expect(packagesList).toStrictEqual({
       catalogs: {},
       lastValidatedTimestamp: expect.any(Number),
@@ -257,7 +257,7 @@ test('single dependency', async () => {
 
   // pnpm install should update the packages list cache
   {
-    const packagesList = await loadPackagesList(process.cwd())
+    const packagesList = loadPackagesList(process.cwd())
     expect(packagesList).toStrictEqual({
       catalogs: {},
       lastValidatedTimestamp: expect.any(Number),
@@ -327,7 +327,7 @@ test('no dependencies', async () => {
 
   // pnpm install should create a packages list cache
   {
-    const packagesList = await loadPackagesList(process.cwd())
+    const packagesList = loadPackagesList(process.cwd())
     expect(packagesList).toStrictEqual({
       catalogs: {},
       lastValidatedTimestamp: expect.any(Number),
@@ -504,7 +504,7 @@ test('should check for outdated catalogs', async () => {
 
   // pnpm install should create a packages list cache
   {
-    const packagesList = await loadPackagesList(process.cwd())
+    const packagesList = loadPackagesList(process.cwd())
     expect(packagesList).toStrictEqual({
       catalogs: {
         default: workspaceManifest.catalog,

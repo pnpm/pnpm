@@ -72,7 +72,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     : undefined
 
   if (allProjects && workspaceDir) {
-    const packagesList = await loadPackagesList(workspaceDir)
+    const packagesList = loadPackagesList(workspaceDir)
     if (!packagesList) {
       throw new PnpmError('RUN_CHECK_DEPS_NO_CACHE', 'Cannot check whether dependencies are outdated', {
         hint: 'Run `pnpm install` to create the cache',

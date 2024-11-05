@@ -21,7 +21,7 @@ const expectedLoggerCalls = [[{ msg: 'loading packages list' }]]
 test('loadPackagesList() when cache dir does not exist', async () => {
   prepareEmpty()
   const workspaceDir = process.cwd()
-  expect(await loadPackagesList(workspaceDir)).toBeUndefined()
+  expect(loadPackagesList(workspaceDir)).toBeUndefined()
   expect((logger.debug as jest.Mock).mock.calls).toStrictEqual(expectedLoggerCalls)
 })
 
@@ -30,7 +30,7 @@ test('loadPackagesList() when cache dir exists but not the file', async () => {
   const workspaceDir = process.cwd()
   const cacheFile = getCacheFilePath(workspaceDir)
   fs.mkdirSync(path.dirname(cacheFile), { recursive: true })
-  expect(await loadPackagesList(workspaceDir)).toBeUndefined()
+  expect(loadPackagesList(workspaceDir)).toBeUndefined()
   expect((logger.debug as jest.Mock).mock.calls).toStrictEqual(expectedLoggerCalls)
 })
 
@@ -55,6 +55,6 @@ test('loadPackagesList() when cache file exists and is correct', async () => {
     ],
   }
   fs.writeFileSync(cacheFile, JSON.stringify(packagesList))
-  expect(await loadPackagesList(workspaceDir)).toStrictEqual(packagesList)
+  expect(loadPackagesList(workspaceDir)).toStrictEqual(packagesList)
   expect((logger.debug as jest.Mock).mock.calls).toStrictEqual(expectedLoggerCalls)
 })
