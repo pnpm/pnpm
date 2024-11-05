@@ -171,14 +171,14 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     const getManifestsByDir = once(() => getWorkspacePackagesByDirectory(getWorkspacePackages()))
 
     const assertCtx: AssertWantedLockfileUpToDateContext = {
-        autoInstallPeers,
-        config: opts,
-        excludeLinksFromLockfile,
-        linkWorkspacePackages,
-        getManifestsByDir,
-        getWorkspacePackages,
-        rootDir: workspaceDir,
-        rootManifestOptions,
+      autoInstallPeers,
+      config: opts,
+      excludeLinksFromLockfile,
+      linkWorkspacePackages,
+      getManifestsByDir,
+      getWorkspacePackages,
+      rootDir: workspaceDir,
+      rootManifestOptions,
     }
 
     await Promise.all(modifiedProjects.map(async ({ project }) => {
