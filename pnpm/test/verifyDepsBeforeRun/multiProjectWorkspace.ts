@@ -105,8 +105,8 @@ test('single dependency', async () => {
   {
     const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
-    expect(stdout.toString()).toContain('No manifest files are modified after the last validation. Exiting check.')
-    expect(stdout.toString()).not.toContain('Some manifest files are modified after the last validation. Continuing check.')
+    expect(stdout.toString()).toContain('No manifest files were modified since the last validation. Exiting check.')
+    expect(stdout.toString()).not.toContain('Some manifest files were modified since the last validation. Continuing check.')
   }
   // should be able to execute a script in a workspace package after dependencies have been installed
   {
@@ -134,16 +134,16 @@ test('single dependency', async () => {
   {
     const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
-    expect(stdout.toString()).not.toContain('No manifest files are modified after the last validation. Exiting check.')
-    expect(stdout.toString()).toContain('Some manifest files are modified after the last validation. Continuing check.')
+    expect(stdout.toString()).not.toContain('No manifest files were modified since the last validation. Exiting check.')
+    expect(stdout.toString()).toContain('Some manifest files were modified since the last validation. Continuing check.')
     expect(stdout.toString()).toContain('updating packages list')
   }
   // should skip check after pnpm has updated the packages list
   {
     const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
-    expect(stdout.toString()).toContain('No manifest files are modified after the last validation. Exiting check.')
-    expect(stdout.toString()).not.toContain('Some manifest files are modified after the last validation. Continuing check.')
+    expect(stdout.toString()).toContain('No manifest files were modified since the last validation. Exiting check.')
+    expect(stdout.toString()).not.toContain('Some manifest files were modified since the last validation. Continuing check.')
     expect(stdout.toString()).not.toContain('updating packages list')
   }
 
@@ -161,8 +161,8 @@ test('single dependency', async () => {
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
     expect(stdout.toString()).toContain('project of id foo')
-    expect(stdout.toString()).not.toContain('No manifest files are modified after the last validation. Exiting check.')
-    expect(stdout.toString()).toContain('Some manifest files are modified after the last validation. Continuing check.')
+    expect(stdout.toString()).not.toContain('No manifest files were modified since the last validation. Exiting check.')
+    expect(stdout.toString()).toContain('Some manifest files were modified since the last validation. Continuing check.')
   }
   // attempting to execute a script in any workspace package without updating dependencies should fail
   {
@@ -202,8 +202,8 @@ test('single dependency', async () => {
   {
     const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
-    expect(stdout.toString()).toContain('No manifest files are modified after the last validation. Exiting check.')
-    expect(stdout.toString()).not.toContain('Some manifest files are modified after the last validation. Continuing check.')
+    expect(stdout.toString()).toContain('No manifest files were modified since the last validation. Exiting check.')
+    expect(stdout.toString()).not.toContain('Some manifest files were modified since the last validation. Continuing check.')
   }
   // should be able to execute a script in any workspace package after dependencies have been updated
   {

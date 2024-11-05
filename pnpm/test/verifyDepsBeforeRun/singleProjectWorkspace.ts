@@ -49,7 +49,7 @@ test('single dependency', async () => {
   {
     const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
-    expect(stdout.toString()).not.toContain('The manifest file not newer than the lockfile. Exiting check.')
+    expect(stdout.toString()).not.toContain('The manifest file is not newer than the lockfile. Exiting check.')
     expect(stdout.toString()).toContain('The manifest is newer than the lockfile. Continuing check.')
   }
 
@@ -66,7 +66,7 @@ test('single dependency', async () => {
     const { status, stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'])
     expect(status).not.toBe(0)
     expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
-    expect(stdout.toString()).not.toContain('The manifest file not newer than the lockfile. Exiting check.')
+    expect(stdout.toString()).not.toContain('The manifest file is not newer than the lockfile. Exiting check.')
     expect(stdout.toString()).toContain('The manifest is newer than the lockfile. Continuing check.')
   }
 
@@ -76,7 +76,7 @@ test('single dependency', async () => {
   {
     const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from script')
-    expect(stdout.toString()).toContain('The manifest file not newer than the lockfile. Exiting check.')
+    expect(stdout.toString()).toContain('The manifest file is not newer than the lockfile. Exiting check.')
     expect(stdout.toString()).not.toContain('The manifest is newer than the lockfile. Continuing check.')
   }
 

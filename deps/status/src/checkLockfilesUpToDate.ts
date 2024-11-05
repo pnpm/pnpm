@@ -110,11 +110,11 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     )
 
     if (modifiedProjects.length === 0) {
-      logger.debug({ msg: 'No manifest files are modified after the last validation. Exiting check.' })
+      logger.debug({ msg: 'No manifest files were modified since the last validation. Exiting check.' })
       return
     }
 
-    logger.debug({ msg: 'Some manifest files are modified after the last validation. Continuing check.' })
+    logger.debug({ msg: 'Some manifest files were modified since the last validation. Continuing check.' })
 
     let readWantedLockfileAndDir: (projectDir: string) => Promise<{
       wantedLockfile: Lockfile
@@ -260,7 +260,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         wantedLockfileDir: rootProjectManifestDir,
       })
     } else {
-      logger.debug({ msg: 'The manifest file not newer than the lockfile. Exiting check.' })
+      logger.debug({ msg: 'The manifest file is not newer than the lockfile. Exiting check.' })
     }
 
     return
