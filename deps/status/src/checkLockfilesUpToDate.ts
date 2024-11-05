@@ -52,6 +52,7 @@ export type CheckLockfilesUpToDateOptions = Pick<Config,
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 | 'sharedWorkspaceLockfile'
+| 'virtualStoreDir'
 | 'workspaceDir'
 >
 
@@ -132,7 +133,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
 
       const wantedLockfilePromise = readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
       if (wantedLockfileStats.mtime.valueOf() > packagesList.lastValidatedTimestamp) {
-        const virtualStoreDir = path.join(workspaceDir, 'node_modules', '.pnpm')
+        const virtualStoreDir = opts.virtualStoreDir ?? path.join(workspaceDir, 'node_modules', '.pnpm')
         const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
         const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir)
         assertLockfilesEqual(currentLockfile, wantedLockfile, workspaceDir)
@@ -148,7 +149,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
 
         if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
         if (wantedLockfileStats.mtime.valueOf() > packagesList.lastValidatedTimestamp) {
-          const virtualStoreDir = path.join(wantedLockfileDir, 'node_modules', '.pnpm')
+          const virtualStoreDir = opts.virtualStoreDir ?? path.join(wantedLockfileDir, 'node_modules', '.pnpm')
           const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
           const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir)
           assertLockfilesEqual(currentLockfile, wantedLockfile, wantedLockfileDir)
