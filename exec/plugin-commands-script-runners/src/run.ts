@@ -160,7 +160,7 @@ export type RunOpts =
   & { recursive?: boolean }
   & Pick<Config,
   | 'bin'
-  | 'checkDepsBeforeRunScripts'
+  | 'verifyDepsBeforeRun'
   | 'dir'
   | 'enablePrePostScripts'
   | 'engineStrict'
@@ -185,8 +185,8 @@ export type RunOpts =
     fallbackCommandUsed?: boolean
   }
   & (
-    | { checkDepsBeforeRunScripts?: false }
-    | { checkDepsBeforeRunScripts: true } & CheckLockfilesUpToDateOptions
+    | { verifyDepsBeforeRun?: false }
+    | { verifyDepsBeforeRun: true } & CheckLockfilesUpToDateOptions
   )
 
 export async function handler (
@@ -196,15 +196,15 @@ export async function handler (
   let dir: string
   let [scriptName, ...passedThruArgs] = params
 
-  // checkDepsBeforeRunScripts is outside of shouldRunCheck because TypeScript's tagged union
+  // verifyDepsBeforeRun is outside of shouldRunCheck because TypeScript's tagged union
   // only works when the tag is directly placed in the condition.
-  if (opts.checkDepsBeforeRunScripts && shouldRunCheck(process.env, scriptName)) {
+  if (opts.verifyDepsBeforeRun && shouldRunCheck(process.env, scriptName)) {
     await checkLockfilesUpToDate(opts)
   }
 
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
-      if (opts.checkDepsBeforeRunScripts) {
+      if (opts.verifyDepsBeforeRun) {
         opts.extraEnv = {
           ...opts.extraEnv,
           ...DISABLE_DEPS_CHECK_ENV,
@@ -270,7 +270,7 @@ so you may run "pnpm -w run ${scriptName}"`,
   const extraEnv = {
     ...opts.extraEnv,
     ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
-    ...opts.checkDepsBeforeRunScripts ? DISABLE_DEPS_CHECK_ENV : undefined,
+    ...opts.verifyDepsBeforeRun ? DISABLE_DEPS_CHECK_ENV : undefined,
   }
 
   const lifecycleOpts: RunLifecycleHookOptions = {

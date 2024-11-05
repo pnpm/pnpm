@@ -5,7 +5,7 @@ import { type ProjectManifest } from '@pnpm/types'
 import { loadPackagesList } from '@pnpm/workspace.packages-list-cache'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
 
-const CONFIG = ['--config.check-deps-before-run-scripts=true'] as const
+const CONFIG = ['--config.verify-deps-before-run=true'] as const
 
 test('single dependency', async () => {
   const manifest: ProjectManifest = {

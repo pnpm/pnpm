@@ -6,7 +6,7 @@ import { loadPackagesList } from '@pnpm/workspace.packages-list-cache'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
 
-const CONFIG = ['--config.check-deps-before-run-scripts=true'] as const
+const CONFIG = ['--config.verify-deps-before-run=true'] as const
 
 test('single dependency', async () => {
   const checkEnv = 'node --eval "assert.strictEqual(process.env.pnpm_run_skip_deps_check, \'true\')"'
