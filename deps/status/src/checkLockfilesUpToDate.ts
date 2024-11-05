@@ -144,11 +144,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     } else {
       readWantedLockfileAndDir = async wantedLockfileDir => {
         const wantedLockfilePromise = readWantedLockfile(wantedLockfileDir, { ignoreIncompatible: false })
-        const [
-          wantedLockfileStats,
-        ] = await Promise.all([
-          statIfExists(path.join(wantedLockfileDir, WANTED_LOCKFILE)),
-        ])
+        const wantedLockfileStats = await statIfExists(path.join(wantedLockfileDir, WANTED_LOCKFILE))
 
         if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
         if (wantedLockfileStats.mtime.valueOf() > packagesList.lastValidatedTimestamp) {
