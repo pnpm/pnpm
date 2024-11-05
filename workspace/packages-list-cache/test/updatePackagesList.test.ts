@@ -31,6 +31,7 @@ test('updatePackagesList()', async () => {
   })
   expect((logger.debug as jest.Mock).mock.calls).toStrictEqual([[{ msg: 'updating packages list' }]])
   expect(loadPackagesList(workspaceDir)).toStrictEqual({
+    filtered: false,
     lastValidatedTimestamp,
     projectRootDirs: [],
   })
@@ -59,6 +60,7 @@ test('updatePackagesList()', async () => {
         foo: '0.1.2',
       },
     },
+    filtered: false,
     lastValidatedTimestamp,
     projectRootDirs: [
       path.resolve('packages/a'),
