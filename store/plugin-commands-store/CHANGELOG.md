@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-store
 
+## 9.2.16
+
+### Patch Changes
+
+- @pnpm/get-context@12.0.8
+
 ## 9.2.15
 
 ### Patch Changes

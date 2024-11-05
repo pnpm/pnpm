@@ -1,5 +1,16 @@
 # @pnpm/headless
 
+## 23.2.9
+
+### Patch Changes
+
+- 90b7dd5: Don't attempt to apply patches when modules directory disabled (`enable-modules-dir` set to `false`) [#8727](https://github.com/pnpm/pnpm/pull/8727).
+- Updated dependencies [34cb316]
+  - @pnpm/lockfile.fs@1.1.0
+  - @pnpm/deps.graph-builder@2.0.6
+  - @pnpm/lockfile-to-pnp@4.1.15
+  - @pnpm/real-hoist@3.0.14
+
 ## 23.2.8
 
 ### Patch Changes

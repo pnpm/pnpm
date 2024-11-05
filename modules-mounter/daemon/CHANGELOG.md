@@ -1,5 +1,12 @@
 # @pnpm/mount-modules
 
+## 0.6.20
+
+### Patch Changes
+
+- Updated dependencies [34cb316]
+  - @pnpm/lockfile.fs@1.1.0
+
 ## 0.6.19
 
 ### Patch Changes

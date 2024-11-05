@@ -1,5 +1,18 @@
 # @pnpm/core
 
+## 15.3.9
+
+### Patch Changes
+
+- 90b7dd5: Fix for headless install crashing when modules directory disabled (`enable-modules-dir` set to `false`) and patched dependencies are present [#8727](https://github.com/pnpm/pnpm/pull/8727).
+- Updated dependencies [34cb316]
+- Updated dependencies [90b7dd5]
+  - @pnpm/lockfile.fs@1.1.0
+  - @pnpm/headless@23.2.9
+  - @pnpm/lockfile-to-pnp@4.1.15
+  - @pnpm/get-context@12.0.8
+  - @pnpm/lockfile.verification@1.0.7
+
 ## 15.3.8
 
 ### Patch Changes

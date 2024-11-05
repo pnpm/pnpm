@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-rebuild
 
+## 12.1.3
+
+### Patch Changes
+
+- @pnpm/get-context@12.0.8
+
 ## 12.1.2
 
 ### Patch Changes

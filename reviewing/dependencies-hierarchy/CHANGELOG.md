@@ -1,5 +1,12 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 3.2.3
+
+### Patch Changes
+
+- Updated dependencies [34cb316]
+  - @pnpm/lockfile.fs@1.1.0
+
 ## 3.2.2
 
 ### Patch Changes

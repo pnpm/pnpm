@@ -1,5 +1,12 @@
 # @pnpm/outdated
 
+## 15.1.8
+
+### Patch Changes
+
+- Updated dependencies [34cb316]
+  - @pnpm/lockfile.fs@1.1.0
+
 ## 15.1.7
 
 ### Patch Changes

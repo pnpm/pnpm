@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 10.0.13
+
+### Patch Changes
+
+- d444b93: Display packed files list in `pnpm pack`
+
 ## 10.0.12
 
 ### Patch Changes

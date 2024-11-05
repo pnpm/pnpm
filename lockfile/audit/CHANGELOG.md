@@ -1,5 +1,11 @@
 # @pnpm/audit
 
+## 8.2.3
+
+### Patch Changes
+
+- @pnpm/list@10.2.3
+
 ## 8.2.2
 
 ### Patch Changes

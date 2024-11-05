@@ -1,5 +1,15 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1.1.0
+
+### Minor Changes
+
+- 9d40a4e: The `self-update` now accepts a version specifier to install a specific version of pnpm. E.g.: `pnpm self-update 9.5.0` or `pnpm self-update next-10`.
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.2.8
+
 ## 1.0.9
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-installation
 
+## 17.2.8
+
+### Patch Changes
+
+- Updated dependencies [90b7dd5]
+  - @pnpm/core@15.3.9
+  - @pnpm/get-context@12.0.8
+  - @pnpm/outdated@15.1.8
+  - @pnpm/plugin-commands-rebuild@12.1.3
+
 ## 17.2.7
 
 ### Patch Changes
