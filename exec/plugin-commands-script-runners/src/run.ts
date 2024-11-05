@@ -9,12 +9,7 @@ import { type CompletionFunc } from '@pnpm/command'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
-import {
-  type CheckLockfilesUpToDateOptions,
-  DISABLE_DEPS_CHECK_ENV,
-  checkLockfilesUpToDate,
-  shouldRunCheck,
-} from '@pnpm/deps.status'
+import { type CheckLockfilesUpToDateOptions, checkLockfilesUpToDate } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import {
   runLifecycleHook,
@@ -29,6 +24,7 @@ import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifie
 import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
+import { DISABLE_DEPS_CHECK_ENV, shouldRunCheck } from './shouldRunCheck'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,
