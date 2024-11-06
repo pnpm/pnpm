@@ -64,7 +64,7 @@ export function help (): string {
 export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
-} & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion'> & add.AddCommandOptions
+} & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' | 'symlink'> & add.AddCommandOptions
 
 export async function handler (
   opts: DlxCommandOptions,
@@ -81,7 +81,7 @@ export async function handler (
     await add.handler({
       // Ideally the config reader should ignore these settings when the dlx command is executed.
       // This is a temporary solution until "@pnpm/config" is refactored.
-      ...omit(['workspaceDir', 'rootProjectManifest'], opts),
+      ...omit(['workspaceDir', 'rootProjectManifest', 'symlink'], opts),
       bin: path.join(cachedDir, 'node_modules/.bin'),
       dir: cachedDir,
       lockfileDir: cachedDir,
