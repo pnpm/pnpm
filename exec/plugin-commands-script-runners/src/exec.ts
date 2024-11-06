@@ -11,6 +11,7 @@ import { sortPackages } from '@pnpm/sort-packages'
 import { type Project, type ProjectsGraph, type ProjectRootDir, type ProjectRootDirRealPath } from '@pnpm/types'
 import execa from 'execa'
 import pLimit from 'p-limit'
+import { type CheckLockfilesUpToDateOptions, checkLockfilesUpToDate } from '@pnpm/deps.status'
 import { prependDirsToPath } from '@pnpm/env.path'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
@@ -26,6 +27,7 @@ import { PnpmError } from '@pnpm/error'
 import which from 'which'
 import writeJsonFile from 'write-json-file'
 import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint'
+import { DISABLE_DEPS_CHECK_ENV, SKIP_ENV_KEY } from './shouldRunCheck'
 
 export const shorthands: Record<string, string | string[]> = {
   parallel: runShorthands.parallel,
@@ -157,8 +159,12 @@ export type ExecOpts = Required<Pick<Config, 'selectedProjectsGraph'>> & {
 | 'recursive'
 | 'reporterHidePrefix'
 | 'userAgent'
+| 'verifyDepsBeforeRun'
 | 'workspaceDir'
->
+> & (
+  | { verifyDepsBeforeRun?: false }
+  | { verifyDepsBeforeRun: true } & CheckLockfilesUpToDateOptions
+)
 
 export async function handler (
   opts: ExecOpts,
@@ -169,6 +175,10 @@ export async function handler (
     params.shift()
   }
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
+
+  if (opts.verifyDepsBeforeRun && !process.env[SKIP_ENV_KEY]) {
+    await checkLockfilesUpToDate(opts)
+  }
 
   let chunks!: ProjectRootDir[][]
   if (opts.recursive) {
@@ -238,6 +248,7 @@ export async function handler (
               ...extraEnv,
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix]?.package.manifest.name,
               ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
+              ...opts.verifyDepsBeforeRun ? DISABLE_DEPS_CHECK_ENV : undefined,
             },
             prependPaths,
             userAgent: opts.userAgent,
