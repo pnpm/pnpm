@@ -128,8 +128,16 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       wantedLockfileDir: string
     }>
     if (sharedWorkspaceLockfile) {
-      const wantedLockfileStats = await statIfExists(path.join(workspaceDir, WANTED_LOCKFILE))
-      if (!wantedLockfileStats) return throwLockfileNotFound(workspaceDir)
+      let wantedLockfileStats: fs.Stats
+      try {
+        wantedLockfileStats = fs.statSync(path.join(workspaceDir, WANTED_LOCKFILE))
+      } catch (error) {
+        if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') {
+          return throwLockfileNotFound(workspaceDir)
+        } else {
+          throw error
+        }
+      }
 
       const wantedLockfilePromise = readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
       if (wantedLockfileStats.mtime.valueOf() > packagesList.lastValidatedTimestamp) {
