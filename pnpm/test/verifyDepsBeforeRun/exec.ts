@@ -169,7 +169,6 @@ test('multi-project workspace', async () => {
     const packagesList = loadPackagesList(process.cwd())
     expect(packagesList).toStrictEqual({
       catalogs: {},
-      filtered: false,
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
         path.resolve('.'),
@@ -324,7 +323,6 @@ test('multi-project workspace', async () => {
     const packagesList = loadPackagesList(process.cwd())
     expect(packagesList).toStrictEqual({
       catalogs: {},
-      filtered: false,
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
         path.resolve('.'),

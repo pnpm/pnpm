@@ -5,7 +5,6 @@ export type ProjectsList = Array<Pick<Project, 'rootDir'>>
 
 export interface PackagesList {
   catalogs: Catalogs | undefined
-  filtered: boolean
   lastValidatedTimestamp: number
   projectRootDirs: ProjectRootDir[]
 }

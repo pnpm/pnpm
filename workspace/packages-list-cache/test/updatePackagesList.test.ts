@@ -26,12 +26,10 @@ test('updatePackagesList()', async () => {
     lastValidatedTimestamp,
     workspaceDir,
     catalogs: undefined,
-    filtered: false,
     allProjects: [],
   })
   expect((logger.debug as jest.Mock).mock.calls).toStrictEqual([[{ msg: 'updating packages list' }]])
   expect(loadPackagesList(workspaceDir)).toStrictEqual({
-    filtered: false,
     lastValidatedTimestamp,
     projectRootDirs: [],
   })
@@ -45,7 +43,6 @@ test('updatePackagesList()', async () => {
         foo: '0.1.2',
       },
     },
-    filtered: false,
     allProjects: [
       { rootDir: path.resolve('packages/c') as ProjectRootDir },
       { rootDir: path.resolve('packages/a') as ProjectRootDir },
@@ -60,7 +57,6 @@ test('updatePackagesList()', async () => {
         foo: '0.1.2',
       },
     },
-    filtered: false,
     lastValidatedTimestamp,
     projectRootDirs: [
       path.resolve('packages/a'),

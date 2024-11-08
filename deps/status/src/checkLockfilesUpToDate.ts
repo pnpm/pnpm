@@ -81,11 +81,6 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       })
     }
 
-    if (packagesList.filtered) {
-      globalWarn('Cannot verify dependencies for filtered install. Skipping check.')
-      return
-    }
-
     if (!equals(
       filter(value => value != null, packagesList.catalogs ?? {}),
       filter(value => value != null, catalogs ?? {})
@@ -204,7 +199,6 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     await updatePackagesList({
       allProjects,
       catalogs,
-      filtered: false,
       lastValidatedTimestamp: Date.now(),
       workspaceDir,
     })

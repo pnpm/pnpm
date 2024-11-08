@@ -92,7 +92,6 @@ test('single dependency', async () => {
     const packagesList = loadPackagesList(process.cwd())
     expect(packagesList).toStrictEqual({
       catalogs: {},
-      filtered: false,
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
         path.resolve('.'),
@@ -261,7 +260,6 @@ test('single dependency', async () => {
     const packagesList = loadPackagesList(process.cwd())
     expect(packagesList).toStrictEqual({
       catalogs: {},
-      filtered: false,
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
         path.resolve('.'),
@@ -366,7 +364,6 @@ test('multiple lockfiles', async () => {
     const packagesList = loadPackagesList(process.cwd())
     expect(packagesList).toStrictEqual({
       catalogs: {},
-      filtered: false,
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
         path.resolve('.'),
@@ -530,7 +527,6 @@ test('multiple lockfiles', async () => {
     const packagesList = loadPackagesList(process.cwd())
     expect(packagesList).toStrictEqual({
       catalogs: {},
-      filtered: false,
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
         path.resolve('.'),
@@ -545,83 +541,6 @@ test('multiple lockfiles', async () => {
   {
     const { stdout } = execPnpmSync([...config, 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
-  }
-})
-
-test('filtered install', async () => {
-  const manifests: Record<string, ProjectManifest> = {
-    root: {
-      name: 'root',
-      private: true,
-      dependencies: {
-        '@pnpm.e2e/foo': '=100.0.0',
-      },
-      scripts: {
-        start: 'echo hello from root',
-      },
-    },
-    foo: {
-      name: 'foo',
-      private: true,
-      dependencies: {
-        '@pnpm.e2e/foo': '=100.0.0',
-      },
-      scripts: {
-        start: 'echo hello from foo',
-      },
-    },
-    bar: {
-      name: 'bar',
-      private: true,
-      dependencies: {
-        '@pnpm.e2e/foo': '=100.0.0',
-      },
-      scripts: {
-        start: 'echo hello from bar',
-      },
-    },
-  }
-
-  preparePackages([
-    {
-      location: '.',
-      package: manifests.root,
-    },
-    manifests.foo,
-    manifests.bar,
-  ])
-
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-
-  // attempting to execute a script with filter without installing dependencies should fail
-  {
-    const { status, stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'])
-    expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
-  }
-
-  await execPnpm([...CONFIG, '--filter=foo', 'install'])
-
-  // pnpm install should update the packages list cache
-  {
-    const packagesList = loadPackagesList(process.cwd())
-    expect(packagesList).toStrictEqual({
-      catalogs: {},
-      filtered: true,
-      lastValidatedTimestamp: expect.any(Number),
-      projectRootDirs: [
-        path.resolve('.'),
-        path.resolve('foo'),
-        path.resolve('bar'),
-      ].sort(),
-    })
-  }
-
-  // should skip checking after a filtered install
-  {
-    const { stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'], { expectSuccess: true })
-    expect(stdout.toString()).toContain('hello from foo')
-    expect(stdout.toString()).toContain('Cannot verify dependencies for filtered install. Skipping check.')
   }
 })
 
@@ -675,7 +594,6 @@ test('no dependencies', async () => {
     const packagesList = loadPackagesList(process.cwd())
     expect(packagesList).toStrictEqual({
       catalogs: {},
-      filtered: false,
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
         path.resolve('.'),
@@ -855,7 +773,6 @@ test('should check for outdated catalogs', async () => {
       catalogs: {
         default: workspaceManifest.catalog,
       },
-      filtered: false,
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
         path.resolve('.'),

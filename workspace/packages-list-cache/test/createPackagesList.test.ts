@@ -12,12 +12,10 @@ test('createPackagesList() on empty list', () => {
     createPackagesList({
       allProjects: [],
       catalogs: undefined,
-      filtered: false,
       lastValidatedTimestamp,
     })
   ).toStrictEqual({
     catalogs: undefined,
-    filtered: false,
     lastValidatedTimestamp,
     projectRootDirs: [],
   })
@@ -37,7 +35,6 @@ test('createPackagesList() on non-empty list', () => {
         { rootDir: path.resolve('packages/a') as ProjectRootDir },
         { rootDir: path.resolve('packages/d') as ProjectRootDir },
       ],
-      filtered: false,
       lastValidatedTimestamp,
       catalogs: {
         default: {
@@ -51,7 +48,6 @@ test('createPackagesList() on non-empty list', () => {
         foo: '0.1.2',
       },
     },
-    filtered: false,
     lastValidatedTimestamp,
     projectRootDirs: [
       path.resolve('packages/a'),
