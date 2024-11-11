@@ -533,3 +533,18 @@ test('installation fails when the stored package name and version do not match t
 
   await execPnpm(['install', '--config.strict-store-pkg-content-check=false', ...settings])
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/8538
+test('do not fail to render peer dependencies warning, when cache was hit during peer resolution', () => {
+  prepare({
+    dependencies: {
+      '@udecode/plate-ui-table': '18.15.0',
+      '@udecode/plate-ui-toolbar': '18.15.0',
+    },
+  })
+
+  const result = execPnpmSync(['install', '--config.auto-install-peers=false'])
+
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).toContain('Issues with peer dependencies found')
+})
