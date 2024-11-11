@@ -114,6 +114,11 @@ interface PkgNode {
 }
 
 function createTree (pkgNode: PkgNode, pkgs: Array<{ name: string, version: string }>, issueText: string): void {
+  if (pkgs.length === 0) {
+    // This will happen if incorrect data is passed to the reporter.
+    // It is better to print something instead of crashing.
+    pkgs = [{ name: '<unknown>', version: '<unknown>' }]
+  }
   const [pkg, ...rest] = pkgs
   const label = `${pkg.name} ${chalk.grey(pkg.version)}`
   if (!pkgNode.dependencies[label]) {
