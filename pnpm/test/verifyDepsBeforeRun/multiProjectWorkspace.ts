@@ -544,6 +544,85 @@ test('multiple lockfiles', async () => {
   }
 })
 
+test('filtered install', async () => {
+  const manifests: Record<string, ProjectManifest> = {
+    root: {
+      name: 'root',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        start: 'echo hello from root',
+      },
+    },
+    foo: {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        start: 'echo hello from foo',
+      },
+    },
+    bar: {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        start: 'echo hello from bar',
+      },
+    },
+  }
+
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: manifests.root,
+    },
+    manifests.foo,
+    manifests.bar,
+  ])
+
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  // attempting to execute a script without installing dependencies should fail
+  {
+    const { status, stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'])
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+  }
+
+  await execPnpm([...CONFIG, '--filter=foo', 'install'])
+
+  // should be able to execute a script after dependencies have been installed
+  {
+    const { stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from foo')
+  }
+
+  manifests.foo.dependencies!['@pnpm.e2e/foo'] = '=100.1.0'
+  projects.foo.writePackageJson(manifests.foo)
+
+  // attempt to execute a script without updating dependencies should fail
+  {
+    const { status, stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'])
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+  }
+
+  await execPnpm([...CONFIG, '--filter=foo', 'install'])
+
+  // should be able to execute a script after dependencies have been updated
+  {
+    const { stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from foo')
+  }
+})
+
 test('no dependencies', async () => {
   const manifests: Record<string, ProjectManifest> = {
     root: {
