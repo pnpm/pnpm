@@ -9,6 +9,7 @@ import { type Config, type OptionsFromRootManifest, getOptionsFromRootManifest }
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import {
   type Lockfile,
   getLockfileImporterId,
@@ -26,7 +27,6 @@ import {
   satisfiesPackageManifest,
 } from '@pnpm/lockfile.verification'
 import { globalWarn, logger } from '@pnpm/logger'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { parseOverrides } from '@pnpm/parse-overrides'
 import { type WorkspacePackages } from '@pnpm/resolver-base'
 import {
