@@ -382,3 +382,33 @@ test('renderPeerIssues() format correctly the version ranges with spaces and "*"
     },
   }, { width: 500 }))).toMatchSnapshot()
 })
+
+test('renderPeerIssues() do not fail if the parents array is empty', () => {
+  expect(stripAnsi(renderPeerIssues({
+    '.': {
+      missing: {
+        foo: [
+          {
+            parents: [],
+            optional: false,
+            wantedRange: '>=1.0.0 <3.0.0',
+          },
+        ],
+      },
+      bad: {},
+      conflicts: [],
+      intersections: {
+        foo: '^1.0.0',
+      },
+    },
+  }, {
+    rules: {
+      ignoreMissing: [],
+    },
+    width: 500,
+  })).trim()).toBe(`.
+└─┬ <unknown> <unknown>
+  └── ✕ missing peer foo@">=1.0.0 <3.0.0"
+Peer dependencies that should be installed:
+  foo@^1.0.0`)
+})
