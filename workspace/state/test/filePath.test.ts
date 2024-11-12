@@ -7,6 +7,6 @@ test('getFilePath()', () => {
   expect(
     getFilePath(process.cwd())
   ).toStrictEqual(
-    path.resolve(path.resolve('node_modules/.workspace-packages-list.json'))
+    path.resolve(path.resolve('node_modules/.pnpm-workspace-state.json'))
   )
 })
