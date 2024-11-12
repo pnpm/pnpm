@@ -4,6 +4,13 @@ import readYamlFile from 'read-yaml-file'
 import mapValues from 'ramda/src/map'
 import isWindows from 'is-windows'
 import writeYamlFile from 'write-yaml-file'
+import { type CreatePackagesListOptions, type PackagesList, createPackagesList } from './packagesList'
+
+export {
+  type CreatePackagesListOptions,
+  type PackagesList,
+  createPackagesList,
+}
 
 // The dot prefix is needed because otherwise `npm shrinkwrap`
 // thinks that it is an extraneous package.
@@ -32,6 +39,7 @@ export interface Modules {
   virtualStoreDirMaxLength: number
   injectedDeps?: Record<string, string[]>
   hoistedLocations?: Record<string, string[]>
+  packagesList?: PackagesList
 }
 
 export async function readModulesManifest (modulesDir: string): Promise<Modules | null> {
@@ -96,7 +104,7 @@ const YAML_OPTS = {
 
 export async function writeModulesManifest (
   modulesDir: string,
-  modules: Modules & { registries: Registries },
+  modules: Modules,
   opts?: {
     makeModulesDir?: boolean
   }

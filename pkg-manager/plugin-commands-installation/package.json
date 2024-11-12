@@ -87,7 +87,6 @@
     "@pnpm/store-connection-manager": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
-    "@pnpm/workspace.packages-list-cache": "workspace:*",
     "@pnpm/workspace.pkgs-graph": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
     "@yarnpkg/core": "catalog:",

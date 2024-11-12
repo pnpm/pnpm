@@ -86,6 +86,7 @@ import { linkPackages } from './link'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
 import { validateModules } from './validateModules'
 import { isCI } from 'ci-info'
+import { type CreatePackagesList } from '../types'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -136,6 +137,7 @@ type Opts = Omit<InstallOptions, 'allProjects'> & {
   preferredVersions?: PreferredVersions
   pruneDirectDependencies?: boolean
   binsDir?: string
+  createPackagesList?: CreatePackagesList
 } & InstallMutationOptions
 
 export async function install (
@@ -182,6 +184,7 @@ export type MutateModulesOptions = InstallOptions & {
   hooks?: {
     readPackage?: ReadPackageHook[] | ReadPackageHook
   } | InstallOptions['hooks']
+  createPackagesList?: CreatePackagesList
 }
 
 export async function mutateModulesInSingleProject (
@@ -683,6 +686,7 @@ Note that in CI environments, this setting is enabled by default.`,
       scriptsOpts,
       updateLockfileMinorVersion: true,
       patchedDependencies: patchedDependenciesWithResolvedPath,
+      createPackagesList: opts.createPackagesList,
     })
 
     return {
@@ -834,6 +838,7 @@ type InstallFunction = (
     scriptsOpts: RunLifecycleHooksConcurrentlyOptions
     currentLockfileIsUpToDate: boolean
     hoistWorkspacePackages?: boolean
+    createPackagesList?: CreatePackagesList
   }
 ) => Promise<InstallFunctionResult>
 
@@ -1249,6 +1254,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           storeDir: ctx.storeDir,
           virtualStoreDir: ctx.virtualStoreDir,
           virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
+          packagesList: opts.createPackagesList?.(Date.now()),
         }, {
           makeModulesDir: Object.keys(result.currentLockfile.packages ?? {}).length > 0,
         })

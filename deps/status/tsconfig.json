@@ -43,6 +43,9 @@
       "path": "../../pkg-manager/get-context"
     },
     {
+      "path": "../../pkg-manager/modules-yaml"
+    },
+    {
       "path": "../../pkg-manifest/write-project-manifest"
     },
     {
@@ -50,9 +53,6 @@
     },
     {
       "path": "../../workspace/find-packages"
-    },
-    {
-      "path": "../../workspace/packages-list-cache"
     },
     {
       "path": "../../workspace/read-manifest"

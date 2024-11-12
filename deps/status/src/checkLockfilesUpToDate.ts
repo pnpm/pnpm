@@ -27,6 +27,7 @@ import {
   satisfiesPackageManifest,
 } from '@pnpm/lockfile.verification'
 import { globalWarn, logger } from '@pnpm/logger'
+import { createPackagesList, readModulesManifest, writeModulesManifest } from '@pnpm/modules-yaml'
 import { parseOverrides } from '@pnpm/parse-overrides'
 import { type WorkspacePackages } from '@pnpm/resolver-base'
 import {
@@ -36,7 +37,6 @@ import {
   type ProjectManifest,
 } from '@pnpm/types'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { loadPackagesList, updatePackagesList } from '@pnpm/workspace.packages-list-cache'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { assertLockfilesEqual } from './assertLockfilesEqual'
 import { statManifestFile } from './statManifestFile'
@@ -74,12 +74,14 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     : undefined
 
   if (allProjects && workspaceDir) {
-    const packagesList = loadPackagesList(workspaceDir)
-    if (!packagesList) {
+    const modules = await readModulesManifest(path.join(workspaceDir, 'node_modules'))
+    if (!modules?.packagesList) {
       throw new PnpmError('RUN_CHECK_DEPS_NO_CACHE', 'Cannot check whether dependencies are outdated', {
         hint: 'Run `pnpm install` to create the cache',
       })
     }
+
+    const { packagesList } = modules
 
     if (!equals(
       filter(value => value != null, packagesList.catalogs ?? {}),
@@ -196,12 +198,12 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     }))
 
     // update lastValidatedTimestamp to prevent pointless repeat
-    await updatePackagesList({
+    modules.packagesList = createPackagesList({
       allProjects,
       catalogs,
       lastValidatedTimestamp: Date.now(),
-      workspaceDir,
     })
+    await writeModulesManifest(path.join(workspaceDir, 'node_modules'), modules)
 
     return
   }

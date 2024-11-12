@@ -175,9 +175,6 @@
       "path": "../workspace/find-workspace-dir"
     },
     {
-      "path": "../workspace/packages-list-cache"
-    },
-    {
       "path": "../workspace/pkgs-graph"
     }
   ]

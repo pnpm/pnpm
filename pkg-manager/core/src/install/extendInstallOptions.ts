@@ -19,7 +19,7 @@ import {
 } from '@pnpm/types'
 import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
 import { pnpmPkgJson } from '../pnpmPkgJson'
-import { type ReporterFunction } from '../types'
+import { type CreatePackagesList, type ReporterFunction } from '../types'
 import { type PreResolutionHookContext } from '@pnpm/hooks.types'
 
 export interface StrictInstallOptions {
@@ -155,6 +155,7 @@ export interface StrictInstallOptions {
   peersSuffixMaxLength: number
   prepareExecutionEnv?: PrepareExecutionEnv
   returnListOfDepsRequiringBuild?: boolean
+  createPackagesList?: CreatePackagesList
 }
 
 export type InstallOptions =

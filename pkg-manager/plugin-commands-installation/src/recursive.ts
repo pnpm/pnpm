@@ -10,6 +10,7 @@ import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { createMatcherWithIndex } from '@pnpm/matcher'
+import { createPackagesList } from '@pnpm/modules-yaml'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { sortPackages } from '@pnpm/sort-packages'
@@ -139,6 +140,12 @@ export async function recursive (
     forceHoistPattern: typeof opts.rawLocalConfig?.['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig?.['hoist'] !== 'undefined',
     forceShamefullyHoist: typeof opts.rawLocalConfig?.['shamefully-hoist'] !== 'undefined',
   }) as InstallOptions
+
+  installOpts.createPackagesList = lastValidatedTimestamp => createPackagesList({
+    allProjects,
+    catalogs: installOpts.catalogs,
+    lastValidatedTimestamp,
+  })
 
   const result: RecursiveSummary = {}
 

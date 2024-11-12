@@ -1,11 +1,16 @@
 import fs from 'fs'
 import path from 'path'
+import { type PackagesList, readModulesManifest } from '@pnpm/modules-yaml'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
-import { loadPackagesList } from '@pnpm/workspace.packages-list-cache'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
 
 const CONFIG = ['--config.verify-deps-before-run=true'] as const
+
+async function loadPackagesList (workspaceDir: string): Promise<PackagesList | undefined> {
+  const modules = await readModulesManifest(path.join(workspaceDir, 'node_modules'))
+  return modules?.packagesList
+}
 
 test('single dependency', async () => {
   const manifest: ProjectManifest = {
@@ -33,7 +38,7 @@ test('single dependency', async () => {
 
   // installing dependencies on a single package workspace should not create a packages list cache
   {
-    const packagesList = loadPackagesList(process.cwd())
+    const packagesList = await loadPackagesList(process.cwd())
     expect(packagesList).toBeUndefined()
   }
 
@@ -129,7 +134,7 @@ test('deleting node_modules after install', async () => {
 
   // installing dependencies on a single package workspace should not create a packages list cache
   {
-    const packagesList = loadPackagesList(process.cwd())
+    const packagesList = await loadPackagesList(process.cwd())
     expect(packagesList).toBeUndefined()
   }
 
@@ -171,7 +176,7 @@ test('no dependencies', async () => {
 
   // installing dependencies on a single package workspace should not create a packages list cache
   {
-    const packagesList = loadPackagesList(process.cwd())
+    const packagesList = await loadPackagesList(process.cwd())
     expect(packagesList).toBeUndefined()
   }
 

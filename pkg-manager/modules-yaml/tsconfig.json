@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../packages/types"
     }
   ]

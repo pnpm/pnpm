@@ -1,6 +1,8 @@
 ---
-"@pnpm/plugin-commands-script-runners": minor
+"@pnpm/core": minor
 "@pnpm/config": minor
+"@pnpm/modules-yaml": minor
+"@pnpm/plugin-commands-script-runners": minor
 "pnpm": minor
 ---
 

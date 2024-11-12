@@ -1,5 +1,13 @@
 import { type Catalogs } from '@pnpm/catalogs.types'
-import { type PackagesList, type ProjectsList } from './types'
+import { type Project, type ProjectRootDir } from '@pnpm/types'
+
+export type ProjectsList = Array<Pick<Project, 'rootDir'>>
+
+export interface PackagesList {
+  catalogs: Catalogs | undefined
+  lastValidatedTimestamp: number
+  projectRootDirs: ProjectRootDir[]
+}
 
 export interface CreatePackagesListOptions {
   allProjects: ProjectsList

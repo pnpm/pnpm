@@ -20,8 +20,8 @@ import {
   type WorkspacePackages,
 } from '@pnpm/core'
 import { logger } from '@pnpm/logger'
+import { createPackagesList } from '@pnpm/modules-yaml'
 import { sequenceGraph } from '@pnpm/sort-packages'
-import { updatePackagesList } from '@pnpm/workspace.packages-list-cache'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import isSubdir from 'is-subdir'
 import { getPinnedVersion } from './getPinnedVersion'
@@ -159,14 +159,6 @@ when running add/update with the --workspace option')
       ? await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
       : []
   )
-  if (opts.allProjects && opts.workspaceDir) {
-    await updatePackagesList({
-      allProjects: opts.allProjects,
-      catalogs: opts.catalogs,
-      lastValidatedTimestamp: Date.now(),
-      workspaceDir: opts.workspaceDir,
-    })
-  }
   if (opts.workspaceDir) {
     const selectedProjectsGraph = opts.selectedProjectsGraph ?? selectProjectByDir(allProjects, opts.dir)
     if (selectedProjectsGraph != null) {
@@ -252,6 +244,14 @@ when running add/update with the --workspace option')
     storeDir: store.dir,
     workspacePackages,
   }
+  // if (opts.allProjects && opts.workspaceDir) { // TODO: this probably doesn't matter, remove it after everything else been fixed
+  //   const { allProjects, catalogs } = opts
+  //   installOpts.createPackagesList = lastValidatedTimestamp => createPackagesList({
+  //     allProjects,
+  //     catalogs,
+  //     lastValidatedTimestamp,
+  //   })
+  // }
   if (opts.global && opts.pnpmHomeDir != null) {
     const nodeExecPath = await getNodeExecPath()
     if (isSubdir(opts.pnpmHomeDir, nodeExecPath)) {
