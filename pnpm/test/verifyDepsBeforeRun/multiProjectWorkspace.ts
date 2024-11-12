@@ -885,3 +885,75 @@ test('should check for outdated catalogs', async () => {
     expect(stdout.toString()).toContain('hello from root')
   }
 })
+
+test('failed to install dependencies', async () => {
+  const manifests: Record<string, ProjectManifest> = {
+    root: {
+      name: 'root',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        start: 'echo hello from root',
+      },
+    },
+    foo: {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        start: 'echo hello from foo',
+      },
+    },
+    bar: {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        start: 'echo hello from bar',
+      },
+    },
+  }
+
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: manifests.root,
+    },
+    manifests.foo,
+    manifests.bar,
+  ])
+
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm([...CONFIG, 'install'])
+
+  // should be able to execute a script after dependencies have been installed
+  {
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from root')
+  }
+
+  // modify a manifest file to require an impossible version
+  manifests.foo.dependencies!['@pnpm.e2e/foo'] = '=9999.9999.9999' // this version does not exist
+  projects.foo.writePackageJson(manifests.foo)
+
+  // should fail to install dependencies
+  {
+    const { status, stdout } = execPnpmSync([...CONFIG, 'install'])
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toContain('ERR_PNPM_NO_MATCHING_VERSION')
+  }
+
+  // attempting to execute a script without successfully updating the dependencies should fail
+  {
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+  }
+})

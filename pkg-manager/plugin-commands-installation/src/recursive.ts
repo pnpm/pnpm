@@ -42,7 +42,7 @@ import { getSaveType } from './getSaveType'
 import { getPinnedVersion } from './getPinnedVersion'
 import { type PreferredVersions } from '@pnpm/resolver-base'
 
-type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
+export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
 | 'dedupePeerDependents'
 | 'depth'
@@ -98,11 +98,13 @@ Pick<Config,
 Pick<Config, 'workspaceDir'>
 >
 
+export type CommandFullName = 'install' | 'add' | 'remove' | 'update' | 'import'
+
 export async function recursive (
   allProjects: Project[],
   params: string[],
   opts: RecursiveOptions,
-  cmdFullName: 'install' | 'add' | 'remove' | 'update' | 'import'
+  cmdFullName: CommandFullName
 ): Promise<boolean | string> {
   if (allProjects.length === 0) {
     // It might make sense to throw an exception in this case
