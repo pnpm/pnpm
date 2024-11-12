@@ -30,6 +30,7 @@ export async function findWorkspacePackages (
   opts?: FindWorkspacePackagesOpts
 ): Promise<Project[]> {
   const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
+  const rootPkg = pkgs.find(pkg => pkg.rootDir === workspaceRoot)
   for (const pkg of pkgs) {
     packageIsInstallable(pkg.rootDir, pkg.manifest, {
       ...opts,
@@ -40,8 +41,8 @@ export async function findWorkspacePackages (
       },
     })
     // When setting shared-workspace-lockfile=false, `pnpm` can be set in sub-project's package.json.
-    if (opts?.sharedWorkspaceLockfile && pkg.rootDir !== workspaceRoot) {
-      checkNonRootProjectManifest(pkg)
+    if (opts?.sharedWorkspaceLockfile && pkg !== rootPkg) {
+      checkNonRootProjectManifest(pkg, rootPkg)
     }
   }
 
@@ -66,16 +67,45 @@ const uselessNonRootManifestFields: Array<keyof ProjectManifest> = ['resolutions
 type ProjectManifestPnpm = Required<ProjectManifest>['pnpm']
 const usefulNonRootPnpmFields: Array<keyof ProjectManifestPnpm> = ['executionEnv']
 
-function checkNonRootProjectManifest ({ manifest, rootDir }: Project): void {
-  const warn = printNonRootFieldWarning.bind(null, rootDir)
+function skipWarning (pkg: Project, field: string, rootPkg?: Project | undefined): boolean {
+  // pnpm.resolutions is not a thing and should be skipped.
+  if (field === 'pnpm.resolutions') {
+    return true
+  }
+  if (pkg.manifest.private) {
+    return false
+  }
+  let overrides: Record<string, string> | undefined
+  if (field === 'resolutions') {
+    overrides = pkg.manifest.resolutions
+  } else if (field === 'pnpm.overrides') {
+    overrides = pkg.manifest.pnpm?.overrides
+  }
+  if (!overrides) {
+    return false
+  }
+  // Skip warning if the public workspace package "resolutions" or "pnpm.overrides"
+  // field contains overrides that entirely exist in root workspace package
+  // "pnpm.overrides" field. This can happen in cases where the public workspace
+  // package is to be published and consumed by other package managers.
+  const rootOverrides = rootPkg?.manifest?.pnpm?.overrides
+  return !!(rootOverrides && Object.entries(overrides).every(p => rootOverrides[p[0]] === p[1]))
+}
+
+function checkNonRootProjectManifest (pkg: Project, rootPkg?: Project | undefined): void {
+  const warn = printNonRootFieldWarning.bind(null, pkg.rootDir)
   for (const field of uselessNonRootManifestFields) {
-    if (field in manifest) {
-      warn(field)
+    if (field in pkg.manifest) {
+      if (!skipWarning(pkg, field, rootPkg)) {
+        warn(field)
+      }
     }
   }
-  for (const field in manifest.pnpm) {
+  for (const field in pkg.manifest.pnpm) {
     if (!usefulNonRootPnpmFields.includes(field as keyof ProjectManifestPnpm)) {
-      warn(`pnpm.${field}`)
+      if (!skipWarning(pkg, `pnpm.${field}`, rootPkg)) {
+        warn(`pnpm.${field}`)
+      }
     }
   }
 }

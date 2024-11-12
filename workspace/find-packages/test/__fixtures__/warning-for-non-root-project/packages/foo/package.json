@@ -2,7 +2,9 @@
   "name": "foo",
   "version": "1.0.0",
   "pnpm": {
-    "overrides": {},
+    "overrides": {
+      "pokesay": "1.0.0"
+    },
     "executionEnv": {}
   }
 }

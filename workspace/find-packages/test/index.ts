@@ -53,3 +53,22 @@ test('findWorkspacePackages() output warnings for non-root workspace project', a
     [{ prefix: barPath, message: `The field "resolutions" was found in ${barPath}/package.json. This will not take effect. You should configure "resolutions" at the root of the workspace instead.` }],
   ])
 })
+
+test('findWorkspacePackages() suppress "resolutions" warnings when entries are found in root workspace project', async () => {
+  const fixturePath = path.join(__dirname, '__fixtures__/suppress-warning-for-non-root-project')
+
+  const workspaceManifest = await readWorkspaceManifest(fixturePath)
+  if (workspaceManifest?.packages == null) {
+    throw new Error(`Unexpected test setup failure. No pnpm-workspace.yaml packages were defined at ${fixturePath}`)
+  }
+
+  const pkgs = await findWorkspacePackages(fixturePath, {
+    patterns: workspaceManifest.packages,
+    sharedWorkspaceLockfile: true,
+  })
+  expect(pkgs.length).toBe(3)
+  expect(
+    (logger.warn as jest.Mock).mock.calls
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+  ).toStrictEqual([])
+})

@@ -1,0 +1,9 @@
+{
+  "name": "root",
+  "version": "1.0.0",
+  "pnpm": {
+    "overrides": {
+      "cowsay": "1.0.0"
+    }
+  }
+}

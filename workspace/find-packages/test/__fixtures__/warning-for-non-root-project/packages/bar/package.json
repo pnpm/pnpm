@@ -2,8 +2,12 @@
   "name": "bar",
   "version": "1.0.0",
   "pnpm": {
-    "overrides": {},
+    "overrides": {
+      "pokesay": "1.0.0"
+    },
     "executionEnv": {}
   },
-  "resolutions": {}
+  "resolutions": {
+    "cowsay": "1.0.0"
+  }
 }
