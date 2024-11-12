@@ -36,8 +36,8 @@ import {
   type ProjectManifest,
 } from '@pnpm/types'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { loadPackagesList, updatePackagesList } from '@pnpm/workspace.packages-list-cache'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { loadWorkspaceState, updateWorkspaceState } from '@pnpm/workspace.state'
 import { assertLockfilesEqual } from './assertLockfilesEqual'
 import { statManifestFile } from './statManifestFile'
 
@@ -74,15 +74,15 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     : undefined
 
   if (allProjects && workspaceDir) {
-    const packagesList = loadPackagesList(workspaceDir)
-    if (!packagesList) {
+    const workspaceState = loadWorkspaceState(workspaceDir)
+    if (!workspaceState) {
       throw new PnpmError('RUN_CHECK_DEPS_NO_CACHE', 'Cannot check whether dependencies are outdated', {
         hint: 'Run `pnpm install` to create the cache',
       })
     }
 
     if (!equals(
-      filter(value => value != null, packagesList.catalogs ?? {}),
+      filter(value => value != null, workspaceState.catalogs ?? {}),
       filter(value => value != null, catalogs ?? {})
     )) {
       throw new PnpmError('RUN_CHECK_DEPS_OUTDATED', 'Catalogs cache outdated', {
@@ -91,7 +91,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     }
 
     const currentProjectRootDirs = allProjects.map(project => project.rootDir).sort()
-    if (!equals(packagesList.projectRootDirs, currentProjectRootDirs)) {
+    if (!equals(workspaceState.projectRootDirs, currentProjectRootDirs)) {
       throw new PnpmError('RUN_CHECK_DEPS_WORKSPACE_STRUCTURE_CHANGED', 'The workspace structure has changed since last install', {
         hint: 'Run `pnpm install` to update the workspace structure and dependencies tree',
       })
@@ -108,7 +108,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
 
     const modifiedProjects = allManifestStats.filter(
       ({ manifestStats }) =>
-        manifestStats.mtime.valueOf() > packagesList.lastValidatedTimestamp
+        manifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp
     )
 
     if (modifiedProjects.length === 0) {
@@ -135,7 +135,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       }
 
       const wantedLockfilePromise = readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
-      if (wantedLockfileStats.mtime.valueOf() > packagesList.lastValidatedTimestamp) {
+      if (wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) {
         const virtualStoreDir = opts.virtualStoreDir ?? path.join(workspaceDir, 'node_modules', '.pnpm')
         const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
         const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir)
@@ -151,7 +151,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         const wantedLockfileStats = await statIfExists(path.join(wantedLockfileDir, WANTED_LOCKFILE))
 
         if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
-        if (wantedLockfileStats.mtime.valueOf() > packagesList.lastValidatedTimestamp) {
+        if (wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) {
           const virtualStoreDir = opts.virtualStoreDir ?? path.join(wantedLockfileDir, 'node_modules', '.pnpm')
           const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
           const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir)
@@ -196,7 +196,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
     }))
 
     // update lastValidatedTimestamp to prevent pointless repeat
-    await updatePackagesList({
+    await updateWorkspaceState({
       allProjects,
       catalogs,
       lastValidatedTimestamp: Date.now(),

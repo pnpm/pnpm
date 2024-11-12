@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
-import { loadPackagesList } from '@pnpm/workspace.packages-list-cache'
+import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
 
@@ -89,8 +89,8 @@ test('single dependency', async () => {
 
   // pnpm install should create a packages list cache
   {
-    const packagesList = loadPackagesList(process.cwd())
-    expect(packagesList).toStrictEqual({
+    const workspaceState = loadWorkspaceState(process.cwd())
+    expect(workspaceState).toStrictEqual({
       catalogs: {},
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
@@ -136,7 +136,7 @@ test('single dependency', async () => {
     expect(stdout.toString()).toContain('hello from root')
     expect(stdout.toString()).not.toContain('No manifest files were modified since the last validation. Exiting check.')
     expect(stdout.toString()).toContain('Some manifest files were modified since the last validation. Continuing check.')
-    expect(stdout.toString()).toContain('updating packages list')
+    expect(stdout.toString()).toContain('updating workspace state')
   }
   // should skip check after pnpm has updated the packages list
   {
@@ -144,7 +144,7 @@ test('single dependency', async () => {
     expect(stdout.toString()).toContain('hello from root')
     expect(stdout.toString()).toContain('No manifest files were modified since the last validation. Exiting check.')
     expect(stdout.toString()).not.toContain('Some manifest files were modified since the last validation. Continuing check.')
-    expect(stdout.toString()).not.toContain('updating packages list')
+    expect(stdout.toString()).not.toContain('updating workspace state')
   }
 
   projects.foo.writePackageJson({
@@ -257,8 +257,8 @@ test('single dependency', async () => {
 
   // pnpm install should update the packages list cache
   {
-    const packagesList = loadPackagesList(process.cwd())
-    expect(packagesList).toStrictEqual({
+    const workspaceState = loadWorkspaceState(process.cwd())
+    expect(workspaceState).toStrictEqual({
       catalogs: {},
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
@@ -361,8 +361,8 @@ test('multiple lockfiles', async () => {
 
   // pnpm install should create a packages list cache
   {
-    const packagesList = loadPackagesList(process.cwd())
-    expect(packagesList).toStrictEqual({
+    const workspaceState = loadWorkspaceState(process.cwd())
+    expect(workspaceState).toStrictEqual({
       catalogs: {},
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
@@ -408,7 +408,7 @@ test('multiple lockfiles', async () => {
     expect(stdout.toString()).toContain('hello from root')
     expect(stdout.toString()).not.toContain('No manifest files were modified since the last validation. Exiting check.')
     expect(stdout.toString()).toContain('Some manifest files were modified since the last validation. Continuing check.')
-    expect(stdout.toString()).toContain('updating packages list')
+    expect(stdout.toString()).toContain('updating workspace state')
   }
   // should skip check after pnpm has updated the packages list
   {
@@ -416,7 +416,7 @@ test('multiple lockfiles', async () => {
     expect(stdout.toString()).toContain('hello from root')
     expect(stdout.toString()).toContain('No manifest files were modified since the last validation. Exiting check.')
     expect(stdout.toString()).not.toContain('Some manifest files were modified since the last validation. Continuing check.')
-    expect(stdout.toString()).not.toContain('updating packages list')
+    expect(stdout.toString()).not.toContain('updating workspace state')
   }
 
   projects.foo.writePackageJson({
@@ -524,8 +524,8 @@ test('multiple lockfiles', async () => {
 
   // pnpm install should update the packages list cache
   {
-    const packagesList = loadPackagesList(process.cwd())
-    expect(packagesList).toStrictEqual({
+    const workspaceState = loadWorkspaceState(process.cwd())
+    expect(workspaceState).toStrictEqual({
       catalogs: {},
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
@@ -670,8 +670,8 @@ test('no dependencies', async () => {
 
   // pnpm install should create a packages list cache
   {
-    const packagesList = loadPackagesList(process.cwd())
-    expect(packagesList).toStrictEqual({
+    const workspaceState = loadWorkspaceState(process.cwd())
+    expect(workspaceState).toStrictEqual({
       catalogs: {},
       lastValidatedTimestamp: expect.any(Number),
       projectRootDirs: [
@@ -847,8 +847,8 @@ test('should check for outdated catalogs', async () => {
 
   // pnpm install should create a packages list cache
   {
-    const packagesList = loadPackagesList(process.cwd())
-    expect(packagesList).toStrictEqual({
+    const workspaceState = loadWorkspaceState(process.cwd())
+    expect(workspaceState).toStrictEqual({
       catalogs: {
         default: workspaceManifest.catalog,
       },

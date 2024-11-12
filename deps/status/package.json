@@ -43,8 +43,8 @@
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
-    "@pnpm/workspace.packages-list-cache": "workspace:*",
     "@pnpm/workspace.read-manifest": "workspace:*",
+    "@pnpm/workspace.state": "workspace:*",
     "ramda": "catalog:"
   },
   "devDependencies": {

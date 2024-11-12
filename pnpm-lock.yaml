@@ -1825,12 +1825,12 @@ importers:
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: link:../../workspace/find-packages
-      '@pnpm/workspace.packages-list-cache':
-        specifier: workspace:*
-        version: link:../../workspace/packages-list-cache
       '@pnpm/workspace.read-manifest':
         specifier: workspace:*
         version: link:../../workspace/read-manifest
+      '@pnpm/workspace.state':
+        specifier: workspace:*
+        version: link:../../workspace/state
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -5128,12 +5128,12 @@ importers:
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: link:../../workspace/find-packages
-      '@pnpm/workspace.packages-list-cache':
-        specifier: workspace:*
-        version: link:../../workspace/packages-list-cache
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../../workspace/pkgs-graph
+      '@pnpm/workspace.state':
+        specifier: workspace:*
+        version: link:../../workspace/state
       '@pnpm/write-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/write-project-manifest
@@ -5845,12 +5845,12 @@ importers:
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: link:../workspace/find-packages
-      '@pnpm/workspace.packages-list-cache':
-        specifier: workspace:*
-        version: link:../workspace/packages-list-cache
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../workspace/pkgs-graph
+      '@pnpm/workspace.state':
+        specifier: workspace:*
+        version: link:../workspace/state
       '@pnpm/write-project-manifest':
         specifier: workspace:*
         version: link:../pkg-manifest/write-project-manifest
@@ -7800,28 +7800,6 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  workspace/packages-list-cache:
-    dependencies:
-      '@pnpm/catalogs.types':
-        specifier: workspace:*
-        version: link:../../catalogs/types
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
-    devDependencies:
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../__utils__/prepare
-      '@pnpm/workspace.packages-list-cache':
-        specifier: workspace:*
-        version: 'link:'
-
   workspace/pkgs-graph:
     dependencies:
       '@pnpm/npm-package-arg':
@@ -7895,6 +7873,28 @@ importers:
   workspace/spec-parser:
     devDependencies:
       '@pnpm/workspace.spec-parser':
+        specifier: workspace:*
+        version: 'link:'
+
+  workspace/state:
+    dependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+    devDependencies:
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/workspace.state':
         specifier: workspace:*
         version: 'link:'
 

@@ -21,8 +21,8 @@ import {
 } from '@pnpm/core'
 import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
-import { updatePackagesList } from '@pnpm/workspace.packages-list-cache'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
+import { updateWorkspaceState } from '@pnpm/workspace.state'
 import isSubdir from 'is-subdir'
 import { getPinnedVersion } from './getPinnedVersion'
 import { getSaveType } from './getSaveType'
@@ -160,7 +160,7 @@ when running add/update with the --workspace option')
       : []
   )
   if (opts.allProjects && opts.workspaceDir) {
-    await updatePackagesList({
+    await updateWorkspaceState({
       allProjects: opts.allProjects,
       catalogs: opts.catalogs,
       lastValidatedTimestamp: Date.now(),

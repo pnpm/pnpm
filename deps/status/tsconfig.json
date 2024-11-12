@@ -52,10 +52,10 @@
       "path": "../../workspace/find-packages"
     },
     {
-      "path": "../../workspace/packages-list-cache"
+      "path": "../../workspace/read-manifest"
     },
     {
-      "path": "../../workspace/read-manifest"
+      "path": "../../workspace/state"
     }
   ]
 }

@@ -1,15 +1,15 @@
 import path from 'path'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
-import { createPackagesList } from '../src/createPackagesList'
+import { createWorkspaceState } from '../src/createWorkspaceState'
 
 const lastValidatedTimestamp = Date.now()
 
-test('createPackagesList() on empty list', () => {
+test('createWorkspaceState() on empty list', () => {
   prepareEmpty()
 
   expect(
-    createPackagesList({
+    createWorkspaceState({
       allProjects: [],
       catalogs: undefined,
       lastValidatedTimestamp,
@@ -21,14 +21,14 @@ test('createPackagesList() on empty list', () => {
   })
 })
 
-test('createPackagesList() on non-empty list', () => {
+test('createWorkspaceState() on non-empty list', () => {
   preparePackages(['a', 'b', 'c', 'd'].map(name => ({
     location: `./packages/${name}`,
     package: { name },
   })))
 
   expect(
-    createPackagesList({
+    createWorkspaceState({
       allProjects: [
         { rootDir: path.resolve('packages/c') as ProjectRootDir },
         { rootDir: path.resolve('packages/b') as ProjectRootDir },

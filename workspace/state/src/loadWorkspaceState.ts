@@ -1,12 +1,12 @@
 import fs from 'fs'
 import util from 'util'
 import { logger } from '@pnpm/logger'
-import { getCacheFilePath } from './cacheFile'
-import { type PackagesList } from './types'
+import { getFilePath } from './filePath'
+import { type WorkspaceState } from './types'
 
-export function loadPackagesList (workspaceDir: string): PackagesList | undefined {
-  logger.debug({ msg: 'loading packages list' })
-  const cacheFile = getCacheFilePath(workspaceDir)
+export function loadWorkspaceState (workspaceDir: string): WorkspaceState | undefined {
+  logger.debug({ msg: 'loading workspace state' })
+  const cacheFile = getFilePath(workspaceDir)
   let cacheFileContent: string
   try {
     cacheFileContent = fs.readFileSync(cacheFile, 'utf-8')
@@ -16,5 +16,5 @@ export function loadPackagesList (workspaceDir: string): PackagesList | undefine
     }
     throw error
   }
-  return JSON.parse(cacheFileContent) as PackagesList
+  return JSON.parse(cacheFileContent) as WorkspaceState
 }

@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
-import { loadPackagesList } from '@pnpm/workspace.packages-list-cache'
+import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
 
 const CONFIG = ['--config.verify-deps-before-run=true'] as const
@@ -33,8 +33,8 @@ test('single dependency', async () => {
 
   // installing dependencies on a single package workspace should not create a packages list cache
   {
-    const packagesList = loadPackagesList(process.cwd())
-    expect(packagesList).toBeUndefined()
+    const workspaceState = loadWorkspaceState(process.cwd())
+    expect(workspaceState).toBeUndefined()
   }
 
   // should be able to execute a script after dependencies have been installed
@@ -129,8 +129,8 @@ test('deleting node_modules after install', async () => {
 
   // installing dependencies on a single package workspace should not create a packages list cache
   {
-    const packagesList = loadPackagesList(process.cwd())
-    expect(packagesList).toBeUndefined()
+    const workspaceState = loadWorkspaceState(process.cwd())
+    expect(workspaceState).toBeUndefined()
   }
 
   // should be able to execute a script after dependencies have been installed
@@ -171,8 +171,8 @@ test('no dependencies', async () => {
 
   // installing dependencies on a single package workspace should not create a packages list cache
   {
-    const packagesList = loadPackagesList(process.cwd())
-    expect(packagesList).toBeUndefined()
+    const workspaceState = loadWorkspaceState(process.cwd())
+    expect(workspaceState).toBeUndefined()
   }
 
   // should be able to execute a script after the lockfile has been created

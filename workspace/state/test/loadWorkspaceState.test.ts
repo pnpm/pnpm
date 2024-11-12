@@ -3,8 +3,8 @@ import fs from 'fs'
 import { logger } from '@pnpm/logger'
 import { type ProjectRootDir } from '@pnpm/types'
 import { prepareEmpty } from '@pnpm/prepare'
-import { getCacheFilePath } from '../src/cacheFile'
-import { type PackagesList, loadPackagesList } from '../src/index'
+import { getFilePath } from '../src/filePath'
+import { type WorkspaceState, loadWorkspaceState } from '../src/index'
 
 const lastValidatedTimestamp = Date.now()
 
@@ -16,31 +16,31 @@ afterEach(() => {
   logger.debug = originalLoggerDebug
 })
 
-const expectedLoggerCalls = [[{ msg: 'loading packages list' }]]
+const expectedLoggerCalls = [[{ msg: 'loading workspace state' }]]
 
-test('loadPackagesList() when cache dir does not exist', async () => {
+test('loadWorkspaceState() when cache dir does not exist', async () => {
   prepareEmpty()
   const workspaceDir = process.cwd()
-  expect(loadPackagesList(workspaceDir)).toBeUndefined()
+  expect(loadWorkspaceState(workspaceDir)).toBeUndefined()
   expect((logger.debug as jest.Mock).mock.calls).toStrictEqual(expectedLoggerCalls)
 })
 
-test('loadPackagesList() when cache dir exists but not the file', async () => {
+test('loadWorkspaceState() when cache dir exists but not the file', async () => {
   prepareEmpty()
   const workspaceDir = process.cwd()
-  const cacheFile = getCacheFilePath(workspaceDir)
+  const cacheFile = getFilePath(workspaceDir)
   fs.mkdirSync(path.dirname(cacheFile), { recursive: true })
-  expect(loadPackagesList(workspaceDir)).toBeUndefined()
+  expect(loadWorkspaceState(workspaceDir)).toBeUndefined()
   expect((logger.debug as jest.Mock).mock.calls).toStrictEqual(expectedLoggerCalls)
 })
 
-test('loadPackagesList() when cache file exists and is correct', async () => {
+test('loadWorkspaceState() when cache file exists and is correct', async () => {
   prepareEmpty()
 
   const workspaceDir = process.cwd()
-  const cacheFile = getCacheFilePath(workspaceDir)
+  const cacheFile = getFilePath(workspaceDir)
   fs.mkdirSync(path.dirname(cacheFile), { recursive: true })
-  const packagesList: PackagesList = {
+  const workspaceState: WorkspaceState = {
     catalogs: {
       default: {
         foo: '0.1.2',
@@ -54,7 +54,7 @@ test('loadPackagesList() when cache file exists and is correct', async () => {
       path.resolve('packages/d') as ProjectRootDir,
     ],
   }
-  fs.writeFileSync(cacheFile, JSON.stringify(packagesList))
-  expect(loadPackagesList(workspaceDir)).toStrictEqual(packagesList)
+  fs.writeFileSync(cacheFile, JSON.stringify(workspaceState))
+  expect(loadWorkspaceState(workspaceDir)).toStrictEqual(workspaceState)
   expect((logger.debug as jest.Mock).mock.calls).toStrictEqual(expectedLoggerCalls)
 })

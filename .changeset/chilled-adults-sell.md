@@ -1,5 +1,5 @@
 ---
-"@pnpm/workspace.packages-list-cache": major
+"@pnpm/workspace.state": major
 "@pnpm/deps.status": major
 ---
 

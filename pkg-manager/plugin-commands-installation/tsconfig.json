@@ -103,13 +103,13 @@
       "path": "../../workspace/find-workspace-dir"
     },
     {
-      "path": "../../workspace/packages-list-cache"
-    },
-    {
       "path": "../../workspace/pkgs-graph"
     },
     {
       "path": "../../workspace/sort-packages"
+    },
+    {
+      "path": "../../workspace/state"
     },
     {
       "path": "../core"
