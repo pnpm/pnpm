@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 14.0.5
+
+### Patch Changes
+
+- Updated dependencies [81fa780]
+  - @pnpm/render-peer-issues@5.0.10
+
 ## 14.0.4
 
 ### Patch Changes

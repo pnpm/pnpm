@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 36.0.7
+
+### Patch Changes
+
+- b010029: Don't duplicate leaf nodes in dependenciesTree.
+- 81fa780: Fix `Cannot read properties of undefined (reading 'name')` that is printed while trying to render the missing peer dependencies warning message [#8538](https://github.com/pnpm/pnpm/issues/8538).
+
 ## 36.0.6
 
 ### Patch Changes

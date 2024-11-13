@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-installation
 
+## 17.2.9
+
+### Patch Changes
+
+- @pnpm/core@15.3.10
+- @pnpm/cli-utils@4.0.8
+- @pnpm/plugin-commands-env@5.1.12
+- @pnpm/plugin-commands-rebuild@12.1.4
+- @pnpm/workspace.find-packages@4.0.13
+- @pnpm/filter-workspace-packages@10.0.13
+
 ## 17.2.8
 
 ### Patch Changes

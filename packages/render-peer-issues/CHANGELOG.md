@@ -1,5 +1,11 @@
 # @pnpm/render-peer-issues
 
+## 5.0.10
+
+### Patch Changes
+
+- 81fa780: Don't fail to render missing peer dependencies, when the parents field is an empty array.
+
 ## 5.0.9
 
 ### Patch Changes
