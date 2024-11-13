@@ -305,6 +305,10 @@ function buildTree (
     if (parentIdsContainSequence(parentIds, parentId, child.id) || parentId === child.id) {
       continue
     }
+    if (ctx.resolvedPkgsById[child.id].isLeaf) {
+      childrenNodeIds[child.alias] = child.id as unknown as NodeId
+      continue
+    }
     const childNodeId = nextNodeId()
     childrenNodeIds[child.alias] = childNodeId
     installable = installable || !ctx.skipped.has(child.id)

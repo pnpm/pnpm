@@ -219,6 +219,7 @@ export type PeerDependencies = Record<string, PeerDependency>
 
 export interface ResolvedPackage {
   id: PkgResolutionId
+  isLeaf: boolean
   resolution: Resolution
   prod: boolean
   dev: boolean
@@ -1609,6 +1610,7 @@ function getResolvedPackage (
       os: options.pkg.os,
       libc: options.pkg.libc,
     },
+    isLeaf: pkgIsLeaf(options.pkg),
     pkgIdWithPatchHash: options.pkgIdWithPatchHash,
     dev: options.wantedDependency.dev,
     fetching: options.pkgResponse.fetching!,
