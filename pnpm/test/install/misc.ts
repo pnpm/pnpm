@@ -8,6 +8,7 @@ import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
+import { fixtures } from '@pnpm/test-fixtures'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as rimraf } from '@zkochan/rimraf'
@@ -21,6 +22,7 @@ import {
 } from '../utils'
 
 const skipOnWindows = isWindows() ? test.skip : test
+const f = fixtures(__dirname)
 
 test('bin files are found by lifecycle scripts', () => {
   prepare({
@@ -547,4 +549,15 @@ test('do not fail to render peer dependencies warning, when cache was hit during
 
   expect(result.status).toBe(0)
   expect(result.stdout.toString()).toContain('Issues with peer dependencies found')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/8720
+test('do not hang on circular peer dependencies', () => {
+  const tempDir = f.prepare('workspace-with-circular-peers')
+  process.chdir(tempDir)
+
+  const result = execPnpmSync(['install', '--lockfile-only'])
+
+  expect(result.status).toBe(0)
+  expect(fs.existsSync(path.join(tempDir, WANTED_LOCKFILE))).toBeTruthy()
 })

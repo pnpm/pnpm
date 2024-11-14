@@ -353,7 +353,7 @@ interface ResolvePeersContext {
   depPathsByPkgId?: Map<PkgIdWithPatchHash, Set<DepPath>>
 }
 
-type CalculateDepPath = (cycles: NodeId[][]) => Promise<void>
+type CalculateDepPath = (cycles: string[][]) => Promise<void>
 type FinishingResolutionPromise = Promise<void>
 
 interface ParentPkgInfo {
@@ -554,13 +554,16 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   async function calculateDepPath (
     peerIds: PeerId[],
     pendingPeerNodeIds: NodeId[],
-    cycles: NodeId[][]
+    cycles: string[][]
   ): Promise<void> {
     const cyclicPeerNodeIds = new Set()
-    for (const cycle of cycles) {
-      if (cycle.includes(nodeId)) {
-        for (const peerNodeId of cycle) {
-          cyclicPeerNodeIds.add(peerNodeId)
+    const node = ctx.dependenciesTree.get(nodeId)
+    if (node?.resolvedPackage.name != null) {
+      for (const cycle of cycles) {
+        if (cycle.includes(node.resolvedPackage.name)) {
+          for (const peerNodeId of cycle) {
+            cyclicPeerNodeIds.add(peerNodeId)
+          }
         }
       }
     }
@@ -568,9 +571,9 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       ...peerIds,
       ...await Promise.all(pendingPeerNodeIds
         .map(async (peerNodeId) => {
-          if (cyclicPeerNodeIds.has(peerNodeId)) {
-            const { name, version } = (ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage as T)
-            const id = `${name}@${version}`
+          const peerNode = ctx.dependenciesTree.get(peerNodeId)?.resolvedPackage as T
+          if (peerNode && cyclicPeerNodeIds.has(peerNode.name)) {
+            const id = `${peerNode.name}@${peerNode.version}`
             ctx.pathsByNodeIdPromises.get(peerNodeId)?.resolve(id as DepPath)
             return id
           }
@@ -831,18 +834,25 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     if (calculateDepPath) {
       calculateDepPaths.push(calculateDepPath)
     }
-    const edges = []
+    const edges: string[] = []
     for (const [peerName, peerNodeId] of resolvedPeers) {
       allResolvedPeers.set(peerName, peerNodeId)
-      edges.push(peerNodeId)
+      edges.push(peerName)
+      const node = ctx.dependenciesTree.get(peerNodeId)
+      if (node?.resolvedPackage.name && node.resolvedPackage.name !== peerName) {
+        edges.push(node.resolvedPackage.name)
+      }
     }
-    graph.push([childNodeId, edges])
+    const childNode = ctx.dependenciesTree.get(childNodeId)
+    if (childNode?.resolvedPackage.name != null) {
+      graph.push([childNode.resolvedPackage.name, edges])
+    }
     for (const [missingPeer, range] of missingPeers.entries()) {
       allMissingPeers.set(missingPeer, range)
     }
   }
   if (calculateDepPaths.length) {
-    const { cycles } = analyzeGraph(graph as unknown as Graph) as unknown as { cycles: NodeId[][] }
+    const { cycles } = analyzeGraph(graph as unknown as Graph) as unknown as { cycles: string[][] }
     finishingList.push(...calculateDepPaths.map((calculateDepPath) => calculateDepPath(cycles)))
   }
   const finishing = Promise.all(finishingList).then(() => {})
