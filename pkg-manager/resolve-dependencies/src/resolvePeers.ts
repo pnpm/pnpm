@@ -353,7 +353,7 @@ interface ResolvePeersContext {
   depPathsByPkgId?: Map<PkgIdWithPatchHash, Set<DepPath>>
 }
 
-type CalculateDepPath = (cycles: NodeId[][]) => Promise<void>
+type CalculateDepPath = (cycles: string[][]) => Promise<void>
 type FinishingResolutionPromise = Promise<void>
 
 interface ParentPkgInfo {
@@ -554,11 +554,11 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   async function calculateDepPath (
     peerIds: PeerId[],
     pendingPeerNodeIds: NodeId[],
-    cycles: NodeId[][]
+    cycles: string[][]
   ): Promise<void> {
     const cyclicPeerNodeIds = new Set()
     for (const cycle of cycles) {
-      if (cycle.includes(nodeId)) {
+      if (cycle.includes(ctx.dependenciesTree.get(nodeId)!.resolvedPackage.name! as any)) {
         for (const peerNodeId of cycle) {
           cyclicPeerNodeIds.add(peerNodeId)
         }
@@ -568,7 +568,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       ...peerIds,
       ...await Promise.all(pendingPeerNodeIds
         .map(async (peerNodeId) => {
-          if (cyclicPeerNodeIds.has(peerNodeId)) {
+          if (cyclicPeerNodeIds.has((ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage as T).name)) {
             const { name, version } = (ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage as T)
             const id = `${name}@${version}`
             ctx.pathsByNodeIdPromises.get(peerNodeId)?.resolve(id as DepPath)
@@ -834,15 +834,16 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     const edges = []
     for (const [peerName, peerNodeId] of resolvedPeers) {
       allResolvedPeers.set(peerName, peerNodeId)
-      edges.push(peerNodeId)
+      edges.push(peerName)
+      edges.push(ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage.name)
     }
-    graph.push([childNodeId, edges])
+    graph.push([ctx.dependenciesTree.get(childNodeId)!.resolvedPackage.name, edges])
     for (const [missingPeer, range] of missingPeers.entries()) {
       allMissingPeers.set(missingPeer, range)
     }
   }
   if (calculateDepPaths.length) {
-    const { cycles } = analyzeGraph(graph as unknown as Graph) as unknown as { cycles: NodeId[][] }
+    const { cycles } = analyzeGraph(graph as unknown as Graph) as unknown as { cycles: string[][] }
     finishingList.push(...calculateDepPaths.map((calculateDepPath) => calculateDepPath(cycles)))
   }
   const finishing = Promise.all(finishingList).then(() => {})
