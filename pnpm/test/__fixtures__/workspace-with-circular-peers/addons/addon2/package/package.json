@@ -1,0 +1,42 @@
+{
+  "name": "addon2",
+  "version": "1.0.0",
+  "dependencies": {
+    "addon6": "workspace:*",
+    "@ember/test-waiters": "^3.0.2",
+    "@embroider/addon-shim": "~1.8.9",
+    "date-fns": "~2.29.3",
+    "decorator-transforms": "~2.0.0"
+  },
+  "devDependencies": {
+    "module6": "workspace:*",
+    "@babel/core": "~7.24.7",
+    "@babel/plugin-transform-typescript": "~7.24.7",
+    "@babel/runtime": "~7.23.6",
+    "@embroider/addon-dev": "~4.3.1",
+    "@glint/core": "1.4.0",
+    "@glint/environment-ember-loose": "1.4.0",
+    "@glint/environment-ember-template-imports": "1.4.0",
+    "@glint/template": "1.4.0",
+    "@rollup/plugin-babel": "~6.0.4",
+    "@types/rsvp": "~4.0.9",
+    "@typescript-eslint/eslint-plugin": "~6.21.0",
+    "@typescript-eslint/parser": "~6.21.0",
+    "babel-plugin-ember-template-compilation": "~2.2.5",
+    "ember-cli-code-coverage": "~2.0.3",
+    "ember-template-lint": "~5.13.0",
+    "ember-source": "~4.12.4",
+    "eslint": "~8.57.0",
+    "eslint-config-prettier": "~8.8.0",
+    "eslint-plugin-ember": "~12.2.0",
+    "eslint-plugin-import": "~2.29.1",
+    "eslint-plugin-n": "~15.7.0",
+    "eslint-plugin-prettier": "~4.2.1",
+    "prettier": "~2.8.7",
+    "npm-run-all": "~4.1.5",
+    "rollup": "~4.18.0",
+    "rollup-plugin-copy": "^3.5.0",
+    "typescript": "5.3.3",
+    "webpack": "~5.94.0"
+  }
+}
