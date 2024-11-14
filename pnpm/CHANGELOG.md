@@ -1,5 +1,11 @@
 # pnpm
 
+## 9.13.1
+
+### Patch Changes
+
+- Fixed some edge cases where resolving circular peer dependencies caused a dead lock [#8720](https://github.com/pnpm/pnpm/issues/8720).
+
 ## 9.13.0
 
 ### Minor Changes

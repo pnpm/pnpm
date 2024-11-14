@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 15.3.11
+
+### Patch Changes
+
+- Updated dependencies [a442ae7]
+  - @pnpm/resolve-dependencies@36.0.8
+
 ## 15.3.10
 
 ### Patch Changes
