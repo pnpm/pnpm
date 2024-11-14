@@ -42,6 +42,9 @@ To quote the [Rush](https://rushjs.io/) team:
         <a href="https://bit.dev/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80" alt="Bit"></a>
       </td>
       <td align="center" valign="middle">
+        <a href="https://sanity.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/sanity.svg" width="180" alt="Bit"></a>
+      </td>
+      <td align="center" valign="middle">
         <a href="https://figma.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/figma.svg" width="80" alt="Figma"></a>
       </td>
     </tr>
@@ -195,6 +198,17 @@ To quote the [Rush](https://rushjs.io/) team:
       <td align="center" valign="middle">
         <a href="https://vite.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <img src="https://pnpm.io/img/users/vitejs.svg" width="65" alt="Vite">
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://macpaw.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/macpaw.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/macpaw_light.svg" />
+            <img src="https://pnpm.io/img/users/macpaw.svg" width="200" />
+          </picture>
         </a>
       </td>
     </tr>
