@@ -835,7 +835,10 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     for (const [peerName, peerNodeId] of resolvedPeers) {
       allResolvedPeers.set(peerName, peerNodeId)
       edges.push(peerName)
-      edges.push(ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage.name)
+      const node = ctx.dependenciesTree.get(peerNodeId)
+      if (node?.resolvedPackage.name && node.resolvedPackage.name !== peerName) {
+        edges.push(node.resolvedPackage.name)
+      }
     }
     graph.push([ctx.dependenciesTree.get(childNodeId)!.resolvedPackage.name, edges])
     for (const [missingPeer, range] of missingPeers.entries()) {
