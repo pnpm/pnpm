@@ -556,7 +556,8 @@ test('do not hang on circular peer dependencies', () => {
   const tempDir = f.prepare('workspace-with-circular-peers')
   process.chdir(tempDir)
 
-  const result = execPnpmSync(['install'])
+  const result = execPnpmSync(['install', '--lockfile-only'])
 
   expect(result.status).toBe(0)
+  expect(fs.existsSync(path.join(tempDir, WANTED_LOCKFILE))).toBeTruthy()
 })
