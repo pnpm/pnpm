@@ -558,7 +558,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   ): Promise<void> {
     const cyclicPeerNodeIds = new Set()
     for (const cycle of cycles) {
-      if (cycle.includes(ctx.dependenciesTree.get(nodeId)!.resolvedPackage.name! as any)) {
+      if (cycle.includes(ctx.dependenciesTree.get(nodeId)!.resolvedPackage.name)) {
         for (const peerNodeId of cycle) {
           cyclicPeerNodeIds.add(peerNodeId)
         }
