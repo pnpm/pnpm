@@ -561,3 +561,15 @@ test('do not hang on circular peer dependencies', () => {
   expect(result.status).toBe(0)
   expect(fs.existsSync(path.join(tempDir, WANTED_LOCKFILE))).toBeTruthy()
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/7697
+test('install success even though the url\'s hash contains slash', async () => {
+  prepare()
+  const settings = ['--fetch-retries=0']
+  const result = execPnpmSync([
+    'add',
+    'https://github.com/actions/toolkit.git#core/1.10',
+    ...settings,
+  ])
+  expect(result.status).toBe(0)
+})
