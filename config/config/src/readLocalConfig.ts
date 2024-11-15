@@ -22,6 +22,12 @@ export async function readLocalConfig (prefix: string): Promise<LocalConfig> {
         try {
           config[envReplace(key, process.env)] = envReplace(val, process.env)
         } catch {}
+
+        // childConcurrency & workspaceConcurrency is integers
+        // https://github.com/pnpm/pnpm/issues/5075
+        if (/^[\d.]+$/.test(val)) {
+          config[key] = Number(val)
+        }
       }
     }
     return config
