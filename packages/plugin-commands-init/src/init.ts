@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
-import { type UniversalOptions } from '@pnpm/config'
+import { type CliOptions, type UniversalOptions } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import renderHelp from 'render-help'
@@ -25,7 +25,7 @@ export function help (): string {
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'rawConfig'>,
+  opts: Pick<UniversalOptions, 'rawConfig'> & { cliOptions: CliOptions },
   params?: string[]
 ): Promise<string> {
   if (params?.length) {
@@ -34,8 +34,9 @@ export async function handler (
     })
   }
   // Using cwd instead of the dir option because the dir option
-  // is set to the first parent directory that has a package.json file.
-  const manifestPath = path.join(process.cwd(), 'package.json')
+  // is set to the first parent directory that has a package.json file
+  // But --dir option from cliOptions should be respected.
+  const manifestPath = path.join(opts.cliOptions.dir ?? process.cwd(), 'package.json')
   if (fs.existsSync(manifestPath)) {
     throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
   }
