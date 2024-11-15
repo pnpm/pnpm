@@ -520,7 +520,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     addDepPathToGraph(resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
   } else {
     const peerIds: PeerId[] = []
-    const pendingPeers: Array<{ alias: string, nodeId: NodeId }> = []
+    const pendingPeers: PendingPeer[] = []
     for (const [alias, peerNodeId] of allResolvedPeers.entries()) {
       if (typeof peerNodeId === 'string' && peerNodeId.startsWith('link:')) {
         const linkedDir = peerNodeId.slice(5)
@@ -554,7 +554,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
 
   async function calculateDepPath (
     peerIds: PeerId[],
-    pendingPeerNodes: Array<{ alias: string, nodeId: NodeId }>,
+    pendingPeerNodes: PendingPeer[],
     cycles: string[][]
   ): Promise<void> {
     const cyclicPeerAliases = new Set()
@@ -628,6 +628,11 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       }
     }
   }
+}
+
+interface PendingPeer {
+  alias: string
+  nodeId: NodeId
 }
 
 function parentPkgsMatch<T> (
