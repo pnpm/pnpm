@@ -1892,3 +1892,18 @@ test('peer dependency cache is invalidated correctly when the peer of a peer mis
   expect(lockfile.snapshots['@pnpm.e2e/repeat-peers.d@1.0.0(@pnpm.e2e/repeat-peers.b@1.0.0(@pnpm.e2e/repeat-peers.a@1.0.0))']).toBeTruthy()
   expect(lockfile.snapshots['@pnpm.e2e/repeat-peers.d@1.0.0(@pnpm.e2e/repeat-peers.b@1.0.0(@pnpm.e2e/repeat-peers.a@2.0.0))']).toBeTruthy()
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/8759
+test('detection of circular peer dependencies should not crash with aliased dependencies', async () => {
+  prepareEmpty()
+
+  await install({
+    dependencies: {
+      fastify: '5.1.0',
+      fastify4: 'npm:fastify@4.28.1',
+      'ts-jest': '29.2.5',
+    },
+  }, testDefaults())
+
+  expect(fs.existsSync(path.resolve(WANTED_LOCKFILE))).toBeTruthy()
+})
