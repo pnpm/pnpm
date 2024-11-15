@@ -176,6 +176,9 @@
     },
     {
       "path": "../workspace/pkgs-graph"
+    },
+    {
+      "path": "../workspace/state"
     }
   ]
 }

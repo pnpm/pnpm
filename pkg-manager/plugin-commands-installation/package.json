@@ -88,6 +88,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
     "@pnpm/workspace.pkgs-graph": "workspace:*",
+    "@pnpm/workspace.state": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
     "@yarnpkg/core": "catalog:",
     "@yarnpkg/lockfile": "catalog:",

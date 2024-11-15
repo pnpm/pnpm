@@ -4,9 +4,9 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import isWindows from 'is-windows'
 import crossSpawn from 'cross-spawn'
 
-const binDir = path.join(__dirname, '../..', isWindows() ? 'dist' : 'bin')
-const pnpmBinLocation = path.join(binDir, 'pnpm.cjs')
-const pnpxBinLocation = path.join(__dirname, '../../bin/pnpx.cjs')
+export const binDir = path.join(__dirname, '../..', isWindows() ? 'dist' : 'bin')
+export const pnpmBinLocation = path.join(binDir, 'pnpm.cjs')
+export const pnpxBinLocation = path.join(__dirname, '../../bin/pnpx.cjs')
 
 // The default timeout for tests is 4 minutes. Set a timeout for execPnpm calls
 // for 3 minutes to make it more clear what specific part of a test is timing
@@ -93,12 +93,15 @@ export interface ChildProcess {
 export function execPnpmSync (
   args: string[],
   opts?: {
-    env: Record<string, string>
+    cwd?: string
+    env?: Record<string, string>
+    expectSuccess?: boolean // similar to expect(status).toBe(0), but also prints error messages, which makes it easier to debug failed tests
     stdio?: StdioOptions
     timeout?: number
   }
 ): ChildProcess {
   const execResult = crossSpawn.sync(process.execPath, [pnpmBinLocation, ...args], {
+    cwd: opts?.cwd,
     env: {
       ...createEnv(),
       ...opts?.env,
@@ -108,6 +111,14 @@ export function execPnpmSync (
   })
   if (execResult.error) throw execResult.error
   if (execResult.signal) throw new Error(`Process terminated with signal ${execResult.signal}`)
+  if (execResult.status !== 0 && opts?.expectSuccess) {
+    const stdout = execResult.stdout?.toString().split('\n').map(line => `\t${line}`).join('\n')
+    const stderr = execResult.stderr?.toString().split('\n').map(line => `\t${line}`).join('\n')
+    let message = `Process exits with code ${execResult.status}`
+    if (stdout.trim()) message += `\nSTDOUT:\n${stdout}`
+    if (stderr.trim()) message += `\nSTDOUT:\n${stderr}`
+    throw new Error(message)
+  }
   return execResult as ChildProcess
 }
 

@@ -22,11 +22,20 @@ import {
 import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
+import { updateWorkspaceState } from '@pnpm/workspace.state'
 import isSubdir from 'is-subdir'
 import { getPinnedVersion } from './getPinnedVersion'
 import { getSaveType } from './getSaveType'
 import { getNodeExecPath } from './nodeExecPath'
-import { recursive, createMatcher, matchDependencies, makeIgnorePatterns, type UpdateDepsMatcher } from './recursive'
+import {
+  type CommandFullName,
+  type RecursiveOptions,
+  type UpdateDepsMatcher,
+  createMatcher,
+  matchDependencies,
+  makeIgnorePatterns,
+  recursive,
+} from './recursive'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -40,6 +49,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'autoInstallPeers'
 | 'bail'
 | 'bin'
+| 'catalogs'
 | 'cliOptions'
 | 'dedupePeerDependents'
 | 'depth'
@@ -191,7 +201,7 @@ when running add/update with the --workspace option')
           }
         }
       }
-      await recursive(allProjects,
+      await recursiveInstallThenUpdateWorkspaceState(allProjects,
         params,
         {
           ...opts,
@@ -316,7 +326,7 @@ when running add/update with the --workspace option')
     ], {
       workspaceDir: opts.workspaceDir,
     })
-    await recursive(allProjects, [], {
+    await recursiveInstallThenUpdateWorkspaceState(allProjects, [], {
       ...opts,
       ...OVERWRITE_UPDATE_OPTIONS,
       allProjectsGraph: opts.allProjectsGraph!,
@@ -348,4 +358,20 @@ function selectProjectByDir (projects: Project[], searchedDir: string): Projects
   const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
   if (project == null) return undefined
   return { [searchedDir]: { dependencies: [], package: project } }
+}
+
+async function recursiveInstallThenUpdateWorkspaceState (
+  allProjects: Project[],
+  params: string[],
+  opts: RecursiveOptions & Pick<InstallDepsOptions, 'catalogs' | 'workspaceDir'>,
+  cmdFullName: CommandFullName
+): Promise<boolean | string> {
+  const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
+  await updateWorkspaceState({
+    allProjects,
+    catalogs: opts.catalogs,
+    lastValidatedTimestamp: Date.now(),
+    workspaceDir: opts.workspaceDir,
+  })
+  return recursiveResult
 }

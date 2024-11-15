@@ -38,6 +38,7 @@ export interface Config {
   global?: boolean
   dir: string
   bin: string
+  verifyDepsBeforeRun?: boolean
   ignoreDepScripts?: boolean
   ignoreScripts?: boolean
   ignoreCompatibilityDb?: boolean

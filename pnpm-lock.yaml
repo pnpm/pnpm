@@ -1784,6 +1784,70 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  deps/status:
+    dependencies:
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/get-context':
+        specifier: workspace:*
+        version: link:../../pkg-manager/get-context
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.settings-checker':
+        specifier: workspace:*
+        version: link:../../lockfile/settings-checker
+      '@pnpm/lockfile.verification':
+        specifier: workspace:*
+        version: link:../../lockfile/verification
+      '@pnpm/logger':
+        specifier: ^5.1.0
+        version: 5.1.0
+      '@pnpm/parse-overrides':
+        specifier: workspace:*
+        version: link:../../config/parse-overrides
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:*
+        version: link:../../workspace/find-packages
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-manifest
+      '@pnpm/workspace.state':
+        specifier: workspace:*
+        version: link:../../workspace/state
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+    devDependencies:
+      '@pnpm/deps.status':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/write-project-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/write-project-manifest
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+
   env/node.fetcher:
     dependencies:
       '@pnpm/create-cafs-store':
@@ -2287,6 +2351,9 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
+      '@pnpm/deps.status':
+        specifier: workspace:*
+        version: link:../../deps/status
       '@pnpm/env.path':
         specifier: workspace:*
         version: link:../../env/path
@@ -5064,6 +5131,9 @@ importers:
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../../workspace/pkgs-graph
+      '@pnpm/workspace.state':
+        specifier: workspace:*
+        version: link:../../workspace/state
       '@pnpm/write-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/write-project-manifest
@@ -5778,6 +5848,9 @@ importers:
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../workspace/pkgs-graph
+      '@pnpm/workspace.state':
+        specifier: workspace:*
+        version: link:../workspace/state
       '@pnpm/write-project-manifest':
         specifier: workspace:*
         version: link:../pkg-manifest/write-project-manifest
@@ -7797,6 +7870,28 @@ importers:
   workspace/spec-parser:
     devDependencies:
       '@pnpm/workspace.spec-parser':
+        specifier: workspace:*
+        version: 'link:'
+
+  workspace/state:
+    dependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+    devDependencies:
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/workspace.state':
         specifier: workspace:*
         version: 'link:'
 

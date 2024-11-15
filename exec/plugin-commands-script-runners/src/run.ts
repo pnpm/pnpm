@@ -9,6 +9,7 @@ import { type CompletionFunc } from '@pnpm/command'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
+import { type CheckLockfilesUpToDateOptions, checkLockfilesUpToDate } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import {
   runLifecycleHook,
@@ -23,6 +24,7 @@ import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifie
 import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
+import { DISABLE_DEPS_CHECK_ENV, shouldRunCheck } from './shouldRunCheck'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,
@@ -158,6 +160,7 @@ export type RunOpts =
   & { recursive?: boolean }
   & Pick<Config,
   | 'bin'
+  | 'verifyDepsBeforeRun'
   | 'dir'
   | 'enablePrePostScripts'
   | 'engineStrict'
@@ -181,6 +184,10 @@ export type RunOpts =
     }
     fallbackCommandUsed?: boolean
   }
+  & (
+    | { verifyDepsBeforeRun?: false }
+    | { verifyDepsBeforeRun: true } & CheckLockfilesUpToDateOptions
+  )
 
 export async function handler (
   opts: RunOpts,
@@ -188,8 +195,21 @@ export async function handler (
 ): Promise<string | { exitCode: number } | undefined> {
   let dir: string
   let [scriptName, ...passedThruArgs] = params
+
+  // verifyDepsBeforeRun is outside of shouldRunCheck because TypeScript's tagged union
+  // only works when the tag is directly placed in the condition.
+  if (opts.verifyDepsBeforeRun && shouldRunCheck(process.env, scriptName)) {
+    await checkLockfilesUpToDate(opts)
+  }
+
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
+      if (opts.verifyDepsBeforeRun) {
+        opts.extraEnv = {
+          ...opts.extraEnv,
+          ...DISABLE_DEPS_CHECK_ENV,
+        }
+      }
       return runRecursive(params, opts) as Promise<undefined>
     }
     dir = Object.keys(opts.selectedProjectsGraph)[0]
@@ -250,6 +270,7 @@ so you may run "pnpm -w run ${scriptName}"`,
   const extraEnv = {
     ...opts.extraEnv,
     ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
+    ...opts.verifyDepsBeforeRun ? DISABLE_DEPS_CHECK_ENV : undefined,
   }
 
   const lifecycleOpts: RunLifecycleHookOptions = {

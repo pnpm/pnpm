@@ -109,6 +109,9 @@
       "path": "../../workspace/sort-packages"
     },
     {
+      "path": "../../workspace/state"
+    },
+    {
       "path": "../core"
     },
     {

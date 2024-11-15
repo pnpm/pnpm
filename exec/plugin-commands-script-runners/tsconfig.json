@@ -31,6 +31,9 @@
       "path": "../../crypto/hash"
     },
     {
+      "path": "../../deps/status"
+    },
+    {
       "path": "../../env/path"
     },
     {
