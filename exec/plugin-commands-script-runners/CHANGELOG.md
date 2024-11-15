@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-script-runners
 
+## 12.0.14
+
+### Patch Changes
+
+- 5aedf7e: Fix race condition of symlink creations caused by multiple parallel `dlx` processes.
+  - @pnpm/plugin-commands-installation@17.2.11
+
 ## 12.0.13
 
 ### Patch Changes

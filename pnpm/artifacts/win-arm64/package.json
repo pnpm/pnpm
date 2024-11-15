@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/win-arm64",
-  "version": "9.13.1",
+  "version": "9.13.2",
   "license": "MIT",
   "publishConfig": {
     "bin": {

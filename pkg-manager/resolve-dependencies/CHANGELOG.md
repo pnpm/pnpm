@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 36.0.9
+
+### Patch Changes
+
+- 0b3b0a1: Detection of circular peer dependencies should not crash with aliased dependencies [#8759](https://github.com/pnpm/pnpm/issues/8759). Fixes a regression introduced in the previous version.
+
 ## 36.0.8
 
 ### Patch Changes
