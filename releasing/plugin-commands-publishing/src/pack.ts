@@ -32,6 +32,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     'pack-destination': String,
+    format: ['json'],
     ...pick([
       'pack-gzip-level',
     ], allTypes),
@@ -53,6 +54,10 @@ export function help (): string {
             description: 'Directory in which `pnpm pack` will save tarballs. The default is the current working directory.',
             name: '--pack-destination <dir>',
           },
+          {
+            description: 'Prints the packed tarball and contents in the given format. Supported options: "json"',
+            name: '--format <format>',
+          },
         ],
       },
     ],
@@ -67,6 +72,7 @@ export async function handler (
     engineStrict?: boolean
     packDestination?: string
     workspaceDir?: string
+    format?: 'json'
   }
 ): Promise<string> {
   const { manifest: entryManifest, fileName: manifestFileName } = await readProjectManifest(opts.dir, opts)
@@ -145,8 +151,15 @@ export async function handler (
   } else {
     packedTarballPath = path.relative(opts.dir, path.join(dir, tarballName))
   }
+  const packedContents = files.sort((a, b) => a.localeCompare(b, 'en'))
+  if (opts.format === 'json') {
+    return JSON.stringify({
+      tarball: packedTarballPath,
+      contents: packedContents,
+    }, null, 2)
+  }
   return `${chalk.blueBright('Tarball Contents')}
-${files.sort((a, b) => a.localeCompare(b, 'en')).join('\n')}
+${packedContents.join('\n')}
 
 ${chalk.blueBright('Tarball Details')}
 ${packedTarballPath}`
