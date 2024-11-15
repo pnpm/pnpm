@@ -1,6 +1,6 @@
 # pnpm
 
-## 10.0.0-alpha.0
+## 10.0.0-alpha.1
 
 ### Major Changes
 
@@ -35,6 +35,11 @@
 - The default value of `virtual-store-dir-max-length` on Windows reduced to 60 characters.
 - Escape the `#` character in directory names within the virtual store (`node_modules/.pnpm`) [#8557](https://github.com/pnpm/pnpm/pull/8557).
 - Store version bumped to v10. The new store layout has a different directory called "index" for storing the package content mappings. Previously these files were stored in the same directory where the package contents are (in "files"). The new store has also a new format for storing the mappings for side-effects cache.
+- `pnpm add --global pnpm` or (`pnpm add --global @pnpm/exe`) fails with an error suggesting to use `pnpm self-update` [#8728](https://github.com/pnpm/pnpm/pull/8728).
+
+### Minor Changes
+
+- Add a feature to check dependencies before running scripts. To enable the feature, use the `verify-deps-before-run=true` setting [#8585](https://github.com/pnpm/pnpm/issues/8585).
 
 ### Patch Changes
 
