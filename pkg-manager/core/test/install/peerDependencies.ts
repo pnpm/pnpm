@@ -1906,5 +1906,4 @@ test('detection of circular peer dependencies should not crash with aliased depe
   }, testDefaults())
 
   expect(fs.existsSync(path.resolve(WANTED_LOCKFILE))).toBeTruthy()
-  expect(false).toBeFalsy()
 })
