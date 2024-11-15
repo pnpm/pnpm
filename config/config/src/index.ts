@@ -176,6 +176,7 @@ export async function getConfig (opts: {
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'use-beta-cli': false,
     userconfig: npmDefaults.userconfig,
+    'verify-deps-before-run': false,
     'verify-store-integrity': true,
     'virtual-store-dir': 'node_modules/.pnpm',
     'workspace-concurrency': 4,
