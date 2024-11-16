@@ -412,6 +412,9 @@ function calculateCommonRoot (
   // common root between the first and the last project. Exclude the workspace dir project from
   // the calculation since we know it belongs to the workspace
   const sortedProjectDirs = projectDirs.filter(dir => dir !== workspaceDir).sort()
+  if (sortedProjectDirs.length === 0) {
+    return workspaceDir
+  }
   const firstProjectDir = sortedProjectDirs[0]
   const lastProjectDir = sortedProjectDirs[sortedProjectDirs.length - 1]
   let lastSeparatorIndex = -1
