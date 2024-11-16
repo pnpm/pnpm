@@ -168,9 +168,12 @@ export async function recursive (
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
     let importers = getImporters(opts)
-    const calculatedRepositoryRoot = await fs.realpath(calculateRepositoryRoot(opts.workspaceDir, importers.map(x => x.rootDir)))
-    const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
-    importers = await pFilter(importers, async ({ rootDirRealPath }) => isFromWorkspace(rootDirRealPath))
+    const commonRootRealPath = await fs.realpath(calculateCommonRoot(opts.workspaceDir, importers.map(x => x.rootDir)))
+    const isFromWorkspace = isSubdir.bind(null, commonRootRealPath)
+    importers = await pFilter(
+      importers,
+      async ({ rootDirRealPath }) => opts.workspaceDir === rootDirRealPath || isFromWorkspace(rootDirRealPath)
+    )
     if (importers.length === 0) return true
     let mutation!: string
     switch (cmdFullName) {
@@ -401,23 +404,29 @@ export async function recursive (
   return true
 }
 
-function calculateRepositoryRoot (
+function calculateCommonRoot (
   workspaceDir: string,
   projectDirs: string[]
 ): string {
-  // assume repo root is workspace dir
-  let relativeRepoRoot = '.'
-  for (const rootDir of projectDirs) {
-    const relativePartRegExp = new RegExp(`^(\\.\\.\\${path.sep})+`)
-    const relativePartMatch = relativePartRegExp.exec(path.relative(workspaceDir, rootDir))
-    if (relativePartMatch != null) {
-      const relativePart = relativePartMatch[0]
-      if (relativePart.length > relativeRepoRoot.length) {
-        relativeRepoRoot = relativePart
-      }
+  // to find the common root of the projects, we will sort the project dirs and find the longest
+  // common root between the first and the last project. Exclude the workspace dir project from
+  // the calculation since we know it belongs to the workspace
+  const sortedProjectDirs = projectDirs.filter(dir => dir !== workspaceDir).sort()
+  const firstProjectDir = sortedProjectDirs[0]
+  const lastProjectDir = sortedProjectDirs[sortedProjectDirs.length - 1]
+  let lastSeparatorIndex = -1
+  for (let i = 0; i <= firstProjectDir.length && i <= lastProjectDir.length; i++) {
+    const firstProjectDirChar = firstProjectDir[i]
+    const lastProjectDirChar = lastProjectDir[i]
+    if (firstProjectDirChar === path.sep || firstProjectDirChar === undefined) {
+      lastSeparatorIndex = i
+    }
+    if (firstProjectDirChar !== lastProjectDirChar) {
+      break
     }
   }
-  return path.resolve(workspaceDir, relativeRepoRoot)
+
+  return firstProjectDir.slice(0, lastSeparatorIndex)
 }
 
 export function matchDependencies (
