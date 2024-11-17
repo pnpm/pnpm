@@ -208,6 +208,10 @@ export async function handler (
     }
   }
 
+  if (!opts.selectedProjectsGraph) {
+    throw new PnpmError('RECURSIVE_EXEC_NO_PACKAGE', 'No package found in this workspace')
+  }
+
   if (opts.resumeFrom) {
     chunks = getResumedPackageChunks({
       resumeFrom: opts.resumeFrom,
