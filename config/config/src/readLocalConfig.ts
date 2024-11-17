@@ -4,7 +4,7 @@ import camelcaseKeys from 'camelcase-keys'
 import { envReplace } from '@pnpm/config.env-replace'
 import { readIniFile } from 'read-ini-file'
 
-export type LocalConfig = Record<string, string> & { hoist?: boolean }
+export type LocalConfig = Record<string, string | number> & { hoist?: boolean }
 
 export async function readLocalConfig (prefix: string): Promise<LocalConfig> {
   try {
