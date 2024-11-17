@@ -174,6 +174,9 @@ export async function handler (
   if (params[0] === '--') {
     params.shift()
   }
+  if (!params[0]) {
+    throw new PnpmError('EXEC_MISSING_COMMAND', `'pnpm exec' requires a command to run`)
+  }
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
   if (opts.verifyDepsBeforeRun && !process.env[SKIP_ENV_KEY]) {
