@@ -32,9 +32,9 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     'pack-destination': String,
-    format: ['json'],
     ...pick([
       'pack-gzip-level',
+      'json',
     ], allTypes),
   }
 }
@@ -72,7 +72,7 @@ export async function handler (
     engineStrict?: boolean
     packDestination?: string
     workspaceDir?: string
-    format?: 'json'
+    json?: boolean
   }
 ): Promise<string> {
   const { manifest: entryManifest, fileName: manifestFileName } = await readProjectManifest(opts.dir, opts)
@@ -152,10 +152,10 @@ export async function handler (
     packedTarballPath = path.relative(opts.dir, path.join(dir, tarballName))
   }
   const packedContents = files.sort((a, b) => a.localeCompare(b, 'en'))
-  if (opts.format === 'json') {
+  if (opts.json) {
     return JSON.stringify({
-      tarball: packedTarballPath,
-      contents: packedContents,
+      filename: packedTarballPath,
+      files: packedContents,
     }, null, 2)
   }
   return `${chalk.blueBright('Tarball Contents')}

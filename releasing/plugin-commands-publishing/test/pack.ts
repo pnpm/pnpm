@@ -458,12 +458,12 @@ test('pack: display in json format', async () => {
     argv: { original: [] },
     dir: process.cwd(),
     extraBinPaths: [],
-    format: 'json',
+    json: true,
   })
 
   expect(output).toBe(JSON.stringify({
-    tarball: 'test-publish-package.json-0.0.0.tgz',
-    contents: [
+    filename: 'test-publish-package.json-0.0.0.tgz',
+    files: [
       'a.js',
       'b.js',
       'package.json',
