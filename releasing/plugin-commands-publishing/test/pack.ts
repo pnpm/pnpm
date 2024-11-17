@@ -462,12 +462,22 @@ test('pack: display in json format', async () => {
   })
 
   expect(output).toBe(JSON.stringify({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
     filename: 'test-publish-package.json-0.0.0.tgz',
     files: [
-      'a.js',
-      'b.js',
-      'package.json',
-      'src/index.ts',
+      {
+        path: 'a.js',
+      },
+      {
+        path: 'b.js',
+      },
+      {
+        path: 'package.json',
+      },
+      {
+        path: 'src/index.ts',
+      },
     ],
   }, null, 2))
 })

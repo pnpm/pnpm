@@ -154,8 +154,10 @@ export async function handler (
   const packedContents = files.sort((a, b) => a.localeCompare(b, 'en'))
   if (opts.json) {
     return JSON.stringify({
+      name: publishManifest.name,
+      version: publishManifest.version,
       filename: packedTarballPath,
-      files: packedContents,
+      files: packedContents.map((path) => ({ path })),
     }, null, 2)
   }
   return `${chalk.blueBright('Tarball Contents')}
