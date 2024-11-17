@@ -55,8 +55,8 @@ export function help (): string {
             name: '--pack-destination <dir>',
           },
           {
-            description: 'Prints the packed tarball and contents in the given format. Supported options: "json"',
-            name: '--format <format>',
+            description: 'Prints the packed tarball and contents in the json format.',
+            name: '--json',
           },
         ],
       },
