@@ -25,7 +25,7 @@ Update available! ${chalk.red(log.currentVersion)} → ${chalk.green(log.latestV
 ${chalk.magenta('Changelog:')} https://github.com/pnpm/pnpm/releases/tag/v${log.latestVersion}
 ${updateMessage}
 
-Follow ${chalk.magenta('@pnpmjs')} for updates: https://x.com/pnpmjs`,
+Follow ${chalk.magenta('@pnpmjs')} for updates: https://x.com/pnpmjs/ or https://bsky.app/profile/pnpm.io`,
         {
           padding: 1,
           margin: 1,
