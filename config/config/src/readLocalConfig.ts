@@ -33,14 +33,14 @@ export async function readLocalConfig (prefix: string): Promise<LocalConfig> {
 
 // childConcurrency & workspaceConcurrency is integers
 // https://github.com/pnpm/pnpm/issues/5075
-const intMask = /^[\d]+$/;
-const floatMask = /^[\d.]+$/;
-function transformIfNum(val: string): string | number {
+const intMask = /^[\d]+$/
+const floatMask = /^[\d.]+$/
+
+function transformIfNum (val: string): string | number {
   if (intMask.test(val)) {
     return parseInt(val, 10)
   } else if (floatMask.test(val)) {
     return parseFloat(val)
   }
-
   return val
 }
