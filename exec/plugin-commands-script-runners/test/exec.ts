@@ -50,5 +50,5 @@ test('exec should specify the command', async () => {
     dir: process.cwd(),
     selectedProjectsGraph: {},
   }, [])
-  ).rejects.toThrow(`'pnpm exec' requires a command to run`)
+  ).rejects.toThrow("'pnpm exec' requires a command to run")
 })

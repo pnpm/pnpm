@@ -175,7 +175,7 @@ export async function handler (
     params.shift()
   }
   if (!params[0]) {
-    throw new PnpmError('EXEC_MISSING_COMMAND', `'pnpm exec' requires a command to run`)
+    throw new PnpmError('EXEC_MISSING_COMMAND', '\'pnpm exec\' requires a command to run')
   }
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
