@@ -29,6 +29,10 @@ declare module '@pnpm/npm-conf' {
   export = anything
 }
 
+declare module '@pnpm/npm-conf/lib/util' {
+  export function parseField (types: any, field: string, value: any): unknown
+}
+
 declare module '@pnpm/npm-lifecycle' {
   const anything: any
   export = anything
