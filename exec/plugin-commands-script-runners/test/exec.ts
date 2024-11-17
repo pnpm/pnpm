@@ -41,3 +41,14 @@ test('exec should set the NODE_OPTIONS env var', async () => {
     }),
   }))
 })
+
+test('exec should specify the command', async () => {
+  prepareEmpty()
+
+  await expect(exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    selectedProjectsGraph: {},
+  }, [])
+  ).rejects.toThrow("'pnpm exec' requires a command to run")
+})
