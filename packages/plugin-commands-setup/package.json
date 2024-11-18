@@ -33,6 +33,7 @@
     "@pnpm/cli-meta": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/os.env.path-extender": "catalog:",
+    "@zkochan/rimraf": "catalog:",
     "render-help": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
