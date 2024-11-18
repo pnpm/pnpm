@@ -3875,6 +3875,9 @@ importers:
       '@pnpm/os.env.path-extender':
         specifier: 'catalog:'
         version: 2.0.0
+      '@zkochan/rimraf':
+        specifier: 'catalog:'
+        version: 3.0.2
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
