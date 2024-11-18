@@ -7,6 +7,10 @@ export const OPTIONS = {
     description: "Don't run lifecycle scripts",
     name: '--ignore-scripts',
   },
+  ignoreWorkspace: {
+    description: 'Ignore pnpm-workspace.yaml if exists in the parent directory, and treat the command as normal non-workspace command.',
+    name: '--ignore-workspace',
+  },
   offline: {
     description: 'Trigger an error if any required dependencies are not available in local store',
     name: '--offline',
