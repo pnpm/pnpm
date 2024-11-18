@@ -16,6 +16,7 @@ import {
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
+import { install } from '@pnpm/plugin-commands-installation'
 import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
@@ -202,7 +203,15 @@ export async function handler (
   // verifyDepsBeforeRun is outside of shouldRunCheck because TypeScript's tagged union
   // only works when the tag is directly placed in the condition.
   if (opts.verifyDepsBeforeRun && shouldRunCheck(process.env, scriptName)) {
-    await checkLockfilesUpToDate(opts)
+    const { upToDate } = await checkLockfilesUpToDate(opts as any)
+    console.log(upToDate)
+    if (!upToDate) {
+      switch (opts.verifyDepsBeforeRun) {
+        case 'install':
+        await install.handler(opts as unknown as install.InstallCommandOptions)
+        break
+      }
+    }
   }
 
   if (opts.recursive) {

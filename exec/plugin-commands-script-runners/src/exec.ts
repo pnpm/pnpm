@@ -180,7 +180,7 @@ export async function handler (
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
   if (opts.verifyDepsBeforeRun && !process.env[SKIP_ENV_KEY]) {
-    await checkLockfilesUpToDate(opts)
+    await checkLockfilesUpToDate(opts as any)
   }
 
   let chunks!: ProjectRootDir[][]
