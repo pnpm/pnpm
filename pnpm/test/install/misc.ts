@@ -568,7 +568,7 @@ test('install success even though the url\'s hash contains slash', async () => {
   const settings = ['--fetch-retries=0']
   const result = execPnpmSync([
     'add',
-    'https://github.com/actions/toolkit.git#core/1.10',
+    'https://github.com/pnpm-e2e/simple-pkg.git#branch/with-slash',
     ...settings,
   ])
   expect(result.status).toBe(0)
