@@ -106,7 +106,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       ignoreNonAuthSettingsFromLocal: isDlxCommand,
     }) as typeof config
     if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
-      if (config.managePackageManagerVersions) {
+      if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm') {
         await switchCliVersion(config)
       } else {
         checkPackageManager(config.wantedPackageManager, config)

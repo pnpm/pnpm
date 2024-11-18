@@ -288,7 +288,7 @@ test('install should fail if the project requires a different package manager', 
     packageManager: 'yarn@4.0.0',
   })
 
-  const { status, stderr } = execPnpmSync(['install', '--config.manage-package-manager-versions=false'])
+  const { status, stderr } = execPnpmSync(['install', '--config.manage-package-manager-versions=true'])
 
   expect(status).toBe(1)
   expect(stderr.toString()).toContain('This project is configured to use yarn')
