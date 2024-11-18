@@ -26,6 +26,11 @@ const GIT_HOSTERS = new Set([
 ])
 
 function isRepository (pref: string): boolean {
+  const url = new URL(pref)
+  if (url.hash && url.hash.includes('/')) {
+    url.hash = encodeURIComponent(url.hash.substring(1))
+    pref = url.href
+  }
   if (pref.endsWith('/')) {
     pref = pref.slice(0, -1)
   }
