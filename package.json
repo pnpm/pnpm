@@ -85,7 +85,9 @@
       "follow-redirects@<=1.15.5": ">=1.15.6",
       "path-to-regexp@>=4.0.0 <6.3.0": ">=6.3.0",
       "cookie@<0.7.0": ">=0.7.0",
-      "http-proxy-middleware@<2.0.7": "^2.0.7"
+      "http-proxy-middleware@<2.0.7": "^2.0.7",
+      "path-to-regexp@>=7.0.0 <8.0.0": ">=8.0.0",
+      "cross-spawn@<7.0.5": ">=7.0.5"
     },
     "packageExtensions": {
       "@babel/parser": {

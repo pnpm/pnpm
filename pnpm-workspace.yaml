@@ -128,7 +128,7 @@ catalog:
   cmd-extension: ^1.0.2
   comver-to-semver: ^1.0.0
   concurrently: 8.2.1
-  cross-spawn: ^7.0.3
+  cross-spawn: ^7.0.5
   deep-require-cwd: 1.0.0
   delay: ^5.0.0
   detect-libc: ^2.0.3
