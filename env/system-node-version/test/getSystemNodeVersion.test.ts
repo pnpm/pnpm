@@ -19,3 +19,15 @@ test('getSystemNodeVersion() from a non-executable pnpm CLI', () => {
   delete process['pkg']
   expect(getSystemNodeVersionNonCached()).toBe(process.version)
 })
+
+test('getSystemNodeVersion() returns undefined if execa.sync throws an error', () => {
+  // Mock execa.sync to throw an error
+  (execa.sync as jest.Mock).mockImplementationOnce(() => {
+    throw new Error('not found: node')
+  })
+
+  // @ts-expect-error
+  process['pkg'] = {}
+  expect(getSystemNodeVersionNonCached()).toBeUndefined()
+  expect(execa.sync).toHaveBeenCalledWith('node', ['--version'])
+})

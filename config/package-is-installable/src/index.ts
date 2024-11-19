@@ -86,7 +86,7 @@ export function checkPackage (
     (manifest.engines == null)
       ? null
       : checkEngine(pkgId, manifest.engines, {
-        node: options.nodeVersion ?? getSystemNodeVersion(),
+        node: options.nodeVersion ?? getSystemNodeVersion() ?? process.version,
         pnpm: options.pnpmVersion,
       })
   )
