@@ -332,7 +332,7 @@ test('skipping optional dependency if it cannot be fetched', async () => {
 })
 
 test('run pre/postinstall scripts', async () => {
-  let prefix = f.prepare('deps-have-lifecycle-scripts')
+  const prefix = f.prepare('deps-have-lifecycle-scripts')
   await using server = await createTestIpcServer(path.join(prefix, 'test.sock'))
 
   await headlessInstall(await testDefaults({ lockfileDir: prefix }))
@@ -346,8 +346,15 @@ test('run pre/postinstall scripts', async () => {
 
   expect(server.getLines()).toStrictEqual(['install', 'postinstall'])
 
-  prefix = f.prepare('deps-have-lifecycle-scripts')
-  server.clear()
+  const nmPath = path.join(prefix, 'node_modules')
+  const modulesYaml = await readModulesManifest(nmPath)
+  expect(modulesYaml).toBeTruthy()
+  expect(modulesYaml!.pendingBuilds).toStrictEqual([])
+})
+
+test('ignores pre/postinstall scripts', async () => {
+  const prefix = f.prepare('deps-have-lifecycle-scripts')
+  await using server = await createTestIpcServer(path.join(prefix, 'test.sock'))
 
   await headlessInstall(await testDefaults({ lockfileDir: prefix, ignoreScripts: true }))
 
