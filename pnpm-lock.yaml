@@ -268,8 +268,8 @@ catalogs:
       specifier: 8.2.1
       version: 8.2.1
     cross-spawn:
-      specifier: ^7.0.3
-      version: 7.0.3
+      specifier: ^7.0.5
+      version: 7.0.5
     deep-require-cwd:
       specifier: 1.0.0
       version: 1.0.0
@@ -667,6 +667,8 @@ overrides:
   path-to-regexp@>=4.0.0 <6.3.0: '>=6.3.0'
   cookie@<0.7.0: '>=0.7.0'
   http-proxy-middleware@<2.0.7: ^2.0.7
+  path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
+  cross-spawn@<7.0.5: '>=7.0.5'
 
 packageExtensionsChecksum: sha256-VLztJiT59DQuLj+e7xg8kB9fTEUJlTrj+wQKDJ4xUfs=
 
@@ -2508,7 +2510,7 @@ importers:
     dependencies:
       cross-spawn:
         specifier: 'catalog:'
-        version: 7.0.3
+        version: 7.0.5
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
@@ -5535,7 +5537,7 @@ importers:
         version: 0.29.12
       cross-spawn:
         specifier: 'catalog:'
-        version: 7.0.3
+        version: 7.0.5
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -5886,7 +5888,7 @@ importers:
         version: 3.9.0
       cross-spawn:
         specifier: 'catalog:'
-        version: 7.0.3
+        version: 7.0.5
       deep-require-cwd:
         specifier: 'catalog:'
         version: 1.0.0
@@ -6265,7 +6267,7 @@ importers:
         version: 3.9.0
       cross-spawn:
         specifier: 'catalog:'
-        version: 7.0.3
+        version: 7.0.5
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -7640,7 +7642,7 @@ importers:
         version: 0.29.12
       cross-spawn:
         specifier: 'catalog:'
-        version: 7.0.3
+        version: 7.0.5
       nock:
         specifier: 'catalog:'
         version: 13.3.4
@@ -10301,11 +10303,8 @@ packages:
     engines: {node: '>=10.14', npm: '>=6', yarn: '>=1'}
     hasBin: true
 
-  cross-spawn@5.1.0:
-    resolution: {integrity: sha512-pTgQJ5KC0d2hcY8eyL1IzlBPYjTkyH72XRZPnLyKus2mBfNjQs3klqbJU2VILqZryAZUt9JOb3h/mWMy23/f5A==}
-
-  cross-spawn@7.0.3:
-    resolution: {integrity: sha512-iRDPJKUPVEND7dHPO8rkbOnPpyDygcDFtWjpeWNCgy8WP2rXcxXL8TskReQl6OrB2G7+UJrags1q15Fudc7G6w==}
+  cross-spawn@7.0.5:
+    resolution: {integrity: sha512-ZVJrKKYunU38/76t0RMOulHOnUcbU9GbpWKAOZ0mhjr7CX6FVrH+4FrAapSOekrgFQ3f/8gwMEuIft0aKq6Hug==}
     engines: {node: '>= 8'}
 
   crypto-random-string@2.0.0:
@@ -12162,9 +12161,6 @@ packages:
   lru-cache@10.4.3:
     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
 
-  lru-cache@4.1.5:
-    resolution: {integrity: sha512-sWZlbEP2OsHNkXrMl5GYk/jKk70MBng6UU4YI/qGDYbgf6YbP4EvmqISbXCoJiRKs+1bSpFHVgQxvJ17F2li5g==}
-
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
@@ -13022,9 +13018,6 @@ packages:
     resolution: {integrity: sha512-v4Bl6I3f2kJfr5o80ShABNHAokIgY+wFDTQfE+X3zWYgSGQOCBeYptLZUpoOALBqO5EawmDN/tjTldJesd0ujQ==}
     engines: {node: '>=10'}
 
-  pseudomap@1.0.2:
-    resolution: {integrity: sha512-b/YwNhb8lk1Zz2+bXXpS/LK9OisiZZ1SNsSLxN1x2OXVEhW2Ckr/7mWE5vrC1ZTiJlD9g19jWszTmJsB+oEpFQ==}
-
   psl@1.9.0:
     resolution: {integrity: sha512-E/ZsdU4HLs/68gYzgGTkMicWTLPdAftJLfJFlLUAAKZGkStNU72sZjT66SnMDVOfOWY/YAoiD7Jxa9iHvngcag==}
 
@@ -13416,17 +13409,9 @@ packages:
   setprototypeof@1.2.0:
     resolution: {integrity: sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==}
 
-  shebang-command@1.2.0:
-    resolution: {integrity: sha512-EV3L1+UQWGor21OmnvojK36mhg+TyIKDh3iFBKBohr5xeXIhNBcx8oWdgkTEEQ+BEFFYdLRuqMfd5L84N1V5Vg==}
-    engines: {node: '>=0.10.0'}
-
   shebang-command@2.0.0:
     resolution: {integrity: sha512-kHxr2zZpYtdmrN1qDjrrX/Z1rR1kG8Dx+gkpK1G4eXmvXswmcE1hTWBWYUzlraYw1/yZp6YuDY77YtvbN0dmDA==}
     engines: {node: '>=8'}
-
-  shebang-regex@1.0.0:
-    resolution: {integrity: sha512-wpoSFAxys6b2a2wHZ1XpDSgD7N9iVjg29Ph9uV/uaP9Ex/KXlkTZTeddxDPSYQpgvzKLGJke2UU0AzoGCjNIvQ==}
-    engines: {node: '>=0.10.0'}
 
   shebang-regex@3.0.0:
     resolution: {integrity: sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==}
@@ -14226,10 +14211,6 @@ packages:
     resolution: {integrity: sha512-oV0jmFtUky6CXfkqehVvBP/LSWJ2sy4vWMioiENyJLePrBO/yKyV9OyJySfAKosh+RYkIl5zJCNZ8/4JncrpdA==}
     engines: {node: '>= 0.4'}
 
-  which@1.3.1:
-    resolution: {integrity: sha512-HxJdYWq1MTIQbJ3nw0cqssHoTNU267KlrDuGZ1WYlxDStUtKUhOaJmh112/TZmHxxUfuJqPXSOm7tDyas0OSIQ==}
-    hasBin: true
-
   which@2.0.2:
     resolution: {integrity: sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==}
     engines: {node: '>= 8'}
@@ -14322,9 +14303,6 @@ packages:
   y18n@5.0.8:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==}
     engines: {node: '>=10'}
-
-  yallist@2.1.2:
-    resolution: {integrity: sha512-ncTzHV7NvsQZkYe1DW7cbDLm0YpzHmZF5r/iyP3ZnQtMiJ+pjzisCiMNI+Sj+xQF5pXhSHxSB3uDbsBTzY/c2A==}
 
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
@@ -15635,7 +15613,7 @@ snapshots:
     dependencies:
       '@pnpm/self-installer': 2.2.1
       command-exists: 1.2.9
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
 
   '@pnpm/fetcher-base@16.0.5':
     dependencies:
@@ -15835,7 +15813,7 @@ snapshots:
       '@yarnpkg/lockfile': 1.1.0
       chalk: 4.1.2
       ci-info: 3.9.0
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       find-yarn-workspace-root: 2.0.0
       fs-extra: 9.1.0
       klaw-sync: 6.0.0
@@ -16470,7 +16448,7 @@ snapshots:
       chalk: 3.0.0
       ci-info: 3.9.0
       clipanion: 3.2.0-rc.6(typanion@3.14.0)
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       diff: 5.2.0
       dotenv: 16.4.5
       fast-glob: 3.3.2
@@ -16501,7 +16479,7 @@ snapshots:
       chalk: 3.0.0
       ci-info: 4.0.0
       clipanion: 3.2.0-rc.6(typanion@3.14.0)
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       diff: 5.2.0
       dotenv: 16.4.5
       fast-glob: 3.3.2
@@ -16564,7 +16542,7 @@ snapshots:
       '@yarnpkg/parsers': 3.0.2
       chalk: 3.0.0
       clipanion: 3.2.0-rc.6(typanion@3.14.0)
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       fast-glob: 3.3.2
       micromatch: 4.0.8
       tslib: 2.7.0
@@ -16577,7 +16555,7 @@ snapshots:
       '@yarnpkg/parsers': 3.0.2
       chalk: 3.0.0
       clipanion: 3.2.0-rc.6(typanion@3.14.0)
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       fast-glob: 3.3.2
       micromatch: 4.0.8
       tslib: 2.7.0
@@ -17437,15 +17415,9 @@ snapshots:
 
   cross-env@7.0.3:
     dependencies:
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
 
-  cross-spawn@5.1.0:
-    dependencies:
-      lru-cache: 4.1.5
-      shebang-command: 1.2.0
-      which: 1.3.1
-
-  cross-spawn@7.0.3:
+  cross-spawn@7.0.5:
     dependencies:
       path-key: 3.1.1
       shebang-command: 2.0.0
@@ -18038,7 +18010,7 @@ snapshots:
       '@ungap/structured-clone': 1.2.0
       ajv: 6.12.6
       chalk: 4.1.2
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       debug: 4.3.6
       doctrine: 3.0.0
       escape-string-regexp: 4.0.0
@@ -18103,7 +18075,7 @@ snapshots:
 
   execa@5.1.1:
     dependencies:
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       get-stream: 6.0.1
       human-signals: 2.1.0
       is-stream: 2.0.1
@@ -18316,12 +18288,12 @@ snapshots:
 
   foreground-child@2.0.0:
     dependencies:
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       signal-exit: 3.0.7
 
   foreground-child@3.3.0:
     dependencies:
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       signal-exit: 4.1.0
 
   forever-agent@0.6.1: {}
@@ -19687,11 +19659,6 @@ snapshots:
 
   lru-cache@10.4.3: {}
 
-  lru-cache@4.1.5:
-    dependencies:
-      pseudomap: 1.0.2
-      yallist: 2.1.2
-
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
@@ -20552,8 +20519,6 @@ snapshots:
 
   ps-list@7.2.0: {}
 
-  pseudomap@1.0.2: {}
-
   psl@1.9.0: {}
 
   publish-packed@4.1.2:
@@ -21013,15 +20978,9 @@ snapshots:
 
   setprototypeof@1.2.0: {}
 
-  shebang-command@1.2.0:
-    dependencies:
-      shebang-regex: 1.0.0
-
   shebang-command@2.0.0:
     dependencies:
       shebang-regex: 3.0.0
-
-  shebang-regex@1.0.0: {}
 
   shebang-regex@3.0.0: {}
 
@@ -21148,7 +21107,7 @@ snapshots:
 
   spawndamnit@2.0.0:
     dependencies:
-      cross-spawn: 5.1.0
+      cross-spawn: 7.0.5
       signal-exit: 3.0.7
 
   spawno@2.1.1:
@@ -21958,10 +21917,6 @@ snapshots:
       gopd: 1.0.1
       has-tostringtag: 1.0.2
 
-  which@1.3.1:
-    dependencies:
-      isexe: 2.0.0
-
   which@2.0.2:
     dependencies:
       isexe: 2.0.0
@@ -22078,8 +22033,6 @@ snapshots:
   xtend@4.0.2: {}
 
   y18n@5.0.8: {}
-
-  yallist@2.1.2: {}
 
   yallist@3.1.1: {}
 
