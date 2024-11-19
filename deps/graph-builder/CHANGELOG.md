@@ -1,5 +1,12 @@
 # @pnpm/deps.graph-builder
 
+## 2.0.7
+
+### Patch Changes
+
+- Updated dependencies [5d8570a]
+  - @pnpm/package-is-installable@9.0.12
+
 ## 2.0.6
 
 ### Patch Changes

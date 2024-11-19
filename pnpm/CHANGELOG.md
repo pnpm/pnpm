@@ -1,5 +1,21 @@
 # pnpm
 
+## 9.14.0
+
+### Minor Changes
+
+- Added support for `pnpm pack --json` to print packed tarball and contents in JSON format [#8765](https://github.com/pnpm/pnpm/pull/8765).
+
+### Patch Changes
+
+- `pnpm exec` should print a meaningful error message when no command is provided [#8752](https://github.com/pnpm/pnpm/issues/8752).
+- `pnpm setup` should remove the CLI from the target location before moving the new binary [#8173](https://github.com/pnpm/pnpm/issues/8173).
+- Fix `ERR_PNPM_TARBALL_EXTRACT` error while installing a dependency from GitHub having a slash in branch name [#7697](https://github.com/pnpm/pnpm/issues/7697).
+- Don't crash if the `use-node-version` setting is used and the system has no Node.js installed [#8769](https://github.com/pnpm/pnpm/issues/8769).
+- Convert settings in local `.npmrc` files to their correct types. For instance, `child-concurrency` should be a number, not a string [#5075](https://github.com/pnpm/pnpm/issues/5075).
+- pnpm should fail if a project requires a different package manager even if `manage-package-manager-versions` is set to `true`.
+- `pnpm init` should respect the `--dir` option [#8768](https://github.com/pnpm/pnpm/pull/8768).
+
 ## 9.13.2
 
 ### Patch Changes

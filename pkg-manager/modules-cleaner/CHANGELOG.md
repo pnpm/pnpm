@@ -1,5 +1,11 @@
 # @pnpm/modules-cleaner
 
+## 15.1.17
+
+### Patch Changes
+
+- @pnpm/lockfile.filtering@1.0.8
+
 ## 15.1.16
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-doctor
 
+## 3.0.25
+
+### Patch Changes
+
+- Updated dependencies [611a170]
+  - @pnpm/config@21.8.6
+  - @pnpm/cli-utils@4.0.9
+
 ## 3.0.24
 
 ### Patch Changes

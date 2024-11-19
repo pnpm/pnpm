@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-init
 
+## 4.0.25
+
+### Patch Changes
+
+- d3b6755: `pnpm init` should respect the `--dir` option [#8768](https://github.com/pnpm/pnpm/pull/8768).
+- Updated dependencies [611a170]
+  - @pnpm/config@21.8.6
+  - @pnpm/cli-utils@4.0.9
+
 ## 4.0.24
 
 ### Patch Changes

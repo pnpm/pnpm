@@ -1,5 +1,12 @@
 # @pnpm/license-scanner
 
+## 3.1.19
+
+### Patch Changes
+
+- Updated dependencies [5d8570a]
+  - @pnpm/package-is-installable@9.0.12
+
 ## 3.1.18
 
 ### Patch Changes

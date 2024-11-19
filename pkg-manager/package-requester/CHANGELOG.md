@@ -1,5 +1,12 @@
 # @pnpm/package-requester
 
+## 25.2.11
+
+### Patch Changes
+
+- Updated dependencies [5d8570a]
+  - @pnpm/package-is-installable@9.0.12
+
 ## 25.2.10
 
 ### Patch Changes

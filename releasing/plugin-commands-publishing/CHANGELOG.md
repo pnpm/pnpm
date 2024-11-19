@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-publishing
 
+## 10.1.0
+
+### Minor Changes
+
+- 2087ef1: Added support for `pnpm pack --json` to print packed tarball and contents in JSON format [#8765](https://github.com/pnpm/pnpm/pull/8765).
+
+### Patch Changes
+
+- Updated dependencies [611a170]
+  - @pnpm/config@21.8.6
+  - @pnpm/cli-utils@4.0.9
+  - @pnpm/plugin-commands-env@5.1.13
+  - @pnpm/client@11.1.13
+
 ## 10.0.14
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/headless
 
+## 23.2.10
+
+### Patch Changes
+
+- Updated dependencies [5d8570a]
+  - @pnpm/package-is-installable@9.0.12
+  - @pnpm/deps.graph-builder@2.0.7
+  - @pnpm/lockfile.filtering@1.0.8
+  - @pnpm/package-requester@25.2.11
+  - @pnpm/modules-cleaner@15.1.17
+
 ## 23.2.9
 
 ### Patch Changes

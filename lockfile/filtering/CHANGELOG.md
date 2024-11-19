@@ -1,5 +1,12 @@
 # @pnpm/filter-lockfile
 
+## 1.0.8
+
+### Patch Changes
+
+- Updated dependencies [5d8570a]
+  - @pnpm/package-is-installable@9.0.12
+
 ## 1.0.7
 
 ### Patch Changes

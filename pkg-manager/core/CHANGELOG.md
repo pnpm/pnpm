@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 15.3.13
+
+### Patch Changes
+
+- @pnpm/lockfile.filtering@1.0.8
+- @pnpm/headless@23.2.10
+- @pnpm/package-requester@25.2.11
+- @pnpm/modules-cleaner@15.1.17
+
 ## 15.3.12
 
 ### Patch Changes

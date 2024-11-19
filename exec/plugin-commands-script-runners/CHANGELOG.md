@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-script-runners
 
+## 12.0.15
+
+### Patch Changes
+
+- 99d9b50: `pnpm exec` should print a meaningful error message when no command is provided [#8752](https://github.com/pnpm/pnpm/issues/8752).
+- Updated dependencies [611a170]
+  - @pnpm/config@21.8.6
+  - @pnpm/cli-utils@4.0.9
+  - @pnpm/plugin-commands-env@5.1.13
+  - @pnpm/plugin-commands-installation@17.2.12
+
 ## 12.0.14
 
 ### Patch Changes
