@@ -479,17 +479,22 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
   }
 
+  const trustedDeps =
+    Object.values(opts.allProjects).find(
+      ({ rootDir }) => rootDir === opts.lockfileDir
+    )?.manifest.trustedDependencies ?? []
   if (opts.ignoreScripts) {
     for (const { id, manifest } of selectedProjects) {
       if (opts.ignoreScripts && ((manifest?.scripts) != null) &&
         (manifest.scripts.preinstall ?? manifest.scripts.prepublish ??
           manifest.scripts.install ??
           manifest.scripts.postinstall ??
-          manifest.scripts.prepare)
+          manifest.scripts.prepare) && !trustedDeps.includes(id)
       ) {
         opts.pendingBuilds.push(id)
       }
     }
+
     // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
     opts.pendingBuilds = opts.pendingBuilds
       .concat(
@@ -641,7 +646,16 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   summaryLogger.debug({ prefix: lockfileDir })
 
   await opts.storeController.close()
-
+  if (opts.ignoreScripts && !opts.ignorePackageManifest) {
+    if (trustedDeps.length > 0) {
+      await runLifecycleHooksConcurrently(
+        ['preinstall', 'install', 'postinstall', 'prepare'],
+        projectsToBeBuilt.filter(({ id }) => trustedDeps.includes(id)),
+        opts.childConcurrency ?? 5,
+        scriptsOpts
+      )
+    }
+  }
   if (!opts.ignoreScripts && !opts.ignorePackageManifest) {
     await runLifecycleHooksConcurrently(
       ['preinstall', 'install', 'postinstall', 'prepare'],

@@ -366,6 +366,20 @@ test('ignores pre/postinstall scripts', async () => {
   expect(modulesYaml!.pendingBuilds).toStrictEqual(['.', '@pnpm.e2e/pre-and-postinstall-scripts-example@2.0.0'])
 })
 
+test('trusts pre/postinstall scripts', async () => {
+  const prefix = f.prepare('has-trusted-deps')
+  await using server = await createTestIpcServer(path.join(prefix, 'test.sock'))
+
+  await headlessInstall(await testDefaults({ lockfileDir: prefix, ignoreScripts: true }))
+
+  expect(server.getLines()).toStrictEqual(['install', 'postinstall'])
+
+  const nmPath = path.join(prefix, 'node_modules')
+  const modulesYaml = await readModulesManifest(nmPath)
+  expect(modulesYaml).toBeTruthy()
+  expect(modulesYaml!.pendingBuilds).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example@2.0.0'])
+})
+
 test('orphan packages are removed', async () => {
   const projectDir = f.prepare('simple-with-more-deps')
 

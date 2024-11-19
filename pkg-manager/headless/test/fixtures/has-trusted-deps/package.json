@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "install": "node -e \"console.log('install')\" | test-ipc-server-client ./test.sock",
+    "postinstall": "node -e \"console.log('postinstall')\" | test-ipc-server-client ./test.sock"
+  },
+  "dependencies": {
+    "@pnpm.e2e/pre-and-postinstall-scripts-example": "*"
+  },
+  "trustedDependencies": [
+    "."
+  ]
+}

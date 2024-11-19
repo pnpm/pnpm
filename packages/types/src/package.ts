@@ -153,6 +153,7 @@ export interface ProjectManifest extends BaseManifest {
   }
   private?: boolean
   resolutions?: Record<string, string>
+  trustedDependencies?: string[]
 }
 
 export interface PackageManifest extends DependencyManifest {
