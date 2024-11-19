@@ -288,7 +288,7 @@ test('install should fail if the project requires a different package manager', 
     packageManager: 'yarn@4.0.0',
   })
 
-  const { status, stderr } = execPnpmSync(['install', '--config.manage-package-manager-versions=false'])
+  const { status, stderr } = execPnpmSync(['install', '--config.manage-package-manager-versions=true'])
 
   expect(status).toBe(1)
   expect(stderr.toString()).toContain('This project is configured to use yarn')
@@ -560,4 +560,16 @@ test('do not hang on circular peer dependencies', () => {
 
   expect(result.status).toBe(0)
   expect(fs.existsSync(path.join(tempDir, WANTED_LOCKFILE))).toBeTruthy()
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/7697
+test('install success even though the url\'s hash contains slash', async () => {
+  prepare()
+  const settings = ['--fetch-retries=0']
+  const result = execPnpmSync([
+    'add',
+    'https://github.com/pnpm-e2e/simple-pkg.git#branch/with-slash',
+    ...settings,
+  ])
+  expect(result.status).toBe(0)
 })

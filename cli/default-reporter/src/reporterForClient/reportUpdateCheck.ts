@@ -23,9 +23,7 @@ export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
         msg: boxen(`\
 Update available! ${chalk.red(log.currentVersion)} → ${chalk.green(log.latestVersion)}.
 ${chalk.magenta('Changelog:')} https://github.com/pnpm/pnpm/releases/tag/v${log.latestVersion}
-${updateMessage}
-
-Follow ${chalk.magenta('@pnpmjs')} for updates: https://x.com/pnpmjs`,
+${updateMessage}`,
         {
           padding: 1,
           margin: 1,

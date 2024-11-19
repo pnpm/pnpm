@@ -9,6 +9,7 @@ import {
   type PathExtenderReport,
 } from '@pnpm/os.env.path-extender'
 import renderHelp from 'render-help'
+import rimraf from '@zkochan/rimraf'
 
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
 
@@ -59,6 +60,7 @@ function copyCli (currentLocation: string, targetDir: string): void {
     prefix: process.cwd(),
   })
   fs.mkdirSync(targetDir, { recursive: true })
+  rimraf.sync(newExecPath)
   fs.copyFileSync(currentLocation, newExecPath)
 }
 

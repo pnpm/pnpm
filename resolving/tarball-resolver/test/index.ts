@@ -60,3 +60,13 @@ test('ignore direct URLs to repositories', async () => {
   expect(await resolveFromTarball({ pref: 'https://gitlab.com/foo/bar' })).toBe(null)
   expect(await resolveFromTarball({ pref: 'https://bitbucket.org/foo/bar' })).toBe(null)
 })
+
+test('ignore slash in hash', async () => {
+  // expect resolve from git.
+  let hash = 'path:/packages/simple-react-app'
+  expect(await resolveFromTarball({ pref: `RexSkz/test-git-subdir-fetch#${hash}` })).toBe(null)
+  expect(await resolveFromTarball({ pref: `RexSkz/test-git-subdir-fetch#${encodeURIComponent(hash)}` })).toBe(null)
+  hash = 'heads/canary'
+  expect(await resolveFromTarball({ pref: `zkochan/is-negative#${hash}` })).toBe(null)
+  expect(await resolveFromTarball({ pref: `zkochan/is-negative#${encodeURIComponent(hash)}` })).toBe(null)
+})

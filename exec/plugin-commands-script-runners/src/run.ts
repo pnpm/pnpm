@@ -194,7 +194,10 @@ export async function handler (
   params: string[]
 ): Promise<string | { exitCode: number } | undefined> {
   let dir: string
-  let [scriptName, ...passedThruArgs] = params
+  if (opts.fallbackCommandUsed && (params[0] === 't' || params[0] === 'tst')) {
+    params[0] = 'test'
+  }
+  const [scriptName, ...passedThruArgs] = params
 
   // verifyDepsBeforeRun is outside of shouldRunCheck because TypeScript's tagged union
   // only works when the tag is directly placed in the condition.
@@ -222,9 +225,6 @@ export async function handler (
       ? (await tryReadProjectManifest(opts.workspaceDir, opts)).manifest
       : undefined
     return printProjectCommands(manifest, rootManifest ?? undefined)
-  }
-  if (opts.fallbackCommandUsed && (scriptName === 't' || scriptName === 'tst')) {
-    scriptName = 'test'
   }
 
   const specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName)

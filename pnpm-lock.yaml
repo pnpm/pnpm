@@ -3875,6 +3875,9 @@ importers:
       '@pnpm/os.env.path-extender':
         specifier: 'catalog:'
         version: 2.0.0
+      '@zkochan/rimraf':
+        specifier: 'catalog:'
+        version: 3.0.2
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
@@ -5971,6 +5974,9 @@ importers:
       '@pnpm/linux-arm64':
         specifier: workspace:*
         version: link:../linux-arm64
+      '@pnpm/linux-riscv64':
+        specifier: workspace:*
+        version: link:../linux-riscv64
       '@pnpm/linux-x64':
         specifier: workspace:*
         version: link:../linux-x64
@@ -6000,6 +6006,12 @@ importers:
   pnpm/artifacts/linux-arm64:
     devDependencies:
       '@pnpm/linux-arm64':
+        specifier: workspace:*
+        version: 'link:'
+
+  pnpm/artifacts/linux-riscv64:
+    devDependencies:
+      '@pnpm/linux-riscv64':
         specifier: workspace:*
         version: 'link:'
 

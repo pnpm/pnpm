@@ -432,5 +432,52 @@ test('pack: should display packed contents order by name', async () => {
     extraBinPaths: [],
   })
 
-  expect(output).toBe(`${chalk.blueBright('Tarball Contents')}\na.js\nb.js\npackage.json\nsrc/index.ts\n\n${chalk.blueBright('Tarball Details')}\ntest-publish-package.json-0.0.0.tgz`)
+  expect(output).toBe(`${chalk.blueBright('Tarball Contents')}
+a.js
+b.js
+package.json
+src/index.ts
+
+${chalk.blueBright('Tarball Details')}
+test-publish-package.json-0.0.0.tgz`)
+})
+
+test('pack: display in json format', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+  })
+
+  fs.mkdirSync('./src')
+  fs.writeFileSync('./src/index.ts', 'index', 'utf8')
+  fs.writeFileSync('./a.js', 'a', 'utf8')
+  fs.writeFileSync('./b.js', 'b', 'utf8')
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    json: true,
+  })
+
+  expect(output).toBe(JSON.stringify({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+    filename: 'test-publish-package.json-0.0.0.tgz',
+    files: [
+      {
+        path: 'a.js',
+      },
+      {
+        path: 'b.js',
+      },
+      {
+        path: 'package.json',
+      },
+      {
+        path: 'src/index.ts',
+      },
+    ],
+  }, null, 2))
 })
