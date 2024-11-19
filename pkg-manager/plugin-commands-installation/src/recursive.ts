@@ -167,14 +167,6 @@ export async function recursive (
   }
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
-    let importers = getImporters(opts)
-    const commonRootRealPath = await fs.realpath(calculateCommonRoot(opts.workspaceDir, importers.map(x => x.rootDir)))
-    const isFromWorkspace = isSubdir.bind(null, commonRootRealPath)
-    importers = await pFilter(
-      importers,
-      async ({ rootDirRealPath }) => opts.workspaceDir === rootDirRealPath || isFromWorkspace(rootDirRealPath)
-    )
-    if (importers.length === 0) return true
     let mutation!: string
     switch (cmdFullName) {
     case 'remove':
@@ -187,6 +179,7 @@ export async function recursive (
       mutation = (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
       break
     }
+    const importers = getImporters(opts)
     const mutatedImporters = [] as MutatedProject[]
     await Promise.all(importers.map(async ({ rootDir }) => {
       const localConfig = await memReadLocalConfig(rootDir)
@@ -402,34 +395,6 @@ export async function recursive (
   }
 
   return true
-}
-
-function calculateCommonRoot (
-  workspaceDir: string,
-  projectDirs: string[]
-): string {
-  // to find the common root of the projects, we will sort the project dirs and find the longest
-  // common root between the first and the last project. Exclude the workspace dir project from
-  // the calculation since we know it belongs to the workspace
-  const sortedProjectDirs = projectDirs.filter(dir => dir !== workspaceDir).sort()
-  if (sortedProjectDirs.length === 0) {
-    return workspaceDir
-  }
-  const firstProjectDir = sortedProjectDirs[0]
-  const lastProjectDir = sortedProjectDirs[sortedProjectDirs.length - 1]
-  let lastSeparatorIndex = -1
-  for (let i = 0; i <= firstProjectDir.length && i <= lastProjectDir.length; i++) {
-    const firstProjectDirChar = firstProjectDir[i]
-    const lastProjectDirChar = lastProjectDir[i]
-    if (firstProjectDirChar === path.sep || firstProjectDirChar === undefined) {
-      lastSeparatorIndex = i
-    }
-    if (firstProjectDirChar !== lastProjectDirChar) {
-      break
-    }
-  }
-
-  return firstProjectDir.slice(0, lastSeparatorIndex)
 }
 
 export function matchDependencies (
