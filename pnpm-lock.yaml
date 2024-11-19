@@ -5974,6 +5974,9 @@ importers:
       '@pnpm/linux-arm64':
         specifier: workspace:*
         version: link:../linux-arm64
+      '@pnpm/linux-riscv64':
+        specifier: workspace:*
+        version: link:../linux-riscv64
       '@pnpm/linux-x64':
         specifier: workspace:*
         version: link:../linux-x64
@@ -6003,6 +6006,12 @@ importers:
   pnpm/artifacts/linux-arm64:
     devDependencies:
       '@pnpm/linux-arm64':
+        specifier: workspace:*
+        version: 'link:'
+
+  pnpm/artifacts/linux-riscv64:
+    devDependencies:
+      '@pnpm/linux-riscv64':
         specifier: workspace:*
         version: 'link:'
 
