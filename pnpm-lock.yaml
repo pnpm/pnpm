@@ -268,8 +268,8 @@ catalogs:
       specifier: 8.2.1
       version: 8.2.1
     cross-spawn:
-      specifier: ^7.0.3
-      version: 7.0.3
+      specifier: ^7.0.5
+      version: 7.0.5
     deep-require-cwd:
       specifier: 1.0.0
       version: 1.0.0
@@ -2508,7 +2508,7 @@ importers:
     dependencies:
       cross-spawn:
         specifier: 'catalog:'
-        version: 7.0.3
+        version: 7.0.5
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
@@ -5532,7 +5532,7 @@ importers:
         version: 0.29.12
       cross-spawn:
         specifier: 'catalog:'
-        version: 7.0.3
+        version: 7.0.5
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -5883,7 +5883,7 @@ importers:
         version: 3.9.0
       cross-spawn:
         specifier: 'catalog:'
-        version: 7.0.3
+        version: 7.0.5
       deep-require-cwd:
         specifier: 'catalog:'
         version: 1.0.0
@@ -6253,7 +6253,7 @@ importers:
         version: 3.9.0
       cross-spawn:
         specifier: 'catalog:'
-        version: 7.0.3
+        version: 7.0.5
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -7628,7 +7628,7 @@ importers:
         version: 0.29.12
       cross-spawn:
         specifier: 'catalog:'
-        version: 7.0.3
+        version: 7.0.5
       nock:
         specifier: 'catalog:'
         version: 13.3.4
@@ -10294,6 +10294,10 @@ packages:
 
   cross-spawn@7.0.3:
     resolution: {integrity: sha512-iRDPJKUPVEND7dHPO8rkbOnPpyDygcDFtWjpeWNCgy8WP2rXcxXL8TskReQl6OrB2G7+UJrags1q15Fudc7G6w==}
+    engines: {node: '>= 8'}
+
+  cross-spawn@7.0.5:
+    resolution: {integrity: sha512-ZVJrKKYunU38/76t0RMOulHOnUcbU9GbpWKAOZ0mhjr7CX6FVrH+4FrAapSOekrgFQ3f/8gwMEuIft0aKq6Hug==}
     engines: {node: '>= 8'}
 
   crypto-random-string@2.0.0:
@@ -17439,6 +17443,12 @@ snapshots:
       shebang-command: 2.0.0
       which: 2.0.2
 
+  cross-spawn@7.0.5:
+    dependencies:
+      path-key: 3.1.1
+      shebang-command: 2.0.0
+      which: 2.0.2
+
   crypto-random-string@2.0.0: {}
 
   crypto-random-string@4.0.0:
@@ -18309,7 +18319,7 @@ snapshots:
 
   foreground-child@3.3.0:
     dependencies:
-      cross-spawn: 7.0.3
+      cross-spawn: 7.0.5
       signal-exit: 4.1.0
 
   forever-agent@0.6.1: {}
