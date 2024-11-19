@@ -1,5 +1,5 @@
 ---
-"@pnpm/linux-riscv64": minor
+"@pnpm/exe": minor
 ---
 
-Initial support for linux-riscv64
+Added support for Linux on RISC-V (riscv64) CPUs [#8779](https://github.com/pnpm/pnpm/pull/8779).
