@@ -237,13 +237,13 @@ Do you want to continue?`,
   // from the current working directory, ignoring the package.json file
   // that was generated and packed to the tarball.
   const packDestination = tempy.directory()
-  const tarballName = await pack.handler({
+  const { tarballPath } = await pack.api({
     ...opts,
     dir,
     packDestination,
   })
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
-  const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballName), ...args], {
+  const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballPath), ...args], {
     cwd: packDestination,
     env: getEnvWithTokens(opts),
   })
