@@ -1,5 +1,11 @@
 # pnpm
 
+## 9.14.2
+
+### Patch Changes
+
+- `pnpm publish --json` should work [#8788](https://github.com/pnpm/pnpm/issues/8788).
+
 ## 9.14.1
 
 ### Minor Changes

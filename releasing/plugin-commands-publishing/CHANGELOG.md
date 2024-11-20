@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 10.1.1
+
+### Patch Changes
+
+- 473cbc4: `pnpm publish --json` should work [#8788](https://github.com/pnpm/pnpm/issues/8788).
+
 ## 10.1.0
 
 ### Minor Changes
