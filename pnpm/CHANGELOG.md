@@ -1,6 +1,6 @@
 # pnpm
 
-## 9.14.0
+## 9.14.1
 
 ### Minor Changes
 
