@@ -64,17 +64,34 @@ export function help (): string {
   })
 }
 
-export async function handler (
-  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs' | 'ignoreScripts' | 'rawConfig' | 'embedReadme' | 'packGzipLevel' | 'nodeLinker'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
-    argv: {
-      original: string[]
-    }
-    engineStrict?: boolean
-    packDestination?: string
-    workspaceDir?: string
-    json?: boolean
+export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs' | 'ignoreScripts' | 'rawConfig' | 'embedReadme' | 'packGzipLevel' | 'nodeLinker'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
+  argv: {
+    original: string[]
   }
-): Promise<string> {
+  engineStrict?: boolean
+  packDestination?: string
+  workspaceDir?: string
+  json?: boolean
+}
+
+export async function handler (opts: PackOptions): Promise<string> {
+  const { publishedManifest, tarballPath, contents } = await api(opts)
+  if (opts.json) {
+    return JSON.stringify({
+      name: publishedManifest.name,
+      version: publishedManifest.version,
+      filename: tarballPath,
+      files: contents.map((path) => ({ path })),
+    }, null, 2)
+  }
+  return `${chalk.blueBright('Tarball Contents')}
+${contents.join('\n')}
+
+${chalk.blueBright('Tarball Details')}
+${tarballPath}`
+}
+
+export async function api (opts: PackOptions): Promise<PackResult> {
   const { manifest: entryManifest, fileName: manifestFileName } = await readProjectManifest(opts.dir, opts)
   preventBundledDependenciesWithoutHoistedNodeLinker(opts.nodeLinker, entryManifest)
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
@@ -152,19 +169,17 @@ export async function handler (
     packedTarballPath = path.relative(opts.dir, path.join(dir, tarballName))
   }
   const packedContents = files.sort((a, b) => a.localeCompare(b, 'en'))
-  if (opts.json) {
-    return JSON.stringify({
-      name: publishManifest.name,
-      version: publishManifest.version,
-      filename: packedTarballPath,
-      files: packedContents.map((path) => ({ path })),
-    }, null, 2)
+  return {
+    publishedManifest: publishManifest,
+    contents: packedContents,
+    tarballPath: packedTarballPath,
   }
-  return `${chalk.blueBright('Tarball Contents')}
-${packedContents.join('\n')}
+}
 
-${chalk.blueBright('Tarball Details')}
-${packedTarballPath}`
+export interface PackResult {
+  publishedManifest: ProjectManifest
+  contents: string[]
+  tarballPath: string
 }
 
 function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config['nodeLinker'], manifest: ProjectManifest): void {
