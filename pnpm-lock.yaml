@@ -5173,9 +5173,6 @@ importers:
       mem:
         specifier: 'catalog:'
         version: 8.1.1
-      p-filter:
-        specifier: 'catalog:'
-        version: 2.1.0
       p-limit:
         specifier: 'catalog:'
         version: 3.1.0
