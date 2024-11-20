@@ -177,6 +177,7 @@ export async function recursive (
       break
     }
     const importers = getImporters(opts)
+    if (importers.length === 0) return true
     const mutatedImporters = [] as MutatedProject[]
     await Promise.all(importers.map(async ({ rootDir }) => {
       const localConfig = await memReadLocalConfig(rootDir)
