@@ -203,11 +203,10 @@ export async function handler (
   // verifyDepsBeforeRun is outside of shouldRunCheck because TypeScript's tagged union
   // only works when the tag is directly placed in the condition.
   if (opts.verifyDepsBeforeRun && shouldRunCheck(process.env, scriptName)) {
-    const { upToDate } = await checkLockfilesUpToDate(opts as any)
-    console.log(upToDate)
+    const { upToDate } = await checkLockfilesUpToDate(opts as any) // eslint-disable-line
     if (!upToDate) {
       switch (opts.verifyDepsBeforeRun) {
-        case 'install':
+      case 'install':
         await install.handler(opts as unknown as install.InstallCommandOptions)
         break
       }
