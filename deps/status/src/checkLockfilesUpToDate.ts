@@ -57,6 +57,20 @@ export type CheckLockfilesUpToDateOptions = Pick<Config,
 >
 
 export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOptions): Promise<{ upToDate: boolean, issue?: string }> {
+  try {
+    return await _checkLockfilesUpToDate(opts)
+  } catch (error) {
+    if (util.types.isNativeError(error) && 'code' in error && error.code === 'ERR_PNPM_RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND') {
+      return {
+        upToDate: false,
+        issue: error.message,
+      }
+    }
+    throw error
+  }
+}
+
+async function _checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOptions): Promise<{ upToDate: boolean, issue?: string }> {
   const {
     allProjects,
     autoInstallPeers,

@@ -66,6 +66,7 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "didyoumean2": "catalog:",
+    "enquirer": "catalog:",
     "execa": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:",

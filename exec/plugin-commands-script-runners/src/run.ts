@@ -18,6 +18,7 @@ import {
 } from '@pnpm/lifecycle'
 import { install } from '@pnpm/plugin-commands-installation'
 import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
+import { prompt } from 'enquirer'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
@@ -209,6 +210,20 @@ export async function handler (
       case 'install':
         await install.handler(opts as unknown as install.InstallCommandOptions)
         break
+      case 'prompt': {
+        const confirmed = await prompt<{ runInstall: boolean }>({
+          type: 'confirm',
+          name: 'runInstall',
+          message: `Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file. This can lead to issues during scripts execution.
+
+Would you like to run "pnpm install" to update your "node_modules"?`,
+          initial: true,
+        })
+        if (confirmed.runInstall) {
+          await install.handler(opts as unknown as install.InstallCommandOptions)
+        }
+        break
+      }
       }
     }
   }
