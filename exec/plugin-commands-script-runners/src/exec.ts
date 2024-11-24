@@ -3,6 +3,7 @@ import { docsUrl, type RecursiveSummary, throwOnCommandFail, readProjectManifest
 import { type LifecycleMessage, lifecycleLogger } from '@pnpm/core-loggers'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
+import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
@@ -161,7 +162,7 @@ export type ExecOpts = Required<Pick<Config, 'selectedProjectsGraph'>> & {
 | 'userAgent'
 | 'verifyDepsBeforeRun'
 | 'workspaceDir'
->
+> & CheckDepsStatusOptions
 
 export async function handler (
   opts: ExecOpts,
@@ -177,7 +178,7 @@ export async function handler (
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
   if (opts.verifyDepsBeforeRun && !process.env[SKIP_ENV_KEY]) {
-    await runDepsStatusCheck(opts as any) // eslint-disable-line
+    await runDepsStatusCheck(opts)
   }
 
   let chunks!: ProjectRootDir[][]

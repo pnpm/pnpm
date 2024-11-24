@@ -1,10 +1,10 @@
 import { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/plugin-commands-installation'
-import { checkDepsStatus } from '@pnpm/deps.status'
+import { checkDepsStatus, type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { prompt } from 'enquirer'
 import { type RunOpts } from './run'
 
-export async function runDepsStatusCheck (opts: RunOpts): Promise<void> {
+export async function runDepsStatusCheck (opts: CheckDepsStatusOptions & Pick<RunOpts, 'verifyDepsBeforeRun'>): Promise<void> {
   const { upToDate, issue } = await checkDepsStatus(opts as any) // eslint-disable-line
   if (!upToDate) {
     switch (opts.verifyDepsBeforeRun) {

@@ -15,6 +15,7 @@ export const DEFAULT_OPTS = {
   cacheDir: '../cache',
   cert: undefined,
   extraEnv: {},
+  excludeLinksFromLockfile: false,
   cliOptions: {},
   extraBinPaths: [],
   fetchRetries: 2,
