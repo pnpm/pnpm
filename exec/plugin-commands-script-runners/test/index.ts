@@ -41,13 +41,13 @@ test('pnpm run: returns correct exit code', async () => {
   try {
     await run.handler({
       ...DEFAULT_OPTS,
+      bail: true,
       bin: 'node_modules/.bin',
       dir: process.cwd(),
       extraBinPaths: [],
       extraEnv: {},
       pnpmHomeDir: '',
       rawConfig: {},
-      recursive: false,
     }, ['exit1'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
