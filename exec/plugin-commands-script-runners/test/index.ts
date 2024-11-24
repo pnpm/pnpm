@@ -539,6 +539,7 @@ onlyOnWindows('pnpm shows error if script-shell is .cmd', async () => {
   async function runScript () {
     await run.handler({
       ...DEFAULT_OPTS,
+      bail: true,
       bin: 'node_modules/.bin',
       dir: process.cwd(),
       extraBinPaths: [],
