@@ -9,16 +9,13 @@ import { type CompletionFunc } from '@pnpm/command'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
-import { type CheckLockfilesUpToDateOptions, checkLockfilesUpToDate } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import {
   runLifecycleHook,
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
-import { install } from '@pnpm/plugin-commands-installation'
 import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
-import { prompt } from 'enquirer'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
@@ -27,6 +24,7 @@ import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
 import { DISABLE_DEPS_CHECK_ENV, shouldRunCheck } from './shouldRunCheck'
+import { runDepsStatusCheck } from './runDepsStatusCheck'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,
@@ -186,10 +184,6 @@ export type RunOpts =
     }
     fallbackCommandUsed?: boolean
   }
-  & (
-    | { verifyDepsBeforeRun?: false }
-    | { verifyDepsBeforeRun: true } & CheckLockfilesUpToDateOptions
-  )
 
 export async function handler (
   opts: RunOpts,
@@ -204,28 +198,7 @@ export async function handler (
   // verifyDepsBeforeRun is outside of shouldRunCheck because TypeScript's tagged union
   // only works when the tag is directly placed in the condition.
   if (opts.verifyDepsBeforeRun && shouldRunCheck(process.env, scriptName)) {
-    const { upToDate } = await checkLockfilesUpToDate(opts as any) // eslint-disable-line
-    if (!upToDate) {
-      switch (opts.verifyDepsBeforeRun) {
-      case 'install':
-        await install.handler(opts as unknown as install.InstallCommandOptions)
-        break
-      case 'prompt': {
-        const confirmed = await prompt<{ runInstall: boolean }>({
-          type: 'confirm',
-          name: 'runInstall',
-          message: `Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file. This can lead to issues during scripts execution.
-
-Would you like to run "pnpm install" to update your "node_modules"?`,
-          initial: true,
-        })
-        if (confirmed.runInstall) {
-          await install.handler(opts as unknown as install.InstallCommandOptions)
-        }
-        break
-      }
-      }
-    }
+    await runDepsStatusCheck(opts)
   }
 
   if (opts.recursive) {

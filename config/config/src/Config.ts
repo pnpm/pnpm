@@ -38,7 +38,7 @@ export interface Config {
   global?: boolean
   dir: string
   bin: string
-  verifyDepsBeforeRun?: 'install' | 'warn' | 'prompt' | false
+  verifyDepsBeforeRun?: 'install' | 'warn' | 'error' | 'prompt' | false
   ignoreDepScripts?: boolean
   ignoreScripts?: boolean
   ignoreCompatibilityDb?: boolean

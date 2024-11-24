@@ -41,7 +41,7 @@ import { loadWorkspaceState, updateWorkspaceState } from '@pnpm/workspace.state'
 import { assertLockfilesEqual } from './assertLockfilesEqual'
 import { statManifestFile } from './statManifestFile'
 
-export type CheckLockfilesUpToDateOptions = Pick<Config,
+export type CheckDepsStatusOptions = Pick<Config,
 | 'allProjects'
 | 'autoInstallPeers'
 | 'catalogs'
@@ -56,9 +56,9 @@ export type CheckLockfilesUpToDateOptions = Pick<Config,
 | 'workspaceDir'
 >
 
-export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOptions): Promise<{ upToDate: boolean, issue?: string }> {
+export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDate: boolean, issue?: string }> {
   try {
-    return await _checkLockfilesUpToDate(opts)
+    return await _checkDepsStatus(opts)
   } catch (error) {
     if (util.types.isNativeError(error) && 'code' in error && error.code === 'ERR_PNPM_RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND') {
       return {
@@ -70,7 +70,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
   }
 }
 
-async function _checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOptions): Promise<{ upToDate: boolean, issue?: string }> {
+async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDate: boolean, issue?: string }> {
   const {
     allProjects,
     autoInstallPeers,
@@ -231,7 +231,7 @@ async function _checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOptions): Pr
         patterns: workspaceManifest?.packages,
         sharedWorkspaceLockfile,
       })
-      return checkLockfilesUpToDate({
+      return checkDepsStatus({
         ...opts,
         allProjects,
       })
@@ -309,7 +309,7 @@ async function _checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOptions): Pr
 
 interface AssertWantedLockfileUpToDateContext {
   autoInstallPeers?: boolean
-  config: CheckLockfilesUpToDateOptions
+  config: CheckDepsStatusOptions
   excludeLinksFromLockfile?: boolean
   linkWorkspacePackages: boolean | 'deep'
   getManifestsByDir: () => Record<string, DependencyManifest>
