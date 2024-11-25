@@ -12,6 +12,8 @@ import sortKeys from 'sort-keys'
 import loadJsonFile from 'load-json-file'
 import renderHelp from 'render-help'
 
+export const skipPackageManagerCheck = true
+
 export const commandNames = ['cat-index']
 
 export const rcOptionsTypes = cliOptionsTypes

@@ -10,6 +10,8 @@ import { storeAdd } from './storeAdd'
 import { storePrune } from './storePrune'
 import { storeStatus } from './storeStatus'
 
+export const skipPackageManagerCheck = true
+
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes (): Record<string, unknown> {
