@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/exe",
   "description": "Fast, disk space efficient package manager",
-  "version": "10.0.0-alpha.2",
+  "version": "10.0.0-alpha.3",
   "publishConfig": {
     "tag": "next-10",
     "bin": {
