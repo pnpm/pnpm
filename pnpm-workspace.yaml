@@ -100,7 +100,7 @@ catalog:
   "@yarnpkg/core": 4.0.5
   "@yarnpkg/extensions": 2.0.3
   "@yarnpkg/lockfile": ^1.1.0
-  "@yarnpkg/nm": 4.0.2
+  "@yarnpkg/nm": 4.0.5
   "@yarnpkg/parsers": 3.0.0
   "@yarnpkg/pnp": ^4.0.6
   "@zkochan/cmd-shim": ^6.0.0
