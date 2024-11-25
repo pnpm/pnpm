@@ -1,6 +1,8 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
+    "moduleResolution": "node16",
+    "module": "Node16",
     "outDir": "lib",
     "rootDir": "src"
   },
