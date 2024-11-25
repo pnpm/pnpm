@@ -1,6 +1,6 @@
 # pnpm
 
-## 10.0.0-alpha.3
+## 10.0.0-alpha.4
 
 ### Major Changes
 
@@ -41,11 +41,11 @@
 
 - Added a new setting called `verify-deps-before-run` for checking the state of dependencies before running scripts [#8585](https://github.com/pnpm/pnpm/issues/8585). The `verify-deps-before-run` setting supports the following values:
 
-    * `install` - Automatically runs install if `node_modules` are not up to date.
-    * `warn` - Prints a warning if `node_modules` is not up to date.
-    * `prompt` - Prompts the user for permission to run install if `node_modules` is not up to date.
-    * `error` - Throws an error if `node_modules` is not up to date.
-    * `false` - Disables dependency checks.
+  * `install` - Automatically runs install if `node_modules` are not up to date.
+  * `warn` - Prints a warning if `node_modules` is not up to date.
+  * `prompt` - Prompts the user for permission to run install if `node_modules` is not up to date.
+  * `error` - Throws an error if `node_modules` is not up to date.
+  * `false` - Disables dependency checks.
 
 ### Patch Changes
 
