@@ -165,7 +165,7 @@ const aliasToFullName = new Map<string, string>()
 const completionByCommandName: Record<string, CompletionFunc> = {}
 const shorthandsByCommandName: Record<string, Record<string, string | string[]>> = {}
 const rcOptionsTypes: Record<string, unknown> = {}
-const skipPackageManagerCheckForCommand = new Set<string>(['completion-server'])
+const skipPackageManagerCheckForCommandArray = ['completion-server']
 
 for (let i = 0; i < commands.length; i++) {
   const {
@@ -192,9 +192,7 @@ for (let i = 0; i < commands.length; i++) {
     Object.assign(rcOptionsTypes, rcOptionsTypes())
   }
   if (skipPackageManagerCheck) {
-    for (const commandName of commandNames) {
-      skipPackageManagerCheckForCommand.add(commandName)
-    }
+    skipPackageManagerCheckForCommandArray.push(...commandNames)
   }
   if (commandNames.length > 1) {
     const fullName = commandNames[0]
@@ -221,7 +219,7 @@ function initialCompletion (): Array<{ name: string }> {
 
 export const pnpmCmds = handlerByCommandName
 
-export { skipPackageManagerCheckForCommand }
+export const skipPackageManagerCheckForCommand = new Set(skipPackageManagerCheckForCommandArray)
 
 export function getCliOptionsTypes (commandName: string): Record<string, unknown> {
   return cliOptionsTypesByCommandName[commandName]?.() || {}
