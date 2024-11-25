@@ -25,7 +25,7 @@ const rootProjectManifest = {
   name: 'root',
   private: true,
   dependencies: {
-    '@pnpm.e2e/foo': '100.0.0',
+    'is-positive': '1.0.0',
   },
   scripts: {
     test: 'echo hello from script',
