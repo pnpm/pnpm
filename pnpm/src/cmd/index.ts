@@ -101,6 +101,10 @@ export interface CommandDefinition {
    * ```
    */
   shorthands?: Record<string, string | string[]>
+  /**
+   * If true, this command should not care about what package manager is specified in the "packageManager" field of "package.json".
+   */
+  skipPackageManagerCheck?: boolean
 }
 
 const commands: CommandDefinition[] = [
@@ -161,6 +165,7 @@ const aliasToFullName = new Map<string, string>()
 const completionByCommandName: Record<string, CompletionFunc> = {}
 const shorthandsByCommandName: Record<string, Record<string, string | string[]>> = {}
 const rcOptionsTypes: Record<string, unknown> = {}
+const skipPackageManagerCheckForCommandArray = ['completion-server']
 
 for (let i = 0; i < commands.length; i++) {
   const {
@@ -171,6 +176,7 @@ for (let i = 0; i < commands.length; i++) {
     help,
     rcOptionsTypes,
     shorthands,
+    skipPackageManagerCheck,
   } = commands[i]
   if (!commandNames || commandNames.length === 0) {
     throw new Error(`The command at index ${i} doesn't have command names`)
@@ -184,6 +190,9 @@ for (let i = 0; i < commands.length; i++) {
       completionByCommandName[commandName] = completion
     }
     Object.assign(rcOptionsTypes, rcOptionsTypes())
+  }
+  if (skipPackageManagerCheck) {
+    skipPackageManagerCheckForCommandArray.push(...commandNames)
   }
   if (commandNames.length > 1) {
     const fullName = commandNames[0]
@@ -209,6 +218,8 @@ function initialCompletion (): Array<{ name: string }> {
 }
 
 export const pnpmCmds = handlerByCommandName
+
+export const skipPackageManagerCheckForCommand = new Set(skipPackageManagerCheckForCommandArray)
 
 export function getCliOptionsTypes (commandName: string): Record<string, unknown> {
   return cliOptionsTypesByCommandName[commandName]?.() || {}

@@ -13,6 +13,8 @@ import renderHelp from 'render-help'
 export const PACKAGE_INFO_CLR = chalk.greenBright
 export const INDEX_PATH_CLR = chalk.hex('#078487')
 
+export const skipPackageManagerCheck = true
+
 export const commandNames = ['find-hash']
 
 export const rcOptionsTypes = cliOptionsTypes
