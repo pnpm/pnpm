@@ -67,8 +67,8 @@ catalogs:
       specifier: 3.0.0
       version: 3.0.0
     '@reflink/reflink':
-      specifier: 0.1.17
-      version: 0.1.17
+      specifier: 0.1.18
+      version: 0.1.18
     '@rushstack/worker-pool':
       specifier: 0.4.9
       version: 0.4.9
@@ -2778,7 +2778,7 @@ importers:
         version: link:../../store/store-controller-types
       '@reflink/reflink':
         specifier: 'catalog:'
-        version: 0.1.17
+        version: 0.1.18
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -9079,26 +9079,26 @@ packages:
     resolution: {integrity: sha512-JpiY/IoWFpIJxMUXv5Phxi+ft+Th3b2zffR/ml984SE++GwnrH9b47aqo998A8ffbLa6aaj8yQbErleMS/oy2g==}
     engines: {node: '>=18.12'}
 
-  '@reflink/reflink-darwin-arm64@0.1.17':
-    resolution: {integrity: sha512-ATlkKHl/9wFwZNezuUfHBGR5O4OpXs5ikD+3OKNOl+CzSPUY95ZSm3DyVUaTfGM5O7rCC1N7PXv/Q73uEdy/wA==}
+  '@reflink/reflink-darwin-arm64@0.1.18':
+    resolution: {integrity: sha512-R+wUp6riOR821I+pko9aqk6nMBV5a8cnOcKj5dVOGBk/A1g7VsnhQWvhUxcZ2kdlwPESHJJ/Q4bLlxXgbSaubw==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
 
-  '@reflink/reflink-win32-arm64-msvc@0.1.17':
-    resolution: {integrity: sha512-eB2+v47QmAH2XKVykWLevCLSnJG+xSszcUiqc3LReMI4oa1yyR1L5Pa/WHs18ac8mPq6lsgSovdVO2voZVLb8g==}
+  '@reflink/reflink-win32-arm64-msvc@0.1.18':
+    resolution: {integrity: sha512-9sr4rssysM8p8M2EYs5YF5liuWre3owCAEwdZ73KThTkDNsgUEMNaVWxMyucQrcU0Hm+jGPADx9MTGY4QpJmFg==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [win32]
 
-  '@reflink/reflink-win32-x64-msvc@0.1.17':
-    resolution: {integrity: sha512-S9mUCeVcty9vnekD9x5eSUvUqcTCha1Iscd0fN0PoXusj/IqaYcyMO9Vke9Qr/UFcKPQBFLj6F52b8PP3EaNsQ==}
+  '@reflink/reflink-win32-x64-msvc@0.1.18':
+    resolution: {integrity: sha512-FMtRXHnOqMJ1ZhGG+WY0+5e+9/ouYMgQ6ttZVJrZ1MHuWaO7QiykQ4qHztW+zqeAu/xIHfw+RZcW0uHolh67pg==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
 
-  '@reflink/reflink@0.1.17':
-    resolution: {integrity: sha512-+drVOToSW+6HouIpY0kFGC9DwETJJTBIS3UqUUxrR8C0bHRX93XYOgG6BEYqguOJA6+Qz0VfPt+CL3zSrsdjfg==}
+  '@reflink/reflink@0.1.18':
+    resolution: {integrity: sha512-p444sFAuJbMBlB9PG5WnwPaYJH8xmj9XXruPfvYVtlYjN1CzzAxqf1ofkdjoGPp1ukk+jYy78I7BKIlgrTbo2A==}
     engines: {node: '>= 10'}
 
   '@rtsao/scc@1.1.0':
@@ -15936,20 +15936,20 @@ snapshots:
       write-file-atomic: 5.0.1
       write-yaml-file: 5.0.0
 
-  '@reflink/reflink-darwin-arm64@0.1.17':
+  '@reflink/reflink-darwin-arm64@0.1.18':
     optional: true
 
-  '@reflink/reflink-win32-arm64-msvc@0.1.17':
+  '@reflink/reflink-win32-arm64-msvc@0.1.18':
     optional: true
 
-  '@reflink/reflink-win32-x64-msvc@0.1.17':
+  '@reflink/reflink-win32-x64-msvc@0.1.18':
     optional: true
 
-  '@reflink/reflink@0.1.17':
+  '@reflink/reflink@0.1.18':
     optionalDependencies:
-      '@reflink/reflink-darwin-arm64': 0.1.17
-      '@reflink/reflink-win32-arm64-msvc': 0.1.17
-      '@reflink/reflink-win32-x64-msvc': 0.1.17
+      '@reflink/reflink-darwin-arm64': 0.1.18
+      '@reflink/reflink-win32-arm64-msvc': 0.1.18
+      '@reflink/reflink-win32-x64-msvc': 0.1.18
 
   '@rtsao/scc@1.1.0': {}
 
