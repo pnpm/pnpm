@@ -1,3 +1,4 @@
+import path from 'path'
 import { sync as execSync } from 'execa'
 import { type VerifyDepsBeforeRun } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -5,7 +6,7 @@ import { globalWarn } from '@pnpm/logger'
 import { checkDepsStatus, type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { prompt } from 'enquirer'
 
-export type RunDepsStatusCheckOptions = CheckDepsStatusOptions & { verifyDepsBeforeRun?: VerifyDepsBeforeRun }
+export type RunDepsStatusCheckOptions = CheckDepsStatusOptions & { dir: string, verifyDepsBeforeRun?: VerifyDepsBeforeRun }
 
 export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Promise<void> {
   const { upToDate, issue } = await checkDepsStatus(opts)
@@ -38,9 +39,14 @@ Would you like to run "pnpm install" to update your "node_modules"?`,
   }
 
   function install () {
-    execSync('pnpm', ['install'], {
+    const execOpts = {
       cwd: opts.dir,
-      stdio: 'inherit',
-    })
+      stdio: 'inherit' as const,
+    }
+    if (path.basename(process.execPath) === 'pnpm') {
+      execSync(process.execPath, ['install'], execOpts)
+    } else {
+      execSync(process.execPath, [process.argv[1], 'install'], execOpts)
+    }
   }
 }
