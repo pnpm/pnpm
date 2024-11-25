@@ -1,11 +1,23 @@
 import path from 'path'
 import fs from 'fs'
+import { globalWarn } from '@pnpm/logger'
 import { type VerifyDepsBeforeRun } from '@pnpm/config'
-import {
-  run,
-} from '@pnpm/plugin-commands-script-runners'
+import { run } from '@pnpm/plugin-commands-script-runners'
 import { prepare } from '@pnpm/prepare'
+import { prompt } from 'enquirer'
 import { DEFAULT_OPTS } from './utils'
+
+jest.mock('@pnpm/logger', () => {
+  const originalModule = jest.requireActual('@pnpm/logger')
+  return {
+    ...originalModule,
+    globalWarn: jest.fn(),
+  }
+})
+
+jest.mock('enquirer', () => ({
+  prompt: jest.fn(),
+}))
 
 delete process.env['pnpm_run_skip_deps_check']
 
@@ -51,6 +63,37 @@ test('install the dependencies if verifyDepsBeforeRun is set to install', async 
   prepare(rootProjectManifest)
 
   await runTest('install')
+
+  expect(fs.existsSync(path.resolve('node_modules'))).toBeTruthy()
+})
+
+test('log a warning if verifyDepsBeforeRun is set to warn', async () => {
+  prepare(rootProjectManifest)
+
+  await runTest('warn')
+
+  expect(globalWarn).toHaveBeenCalledWith(
+    expect.stringContaining('Your node_modules are out of sync with your lockfile')
+  )
+  expect(fs.existsSync(path.resolve('node_modules'))).toBeFalsy()
+})
+
+test('prompt the user if verifyDepsBeforeRun is set to prompt', async () => {
+  prepare(rootProjectManifest)
+
+  // Mock the user confirming the prompt
+  ;(prompt as jest.Mock).mockResolvedValue({ runInstall: true })
+
+  await runTest('prompt')
+
+  expect(prompt).toHaveBeenCalledWith({
+    type: 'confirm',
+    name: 'runInstall',
+    message: expect.stringContaining(
+      'Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file'
+    ),
+    initial: true,
+  })
 
   expect(fs.existsSync(path.resolve('node_modules'))).toBeTruthy()
 })
