@@ -5,6 +5,8 @@ import { getShellFromParams } from './getShell'
 
 export const commandNames = ['completion']
 
+export const skipPackageManagerCheck = true
+
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
 
 export const cliOptionsTypes = (): Record<string, unknown> => ({})

@@ -25,7 +25,7 @@ import isEmpty from 'ramda/src/isEmpty'
 import stripAnsi from 'strip-ansi'
 import which from 'which'
 import { checkForUpdates } from './checkForUpdates'
-import { pnpmCmds, rcOptionsTypes } from './cmd'
+import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd'
 import { formatUnknownOptionsError } from './formatError'
 import { parseCliArgs } from './parseCliArgs'
 import { initReporter, type ReporterType } from './reporter'
@@ -109,7 +109,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
       if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm') {
         await switchCliVersion(config)
-      } else {
+      } else if (!cmd || !skipPackageManagerCheckForCommand.has(cmd)) {
         checkPackageManager(config.wantedPackageManager, config)
       }
     }

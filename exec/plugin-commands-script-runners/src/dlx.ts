@@ -16,6 +16,8 @@ import renderHelp from 'render-help'
 import symlinkDir from 'symlink-dir'
 import { makeEnv } from './makeEnv'
 
+export const skipPackageManagerCheck = true
+
 export const commandNames = ['dlx']
 
 export const shorthands: Record<string, string> = {

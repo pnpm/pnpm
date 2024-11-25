@@ -10,6 +10,8 @@ import renderHelp from 'render-help'
 
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
 
+export const skipPackageManagerCheck = true
+
 export const commandNames = ['cat-file']
 
 export const rcOptionsTypes = cliOptionsTypes
