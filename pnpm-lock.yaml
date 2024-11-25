@@ -2398,6 +2398,9 @@ importers:
       didyoumean2:
         specifier: 'catalog:'
         version: 6.0.1
+      enquirer:
+        specifier: 'catalog:'
+        version: 2.4.1
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.1.2

@@ -6,7 +6,7 @@ import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
 
-const CONFIG = ['--config.verify-deps-before-run=true'] as const
+const CONFIG = ['--config.verify-deps-before-run=error'] as const
 
 test('single dependency', async () => {
   const checkEnv = 'node --eval "assert.strictEqual(process.env.pnpm_run_skip_deps_check, \'true\')"'
@@ -62,7 +62,7 @@ test('single dependency', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
   // attempting to execute a script in a workspace package without installing dependencies should fail
   {
@@ -70,19 +70,19 @@ test('single dependency', async () => {
       cwd: projects.foo.dir(),
     })
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
   // attempting to execute a script recursively without installing dependencies should fail
   {
     const { status, stdout } = execPnpmSync([...CONFIG, '--recursive', 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
   // attempting to execute a script with filter without installing dependencies should fail
   {
     const { status, stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -250,7 +250,7 @@ test('single dependency', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_WORKSPACE_STRUCTURE_CHANGED')
+    expect(stdout.toString()).toContain('The workspace structure has changed since last install')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -334,7 +334,7 @@ test('multiple lockfiles', async () => {
   {
     const { status, stdout } = execPnpmSync([...config, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
   // attempting to execute a script in a workspace package without installing dependencies should fail
   {
@@ -342,19 +342,19 @@ test('multiple lockfiles', async () => {
       cwd: projects.foo.dir(),
     })
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
   // attempting to execute a script recursively without installing dependencies should fail
   {
     const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
   // attempting to execute a script with filter without installing dependencies should fail
   {
     const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
 
   await execPnpm([...config, 'install'])
@@ -517,7 +517,7 @@ test('multiple lockfiles', async () => {
   {
     const { status, stdout } = execPnpmSync([...config, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_WORKSPACE_STRUCTURE_CHANGED')
+    expect(stdout.toString()).toContain('The workspace structure has changed since last install')
   }
 
   await execPnpm([...config, 'install'])
@@ -593,7 +593,7 @@ test('filtered install', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
 
   await execPnpm([...CONFIG, '--filter=foo', 'install'])
@@ -663,7 +663,7 @@ test('no dependencies', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -743,7 +743,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, '--recursive', 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -840,7 +840,7 @@ test('should check for outdated catalogs', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -874,7 +874,7 @@ test('should check for outdated catalogs', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_OUTDATED')
+    expect(stdout.toString()).toContain('Catalogs cache outdated')
   }
 
   await execPnpm([...CONFIG, 'install'])

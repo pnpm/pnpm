@@ -41,7 +41,7 @@ import { loadWorkspaceState, updateWorkspaceState } from '@pnpm/workspace.state'
 import { assertLockfilesEqual } from './assertLockfilesEqual'
 import { statManifestFile } from './statManifestFile'
 
-export type CheckLockfilesUpToDateOptions = Pick<Config,
+export type CheckDepsStatusOptions = Pick<Config,
 | 'allProjects'
 | 'autoInstallPeers'
 | 'catalogs'
@@ -56,7 +56,21 @@ export type CheckLockfilesUpToDateOptions = Pick<Config,
 | 'workspaceDir'
 >
 
-export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOptions): Promise<void> {
+export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDate: boolean, issue?: string }> {
+  try {
+    return await _checkDepsStatus(opts)
+  } catch (error) {
+    if (util.types.isNativeError(error) && 'code' in error && error.code === 'ERR_PNPM_RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND') {
+      return {
+        upToDate: false,
+        issue: error.message,
+      }
+    }
+    throw error
+  }
+}
+
+async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDate: boolean, issue?: string }> {
   const {
     allProjects,
     autoInstallPeers,
@@ -76,25 +90,28 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
   if (allProjects && workspaceDir) {
     const workspaceState = loadWorkspaceState(workspaceDir)
     if (!workspaceState) {
-      throw new PnpmError('RUN_CHECK_DEPS_NO_CACHE', 'Cannot check whether dependencies are outdated', {
-        hint: 'Run `pnpm install` to create the cache',
-      })
+      return {
+        upToDate: false,
+        issue: 'Cannot check whether dependencies are outdated',
+      }
     }
 
     if (!equals(
       filter(value => value != null, workspaceState.catalogs ?? {}),
       filter(value => value != null, catalogs ?? {})
     )) {
-      throw new PnpmError('RUN_CHECK_DEPS_OUTDATED', 'Catalogs cache outdated', {
-        hint: 'Run `pnpm install` to update the catalogs cache',
-      })
+      return {
+        upToDate: false,
+        issue: 'Catalogs cache outdated',
+      }
     }
 
     const currentProjectRootDirs = allProjects.map(project => project.rootDir).sort()
     if (!equals(workspaceState.projectRootDirs, currentProjectRootDirs)) {
-      throw new PnpmError('RUN_CHECK_DEPS_WORKSPACE_STRUCTURE_CHANGED', 'The workspace structure has changed since last install', {
-        hint: 'Run `pnpm install` to update the workspace structure and dependencies tree',
-      })
+      return {
+        upToDate: false,
+        issue: 'The workspace structure has changed since last install',
+      }
     }
 
     const allManifestStats = await Promise.all(allProjects.map(async project => {
@@ -113,7 +130,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
 
     if (modifiedProjects.length === 0) {
       logger.debug({ msg: 'No manifest files were modified since the last validation. Exiting check.' })
-      return
+      return { upToDate: true }
     }
 
     logger.debug({ msg: 'Some manifest files were modified since the last validation. Continuing check.' })
@@ -203,7 +220,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       workspaceDir,
     })
 
-    return
+    return { upToDate: true }
   }
 
   if (!allProjects) {
@@ -214,7 +231,7 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
         patterns: workspaceManifest?.packages,
         sharedWorkspaceLockfile,
       })
-      return checkLockfilesUpToDate({
+      return checkDepsStatus({
         ...opts,
         allProjects,
       })
@@ -280,18 +297,19 @@ export async function checkLockfilesUpToDate (opts: CheckLockfilesUpToDateOption
       }
     }
 
-    return
+    return { upToDate: true }
   }
 
   // `opts.allProject` being `undefined` means that the run command was not run with `--recursive`.
   // `rootProjectManifest` being `undefined` means that there's no root manifest.
   // Both means that `pnpm run` would fail, so checking lockfiles here is pointless.
   globalWarn('Skipping check.')
+  return { upToDate: true }
 }
 
 interface AssertWantedLockfileUpToDateContext {
   autoInstallPeers?: boolean
-  config: CheckLockfilesUpToDateOptions
+  config: CheckDepsStatusOptions
   excludeLinksFromLockfile?: boolean
   linkWorkspacePackages: boolean | 'deep'
   getManifestsByDir: () => Record<string, DependencyManifest>

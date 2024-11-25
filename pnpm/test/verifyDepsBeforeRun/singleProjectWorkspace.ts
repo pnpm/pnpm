@@ -5,7 +5,7 @@ import { type ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
 
-const CONFIG = ['--config.verify-deps-before-run=true'] as const
+const CONFIG = ['--config.verify-deps-before-run=error'] as const
 
 test('single dependency', async () => {
   const manifest: ProjectManifest = {
@@ -26,7 +26,7 @@ test('single dependency', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND')
+    expect(stdout.toString()).toContain('Cannot find a lockfile in')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -122,7 +122,7 @@ test('deleting node_modules after install', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND')
+    expect(stdout.toString()).toContain('Cannot find a lockfile in')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -164,7 +164,7 @@ test('no dependencies', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND')
+    expect(stdout.toString()).toContain('Cannot find a lockfile in')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -220,7 +220,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND')
+    expect(stdout.toString()).toContain('Cannot find a lockfile in')
   }
 
   await execPnpm([...CONFIG, 'install'])

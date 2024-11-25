@@ -6,7 +6,7 @@ import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from '../utils'
 
-const CONFIG = ['--config.verify-deps-before-run=true'] as const
+const CONFIG = ['--config.verify-deps-before-run=error'] as const
 
 test('single package workspace', async () => {
   const manifest: ProjectManifest = {
@@ -25,7 +25,7 @@ test('single package workspace', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, ...EXEC])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND')
+    expect(stdout.toString()).toContain('Cannot find a lockfile')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -139,7 +139,7 @@ test('multi-project workspace', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, ...EXEC])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
   // attempting to execute a command in a workspace package without installing dependencies should fail
   {
@@ -147,19 +147,19 @@ test('multi-project workspace', async () => {
       cwd: projects.foo.dir(),
     })
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
   // attempting to execute a command recursively without installing dependencies should fail
   {
     const { status, stdout } = execPnpmSync([...CONFIG, '--recursive', ...EXEC])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
   // attempting to execute a command with filter without installing dependencies should fail
   {
     const { status, stdout } = execPnpmSync([...CONFIG, '--filter=foo', ...EXEC])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_CACHE')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -313,7 +313,7 @@ test('multi-project workspace', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, ...EXEC])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_WORKSPACE_STRUCTURE_CHANGED')
+    expect(stdout.toString()).toContain('The workspace structure has changed since last install')
   }
 
   await execPnpm([...CONFIG, 'install'])

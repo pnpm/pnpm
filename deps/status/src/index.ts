@@ -1,1 +1,1 @@
-export { type CheckLockfilesUpToDateOptions, checkLockfilesUpToDate } from './checkLockfilesUpToDate'
+export { type CheckDepsStatusOptions, checkDepsStatus } from './checkDepsStatus'

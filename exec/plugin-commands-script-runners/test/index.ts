@@ -28,6 +28,7 @@ test('pnpm run: returns correct exit code', async () => {
   })
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -39,6 +40,8 @@ test('pnpm run: returns correct exit code', async () => {
   let err!: Error & { errno: number }
   try {
     await run.handler({
+      ...DEFAULT_OPTS,
+      bail: true,
       bin: 'node_modules/.bin',
       dir: process.cwd(),
       extraBinPaths: [],
@@ -62,6 +65,7 @@ test('pnpm run --no-bail never fails', async () => {
   fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     bail: false,
     dir: process.cwd(),
@@ -89,6 +93,7 @@ test('run: pass the args to the command that is specified in the build script', 
   fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -113,6 +118,7 @@ test('run: pass the args to the command that is specified in the build script of
   fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -137,6 +143,7 @@ test('test: pass the args to the command that is specified in the build script o
   fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -161,6 +168,7 @@ test('run start: pass the args to the command that is specified in the build scr
   fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -185,6 +193,7 @@ test('run stop: pass the args to the command that is specified in the build scri
   fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -217,6 +226,7 @@ test('restart: run stop, restart and start', async () => {
   })
 
   await restart.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -252,6 +262,7 @@ test('restart: run stop, restart and start and all the pre/post scripts', async 
   })
 
   await restart.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     enablePrePostScripts: true,
@@ -283,6 +294,7 @@ test('"pnpm run" prints the list of available commands', async () => {
   })
 
   const output = await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -330,6 +342,7 @@ test('"pnpm run" prints the list of available commands, including commands of th
   {
     process.chdir('foo')
     const output = await run.handler({
+      ...DEFAULT_OPTS,
       allProjects,
       bin: 'node_modules/.bin',
       dir: process.cwd(),
@@ -359,6 +372,7 @@ Commands of the root workspace project (to run them, use "pnpm -w run"):
   {
     process.chdir('..')
     const output = await run.handler({
+      ...DEFAULT_OPTS,
       bin: 'node_modules/.bin',
       allProjects,
       dir: process.cwd(),
@@ -385,6 +399,7 @@ test('pnpm run does not fail with --if-present even if the wanted script is not 
   prepare({})
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -454,6 +469,7 @@ test('scripts work with PnP', async () => {
     },
   })
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -490,6 +506,7 @@ skipOnWindows('pnpm run with custom shell', async () => {
   ])
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -521,6 +538,8 @@ onlyOnWindows('pnpm shows error if script-shell is .cmd', async () => {
 
   async function runScript () {
     await run.handler({
+      ...DEFAULT_OPTS,
+      bail: true,
       bin: 'node_modules/.bin',
       dir: process.cwd(),
       extraBinPaths: [],
@@ -551,6 +570,7 @@ test('pnpm run with RegExp script selector should work', async () => {
   })
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -577,6 +597,7 @@ test('pnpm run with RegExp script selector should work also for pre/post script'
   })
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -602,6 +623,7 @@ test('pnpm run with RegExp script selector should work parallel as a default beh
   })
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -628,6 +650,7 @@ test('pnpm run with RegExp script selector should work sequentially with --works
   })
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -657,6 +680,7 @@ test.each(['d', 'g', 'i', 'm', 'u', 'v', 'y', 's'])('pnpm run with RegExp script
   let err!: Error
   try {
     await run.handler({
+      ...DEFAULT_OPTS,
       bin: 'node_modules/.bin',
       dir: process.cwd(),
       extraBinPaths: [],
@@ -680,6 +704,7 @@ test('pnpm run with slightly incorrect command suggests correct one', async () =
 
   // cspell:ignore buil
   await expect(run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -701,6 +726,7 @@ test('pnpm run with custom node-options', async () => {
   })
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -720,6 +746,7 @@ test('pnpm run without node version', async () => {
   })
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
@@ -743,6 +770,7 @@ test('pnpm run with node version', async () => {
   })
 
   await run.handler({
+    ...DEFAULT_OPTS,
     bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],

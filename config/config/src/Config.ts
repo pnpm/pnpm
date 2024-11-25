@@ -15,6 +15,8 @@ export interface WantedPackageManager {
   version?: string
 }
 
+export type VerifyDepsBeforeRun = 'install' | 'warn' | 'error' | 'prompt' | false
+
 export interface Config {
   allProjects?: Project[]
   selectedProjectsGraph?: ProjectsGraph
@@ -38,7 +40,7 @@ export interface Config {
   global?: boolean
   dir: string
   bin: string
-  verifyDepsBeforeRun?: boolean
+  verifyDepsBeforeRun?: VerifyDepsBeforeRun
   ignoreDepScripts?: boolean
   ignoreScripts?: boolean
   ignoreCompatibilityDb?: boolean

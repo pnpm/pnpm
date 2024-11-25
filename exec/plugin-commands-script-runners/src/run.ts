@@ -9,8 +9,8 @@ import { type CompletionFunc } from '@pnpm/command'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
-import { type CheckLockfilesUpToDateOptions, checkLockfilesUpToDate } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
+import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import {
   runLifecycleHook,
   makeNodeRequireOption,
@@ -25,6 +25,7 @@ import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
 import { DISABLE_DEPS_CHECK_ENV, shouldRunCheck } from './shouldRunCheck'
+import { runDepsStatusCheck } from './runDepsStatusCheck'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,
@@ -184,10 +185,7 @@ export type RunOpts =
     }
     fallbackCommandUsed?: boolean
   }
-  & (
-    | { verifyDepsBeforeRun?: false }
-    | { verifyDepsBeforeRun: true } & CheckLockfilesUpToDateOptions
-  )
+  & CheckDepsStatusOptions
 
 export async function handler (
   opts: RunOpts,
@@ -202,7 +200,7 @@ export async function handler (
   // verifyDepsBeforeRun is outside of shouldRunCheck because TypeScript's tagged union
   // only works when the tag is directly placed in the condition.
   if (opts.verifyDepsBeforeRun && shouldRunCheck(process.env, scriptName)) {
-    await checkLockfilesUpToDate(opts)
+    await runDepsStatusCheck(opts)
   }
 
   if (opts.recursive) {
