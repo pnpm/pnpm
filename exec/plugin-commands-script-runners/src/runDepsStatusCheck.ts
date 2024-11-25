@@ -45,7 +45,7 @@ Would you like to run "pnpm install" to update your "node_modules"?`,
     }
     if (path.basename(process.execPath) === 'pnpm') {
       execSync(process.execPath, ['install'], execOpts)
-    } else if (['pnpm.cjs', 'pd.js'].includes(path.basename(process.argv[1]))) {
+    } else if (path.basename(process.argv[1]) === 'pnpm.cjs') {
       execSync(process.execPath, [process.argv[1], 'install'], execOpts)
     } else {
       execSync('pnpm', ['install'], execOpts)
