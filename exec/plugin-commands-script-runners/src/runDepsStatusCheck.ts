@@ -1,7 +1,7 @@
+import { sync as execSync } from 'execa'
 import { type VerifyDepsBeforeRun } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
-import { install } from '@pnpm/plugin-commands-installation'
 import { checkDepsStatus, type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { prompt } from 'enquirer'
 
@@ -12,7 +12,7 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
   if (upToDate) return
   switch (opts.verifyDepsBeforeRun) {
   case 'install':
-    await install.handler(opts as unknown as install.InstallCommandOptions)
+    install()
     break
   case 'prompt': {
     const confirmed = await prompt<{ runInstall: boolean }>({
@@ -24,7 +24,7 @@ Would you like to run "pnpm install" to update your "node_modules"?`,
       initial: true,
     })
     if (confirmed.runInstall) {
-      await install.handler(opts as unknown as install.InstallCommandOptions)
+      install()
     }
     break
   }
@@ -35,5 +35,12 @@ Would you like to run "pnpm install" to update your "node_modules"?`,
   case 'warn':
     globalWarn(`Your node_modules are out of sync with your lockfile. ${issue}`)
     break
+  }
+
+  function install () {
+    execSync('pnpm', ['install'], {
+      cwd: opts.dir,
+      stdio: 'inherit',
+    })
   }
 }
