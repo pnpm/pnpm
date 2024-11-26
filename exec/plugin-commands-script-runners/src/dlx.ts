@@ -2,6 +2,8 @@ import fs, { type Stats } from 'fs'
 import path from 'path'
 import util from 'util'
 import { docsUrl } from '@pnpm/cli-utils'
+import { createResolver } from '@pnpm/client'
+import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
 import { createHexHash } from '@pnpm/crypto.hash'
@@ -9,6 +11,7 @@ import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
+import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import execa from 'execa'
 import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
@@ -73,7 +76,22 @@ export async function handler (
   [command, ...args]: string[]
 ): Promise<{ exitCode: number }> {
   const pkgs = opts.package ?? [command]
-  const { cacheLink, cacheExists, cachedDir } = findCache(pkgs, {
+  const { resolve } = createResolver({
+    ...opts,
+    authConfig: opts.rawConfig,
+  })
+  const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {
+    const { alias, pref } = parseWantedDependency(pkg) || {}
+    if (alias == null) return pkg
+    const resolved = await resolve({ alias, pref }, {
+      lockfileDir: opts.lockfileDir ?? opts.dir,
+      preferredVersions: {},
+      projectDir: opts.dir,
+      registry: pickRegistryForPackage(opts.registries, alias, pref),
+    })
+    return resolved.id
+  }))
+  const { cacheLink, cacheExists, cachedDir } = findCache(resolvedPkgs, {
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
     registries: opts.registries,
@@ -92,7 +110,7 @@ export async function handler (
       saveDev: false,
       saveOptional: false,
       savePeer: false,
-    }, pkgs)
+    }, resolvedPkgs)
     try {
       await symlinkDir(cachedDir, cacheLink, { overwrite: true })
     } catch (error) {

@@ -28,6 +28,9 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
       "path": "../../crypto/hash"
     },
     {
@@ -49,7 +52,13 @@
       "path": "../../packages/logger"
     },
     {
+      "path": "../../packages/parse-wanted-dependency"
+    },
+    {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manager/client"
     },
     {
       "path": "../../pkg-manager/package-bins"
