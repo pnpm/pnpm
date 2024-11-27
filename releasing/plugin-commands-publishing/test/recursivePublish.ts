@@ -1,6 +1,6 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { streamParser } from '@pnpm/logger'
 import { publish } from '@pnpm/plugin-commands-publishing'
 import { preparePackages } from '@pnpm/prepare'
@@ -9,7 +9,7 @@ import { type ProjectManifest } from '@pnpm/types'
 import execa from 'execa'
 import crossSpawn from 'cross-spawn'
 import loadJsonFile from 'load-json-file'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS, checkPkgExists } from './utils'
 
 const CREDENTIALS = `\
 registry=http://localhost:${REGISTRY_MOCK_PORT}/
@@ -70,11 +70,11 @@ test('recursive publish', async () => {
     },
   ])
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     dryRun: true,
     recursive: true,
@@ -92,25 +92,19 @@ test('recursive publish', async () => {
   process.env.npm_config_userconfig = path.join('.npmrc')
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
   }, [])
 
-  {
-    const { stdout } = await execa('npm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    expect(JSON.parse(stdout.toString())).toStrictEqual(pkg1.version)
-  }
-  {
-    const { stdout } = await execa('npm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    expect(JSON.parse(stdout.toString())).toStrictEqual(pkg2.version)
-  }
+  await checkPkgExists(pkg1.name, pkg1.version)
+  await checkPkgExists(pkg2.name, pkg2.version)
 
-  await projects[pkg1.name].writePackageJson({ ...pkg1, version: '2.0.0' })
+  projects[pkg1.name].writePackageJson({ ...pkg1, version: '2.0.0' })
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     tag: 'next',
@@ -154,21 +148,21 @@ test('print info when no packages are published', async () => {
     },
   ])
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
   const reporter = jest.fn()
   streamParser.on('data', reporter)
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     dryRun: true,
     recursive: true,
   }, [])
 
   streamParser.removeListener('data', reporter)
-  expect(reporter).toBeCalledWith(expect.objectContaining({
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     level: 'info',
     message: 'There are no new packages that should be published',
     name: 'pnpm',
@@ -189,18 +183,18 @@ test('packages are released even if their current version is published, when for
     },
   ])
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     force: true,
     dir: process.cwd(),
     dryRun: true,
     recursive: true,
   }, [])
 
-  const manifest = await loadJsonFile<ProjectManifest>('is-positive/package.json')
+  const manifest = loadJsonFile.sync<ProjectManifest>('is-positive/package.json')
   expect(manifest.version).toBe('4.0.0')
 })
 
@@ -252,33 +246,33 @@ test('recursive publish writes publish summary', async () => {
     },
   ])
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
 
   process.env.npm_config_userconfig = path.join('.npmrc')
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     reportSummary: true,
   }, [])
 
   {
-    const publishSummary = await loadJsonFile('pnpm-publish-summary.json')
+    const publishSummary = loadJsonFile.sync('pnpm-publish-summary.json')
     expect(publishSummary).toMatchSnapshot()
-    await fs.unlink('pnpm-publish-summary.json')
+    fs.unlinkSync('pnpm-publish-summary.json')
   }
 
   await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     reportSummary: true,
   }, [])
 
   {
-    const publishSummary = await loadJsonFile('pnpm-publish-summary.json')
+    const publishSummary = loadJsonFile.sync('pnpm-publish-summary.json')
     expect(publishSummary).toStrictEqual({
       publishedPackages: [],
     })
@@ -298,15 +292,69 @@ test('when publish some package throws an error, exit code should be non-zero', 
   ])
 
   // Throw ENEEDAUTH error when publish.
-  await fs.writeFile('.npmrc', 'registry=https://__fake_npm_registry__.com', 'utf8')
+  fs.writeFileSync('.npmrc', 'registry=https://__fake_npm_registry__.com', 'utf8')
 
   const result = await publish.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     force: true,
   }, [])
 
   expect(result?.exitCode).toBe(1)
+})
+
+test('recursive publish runs script with Node.js version specified by pnpm.executionEnv.nodeVersion', async () => {
+  preparePackages([
+    {
+      name: 'test-publish-node-version-unset',
+      version: '1.0.0',
+      scripts: {
+        prepublishOnly: 'node -v > node-version.txt',
+      },
+    },
+    {
+      name: 'test-publish-node-version-18',
+      version: '1.0.0',
+      scripts: {
+        prepublishOnly: 'node -v > node-version.txt',
+      },
+      pnpm: {
+        executionEnv: {
+          nodeVersion: '18.0.0',
+        },
+      },
+    },
+    {
+      name: 'test-publish-node-version-20',
+      version: '1.0.0',
+      scripts: {
+        prepublishOnly: 'node -v > node-version.txt',
+      },
+      pnpm: {
+        executionEnv: {
+          nodeVersion: '20.0.0',
+        },
+      },
+    },
+  ])
+
+  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await filterPackagesFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    dryRun: true,
+    pnpmHomeDir: process.cwd(),
+    recursive: true,
+  }, [])
+
+  expect(
+    ['unset', '18', '20']
+      .map(suffix => `test-publish-node-version-${suffix}`)
+      .map(name => path.resolve(name, 'node-version.txt'))
+      .map(nodeVersionFile => fs.readFileSync(nodeVersionFile, 'utf-8').trim())
+  ).toStrictEqual([process.version, 'v18.0.0', 'v20.0.0'])
 })

@@ -12,12 +12,12 @@ import { createFuseHandlers } from './createFuseHandlers'
     cliOptions: {},
     packageManager: { name: '', version: '' },
   })
-  const cafsDir = path.join(await getStorePath({
+  const storeDir = await getStorePath({
     pkgRoot: process.cwd(),
     storePath: config.storeDir,
     pnpmHomeDir: config.pnpmHomeDir,
-  }), 'files')
-  const fuse = new Fuse(mnt, await createFuseHandlers(process.cwd(), cafsDir), { debug: true })
+  })
+  const fuse = new Fuse(mnt, await createFuseHandlers(process.cwd(), storeDir), { debug: true })
   fuse.mount(function (err?: Error) {
     if (err != null) console.error(err)
   })

@@ -1,22 +1,25 @@
 import path from 'path'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   readCurrentLockfile,
   readWantedLockfile,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import { createMatcher } from '@pnpm/matcher'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
   type IncludedDependencies,
   type ProjectManifest,
+  type ProjectRootDir,
 } from '@pnpm/types'
 import unnest from 'ramda/src/unnest'
 import { createManifestGetter, type ManifestGetterOptions } from './createManifestGetter'
 import { outdated, type OutdatedPackage } from './outdated'
 
 export async function outdatedDepsOfProjects (
-  pkgs: Array<{ dir: string, manifest: ProjectManifest }>,
+  pkgs: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>,
   args: string[],
   opts: Omit<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'> & {
+    catalogs?: Catalogs
     compatible?: boolean
     ignoreDependencies?: string[]
     include: IncludedDependencies
@@ -25,7 +28,7 @@ export async function outdatedDepsOfProjects (
   if (!opts.lockfileDir) {
     return unnest(await Promise.all(
       pkgs.map(async (pkg) =>
-        outdatedDepsOfProjects([pkg], args, { ...opts, lockfileDir: pkg.dir })
+        outdatedDepsOfProjects([pkg], args, { ...opts, lockfileDir: pkg.rootDir })
       )
     ))
   }
@@ -39,9 +42,10 @@ export async function outdatedDepsOfProjects (
     fullMetadata: opts.fullMetadata === true,
     lockfileDir,
   })
-  return Promise.all(pkgs.map(async ({ dir, manifest }) => {
+  return Promise.all(pkgs.map(async ({ rootDir, manifest }): Promise<OutdatedPackage[]> => {
     const match = (args.length > 0) && createMatcher(args) || undefined
     return outdated({
+      catalogs: opts.catalogs,
       compatible: opts.compatible,
       currentLockfile,
       getLatestManifest,
@@ -50,7 +54,7 @@ export async function outdatedDepsOfProjects (
       lockfileDir,
       manifest,
       match,
-      prefix: dir,
+      prefix: rootDir,
       registries: opts.registries,
       wantedLockfile,
     })

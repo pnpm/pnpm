@@ -1,37 +1,39 @@
+// cspell:ignore haspeer
 import path from 'path'
 import { lockfileToPackageRegistry } from '@pnpm/lockfile-to-pnp'
+import { type DepPath, type ProjectId } from '@pnpm/types'
 
 test('lockfileToPackageRegistry', () => {
   const packageRegistry = lockfileToPackageRegistry({
     importers: {
-      importer1: {
+      ['importer1' as ProjectId]: {
         dependencies: {
           dep1: '1.0.0',
-          dep2: '/foo/2.0.0',
+          dep2: 'foo@2.0.0',
         },
         optionalDependencies: {
           qar: '2.0.0',
         },
         specifiers: {},
       },
-      importer2: {
+      ['importer2' as ProjectId]: {
         devDependencies: {
           importer1: 'link:../importer1',
         },
         specifiers: {},
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: '5',
     packages: {
-      '/dep1/1.0.0': {
+      ['dep1@1.0.0' as DepPath]: {
         dependencies: {
-          dep2: '/foo/2.0.0',
+          dep2: 'foo@2.0.0',
         },
         resolution: {
           integrity: '',
         },
       },
-      '/foo/2.0.0': {
+      ['foo@2.0.0' as DepPath]: {
         dependencies: {
           qar: '3.0.0',
         },
@@ -39,12 +41,12 @@ test('lockfileToPackageRegistry', () => {
           integrity: '',
         },
       },
-      '/qar/2.0.0': {
+      ['qar@2.0.0' as DepPath]: {
         resolution: {
           integrity: '',
         },
       },
-      '/qar/3.0.0': {
+      ['qar@3.0.0' as DepPath]: {
         resolution: {
           integrity: '',
         },
@@ -60,6 +62,7 @@ test('lockfileToPackageRegistry', () => {
       default: 'https://registry.npmjs.org/',
     },
     virtualStoreDir: path.resolve('node_modules/.pnpm'),
+    virtualStoreDirMaxLength: 120,
   })
 
   const actual = Array.from(
@@ -175,17 +178,17 @@ test('lockfileToPackageRegistry', () => {
 test('lockfileToPackageRegistry packages that have peer deps', () => {
   const packageRegistry = lockfileToPackageRegistry({
     importers: {
-      importer: {
+      ['importer' as ProjectId]: {
         dependencies: {
-          haspeer: '2.0.0_peer@1.0.0',
+          haspeer: '2.0.0(peer@1.0.0)',
           peer: '1.0.0',
         },
         specifiers: {},
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: '5',
     packages: {
-      '/haspeer/2.0.0_peer@1.0.0': {
+      ['haspeer@2.0.0(peer@1.0.0)' as DepPath]: {
         dependencies: {
           peer: '1.0.0',
         },
@@ -196,7 +199,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
           integrity: '',
         },
       },
-      '/peer/1.0.0': {
+      ['peer@1.0.0' as DepPath]: {
         resolution: {
           integrity: '',
         },
@@ -211,6 +214,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
       default: 'https://registry.npmjs.org/',
     },
     virtualStoreDir: path.resolve('node_modules/.pnpm'),
+    virtualStoreDirMaxLength: 120,
   })
 
   const actual = Array.from(
@@ -243,7 +247,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
           {
             packageDependencies: [
               ['importer', 'importer'],
-              ['haspeer', 'virtual:2.0.0_peer@1.0.0#2.0.0'],
+              ['haspeer', 'virtual:2.0.0(peer@1.0.0)#2.0.0'],
               ['peer', '1.0.0'],
             ],
             packageLocation: './importer',
@@ -255,10 +259,10 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
       'haspeer',
       [
         [
-          'virtual:2.0.0_peer@1.0.0#2.0.0',
+          'virtual:2.0.0(peer@1.0.0)#2.0.0',
           {
             packageDependencies: [
-              ['haspeer', 'virtual:2.0.0_peer@1.0.0#2.0.0'],
+              ['haspeer', 'virtual:2.0.0(peer@1.0.0)#2.0.0'],
               ['peer', '1.0.0'],
             ],
             packageLocation: './node_modules/.pnpm/haspeer@2.0.0_peer@1.0.0/node_modules/haspeer',

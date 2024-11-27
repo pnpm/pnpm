@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config",
-  "version": "18.4.2",
+  "version": "21.8.5",
   "description": "Gets configuration options for pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -19,12 +19,12 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/config/config",
   "keywords": [
-    "pnpm8",
+    "pnpm10",
     "pnpm",
     "config"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "license": "MIT",
   "bugs": {
@@ -32,40 +32,46 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/config/config#readme",
   "dependencies": {
-    "@pnpm/config.env-replace": "1.1.0",
+    "@pnpm/catalogs.config": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/config.env-replace": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
     "@pnpm/matcher": "workspace:*",
-    "@pnpm/npm-conf": "2.2.2",
+    "@pnpm/npm-conf": "catalog:",
     "@pnpm/pnpmfile": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "better-path-resolve": "1.0.0",
-    "camelcase": "^6.3.0",
-    "camelcase-keys": "^6.2.2",
-    "can-write-to-dir": "^1.1.1",
-    "is-subdir": "^1.2.0",
-    "is-windows": "^1.0.2",
-    "normalize-registry-url": "2.0.0",
-    "path-absolute": "^1.0.1",
-    "path-name": "^1.0.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "read-ini-file": "4.0.0",
-    "realpath-missing": "^1.1.0",
-    "which": "^3.0.1"
+    "@pnpm/workspace.read-manifest": "workspace:*",
+    "better-path-resolve": "catalog:",
+    "camelcase": "catalog:",
+    "camelcase-keys": "catalog:",
+    "can-write-to-dir": "catalog:",
+    "is-subdir": "catalog:",
+    "is-windows": "catalog:",
+    "normalize-registry-url": "catalog:",
+    "path-absolute": "catalog:",
+    "path-name": "catalog:",
+    "ramda": "catalog:",
+    "read-ini-file": "catalog:",
+    "realpath-missing": "catalog:",
+    "which": "catalog:"
   },
   "devDependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/is-windows": "^1.0.0",
-    "@types/ramda": "0.28.20",
-    "@types/which": "^2.0.2",
-    "symlink-dir": "^5.1.1"
+    "@types/is-windows": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/which": "catalog:",
+    "symlink-dir": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

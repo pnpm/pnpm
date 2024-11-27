@@ -29,12 +29,13 @@ test('overrides are added for vulnerable dependencies', async () => {
     userConfig: {},
     rawConfig,
     registries,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   })
 
   expect(exitCode).toBe(0)
   expect(output).toMatch(/Run "pnpm install"/)
 
-  const manifest = await loadJsonFile<ProjectManifest>(path.join(tmp, 'package.json'))
+  const manifest = loadJsonFile.sync<ProjectManifest>(path.join(tmp, 'package.json'))
   expect(manifest.pnpm?.overrides?.['axios@<=0.18.0']).toBe('>=0.18.1')
   expect(manifest.pnpm?.overrides?.['sync-exec@>=0.0.0']).toBeFalsy()
 })
@@ -53,6 +54,7 @@ test('no overrides are added if no vulnerabilities are found', async () => {
     userConfig: {},
     rawConfig,
     registries,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   })
 
   expect(exitCode).toBe(0)
@@ -88,11 +90,12 @@ test('CVEs found in the allow list are not added as overrides', async () => {
     userConfig: {},
     rawConfig,
     registries,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   })
   expect(exitCode).toBe(0)
   expect(output).toMatch(/Run "pnpm install"/)
 
-  const manifest = await loadJsonFile<ProjectManifest>(path.join(tmp, 'package.json'))
+  const manifest = loadJsonFile.sync<ProjectManifest>(path.join(tmp, 'package.json'))
   expect(manifest.pnpm?.overrides?.['axios@<=0.18.0']).toBeFalsy()
   expect(manifest.pnpm?.overrides?.['axios@<0.21.1']).toBeFalsy()
   expect(manifest.pnpm?.overrides?.['minimist@<0.2.1']).toBeFalsy()

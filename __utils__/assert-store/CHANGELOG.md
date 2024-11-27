@@ -1,5 +1,199 @@
 # @pnpm/assert-store
 
+## 1.0.92
+
+### Patch Changes
+
+- Updated dependencies [a1f4df2]
+  - @pnpm/store.cafs@4.0.2
+
+## 1.0.91
+
+### Patch Changes
+
+- Updated dependencies [db7ff76]
+  - @pnpm/store.cafs@4.0.1
+
+## 1.0.90
+
+### Patch Changes
+
+- Updated dependencies [db420ab]
+  - @pnpm/store.cafs@4.0.0
+
+## 1.0.89
+
+### Patch Changes
+
+- @pnpm/store.cafs@3.0.8
+
+## 1.0.88
+
+### Patch Changes
+
+- @pnpm/store.cafs@3.0.7
+
+## 1.0.87
+
+### Patch Changes
+
+- @pnpm/store.cafs@3.0.6
+
+## 1.0.86
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+
+## 1.0.85
+
+### Patch Changes
+
+- @pnpm/store.cafs@3.0.4
+
+## 1.0.84
+
+### Patch Changes
+
+- @pnpm/store.cafs@3.0.3
+
+## 1.0.83
+
+### Patch Changes
+
+- @pnpm/store.cafs@3.0.2
+
+## 1.0.82
+
+### Patch Changes
+
+- @pnpm/store.cafs@3.0.1
+
+## 1.0.81
+
+### Patch Changes
+
+- Updated dependencies [43cdd87]
+- Updated dependencies [6cdbf11]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [730929e]
+  - @pnpm/store.cafs@3.0.0
+
+## 1.0.80
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.12
+
+## 1.0.79
+
+### Patch Changes
+
+- Updated dependencies [33313d2fd]
+  - @pnpm/store.cafs@2.0.11
+
+## 1.0.78
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.10
+
+## 1.0.77
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.9
+
+## 1.0.76
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.8
+
+## 1.0.75
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.7
+
+## 1.0.74
+
+### Patch Changes
+
+- Updated dependencies [01bc58e2c]
+  - @pnpm/store.cafs@2.0.6
+
+## 1.0.73
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.5
+
+## 1.0.72
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.4
+
+## 1.0.71
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.3
+
+## 1.0.70
+
+### Patch Changes
+
+- Updated dependencies [b3947185c]
+  - @pnpm/store.cafs@2.0.2
+
+## 1.0.69
+
+### Patch Changes
+
+- Updated dependencies [b548f2f43]
+  - @pnpm/store.cafs@2.0.1
+
+## 1.0.68
+
+### Patch Changes
+
+- Updated dependencies [0fd9e6a6c]
+- Updated dependencies [083bbf590]
+  - @pnpm/store.cafs@2.0.0
+
+## 1.0.67
+
+### Patch Changes
+
+- Updated dependencies [73f2b6826]
+  - @pnpm/store.cafs@1.0.2
+
+## 1.0.66
+
+### Patch Changes
+
+- Updated dependencies [fe1c5f48d]
+  - @pnpm/store.cafs@1.0.1
+
+## 1.0.65
+
+### Patch Changes
+
+- Updated dependencies [4bbf482d1]
+  - @pnpm/store.cafs@1.0.0
+
+## 1.0.64
+
+### Patch Changes
+
+- Updated dependencies [250f7e9fe]
+- Updated dependencies [e958707b2]
+  - @pnpm/cafs@7.0.5
+
 ## 1.0.63
 
 ### Patch Changes

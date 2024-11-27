@@ -62,11 +62,11 @@ async function linkDirectDepsAndDedupe (
   return linkedDeps
 }
 
-function omitDepsFromRoot (deps: LinkedDirectDep[], pkgsLinkedToRoot: string[]) {
+function omitDepsFromRoot (deps: LinkedDirectDep[], pkgsLinkedToRoot: string[]): LinkedDirectDep[] {
   return deps.filter(({ dir }) => !pkgsLinkedToRoot.some(pathsEqual.bind(null, dir)))
 }
 
-function pathsEqual (path1: string, path2: string) {
+function pathsEqual (path1: string, path2: string): boolean {
   return path.relative(path1, path2) === ''
 }
 
@@ -83,7 +83,7 @@ async function deletePkgsPresentInRoot (
 ): Promise<boolean> {
   const pkgsLinkedToCurrentProject = await readLinkedDepsWithRealLocations(modulesDir)
   const pkgsToDelete = pkgsLinkedToCurrentProject
-    .filter(({ linkedFrom }) => pkgsLinkedToRoot.some(pathsEqual.bind(null, linkedFrom)))
+    .filter(({ linkedFrom, linkedTo }) => linkedFrom !== linkedTo && pkgsLinkedToRoot.some(pathsEqual.bind(null, linkedFrom)))
   await Promise.all(pkgsToDelete.map(({ linkedTo }) => fs.promises.unlink(linkedTo)))
   return pkgsToDelete.length === pkgsLinkedToCurrentProject.length
 }
@@ -99,7 +99,7 @@ async function readLinkedDepsWithRealLocations (modulesDir: string) {
   }))
 }
 
-async function resolveLinkTargetOrFile (filePath: string) {
+async function resolveLinkTargetOrFile (filePath: string): Promise<string> {
   try {
     return await resolveLinkTarget(filePath)
   } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any

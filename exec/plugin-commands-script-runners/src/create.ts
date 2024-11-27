@@ -7,7 +7,7 @@ import * as dlx from './dlx'
 
 export const commandNames = ['create']
 
-export async function handler (_opts: dlx.DlxCommandOptions, params: string[]) {
+export async function handler (_opts: dlx.DlxCommandOptions, params: string[]): Promise<{ exitCode: number }> {
   const [packageName, ...packageArgs] = params
   if (packageName === undefined) {
     throw new PnpmError(
@@ -22,7 +22,7 @@ export async function handler (_opts: dlx.DlxCommandOptions, params: string[]) {
   return dlx.handler(_opts, [createPackageName, ...packageArgs])
 }
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'use-node-version',
@@ -30,13 +30,13 @@ export function rcOptionsTypes () {
   }
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
   }
 }
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Creates a project from a `create-*` starter kit.',
     url: docsUrl('create'),
@@ -55,27 +55,36 @@ const CREATE_PREFIX = 'create-'
  * for create-* packages.
  *
  * Example:
- *   - `foo`      -> `create-foo`
- *   - `@usr/foo` -> `@usr/create-foo`
- *   - `@usr`     -> `@usr/create`
+ *   - `foo`            -> `create-foo`
+ *   - `@usr/foo`       -> `@usr/create-foo`
+ *   - `@usr`           -> `@usr/create`
+ *   - `@usr@2.0.0`     -> `@usr/create@2.0.0`
+ *   - `@usr/foo@2.0.0` -> `@usr/create-foo@2.0.0`
+ *   - `@usr@latest`    -> `@user/create@latest`
  *
- * For more info, see https://docs.npmjs.com/cli/v7/commands/npm-init#description
+ * For more info, see https://docs.npmjs.com/cli/v9/commands/npm-init#description
  */
-function convertToCreateName (packageName: string) {
-  if (packageName.startsWith('@')) {
+function convertToCreateName (packageName: string): string {
+  if (packageName[0] === '@') {
+    const preferredVersionPosition = packageName.indexOf('@', 1)
+    let preferredVersion = ''
+    if (preferredVersionPosition > -1) {
+      preferredVersion = packageName.substring(preferredVersionPosition)
+      packageName = packageName.substring(0, preferredVersionPosition)
+    }
     const [scope, scopedPackage = ''] = packageName.split('/')
 
     if (scopedPackage === '') {
-      return `${scope}/create`
+      return `${scope}/create${preferredVersion}`
     } else {
-      return `${scope}/${ensureCreatePrefixed(scopedPackage)}`
+      return `${scope}/${ensureCreatePrefixed(scopedPackage)}${preferredVersion}`
     }
   } else {
     return ensureCreatePrefixed(packageName)
   }
 }
 
-function ensureCreatePrefixed (packageName: string) {
+function ensureCreatePrefixed (packageName: string): string {
   if (packageName.startsWith(CREATE_PREFIX)) {
     return packageName
   } else {

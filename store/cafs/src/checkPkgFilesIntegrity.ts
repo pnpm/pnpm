@@ -1,14 +1,12 @@
-import { promises as fs } from 'fs'
-import type { DeferredManifestPromise, PackageFileInfo } from '@pnpm/cafs-types'
+import fs from 'fs'
+import util from 'util'
+import { type PackageFiles, type PackageFileInfo, type SideEffects } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
+import { type DependencyManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
-import pLimit from 'p-limit'
 import ssri from 'ssri'
 import { getFilePathByModeInCafs } from './getFilePathInCafs'
-import { parseJsonBuffer } from './parseJson'
-
-const limit = pLimit(20)
-const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
+import { parseJsonBufferSync } from './parseJson'
 
 // We track how many files were checked during installation.
 // It should be rare that a files content should be checked.
@@ -17,6 +15,11 @@ const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
 // @ts-expect-error
 global['verifiedFileIntegrity'] = 0
 
+export interface VerifyResult {
+  passed: boolean
+  manifest?: DependencyManifest
+}
+
 export interface PackageFilesIndex {
   // name and version are nullable for backward compatibility
   // the initial specs of pnpm store v3 did not require these fields.
@@ -24,140 +27,142 @@ export interface PackageFilesIndex {
   // have the name/version fields, like the local tarball dependencies.
   name?: string
   version?: string
+  requiresBuild?: boolean
 
-  files: Record<string, PackageFileInfo>
-  sideEffects?: Record<string, Record<string, PackageFileInfo>>
+  files: PackageFiles
+  sideEffects?: SideEffects
 }
 
-export async function checkPkgFilesIntegrity (
-  cafsDir: string,
+export function checkPkgFilesIntegrity (
+  storeDir: string,
   pkgIndex: PackageFilesIndex,
-  manifest?: DeferredManifestPromise
-) {
+  readManifest?: boolean
+): VerifyResult {
   // It might make sense to use this cache for all files in the store
   // but there's a smaller chance that the same file will be checked twice
   // so it's probably not worth the memory (this assumption should be verified)
   const verifiedFilesCache = new Set<string>()
-  const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, cafsDir)
-  const verified = await _checkFilesIntegrity(pkgIndex.files, manifest)
-  if (!verified) return false
+  const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir)
+  const verified = _checkFilesIntegrity(pkgIndex.files, readManifest)
+  if (!verified) return { passed: false }
   if (pkgIndex.sideEffects) {
     // We verify all side effects cache. We could optimize it to verify only the side effects cache
     // that satisfies the current os/arch/platform.
     // However, it likely won't make a big difference.
-    await Promise.all(
-      Object.entries(pkgIndex.sideEffects).map(async ([sideEffectName, files]) => {
-        if (!await _checkFilesIntegrity(files)) {
+    for (const [sideEffectName, { added }] of Object.entries(pkgIndex.sideEffects)) {
+      if (added) {
+        const { passed } = _checkFilesIntegrity(added)
+        if (!passed) {
           delete pkgIndex.sideEffects![sideEffectName]
         }
-      })
-    )
+      }
+    }
   }
-  return true
+  return verified
 }
 
-async function checkFilesIntegrity (
+function checkFilesIntegrity (
   verifiedFilesCache: Set<string>,
-  cafsDir: string,
-  files: Record<string, PackageFileInfo>,
-  manifest?: DeferredManifestPromise
-): Promise<boolean> {
+  storeDir: string,
+  files: PackageFiles,
+  readManifest?: boolean
+): VerifyResult {
   let allVerified = true
-  await Promise.all(
-    Object.entries(files)
-      .map(async ([f, fstat]) =>
-        limit(async () => {
-          if (!fstat.integrity) {
-            throw new Error(`Integrity checksum is missing for ${f}`)
-          }
-          const filename = getFilePathByModeInCafs(cafsDir, fstat.integrity, fstat.mode)
-          const deferredManifest = manifest && f === 'package.json' ? manifest : undefined
-          if (!deferredManifest && verifiedFilesCache.has(filename)) return
-          if (await verifyFile(filename, fstat, deferredManifest)) {
-            verifiedFilesCache.add(filename)
-          } else {
-            allVerified = false
-          }
-        })
-      )
-  )
-  if (manifest && !files['package.json']) {
-    manifest.resolve(undefined)
+  let manifest: DependencyManifest | undefined
+  for (const [f, fstat] of Object.entries(files)) {
+    if (!fstat.integrity) {
+      throw new Error(`Integrity checksum is missing for ${f}`)
+    }
+    const filename = getFilePathByModeInCafs(storeDir, fstat.integrity, fstat.mode)
+    const readFile = readManifest && f === 'package.json'
+    if (!readFile && verifiedFilesCache.has(filename)) continue
+    const verifyResult = verifyFile(filename, fstat, readFile)
+    if (readFile) {
+      manifest = verifyResult.manifest
+    }
+    if (verifyResult.passed) {
+      verifiedFilesCache.add(filename)
+    } else {
+      allVerified = false
+    }
   }
-  return allVerified
+  return {
+    passed: allVerified,
+    manifest,
+  }
 }
 
 type FileInfo = Pick<PackageFileInfo, 'size' | 'checkedAt'> & {
   integrity: string | ssri.IntegrityLike
 }
 
-async function verifyFile (
+function verifyFile (
   filename: string,
   fstat: FileInfo,
-  deferredManifest?: DeferredManifestPromise
-): Promise<boolean> {
-  const currentFile = await checkFile(filename, fstat.checkedAt)
-  if (currentFile == null) return false
+  readManifest?: boolean
+): VerifyResult {
+  const currentFile = checkFile(filename, fstat.checkedAt)
+  if (currentFile == null) return { passed: false }
   if (currentFile.isModified) {
     if (currentFile.size !== fstat.size) {
-      await rimraf(filename)
-      return false
+      rimraf.sync(filename)
+      return { passed: false }
     }
-    return verifyFileIntegrity(filename, fstat, deferredManifest)
+    return verifyFileIntegrity(filename, fstat, readManifest)
   }
-  if (deferredManifest != null) {
-    parseJsonBuffer(await gfs.readFile(filename), deferredManifest)
+  if (readManifest) {
+    return {
+      passed: true,
+      manifest: parseJsonBufferSync(gfs.readFileSync(filename)) as DependencyManifest,
+    }
   }
   // If a file was not edited, we are skipping integrity check.
   // We assume that nobody will manually remove a file in the store and create a new one.
-  return true
+  return { passed: true }
 }
 
-export async function verifyFileIntegrity (
+export function verifyFileIntegrity (
   filename: string,
   expectedFile: FileInfo,
-  deferredManifest?: DeferredManifestPromise
-) {
+  readManifest?: boolean
+): VerifyResult {
   // @ts-expect-error
   global['verifiedFileIntegrity']++
   try {
-    if (expectedFile.size > MAX_BULK_SIZE && (deferredManifest == null)) {
-      const ok = Boolean(await ssri.checkStream(gfs.createReadStream(filename), expectedFile.integrity))
-      if (!ok) {
-        await rimraf(filename)
+    const data = gfs.readFileSync(filename)
+    const passed = Boolean(ssri.checkData(data, expectedFile.integrity))
+    if (!passed) {
+      gfs.unlinkSync(filename)
+      return { passed }
+    } else if (readManifest) {
+      return {
+        passed,
+        manifest: parseJsonBufferSync(data) as DependencyManifest,
       }
-      return ok
     }
-    const data = await gfs.readFile(filename)
-    const ok = Boolean(ssri.checkData(data, expectedFile.integrity))
-    if (!ok) {
-      await rimraf(filename)
-    } else if (deferredManifest != null) {
-      parseJsonBuffer(data, deferredManifest)
-    }
-    return ok
-  } catch (err: any) { // eslint-disable-line
-    switch (err.code) {
-    case 'ENOENT': return false
+    return { passed }
+  } catch (err: unknown) {
+    switch (util.types.isNativeError(err) && 'code' in err && err.code) {
+    case 'ENOENT': return { passed: false }
     case 'EINTEGRITY': {
       // Broken files are removed from the store
-      await rimraf(filename)
-      return false
+      gfs.unlinkSync(filename)
+      return { passed: false }
     }
     }
     throw err
   }
 }
 
-async function checkFile (filename: string, checkedAt?: number) {
+function checkFile (filename: string, checkedAt?: number): { isModified: boolean, size: number } | null {
   try {
-    const { mtimeMs, size } = await fs.stat(filename)
+    const { mtimeMs, size } = fs.statSync(filename)
     return {
       isModified: (mtimeMs - (checkedAt ?? 0)) > 100,
       size,
     }
-  } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') return null
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return null
     throw err
   }
 }

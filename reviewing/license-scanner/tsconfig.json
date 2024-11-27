@@ -16,16 +16,19 @@
       "path": "../../fetching/directory-fetcher"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/detect-dep-types"
     },
     {
-      "path": "../../lockfile/lockfile-types"
+      "path": "../../lockfile/fs"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/types"
     },
     {
-      "path": "../../lockfile/lockfile-walker"
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../lockfile/walker"
     },
     {
       "path": "../../packages/constants"
@@ -37,6 +40,9 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {
@@ -45,6 +51,5 @@
     {
       "path": "../../store/cafs"
     }
-  ],
-  "composite": true
+  ]
 }

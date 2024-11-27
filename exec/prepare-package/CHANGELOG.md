@@ -1,5 +1,294 @@
 # @pnpm/prepare-package
 
+## 6.0.14
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+- @pnpm/lifecycle@17.1.5
+- @pnpm/read-package-json@9.0.9
+
+## 6.0.13
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/lifecycle@17.1.4
+  - @pnpm/read-package-json@9.0.8
+
+## 6.0.12
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/lifecycle@17.1.3
+  - @pnpm/read-package-json@9.0.7
+
+## 6.0.11
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/lifecycle@17.1.2
+  - @pnpm/read-package-json@9.0.6
+
+## 6.0.10
+
+### Patch Changes
+
+- Updated dependencies [9899576]
+  - @pnpm/lifecycle@17.1.1
+
+## 6.0.9
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/lifecycle@17.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/read-package-json@9.0.5
+
+## 6.0.8
+
+### Patch Changes
+
+- @pnpm/lifecycle@17.0.8
+
+## 6.0.7
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/lifecycle@17.0.7
+  - @pnpm/read-package-json@9.0.4
+
+## 6.0.6
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/lifecycle@17.0.6
+  - @pnpm/read-package-json@9.0.3
+
+## 6.0.5
+
+### Patch Changes
+
+- @pnpm/lifecycle@17.0.5
+
+## 6.0.4
+
+### Patch Changes
+
+- @pnpm/lifecycle@17.0.4
+
+## 6.0.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/lifecycle@17.0.3
+  - @pnpm/read-package-json@9.0.2
+
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/lifecycle@17.0.2
+  - @pnpm/read-package-json@9.0.1
+
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [bfadc0a]
+  - @pnpm/lifecycle@17.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- b13d2dc: It is now possible to install only a subdirectory from a Git repository.
+
+  For example, `pnpm add github:user/repo#path:packages/foo` will add a dependency from the `packages/foo` subdirectory.
+
+  This new parameter may be combined with other supported parameters separated by `&`. For instance, the next command will install the same package from the `dev` branch: `pnpm add github:user/repo#dev&path:packages/bar`.
+
+  Related issue: [#4765](https://github.com/pnpm/pnpm/issues/4765).
+  Related PR: [#7487](https://github.com/pnpm/pnpm/pull/7487).
+
+### Patch Changes
+
+- 167ac4d: When building git-hosted dependencies, use the package manager required by the project [#7850](https://github.com/pnpm/pnpm/issues/7850).
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [82aac81]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/read-package-json@9.0.0
+  - @pnpm/lifecycle@17.0.0
+
+## 5.0.24
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.12
+
+## 5.0.23
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.11
+
+## 5.0.22
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/read-package-json@8.0.7
+
+## 5.0.21
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/lifecycle@16.0.9
+  - @pnpm/read-package-json@8.0.6
+
+## 5.0.20
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.8
+
+## 5.0.19
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.7
+
+## 5.0.18
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.6
+
+## 5.0.17
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.5
+
+## 5.0.16
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/lifecycle@16.0.4
+  - @pnpm/read-package-json@8.0.5
+
+## 5.0.15
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.3
+
+## 5.0.14
+
+### Patch Changes
+
+- Updated dependencies [84f81c9ae]
+  - @pnpm/lifecycle@16.0.2
+
+## 5.0.13
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/lifecycle@16.0.1
+  - @pnpm/read-package-json@8.0.4
+
+## 5.0.12
+
+### Patch Changes
+
+- 17d2ddb05: Don't run the `prepublishOnly` scripts of git-hosted dependencies [#7026](https://github.com/pnpm/pnpm/issues/7026).
+
+## 5.0.11
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/lifecycle@16.0.0
+
+## 5.0.10
+
+### Patch Changes
+
+- @pnpm/lifecycle@15.0.9
+
+## 5.0.9
+
+### Patch Changes
+
+- @pnpm/lifecycle@15.0.8
+
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies [e9aa6f682]
+  - @pnpm/lifecycle@15.0.7
+
+## 5.0.7
+
+### Patch Changes
+
+- Updated dependencies [692197df3]
+  - @pnpm/lifecycle@15.0.6
+
+## 5.0.6
+
+### Patch Changes
+
+- 8452bb2d5: The "postpublish" script of a git-hosted dependency is not executed, while building the dependency [#6822](https://github.com/pnpm/pnpm/issues/6846).
+  - @pnpm/lifecycle@15.0.5
+
+## 5.0.5
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+  - @pnpm/lifecycle@15.0.5
+  - @pnpm/read-package-json@8.0.3
+
+## 5.0.4
+
+### Patch Changes
+
+- @pnpm/lifecycle@15.0.4
+
 ## 5.0.3
 
 ### Patch Changes

@@ -13,19 +13,22 @@
       "path": "../../fs/read-modules-dir"
     },
     {
-      "path": "../../lockfile/filter-lockfile"
+      "path": "../../lockfile/filtering"
     },
     {
-      "path": "../../lockfile/lockfile-types"
+      "path": "../../lockfile/types"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../packages/core-loggers"
     },
     {
       "path": "../../packages/dependency-path"
+    },
+    {
+      "path": "../../packages/logger"
     },
     {
       "path": "../../packages/types"
@@ -36,6 +39,5 @@
     {
       "path": "../remove-bins"
     }
-  ],
-  "composite": true
+  ]
 }

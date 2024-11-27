@@ -1,5 +1,773 @@
 # @pnpm/plugin-commands-deploy
 
+## 5.1.31
+
+### Patch Changes
+
+- Updated dependencies [6014522]
+  - @pnpm/plugin-commands-installation@17.2.7
+  - @pnpm/cli-utils@4.0.7
+  - @pnpm/fs.indexed-pkg-importer@6.0.9
+  - @pnpm/directory-fetcher@8.0.9
+
+## 5.1.30
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.2.6
+- @pnpm/cli-utils@4.0.6
+- @pnpm/fs.indexed-pkg-importer@6.0.9
+- @pnpm/directory-fetcher@8.0.9
+
+## 5.1.29
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.2.5
+
+## 5.1.28
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+  - @pnpm/plugin-commands-installation@17.2.4
+  - @pnpm/error@6.0.2
+  - @pnpm/cli-utils@4.0.6
+  - @pnpm/catalogs.resolver@0.1.1
+  - @pnpm/fs.indexed-pkg-importer@6.0.9
+  - @pnpm/directory-fetcher@8.0.9
+
+## 5.1.27
+
+### Patch Changes
+
+- ad1fd64: Fix a regression in which `pnpm deploy` with `node-linker=hoisted` produces an empty `node_modules` directory [#6682](https://github.com/pnpm/pnpm/issues/6682).
+- eeb76cd: `pnpm deploy` should work in workspace with `shared-workspace-lockfile=false` [#8475](https://github.com/pnpm/pnpm/issues/8475).
+- Updated dependencies [ad1fd64]
+- Updated dependencies [eeb76cd]
+  - @pnpm/plugin-commands-installation@17.2.3
+
+## 5.1.26
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/cli-utils@4.0.5
+  - @pnpm/directory-fetcher@8.0.8
+  - @pnpm/plugin-commands-installation@17.2.2
+  - @pnpm/fs.indexed-pkg-importer@6.0.9
+
+## 5.1.25
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.2.1
+
+## 5.1.24
+
+### Patch Changes
+
+- 7ee59a1: `pnpm deploy` should write the `node_modules/.modules.yaml` to the `node_modules` directory within the deploy directory [#7731](https://github.com/pnpm/pnpm/issues/7731).
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/plugin-commands-installation@17.2.0
+  - @pnpm/cli-utils@4.0.4
+  - @pnpm/directory-fetcher@8.0.7
+  - @pnpm/fs.indexed-pkg-importer@6.0.8
+
+## 5.1.23
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.1.1
+
+## 5.1.22
+
+### Patch Changes
+
+- Updated dependencies [eb8bf2a]
+  - @pnpm/plugin-commands-installation@17.1.0
+  - @pnpm/cli-utils@4.0.3
+
+## 5.1.21
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.2
+- @pnpm/plugin-commands-installation@17.0.7
+
+## 5.1.20
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.0.6
+
+## 5.1.19
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.0.5
+
+## 5.1.18
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.1
+- @pnpm/plugin-commands-installation@17.0.4
+
+## 5.1.17
+
+### Patch Changes
+
+- Updated dependencies [26b065c]
+  - @pnpm/cli-utils@4.0.0
+  - @pnpm/plugin-commands-installation@17.0.3
+
+## 5.1.16
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+- Updated dependencies [98c8bd6]
+  - @pnpm/types@12.0.0
+  - @pnpm/cli-utils@3.1.7
+  - @pnpm/plugin-commands-installation@17.0.2
+  - @pnpm/directory-fetcher@8.0.6
+  - @pnpm/fs.indexed-pkg-importer@6.0.7
+
+## 5.1.15
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.0.1
+- @pnpm/cli-utils@3.1.6
+- @pnpm/fs.indexed-pkg-importer@6.0.6
+- @pnpm/directory-fetcher@8.0.5
+
+## 5.1.14
+
+### Patch Changes
+
+- 1e4dd79: The `pnpm deploy` command now supports the [`catalog:` protocol](https://pnpm.io/catalogs).
+- Updated dependencies [1e4dd79]
+- Updated dependencies [0ef168b]
+  - @pnpm/plugin-commands-installation@17.0.0
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/directory-fetcher@8.0.5
+  - @pnpm/fs.indexed-pkg-importer@6.0.6
+
+## 5.1.13
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/fs.indexed-pkg-importer@6.0.5
+  - @pnpm/plugin-commands-installation@16.0.1
+  - @pnpm/cli-utils@3.1.4
+  - @pnpm/directory-fetcher@8.0.4
+
+## 5.1.12
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+- Updated dependencies [84654bd]
+  - @pnpm/plugin-commands-installation@16.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/directory-fetcher@8.0.4
+  - @pnpm/fs.indexed-pkg-importer@6.0.4
+
+## 5.1.11
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/plugin-commands-installation@15.1.11
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/directory-fetcher@8.0.3
+  - @pnpm/fs.indexed-pkg-importer@6.0.3
+
+## 5.1.10
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.10
+- @pnpm/cli-utils@3.1.1
+- @pnpm/fs.indexed-pkg-importer@6.0.2
+- @pnpm/directory-fetcher@8.0.2
+
+## 5.1.9
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/plugin-commands-installation@15.1.9
+
+## 5.1.8
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.8
+
+## 5.1.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.7
+
+## 5.1.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.6
+
+## 5.1.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.5
+- @pnpm/fs.indexed-pkg-importer@6.0.2
+- @pnpm/cli-utils@3.0.7
+- @pnpm/directory-fetcher@8.0.2
+
+## 5.1.4
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/directory-fetcher@8.0.2
+  - @pnpm/plugin-commands-installation@15.1.4
+  - @pnpm/fs.indexed-pkg-importer@6.0.1
+
+## 5.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/plugin-commands-installation@15.1.3
+  - @pnpm/directory-fetcher@8.0.1
+
+## 5.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+- @pnpm/plugin-commands-installation@15.1.2
+
+## 5.1.1
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.1.1
+
+## 5.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/plugin-commands-installation@15.1.0
+  - @pnpm/cli-utils@3.0.3
+  - @pnpm/fs.indexed-pkg-importer@6.0.0
+  - @pnpm/directory-fetcher@8.0.0
+
+## 5.0.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.7
+
+## 5.0.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.6
+
+## 5.0.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.5
+
+## 5.0.4
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+  - @pnpm/plugin-commands-installation@15.0.4
+
+## 5.0.3
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.3
+
+## 5.0.2
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@15.0.2
+
+## 5.0.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.1
+- @pnpm/plugin-commands-installation@15.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [3477ee5]
+- Updated dependencies [d4e13ca]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/plugin-commands-installation@15.0.0
+  - @pnpm/common-cli-options-help@2.0.0
+  - @pnpm/directory-fetcher@8.0.0
+  - @pnpm/fs.indexed-pkg-importer@6.0.0
+  - @pnpm/cli-utils@3.0.0
+  - @pnpm/fs.is-empty-dir-or-nothing@2.0.0
+
+## 4.0.20
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+- Updated dependencies [e2e08b98f]
+- Updated dependencies [f43bdcf45]
+- Updated dependencies [df9b16aa9]
+  - @pnpm/plugin-commands-installation@14.2.0
+  - @pnpm/fs.indexed-pkg-importer@5.0.13
+  - @pnpm/directory-fetcher@7.0.11
+  - @pnpm/cli-utils@2.1.9
+
+## 4.0.19
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@7.0.10
+- @pnpm/plugin-commands-installation@14.1.3
+
+## 4.0.18
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.1.2
+- @pnpm/cli-utils@2.1.8
+- @pnpm/fs.indexed-pkg-importer@5.0.12
+- @pnpm/directory-fetcher@7.0.9
+
+## 4.0.17
+
+### Patch Changes
+
+- Updated dependencies [19be6b704]
+  - @pnpm/fs.indexed-pkg-importer@5.0.12
+  - @pnpm/plugin-commands-installation@14.1.1
+
+## 4.0.16
+
+### Patch Changes
+
+- 693944b66: `pnpm deploy` should not touch the target directory if it already exists and isn't empty [#7351](https://github.com/pnpm/pnpm/issues/7351).
+- Updated dependencies [064aeb681]
+- Updated dependencies [693944b66]
+  - @pnpm/plugin-commands-installation@14.1.0
+  - @pnpm/fs.is-empty-dir-or-nothing@1.0.0
+  - @pnpm/cli-utils@2.1.7
+
+## 4.0.15
+
+### Patch Changes
+
+- Updated dependencies [619e9ed6f]
+- Updated dependencies [4e71066dd]
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/plugin-commands-installation@14.0.15
+  - @pnpm/common-cli-options-help@1.1.0
+  - @pnpm/fs.indexed-pkg-importer@5.0.11
+  - @pnpm/types@9.4.2
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/directory-fetcher@7.0.9
+
+## 4.0.14
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/plugin-commands-installation@14.0.14
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/directory-fetcher@7.0.8
+  - @pnpm/fs.indexed-pkg-importer@5.0.10
+
+## 4.0.13
+
+### Patch Changes
+
+- Updated dependencies [418866ac0]
+  - @pnpm/fs.indexed-pkg-importer@5.0.9
+  - @pnpm/plugin-commands-installation@14.0.13
+
+## 4.0.12
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.12
+
+## 4.0.11
+
+### Patch Changes
+
+- Updated dependencies [6558d1865]
+  - @pnpm/plugin-commands-installation@14.0.11
+  - @pnpm/cli-utils@2.1.4
+
+## 4.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+- @pnpm/plugin-commands-installation@14.0.10
+
+## 4.0.9
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.9
+
+## 4.0.8
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.8
+
+## 4.0.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.7
+
+## 4.0.6
+
+### Patch Changes
+
+- @pnpm/fs.indexed-pkg-importer@5.0.8
+- @pnpm/plugin-commands-installation@14.0.6
+- @pnpm/directory-fetcher@7.0.7
+- @pnpm/cli-utils@2.1.2
+
+## 4.0.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.5
+
+## 4.0.4
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@7.0.6
+- @pnpm/plugin-commands-installation@14.0.4
+
+## 4.0.3
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@7.0.5
+- @pnpm/plugin-commands-installation@14.0.3
+- @pnpm/fs.indexed-pkg-importer@5.0.7
+- @pnpm/cli-utils@2.1.1
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [500363647]
+  - @pnpm/directory-fetcher@7.0.4
+  - @pnpm/plugin-commands-installation@14.0.2
+
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.1
+
+## 4.0.0
+
+### Major Changes
+
+- d6592964f: `rootProjectManifestDir` is a required field.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d6592964f]
+- Updated dependencies [d6592964f]
+  - @pnpm/types@9.4.0
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/plugin-commands-installation@14.0.0
+  - @pnpm/fs.indexed-pkg-importer@5.0.6
+  - @pnpm/directory-fetcher@7.0.3
+
+## 3.1.15
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.2.6
+
+## 3.1.14
+
+### Patch Changes
+
+- Updated dependencies [2ca756fd2]
+  - @pnpm/fs.indexed-pkg-importer@5.0.5
+  - @pnpm/plugin-commands-installation@13.2.5
+
+## 3.1.13
+
+### Patch Changes
+
+- Updated dependencies [bc83798d4]
+- Updated dependencies [46dc34dcc]
+- Updated dependencies [6dfbca86b]
+  - @pnpm/plugin-commands-installation@13.2.4
+  - @pnpm/fs.indexed-pkg-importer@5.0.4
+  - @pnpm/cli-utils@2.0.24
+  - @pnpm/directory-fetcher@7.0.2
+
+## 3.1.12
+
+### Patch Changes
+
+- Updated dependencies [e19de6a59]
+  - @pnpm/fs.indexed-pkg-importer@5.0.3
+  - @pnpm/plugin-commands-installation@13.2.3
+
+## 3.1.11
+
+### Patch Changes
+
+- Updated dependencies [6337dcdbc]
+  - @pnpm/fs.indexed-pkg-importer@5.0.2
+  - @pnpm/plugin-commands-installation@13.2.2
+
+## 3.1.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.23
+- @pnpm/plugin-commands-installation@13.2.1
+
+## 3.1.9
+
+### Patch Changes
+
+- Updated dependencies [ee6e0734e]
+- Updated dependencies [12f45a83d]
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/fs.indexed-pkg-importer@5.0.1
+  - @pnpm/plugin-commands-installation@13.2.0
+  - @pnpm/types@9.3.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/directory-fetcher@7.0.2
+
+## 3.1.8
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.8
+
+## 3.1.7
+
+### Patch Changes
+
+- Updated dependencies [ba48fe0bc]
+  - @pnpm/plugin-commands-installation@13.1.7
+  - @pnpm/cli-utils@2.0.21
+
+## 3.1.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.6
+- @pnpm/cli-utils@2.0.20
+
+## 3.1.5
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/fs.indexed-pkg-importer@5.0.0
+  - @pnpm/plugin-commands-installation@13.1.5
+  - @pnpm/cli-utils@2.0.19
+  - @pnpm/directory-fetcher@7.0.1
+
+## 3.1.4
+
+### Patch Changes
+
+- Updated dependencies [cb6e4212c]
+  - @pnpm/fs.indexed-pkg-importer@4.1.1
+  - @pnpm/plugin-commands-installation@13.1.4
+
+## 3.1.3
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/fs.indexed-pkg-importer@4.1.0
+  - @pnpm/plugin-commands-installation@13.1.3
+  - @pnpm/cli-utils@2.0.18
+  - @pnpm/directory-fetcher@7.0.0
+
+## 3.1.2
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.2
+- @pnpm/fs.indexed-pkg-importer@4.0.1
+- @pnpm/directory-fetcher@7.0.0
+
+## 3.1.1
+
+### Patch Changes
+
+- d92070876: Reverting a change shipped in v8.7 that caused issues with the `pnpm deploy` command and "injected dependencies" [#6943](https://github.com/pnpm/pnpm/pull/6943).
+- Updated dependencies [4a1a9431d]
+- Updated dependencies [d92070876]
+  - @pnpm/directory-fetcher@7.0.0
+  - @pnpm/plugin-commands-installation@13.1.1
+  - @pnpm/fs.indexed-pkg-importer@4.0.1
+  - @pnpm/cli-utils@2.0.17
+
+## 3.1.0
+
+### Minor Changes
+
+- d57e4de6d: Apply `publishConfig` for workspace packages on directory fetch. Enables a publishable ("exportable") `package.json` on deployment [#6693](https://github.com/pnpm/pnpm/issues/6693).
+
+### Patch Changes
+
+- Updated dependencies [ef3609049]
+- Updated dependencies [e0474bc4c]
+- Updated dependencies [d57e4de6d]
+- Updated dependencies [f2009d175]
+- Updated dependencies [bf21c9bf3]
+- Updated dependencies [81e5ada3a]
+  - @pnpm/plugin-commands-installation@13.1.0
+  - @pnpm/directory-fetcher@6.1.0
+  - @pnpm/fs.indexed-pkg-importer@4.0.0
+  - @pnpm/cli-utils@2.0.16
+
+## 3.0.31
+
+### Patch Changes
+
+- Updated dependencies [12b0f0976]
+  - @pnpm/plugin-commands-installation@13.0.25
+  - @pnpm/cli-utils@2.0.15
+
+## 3.0.30
+
+### Patch Changes
+
+- 78d43a862: Always set `dedupe-peer-dependents` to `false`, when running installation during deploy [#6858](https://github.com/pnpm/pnpm/issues/6858).
+- Updated dependencies [78d43a862]
+  - @pnpm/plugin-commands-installation@13.0.24
+
+## 3.0.29
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.14
+- @pnpm/plugin-commands-installation@13.0.23
+
+## 3.0.28
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.0.22
+- @pnpm/fs.indexed-pkg-importer@3.0.2
+- @pnpm/directory-fetcher@6.0.4
+
+## 3.0.27
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.0.21
+- @pnpm/fs.indexed-pkg-importer@3.0.2
+- @pnpm/directory-fetcher@6.0.4
+
+## 3.0.26
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.0.20
+- @pnpm/fs.indexed-pkg-importer@3.0.2
+- @pnpm/directory-fetcher@6.0.4
+
+## 3.0.25
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.0.19
+
+## 3.0.24
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+- Updated dependencies [e958707b2]
+  - @pnpm/types@9.2.0
+  - @pnpm/fs.indexed-pkg-importer@3.0.2
+  - @pnpm/cli-utils@2.0.13
+  - @pnpm/plugin-commands-installation@13.0.18
+  - @pnpm/directory-fetcher@6.0.4
+
+## 3.0.23
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.0.17
+
+## 3.0.22
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.12
+- @pnpm/directory-fetcher@6.0.3
+- @pnpm/plugin-commands-installation@13.0.16
+
 ## 3.0.21
 
 ### Patch Changes

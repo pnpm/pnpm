@@ -16,11 +16,13 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../find-packages"
     },
     {
       "path": "../pkgs-graph"
     }
-  ],
-  "composite": true
+  ]
 }

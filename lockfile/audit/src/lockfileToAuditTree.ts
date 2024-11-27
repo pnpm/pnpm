@@ -1,8 +1,9 @@
 import path from 'path'
-import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
-import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
-import { type DependenciesField } from '@pnpm/types'
+import { type Lockfile, type TarballResolution } from '@pnpm/lockfile.types'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
+import { detectDepTypes, type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
+import { type DependenciesField, type ProjectId } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import mapValues from 'ramda/src/map'
 
@@ -28,11 +29,12 @@ export async function lockfileToAuditTree (
     lockfileDir: string
   }
 ): Promise<AuditTree> {
-  const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, Object.keys(lockfile.importers), { include: opts?.include })
+  const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, Object.keys(lockfile.importers) as ProjectId[], { include: opts?.include })
   const dependencies: Record<string, AuditNode> = {}
+  const depTypes = detectDepTypes(lockfile)
   await Promise.all(
     importerWalkers.map(async (importerWalker) => {
-      const importerDeps = lockfileToAuditNode(importerWalker.step)
+      const importerDeps = lockfileToAuditNode(depTypes, importerWalker.step)
       // For some reason the registry responds with 500 if the keys in dependencies have slashes
       // see issue: https://github.com/pnpm/pnpm/issues/2848
       const depName = importerWalker.importerId.replace(/\//g, '__')
@@ -60,13 +62,13 @@ export async function lockfileToAuditTree (
   return auditTree
 }
 
-function lockfileToAuditNode (step: LockfileWalkerStep): Record<string, AuditNode> {
+function lockfileToAuditNode (depTypes: DepTypes, step: LockfileWalkerStep): Record<string, AuditNode> {
   const dependencies: Record<string, AuditNode> = {}
   for (const { depPath, pkgSnapshot, next } of step.dependencies) {
     const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-    const subdeps = lockfileToAuditNode(next())
+    const subdeps = lockfileToAuditNode(depTypes, next())
     const dep: AuditNode = {
-      dev: pkgSnapshot.dev === true,
+      dev: depTypes[depPath] === DepType.DevOnly,
       integrity: (pkgSnapshot.resolution as TarballResolution).integrity,
       version,
     }

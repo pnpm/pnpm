@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/dependency-path",
-  "version": "2.1.2",
+  "version": "5.1.7",
   "description": "Utilities for working with symlinked node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -17,13 +17,13 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/packages/dependency-path",
   "keywords": [
-    "pnpm8",
+    "pnpm10",
     "node_modules",
     "pnpm",
     "path"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "license": "MIT",
   "bugs": {
@@ -31,17 +31,19 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/dependency-path#readme",
   "dependencies": {
-    "@pnpm/crypto.base32-hash": "workspace:*",
+    "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "encode-registry": "^3.0.0",
-    "semver": "^7.5.3"
+    "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/dependency-path": "workspace:*",
-    "@types/semver": "7.3.13"
+    "@types/semver": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

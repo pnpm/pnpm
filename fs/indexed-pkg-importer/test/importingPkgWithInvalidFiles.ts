@@ -1,19 +1,19 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { prepareEmpty } from '@pnpm/prepare'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 
-test('importing a package with invalid files', async () => {
+test('importing a package with invalid files', () => {
   prepareEmpty()
   const importPackage = createIndexedPkgImporter('copy')
   const target = path.resolve('target')
-  await importPackage(target, {
+  importPackage(target, {
     filesMap: {
       'foo?bar/qar>zoo.txt': __filename,
       '1*2.txt': __filename,
     },
     force: false,
-    fromStore: false,
+    resolvedFrom: 'remote',
   })
-  expect((await fs.readdir(target)).length).toBe(2)
+  expect((fs.readdirSync(target)).length).toBe(2)
 })

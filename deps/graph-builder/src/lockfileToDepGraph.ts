@@ -6,25 +6,27 @@ import {
 import {
   type Lockfile,
   type PackageSnapshot,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
-  refIsLocalDirectory,
-} from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type PatchFile, type Registries } from '@pnpm/types'
+import { getPatchInfo } from '@pnpm/patching.config'
+import { type PatchFile, type PatchInfo } from '@pnpm/patching.types'
+import { type DepPath, type SupportedArchitectures, type Registries, type PkgIdWithPatchHash, type ProjectId } from '@pnpm/types'
 import {
-  type FetchPackageToStoreFunction,
-  type PackageFilesResponse,
+  type PkgRequestFetchResult,
+  type FetchResponse,
   type StoreController,
 } from '@pnpm/store-controller-types'
 import * as dp from '@pnpm/dependency-path'
 import pathExists from 'path-exists'
 import equals from 'ramda/src/equals'
+import isEmpty from 'ramda/src/isEmpty'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
@@ -33,19 +35,18 @@ export interface DependenciesGraphNode {
   hasBundledDependencies: boolean
   modules: string
   name: string
-  fetchingFiles: () => Promise<PackageFilesResponse>
-  finishing: () => Promise<void>
+  fetching?: () => Promise<PkgRequestFetchResult>
   dir: string
   children: Record<string, string>
   optionalDependencies: Set<string>
   optional: boolean
-  depPath: string // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
+  depPath: DepPath // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
+  pkgIdWithPatchHash: PkgIdWithPatchHash
   isBuilt?: boolean
-  requiresBuild: boolean
-  prepare: boolean
+  requiresBuild?: boolean
   hasBin: boolean
-  filesIndexFile: string
-  patchFile?: PatchFile
+  filesIndexFile?: string
+  patch?: PatchInfo
 }
 
 export interface DependenciesGraph {
@@ -56,7 +57,7 @@ export interface LockfileToDepGraphOptions {
   autoInstallPeers: boolean
   engineStrict: boolean
   force: boolean
-  importerIds: string[]
+  importerIds: ProjectId[]
   include: IncludedDependencies
   ignoreScripts: boolean
   lockfileDir: string
@@ -65,10 +66,12 @@ export interface LockfileToDepGraphOptions {
   patchedDependencies?: Record<string, PatchFile>
   registries: Registries
   sideEffectsCacheRead: boolean
-  skipped: Set<string>
+  skipped: Set<DepPath>
   storeController: StoreController
   storeDir: string
   virtualStoreDir: string
+  supportedArchitectures?: SupportedArchitectures
+  virtualStoreDirMaxLength: number
 }
 
 export interface DirectDependenciesByImporterId {
@@ -99,13 +102,15 @@ export async function lockfileToDepGraph (
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {}
   if (lockfile.packages != null) {
     const pkgSnapshotByLocation: Record<string, PackageSnapshot> = {}
+    const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
     await Promise.all(
-      Object.entries(lockfile.packages).map(async ([depPath, pkgSnapshot]) => {
+      (Object.entries(lockfile.packages) as Array<[DepPath, PackageSnapshot]>).map(async ([depPath, pkgSnapshot]) => {
         if (opts.skipped.has(depPath)) return
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
-        const packageId = packageIdFromSnapshot(depPath, pkgSnapshot, opts.registries)
+        const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules')
+        const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
+        const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)
 
         const pkg = {
           name: pkgName,
@@ -121,19 +126,22 @@ export async function lockfileToDepGraph (
             lockfileDir: opts.lockfileDir,
             nodeVersion: opts.nodeVersion,
             optional: pkgSnapshot.optional === true,
-            pnpmVersion: opts.pnpmVersion,
+            supportedArchitectures: opts.supportedArchitectures,
           }) === false
         ) {
           opts.skipped.add(depPath)
           return
         }
         const dir = path.join(modules, pkgName)
+        const depIsPresent = !('directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null) &&
+          currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies)
+        let dirExists: boolean | undefined
         if (
-          !refIsLocalDirectory(depPath) &&
-          currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies) &&
-          equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)
+          depIsPresent && isEmpty(currentPackages[depPath].optionalDependencies ?? {}) &&
+          isEmpty(lockfile.packages![depPath].optionalDependencies ?? {})
         ) {
-          if (await pathExists(dir)) {
+          dirExists = await pathExists(dir)
+          if (dirExists) {
             return
           }
 
@@ -141,48 +149,57 @@ export async function lockfileToDepGraph (
             missing: dir,
           })
         }
-        const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
-        progressLogger.debug({
-          packageId,
-          requester: opts.lockfileDir,
-          status: 'resolved',
-        })
-        let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
-        try {
-          fetchResponse = opts.storeController.fetchPackage({
-            force: false,
-            lockfileDir: opts.lockfileDir,
-            ignoreScripts: opts.ignoreScripts,
-            pkg: {
-              id: packageId,
-              resolution,
-            },
-            expectedPkg: {
-              name: pkgName,
-              version: pkgVersion,
-            },
+        let fetchResponse!: Partial<FetchResponse>
+        if (depIsPresent && equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)) {
+          if (dirExists ?? await pathExists(dir)) {
+            fetchResponse = {}
+          } else {
+            brokenModulesLogger.debug({
+              missing: dir,
+            })
+          }
+        }
+        if (!fetchResponse) {
+          const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
+          progressLogger.debug({
+            packageId,
+            requester: opts.lockfileDir,
+            status: 'resolved',
           })
-          if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-        } catch (err: any) { // eslint-disable-line
-          if (pkgSnapshot.optional) return
-          throw err
+          try {
+            fetchResponse = opts.storeController.fetchPackage({
+              force: false,
+              lockfileDir: opts.lockfileDir,
+              ignoreScripts: opts.ignoreScripts,
+              pkg: {
+                id: packageId,
+                resolution,
+              },
+              expectedPkg: {
+                name: pkgName,
+                version: pkgVersion,
+              },
+            }) as any // eslint-disable-line
+            if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
+          } catch (err: unknown) {
+            if (pkgSnapshot.optional) return
+            throw err
+          }
         }
         graph[dir] = {
           children: {},
+          pkgIdWithPatchHash,
           depPath,
           dir,
-          fetchingFiles: fetchResponse.files,
+          fetching: fetchResponse.fetching,
           filesIndexFile: fetchResponse.filesIndexFile,
-          finishing: fetchResponse.finishing,
           hasBin: pkgSnapshot.hasBin === true,
           hasBundledDependencies: pkgSnapshot.bundledDependencies != null,
           modules,
           name: pkgName,
           optional: !!pkgSnapshot.optional,
           optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-          prepare: pkgSnapshot.prepare === true,
-          requiresBuild: pkgSnapshot.requiresBuild === true,
-          patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
+          patch: _getPatchInfo(pkgName, pkgVersion),
         }
         pkgSnapshotByLocation[dir] = pkgSnapshot
       })
@@ -198,6 +215,7 @@ export async function lockfileToDepGraph (
       storeController: opts.storeController,
       storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }
     for (const [dir, node] of Object.entries(graph)) {
       const pkgSnapshot = pkgSnapshotByLocation[dir]
@@ -229,31 +247,32 @@ function getChildrenPaths (
     registries: Registries
     virtualStoreDir: string
     storeDir: string
-    skipped: Set<string>
-    pkgSnapshotsByDepPaths: Record<string, PackageSnapshot>
+    skipped: Set<DepPath>
+    pkgSnapshotsByDepPaths: Record<DepPath, PackageSnapshot>
     lockfileDir: string
     sideEffectsCacheRead: boolean
     storeController: StoreController
+    virtualStoreDirMaxLength: number
   },
   allDeps: { [alias: string]: string },
   peerDeps: Set<string> | null,
   importerId: string
-) {
+): { [alias: string]: string } {
   const children: { [alias: string]: string } = {}
   for (const [alias, ref] of Object.entries(allDeps)) {
-    const childDepPath = dp.refToAbsolute(ref, alias, ctx.registries)
+    const childDepPath = dp.refToRelative(ref, alias)
     if (childDepPath === null) {
       children[alias] = path.resolve(ctx.lockfileDir, importerId, ref.slice(5))
       continue
     }
-    const childRelDepPath = dp.refToRelative(ref, alias) as string
+    const childRelDepPath = dp.refToRelative(ref, alias)!
     const childPkgSnapshot = ctx.pkgSnapshotsByDepPaths[childRelDepPath]
     if (ctx.graph[childRelDepPath]) {
       children[alias] = ctx.graph[childRelDepPath].dir
     } else if (childPkgSnapshot) {
       if (ctx.skipped.has(childRelDepPath)) continue
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-      children[alias] = path.join(ctx.virtualStoreDir, dp.depPathToFilename(childRelDepPath), 'node_modules', pkgName)
+      children[alias] = path.join(ctx.virtualStoreDir, dp.depPathToFilename(childRelDepPath, ctx.virtualStoreDirMaxLength), 'node_modules', pkgName)
     } else if (ref.indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.lockfileDir, ref.slice(5))
     } else if (!ctx.skipped.has(childRelDepPath) && ((peerDeps == null) || !peerDeps.has(alias))) {

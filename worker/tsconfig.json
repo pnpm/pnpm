@@ -1,0 +1,46 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../crypto/polyfill"
+    },
+    {
+      "path": "../exec/pkg-requires-build"
+    },
+    {
+      "path": "../fs/graceful-fs"
+    },
+    {
+      "path": "../fs/hard-link-dir"
+    },
+    {
+      "path": "../fs/symlink-dependency"
+    },
+    {
+      "path": "../packages/error"
+    },
+    {
+      "path": "../packages/logger"
+    },
+    {
+      "path": "../packages/types"
+    },
+    {
+      "path": "../store/cafs"
+    },
+    {
+      "path": "../store/cafs-types"
+    },
+    {
+      "path": "../store/create-cafs-store"
+    }
+  ]
+}

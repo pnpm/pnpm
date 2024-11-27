@@ -1,10 +1,13 @@
-lockfileVersion: '6.0'
+lockfileVersion: '9.0'
 
 settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  example:
-    specifier: link:example
-    version: link:example
+importers:
+
+  .:
+    dependencies:
+      example:
+        specifier: link:example
+        version: link:example

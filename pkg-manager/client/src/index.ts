@@ -4,6 +4,7 @@ import {
   type ResolverFactoryOptions,
 } from '@pnpm/default-resolver'
 import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
+import { type SslConfig } from '@pnpm/types'
 import { type FetchFromRegistry, type GetAuthHeader, type RetryTimeoutOptions } from '@pnpm/fetching-types'
 import type { CustomFetchers, GitFetcher, DirectoryFetcher } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
@@ -18,7 +19,8 @@ export type ClientOptions = {
   authConfig: Record<string, string>
   customFetchers?: CustomFetchers
   ignoreScripts?: boolean
-  rawConfig: object
+  rawConfig: Record<string, string>
+  sslConfigs?: Record<string, SslConfig>
   retry?: RetryTimeoutOptions
   timeout?: number
   unsafePerm?: boolean
@@ -32,18 +34,21 @@ export type ClientOptions = {
 export interface Client {
   fetchers: Fetchers
   resolve: ResolveFunction
+  clearResolutionCache: () => void
 }
 
 export function createClient (opts: ClientOptions): Client {
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
+  const { resolve, clearCache: clearResolutionCache } = _createResolver(fetchFromRegistry, getAuthHeader, opts)
   return {
     fetchers: createFetchers(fetchFromRegistry, getAuthHeader, opts, opts.customFetchers),
-    resolve: _createResolver(fetchFromRegistry, getAuthHeader, opts),
+    resolve,
+    clearResolutionCache,
   }
 }
 
-export function createResolver (opts: ClientOptions) {
+export function createResolver (opts: ClientOptions): { resolve: ResolveFunction, clearCache: () => void } {
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
   return _createResolver(fetchFromRegistry, getAuthHeader, opts)

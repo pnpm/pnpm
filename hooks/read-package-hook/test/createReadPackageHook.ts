@@ -11,39 +11,8 @@ test('createReadPackageHook() is passing directory to all hooks', async () => {
   const manifest = {}
   const dir = '/bar'
   await readPackageHook!(manifest, dir)
-  expect(hook1).toBeCalledWith(manifest, dir)
-  expect(hook2).toBeCalledWith(manifest, dir)
-})
-
-test('createReadPackageHook() runs the custom hook before the peer rules hook', async () => {
-  const hook = jest.fn((manifest) => ({
-    ...manifest,
-    dependencies: { ...manifest.peerDependencies },
-  }))
-  const readPackageHook = createReadPackageHook({
-    ignoreCompatibilityDb: true,
-    lockfileDir: '/foo',
-    readPackageHook: [hook],
-    peerDependencyRules: {
-      allowAny: ['*'],
-    },
-  })
-  const manifest = {
-    peerDependencies: {
-      react: '16',
-    },
-  }
-  const dir = '/bar'
-  const updatedManifest = await readPackageHook!(manifest, dir)
-  expect(hook).toBeCalledWith(manifest, dir)
-  expect(updatedManifest).toStrictEqual({
-    dependencies: {
-      react: '16',
-    },
-    peerDependencies: {
-      react: '*',
-    },
-  })
+  expect(hook1).toHaveBeenCalledWith(manifest, dir)
+  expect(hook2).toHaveBeenCalledWith(manifest, dir)
 })
 
 test('createReadPackageHook() runs the custom hook before the version overrider', async () => {
@@ -58,14 +27,19 @@ test('createReadPackageHook() runs the custom hook before the version overrider'
     ignoreCompatibilityDb: true,
     lockfileDir: '/foo',
     readPackageHook: [hook],
-    overrides: {
-      react: '16',
-    },
+    overrides: [
+      {
+        targetPkg: {
+          name: 'react',
+        },
+        newPref: '16',
+      },
+    ],
   })
   const manifest = {}
   const dir = '/bar'
   const updatedManifest = await readPackageHook!(manifest, dir)
-  expect(hook).toBeCalledWith(manifest, dir)
+  expect(hook).toHaveBeenCalledWith(manifest, dir)
   expect(updatedManifest).toStrictEqual({
     dependencies: {
       react: '16',

@@ -7,52 +7,52 @@ test('fail if installed package does not support the current engine and engine-s
   const project = prepareEmpty()
 
   await expect(
-    addDependenciesToPackage({}, ['@pnpm.e2e/not-compatible-with-any-os'], await testDefaults({}, {}, {}, {
+    addDependenciesToPackage({}, ['@pnpm.e2e/not-compatible-with-any-os'], testDefaults({}, {}, {}, {
       engineStrict: true,
     }))
   ).rejects.toThrow()
-  await project.hasNot('@pnpm.e2e/not-compatible-with-any-os')
-  await project.storeHasNot('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
+  project.hasNot('@pnpm.e2e/not-compatible-with-any-os')
+  project.storeHasNot('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
 })
 
 test('do not fail if installed package does not support the current engine and engine-strict = false', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/not-compatible-with-any-os'], await testDefaults({
+  await addDependenciesToPackage({}, ['@pnpm.e2e/not-compatible-with-any-os'], testDefaults({
     engineStrict: false,
   }))
 
-  await project.has('@pnpm.e2e/not-compatible-with-any-os')
-  await project.storeHas('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
+  project.has('@pnpm.e2e/not-compatible-with-any-os')
+  project.storeHas('@pnpm.e2e/not-compatible-with-any-os', '1.0.0')
 
-  const lockfile = await project.readLockfile()
-  expect(lockfile.packages['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'].os).toStrictEqual(['this-os-does-not-exist'])
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/not-compatible-with-any-os@1.0.0'].os).toStrictEqual(['this-os-does-not-exist'])
 })
 
 test('do not fail if installed package requires the node version that was passed in and engine-strict = true', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/for-legacy-node'], await testDefaults({
+  await addDependenciesToPackage({}, ['@pnpm.e2e/for-legacy-node'], testDefaults({
     engineStrict: true,
     nodeVersion: '0.10.0',
   }))
 
-  await project.has('@pnpm.e2e/for-legacy-node')
-  await project.storeHas('@pnpm.e2e/for-legacy-node', '1.0.0')
+  project.has('@pnpm.e2e/for-legacy-node')
+  project.storeHas('@pnpm.e2e/for-legacy-node', '1.0.0')
 
-  const lockfile = await project.readLockfile()
-  expect(lockfile.packages['/@pnpm.e2e/for-legacy-node@1.0.0'].engines).toStrictEqual({ node: '0.10' })
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/for-legacy-node@1.0.0'].engines).toStrictEqual({ node: '0.10' })
 })
 
 test(`save cpu field to ${WANTED_LOCKFILE}`, async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/has-cpu-specified'], await testDefaults())
+  await addDependenciesToPackage({}, ['@pnpm.e2e/has-cpu-specified'], testDefaults())
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
   expect(
-    lockfile.packages['/@pnpm.e2e/has-cpu-specified@1.0.0'].cpu
+    lockfile.packages['@pnpm.e2e/has-cpu-specified@1.0.0'].cpu
   ).toStrictEqual(
     ['x64', 'ia32']
   )
@@ -61,9 +61,9 @@ test(`save cpu field to ${WANTED_LOCKFILE}`, async () => {
 test(`engines field is not added to ${WANTED_LOCKFILE} when "node": "*" is in "engines" field`, async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['jsonify@0.0.0'], await testDefaults())
+  await addDependenciesToPackage({}, ['jsonify@0.0.0'], testDefaults())
 
-  const lockfile = await project.readLockfile()
+  const lockfile = project.readLockfile()
 
-  expect(lockfile.packages['/jsonify@0.0.0']).not.toHaveProperty(['engines'])
+  expect(lockfile.packages['jsonify@0.0.0']).not.toHaveProperty(['engines'])
 })

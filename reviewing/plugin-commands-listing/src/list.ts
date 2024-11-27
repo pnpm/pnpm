@@ -7,7 +7,12 @@ import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { listRecursive } from './recursive'
 
-export function rcOptionsTypes () {
+export const EXCLUDE_PEERS_HELP = {
+  description: 'Exclude peer dependencies',
+  name: '--exclude-peers',
+}
+
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'depth',
     'dev',
@@ -22,20 +27,21 @@ export function rcOptionsTypes () {
   ], allTypes)
 }
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
+  'exclude-peers': Boolean,
   'only-projects': Boolean,
   recursive: Boolean,
 })
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
 }
 
 export const commandNames = ['list', 'ls']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['list', 'ls', 'la', 'll'],
     description: 'When run as ll or la, it shows extended information by default. \
@@ -100,6 +106,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: "Don't display packages from `optionalDependencies`",
             name: '--no-optional',
           },
+          EXCLUDE_PEERS_HELP,
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
@@ -121,9 +128,12 @@ export type ListCommandOptions = Pick<Config,
 | 'production'
 | 'selectedProjectsGraph'
 | 'modulesDir'
+| 'virtualStoreDirMaxLength'
 > & Partial<Pick<Config, 'cliOptions'>> & {
   alwaysPrintRootPackage?: boolean
   depth?: number
+  excludePeers?: boolean
+  json?: boolean
   lockfileDir?: string
   long?: boolean
   parseable?: boolean
@@ -134,7 +144,7 @@ export type ListCommandOptions = Pick<Config,
 export async function handler (
   opts: ListCommandOptions,
   params: string[]
-) {
+): Promise<string> {
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
@@ -159,6 +169,7 @@ export async function render (
   opts: {
     alwaysPrintRootPackage?: boolean
     depth?: number
+    excludePeers?: boolean
     include: IncludedDependencies
     lockfileDir: string
     long?: boolean
@@ -166,11 +177,13 @@ export async function render (
     onlyProjects?: boolean
     parseable?: boolean
     modulesDir?: string
+    virtualStoreDirMaxLength: number
   }
-) {
+): Promise<string> {
   const listOpts = {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth ?? 0,
+    excludePeerDependencies: opts.excludePeers,
     include: opts.include,
     lockfileDir: opts.lockfileDir,
     long: opts.long,
@@ -178,6 +191,7 @@ export async function render (
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
     showExtraneous: false,
     modulesDir: opts.modulesDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
   }
   return (params.length > 0)
     ? listForPackages(params, prefixes, listOpts)

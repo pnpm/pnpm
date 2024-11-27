@@ -1,11 +1,13 @@
+import assert from 'assert'
 import http, { type IncomingMessage, type Server, type ServerResponse } from 'http'
+import util from 'util'
 import { globalInfo } from '@pnpm/logger'
 import {
-  type BundledManifestFunction,
-  type PackageFilesResponse,
+  type PkgRequestFetchResult,
   type RequestPackageOptions,
   type StoreController,
   type WantedDependency,
+  type FetchPackageToStoreFunction,
 } from '@pnpm/store-controller-types'
 import { locking } from './lock'
 
@@ -24,6 +26,11 @@ interface RequestBody {
   searchQueries: string[]
 }
 
+export interface StoreServerHandle {
+  close: () => Promise<void>
+  waitForClose: Promise<void>
+}
+
 export function createServer (
   store: StoreController,
   opts: {
@@ -33,9 +40,8 @@ export function createServer (
     ignoreStopRequests?: boolean
     ignoreUploadRequests?: boolean
   }
-) {
-  const rawManifestPromises: Record<string, BundledManifestFunction> = {}
-  const filesPromises: Record<string, () => Promise<PackageFilesResponse>> = {}
+): StoreServerHandle {
+  const filesPromises: Record<string, () => Promise<PkgRequestFetchResult>> = {}
 
   // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
   const lock = locking<void>()
@@ -52,7 +58,7 @@ export function createServer (
     const bodyPromise = new Promise<RequestBody>((resolve, reject) => {
       let body: any = '' // eslint-disable-line
       req.on('data', (data) => {
-        body += data // eslint-disable-line
+        body += data
       })
       req.on('end', async () => {
         try {
@@ -75,16 +81,12 @@ export function createServer (
         try {
           body = await bodyPromise
           const pkgResponse = await store.requestPackage(body.wantedDependency, body.options)
-          if (pkgResponse['bundledManifest']) {
-            rawManifestPromises[body.msgId] = pkgResponse['bundledManifest']
-            // @ts-expect-error
-            pkgResponse.body['fetchingBundledManifestInProgress'] = true
-          }
-          if (pkgResponse['files']) {
-            filesPromises[body.msgId] = pkgResponse['files']
+          if (pkgResponse.fetching) {
+            filesPromises[body.msgId] = pkgResponse.fetching
           }
           res.end(JSON.stringify(pkgResponse.body))
-        } catch (err: any) { // eslint-disable-line
+        } catch (err: unknown) {
+          assert(util.types.isNativeError(err))
           res.end(JSON.stringify({
             error: {
               message: err.message,
@@ -97,15 +99,11 @@ export function createServer (
       case '/fetchPackage': {
         try {
           body = await bodyPromise
-          const pkgResponse = store.fetchPackage(body.options as any) // eslint-disable-line
-            if (pkgResponse['bundledManifest']) { // eslint-disable-line
-              rawManifestPromises[body.msgId] = pkgResponse['bundledManifest'] // eslint-disable-line
-          }
-            if (pkgResponse['files']) { // eslint-disable-line
-              filesPromises[body.msgId] = pkgResponse['files'] // eslint-disable-line
-          }
+          const pkgResponse = (store.fetchPackage as FetchPackageToStoreFunction)(body.options as any) // eslint-disable-line
+          filesPromises[body.msgId] = pkgResponse.fetching
           res.end(JSON.stringify({ filesIndexFile: pkgResponse.filesIndexFile }))
-        } catch (err: any) { // eslint-disable-line
+        } catch (err: unknown) {
+          assert(util.types.isNativeError(err))
           res.end(JSON.stringify({
             error: {
               message: err.message,
@@ -120,13 +118,6 @@ export function createServer (
         const filesResponse = await filesPromises[body.msgId]()
         delete filesPromises[body.msgId]
         res.end(JSON.stringify(filesResponse))
-        break
-      }
-      case '/rawManifestResponse': {
-        body = await bodyPromise
-        const manifestResponse = await rawManifestPromises[body.msgId]()
-        delete rawManifestPromises[body.msgId]
-        res.end(JSON.stringify(manifestResponse))
         break
       }
       case '/prune':
@@ -184,9 +175,13 @@ export function createServer (
     listener = server.listen(opts.port, opts.hostname)
   }
 
-  return { close }
+  const waitForClose = new Promise<void>((resolve) => listener.once('close', () => {
+    resolve()
+  }))
 
-  async function close () {
+  return { close, waitForClose }
+
+  async function close (): Promise<void> {
     listener.close()
     return store.close()
   }

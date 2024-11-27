@@ -1,5 +1,418 @@
 # @pnpm/node.fetcher
 
+## 4.0.16
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@19.0.16
+- @pnpm/create-cafs-store@7.0.11
+
+## 4.0.15
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@7.0.10
+- @pnpm/tarball-fetcher@19.0.15
+
+## 4.0.14
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+- @pnpm/tarball-fetcher@19.0.14
+- @pnpm/create-cafs-store@7.0.9
+
+## 4.0.13
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.7
+- @pnpm/tarball-fetcher@19.0.13
+- @pnpm/create-cafs-store@7.0.9
+- @pnpm/pick-fetcher@3.0.0
+
+## 4.0.12
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.6
+- @pnpm/tarball-fetcher@19.0.12
+- @pnpm/create-cafs-store@7.0.8
+- @pnpm/pick-fetcher@3.0.0
+
+## 4.0.11
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.5
+- @pnpm/tarball-fetcher@19.0.11
+- @pnpm/create-cafs-store@7.0.7
+- @pnpm/pick-fetcher@3.0.0
+
+## 4.0.10
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@19.0.10
+- @pnpm/create-cafs-store@7.0.6
+
+## 4.0.9
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.4
+- @pnpm/tarball-fetcher@19.0.9
+- @pnpm/create-cafs-store@7.0.6
+- @pnpm/pick-fetcher@3.0.0
+
+## 4.0.8
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+- Updated dependencies [afe520d]
+  - @pnpm/tarball-fetcher@19.0.8
+  - @pnpm/create-cafs-store@7.0.5
+
+## 4.0.7
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.3
+- @pnpm/pick-fetcher@3.0.0
+- @pnpm/tarball-fetcher@19.0.7
+- @pnpm/create-cafs-store@7.0.4
+
+## 4.0.6
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.2
+- @pnpm/tarball-fetcher@19.0.6
+- @pnpm/create-cafs-store@7.0.3
+- @pnpm/pick-fetcher@3.0.0
+
+## 4.0.5
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@19.0.5
+
+## 4.0.4
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@7.0.2
+- @pnpm/tarball-fetcher@19.0.4
+
+## 4.0.3
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.1
+- @pnpm/tarball-fetcher@19.0.3
+- @pnpm/create-cafs-store@7.0.1
+- @pnpm/pick-fetcher@3.0.0
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/tarball-fetcher@19.0.2
+
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@19.0.1
+
+## 4.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+  - @pnpm/tarball-fetcher@19.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/create-cafs-store@7.0.0
+  - @pnpm/fetching-types@6.0.0
+  - @pnpm/fetcher-base@16.0.0
+  - @pnpm/pick-fetcher@3.0.0
+
+## 3.0.39
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.13
+- @pnpm/fetcher-base@15.0.7
+- @pnpm/pick-fetcher@2.0.1
+- @pnpm/tarball-fetcher@18.0.19
+
+## 3.0.38
+
+### Patch Changes
+
+- Updated dependencies [342222d20]
+  - @pnpm/tarball-fetcher@18.0.18
+
+## 3.0.37
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.12
+- @pnpm/tarball-fetcher@18.0.17
+
+## 3.0.36
+
+### Patch Changes
+
+- 33313d2fd: Update rename-overwrite to v5.
+  - @pnpm/create-cafs-store@6.0.11
+  - @pnpm/fetcher-base@15.0.6
+  - @pnpm/tarball-fetcher@18.0.16
+  - @pnpm/pick-fetcher@2.0.1
+
+## 3.0.35
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.5
+- @pnpm/tarball-fetcher@18.0.15
+- @pnpm/create-cafs-store@6.0.10
+- @pnpm/pick-fetcher@2.0.1
+
+## 3.0.34
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.9
+- @pnpm/tarball-fetcher@18.0.14
+
+## 3.0.33
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@18.0.13
+
+## 3.0.32
+
+### Patch Changes
+
+- Updated dependencies [abdf1f2b6]
+  - @pnpm/tarball-fetcher@18.0.12
+  - @pnpm/create-cafs-store@6.0.8
+
+## 3.0.31
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@18.0.11
+
+## 3.0.30
+
+### Patch Changes
+
+- Updated dependencies [cfc017ee3]
+  - @pnpm/create-cafs-store@6.0.7
+  - @pnpm/fetcher-base@15.0.4
+  - @pnpm/pick-fetcher@2.0.1
+  - @pnpm/tarball-fetcher@18.0.10
+
+## 3.0.29
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@18.0.9
+
+## 3.0.28
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.6
+- @pnpm/fetcher-base@15.0.3
+- @pnpm/tarball-fetcher@18.0.8
+- @pnpm/pick-fetcher@2.0.1
+
+## 3.0.27
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@18.0.7
+
+## 3.0.26
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.5
+- @pnpm/tarball-fetcher@18.0.6
+
+## 3.0.25
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.4
+- @pnpm/tarball-fetcher@18.0.5
+
+## 3.0.24
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.3
+- @pnpm/tarball-fetcher@18.0.4
+
+## 3.0.23
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.2
+- @pnpm/tarball-fetcher@18.0.3
+
+## 3.0.22
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.1
+- @pnpm/fetcher-base@15.0.2
+- @pnpm/tarball-fetcher@18.0.2
+- @pnpm/pick-fetcher@2.0.1
+
+## 3.0.21
+
+### Patch Changes
+
+- Updated dependencies [f394cfccd]
+  - @pnpm/pick-fetcher@2.0.1
+
+## 3.0.20
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@18.0.1
+
+## 3.0.19
+
+### Major Changes
+
+- 9caa33d53: `fromStore` replaced with `resolvedFrom`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/create-cafs-store@6.0.0
+  - @pnpm/tarball-fetcher@18.0.0
+  - @pnpm/fetcher-base@15.0.1
+
+## 3.0.18
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@5.1.1
+- @pnpm/tarball-fetcher@17.0.1
+
+## 3.0.17
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/create-cafs-store@5.1.0
+  - @pnpm/tarball-fetcher@17.0.0
+  - @pnpm/fetcher-base@15.0.1
+
+## 3.0.16
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@5.0.2
+- @pnpm/tarball-fetcher@16.0.2
+
+## 3.0.15
+
+### Patch Changes
+
+- Updated dependencies [4a1a9431d]
+  - @pnpm/fetcher-base@15.0.1
+  - @pnpm/create-cafs-store@5.0.1
+  - @pnpm/pick-fetcher@2.0.0
+  - @pnpm/tarball-fetcher@16.0.1
+
+## 3.0.14
+
+### Patch Changes
+
+- 66423df83: Emit a clear error message when users attempt to specify an undownloadable node version [#6916](https://github.com/pnpm/pnpm/pull/6916).
+- Updated dependencies [f2009d175]
+- Updated dependencies [083bbf590]
+- Updated dependencies [70b2830ac]
+- Updated dependencies [083bbf590]
+- Updated dependencies [96e165c7f]
+- Updated dependencies [083bbf590]
+  - @pnpm/create-cafs-store@5.0.0
+  - @pnpm/tarball-fetcher@16.0.0
+  - @pnpm/fetcher-base@15.0.0
+  - @pnpm/pick-fetcher@2.0.0
+
+## 3.0.13
+
+### Patch Changes
+
+- Updated dependencies [840b65bda]
+  - @pnpm/tarball-fetcher@15.0.9
+
+## 3.0.12
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@15.0.8
+
+## 3.0.11
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@15.0.7
+- @pnpm/create-cafs-store@4.0.8
+
+## 3.0.10
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@15.0.7
+- @pnpm/create-cafs-store@4.0.7
+
+## 3.0.9
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@15.0.6
+- @pnpm/create-cafs-store@4.0.6
+
+## 3.0.8
+
+### Patch Changes
+
+- @pnpm/fetcher-base@14.0.2
+- @pnpm/tarball-fetcher@15.0.6
+- @pnpm/create-cafs-store@4.0.5
+- @pnpm/pick-fetcher@2.0.0
+
+## 3.0.7
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@15.0.5
+
 ## 3.0.6
 
 ### Patch Changes

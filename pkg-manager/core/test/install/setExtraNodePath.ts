@@ -7,7 +7,7 @@ import {
   mutateModules,
   install,
 } from '@pnpm/core'
-import { sync as loadJsonFile } from 'load-json-file'
+import { type ProjectRootDir } from '@pnpm/types'
 import { testDefaults } from '../utils'
 
 const f = fixtures(__dirname)
@@ -26,11 +26,11 @@ test('jest CLI should print the right version when multiple instances of jest ar
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -40,15 +40,14 @@ test('jest CLI should print the right version when multiple instances of jest ar
         name: 'project-1',
         version: '1.0.0',
         scripts: {
-          postinstall: 'jest --version | json-append output.json',
+          postinstall: 'jest --version > output.json',
         },
 
         dependencies: {
           jest: '27.5.1',
-          'json-append': '1.1.1',
         },
       },
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -56,18 +55,17 @@ test('jest CLI should print the right version when multiple instances of jest ar
         name: 'project-2',
         version: '1.0.0',
         scripts: {
-          postinstall: 'jest --version | json-append output.json',
+          postinstall: 'jest --version > output.json',
         },
 
         dependencies: {
           jest: '24.9.0',
-          'json-append': '1.1.1',
         },
       },
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
-  await mutateModules(importers, await testDefaults({
+  await mutateModules(importers, testDefaults({
     allProjects,
     extendNodePath: true,
     fastUnpack: false,
@@ -75,11 +73,11 @@ test('jest CLI should print the right version when multiple instances of jest ar
   }))
 
   {
-    const [jestVersion] = loadJsonFile<string[]>('project-1/output.json')
+    const jestVersion = fs.readFileSync('project-1/output.json').toString()
     expect(jestVersion.trim()).toStrictEqual('27.5.1')
   }
   {
-    const [jestVersion] = loadJsonFile<string[]>('project-2/output.json')
+    const jestVersion = fs.readFileSync('project-2/output.json').toString()
     expect(jestVersion.trim()).toStrictEqual('24.9.0')
   }
 })
@@ -94,7 +92,7 @@ test('drupal-js-build should find plugins inside the hidden node_modules directo
     scripts: {
       prepare: 'drupal-js-build',
     },
-  }, await testDefaults({
+  }, testDefaults({
     extendNodePath: true,
     fastUnpack: false,
     hoistPattern: '*',

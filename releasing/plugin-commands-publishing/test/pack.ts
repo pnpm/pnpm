@@ -2,8 +2,8 @@ import fs from 'fs'
 import path from 'path'
 import { pack } from '@pnpm/plugin-commands-publishing'
 import { prepare, tempDir } from '@pnpm/prepare'
-import exists from 'path-exists'
 import tar from 'tar'
+import chalk from 'chalk'
 import { DEFAULT_OPTS } from './utils'
 
 test('pack: package with package.json', async () => {
@@ -19,8 +19,8 @@ test('pack: package with package.json', async () => {
     extraBinPaths: [],
   })
 
-  expect(await exists('test-publish-package.json-0.0.0.tgz')).toBeTruthy()
-  expect(await exists('package.json')).toBeTruthy()
+  expect(fs.existsSync('test-publish-package.json-0.0.0.tgz')).toBeTruthy()
+  expect(fs.existsSync('package.json')).toBeTruthy()
 })
 
 test('pack: package with package.yaml', async () => {
@@ -36,9 +36,9 @@ test('pack: package with package.yaml', async () => {
     extraBinPaths: [],
   })
 
-  expect(await exists('test-publish-package.yaml-0.0.0.tgz')).toBeTruthy()
-  expect(await exists('package.yaml')).toBeTruthy()
-  expect(await exists('package.json')).toBeFalsy()
+  expect(fs.existsSync('test-publish-package.yaml-0.0.0.tgz')).toBeTruthy()
+  expect(fs.existsSync('package.yaml')).toBeTruthy()
+  expect(fs.existsSync('package.json')).toBeFalsy()
 })
 
 test('pack: package with package.json5', async () => {
@@ -54,9 +54,9 @@ test('pack: package with package.json5', async () => {
     extraBinPaths: [],
   })
 
-  expect(await exists('test-publish-package.json5-0.0.0.tgz')).toBeTruthy()
-  expect(await exists('package.json5')).toBeTruthy()
-  expect(await exists('package.json')).toBeFalsy()
+  expect(fs.existsSync('test-publish-package.json5-0.0.0.tgz')).toBeTruthy()
+  expect(fs.existsSync('package.json5')).toBeTruthy()
+  expect(fs.existsSync('package.json')).toBeFalsy()
 })
 
 test('pack a package with scoped name', async () => {
@@ -72,7 +72,27 @@ test('pack a package with scoped name', async () => {
     extraBinPaths: [],
   })
 
-  expect(await exists('pnpm-test-scope-0.0.0.tgz')).toBeTruthy()
+  expect(fs.existsSync('pnpm-test-scope-0.0.0.tgz')).toBeTruthy()
+})
+
+test('pack when there is bundledDependencies but without node-linker=hoisted', async () => {
+  prepare({
+    name: 'bundled-deps-without-node-linker-hoisted',
+    version: '0.0.0',
+    bundledDependencies: [],
+  })
+
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    nodeLinker: 'isolated',
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_BUNDLED_DEPENDENCIES_WITHOUT_HOISTED',
+    message: 'bundledDependencies does not work with node-linker=isolated',
+    hint: 'Add node-linker=hoisted to .npmrc or delete bundledDependencies from the root package.json to resolve this error',
+  })
 })
 
 test('pack a package without package name', async () => {
@@ -121,10 +141,10 @@ test('pack: runs prepack, prepare, and postpack', async () => {
     extraBinPaths: [],
   })
 
-  expect(await exists('test-publish-package.json-0.0.0.tgz')).toBeTruthy()
-  expect(await exists('prepack')).toBeTruthy()
-  expect(await exists('prepare')).toBeTruthy()
-  expect(await exists('postpack')).toBeTruthy()
+  expect(fs.existsSync('test-publish-package.json-0.0.0.tgz')).toBeTruthy()
+  expect(fs.existsSync('prepack')).toBeTruthy()
+  expect(fs.existsSync('prepare')).toBeTruthy()
+  expect(fs.existsSync('postpack')).toBeTruthy()
 })
 
 const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
@@ -278,7 +298,7 @@ test('pack to custom destination directory', async () => {
     embedReadme: false,
   })
 
-  expect(output).toBe(path.resolve('custom-dest/custom-dest-0.0.0.tgz'))
+  expect(output).toContain(path.resolve('custom-dest/custom-dest-0.0.0.tgz'))
 })
 
 test('pack: custom pack-gzip-level', async () => {
@@ -308,4 +328,156 @@ test('pack: custom pack-gzip-level', async () => {
   const tgz1 = fs.statSync(path.resolve('../small/test-publish-package.json-0.0.0.tgz'))
   const tgz2 = fs.statSync(path.resolve('../big/test-publish-package.json-0.0.0.tgz'))
   expect(tgz1.size).not.toEqual(tgz2.size)
+})
+
+test('pack: should resolve correct files from publishConfig', async () => {
+  prepare({
+    name: 'custom-publish-dir',
+    version: '0.0.0',
+    main: './index.ts',
+    bin: './bin.js',
+    files: [
+      './a.js',
+    ],
+    publishConfig: {
+      main: './dist-index.js',
+      bin: './dist-bin.js',
+    },
+  })
+  fs.writeFileSync('./a.js', 'a', 'utf8')
+  fs.writeFileSync('./index.ts', 'src-index', 'utf8')
+  fs.writeFileSync('./bin.js', 'src-bin-src', 'utf8')
+  fs.writeFileSync('./dist-index.js', 'dist-index', 'utf8')
+  fs.writeFileSync('./dist-bin.js', 'dist-bin', 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+  await tar.x({ file: 'custom-publish-dir-0.0.0.tgz' })
+
+  expect(fs.existsSync('./package/bin.js')).toBeFalsy()
+  expect(fs.existsSync('./package/index.ts')).toBeFalsy()
+  expect(fs.existsSync('./package/package.json')).toBeTruthy()
+  expect(fs.existsSync('./package/a.js')).toBeTruthy()
+  expect(fs.existsSync('./package/dist-index.js')).toBeTruthy()
+  expect(fs.existsSync('./package/dist-bin.js')).toBeTruthy()
+})
+
+test('pack: modify manifest in prepack script', async () => {
+  prepare({
+    name: 'custom-publish-dir',
+    version: '0.0.0',
+    main: './src/index.ts',
+    bin: './src/bin.js',
+    files: [
+      'dist',
+    ],
+    scripts: {
+      prepack: 'node ./prepack.js',
+    },
+  })
+  fs.mkdirSync('./src')
+  fs.writeFileSync('./src/index.ts', 'index', 'utf8')
+  fs.writeFileSync('./src/bin.js', 'bin', 'utf8')
+  fs.mkdirSync('./dist')
+  fs.writeFileSync('./dist/index.js', 'index', 'utf8')
+  fs.writeFileSync('./dist/bin.js', 'bin', 'utf8')
+  fs.writeFileSync('./prepack.js', `
+  require('fs').writeFileSync('./package.json',
+    JSON.stringify({
+      name: 'custom-publish-dir',
+      version: '0.0.0',
+      main: './dist/index.js',
+      bin: './dist/bin.js',
+      files: [
+        'dist'
+      ]
+    }, null, 2), 'utf8')
+  `, 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+  await tar.x({ file: 'custom-publish-dir-0.0.0.tgz' })
+  expect(fs.existsSync('./package/src/bin.js')).toBeFalsy()
+  expect(fs.existsSync('./package/src/index.ts')).toBeFalsy()
+  expect(fs.existsSync('./package/package.json')).toBeTruthy()
+  expect(fs.existsSync('./package/dist/index.js')).toBeTruthy()
+  expect(fs.existsSync('./package/dist/bin.js')).toBeTruthy()
+})
+
+test('pack: should display packed contents order by name', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+  })
+
+  fs.mkdirSync('./src')
+  fs.writeFileSync('./src/index.ts', 'index', 'utf8')
+  fs.writeFileSync('./a.js', 'a', 'utf8')
+  fs.writeFileSync('./b.js', 'b', 'utf8')
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  expect(output).toBe(`${chalk.blueBright('Tarball Contents')}
+a.js
+b.js
+package.json
+src/index.ts
+
+${chalk.blueBright('Tarball Details')}
+test-publish-package.json-0.0.0.tgz`)
+})
+
+test('pack: display in json format', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+  })
+
+  fs.mkdirSync('./src')
+  fs.writeFileSync('./src/index.ts', 'index', 'utf8')
+  fs.writeFileSync('./a.js', 'a', 'utf8')
+  fs.writeFileSync('./b.js', 'b', 'utf8')
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    json: true,
+  })
+
+  expect(output).toBe(JSON.stringify({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+    filename: 'test-publish-package.json-0.0.0.tgz',
+    files: [
+      {
+        path: 'a.js',
+      },
+      {
+        path: 'b.js',
+      },
+      {
+        path: 'package.json',
+      },
+      {
+        path: 'src/index.ts',
+      },
+    ],
+  }, null, 2))
 })

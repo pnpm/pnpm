@@ -9,17 +9,21 @@ import {
 } from '@pnpm/store-connection-manager'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import tempy from 'tempy'
+import chalk from 'chalk'
+import terminalLink from 'terminal-link'
 import { PnpmError } from '@pnpm/error'
 import { type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { writePackage } from './writePackage'
+import { getEditDirPath } from './getEditDirPath'
 import { getPatchedDependency } from './getPatchedDependency'
+import { writeEditDirState } from './stateFile'
+import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return { ...rcOptionsTypes(), 'edit-dir': String, 'ignore-existing': Boolean }
 }
 
@@ -29,7 +33,7 @@ export const shorthands = {
 
 export const commandNames = ['patch']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Prepare a package for patching',
     descriptionLists: [{
@@ -59,20 +63,20 @@ export type PatchCommandOptions = Pick<Config,
 | 'lockfileDir'
 | 'modulesDir'
 | 'virtualStoreDir'
+| 'sharedWorkspaceLockfile'
 > & CreateStoreControllerOptions & {
   editDir?: string
   reporter?: (logObj: LogBase) => void
   ignoreExisting?: boolean
 }
 
-export async function handler (opts: PatchCommandOptions, params: string[]) {
+export async function handler (opts: PatchCommandOptions, params: string[]): Promise<string> {
   if (opts.editDir && fs.existsSync(opts.editDir) && fs.readdirSync(opts.editDir).length > 0) {
     throw new PnpmError('PATCH_EDIT_DIR_EXISTS', `The target directory already exists: '${opts.editDir}'`)
   }
   if (!params[0]) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm patch` requires the package name')
   }
-  const editDir = opts.editDir ?? tempy.directory()
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
   const patchedDep = await getPatchedDependency(params[0], {
     lockfileDir,
@@ -80,33 +84,70 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
     virtualStoreDir: opts.virtualStoreDir,
   })
 
-  await writePackage(patchedDep, editDir, opts)
-  if (!opts.ignoreExisting && opts.rootProjectManifest?.pnpm?.patchedDependencies) {
-    tryPatchWithExistingPatchFile({
-      patchedDep,
-      patchedDir: editDir,
-      patchedDependencies: opts.rootProjectManifest.pnpm.patchedDependencies,
-      lockfileDir,
+  const modulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
+  const editDir = opts.editDir
+    ? path.resolve(opts.dir, opts.editDir)
+    : getEditDirPath(params[0], patchedDep, { modulesDir })
+
+  if (fs.existsSync(editDir) && fs.readdirSync(editDir).length !== 0) {
+    throw new PnpmError('EDIT_DIR_NOT_EMPTY', `The directory ${editDir} is not empty`, {
+      hint: 'Either run `pnpm patch-commit` to commit or delete it then run `pnpm patch` to recreate it',
     })
   }
-  return `You can now edit the following folder: ${editDir}
 
-Once you're done with your changes, run "pnpm patch-commit ${editDir}"`
+  await writePackage(patchedDep, editDir, opts)
+
+  writeEditDirState({
+    editDir,
+    modulesDir: path.join(opts.dir, opts.modulesDir ?? 'node_modules'),
+    patchedPkg: params[0],
+    applyToAll: patchedDep.applyToAll,
+  })
+
+  if (!opts.ignoreExisting) {
+    let rootProjectManifest = opts.rootProjectManifest
+    if (!opts.sharedWorkspaceLockfile) {
+      const { manifest } = await tryReadProjectManifest(lockfileDir)
+      if (manifest) {
+        rootProjectManifest = manifest
+      }
+    }
+    if (rootProjectManifest?.pnpm?.patchedDependencies) {
+      tryPatchWithExistingPatchFile({
+        allowFailure: patchedDep.applyToAll,
+        patchedDep,
+        patchedDir: editDir,
+        patchedDependencies: rootProjectManifest.pnpm.patchedDependencies,
+        lockfileDir,
+      })
+    }
+  }
+  return `Patch: You can now edit the package at:
+
+  ${terminalLink(chalk.blue(editDir), 'file://' + editDir)}
+
+To commit your changes, run:
+
+  ${chalk.green(`pnpm patch-commit '${editDir}'`)}
+
+`
 }
 
 function tryPatchWithExistingPatchFile (
   {
+    allowFailure,
     patchedDep,
     patchedDir,
     patchedDependencies,
     lockfileDir,
   }: {
+    allowFailure: boolean
     patchedDep: ParseWantedDependencyResult
     patchedDir: string
     patchedDependencies: Record<string, string>
     lockfileDir: string
   }
-) {
+): void {
   if (!patchedDep.alias || !patchedDep.pref) {
     return
   }
@@ -118,5 +159,5 @@ function tryPatchWithExistingPatchFile (
   if (!fs.existsSync(existingPatchFilePath)) {
     throw new PnpmError('PATCH_FILE_NOT_FOUND', `Unable to find patch file ${existingPatchFilePath}`)
   }
-  applyPatchToDir({ patchedDir, patchFilePath: existingPatchFilePath })
+  applyPatchToDir({ patchedDir, patchFilePath: existingPatchFilePath, allowFailure })
 }

@@ -1,5 +1,5 @@
-import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { type Lockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import {
@@ -31,18 +31,18 @@ test('readPackage, afterAllResolved hooks', async () => {
     return lockfile
   })
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({
     hooks: {
       afterAllResolved: [afterAllResolved],
       readPackage: [readPackageHook],
     },
   }))
 
-  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
   expect(afterAllResolved).toHaveBeenCalledTimes(1)
   expect(afterAllResolved.mock.calls[0][0].lockfileVersion).toEqual(LOCKFILE_VERSION)
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile).toHaveProperty(['foo'], 'foo')
 })
 
@@ -69,18 +69,18 @@ test('readPackage, afterAllResolved async hooks', async () => {
     return lockfile
   })
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({
     hooks: {
       afterAllResolved: [afterAllResolved],
       readPackage: [readPackageHook],
     },
   }))
 
-  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
   expect(afterAllResolved).toHaveBeenCalledTimes(1)
   expect(afterAllResolved.mock.calls[0][0].lockfileVersion).toEqual(LOCKFILE_VERSION)
 
-  const wantedLockfile = await project.readLockfile()
+  const wantedLockfile = project.readLockfile()
   expect(wantedLockfile).toHaveProperty(['foo'], 'foo')
 })
 
@@ -114,11 +114,11 @@ test('readPackage hooks array', async () => {
     return manifest
   }
 
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({
     hooks: {
       readPackage: [readPackageHook1, readPackageHook2],
     },
   }))
 
-  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 })

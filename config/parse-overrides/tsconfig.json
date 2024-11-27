@@ -10,11 +10,16 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../packages/error"
     },
     {
       "path": "../../packages/parse-wanted-dependency"
     }
-  ],
-  "composite": true
+  ]
 }

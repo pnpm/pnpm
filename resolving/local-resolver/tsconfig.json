@@ -16,6 +16,9 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {
@@ -24,6 +27,5 @@
     {
       "path": "../resolver-base"
     }
-  ],
-  "composite": true
+  ]
 }

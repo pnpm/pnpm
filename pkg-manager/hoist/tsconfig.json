@@ -13,13 +13,13 @@
       "path": "../../config/matcher"
     },
     {
-      "path": "../../lockfile/lockfile-types"
+      "path": "../../lockfile/types"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/utils"
     },
     {
-      "path": "../../lockfile/lockfile-walker"
+      "path": "../../lockfile/walker"
     },
     {
       "path": "../../packages/constants"
@@ -31,11 +31,13 @@
       "path": "../../packages/dependency-path"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {
       "path": "../link-bins"
     }
-  ],
-  "composite": true
+  ]
 }

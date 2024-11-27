@@ -11,11 +11,10 @@
   ],
   "references": [
     {
-      "path": "../lockfile/lockfile-file"
+      "path": "../lockfile/fs"
     },
     {
       "path": "../packages/types"
     }
-  ],
-  "composite": true
+  ]
 }

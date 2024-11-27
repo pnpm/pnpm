@@ -1,4 +1,6 @@
 import { promises as fs } from 'fs'
+import { STORE_VERSION } from '@pnpm/constants'
+import { PnpmError } from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
 import canLink from 'can-link'
 import os from 'os'
@@ -7,8 +9,6 @@ import pathAbsolute from 'path-absolute'
 import pathTemp from 'path-temp'
 import rootLinkTarget from 'root-link-target'
 import touch from 'touch'
-
-const STORE_VERSION = 'v3'
 
 export function getStorePath (
   {
@@ -20,8 +20,11 @@ export function getStorePath (
     storePath?: string
     pnpmHomeDir: string
   }
-) {
+): string | Promise<string> {
   if (!storePath) {
+    if (!pnpmHomeDir) {
+      throw new PnpmError('NO_PNPM_HOME_DIR', 'The pnpm home directory is unknown. Cannot calculate the store directory location.')
+    }
     return storePathRelativeToHome(pkgRoot, 'store', pnpmHomeDir)
   }
 
@@ -40,7 +43,7 @@ export function getStorePath (
 
 async function storePathRelativeToHome (pkgRoot: string, relStore: string, homedir: string) {
   const tempFile = pathTemp(pkgRoot)
-  await fs.mkdir(path.dirname(tempFile), { recursive: true })
+  if (path.parse(pkgRoot).root !== pkgRoot) await fs.mkdir(path.dirname(tempFile), { recursive: true })
   await touch(tempFile)
   const storeInHomeDir = path.join(homedir, relStore, STORE_VERSION)
   if (await canLinkToSubdir(tempFile, homedir)) {
@@ -64,7 +67,7 @@ async function storePathRelativeToHome (pkgRoot: string, relStore: string, homed
       return storeInHomeDir
     }
     return path.join(mountpoint, '.pnpm-store', STORE_VERSION)
-  } catch (err) {
+  } catch {
     // this is an unlikely situation but if there is no way to find
     // a linkable place on the disk, create the store in homedir
     return storeInHomeDir
@@ -73,13 +76,13 @@ async function storePathRelativeToHome (pkgRoot: string, relStore: string, homed
   }
 }
 
-async function canLinkToSubdir (fileToLink: string, dir: string) {
+async function canLinkToSubdir (fileToLink: string, dir: string): Promise<boolean> {
   let result = false
   const tmpDir = pathTemp(dir)
   try {
     await fs.mkdir(tmpDir, { recursive: true })
     result = await canLink(fileToLink, pathTemp(tmpDir))
-  } catch (err) {
+  } catch {
     result = false
   } finally {
     await safeRmdir(tmpDir)
@@ -87,27 +90,27 @@ async function canLinkToSubdir (fileToLink: string, dir: string) {
   return result
 }
 
-async function safeRmdir (dir: string) {
+async function safeRmdir (dir: string): Promise<void> {
   try {
     // We cannot use just fs.rmdir here because can-link
     // sometimes might not remove the temporary file in time
     // and fs.rmdir can only remove an empty directory.
     await rimraf(dir)
-  } catch (err) {
+  } catch {
     // ignore
   }
 }
 
-function dirsAreEqual (dir1: string, dir2: string) {
+function dirsAreEqual (dir1: string, dir2: string): boolean {
   return path.relative(dir1, dir2) === '.'
 }
 
-function getHomedir () {
+function getHomedir (): string {
   const home = os.homedir()
   if (!home) throw new Error('Could not find the homedir')
   return home
 }
 
-function isHomepath (filepath: string) {
+function isHomepath (filepath: string): boolean {
   return filepath.indexOf('~/') === 0 || filepath.indexOf('~\\') === 0
 }

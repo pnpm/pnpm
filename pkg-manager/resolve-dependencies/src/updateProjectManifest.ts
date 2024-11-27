@@ -7,6 +7,9 @@ import {
 } from '@pnpm/manifest-utils'
 import versionSelectorType from 'version-selector-type'
 import semver from 'semver'
+import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
+import { type TarballResolution } from '@pnpm/resolver-base'
+import { type ProjectManifest } from '@pnpm/types'
 import { type ResolvedDirectDependency } from './resolveDependencyTree'
 import { type ImporterToResolve } from '.'
 
@@ -17,7 +20,7 @@ export async function updateProjectManifest (
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: boolean | 'rolling'
   }
-) {
+): Promise<Array<ProjectManifest | undefined>> {
   if (!importer.manifest) {
     throw new Error('Cannot save because no package.json found')
   }
@@ -25,7 +28,16 @@ export async function updateProjectManifest (
     .filter((rdd, index) => importer.wantedDependencies[index]?.updateSpec)
     .map((rdd, index) => {
       const wantedDep = importer.wantedDependencies[index]!
-      return resolvedDirectDepToSpecObject({ ...rdd, isNew: wantedDep.isNew, specRaw: wantedDep.raw, preserveNonSemverVersionSpec: wantedDep.preserveNonSemverVersionSpec }, importer, {
+      return resolvedDirectDepToSpecObject({
+        ...rdd,
+        isNew:
+        wantedDep.isNew,
+        specRaw: wantedDep.raw,
+        preserveNonSemverVersionSpec: wantedDep.preserveNonSemverVersionSpec,
+        // For git-protocol dependencies that are already installed locally, there is no normalizedPref unless do force resolve,
+        // so we use pref in wantedDependency here.
+        normalizedPref: rdd.normalizedPref ?? (isGitHostedPkgUrl((rdd.resolution as TarballResolution).tarball ?? '') ? wantedDep.pref : undefined),
+      }, importer, {
         nodeExecPath: wantedDep.nodeExecPath,
         pinnedVersion: wantedDep.pinnedVersion ?? importer.pinnedVersion ?? 'major',
         preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
@@ -60,6 +72,7 @@ export async function updateProjectManifest (
 function resolvedDirectDepToSpecObject (
   {
     alias,
+    catalogLookup,
     isNew,
     name,
     normalizedPref,
@@ -77,7 +90,9 @@ function resolvedDirectDepToSpecObject (
   }
 ): PackageSpecObject {
   let pref!: string
-  if (normalizedPref) {
+  if (catalogLookup) {
+    pref = catalogLookup.userSpecifiedPref
+  } else if (normalizedPref) {
     pref = normalizedPref
   } else {
     const shouldUseWorkspaceProtocol = resolution.type === 'directory' &&
@@ -111,6 +126,7 @@ function resolvedDirectDepToSpecObject (
       shouldUseWorkspaceProtocol &&
       !pref.startsWith('workspace:')
     ) {
+      pref = pref.replace(/^npm:/, '')
       pref = `workspace:${pref}`
     }
   }
@@ -132,7 +148,7 @@ function getPrefPreferSpecifiedSpec (
     pinnedVersion?: PinnedVersion
     rolling: boolean
   }
-) {
+): string {
   const prefix = getPrefix(opts.alias, opts.name)
   if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
     const range = opts.specRaw.slice(`${opts.alias}@${prefix}`.length)
@@ -160,7 +176,7 @@ function getPrefPreferSpecifiedExoticSpec (
     rolling: boolean
     preserveNonSemverVersionSpec?: boolean
   }
-) {
+): string {
   const prefix = getPrefix(opts.alias, opts.name)
   if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
     let specWithoutName = opts.specRaw.slice(`${opts.alias}@${prefix}`.length)

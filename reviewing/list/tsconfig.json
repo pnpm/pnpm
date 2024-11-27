@@ -13,7 +13,7 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../config/matcher"
+      "path": "../../crypto/polyfill"
     },
     {
       "path": "../../packages/types"
@@ -27,6 +27,5 @@
     {
       "path": "../dependencies-hierarchy"
     }
-  ],
-  "composite": true
+  ]
 }

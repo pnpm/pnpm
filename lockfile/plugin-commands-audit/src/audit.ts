@@ -1,10 +1,10 @@
-import { audit, type AuditReport, type AuditVulnerabilityCounts } from '@pnpm/audit'
+import { audit, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts } from '@pnpm/audit'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import { readWantedLockfile } from '@pnpm/lockfile-file'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { type Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
@@ -20,14 +20,14 @@ const AUDIT_LEVEL_NUMBER = {
   moderate: 1,
   high: 2,
   critical: 3,
-}
+} satisfies Record<AuditLevelString, AuditLevelNumber>
 
 const AUDIT_COLOR = {
   low: chalk.bold,
   moderate: chalk.bold.yellow,
   high: chalk.bold.red,
   critical: chalk.bold.red,
-}
+} satisfies Record<AuditLevelString, chalk.Chalk>
 
 const AUDIT_TABLE_OPTIONS = {
   ...TABLE_OPTIONS,
@@ -44,7 +44,7 @@ const MAX_PATHS_COUNT = 3
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'dev',
@@ -60,14 +60,14 @@ export function cliOptionsTypes () {
   }
 }
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
 }
 
 export const commandNames = ['audit']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Checks for known security issues with the installed packages.',
     descriptionLists: [
@@ -141,8 +141,9 @@ export async function handler (
   | 'userConfig'
   | 'rawConfig'
   | 'rootProjectManifest'
+  | 'virtualStoreDirMaxLength'
   >
-) {
+): Promise<{ exitCode: number, output: string }> {
   const lockfileDir = opts.lockfileDir ?? opts.dir
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
   if (lockfile == null) {
@@ -179,6 +180,7 @@ export async function handler (
         retries: opts.fetchRetries,
       },
       timeout: opts.fetchTimeout,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
   } catch (err: any) { // eslint-disable-line
     if (opts.ignoreRegistryErrors) {
@@ -210,6 +212,11 @@ ${JSON.stringify(newOverrides, null, 2)}`,
   const vulnerabilities = auditReport.metadata.vulnerabilities
   const totalVulnerabilityCount = Object.values(vulnerabilities)
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
+  const ignoreGhsas = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreGhsas
+  if (ignoreGhsas) {
+    // eslint-disable-next-line @typescript-eslint/naming-convention
+    auditReport.advisories = pickBy(({ github_advisory_id }) => !ignoreGhsas.includes(github_advisory_id), auditReport.advisories)
+  }
   const ignoreCves = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreCves
   if (ignoreCves) {
     auditReport.advisories = pickBy(({ cves }) => cves.length === 0 || difference(cves, ignoreCves).length > 0, auditReport.advisories)
@@ -254,12 +261,12 @@ ${JSON.stringify(newOverrides, null, 2)}`,
   }
 }
 
-function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number) {
+function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number): string {
   if (totalVulnerabilityCount === 0) return 'No known vulnerabilities found\n'
   return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
     Object.entries(vulnerabilities)
       .filter(([auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
-      .map(([auditLevel, vulnerabilitiesCount]: [string, number]) => AUDIT_COLOR[auditLevel](`${vulnerabilitiesCount} ${auditLevel}`))
+      .map(([auditLevel, vulnerabilitiesCount]) => AUDIT_COLOR[auditLevel as AuditLevelString](`${vulnerabilitiesCount as string} ${auditLevel}`))
       .join(' | ')
   }`
 }

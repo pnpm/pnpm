@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli-utils",
-  "version": "2.0.11",
+  "version": "4.0.7",
   "description": "Utils for pnpm commands",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,17 +9,18 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix",
-    "test": "pnpm run compile"
+    "test": "pnpm run compile && pnpm run _test",
+    "_test": "jest"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/cli/cli-utils",
   "keywords": [
-    "pnpm8",
+    "pnpm10",
     "pnpm"
   ],
   "license": "MIT",
@@ -29,7 +30,9 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/cli-utils#readme",
   "devDependencies": {
     "@pnpm/cli-utils": "workspace:*",
-    "@types/ramda": "0.28.20"
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@types/ramda": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:*",
@@ -40,14 +43,17 @@
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "chalk": "^4.1.2",
-    "load-json-file": "^6.2.0"
+    "chalk": "catalog:",
+    "load-json-file": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

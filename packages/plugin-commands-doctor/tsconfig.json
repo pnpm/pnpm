@@ -14,7 +14,9 @@
     },
     {
       "path": "../../config/config"
+    },
+    {
+      "path": "../logger"
     }
-  ],
-  "composite": true
+  ]
 }

@@ -13,19 +13,19 @@ interface State {
 
 const UPDATE_CHECK_FREQUENCY = 24 * 60 * 60 * 1000 // 1 day
 
-export async function checkForUpdates (config: Config) {
+export async function checkForUpdates (config: Config): Promise<void> {
   const stateFile = path.join(config.stateDir, 'pnpm-state.json')
   let state: State | undefined
   try {
     state = await loadJsonFile(stateFile)
-  } catch (err) {}
+  } catch {}
 
   if (
     state?.lastUpdateCheck &&
     (Date.now() - new Date(state.lastUpdateCheck).valueOf()) < UPDATE_CHECK_FREQUENCY
   ) return
 
-  const resolve = createResolver({
+  const { resolve } = createResolver({
     ...config,
     authConfig: config.rawConfig,
     retry: {

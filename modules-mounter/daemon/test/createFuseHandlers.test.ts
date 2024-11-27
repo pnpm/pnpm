@@ -1,17 +1,18 @@
+import { STORE_VERSION } from '@pnpm/constants'
 import path from 'path'
 
 jest.mock('fuse-native', () => ({ ENOENT: -2 }))
 
 // eslint-disable-next-line
-import { createFuseHandlers, createFuseHandlersFromLockfile } from '../src/createFuseHandlers'
+import { type FuseHandlers, createFuseHandlers } from '../src/createFuseHandlers'
 // eslint-disable-next-line
 import Fuse from 'fuse-native'
 
 describe('FUSE handlers', () => {
-  let handlers: ReturnType<typeof createFuseHandlersFromLockfile>
+  let handlers: FuseHandlers
   beforeAll(async () => {
     const fixture = path.join(__dirname, '__fixtures__/simple')
-    handlers = await createFuseHandlers(fixture, path.join(fixture, 'store/v3/files'))
+    handlers = await createFuseHandlers(fixture, path.join(fixture, 'store', STORE_VERSION))
   })
 
   it('readdir', () => {
@@ -27,7 +28,7 @@ describe('FUSE handlers', () => {
       expect(returnCode).toBe(0)
       expect(files!.sort()).toStrictEqual([
         '@zkochan+git-config@0.1.0',
-        'ini@1.3.8',
+        'ini@1.3.4',
         'is-positive@1.0.0',
       ].sort())
     })

@@ -10,8 +10,10 @@
   ],
   "references": [
     {
+      "path": "../logger"
+    },
+    {
       "path": "../types"
     }
-  ],
-  "composite": true
+  ]
 }

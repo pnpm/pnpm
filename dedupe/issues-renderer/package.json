@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/dedupe.issues-renderer",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Visualize pnpm dedupe --check issues.",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -12,11 +12,11 @@
     "!*.map"
   ],
   "keywords": [
-    "pnpm8"
+    "pnpm10"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/dedupe/issues-renderer",
   "scripts": {
@@ -30,15 +30,18 @@
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
     "@pnpm/dedupe.types": "workspace:*",
-    "archy": "^1.0.0",
-    "chalk": "^4.1.2"
+    "archy": "catalog:",
+    "chalk": "catalog:"
   },
   "devDependencies": {
     "@pnpm/dedupe.issues-renderer": "workspace:*",
-    "@types/archy": "0.0.32",
-    "strip-ansi": "^6.0.1"
+    "@types/archy": "catalog:",
+    "strip-ansi": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

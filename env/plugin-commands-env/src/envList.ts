@@ -6,10 +6,10 @@ import { PnpmError } from '@pnpm/error'
 import semver from 'semver'
 import { getNodeMirror } from './getNodeMirror'
 import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
-import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
+import { parseEnvSpecifier } from './parseEnvSpecifier'
 import { getNodeExecPathAndTargetDir, getNodeExecPathInNodeDir } from './utils'
 
-export async function envList (opts: NvmNodeCommandOptions, params: string[]) {
+export async function envList (opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
   if (opts.remote) {
     const nodeVersionList = await listRemoteVersions(opts, params[0])
     // Make the newest version located in the end of output
@@ -21,14 +21,21 @@ export async function envList (opts: NvmNodeCommandOptions, params: string[]) {
     .join('\n')
 }
 
-async function listLocalVersions (opts: NvmNodeCommandOptions) {
+interface LocalVersions {
+  currentVersion: string | undefined
+  versions: string[]
+}
+
+async function listLocalVersions (opts: NvmNodeCommandOptions): Promise<LocalVersions> {
   const nodeBaseDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
   if (!existsSync(nodeBaseDir)) {
     throw new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${nodeBaseDir}`)
   }
   const { nodeLink } = await getNodeExecPathAndTargetDir(opts.pnpmHomeDir)
   const nodeVersionDirs = await fs.readdir(nodeBaseDir)
-  return nodeVersionDirs.reduce(({ currentVersion, versions }, nodeVersion) => {
+  let currentVersion: string | undefined
+  const versions: string[] = []
+  for (const nodeVersion of nodeVersionDirs) {
     const nodeVersionDir = path.join(nodeBaseDir, nodeVersion)
     const nodeExec = getNodeExecPathInNodeDir(nodeVersionDir)
     if (nodeLink?.startsWith(nodeVersionDir)) {
@@ -37,13 +44,13 @@ async function listLocalVersions (opts: NvmNodeCommandOptions) {
     if (semver.valid(nodeVersion) && existsSync(nodeExec)) {
       versions.push(nodeVersion)
     }
-    return { currentVersion, versions }
-  }, { currentVersion: undefined as string | undefined, versions: [] as string[] })
+  }
+  return { currentVersion, versions }
 }
 
-async function listRemoteVersions (opts: NvmNodeCommandOptions, versionSpec?: string) {
+async function listRemoteVersions (opts: NvmNodeCommandOptions, versionSpec?: string): Promise<string[]> {
   const fetch = createFetchFromRegistry(opts)
-  const { releaseChannel, versionSpecifier } = parseNodeEditionSpecifier(versionSpec ?? '')
+  const { releaseChannel, versionSpecifier } = parseEnvSpecifier(versionSpec ?? '')
   const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
   const nodeVersionList = await resolveNodeVersions(fetch, versionSpecifier, nodeMirrorBaseUrl)
   return nodeVersionList

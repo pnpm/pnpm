@@ -1,7 +1,12 @@
 {
   "pkg": {
-    "assets": ["dist/pnpmrc", "dist/scripts/*"],
-    "targets": ["node18-linuxstatic-arm64"],
+    "assets": [
+      "dist/worker.js",
+      "dist/pnpmrc",
+      "dist/scripts/*",
+      "dist/templates/*"
+    ],
+    "targets": ["node20-linuxstatic-arm64"],
     "outputPath": "../linuxstatic-arm64"
   }
 }

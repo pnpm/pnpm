@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/create-cafs-store",
   "description": "Create a CAFS store controller",
-  "version": "4.0.4",
+  "version": "7.0.11",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -12,29 +12,31 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:*",
+    "@pnpm/exec.pkg-requires-build": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
-    "mem": "^8.1.1",
-    "path-temp": "^2.0.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "@pnpm/store.cafs": "workspace:*",
+    "mem": "catalog:",
+    "path-temp": "catalog:",
+    "ramda": "catalog:"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/ramda": "0.28.20"
+    "@types/ramda": "catalog:"
   },
   "directories": {
     "test": "test"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/create-cafs-store#readme",
   "keywords": [
-    "pnpm8",
+    "pnpm10",
     "store",
     "storage",
     "global store",
@@ -45,7 +47,7 @@
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/store/create-cafs-store",
   "scripts": {
@@ -59,5 +61,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

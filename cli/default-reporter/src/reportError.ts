@@ -4,7 +4,7 @@ import { renderDedupeCheckIssues } from '@pnpm/dedupe.issues-renderer'
 import { type DedupeCheckIssues } from '@pnpm/dedupe.types'
 import { type PnpmError } from '@pnpm/error'
 import { renderPeerIssues } from '@pnpm/render-peer-issues'
-import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
+import { type PeerDependencyRules, type PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
 import equals from 'ramda/src/equals'
 import StackTracey from 'stacktracey'
@@ -19,28 +19,39 @@ StackTracey.maxColumnWidths = {
 const highlight = chalk.yellow
 const colorPath = chalk.gray
 
-export function reportError (logObj: Log, config?: Config) {
-  const errorInfo = getErrorInfo(logObj, config)
-  let output = formatErrorSummary(errorInfo.title, logObj['err']['code'])
-  if (logObj['pkgsStack'] != null) {
-    if (logObj['pkgsStack'].length > 0) {
-      output += `\n\n${formatPkgsStack(logObj['pkgsStack'])}`
-    } else if (logObj['prefix']) {
-      output += `\n\nThis error happened while installing a direct dependency of ${logObj['prefix'] as string}`
+export function reportError (logObj: Log, config?: Config, peerDependencyRules?: PeerDependencyRules): string | null {
+  const errorInfo = getErrorInfo(logObj, config, peerDependencyRules)
+  if (!errorInfo) return null
+  let output = formatErrorSummary(errorInfo.title, (logObj as LogObjWithPossibleError).err?.code)
+  if (logObj.pkgsStack != null) {
+    if (logObj.pkgsStack.length > 0) {
+      output += `\n\n${formatPkgsStack(logObj.pkgsStack)}`
+    } else if ('prefix' in logObj && logObj.prefix) {
+      output += `\n\nThis error happened while installing a direct dependency of ${logObj.prefix}`
     }
   }
   if (errorInfo.body) {
     output += `\n\n${errorInfo.body}`
   }
   return output
+
+  /**
+   * A type to assist with introspection of the logObj.
+   * These objects may or may not have an `err` field.
+   */
+  interface LogObjWithPossibleError {
+    readonly err?: { code?: string }
+  }
 }
 
-function getErrorInfo (logObj: Log, config?: Config): {
+interface ErrorInfo {
   title: string
   body?: string
-} {
-  if (logObj['err']) {
-    const err = logObj['err'] as (PnpmError & { stack: object })
+}
+
+function getErrorInfo (logObj: Log, config?: Config, peerDependencyRules?: PeerDependencyRules): ErrorInfo | null {
+  if ('err' in logObj && logObj.err) {
+    const err = logObj.err as (PnpmError & { stack: object })
     switch (err.code) {
     case 'ERR_PNPM_UNEXPECTED_STORE':
       return reportUnexpectedStore(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -56,8 +67,10 @@ function getErrorInfo (logObj: Log, config?: Config): {
       return reportLockfileBreakingChange(err, logObj)
     case 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT':
       return { title: err.message }
+    case 'ERR_PNPM_MISSING_TIME':
+      return { title: err.message, body: 'If you cannot fix this registry issue, then set "resolution-mode" to "highest".' }
     case 'ERR_PNPM_NO_MATCHING_VERSION':
-      return formatNoMatchingVersion(err, logObj)
+      return formatNoMatchingVersion(err, logObj as unknown as { packageMeta: PackageMeta })
     case 'ERR_PNPM_RECURSIVE_FAIL':
       return formatRecursiveCommandSummary(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_BAD_TARBALL_SIZE':
@@ -67,25 +80,27 @@ function getErrorInfo (logObj: Log, config?: Config): {
     case 'ERR_PNPM_UNSUPPORTED_ENGINE':
       return reportEngineError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_PEER_DEP_ISSUES':
-      return reportPeerDependencyIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      return reportPeerDependencyIssuesError(err, logObj as any, peerDependencyRules) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_DEDUPE_CHECK_ISSUES':
       return reportDedupeCheckIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    case 'ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER':
+      return reportSpecNotSupportedByAnyResolverError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_FETCH_401':
     case 'ERR_PNPM_FETCH_403':
       return reportAuthError(err, logObj as any, config) // eslint-disable-line @typescript-eslint/no-explicit-any
     default: {
       // Errors with unknown error codes are printed with stack trace
       if (!err.code?.startsWith?.('ERR_PNPM_')) {
-        return formatGenericError(err.message ?? logObj['message'], err.stack)
+        return formatGenericError(err.message ?? (logObj as { message: string }).message, err.stack)
       }
       return {
         title: err.message ?? '',
-        body: logObj['hint'],
+        body: (logObj as { hint?: string }).hint,
       }
     }
     }
   }
-  return { title: logObj['message'] }
+  return { title: logObj.message! }
 }
 
 function formatPkgsStack (pkgsStack: Array<{ id: string, name: string, version: string }>) {
@@ -94,12 +109,16 @@ ${pkgsStack[0].name}@${pkgsStack[0].version}\
 ${pkgsStack.slice(1).map(({ name, version }) => `${EOL} at ${name}@${version}`).join('')}`
 }
 
-function formatNoMatchingVersion (err: Error, msg: object) {
-  const meta: {
-    name: string
-    'dist-tags': Record<string, string> & { latest: string }
-    versions: Record<string, object>
-  } = msg['packageMeta']
+interface PackageMeta {
+  name: string
+  'dist-tags': Record<string, string> & {
+    latest: string
+  }
+  versions: Record<string, object>
+}
+
+function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta }) {
+  const meta: PackageMeta = msg.packageMeta
   let output = `The latest release of ${meta.name} is "${meta['dist-tags'].latest}".${EOL}`
 
   if (!equals(Object.keys(meta['dist-tags']), ['latest'])) {
@@ -126,7 +145,7 @@ function reportUnexpectedStore (
     expectedStorePath: string
     modulesDir: string
   }
-) {
+): ErrorInfo {
   return {
     title: err.message,
     body: `The dependencies at "${msg.modulesDir}" are currently linked from the store at "${msg.expectedStorePath}".
@@ -147,7 +166,7 @@ function reportUnexpectedVirtualStoreDir (
     expected: string
     modulesDir: string
   }
-) {
+): ErrorInfo {
   return {
     title: err.message,
     body: `The dependencies at "${msg.modulesDir}" are currently symlinked from the virtual store directory at "${msg.expected}".
@@ -165,7 +184,7 @@ function reportStoreBreakingChange (msg: {
   storePath: string
   relatedIssue?: number
   relatedPR?: number
-}) {
+}): ErrorInfo {
   let output = `Store path: ${colorPath(msg.storePath)}
 
 Run "pnpm install" to recreate node_modules.`
@@ -186,7 +205,7 @@ function reportModulesBreakingChange (msg: {
   modulesPath: string
   relatedIssue?: number
   relatedPR?: number
-}) {
+}): ErrorInfo {
   let output = `node_modules path: ${colorPath(msg.modulesPath)}
 
 Run ${highlight('pnpm install')} to recreate node_modules.`
@@ -205,7 +224,7 @@ Run ${highlight('pnpm install')} to recreate node_modules.`
 function formatRelatedSources (msg: {
   relatedIssue?: number
   relatedPR?: number
-}) {
+}): string {
   let output = ''
 
   if (!msg.relatedIssue && !msg.relatedPR) return output
@@ -223,12 +242,12 @@ function formatRelatedSources (msg: {
   return output
 }
 
-function formatGenericError (errorMessage: string, stack: object) {
+function formatGenericError (errorMessage: string, stack: object): ErrorInfo {
   if (stack) {
     let prettyStack: string | undefined
     try {
       prettyStack = new StackTracey(stack).asTable()
-    } catch (err: any) { // eslint-disable-line
+    } catch {
       prettyStack = stack.toString()
     }
     if (prettyStack) {
@@ -241,11 +260,11 @@ function formatGenericError (errorMessage: string, stack: object) {
   return { title: errorMessage }
 }
 
-function formatErrorSummary (message: string, code?: string) {
+function formatErrorSummary (message: string, code?: string): string {
   return `${chalk.bgRed.black(`\u2009${code ?? 'ERROR'}\u2009`)} ${chalk.red(message)}`
 }
 
-function reportModifiedDependency (msg: { modified: string[] }) {
+function reportModifiedDependency (msg: { modified: string[] }): ErrorInfo {
   return {
     title: 'Packages in the store have been mutated',
     body: `These packages are modified:
@@ -255,14 +274,14 @@ You can run ${highlight('pnpm install --force')} to refetch the modified package
   }
 }
 
-function reportLockfileBreakingChange (err: Error, msg: object) {
+function reportLockfileBreakingChange (err: Error, msg: object): ErrorInfo {
   return {
     title: err.message,
     body: `Run with the ${highlight('--force')} parameter to recreate the lockfile.`,
   }
 }
 
-function formatRecursiveCommandSummary (msg: { failures: Array<Error & { prefix: string }>, passes: number }) {
+function formatRecursiveCommandSummary (msg: { failures: Array<Error & { prefix: string }>, passes: number }): ErrorInfo {
   const output = EOL + `Summary: ${chalk.red(`${msg.failures.length} fails`)}, ${msg.passes} passes` + EOL + EOL +
     msg.failures.map(({ message, prefix }) => {
       return prefix + ':' + EOL + formatErrorSummary(message)
@@ -273,7 +292,7 @@ function formatRecursiveCommandSummary (msg: { failures: Array<Error & { prefix:
   }
 }
 
-function reportBadTarballSize (err: Error, msg: object) {
+function reportBadTarballSize (err: Error, msg: object): ErrorInfo {
   return {
     title: err.message,
     body: `Seems like you have internet connection issues.
@@ -298,7 +317,7 @@ function reportLifecycleError (
     stage: string
     errno?: number | string
   }
-) {
+): ErrorInfo {
   if (msg.stage === 'test') {
     return { title: 'Test failed. See above for more details.' }
   }
@@ -321,7 +340,7 @@ function reportEngineError (
       pnpm?: string
     }
   }
-) {
+): ErrorInfo {
   let output = ''
   if (msg.wanted.pnpm) {
     output += `\
@@ -357,12 +376,11 @@ function reportAuthError (
   err: Error,
   msg: { hint?: string },
   config?: Config
-) {
+): ErrorInfo {
   const foundSettings = [] as string[]
   for (const [key, value] of Object.entries(config?.rawConfig ?? {})) {
-    if (key.startsWith('@')) {
-      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-      foundSettings.push(`${key}=${value}`)
+    if (key[0] === '@') {
+      foundSettings.push(`${key}=${String(value)}`)
       continue
     }
     if (
@@ -390,7 +408,7 @@ ${foundSettings.join('\n')}`
   }
 }
 
-function hideSecureInfo (key: string, value: string) {
+function hideSecureInfo (key: string, value: string): string {
   if (key.endsWith('_password')) return '[hidden]'
   if (key.endsWith('_auth') || key.endsWith('_authToken')) return `${value.substring(0, 4)}[hidden]`
   return value
@@ -398,33 +416,85 @@ function hideSecureInfo (key: string, value: string) {
 
 function reportPeerDependencyIssuesError (
   err: Error,
-  msg: { issuesByProjects: PeerDependencyIssuesByProjects }
-) {
+  msg: { issuesByProjects: PeerDependencyIssuesByProjects },
+  peerDependencyRules?: PeerDependencyRules
+): ErrorInfo | null {
   const hasMissingPeers = getHasMissingPeers(msg.issuesByProjects)
   const hints: string[] = []
   if (hasMissingPeers) {
     hints.push('If you want peer dependencies to be automatically installed, add "auto-install-peers=true" to an .npmrc file at the root of your project.')
   }
   hints.push('If you don\'t want pnpm to fail on peer dependency issues, add "strict-peer-dependencies=false" to an .npmrc file at the root of your project.')
+  const rendered = renderPeerIssues(msg.issuesByProjects, { rules: peerDependencyRules })
+  if (!rendered) return null
   return {
     title: err.message,
-    body: `${renderPeerIssues(msg.issuesByProjects)}
+    body: `${rendered}
 ${hints.map((hint) => `hint: ${hint}`).join('\n')}
 `,
   }
 }
 
-function getHasMissingPeers (issuesByProjects: PeerDependencyIssuesByProjects) {
+function getHasMissingPeers (issuesByProjects: PeerDependencyIssuesByProjects): boolean {
   return Object.values(issuesByProjects)
     .some((issues) => Object.values(issues.missing).flat().some(({ optional }) => !optional))
 }
 
-function reportDedupeCheckIssuesError (err: Error, msg: { dedupeCheckIssues: DedupeCheckIssues }) {
+function reportDedupeCheckIssuesError (err: Error, msg: { dedupeCheckIssues: DedupeCheckIssues }): ErrorInfo {
   return {
     title: err.message,
     body: `\
 ${renderDedupeCheckIssues(msg.dedupeCheckIssues)}
 Run ${chalk.yellow('pnpm dedupe')} to apply the changes above.
 `,
+  }
+}
+
+function reportSpecNotSupportedByAnyResolverError (err: Error, logObj: Log): ErrorInfo {
+  // If the catalog protocol specifier was sent to a "real resolver", it'll
+  // eventually throw a "specifier not supported" error since the catalog
+  // protocol is meant to be replaced before it's passed to any of the real
+  // resolvers.
+  //
+  // If this kind of error is thrown, and the dependency pref is using the
+  // catalog protocol it's most likely because we're trying to install an out of
+  // repo dependency that was published incorrectly. For example, it may be been
+  // mistakenly published with 'npm publish' instead of 'pnpm publish'. Report a
+  // more clear error in this case.
+  if (logObj.package?.pref?.startsWith('catalog:')) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return reportExternalCatalogProtocolError(err, logObj as any)
+  }
+
+  return {
+    title: err.message ?? '',
+    body: logObj.hint,
+  }
+}
+
+function reportExternalCatalogProtocolError (err: Error, logObj: Log): ErrorInfo {
+  const { pkgsStack } = logObj
+  const problemDep = pkgsStack?.[0]
+
+  let body = `\
+An external package outside of the pnpm workspace declared a dependency using
+the catalog protocol. This is likely a bug in that external package. Only
+packages within the pnpm workspace may use catalogs. Usages of the catalog
+protocol are replaced with real specifiers on 'pnpm publish'.
+`
+
+  if (problemDep != null) {
+    body += `\
+
+This is likely a bug in the publishing automation of this package. Consider filing
+a bug with the authors of:
+
+  ${highlight(`${problemDep.name}@${problemDep.version}`)}
+`
+  }
+
+  return {
+    title: err.message,
+    body,
   }
 }

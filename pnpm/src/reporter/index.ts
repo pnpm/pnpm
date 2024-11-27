@@ -1,6 +1,7 @@
 import { type Config } from '@pnpm/config'
 import { initDefaultReporter } from '@pnpm/default-reporter'
-import { type LogLevel, streamParser, writeToConsole } from '@pnpm/logger'
+import { type Log } from '@pnpm/core-loggers'
+import { type LogLevel, type StreamParser, streamParser, writeToConsole } from '@pnpm/logger'
 import { silentReporter } from './silentReporter'
 
 export type ReporterType = 'default' | 'ndjson' | 'silent' | 'append-only'
@@ -11,7 +12,7 @@ export function initReporter (
     cmd: string | null
     config: Config
   }
-) {
+): void {
   switch (reporterType) {
   case 'default':
     initDefaultReporter({
@@ -25,8 +26,11 @@ export function initReporter (
         logLevel: opts.config.loglevel as LogLevel,
         streamLifecycleOutput: opts.config.stream,
         throttleProgress: 200,
+        hideAddedPkgsProgress: opts.config.lockfileOnly,
+        hideLifecyclePrefix: opts.config.reporterHidePrefix,
+        peerDependencyRules: opts.config.rootProjectManifest?.pnpm?.peerDependencyRules,
       },
-      streamParser,
+      streamParser: streamParser as StreamParser<Log>,
     })
     return
   case 'append-only':
@@ -41,8 +45,10 @@ export function initReporter (
         aggregateOutput: opts.config.aggregateOutput,
         logLevel: opts.config.loglevel as LogLevel,
         throttleProgress: 1000,
+        hideLifecyclePrefix: opts.config.reporterHidePrefix,
+        peerDependencyRules: opts.config.rootProjectManifest?.pnpm?.peerDependencyRules,
       },
-      streamParser,
+      streamParser: streamParser as StreamParser<Log>,
     })
     return
   case 'ndjson':

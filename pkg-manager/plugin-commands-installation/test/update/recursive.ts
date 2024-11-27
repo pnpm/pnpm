@@ -1,11 +1,12 @@
 import { type PnpmError } from '@pnpm/error'
-import { readProjects } from '@pnpm/filter-workspace-packages'
-import { type Lockfile } from '@pnpm/lockfile-types'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { type Lockfile } from '@pnpm/lockfile.types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { install, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
+import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { addDistTag } from '@pnpm/registry-mock'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import { DEFAULT_OPTS } from '../utils'
 
 test('recursive update', async () => {
@@ -28,7 +29,7 @@ test('recursive update', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -48,7 +49,7 @@ test('recursive update', async () => {
   }, ['is-positive@2.0.0'])
 
   expect(projects['project-1'].requireModule('is-positive/package.json').version).toBe('2.0.0')
-  await projects['project-2'].hasNot('is-positive')
+  projects['project-2'].hasNot('is-positive')
 })
 
 test('recursive update prod dependencies only', async () => {
@@ -74,7 +75,7 @@ test('recursive update prod dependencies only', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -108,11 +109,11 @@ test('recursive update prod dependencies only', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
+  const lockfile = readYamlFile<Lockfile>('./pnpm-lock.yaml')
   expect(
     Object.keys(lockfile.packages ?? {})
   ).toStrictEqual(
-    ['/@pnpm.e2e/bar@100.0.0', '/@pnpm.e2e/foo@100.1.0']
+    ['@pnpm.e2e/bar@100.0.0', '@pnpm.e2e/foo@100.1.0']
   )
   const modules = await readModulesManifest('./node_modules')
   expect(modules?.included).toStrictEqual({
@@ -143,7 +144,7 @@ test('recursive update with pattern', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -201,7 +202,7 @@ test('recursive update with pattern and name in project', async () => {
 
   const lockfileDir = process.cwd()
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -288,7 +289,7 @@ test('recursive update --latest foo should only update projects that have foo', 
 
   const lockfileDir = process.cwd()
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -311,15 +312,15 @@ test('recursive update --latest foo should only update projects that have foo', 
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, ['@zkochan/async-regex-replace', '@pnpm.e2e/foo', '@pnpm.e2e/qar@100.1.0'])
+  }, ['@zkochan/async-regex-replace', '@pnpm.e2e/foo'])
 
-  const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
+  const lockfile = readYamlFile<Lockfile>('./pnpm-lock.yaml')
 
   expect(Object.keys(lockfile.packages ?? {}).sort()).toStrictEqual([
-    '/@zkochan/async-regex-replace@0.2.0',
-    '/@pnpm.e2e/bar@100.0.0',
-    '/@pnpm.e2e/foo@100.1.0',
-    '/@pnpm.e2e/qar@100.1.0',
+    '@zkochan/async-regex-replace@0.2.0',
+    '@pnpm.e2e/bar@100.0.0',
+    '@pnpm.e2e/foo@100.1.0',
+    '@pnpm.e2e/qar@100.0.0',
   ].sort())
 })
 
@@ -348,7 +349,7 @@ test('recursive update --latest foo should only update packages that have foo', 
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -369,18 +370,18 @@ test('recursive update --latest foo should only update packages that have foo', 
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, ['@pnpm.e2e/foo', '@pnpm.e2e/qar@100.1.0'])
+  }, ['@pnpm.e2e/foo'])
 
   {
-    const lockfile = await projects['project-1'].readLockfile()
+    const lockfile = projects['project-1'].readLockfile()
 
-    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/@pnpm.e2e/foo@100.1.0', '/@pnpm.e2e/qar@100.1.0'])
+    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['@pnpm.e2e/foo@100.1.0', '@pnpm.e2e/qar@100.0.0'])
   }
 
   {
-    const lockfile = await projects['project-2'].readLockfile()
+    const lockfile = projects['project-2'].readLockfile()
 
-    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/@pnpm.e2e/bar@100.0.0'])
+    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['@pnpm.e2e/bar@100.0.0'])
   }
 })
 
@@ -400,7 +401,7 @@ test('recursive update in workspace should not add new dependencies', async () =
   try {
     await update.handler({
       ...DEFAULT_OPTS,
-      ...await readProjects(process.cwd(), []),
+      ...await filterPackagesFromDir(process.cwd(), []),
       depth: 0,
       dir: process.cwd(),
       recursive: true,
@@ -412,6 +413,36 @@ test('recursive update in workspace should not add new dependencies', async () =
   expect(err).toBeTruthy()
   expect(err.code).toBe('ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
 
-  await projects['project-1'].hasNot('is-positive')
-  await projects['project-2'].hasNot('is-positive')
+  projects['project-1'].hasNot('is-positive')
+  projects['project-2'].hasNot('is-positive')
+})
+
+test('recursive update with aliased workspace dependency (#7975)', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        pkg: 'workspace:project-2@^',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+  ])
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    ...await filterPackagesFromDir(process.cwd(), []),
+    depth: 0,
+    dir: process.cwd(),
+    recursive: true,
+    workspaceDir: process.cwd(),
+  })
+
+  projects['project-1'].has('pkg')
+
+  const manifest = await readProjectManifestOnly('project-1')
+  expect(manifest).toHaveProperty(['dependencies', 'pkg'], 'workspace:project-2@^')
 })

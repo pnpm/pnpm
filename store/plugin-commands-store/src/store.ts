@@ -10,19 +10,21 @@ import { storeAdd } from './storeAdd'
 import { storePrune } from './storePrune'
 import { storeStatus } from './storeStatus'
 
+export const skipPackageManagerCheck = true
+
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return pick([
     'registry',
-    'store',
     'store-dir',
+    'force',
   ], allTypes)
 }
 
 export const commandNames = ['store']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Reads and performs actions on pnpm store that is on the current filesystem.',
     descriptionLists: [
@@ -48,6 +50,11 @@ Visit the documentation for more information on unreferenced packages and why th
             name: 'prune',
           },
           {
+            description: 'If there are alien directories in the store, this command removes them. \
+Alien directories are directories/files that were not created by the package manager.',
+            name: 'prune --force',
+          },
+          {
             description: 'Returns the path to the active store directory.',
             name: 'path',
           },
@@ -67,15 +74,15 @@ class StoreStatusError extends PnpmError {
   }
 }
 
-export type StoreCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir'> & CreateStoreControllerOptions & {
+export type StoreCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir' | 'force' | 'dlxCacheMaxAge'> & CreateStoreControllerOptions & {
   reporter?: (logObj: LogBase) => void
 }
 
-export async function handler (opts: StoreCommandOptions, params: string[]) {
+export async function handler (opts: StoreCommandOptions, params: string[]): Promise<string | undefined> {
   let store
   switch (params[0]) {
   case 'status':
-    return statusCmd(opts)
+    return statusCmd(opts) as Promise<undefined>
   case 'path':
     return getStorePath({
       pkgRoot: opts.dir,
@@ -87,8 +94,11 @@ export async function handler (opts: StoreCommandOptions, params: string[]) {
     const storePruneOptions = Object.assign(opts, {
       storeController: store.ctrl,
       storeDir: store.dir,
+      removeAlienFiles: opts.force,
+      cacheDir: opts.cacheDir,
+      dlxCacheMaxAge: opts.dlxCacheMaxAge,
     })
-    return storePrune(storePruneOptions)
+    return storePrune(storePruneOptions) as Promise<undefined>
   }
   case 'add':
     store = await createOrConnectStoreController(opts)
@@ -98,13 +108,13 @@ export async function handler (opts: StoreCommandOptions, params: string[]) {
       reporter: opts.reporter,
       storeController: store.ctrl,
       tag: opts.tag,
-    })
+    }) as Promise<undefined>
   default:
     return help()
   }
 }
 
-async function statusCmd (opts: StoreCommandOptions) {
+async function statusCmd (opts: StoreCommandOptions): Promise<void> {
   const modifiedPkgs = await storeStatus(Object.assign(opts, {
     storeDir: await getStorePath({
       pkgRoot: opts.dir,

@@ -1,4 +1,5 @@
 import { URL } from 'url'
+import { type SslConfig } from '@pnpm/types'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import { getAgent, type AgentOptions } from '@pnpm/network.agent'
 import { fetch, isRedirect, type Response, type RequestInfo, type RequestInit } from './fetch'
@@ -13,7 +14,7 @@ export type FetchWithAgentOptions = RequestInit & {
   agentOptions: AgentOptions
 }
 
-export function fetchWithAgent (url: RequestInfo, opts: FetchWithAgentOptions) {
+export function fetchWithAgent (url: RequestInfo, opts: FetchWithAgentOptions): Promise<Response> {
   const agent = getAgent(url.toString(), {
     ...opts.agentOptions,
     strictSsl: opts.agentOptions.strictSsl ?? true,
@@ -33,6 +34,7 @@ export function createFetchFromRegistry (
   defaultOpts: {
     fullMetadata?: boolean
     userAgent?: string
+    sslConfigs?: Record<string, SslConfig>
   } & AgentOptions
 ): FetchFromRegistry {
   return async (url, opts): Promise<Response> => {
@@ -59,7 +61,10 @@ export function createFetchFromRegistry (
       // We should pass a URL object to node-fetch till this is not resolved:
       // https://github.com/bitinn/node-fetch/issues/245
       const response = await fetchWithAgent(urlObject, {
-        agentOptions,
+        agentOptions: {
+          ...agentOptions,
+          clientCertificates: defaultOpts.sslConfigs,
+        },
         // if verifying integrity, node-fetch must not decompress
         compress: opts?.compress ?? false,
         headers,
@@ -82,13 +87,19 @@ export function createFetchFromRegistry (
   }
 }
 
+interface Headers {
+  accept: string
+  authorization?: string
+  'user-agent'?: string
+}
+
 function getHeaders (
   opts: {
     auth?: string
     fullMetadata?: boolean
     userAgent?: string
   }
-) {
+): Headers {
   const headers: { accept: string, authorization?: string, 'user-agent'?: string } = {
     accept: opts.fullMetadata === true ? JSON_DOC : ABBREVIATED_DOC,
   }

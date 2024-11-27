@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/remove-bins",
-  "version": "5.0.2",
+  "version": "6.0.9",
   "description": "Remove bins from .bin",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,14 +9,14 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "keywords": [
-    "pnpm8"
+    "pnpm10"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/remove-bins",
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/remove-bins#readme",
@@ -32,14 +32,15 @@
     "@pnpm/package-bins": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@zkochan/rimraf": "^2.1.2",
-    "cmd-extension": "^1.0.2",
-    "is-windows": "^1.0.2"
+    "@zkochan/rimraf": "catalog:",
+    "cmd-extension": "catalog:",
+    "is-windows": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",
-    "@types/is-windows": "^1.0.0",
-    "@types/ramda": "0.28.20"
+    "@types/is-windows": "catalog:",
+    "@types/ramda": "catalog:"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -47,5 +48,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

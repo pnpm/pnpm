@@ -1,5 +1,385 @@
 # @pnpm/audit
 
+## 8.2.2
+
+### Patch Changes
+
+- Updated dependencies [222d10a]
+  - @pnpm/list@10.2.2
+  - @pnpm/lockfile.detect-dep-types@2.0.9
+  - @pnpm/lockfile.utils@1.0.4
+  - @pnpm/lockfile.walker@1.0.4
+
+## 8.2.1
+
+### Patch Changes
+
+- Updated dependencies [44b8935]
+  - @pnpm/list@10.2.1
+  - @pnpm/error@6.0.2
+  - @pnpm/read-project-manifest@6.0.9
+
+## 8.2.0
+
+### Minor Changes
+
+- d500d9f: Added a new setting to `package.json` at `pnpm.auditConfig.ignoreGhsas` for ignoring vulnerabilities by their GHSA code [#6838](https://github.com/pnpm/pnpm/issues/6838).
+
+  For instance:
+
+  ```json
+  {
+    "pnpm": {
+      "auditConfig": {
+        "ignoreGhsas": [
+          "GHSA-42xw-2xvc-qx8m",
+          "GHSA-4w2v-q235-vp99",
+          "GHSA-cph5-m8f7-6c5x",
+          "GHSA-vh95-rmgr-6w4m"
+        ]
+      }
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies [3af07cb]
+- Updated dependencies [d500d9f]
+  - @pnpm/list@10.2.0
+  - @pnpm/types@12.2.0
+  - @pnpm/lockfile.detect-dep-types@2.0.8
+  - @pnpm/lockfile.types@1.0.3
+  - @pnpm/lockfile.utils@1.0.3
+  - @pnpm/lockfile.walker@1.0.3
+  - @pnpm/fetch@8.0.7
+  - @pnpm/read-project-manifest@6.0.8
+
+## 8.1.10
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/lockfile.detect-dep-types@2.0.7
+  - @pnpm/lockfile.types@1.0.2
+  - @pnpm/lockfile.utils@1.0.2
+  - @pnpm/lockfile.walker@1.0.2
+  - @pnpm/fetch@8.0.6
+  - @pnpm/read-project-manifest@6.0.7
+  - @pnpm/list@10.1.10
+
+## 8.1.9
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/lockfile.types@1.0.1
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.detect-dep-types@2.0.6
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/lockfile.walker@1.0.1
+  - @pnpm/fetch@8.0.5
+  - @pnpm/read-project-manifest@6.0.6
+  - @pnpm/list@10.1.9
+
+## 8.1.8
+
+### Patch Changes
+
+- Updated dependencies [c92f4bf]
+- Updated dependencies [c5ef9b0]
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.walker@1.0.0
+  - @pnpm/lockfile.utils@1.0.0
+  - @pnpm/lockfile.types@1.0.0
+  - @pnpm/lockfile.detect-dep-types@2.0.5
+  - @pnpm/list@10.1.8
+
+## 8.1.7
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/lockfile.detect-dep-types@2.0.4
+  - @pnpm/lockfile-types@7.1.3
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/lockfile-walker@9.0.4
+  - @pnpm/fetch@8.0.4
+  - @pnpm/read-project-manifest@6.0.5
+  - @pnpm/list@10.1.7
+
+## 8.1.6
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/lockfile.detect-dep-types@2.0.3
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/lockfile-walker@9.0.3
+  - @pnpm/fetch@8.0.3
+  - @pnpm/read-project-manifest@6.0.4
+  - @pnpm/list@10.1.6
+
+## 8.1.5
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/lockfile.detect-dep-types@2.0.2
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/lockfile-walker@9.0.2
+  - @pnpm/fetch@8.0.2
+  - @pnpm/read-project-manifest@6.0.3
+  - @pnpm/list@10.1.5
+
+## 8.1.4
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-types@7.1.0
+  - @pnpm/lockfile.detect-dep-types@2.0.1
+  - @pnpm/lockfile-utils@11.0.1
+  - @pnpm/lockfile-walker@9.0.1
+  - @pnpm/list@10.1.4
+
+## 8.1.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile.detect-dep-types@2.0.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/lockfile-walker@9.0.0
+  - @pnpm/fetch@8.0.1
+  - @pnpm/read-project-manifest@6.0.2
+  - @pnpm/list@10.1.3
+
+## 8.1.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/read-project-manifest@6.0.1
+  - @pnpm/list@10.1.2
+
+## 8.1.1
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/list@10.1.1
+
+## 8.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/list@10.1.0
+  - @pnpm/lockfile.detect-dep-types@1.0.1
+  - @pnpm/lockfile-walker@8.0.1
+
+## 8.0.2
+
+### Patch Changes
+
+- @pnpm/list@10.0.2
+
+## 8.0.1
+
+### Patch Changes
+
+- @pnpm/list@10.0.1
+
+## 8.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [27a96a8]
+- Updated dependencies [730929e]
+- Updated dependencies [a22bdf0]
+  - @pnpm/types@10.0.0
+  - @pnpm/fetch@8.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/read-project-manifest@6.0.0
+  - @pnpm/lockfile-walker@8.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/fetching-types@6.0.0
+  - @pnpm/list@10.0.0
+  - @pnpm/lockfile.detect-dep-types@1.0.0
+
+## 7.0.25
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@9.0.5
+- @pnpm/list@9.1.10
+
+## 7.0.24
+
+### Patch Changes
+
+- @pnpm/list@9.1.9
+
+## 7.0.23
+
+### Patch Changes
+
+- Updated dependencies [09f610349]
+- Updated dependencies [4d34684f1]
+  - @pnpm/list@9.1.8
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/lockfile-walker@7.0.8
+  - @pnpm/read-project-manifest@5.0.10
+  - @pnpm/fetch@7.0.7
+
+## 7.0.22
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/lockfile-walker@7.0.7
+  - @pnpm/read-project-manifest@5.0.9
+  - @pnpm/list@9.1.7
+  - @pnpm/fetch@7.0.6
+
+## 7.0.21
+
+### Patch Changes
+
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/list@9.1.6
+
+## 7.0.20
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+  - @pnpm/list@9.1.5
+
+## 7.0.19
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/lockfile-utils@9.0.0
+  - @pnpm/list@9.1.4
+
+## 7.0.18
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/lockfile-types@5.1.3
+  - @pnpm/lockfile-utils@8.0.7
+  - @pnpm/lockfile-walker@7.0.6
+  - @pnpm/read-project-manifest@5.0.8
+  - @pnpm/list@9.1.3
+  - @pnpm/fetch@7.0.5
+
+## 7.0.17
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/lockfile-types@5.1.2
+  - @pnpm/lockfile-utils@8.0.6
+  - @pnpm/lockfile-walker@7.0.5
+  - @pnpm/read-project-manifest@5.0.7
+  - @pnpm/list@9.1.2
+  - @pnpm/fetch@7.0.4
+
+## 7.0.16
+
+### Patch Changes
+
+- Updated dependencies [40798fb1c]
+  - @pnpm/list@9.1.1
+
+## 7.0.15
+
+### Patch Changes
+
+- Updated dependencies [101c97ecb]
+- Updated dependencies [f394cfccd]
+  - @pnpm/list@9.1.0
+  - @pnpm/lockfile-utils@8.0.5
+
+## 7.0.14
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@5.0.6
+- @pnpm/list@9.0.12
+
+## 7.0.13
+
+### Patch Changes
+
+- Updated dependencies [f73eeac06]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/list@9.0.11
+  - @pnpm/lockfile-utils@8.0.4
+  - @pnpm/read-project-manifest@5.0.5
+
+## 7.0.12
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+  - @pnpm/lockfile-types@5.1.1
+  - @pnpm/lockfile-utils@8.0.3
+  - @pnpm/lockfile-walker@7.0.4
+  - @pnpm/read-project-manifest@5.0.4
+  - @pnpm/list@9.0.10
+  - @pnpm/fetch@7.0.3
+
+## 7.0.11
+
+### Patch Changes
+
+- Updated dependencies [b4892acc5]
+  - @pnpm/read-project-manifest@5.0.3
+  - @pnpm/list@9.0.9
+
 ## 7.0.10
 
 ### Patch Changes

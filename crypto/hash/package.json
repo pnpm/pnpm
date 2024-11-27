@@ -1,0 +1,46 @@
+{
+  "name": "@pnpm/crypto.hash",
+  "version": "0.0.0",
+  "description": "Generate hashes",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "_test": "jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/crypto/hash",
+  "keywords": [
+    "pnpm10",
+    "hash",
+    "crypto"
+  ],
+  "engines": {
+    "node": ">=18.12"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/crypto/hash#readme",
+  "dependencies": {
+    "@pnpm/crypto.polyfill": "workspace:*"
+  },
+  "devDependencies": {
+    "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/prepare": "workspace:*"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

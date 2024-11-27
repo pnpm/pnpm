@@ -31,14 +31,22 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../../store/cafs-types"
     },
     {
       "path": "../../store/create-cafs-store"
     },
     {
+      "path": "../../worker"
+    },
+    {
       "path": "../fetcher-base"
     }
-  ],
-  "composite": true
+  ]
 }

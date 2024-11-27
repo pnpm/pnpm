@@ -14,11 +14,16 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../cli/cli-meta"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {
       "path": "../error"
+    },
+    {
+      "path": "../logger"
     }
-  ],
-  "composite": true
+  ]
 }

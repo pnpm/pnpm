@@ -319,3 +319,20 @@ test('everything after an escape arg is a parameter, even if it has a help optio
   expect(cmd).toBe('exec')
   expect(params).toStrictEqual(['rm', '--help'])
 })
+
+test('`pnpm install ""` is going to be just `pnpm install`', async () => {
+  const { params, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+  }, ['install', ''])
+  expect(cmd).toBe('add')
+  // empty string in params will be filtered at: https://github.com/pnpm/pnpm/blob/main/pkg-manager/plugin-commands-installation/src/installDeps.ts#L196
+  expect(params).toStrictEqual([''])
+})
+
+test('should not swallows empty string in params', async () => {
+  const { params, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+  }, ['run', 'echo', '', 'foo', '', 'bar'])
+  expect(cmd).toBe('run')
+  expect(params).toStrictEqual(['echo', '', 'foo', '', 'bar'])
+})

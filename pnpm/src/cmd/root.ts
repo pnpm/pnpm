@@ -6,7 +6,7 @@ import renderHelp from 'render-help'
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return pick([
     'global',
   ], allTypes)
@@ -14,7 +14,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['root']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Print the effective `node_modules` directory.',
     descriptionLists: [
@@ -39,6 +39,6 @@ export async function handler (
   opts: {
     dir: string
   }
-) {
+): Promise<string> {
   return `${path.join(opts.dir, 'node_modules')}\n`
 }

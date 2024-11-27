@@ -1,7 +1,7 @@
-import { packageManager } from '@pnpm/cli-meta'
+import { packageManager, detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
 import renderHelp from 'render-help'
 
-export function createHelp (helpByCommandName: Record<string, () => string>) {
+export function createHelp (helpByCommandName: Record<string, () => string>): (opts: unknown, params: string[]) => string {
   return function (opts: unknown, params: string[]) {
     let helpText!: string
     if (params.length === 0) {
@@ -12,12 +12,12 @@ export function createHelp (helpByCommandName: Record<string, () => string>) {
       helpText = `No results for "${params[0]}"`
     }
     return `Version ${packageManager.version}\
-${process['pkg'] != null ? ` (compiled to binary; bundled Node.js ${process.version})` : ''}\
+${detectIfCurrentPkgIsExecutable() != null ? ` (compiled to binary; bundled Node.js ${process.version})` : ''}\
 \n${helpText}\n`
   }
 }
 
-function getHelpText () {
+function getHelpText (): string {
   return renderHelp({
     descriptionLists: [
       {
@@ -123,6 +123,7 @@ function getHelpText () {
 
         list: [
           {
+            description: 'Create a tarball from a package',
             name: 'pack',
           },
           {
@@ -130,7 +131,20 @@ function getHelpText () {
             name: 'publish',
           },
           {
+            description: 'Prints the effective modules directory',
             name: 'root',
+          },
+          {
+            description: 'Prints the index file of a specific package from the store',
+            name: 'cat-index',
+          },
+          {
+            description: 'Prints the contents of a file based on the hash value stored in the index file',
+            name: 'cat-file',
+          },
+          {
+            description: 'Experimental! Lists the packages that include the file with the specified hash.',
+            name: 'find-hash',
           },
         ],
       },

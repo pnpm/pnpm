@@ -1,15 +1,16 @@
-import { existsSync, promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import execa from 'execa'
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
+import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import exists from 'path-exists'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import crossSpawn from 'cross-spawn'
-import writeYamlFile from 'write-yaml-file'
-import { DEFAULT_OPTS } from './utils'
+import { sync as writeYamlFile } from 'write-yaml-file'
+import { DEFAULT_OPTS, checkPkgExists } from './utils'
 
 const skipOnWindowsCI = isCI && isWindows() ? test.skip : test
 
@@ -33,7 +34,7 @@ test('publish: package with package.json', async () => {
     dir: process.cwd(),
   }, [])
 
-  expect(await exists('test-publish-package.json-0.0.0.tgz')).toBeFalsy()
+  expect(fs.existsSync('test-publish-package.json-0.0.0.tgz')).toBeFalsy()
 })
 
 test('publish: package with package.yaml', async () => {
@@ -48,8 +49,8 @@ test('publish: package with package.yaml', async () => {
     dir: process.cwd(),
   }, [])
 
-  expect(await exists('package.yaml')).toBeTruthy()
-  expect(await exists('package.json')).toBeFalsy()
+  expect(fs.existsSync('package.yaml')).toBeTruthy()
+  expect(fs.existsSync('package.json')).toBeFalsy()
 })
 
 test('publish: package with package.json5', async () => {
@@ -64,8 +65,8 @@ test('publish: package with package.json5', async () => {
     dir: process.cwd(),
   }, [])
 
-  expect(await exists('package.json5')).toBeTruthy()
-  expect(await exists('package.json')).toBeFalsy()
+  expect(fs.existsSync('package.json5')).toBeTruthy()
+  expect(fs.existsSync('package.json')).toBeFalsy()
 })
 
 test('publish: package with package.json5 running publish from different folder', async () => {
@@ -82,8 +83,8 @@ test('publish: package with package.json5 running publish from different folder'
     dir: process.cwd(),
   }, ['./project'])
 
-  expect(await exists('project/package.json5')).toBeTruthy()
-  expect(await exists('project/package.json')).toBeFalsy()
+  expect(fs.existsSync('project/package.json5')).toBeTruthy()
+  expect(fs.existsSync('project/package.json')).toBeFalsy()
 })
 
 skipOnWindowsCI('pack packages with workspace LICENSE if no own LICENSE is present', async () => {
@@ -103,9 +104,9 @@ skipOnWindowsCI('pack packages with workspace LICENSE if no own LICENSE is prese
   ], { manifestFormat: 'YAML' })
 
   const workspaceDir = process.cwd()
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('LICENSE', 'workspace license', 'utf8')
-  await fs.writeFile('project-2/LICENSE', 'project-2 license', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('LICENSE', 'workspace license', 'utf8')
+  fs.writeFileSync('project-2/LICENSE', 'project-2 license', 'utf8')
 
   process.chdir('project-1')
   await pack.handler({
@@ -129,14 +130,14 @@ skipOnWindowsCI('pack packages with workspace LICENSE if no own LICENSE is prese
 
   crossSpawn.sync(pnpmBin, ['add', '../project-1/project-1-1.0.0.tgz', '../project-2/project-2-1.0.0.tgz'])
 
-  expect(await exists('node_modules/project-1/LICENSE')).toBeTruthy()
-  expect(await fs.readFile('node_modules/project-1/LICENSE', 'utf8')).toBe('workspace license')
-  expect(await exists('node_modules/project-2/LICENSE')).toBeTruthy()
-  expect(await fs.readFile('node_modules/project-2/LICENSE', 'utf8')).toBe('project-2 license')
+  expect(fs.existsSync('node_modules/project-1/LICENSE')).toBeTruthy()
+  expect(fs.readFileSync('node_modules/project-1/LICENSE', 'utf8')).toBe('workspace license')
+  expect(fs.existsSync('node_modules/project-2/LICENSE')).toBeTruthy()
+  expect(fs.readFileSync('node_modules/project-2/LICENSE', 'utf8')).toBe('project-2 license')
 
   process.chdir('..')
-  expect(await exists('project-1/LICENSE')).toBeFalsy()
-  expect(await exists('project-2/LICENSE')).toBeTruthy()
+  expect(fs.existsSync('project-1/LICENSE')).toBeFalsy()
+  expect(fs.existsSync('project-2/LICENSE')).toBeTruthy()
 })
 
 test('publish packages with workspace LICENSE if no own LICENSE is present', async () => {
@@ -156,9 +157,9 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
   ], { manifestFormat: 'YAML' })
 
   const workspaceDir = process.cwd()
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('LICENSE', 'workspace license', 'utf8')
-  await fs.writeFile('project-200/LICENSE', 'project-200 license', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('LICENSE', 'workspace license', 'utf8')
+  fs.writeFileSync('project-200/LICENSE', 'project-200 license', 'utf8')
 
   process.chdir('project-100')
   await publish.handler({
@@ -180,12 +181,12 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
 
   crossSpawn.sync(pnpmBin, ['add', 'project-100', 'project-200', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
-  expect(await fs.readFile('node_modules/project-100/LICENSE', 'utf8')).toBe('workspace license')
-  expect(await fs.readFile('node_modules/project-200/LICENSE', 'utf8')).toBe('project-200 license')
+  expect(fs.readFileSync('node_modules/project-100/LICENSE', 'utf8')).toBe('workspace license')
+  expect(fs.readFileSync('node_modules/project-200/LICENSE', 'utf8')).toBe('project-200 license')
 
   process.chdir('..')
-  expect(await exists('project-100/LICENSE')).toBeFalsy()
-  expect(await exists('project-200/LICENSE')).toBeTruthy()
+  expect(fs.existsSync('project-100/LICENSE')).toBeFalsy()
+  expect(fs.existsSync('project-200/LICENSE')).toBeTruthy()
 })
 
 test('publish: package with all possible fields in publishConfig', async () => {
@@ -221,7 +222,7 @@ test('publish: package with all possible fields in publishConfig', async () => {
   ])
 
   process.chdir('test-publish-config')
-  await fs.writeFile('published-bin.js', '#!/usr/bin/env node', 'utf8')
+  fs.writeFileSync('published-bin.js', '#!/usr/bin/env node', 'utf8')
   await publish.handler({
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
@@ -297,9 +298,9 @@ test('publish: package with publishConfig.directory', async () => {
 
   expect(testPublishConfigDirectory).toBeTruthy()
 
-  await fs.mkdir(path.join(testPublishConfigDirectory.dir(), 'dist'))
+  fs.mkdirSync(path.join(testPublishConfigDirectory.dir(), 'dist'))
 
-  await fs.writeFile(
+  fs.writeFileSync(
     path.join(testPublishConfigDirectory.dir(), 'dist/package.json'),
     JSON.stringify({
       name: 'publish_config_directory_dist_package',
@@ -323,15 +324,17 @@ test('publish: package with publishConfig.directory', async () => {
 
   crossSpawn.sync(pnpmBin, ['add', 'publish_config_directory_dist_package', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
-  expect(JSON.parse(await fs.readFile('node_modules/publish_config_directory_dist_package/package.json', { encoding: 'utf-8' })))
+  expect(JSON.parse(fs.readFileSync('node_modules/publish_config_directory_dist_package/package.json', { encoding: 'utf-8' })))
     .toStrictEqual({
       name: 'publish_config_directory_dist_package',
       version: '1.0.0',
     })
-  expect(existsSync('node_modules/publish_config_directory_dist_package/prepublishOnly')).toBeTruthy()
+  expect(fs.existsSync('node_modules/publish_config_directory_dist_package/prepublishOnly')).toBeTruthy()
 })
 
 test.skip('publish package that calls executable from the workspace .bin folder in prepublishOnly script', async () => {
+  await using server = await createTestIpcServer()
+
   preparePackages([
     {
       location: '.',
@@ -339,9 +342,6 @@ test.skip('publish package that calls executable from the workspace .bin folder 
         name: 'project-100',
         version: '1.0.0',
 
-        dependencies: {
-          'json-append': '1',
-        },
       },
     },
     {
@@ -349,25 +349,25 @@ test.skip('publish package that calls executable from the workspace .bin folder 
       version: '1.0.0',
 
       scripts: {
-        prepublish: 'node -e "process.stdout.write(\'prepublish\')" | json-append ./output.json',
+        prepublish: server.sendLineScript('prepublish'),
 
-        prepare: 'node -e "process.stdout.write(\'prepare\')" | json-append ./output.json',
+        prepare: server.sendLineScript('prepare'),
 
-        prepublishOnly: 'node -e "process.stdout.write(\'prepublishOnly\')" | json-append ./output.json',
+        prepublishOnly: server.sendLineScript('prepublishOnly'),
 
-        prepack: 'node -e "process.stdout.write(\'prepack\')" | json-append ./output.json',
+        prepack: server.sendLineScript('prepack'),
 
-        postpack: 'node -e "process.stdout.write(\'postpack\')" | json-append ./output.json',
+        postpack: server.sendLineScript('postpack'),
 
-        publish: 'node -e "process.stdout.write(\'publish\')" | json-append ./output.json',
+        publish: server.sendLineScript('publish'),
 
-        postpublish: 'node -e "process.stdout.write(\'postpublish\')" | json-append ./output.json',
+        postpublish: server.sendLineScript('postpublish'),
       },
     },
   ])
 
   const workspaceDir = process.cwd()
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('test-publish-scripts')
   await publish.handler({
@@ -378,7 +378,7 @@ test.skip('publish package that calls executable from the workspace .bin folder 
   }, [])
 
   expect(
-    (await import(path.resolve('output.json'))).default
+    server.getLines()
   ).toStrictEqual(
     [
       'prepublish',
@@ -471,7 +471,7 @@ test.skip('convert specs with workspace protocols to regular version ranges', as
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('workspace-protocol-package')
 
@@ -576,7 +576,7 @@ test.skip('convert specs with relative workspace protocols to regular version ra
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('relative-workspace-protocol-package')
 
@@ -614,23 +614,142 @@ test.skip('convert specs with relative workspace protocols to regular version ra
   })
 })
 
+describe('catalog protocol converted when publishing', () => {
+  test('default catalog', async () => {
+    const testPackageName = 'workspace-package-with-default-catalog'
+    preparePackages([
+      {
+        name: testPackageName,
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': 'catalog:',
+        },
+        devDependencies: {
+          'is-positive': 'catalog:',
+        },
+        optionalDependencies: {
+          'is-positive': 'catalog:',
+        },
+        peerDependencies: {
+          'is-positive': 'catalog:',
+        },
+      },
+      {
+        name: 'target',
+        private: true,
+      },
+    ])
+
+    const workspaceManifest = {
+      packages: ['**', '!store/**'],
+      catalog: { 'is-positive': '1.0.0' },
+    }
+    writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+
+    process.chdir(testPackageName)
+
+    await publish.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: ['publish', ...CREDENTIALS] },
+      catalogs: getCatalogsFromWorkspaceManifest(workspaceManifest),
+      dir: process.cwd(),
+    }, [])
+
+    process.chdir('../target')
+
+    crossSpawn.sync(pnpmBin, [
+      'add',
+      '--store-dir=../store',
+      testPackageName,
+      '--no-link-workspace-packages',
+      `--registry=http://localhost:${REGISTRY_MOCK_PORT}`,
+    ])
+
+    const { default: publishedManifest } = await import(path.resolve(`node_modules/${testPackageName}/package.json`))
+    expect(publishedManifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.devDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.optionalDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.peerDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+  })
+
+  test('named catalog', async () => {
+    const testPackageName = 'workspace-package-with-named-catalog'
+    preparePackages([
+      {
+        name: testPackageName,
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': 'catalog:foo',
+        },
+        devDependencies: {
+          'is-positive': 'catalog:bar',
+        },
+        optionalDependencies: {
+          'is-positive': 'catalog:baz',
+        },
+        peerDependencies: {
+          'is-positive': 'catalog:qux',
+        },
+      },
+      {
+        name: 'target',
+        private: true,
+      },
+    ])
+
+    const workspaceManifest = {
+      packages: ['**', '!store/**'],
+      catalogs: {
+        foo: { 'is-positive': '1.0.0' },
+        bar: { 'is-positive': '1.0.0' },
+        baz: { 'is-positive': '1.0.0' },
+        qux: { 'is-positive': '1.0.0' },
+      },
+    }
+    writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+
+    process.chdir(testPackageName)
+
+    await publish.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: ['publish', ...CREDENTIALS] },
+      catalogs: getCatalogsFromWorkspaceManifest(workspaceManifest),
+      dir: process.cwd(),
+    }, [])
+
+    process.chdir('../target')
+
+    crossSpawn.sync(pnpmBin, [
+      'add',
+      '--store-dir=../store',
+      testPackageName,
+      '--no-link-workspace-packages',
+      `--registry=http://localhost:${REGISTRY_MOCK_PORT}`,
+    ])
+
+    const { default: publishedManifest } = await import(path.resolve(`node_modules/${testPackageName}/package.json`))
+    expect(publishedManifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.devDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.optionalDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+    expect(publishedManifest.peerDependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+  })
+})
+
 test('publish: runs all the lifecycle scripts', async () => {
+  await using server = await createTestIpcServer()
+
   prepare({
     name: 'test-publish-with-scripts',
     version: '0.0.0',
 
-    dependencies: {
-      'json-append': '1.1.1',
-    },
-
     scripts: {
       // eslint-disable:object-literal-sort-keys
-      prepublish: 'node -e "process.stdout.write(\'prepublish\')" | json-append output.json',
-      prepare: 'node -e "process.stdout.write(\'prepare\')" | json-append output.json',
-      prepublishOnly: 'node -e "process.stdout.write(\'prepublishOnly\')" | json-append output.json',
-      prepack: 'node -e "process.stdout.write(\'prepack\')" | json-append output.json',
-      publish: 'node -e "process.stdout.write(\'publish\')" | json-append output.json',
-      postpublish: 'node -e "process.stdout.write(\'postpublish\')" | json-append output.json',
+      prepublish: server.sendLineScript('prepublish'),
+      prepare: server.sendLineScript('prepare'),
+      prepublishOnly: server.sendLineScript('prepublishOnly'),
+      prepack: server.sendLineScript('prepack'),
+      publish: server.sendLineScript('publish'),
+      postpublish: server.sendLineScript('postpublish'),
       // eslint-enable:object-literal-sort-keys
     },
   })
@@ -643,8 +762,7 @@ test('publish: runs all the lifecycle scripts', async () => {
     dir: process.cwd(),
   }, [])
 
-  const { default: outputs } = await import(path.resolve('output.json'))
-  expect(outputs).toStrictEqual([
+  expect(server.getLines()).toStrictEqual([
     'prepublishOnly',
     'prepublish',
     'prepack',
@@ -655,22 +773,20 @@ test('publish: runs all the lifecycle scripts', async () => {
 })
 
 test('publish: ignores all the lifecycle scripts when --ignore-scripts is used', async () => {
+  await using server = await createTestIpcServer()
+
   prepare({
     name: 'test-publish-with-ignore-scripts',
     version: '0.0.0',
 
-    dependencies: {
-      'json-append': '1.1.1',
-    },
-
     scripts: {
       // eslint-disable:object-literal-sort-keys
-      prepublish: 'node -e "process.stdout.write(\'prepublish\')" | json-append output.json',
-      prepare: 'node -e "process.stdout.write(\'prepare\')" | json-append output.json',
-      prepublishOnly: 'node -e "process.stdout.write(\'prepublishOnly\')" | json-append output.json',
-      prepack: 'node -e "process.stdout.write(\'prepack\')" | json-append output.json',
-      publish: 'node -e "process.stdout.write(\'publish\')" | json-append output.json',
-      postpublish: 'node -e "process.stdout.write(\'postpublish\')" | json-append output.json',
+      prepublish: server.sendLineScript('prepublish'),
+      prepare: server.sendLineScript('prepare'),
+      prepublishOnly: server.sendLineScript('prepublishOnly'),
+      prepack: server.sendLineScript('prepack'),
+      publish: server.sendLineScript('publish'),
+      postpublish: server.sendLineScript('postpublish'),
       // eslint-enable:object-literal-sort-keys
     },
   })
@@ -684,8 +800,8 @@ test('publish: ignores all the lifecycle scripts when --ignore-scripts is used',
     ignoreScripts: true,
   }, [])
 
-  expect(await exists('package.json')).toBeTruthy()
-  expect(await exists('output.json')).toBeFalsy()
+  expect(fs.existsSync('package.json')).toBeTruthy()
+  expect(server.getLines()).toStrictEqual([])
 })
 
 test('publish: with specified publish branch name', async () => {
@@ -738,4 +854,87 @@ test('publish: provenance', async () => {
     argv: { original: ['publish', '--provenance'] },
     dir: process.cwd(),
   }, [])
+})
+
+test('publish: use basic token helper for authentication', async () => {
+  prepare({
+    name: 'test-publish-helper-token-basic.json',
+    version: '0.0.2',
+  })
+
+  const os = process.platform
+  const file = os === 'win32'
+    ? 'tokenHelperBasic.bat'
+    : 'tokenHelperBasic.js'
+
+  const tokenHelper = path.join(__dirname, 'utils', file)
+
+  fs.chmodSync(tokenHelper, 0o755)
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: {
+      original: [
+        'publish',
+        CREDENTIALS[0],
+        `--//localhost:${REGISTRY_MOCK_PORT}/:tokenHelper=${tokenHelper}`,
+      ],
+    },
+    dir: process.cwd(),
+    gitChecks: false,
+  }, [])
+})
+
+test('publish: use bearer token helper for authentication', async () => {
+  prepare({
+    name: 'test-publish-helper-token-bearer.json',
+    version: '0.0.2',
+  })
+
+  const os = process.platform
+  const file = os === 'win32'
+    ? 'tokenHelperBearer.bat'
+    : 'tokenHelperBearer.js'
+  const tokenHelper = path.join(__dirname, 'utils', file)
+
+  fs.chmodSync(tokenHelper, 0o755)
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: {
+      original: [
+        'publish',
+        CREDENTIALS[0],
+        `--//localhost:${REGISTRY_MOCK_PORT}/:tokenHelper=${tokenHelper}`,
+      ],
+    },
+    dir: process.cwd(),
+    gitChecks: false,
+  }, [])
+})
+
+test('publish from a tarball', async () => {
+  const pkg = {
+    name: 'test-publish-tarball',
+    version: '0.0.0',
+  }
+  prepare(pkg)
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  fs.rmSync('package.json')
+
+  const tarballName = `${pkg.name}-${pkg.version}.tgz`
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', tarballName, ...CREDENTIALS] },
+    dir: process.cwd(),
+  }, [tarballName])
+
+  await checkPkgExists(pkg.name, pkg.version)
 })

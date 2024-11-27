@@ -4,22 +4,34 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import isWindows from 'is-windows'
 import crossSpawn from 'cross-spawn'
 
-const binDir = path.join(__dirname, '../..', isWindows() ? 'dist' : 'bin')
-const pnpmBinLocation = path.join(binDir, 'pnpm.cjs')
-const pnpxBinLocation = path.join(__dirname, '../../bin/pnpx.cjs')
+export const binDir = path.join(__dirname, '../..', isWindows() ? 'dist' : 'bin')
+export const pnpmBinLocation = path.join(binDir, 'pnpm.cjs')
+export const pnpxBinLocation = path.join(__dirname, '../../bin/pnpx.cjs')
+
+// The default timeout for tests is 4 minutes. Set a timeout for execPnpm calls
+// for 3 minutes to make it more clear what specific part of a test is timing
+// out.
+const DEFAULT_EXEC_PNPM_TIMEOUT = 3 * 60 * 1000 // 3 minutes
+const TIMEOUT_FOR_GRACEFUL_EXIT = 10 * 1000 // 10s
 
 export async function execPnpm (
   args: string[],
   opts?: {
     env: Record<string, string>
+    timeout?: number // timeout in ms
   }
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const proc = spawnPnpm(args, opts)
 
+    const timeout = opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT
+    const timeoutId = registerProcessTimeout(proc, timeout, reject)
+
     proc.on('error', reject)
 
     proc.on('close', (code: number) => {
+      clearTimeout(timeoutId)
+
       if (code > 0) {
         reject(new Error(`Exit code ${code}`))
       } else {
@@ -49,9 +61,13 @@ export async function execPnpx (args: string[]): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const proc = spawnPnpx(args)
 
+    const timeoutId = registerProcessTimeout(proc, DEFAULT_EXEC_PNPM_TIMEOUT, reject)
+
     proc.on('error', reject)
 
     proc.on('close', (code: number) => {
+      clearTimeout(timeoutId)
+
       if (code > 0) {
         reject(new Error(`Exit code ${code}`))
       } else {
@@ -74,27 +90,59 @@ export interface ChildProcess {
   stderr: { toString: () => string }
 }
 
-export function execPnpmSync (args: string[], opts?: { env: Record<string, string>, stdio?: StdioOptions }): ChildProcess {
-  return crossSpawn.sync(process.execPath, [pnpmBinLocation, ...args], {
+export function execPnpmSync (
+  args: string[],
+  opts?: {
+    cwd?: string
+    env?: Record<string, string>
+    expectSuccess?: boolean // similar to expect(status).toBe(0), but also prints error messages, which makes it easier to debug failed tests
+    stdio?: StdioOptions
+    timeout?: number
+  }
+): ChildProcess {
+  const execResult = crossSpawn.sync(process.execPath, [pnpmBinLocation, ...args], {
+    cwd: opts?.cwd,
     env: {
       ...createEnv(),
       ...opts?.env,
     } as NodeJS.ProcessEnv,
     stdio: opts?.stdio,
-  }) as ChildProcess
+    timeout: opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT,
+  })
+  if (execResult.error) throw execResult.error
+  if (execResult.signal) throw new Error(`Process terminated with signal ${execResult.signal}`)
+  if (execResult.status !== 0 && opts?.expectSuccess) {
+    const stdout = execResult.stdout?.toString().split('\n').map(line => `\t${line}`).join('\n')
+    const stderr = execResult.stderr?.toString().split('\n').map(line => `\t${line}`).join('\n')
+    let message = `Process exits with code ${execResult.status}`
+    if (stdout.trim()) message += `\nSTDOUT:\n${stdout}`
+    if (stderr.trim()) message += `\nSTDOUT:\n${stderr}`
+    throw new Error(message)
+  }
+  return execResult as ChildProcess
 }
 
-export function execPnpxSync (args: string[], opts?: { env: Record<string, string> }): ChildProcess {
-  return crossSpawn.sync(process.execPath, [pnpxBinLocation, ...args], {
+export function execPnpxSync (
+  args: string[],
+  opts?: {
+    env: Record<string, string>
+    timeout?: number
+  }
+): ChildProcess {
+  const execResult = crossSpawn.sync(process.execPath, [pnpxBinLocation, ...args], {
     env: {
       ...createEnv(),
       ...opts?.env,
     } as NodeJS.ProcessEnv,
-  }) as ChildProcess
+    timeout: opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT,
+  })
+  if (execResult.error) throw execResult.error
+  if (execResult.signal) throw new Error(`Process terminated with signal ${execResult.signal}`)
+  return execResult as ChildProcess
 }
 
 function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
-  const env = {
+  const env: Record<string, string> = {
     npm_config_fetch_retries: '4',
     npm_config_hoist: 'true',
     npm_config_registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
@@ -106,8 +154,25 @@ function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
   }
   for (const [key, value] of Object.entries(process.env)) {
     if (key.toLowerCase() === 'path' || key === 'COLORTERM' || key === 'APPDATA') {
-      env[key] = value
+      env[key] = value!
     }
   }
   return env
+}
+
+function registerProcessTimeout (proc: NodeChildProcess, timeout: number, onTimeout: (reason: Error) => void) {
+  return setTimeout(() => {
+    onTimeout(new Error(`Command timed out after ${timeout}ms`))
+
+    // Ask the process to exit politely and clean up its resources. On Windows
+    // this will likely no-op since there is no SIGINT. The SIGTERM kill below
+    // will stop the process in that case.
+    proc.kill('SIGINT')
+
+    setTimeout(() => {
+      if (proc.exitCode != null) {
+        proc.kill()
+      }
+    }, TIMEOUT_FOR_GRACEFUL_EXIT)
+  }, timeout)
 }

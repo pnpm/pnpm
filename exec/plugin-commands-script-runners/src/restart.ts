@@ -8,7 +8,7 @@ import {
   type RunOpts,
 } from './run'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'npm-path',
@@ -16,13 +16,13 @@ export function rcOptionsTypes () {
   }
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return IF_PRESENT_OPTION
 }
 
 export const commandNames = ['restart']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Restarts a package. Runs a package\'s "stop", "restart", and "start" scripts, and associated pre- and post- scripts.',
     descriptionLists: [
@@ -41,7 +41,7 @@ export function help () {
 export async function handler (
   opts: RunOpts,
   params: string[]
-) {
+): Promise<void> {
   await run(opts, ['stop', ...params])
   await run(opts, ['restart', ...params])
   await run(opts, ['start', ...params])

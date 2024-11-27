@@ -1,5 +1,394 @@
 # @pnpm/filter-workspace-packages
 
+## 10.0.12
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@4.0.7
+- @pnpm/workspace.find-packages@4.0.12
+
+## 10.0.11
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+- @pnpm/workspace.pkgs-graph@4.0.6
+- @pnpm/workspace.find-packages@4.0.11
+
+## 10.0.10
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@4.0.10
+- @pnpm/workspace.pkgs-graph@4.0.5
+
+## 10.0.9
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@4.0.9
+- @pnpm/workspace.pkgs-graph@4.0.4
+
+## 10.0.8
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@4.0.8
+
+## 10.0.7
+
+### Patch Changes
+
+- Updated dependencies [82f7ed2]
+  - @pnpm/workspace.find-packages@4.0.7
+
+## 10.0.6
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@4.0.6
+
+## 10.0.5
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@4.0.5
+
+## 10.0.4
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@4.0.4
+- @pnpm/workspace.pkgs-graph@4.0.3
+
+## 10.0.3
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@4.0.3
+
+## 10.0.2
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@4.0.2
+- @pnpm/workspace.pkgs-graph@4.0.2
+
+## 10.0.1
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@4.0.1
+- @pnpm/workspace.find-packages@4.0.1
+
+## 10.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+  - @pnpm/workspace.find-packages@4.0.0
+  - @pnpm/workspace.pkgs-graph@4.0.0
+
+## 9.0.0
+
+### Major Changes
+
+- Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/workspace.find-packages@3.0.0
+  - @pnpm/workspace.pkgs-graph@3.0.6
+
+## 8.0.10
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@2.1.1
+
+## 8.0.9
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+  - @pnpm/workspace.find-packages@2.1.0
+
+## 8.0.8
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@3.0.5
+- @pnpm/workspace.find-packages@2.0.7
+
+## 8.0.7
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@2.0.6
+- @pnpm/workspace.pkgs-graph@3.0.4
+
+## 8.0.6
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/workspace.find-packages@2.0.5
+  - @pnpm/workspace.pkgs-graph@3.0.3
+
+## 8.0.5
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@3.0.2
+- @pnpm/workspace.find-packages@2.0.4
+
+## 8.0.4
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@3.0.1
+
+## 8.0.3
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@2.0.3
+
+## 8.0.2
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@2.0.2
+
+## 8.0.1
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@2.0.1
+
+## 8.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [ca2be03]
+  - @pnpm/error@6.0.0
+  - @pnpm/workspace.find-packages@2.0.0
+  - @pnpm/workspace.pkgs-graph@3.0.0
+  - @pnpm/matcher@6.0.0
+
+## 7.2.11
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@2.0.14
+- @pnpm/workspace.find-packages@1.1.10
+
+## 7.2.10
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.1.9
+
+## 7.2.9
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.1.8
+
+## 7.2.8
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@2.0.13
+- @pnpm/workspace.find-packages@1.1.7
+
+## 7.2.7
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.1.6
+- @pnpm/workspace.pkgs-graph@2.0.12
+
+## 7.2.6
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.1.5
+
+## 7.2.5
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.1.4
+
+## 7.2.4
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@2.0.11
+
+## 7.2.3
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.1.3
+
+## 7.2.2
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.1.2
+
+## 7.2.1
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@2.0.10
+- @pnpm/workspace.find-packages@1.1.1
+
+## 7.2.0
+
+### Minor Changes
+
+- 43ce9e4a6: Support for multiple architectures when installing dependencies [#5965](https://github.com/pnpm/pnpm/issues/5965).
+
+  You can now specify architectures for which you'd like to install optional dependencies, even if they don't match the architecture of the system running the install. Use the `supportedArchitectures` field in `package.json` to define your preferences.
+
+  For example, the following configuration tells pnpm to install optional dependencies for Windows x64:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32"],
+        "cpu": ["x64"]
+      }
+    }
+  }
+  ```
+
+  Whereas this configuration will have pnpm install optional dependencies for Windows, macOS, and the architecture of the system currently running the install. It includes artifacts for both x64 and arm64 CPUs:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32", "darwin", "current"],
+        "cpu": ["x64", "arm64"]
+      }
+    }
+  }
+  ```
+
+  Additionally, `supportedArchitectures` also supports specifying the `libc` of the system.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/workspace.find-packages@1.1.0
+  - @pnpm/workspace.pkgs-graph@2.0.9
+
+## 7.1.4
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@2.0.8
+- @pnpm/workspace.find-packages@1.0.14
+
+## 7.1.3
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.0.13
+
+## 7.1.2
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.0.12
+- @pnpm/workspace.pkgs-graph@2.0.7
+
+## 7.1.1
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.0.11
+
+## 7.1.0
+
+### Minor Changes
+
+- a6f5e5c9c: Fix a bug in which `use-node-version` or `node-version` isn't passed down to `checkEngine` when using pnpm workspace, resulting in an error [#6981](https://github.com/pnpm/pnpm/issues/6981).
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.0.10
+
+## 7.0.19
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@2.0.6
+- @pnpm/workspace.find-packages@1.0.9
+
+## 7.0.18
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.0.8
+
+## 7.0.17
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.0.7
+
+## 7.0.16
+
+### Patch Changes
+
+- Updated dependencies [41c2b65cf]
+  - @pnpm/workspace.pkgs-graph@2.0.5
+  - @pnpm/workspace.find-packages@1.0.6
+
+## 7.0.15
+
+### Patch Changes
+
+- 12b0f0976: `pnpm patch` should works correctly when shared-workspace-file is false [#6885](https://github.com/pnpm/pnpm/issues/6885)
+- Updated dependencies [12b0f0976]
+  - @pnpm/workspace.find-packages@1.0.5
+
+## 7.0.14
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.0.4
+
+## 7.0.13
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.0.3
+
+## 7.0.12
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.0.2
+
 ## 7.0.11
 
 ### Patch Changes

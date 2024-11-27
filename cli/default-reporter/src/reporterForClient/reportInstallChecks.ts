@@ -9,7 +9,7 @@ export function reportInstallChecks (
   opts: {
     cwd: string
   }
-) {
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return installCheck$.pipe(
     map((log) => formatInstallCheck(opts.cwd, log)),
     filter(Boolean),
@@ -23,18 +23,18 @@ function formatInstallCheck (
   opts?: {
     zoomOutCurrent: boolean
   }
-) {
+): string | undefined {
   const zoomOutCurrent = opts?.zoomOutCurrent ?? false
   switch (logObj.code) {
   case 'EBADPLATFORM':
     return autozoom(
       currentPrefix,
-      logObj['prefix'],
+      logObj.prefix,
       formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`),
       { zoomOutCurrent }
     )
   case 'ENOTSUP':
-    return autozoom(currentPrefix, logObj['prefix'], logObj.toString(), { zoomOutCurrent })
+    return autozoom(currentPrefix, logObj.prefix, logObj.toString(), { zoomOutCurrent })
   default:
     return undefined
   }

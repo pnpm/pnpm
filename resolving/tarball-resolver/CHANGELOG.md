@@ -1,5 +1,104 @@
 # @pnpm/tarball-resolver
 
+## 9.0.7
+
+### Patch Changes
+
+- @pnpm/resolver-base@13.0.4
+
+## 9.0.6
+
+### Patch Changes
+
+- @pnpm/resolver-base@13.0.3
+
+## 9.0.5
+
+### Patch Changes
+
+- @pnpm/resolver-base@13.0.2
+
+## 9.0.4
+
+### Patch Changes
+
+- @pnpm/resolver-base@13.0.1
+
+## 9.0.3
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+  - @pnpm/resolver-base@13.0.0
+
+## 9.0.2
+
+### Patch Changes
+
+- @pnpm/resolver-base@12.0.2
+
+## 9.0.1
+
+### Patch Changes
+
+- @pnpm/resolver-base@12.0.1
+
+## 9.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [43cdd87]
+- Updated dependencies [b13d2dc]
+  - @pnpm/resolver-base@12.0.0
+
+## 8.0.8
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/resolver-base@11.1.0
+
+## 8.0.7
+
+### Patch Changes
+
+- @pnpm/resolver-base@11.0.2
+
+## 8.0.6
+
+### Patch Changes
+
+- @pnpm/resolver-base@11.0.1
+
+## 8.0.5
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/resolver-base@11.0.0
+
+## 8.0.4
+
+### Patch Changes
+
+- @pnpm/resolver-base@10.0.4
+
+## 8.0.3
+
+### Patch Changes
+
+- @pnpm/resolver-base@10.0.3
+
+## 8.0.2
+
+### Patch Changes
+
+- @pnpm/resolver-base@10.0.2
+
 ## 8.0.1
 
 ### Patch Changes

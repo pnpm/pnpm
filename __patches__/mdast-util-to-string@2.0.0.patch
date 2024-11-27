@@ -1,0 +1,14 @@
+diff --git a/types/index.d.ts b/types/index.d.ts
+index 39b41dbb8e915bfc0ac76526e679bcaea3c099a8..cf768e14638b6910d3026315d9b51daee50ac397 100644
+--- a/types/index.d.ts
++++ b/types/index.d.ts
+@@ -1,8 +1,7 @@
+ // Minimum TypeScript Version: 3.0
+-import {Node} from 'unist'
+ 
+ declare namespace mdastToString {}
+ 
+-declare function mdastToString(node: Node | Node[]): string
++declare function mdastToString(node: any | any[]): string
+ 
+ export = mdastToString

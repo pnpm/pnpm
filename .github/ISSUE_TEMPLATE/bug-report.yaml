@@ -1,0 +1,86 @@
+name: Bug Report 🐛
+description: Create a bug report for pnpm
+labels: ['type: bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+              If this issue affects many people in a company/big team, create a post for your company in the following discussion:
+              [https://github.com/pnpm/pnpm/discussions/3787](https://github.com/pnpm/pnpm/discussions/3787)
+              and link the issue in your post.
+
+              This will help us prioritize issues that affect more people.
+  - type: checkboxes
+    attributes:
+      label: Verify latest release
+      description: 'Please run `pnpm install -g pnpm@latest` to try the latest version of pnpm. Some issues may already be fixed in the latest release, so please verify that your issue reproduces before opening a new issue.'
+      options:
+        - label: I verified that the issue exists in the latest pnpm release
+  - type: input
+    attributes:
+      label: pnpm version
+      description: Fill only if you are not using the latest major version (v7, v8...)
+  - type: dropdown
+    attributes:
+      label: Which area(s) of pnpm are affected? (leave empty if unsure)
+      multiple: true
+      options:
+        - 'Dependencies resolver'
+        - 'CLI'
+        - 'Lockfile'
+        - 'Store'
+        - 'Package manager compatibility'
+        - 'Operating System (Windows, MacOS, Linux)'
+        - 'Hooks'
+  - type: input
+    attributes:
+      label: Link to the code that reproduces this issue or a replay of the bug
+      description: |
+        A link to a GitHub repository minimal reproduction. If a minimal reproduction can't be created please share a replay of the bug which doesn't require sharing a private repo.
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: "How do you trigger this bug? Please walk us through it step by step."
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: ----------------------------
+  - type: textarea
+    attributes:
+      label: Describe the Bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: ----------------------------
+  - type: textarea
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: ----------------------------
+  - type: input
+    attributes:
+      label: Which Node.js version are you using?
+      description: 'Please specify the exact version. For example: 14.18.1'
+    validations:
+      required: true
+  - type: checkboxes
+    id: operating-systems
+    attributes:
+      label: Which operating systems have you used?
+      description: You may select more than one.
+      options:
+        - label: macOS
+        - label: Windows
+        - label: Linux
+  - type: input
+    attributes:
+      label: If your OS is a Linux based, which one it is? (Include the version if relevant)
+      placeholder: Linux, Ubuntu, Debian...

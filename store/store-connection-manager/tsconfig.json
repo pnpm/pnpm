@@ -19,6 +19,9 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../pkg-manager/client"
     },
     {
@@ -30,6 +33,5 @@
     {
       "path": "../store-path"
     }
-  ],
-  "composite": true
+  ]
 }

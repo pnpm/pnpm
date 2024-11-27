@@ -1,12 +1,14 @@
+import fs from 'fs'
 import path from 'path'
 import { DedupeCheckIssuesError } from '@pnpm/dedupe.check'
-import { readProjects } from '@pnpm/filter-workspace-packages'
-import { type Lockfile } from '@pnpm/lockfile-types'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { type Lockfile } from '@pnpm/lockfile.types'
 import { dedupe, install } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { diff } from 'jest-diff'
-import readYamlFile from 'read-yaml-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 
 const f = fixtures(__dirname)
@@ -33,11 +35,11 @@ describe('pnpm dedupe', () => {
       packageIssuesByDepPath: {
         added: [],
         removed: [
-          '/ajv/6.10.2',
-          '/fast-deep-equal/2.0.1',
-          '/fast-json-stable-stringify/2.0.0',
-          '/punycode/2.1.1',
-          '/uri-js/4.2.2',
+          'ajv@6.10.2',
+          'fast-deep-equal@2.0.1',
+          'fast-json-stable-stringify@2.0.0',
+          'punycode@2.1.1',
+          'uri-js@4.2.2',
         ],
         updated: {},
       },
@@ -58,10 +60,10 @@ describe('pnpm dedupe', () => {
       packageIssuesByDepPath: {
         added: [],
         removed: [
-          '/punycode/2.1.1',
+          'punycode@2.1.1',
         ],
         updated: {
-          '/uri-js/4.2.2': {
+          'uri-js@4.2.2': {
             punycode: {
               next: '2.3.0',
               prev: '2.1.1',
@@ -70,6 +72,54 @@ describe('pnpm dedupe', () => {
           },
         },
       },
+    })
+  })
+
+  test('dedupe: ignores all the lifecycle scripts when --ignore-scripts is used', async () => {
+    await using server = await createTestIpcServer()
+
+    const project = prepare({
+      name: 'test-dedupe-with-ignore-scripts',
+      version: '0.0.0',
+
+      scripts: {
+        // eslint-disable:object-literal-sort-keys
+        preinstall: server.sendLineScript('preinstall'),
+        prepare: server.sendLineScript('prepare'),
+        postinstall: server.sendLineScript('postinstall'),
+        // eslint-enable:object-literal-sort-keys
+      },
+    })
+
+    const opts = {
+      ...DEFAULT_OPTS,
+      recursive: true,
+      dir: project.dir(),
+      ignoreScripts: true,
+      lockfileDir: project.dir(),
+      workspaceDir: project.dir(),
+    }
+
+    await install.handler(opts)
+
+    await dedupe.handler(opts)
+
+    expect(fs.existsSync('package.json')).toBeTruthy()
+    expect(server.getLines()).toStrictEqual([])
+  })
+
+  describe('cliOptionsTypes', () => {
+    test('trivially contains command line arguments from install command', () => {
+      // Using --store-dir and --registry as a gut check to ensure the "pnpm
+      // dedupe" command accepts most CLI options that "pnpm install" accepts.
+      expect(dedupe.cliOptionsTypes()).toHaveProperty('store-dir')
+      expect(dedupe.cliOptionsTypes()).toHaveProperty('registry')
+    })
+
+    test('does not accept --frozen-lockfile', () => {
+      // This option doesn't make sense on pnpm dedupe. Ensure it's not
+      // accidentally inherited from the install command after future refactors.
+      expect(dedupe.cliOptionsTypes()).not.toHaveProperty('--frozen-lockfile')
     })
   })
 })
@@ -94,7 +144,7 @@ async function testFixture (fixtureName: string) {
   const project = prepare(undefined)
   f.copy(fixtureName, project.dir())
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(project.dir(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(project.dir(), [])
 
   const opts = {
     ...DEFAULT_OPTS,
@@ -109,12 +159,12 @@ async function testFixture (fixtureName: string) {
 
   const readProjectLockfile = () => readYamlFile<Lockfile>(path.join(project.dir(), './pnpm-lock.yaml'))
 
-  const originalLockfile = await readProjectLockfile()
+  const originalLockfile = readProjectLockfile()
 
   // Sanity check that this test is set up correctly by ensuring the lockfile is
   // unmodified after a regular install.
   await install.handler(opts)
-  expect(await readProjectLockfile()).toEqual(originalLockfile)
+  expect(readProjectLockfile()).toEqual(originalLockfile)
 
   let dedupeCheckError: DedupeCheckIssuesError | undefined
   try {
@@ -124,7 +174,7 @@ async function testFixture (fixtureName: string) {
     dedupeCheckError = err as DedupeCheckIssuesError
   } finally {
     // The dedupe check option should never change the lockfile.
-    expect(await readProjectLockfile()).toEqual(originalLockfile)
+    expect(readProjectLockfile()).toEqual(originalLockfile)
   }
 
   if (dedupeCheckError == null) {
@@ -135,7 +185,7 @@ async function testFixture (fixtureName: string) {
   // re-resolving versions.
   await dedupe.handler(opts)
 
-  const dedupedLockfile = await readProjectLockfile()
+  const dedupedLockfile = readProjectLockfile()
 
   // It should be possible to remove packages from the fixture lockfile.
   const originalLockfilePackageNames = Object.keys(originalLockfile.packages ?? {})
@@ -150,7 +200,7 @@ async function testFixture (fixtureName: string) {
   // state. If so, the "pnpm install" command should pass successfully and not
   // make any further edits to the lockfile.
   await install.handler(opts)
-  expect(await readProjectLockfile()).toEqual(dedupedLockfile)
+  expect(readProjectLockfile()).toEqual(dedupedLockfile)
 
   return { originalLockfile, dedupedLockfile, dedupeCheckError }
 }

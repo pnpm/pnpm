@@ -25,6 +25,12 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../../pkg-manager/remove-bins"
     },
     {
@@ -35,7 +41,9 @@
     },
     {
       "path": "../node.resolver"
+    },
+    {
+      "path": "../system-node-version"
     }
-  ],
-  "composite": true
+  ]
 }

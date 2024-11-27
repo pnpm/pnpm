@@ -13,16 +13,22 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../config/matcher"
+    },
+    {
       "path": "../../config/normalize-registries"
     },
     {
       "path": "../../fs/read-modules-dir"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/detect-dep-types"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../packages/constants"
@@ -39,6 +45,5 @@
     {
       "path": "../../pkg-manifest/read-package-json"
     }
-  ],
-  "composite": true
+  ]
 }

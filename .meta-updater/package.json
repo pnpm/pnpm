@@ -1,20 +1,21 @@
 {
   "name": "@pnpm-private/updater",
-  "version": "1.0.4",
+  "version": "2.0.16",
   "private": true,
   "type": "module",
   "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
     "compile": "tsc --build"
   },
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/meta-updater": "catalog:",
     "@pnpm/types": "workspace:*",
-    "@types/normalize-path": "^3.0.0",
-    "is-subdir": "^1.2.0",
-    "load-json-file": "^6.2.0",
-    "normalize-path": "^3.0.0",
-    "path-exists": "^4.0.0",
-    "write-json-file": "^4.3.0"
+    "@types/normalize-path": "catalog:",
+    "is-subdir": "catalog:",
+    "load-json-file": "catalog:",
+    "normalize-path": "catalog:",
+    "write-json-file": "catalog:"
   },
   "devDependencies": {
     "@pnpm-private/updater": "workspace:*"

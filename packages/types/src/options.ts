@@ -1,5 +1,5 @@
 import { type DependenciesField } from './misc'
-import { type PackageManifest, type ProjectManifest } from './package'
+import { type BaseManifest } from './package'
 
 export type LogBase = {
   level: 'debug' | 'error'
@@ -13,7 +13,4 @@ export type IncludedDependencies = {
   [dependenciesField in DependenciesField]: boolean
 }
 
-export interface ReadPackageHook {
-  (pkg: PackageManifest, dir?: string): PackageManifest | Promise<PackageManifest>
-  (pkg: ProjectManifest, dir?: string): ProjectManifest | Promise<ProjectManifest>
-}
+export type ReadPackageHook = <Pkg extends BaseManifest> (pkg: Pkg, dir?: string) => Pkg | Promise<Pkg>

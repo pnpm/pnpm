@@ -1,5 +1,406 @@
 # @pnpm/find-workspace-packages
 
+## 4.0.12
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.7
+
+## 4.0.11
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.6
+- @pnpm/fs.find-packages@4.0.5
+
+## 4.0.10
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/cli-utils@4.0.5
+  - @pnpm/fs.find-packages@4.0.4
+
+## 4.0.9
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/cli-utils@4.0.4
+  - @pnpm/fs.find-packages@4.0.3
+
+## 4.0.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.3
+
+## 4.0.7
+
+### Patch Changes
+
+- 82f7ed2: Remove warnings for non-root `pnpm` field, add warnings for non-root `pnpm` subfields that aren't `executionEnv` [#8143](https://github.com/pnpm/pnpm/issues/8413).
+  - @pnpm/cli-utils@4.0.2
+
+## 4.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.1
+
+## 4.0.5
+
+### Patch Changes
+
+- Updated dependencies [26b065c]
+  - @pnpm/cli-utils@4.0.0
+
+## 4.0.4
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+- Updated dependencies [98c8bd6]
+  - @pnpm/types@12.0.0
+  - @pnpm/cli-utils@3.1.7
+  - @pnpm/fs.find-packages@4.0.2
+
+## 4.0.3
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.6
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/fs.find-packages@4.0.1
+
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.4
+
+## 4.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/fs.find-packages@4.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-utils@3.1.3
+
+## 3.0.0
+
+### Major Changes
+
+- Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/fs.find-packages@3.0.3
+  - @pnpm/types@10.1.1
+  - @pnpm/cli-utils@3.1.2
+
+## 2.1.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.1
+
+## 2.1.0
+
+### Minor Changes
+
+- b7ca13f: If `package-manager-strict-version` is set to `true` pnpm will fail if its version will not exactly match the version in the `packageManager` field of `package.json`.
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+
+## 2.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.7
+
+## 2.0.6
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/fs.find-packages@3.0.2
+
+## 2.0.5
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.5
+- @pnpm/workspace.read-manifest@2.0.1
+- @pnpm/fs.find-packages@3.0.1
+
+## 2.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+
+## 2.0.3
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.3
+
+## 2.0.2
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+
+## 2.0.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.1
+
+## 2.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [43cdd87]
+- Updated dependencies [3477ee5]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/workspace.read-manifest@2.0.0
+  - @pnpm/fs.find-packages@3.0.0
+  - @pnpm/cli-utils@3.0.0
+
+## 1.1.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.9
+
+## 1.1.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.8
+
+## 1.1.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.7
+
+## 1.1.7
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/fs.find-packages@2.0.10
+
+## 1.1.6
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/fs.find-packages@2.0.9
+
+## 1.1.5
+
+### Patch Changes
+
+- Updated dependencies [e8926e920]
+  - @pnpm/workspace.read-manifest@1.0.2
+  - @pnpm/cli-utils@2.1.4
+
+## 1.1.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+
+## 1.1.3
+
+### Patch Changes
+
+- Updated dependencies [e2a0c7272]
+  - @pnpm/workspace.read-manifest@1.0.1
+
+## 1.1.2
+
+### Patch Changes
+
+- Updated dependencies [3f7e65e10]
+  - @pnpm/workspace.read-manifest@1.0.0
+  - @pnpm/cli-utils@2.1.2
+
+## 1.1.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.1
+
+## 1.1.0
+
+### Minor Changes
+
+- 43ce9e4a6: Support for multiple architectures when installing dependencies [#5965](https://github.com/pnpm/pnpm/issues/5965).
+
+  You can now specify architectures for which you'd like to install optional dependencies, even if they don't match the architecture of the system running the install. Use the `supportedArchitectures` field in `package.json` to define your preferences.
+
+  For example, the following configuration tells pnpm to install optional dependencies for Windows x64:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32"],
+        "cpu": ["x64"]
+      }
+    }
+  }
+  ```
+
+  Whereas this configuration will have pnpm install optional dependencies for Windows, macOS, and the architecture of the system currently running the install. It includes artifacts for both x64 and arm64 CPUs:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32", "darwin", "current"],
+        "cpu": ["x64", "arm64"]
+      }
+    }
+  }
+  ```
+
+  Additionally, `supportedArchitectures` also supports specifying the `libc` of the system.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/fs.find-packages@2.0.8
+
+## 1.0.14
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.24
+
+## 1.0.13
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.23
+
+## 1.0.12
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/fs.find-packages@2.0.7
+
+## 1.0.11
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.21
+
+## 1.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+
+## 1.0.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.19
+- @pnpm/fs.find-packages@2.0.6
+
+## 1.0.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.18
+
+## 1.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.17
+
+## 1.0.6
+
+### Patch Changes
+
+- Updated dependencies [e9aa6f682]
+  - @pnpm/fs.find-packages@2.0.5
+  - @pnpm/cli-utils@2.0.16
+
+## 1.0.5
+
+### Patch Changes
+
+- 12b0f0976: `pnpm patch` should works correctly when shared-workspace-file is false [#6885](https://github.com/pnpm/pnpm/issues/6885)
+  - @pnpm/cli-utils@2.0.15
+
+## 1.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.14
+
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+  - @pnpm/cli-utils@2.0.13
+  - @pnpm/fs.find-packages@2.0.4
+
+## 1.0.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.12
+- @pnpm/fs.find-packages@2.0.3
+
 ## 1.0.1
 
 ### Patch Changes

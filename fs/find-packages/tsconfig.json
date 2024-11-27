@@ -15,6 +15,5 @@
     {
       "path": "../../pkg-manifest/read-project-manifest"
     }
-  ],
-  "composite": true
+  ]
 }

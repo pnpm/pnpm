@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -25,10 +28,37 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../crypto/hash"
+    },
+    {
+      "path": "../../deps/status"
+    },
+    {
+      "path": "../../env/path"
+    },
+    {
+      "path": "../../env/plugin-commands-env"
+    },
+    {
+      "path": "../../packages/core-loggers"
+    },
+    {
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
+      "path": "../../packages/parse-wanted-dependency"
+    },
+    {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manager/client"
     },
     {
       "path": "../../pkg-manager/package-bins"
@@ -46,6 +76,9 @@
       "path": "../../store/store-path"
     },
     {
+      "path": "../../workspace/filter-packages-from-dir"
+    },
+    {
       "path": "../../workspace/filter-workspace-packages"
     },
     {
@@ -54,6 +87,5 @@
     {
       "path": "../lifecycle"
     }
-  ],
-  "composite": true
+  ]
 }

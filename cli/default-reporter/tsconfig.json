@@ -27,11 +27,16 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/render-peer-issues"
     },
     {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../cli-meta"
     }
-  ],
-  "composite": true
+  ]
 }

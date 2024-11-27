@@ -13,14 +13,16 @@
       "path": "../../packages/dependency-path"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {
-      "path": "../lockfile-file"
+      "path": "../fs"
     },
     {
-      "path": "../lockfile-utils"
+      "path": "../utils"
     }
-  ],
-  "composite": true
+  ]
 }

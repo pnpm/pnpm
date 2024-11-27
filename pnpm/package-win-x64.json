@@ -1,7 +1,13 @@
 {
   "pkg": {
-    "assets": ["dist/pnpmrc", "dist/scripts/*"],
-    "targets": ["node18-win-x64"],
+    "assets": [
+      "dist/worker.js",
+      "dist/pnpmrc",
+      "dist/scripts/*",
+      "dist/refclone.win32-x64-*.node",
+      "dist/templates/*"
+    ],
+    "targets": ["node20-win-x64"],
     "outputPath": "../win-x64"
   }
 }

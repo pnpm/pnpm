@@ -11,7 +11,7 @@ function build (target: string) {
   }
   try {
     fs.unlinkSync(artifactFile)
-  } catch (err) {}
+  } catch {}
   execa.sync('pkg', ['../../dist/pnpm.cjs', `--config=../../package-${target}.json`], {
     cwd: path.join(__dirname, '..'),
     stdio: 'inherit',
@@ -30,5 +30,6 @@ if (process.platform === 'linux' || isM1Mac) {
   build('macos-arm64')
   build('linux-arm64')
   build('linuxstatic-arm64')
+  build('win-arm64')
 }
 

@@ -3,12 +3,10 @@ import {
   depPathToFilename,
   isAbsolute,
   parse,
-  refToAbsolute,
   refToRelative,
-  relative,
-  resolve,
   tryGetPackageId,
 } from '@pnpm/dependency-path'
+import { type DepPath } from '@pnpm/types'
 
 test('isAbsolute()', () => {
   expect(isAbsolute('/foo/1.0.0')).toBeFalsy()
@@ -21,164 +19,93 @@ test('parse()', () => {
   expect(() => parse({} as any)).toThrow(/got `object`/)
   expect(() => parse(1 as any)).toThrow(/got `number`/)
   /* eslint-enable @typescript-eslint/no-explicit-any */
-  expect(parse('/foo/1.0.0')).toStrictEqual({
-    host: undefined,
-    isAbsolute: false,
+  expect(parse('foo@1.0.0')).toStrictEqual({
     name: 'foo',
     peersSuffix: undefined,
     version: '1.0.0',
+    patchHash: undefined,
   })
 
-  expect(parse('/@foo/bar/1.0.0')).toStrictEqual({
-    host: undefined,
-    isAbsolute: false,
+  expect(parse('@foo/bar@1.0.0')).toStrictEqual({
     name: '@foo/bar',
     peersSuffix: undefined,
     version: '1.0.0',
+    patchHash: undefined,
   })
 
-  expect(parse('registry.npmjs.org/foo/1.0.0')).toStrictEqual({
-    host: 'registry.npmjs.org',
-    isAbsolute: true,
+  expect(parse('foo@1.0.0(@types/babel__core@7.1.14)')).toStrictEqual({
     name: 'foo',
-    peersSuffix: undefined,
+    peersSuffix: '(@types/babel__core@7.1.14)',
     version: '1.0.0',
+    patchHash: undefined,
   })
 
-  expect(parse('registry.npmjs.org/@foo/bar/1.0.0')).toStrictEqual({
-    host: 'registry.npmjs.org',
-    isAbsolute: true,
-    name: '@foo/bar',
-    peersSuffix: undefined,
-    version: '1.0.0',
-  })
-
-  expect(parse('github.com/kevva/is-positive')).toStrictEqual({
-    host: 'github.com',
-    isAbsolute: true,
-  })
-
-  expect(parse('example.com/foo/1.0.0')).toStrictEqual({
-    host: 'example.com',
-    isAbsolute: true,
-    name: 'foo',
-    peersSuffix: undefined,
-    version: '1.0.0',
-  })
-
-  expect(parse('example.com/foo/1.0.0_bar@2.0.0')).toStrictEqual({
-    host: 'example.com',
-    isAbsolute: true,
-    name: 'foo',
-    peersSuffix: 'bar@2.0.0',
-    version: '1.0.0',
-  })
-
-  expect(parse('/foo/1.0.0_@types+babel__core@7.1.14')).toStrictEqual({
-    host: undefined,
-    isAbsolute: false,
-    name: 'foo',
-    peersSuffix: '@types+babel__core@7.1.14',
-    version: '1.0.0',
-  })
-
-  expect(parse('example.com/foo/1.0.0(bar@2.0.0)')).toStrictEqual({
-    host: 'example.com',
-    isAbsolute: true,
-    name: 'foo',
-    peersSuffix: '(bar@2.0.0)',
-    version: '1.0.0',
-  })
-
-  expect(parse('/foo/1.0.0(@types/babel__core@7.1.14)(foo@1.0.0)')).toStrictEqual({
-    host: undefined,
-    isAbsolute: false,
+  expect(parse('foo@1.0.0(@types/babel__core@7.1.14)(foo@1.0.0)')).toStrictEqual({
     name: 'foo',
     peersSuffix: '(@types/babel__core@7.1.14)(foo@1.0.0)',
     version: '1.0.0',
+    patchHash: undefined,
   })
 
-  expect(parse('/@(-.-)/foo/1.0.0(@types/babel__core@7.1.14)(foo@1.0.0)')).toStrictEqual({
-    host: undefined,
-    isAbsolute: false,
+  expect(parse('@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)(foo@1.0.0)')).toStrictEqual({
     name: '@(-.-)/foo',
     peersSuffix: '(@types/babel__core@7.1.14)(foo@1.0.0)',
     version: '1.0.0',
+    patchHash: undefined,
   })
 
-  expect(() => parse('/foo/bar')).toThrow(/\/foo\/bar is an invalid relative dependency path/)
-
-  expect(parse('file:project(foo@1.0.0)')).toStrictEqual({
-    host: 'file:project(foo@1.0.0)',
-    isAbsolute: true,
+  expect(parse('tar-pkg@file:../tar-pkg-1.0.0.tgz')).toStrictEqual({
+    name: 'tar-pkg',
+    nonSemverVersion: 'file:../tar-pkg-1.0.0.tgz',
+    peersSuffix: undefined,
+    patchHash: undefined,
   })
-})
 
-test('refToAbsolute()', () => {
-  const registries = {
-    '@foo': 'http://foo.com/',
-    default: 'https://registry.npmjs.org/',
-  }
-  expect(refToAbsolute('1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
-  expect(refToAbsolute('1.0.0', '@foo/foo', registries)).toEqual('foo.com/@foo/foo/1.0.0')
-  expect(refToAbsolute('registry.npmjs.org/foo/1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
-  expect(refToAbsolute('/foo/1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
-  expect(refToAbsolute('/@foo/foo/1.0.0', '@foo/foo', registries)).toEqual('foo.com/@foo/foo/1.0.0')
-  expect(refToAbsolute('/@foo/foo@1.0.0(@foo/bar@1.0.0)', '@foo/foo', registries)).toEqual('foo.com/@foo/foo@1.0.0(@foo/bar@1.0.0)')
-  expect(refToAbsolute('/@foo/foo@1.0.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@foo/foo', registries)).toEqual('foo.com/@foo/foo@1.0.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
-  // linked dependencies don't have an absolute path
-  expect(refToAbsolute('link:../foo', 'foo', registries)).toBeNull()
+  expect(parse('foo@1.0.0(patch_hash=0000)(@types/babel__core@7.1.14)')).toStrictEqual({
+    name: 'foo',
+    peersSuffix: '(@types/babel__core@7.1.14)',
+    version: '1.0.0',
+    patchHash: '(patch_hash=0000)',
+  })
 })
 
 test('refToRelative()', () => {
-  expect(refToRelative('/@most/multicast/1.3.0/most@1.7.3', '@most/multicast')).toEqual('/@most/multicast/1.3.0/most@1.7.3')
-  expect(refToRelative('/@most/multicast/1.3.0/most@1.7.3(@foo/bar@1.0.0)', '@most/multicast')).toEqual('/@most/multicast/1.3.0/most@1.7.3(@foo/bar@1.0.0)')
-  expect(refToRelative('/@most/multicast/1.3.0/most@1.7.3(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@most/multicast')).toEqual('/@most/multicast/1.3.0/most@1.7.3(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
+  expect(refToRelative('1.3.0', '@most/multicast')).toEqual('@most/multicast@1.3.0')
+  expect(refToRelative('1.3.0', 'most')).toEqual('most@1.3.0')
+  expect(refToRelative('m@1.3.0', 'most')).toEqual('m@1.3.0')
+  expect(refToRelative('@most/multicast@1.3.0', 'most')).toEqual('@most/multicast@1.3.0')
+  expect(refToRelative('@most/multicast@1.3.0', '@most/multicast')).toEqual('@most/multicast@1.3.0')
+  expect(refToRelative('@most/multicast@1.3.0(@foo/bar@1.0.0)', '@most/multicast')).toEqual('@most/multicast@1.3.0(@foo/bar@1.0.0)')
+  expect(refToRelative('@most/multicast@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@most/multicast')).toEqual('@most/multicast@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
   // linked dependencies don't have a relative path
   expect(refToRelative('link:../foo', 'foo')).toBeNull()
-  expect(refToRelative('file:../tarball.tgz', 'foo')).toEqual('file:../tarball.tgz')
-  expect(refToRelative('1.3.0(@foo/bar@1.0.0)', '@qar/bar')).toEqual('/@qar/bar/1.3.0(@foo/bar@1.0.0)')
-  expect(refToRelative('1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@qar/bar')).toEqual('/@qar/bar/1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
-})
-
-test('relative()', () => {
-  const registries = {
-    '@foo': 'http://localhost:4873/',
-    default: 'https://registry.npmjs.org/',
-  }
-  expect(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0')).toEqual('/foo/1.0.0')
-  expect(relative(registries, '@foo/foo', 'localhost+4873/@foo/foo/1.0.0')).toEqual('/@foo/foo/1.0.0')
-  expect(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw')).toEqual('/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw')
-})
-
-test('resolve()', () => {
-  const registries = {
-    '@bar': 'https://bar.com/',
-    default: 'https://foo.com/',
-  }
-  expect(resolve(registries, '/foo/1.0.0')).toEqual('foo.com/foo/1.0.0')
-  expect(resolve(registries, '/@bar/bar/1.0.0')).toEqual('bar.com/@bar/bar/1.0.0')
-  expect(resolve(registries, '/@qar/qar/1.0.0')).toEqual('foo.com/@qar/qar/1.0.0')
-  expect(resolve(registries, 'qar.com/foo/1.0.0')).toEqual('qar.com/foo/1.0.0')
+  expect(refToRelative('file:../tarball.tgz', 'foo')).toEqual('foo@file:../tarball.tgz')
+  expect(refToRelative('1.3.0(@foo/bar@1.0.0)', '@qar/bar')).toEqual('@qar/bar@1.3.0(@foo/bar@1.0.0)')
+  expect(refToRelative('1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@qar/bar')).toEqual('@qar/bar@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
 })
 
 test('depPathToFilename()', () => {
-  expect(depPathToFilename('/foo/1.0.0')).toBe('foo@1.0.0')
-  expect(depPathToFilename('/@foo/bar/1.0.0')).toBe('@foo+bar@1.0.0')
-  expect(depPathToFilename('github.com/something/foo/0000?v=1')).toBe('github.com+something+foo@0000+v=1')
-  expect(depPathToFilename('\\//:*?"<>|')).toBe('++@+++++++')
-  expect(depPathToFilename('/foo/1.0.0(react@16.0.0)(react-dom@16.0.0)')).toBe('foo@1.0.0_react@16.0.0_react-dom@16.0.0')
+  expect(depPathToFilename('/foo@1.0.0', 120)).toBe('foo@1.0.0')
+  expect(depPathToFilename('/@foo/bar@1.0.0', 120)).toBe('@foo+bar@1.0.0')
+  expect(depPathToFilename('github.com/something/foo/0000?v=1', 120)).toBe('github.com+something+foo+0000+v=1')
+  expect(depPathToFilename('\\//:*?"<>|', 120)).toBe('++++++++++')
+  expect(depPathToFilename('/foo@1.0.0(react@16.0.0)(react-dom@16.0.0)', 120)).toBe('foo@1.0.0_react@16.0.0_react-dom@16.0.0')
+  expect(depPathToFilename('/foo@1.0.0(react@16.0.0(react-dom@1.0.0))(react-dom@16.0.0)', 120)).toBe('foo@1.0.0_react@16.0.0_react-dom@1.0.0__react-dom@16.0.0')
 
-  const filename = depPathToFilename('file:test/foo-1.0.0.tgz_foo@2.0.0')
+  const filename = depPathToFilename('file:test/foo-1.0.0.tgz_foo@2.0.0', 120)
   expect(filename).toBe('file+test+foo-1.0.0.tgz_foo@2.0.0')
   expect(filename).not.toContain(':')
 
-  expect(depPathToFilename('abcd/'.repeat(200))).toBe('abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abc_e5jega7r3xmarw3h6f277a3any')
-  expect(depPathToFilename('/JSONSteam/1.0.0')).toBe('JSONSteam@1.0.0_jmswpk4sf667aelr6wp2xd3p54')
+  expect(depPathToFilename('abcd/'.repeat(200), 120)).toBe('abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+ab_e7c10c3598ebbc0ca640b6524c68e602') // cspell:disable-line
+  expect(depPathToFilename('/JSONSteam@1.0.0', 120)).toBe('JSONSteam@1.0.0_533d3b11e9111b7a24f914844c021ddf') // cspell:disable-line
+
+  expect(depPathToFilename('foo@git+https://github.com/something/foo#1234', 120)).toBe('foo@git+https+++github.com+something+foo+1234')
+  expect(depPathToFilename('foo@https://codeload.github.com/something/foo/tar.gz/1234#path:packages/foo', 120)).toBe('foo@https+++codeload.github.com+something+foo+tar.gz+1234+path+packages+foo')
 })
 
 test('tryGetPackageId', () => {
-  expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/foo/1.0.0_@types+babel__core@7.1.14')).toEqual('registry.npmjs.org/foo/1.0.0')
-  expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/foo/1.0.0(@types/babel__core@7.1.14)')).toEqual('registry.npmjs.org/foo/1.0.0')
-  expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/@(-.-)/foo/1.0.0(@types/babel__core@7.1.14)')).toEqual('registry.npmjs.org/@(-.-)/foo/1.0.0')
+  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toEqual('/foo@1.0.0')
+  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))' as DepPath)).toEqual('/foo@1.0.0')
+  expect(tryGetPackageId('/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)' as DepPath)).toEqual('/@(-.-)/foo@1.0.0')
+  expect(tryGetPackageId('foo@1.0.0(patch_hash=xxxx)(@types/babel__core@7.1.14)' as DepPath)).toEqual('foo@1.0.0')
 })

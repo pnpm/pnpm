@@ -25,10 +25,16 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../fetching/pick-fetcher"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../fs/packlist"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../packages/constants"
@@ -37,7 +43,13 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/parse-wanted-dependency"
+    },
+    {
+      "path": "../../packages/types"
     },
     {
       "path": "../../pkg-manager/modules-yaml"
@@ -55,11 +67,10 @@
       "path": "../../store/store-connection-manager"
     },
     {
-      "path": "../../workspace/filter-workspace-packages"
+      "path": "../../workspace/filter-packages-from-dir"
     },
     {
       "path": "../apply-patch"
     }
-  ],
-  "composite": true
+  ]
 }

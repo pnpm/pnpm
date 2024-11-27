@@ -1,5 +1,23 @@
 # @pnpm/graceful-fs
 
+## 4.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+## 3.2.0
+
+### Minor Changes
+
+- 9caa33d53: Export readdirSync.
+
+## 3.1.0
+
+### Minor Changes
+
+- 083bbf590: Exporting new functions.
+
 ## 3.0.0
 
 ### Major Changes

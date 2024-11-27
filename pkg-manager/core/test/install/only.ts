@@ -1,7 +1,7 @@
+import fs from 'fs'
 import path from 'path'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
-import exists from 'path-exists'
 import { testDefaults } from '../utils'
 
 test('production install (with --production flag)', async () => {
@@ -19,7 +19,7 @@ test('production install (with --production flag)', async () => {
       'js-yaml': '3.14.0',
       once: '^1.4.0',
     },
-  }, await testDefaults({
+  }, testDefaults({
     fastUnpack: false,
     include: {
       dependencies: true,
@@ -28,12 +28,12 @@ test('production install (with --production flag)', async () => {
     },
   }))
 
-  expect(await exists(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0'))).toBeFalsy()
-  expect(await exists(path.resolve('node_modules/.pnpm/js-yaml@3.14.0'))).toBeTruthy()
-  await project.has('@pnpm.e2e/pkg-with-1-dep')
-  await project.has('write-yaml')
-  await project.hasNot('@zkochan/foo')
-  await project.hasNot('js-yaml')
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/js-yaml@3.14.0'))).toBeTruthy()
+  project.has('@pnpm.e2e/pkg-with-1-dep')
+  project.has('write-yaml')
+  project.hasNot('@zkochan/foo')
+  project.hasNot('js-yaml')
 })
 
 test('production install with --no-optional', async () => {
@@ -51,7 +51,7 @@ test('production install with --no-optional', async () => {
       'js-yaml': '3.14.0',
       once: '^1.4.0',
     },
-  }, await testDefaults({
+  }, testDefaults({
     fastUnpack: false,
     include: {
       dependencies: true,
@@ -60,12 +60,12 @@ test('production install with --no-optional', async () => {
     },
   }))
 
-  expect(await exists(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0'))).toBeFalsy()
-  expect(await exists(path.resolve('node_modules/.pnpm/js-yaml@3.14.0'))).toBeTruthy()
-  await project.has('@pnpm.e2e/pkg-with-1-dep')
-  await project.has('write-yaml')
-  await project.hasNot('@zkochan/foo')
-  await project.hasNot('js-yaml')
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/js-yaml@3.14.0'))).toBeTruthy()
+  project.has('@pnpm.e2e/pkg-with-1-dep')
+  project.has('write-yaml')
+  project.hasNot('@zkochan/foo')
+  project.hasNot('js-yaml')
 })
 
 test('install dev dependencies only', async () => {
@@ -79,7 +79,7 @@ test('install dev dependencies only', async () => {
     devDependencies: {
       inflight: '1.0.6',
     },
-  }, await testDefaults({
+  }, testDefaults({
     include: {
       dependencies: false,
       devDependencies: true,
@@ -87,27 +87,22 @@ test('install dev dependencies only', async () => {
     },
   }))
 
-  await project.has('inflight')
-  await project.hasNot('once')
+  project.has('inflight')
+  project.hasNot('once')
 
   {
-    const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/is-positive@1.0.0'].dev === false).toBeTruthy()
-  }
-
-  {
-    const currentLockfile = await project.readCurrentLockfile()
-    expect(currentLockfile.packages['/is-positive@1.0.0']).toBeFalsy()
+    const currentLockfile = project.readCurrentLockfile()
+    expect(currentLockfile.packages['is-positive@1.0.0']).toBeFalsy()
   }
 
   // Repeat normal installation adds missing deps to node_modules
-  await install(manifest, await testDefaults())
+  await install(manifest, testDefaults())
 
-  await project.has('once')
+  project.has('once')
 
   {
-    const currentLockfile = await project.readCurrentLockfile()
-    expect(currentLockfile.packages['/is-positive@1.0.0']).toBeTruthy()
+    const currentLockfile = project.readCurrentLockfile()
+    expect(currentLockfile.packages['is-positive@1.0.0']).toBeTruthy()
   }
 })
 
@@ -124,7 +119,7 @@ test('fail if installing different types of dependencies in a project that uses 
     devDependencies: {
       inflight: '1.0.6',
     },
-  }, await testDefaults({
+  }, testDefaults({
     include: {
       dependencies: false,
       devDependencies: true,
@@ -133,10 +128,10 @@ test('fail if installing different types of dependencies in a project that uses 
     lockfileDir,
   }))
 
-  await project.has('inflight')
-  await project.hasNot('once')
+  project.has('inflight')
+  project.hasNot('once')
 
-  const newOpts = await testDefaults({
+  const newOpts = testDefaults({
     confirmModulesPurge: false,
     include: {
       dependencies: true,
@@ -161,7 +156,7 @@ test('installation should not fail if a linked dependency points to a directory 
       'is-positive': '1.0.0',
       'not-exists': 'link:../not-exists',
     },
-  }, await testDefaults())
+  }, testDefaults())
 
-  await project.has('is-positive')
+  project.has('is-positive')
 })

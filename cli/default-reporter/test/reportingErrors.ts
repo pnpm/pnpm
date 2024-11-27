@@ -11,6 +11,11 @@ import loadJsonFile from 'load-json-file'
 import normalizeNewline from 'normalize-newline'
 import StackTracey from 'stacktracey'
 
+interface Exception extends NodeJS.ErrnoException {
+  prefix?: string
+  stage?: string
+}
+
 const formatErrorCode = (code: string) => chalk.bgRed.black(`\u2009${code}\u2009`)
 const formatError = (code: string, message: string) => {
   return `${formatErrorCode(code)} ${chalk.red(message)}`
@@ -44,7 +49,7 @@ test('prints generic error when recursive install fails', (done) => {
     streamParser: createStreamParser(),
   })
 
-  const err = new Error('some error')
+  const err: Exception = new Error('some error')
   err['prefix'] = '/home/src/'
   logger.error(err, err)
 
@@ -87,8 +92,9 @@ ${ERROR_PAD}If you need the full list of all 281 published versions run "$ pnpm 
     },
   })
 
-  const err = new PnpmError('NO_MATCHING_VERSION', 'No matching version found for pnpm@1000.0.0')
-  err['packageMeta'] = loadJsonFile.sync(path.join(__dirname, 'pnpm-meta.json'))
+  const err = Object.assign(new PnpmError('NO_MATCHING_VERSION', 'No matching version found for pnpm@1000.0.0'), {
+    packageMeta: loadJsonFile.sync(path.join(__dirname, 'pnpm-meta.json')),
+  })
   logger.error(err, err)
 })
 
@@ -112,8 +118,9 @@ ${ERROR_PAD}If you need the full list of all 4 published versions run "$ pnpm vi
     },
   })
 
-  const err = new PnpmError('NO_MATCHING_VERSION', 'No matching version found for is-positive@1000.0.0')
-  err['packageMeta'] = loadJsonFile.sync(path.join(__dirname, 'is-positive-meta.json'))
+  const err = Object.assign(new PnpmError('NO_MATCHING_VERSION', 'No matching version found for is-positive@1000.0.0'), {
+    packageMeta: loadJsonFile.sync(path.join(__dirname, 'is-positive-meta.json')),
+  })
   logger.error(err, err)
 })
 
@@ -151,17 +158,21 @@ ${ERROR_PAD}For instance, \`pnpm install --fetch-retries 5 --network-concurrency
     },
   })
 
-  const err = new PnpmError('BAD_TARBALL_SIZE', 'Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')
-  err.prefix = '/project-dir'
-  err.pkgsStack = [
+  const err = Object.assign(
+    new PnpmError('BAD_TARBALL_SIZE', 'Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)'),
     {
-      id: 'registry.npmjs.org/foo/1.0.0',
-      name: 'foo',
-      version: '1.0.0',
-    },
-  ]
-  err['expectedSize'] = 100
-  err['receivedSize'] = 99
+      prefix: '/project-dir',
+      pkgsStack: [
+        {
+          id: 'registry.npmjs.org/foo/1.0.0',
+          name: 'foo',
+          version: '1.0.0',
+        },
+      ],
+      expectedSize: 100,
+      receivedSize: 99,
+    }
+  )
   logger.error(err, err)
 })
 
@@ -204,7 +215,7 @@ test('prints command error with exit code', (done) => {
     },
   })
 
-  const err = new Error('Command failed')
+  const err: Exception = new Error('Command failed')
   err['errno'] = 100
   err['stage'] = 'lint'
   err['code'] = 'ELIFECYCLE'
@@ -227,7 +238,7 @@ test('prints command error without exit code', (done) => {
     },
   })
 
-  const err = new Error('Command failed')
+  const err: Exception = new Error('Command failed')
   err['stage'] = 'lint'
   err['code'] = 'ELIFECYCLE'
   logger.error(err, err)
@@ -260,10 +271,11 @@ ${ERROR_PAD}To check your pnpm version, run "pnpm -v".`)
     },
   })
 
-  const err = new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version')
-  err['packageId'] = '/home/zoltan/project'
-  err['wanted'] = { pnpm: '2' }
-  err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
+  const err = Object.assign(new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version'), {
+    packageId: '/home/zoltan/project',
+    wanted: { pnpm: '2' },
+    current: { pnpm: '3.0.0', node: '10.0.0' },
+  })
   logger.error(err, err)
 })
 
@@ -291,10 +303,11 @@ ${ERROR_PAD}To fix this issue, install the required Node version.`)
     },
   })
 
-  const err = new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version')
-  err['packageId'] = '/home/zoltan/project'
-  err['wanted'] = { node: '>=12' }
-  err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
+  const err = Object.assign(new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version'), {
+    packageId: '/home/zoltan/project',
+    wanted: { node: '>=12' },
+    current: { pnpm: '3.0.0', node: '10.0.0' },
+  })
   logger.error(err, err)
 })
 
@@ -332,10 +345,11 @@ ${ERROR_PAD}To fix this issue, install the required Node version.`)
     },
   })
 
-  const err = new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version')
-  err['packageId'] = '/home/zoltan/project'
-  err['wanted'] = { pnpm: '2', node: '>=12' }
-  err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
+  const err = Object.assign(new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version'), {
+    packageId: '/home/zoltan/project',
+    wanted: { pnpm: '2', node: '>=12' },
+    current: { pnpm: '3.0.0', node: '10.0.0' },
+  })
   logger.error(err, err)
 })
 

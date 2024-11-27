@@ -14,21 +14,21 @@ import {
   type OutdatedPackage,
 } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
-import { type DependenciesField, type PackageManifest } from '@pnpm/types'
+import { type DependenciesField, type PackageManifest, type ProjectRootDir } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
 import sortWith from 'ramda/src/sortWith'
 import renderHelp from 'render-help'
 import stripAnsi from 'strip-ansi'
-import wrapAnsi from 'wrap-ansi'
 import {
   DEFAULT_COMPARATORS,
+  NAME_COMPARATOR,
   type OutdatedWithVersionDiff,
 } from './utils'
 import { outdatedRecursive } from './recursive'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
       'depth',
@@ -41,15 +41,16 @@ export function rcOptionsTypes () {
     ], allTypes),
     compatible: Boolean,
     format: ['table', 'list', 'json'],
+    'sort-by': 'name',
   }
 }
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   recursive: Boolean,
 })
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
   table: '--format=table',
@@ -59,7 +60,7 @@ export const shorthands = {
 
 export const commandNames = ['outdated']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: `Check for outdated packages. The check can be limited to a subset of the installed packages by providing arguments (patterns are supported).
 
@@ -106,6 +107,14 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: 'Don\'t check "optionalDependencies"',
             name: '--no-optional',
           },
+          {
+            description: 'Prints the outdated dependencies in the given format. Default is "table". Supported options: "table, list, json"',
+            name: '--format <format>',
+          },
+          {
+            description: 'Specify the sorting method. Currently only `name` is supported.',
+            name: '--sort-by',
+          },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
@@ -126,10 +135,12 @@ export type OutdatedCommandOptions = {
   long?: boolean
   recursive?: boolean
   format?: 'table' | 'list' | 'json'
+  sortBy?: 'name'
 } & Pick<Config,
 | 'allProjects'
 | 'ca'
 | 'cacheDir'
+| 'catalogs'
 | 'cert'
 | 'dev'
 | 'dir'
@@ -161,7 +172,7 @@ export type OutdatedCommandOptions = {
 export async function handler (
   opts: OutdatedCommandOptions,
   params: string[] = []
-) {
+): Promise<{ output: string, exitCode: number }> {
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
@@ -174,7 +185,7 @@ export async function handler (
   const manifest = await readProjectManifestOnly(opts.dir, opts)
   const packages = [
     {
-      dir: opts.dir,
+      rootDir: opts.dir as ProjectRootDir,
       manifest,
     },
   ]
@@ -216,7 +227,7 @@ export async function handler (
   }
 }
 
-function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }) {
+function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortBy?: 'name' }): string {
   if (outdatedPackages.length === 0) return ''
   const columnNames = [
     'Package',
@@ -239,16 +250,35 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
   for (let i = 0; i < columnNames.length; i++)
     columnNames[i] = chalk.blueBright(columnNames[i])
 
-  return table([
+  const data = [
     columnNames,
-    ...sortOutdatedPackages(outdatedPackages)
+    ...sortOutdatedPackages(outdatedPackages, { sortBy: opts.sortBy })
       .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
-  ], TABLE_OPTIONS)
+  ]
+  let detailsColumnMaxWidth = 40
+  if (opts.long) {
+    detailsColumnMaxWidth = outdatedPackages.filter(pkg => pkg.latestManifest && !pkg.latestManifest.deprecated).reduce((maxWidth, pkg) => {
+      const cellWidth = pkg.latestManifest?.homepage?.length ?? 0
+      return Math.max(maxWidth, cellWidth)
+    }, 0)
+  }
+
+  return table(data, {
+    ...TABLE_OPTIONS,
+    columns: {
+      ...TABLE_OPTIONS.columns,
+      // Detail column:
+      3: {
+        width: detailsColumnMaxWidth,
+        wrapWord: true,
+      },
+    },
+  })
 }
 
-function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }) {
+function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortBy?: 'name' }): string {
   if (outdatedPackages.length === 0) return ''
-  return sortOutdatedPackages(outdatedPackages)
+  return sortOutdatedPackages(outdatedPackages, { sortBy: opts.sortBy })
     .map((outdatedPkg) => {
       let info = `${chalk.bold(renderPackageName(outdatedPkg))}
 ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
@@ -275,8 +305,8 @@ export interface OutdatedPackageJSONOutput {
   latestManifest?: PackageManifest
 }
 
-function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }) {
-  const outdatedPackagesJSON: Record<string, OutdatedPackageJSONOutput> = sortOutdatedPackages(outdatedPackages)
+function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortBy?: 'name' }): string {
+  const outdatedPackagesJSON: Record<string, OutdatedPackageJSONOutput> = sortOutdatedPackages(outdatedPackages, { sortBy: opts.sortBy })
     .reduce((acc, outdatedPkg) => {
       acc[outdatedPkg.packageName] = {
         current: outdatedPkg.current,
@@ -293,14 +323,16 @@ function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts:
   return JSON.stringify(outdatedPackagesJSON, null, 2)
 }
 
-function sortOutdatedPackages (outdatedPackages: readonly OutdatedPackage[]) {
+function sortOutdatedPackages (outdatedPackages: readonly OutdatedPackage[], opts?: { sortBy?: 'name' }) {
+  const sortBy = opts?.sortBy
+  const comparators = (sortBy === 'name') ? [NAME_COMPARATOR] : DEFAULT_COMPARATORS
   return sortWith(
-    DEFAULT_COMPARATORS,
+    comparators,
     outdatedPackages.map(toOutdatedWithVersionDiff)
   )
 }
 
-export function getCellWidth (data: string[][], columnNumber: number, maxWidth: number) {
+export function getCellWidth (data: string[][], columnNumber: number, maxWidth: number): number {
   const maxCellWidth = data.reduce((cellWidth, row) => {
     const cellLines = stripAnsi(row[columnNumber]).split('\n')
     const currentCellWidth = cellLines.reduce((lineWidth, line) => {
@@ -311,7 +343,7 @@ export function getCellWidth (data: string[][], columnNumber: number, maxWidth: 
   return Math.min(maxWidth, maxCellWidth)
 }
 
-export function toOutdatedWithVersionDiff<T> (outdated: T & OutdatedPackage): T & OutdatedWithVersionDiff {
+export function toOutdatedWithVersionDiff<Pkg extends OutdatedPackage> (outdated: Pkg): Pkg & OutdatedWithVersionDiff {
   if (outdated.latestManifest != null) {
     return {
       ...outdated,
@@ -324,7 +356,7 @@ export function toOutdatedWithVersionDiff<T> (outdated: T & OutdatedPackage): T 
   }
 }
 
-export function renderPackageName ({ belongsTo, packageName }: OutdatedPackage) {
+export function renderPackageName ({ belongsTo, packageName }: OutdatedPackage): string {
   switch (belongsTo) {
   case 'devDependencies': return `${packageName} ${chalk.dim('(dev)')}`
   case 'optionalDependencies': return `${packageName} ${chalk.dim('(optional)')}`
@@ -332,7 +364,7 @@ export function renderPackageName ({ belongsTo, packageName }: OutdatedPackage) 
   }
 }
 
-export function renderCurrent ({ current, wanted }: OutdatedPackage) {
+export function renderCurrent ({ current, wanted }: OutdatedPackage): string {
   const output = current ?? 'missing'
   if (current === wanted) return output
   return `${output} (wanted ${wanted})`
@@ -350,11 +382,11 @@ export function renderLatest (outdatedPkg: OutdatedWithVersionDiff): string {
   return colorizeSemverDiff({ change, diff })
 }
 
-export function renderDetails ({ latestManifest }: OutdatedPackage) {
+export function renderDetails ({ latestManifest }: OutdatedPackage): string {
   if (latestManifest == null) return ''
   const outputs = []
   if (latestManifest.deprecated) {
-    outputs.push(wrapAnsi(chalk.redBright(latestManifest.deprecated), 40))
+    outputs.push(chalk.redBright(latestManifest.deprecated))
   }
   if (latestManifest.homepage) {
     outputs.push(chalk.underline(latestManifest.homepage))

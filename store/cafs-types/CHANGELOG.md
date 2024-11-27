@@ -1,5 +1,40 @@
 # @pnpm/cafs-types
 
+## 5.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+## 4.0.0
+
+### Major Changes
+
+- 9caa33d53: `fromStore` replaced with `resolvedFrom`.
+
+## 3.1.0
+
+### Minor Changes
+
+- 03cdccc6e: New option added: disableRelinkFromStore.
+
+## 3.0.1
+
+### Patch Changes
+
+- 4a1a9431d: Breaking change to the `directory-fetcher` API.
+
+## 3.0.0
+
+### Major Changes
+
+- f2009d175: Import packages synchronously.
+- 083bbf590: Breaking changes to the API.
+
 ## 2.0.0
 
 ### Major Changes

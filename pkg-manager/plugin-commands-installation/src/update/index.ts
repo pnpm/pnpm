@@ -9,16 +9,20 @@ import { types as allTypes } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
+import { PnpmError } from '@pnpm/error'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
+import { type IncludedDependencies, type ProjectRootDir } from '@pnpm/types'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
+import pluck from 'ramda/src/pluck'
 import unnest from 'ramda/src/unnest'
 import renderHelp from 'render-help'
 import { type InstallCommandOptions } from '../install'
 import { installDeps } from '../installDeps'
-import { getUpdateChoices } from './getUpdateChoices'
-
-export function rcOptionsTypes () {
+import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices'
+import { parseUpdateParam } from '../recursive'
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
     'depth',
@@ -43,7 +47,7 @@ export function rcOptionsTypes () {
     'lockfile-include-tarball-url',
     'network-concurrency',
     'noproxy',
-    'npmPath',
+    'npm-path',
     'offline',
     'only',
     'optional',
@@ -64,14 +68,13 @@ export function rcOptionsTypes () {
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',
     'side-effects-cache',
-    'store',
     'store-dir',
     'unsafe-perm',
     'use-running-store-server',
   ], allTypes)
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
     interactive: Boolean,
@@ -81,7 +84,7 @@ export function cliOptionsTypes () {
   }
 }
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
 }
@@ -92,7 +95,7 @@ export const completion: CompletionFunc = async (cliOpts) => {
   return readDepNameCompletions(cliOpts.dir as string)
 }
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['up', 'upgrade'],
     description: 'Updates packages to their latest version based on the specified range. You can use "*" in package name to update all packages with the same pattern.',
@@ -167,28 +170,28 @@ export type UpdateCommandOptions = InstallCommandOptions & {
 export async function handler (
   opts: UpdateCommandOptions,
   params: string[] = []
-) {
+): Promise<string | undefined> {
   if (opts.interactive) {
     return interactiveUpdate(params, opts)
   }
-  return update(params, opts)
+  return update(params, opts) as Promise<undefined>
 }
 
 async function interactiveUpdate (
   input: string[],
   opts: UpdateCommandOptions
-) {
+): Promise<string | undefined> {
   const include = makeIncludeDependenciesFromCLI(opts.cliOptions)
   const projects = (opts.selectedProjectsGraph != null)
     ? Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     : [
       {
-        dir: opts.dir,
+        rootDir: opts.dir as ProjectRootDir,
         manifest: await readProjectManifestOnly(opts.dir, opts),
       },
     ]
   const rootDir = opts.workspaceDir ?? opts.dir
-  const rootProject = projects.find((project) => project.dir === rootDir)
+  const rootProject = projects.find((project) => project.rootDir === rootDir)
   const outdatedPkgsOfProjects = await outdatedDepsOfProjects(projects, input, {
     ...opts,
     compatible: opts.latest !== true,
@@ -202,7 +205,8 @@ async function interactiveUpdate (
     },
     timeout: opts.fetchTimeout,
   })
-  const choices = getUpdateChoices(unnest(outdatedPkgsOfProjects))
+  const workspacesEnabled = !!opts.workspaceDir
+  const choices = getUpdateChoices(unnest(outdatedPkgsOfProjects), workspacesEnabled)
   if (choices.length === 0) {
     if (opts.latest) {
       return 'All of your dependencies are already up to date'
@@ -221,10 +225,25 @@ async function interactiveUpdate (
       `${chalk.cyan('<i>')} to invert selection)`,
     name: 'updateDependencies',
     pointer: '❯',
+    result () {
+      return this.selected
+    },
+    format () {
+      if (!this.state.submitted || this.state.cancelled) return ''
+
+      if (Array.isArray(this.selected)) {
+        return this.selected
+          // The custom format function is used to filter out "[dependencies]" or "[devDependencies]" from the output.
+          // https://github.com/enquirer/enquirer/blob/master/lib/prompts/select.js#L98
+          .filter((choice: ChoiceRow) => !/^\[.+\]$/.test(choice.name))
+          .map((choice: ChoiceRow) => this.styles.primary(choice.name)).join(', ')
+      }
+      return this.styles.primary(this.selected.name)
+    },
     styles: {
-      dark: chalk.white,
+      dark: chalk.reset,
       em: chalk.bgBlack.whiteBright,
-      success: chalk.white,
+      success: chalk.reset,
     },
     type: 'multiselect',
     validate (value: string[]) {
@@ -247,15 +266,24 @@ async function interactiveUpdate (
       // Otherwise, pnpm CLI would print an error and confuse users.
       // See related issue: https://github.com/enquirer/enquirer/issues/225
       globalInfo('Update canceled')
+      process.exit(0)
     },
   } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
-  return update(updateDependencies, opts)
+
+  const updatePkgNames = pluck('value', updateDependencies as ChoiceRow[])
+  return update(updatePkgNames, opts) as Promise<undefined>
 }
 
 async function update (
   dependencies: string[],
   opts: UpdateCommandOptions
-) {
+): Promise<void> {
+  if (opts.latest) {
+    const dependenciesWithTags = dependencies.filter((name) => parseUpdateParam(name).versionSpec != null)
+    if (dependenciesWithTags.length) {
+      throw new PnpmError('LATEST_WITH_SPEC', `Specs are not allowed to be used with --latest (${dependenciesWithTags.join(', ')})`)
+    }
+  }
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
   const include = {
     dependencies: opts.rawConfig.production !== false,
@@ -271,11 +299,13 @@ async function update (
     includeDirect,
     include,
     update: true,
+    updateToLatest: opts.latest,
     updateMatching: (dependencies.length > 0) && dependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
       ? createMatcher(dependencies)
       : undefined,
     updatePackageManifest: opts.save !== false,
     resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
+    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   }, dependencies)
 }
 
@@ -283,7 +313,7 @@ function makeIncludeDependenciesFromCLI (opts: {
   production?: boolean
   dev?: boolean
   optional?: boolean
-}) {
+}): IncludedDependencies {
   return {
     dependencies: opts.production === true || (opts.dev !== true && opts.optional !== true),
     devDependencies: opts.dev === true || (opts.production !== true && opts.optional !== true),

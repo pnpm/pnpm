@@ -5,17 +5,17 @@ import {
 } from '@pnpm/cli-utils'
 import { type CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types as allTypes } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type DependenciesField } from '@pnpm/types'
+import { type DependenciesField, type ProjectRootDir } from '@pnpm/types'
 import { mutateModulesInSingleProject } from '@pnpm/core'
 import pick from 'ramda/src/pick'
 import without from 'ramda/src/without'
 import renderHelp from 'render-help'
-import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { getSaveType } from './getSaveType'
 import { recursive } from './recursive'
 
@@ -43,7 +43,7 @@ class RemoveMissingDepsError extends PnpmError {
   }
 }
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
     'global-dir',
@@ -61,20 +61,19 @@ export function rcOptionsTypes () {
     'save-optional',
     'save-prod',
     'shared-workspace-lockfile',
-    'store',
     'store-dir',
     'strict-peer-dependencies',
     'virtual-store-dir',
   ], allTypes)
 }
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   ...pick(['force'], allTypes),
   recursive: Boolean,
 })
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['rm', 'uninstall', 'un'],
     description: 'Removes packages from `node_modules` and from the project\'s `package.json`.',
@@ -120,7 +119,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 // This way we avoid the confusion about whether "pnpm r" means remove, run, or recursive.
 export const commandNames = ['remove', 'uninstall', 'rm', 'un', 'uni']
 
-export const completion: CompletionFunc = async (cliOpts, params) => {
+export const completion: CompletionFunc = async (cliOpts) => {
   return readDepNameCompletions(cliOpts.dir as string)
 }
 
@@ -143,16 +142,19 @@ export async function handler (
   | 'rawLocalConfig'
   | 'registries'
   | 'rootProjectManifest'
+  | 'rootProjectManifestDir'
   | 'saveDev'
   | 'saveOptional'
   | 'saveProd'
   | 'selectedProjectsGraph'
   | 'workspaceDir'
+  | 'workspacePackagePatterns'
+  | 'sharedWorkspaceLockfile'
   > & {
     recursive?: boolean
   },
   params: string[]
-) {
+): Promise<void> {
   if (params.length === 0) throw new PnpmError('MUST_REMOVE_SOMETHING', 'At least one dependency name should be specified for removal')
   const include = {
     dependencies: opts.production !== false,
@@ -171,14 +173,14 @@ export async function handler (
   }
   const store = await createOrConnectStoreController(opts)
   const removeOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
+    ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
     storeController: store.ctrl,
     storeDir: store.dir,
     include,
   })
   // @ts-expect-error
   removeOpts['workspacePackages'] = opts.workspaceDir
-    ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, opts))
+    ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns }))
     : undefined
   const targetDependenciesField = getSaveType(opts)
   const {
@@ -204,7 +206,7 @@ export async function handler (
       dependencyNames: params,
       manifest: currentManifest,
       mutation: 'uninstallSome',
-      rootDir: opts.dir,
+      rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField,
     },
     removeOpts

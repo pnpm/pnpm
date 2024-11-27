@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-deploy",
-  "version": "3.0.21",
+  "version": "5.1.31",
   "description": "Commands for deploy",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
@@ -13,22 +13,19 @@
     ".": "./lib/index.js"
   },
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "registry-mock": "registry-mock",
-    "test:jest": "jest",
-    "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
-    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7777 pnpm run test:e2e",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7778 jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-deploy",
   "keywords": [
-    "pnpm8",
+    "pnpm10",
     "pnpm"
   ],
   "license": "MIT",
@@ -38,24 +35,31 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-deploy#readme",
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
-    "@pnpm/filter-workspace-packages": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-deploy": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.8.0"
+    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/workspace.filter-packages-from-dir": "workspace:*"
   },
   "dependencies": {
+    "@pnpm/catalogs.resolver": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
+    "@pnpm/fs.is-empty-dir-or-nothing": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@zkochan/rimraf": "^2.1.2",
-    "render-help": "^1.0.3"
+    "@zkochan/rimraf": "catalog:",
+    "render-help": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

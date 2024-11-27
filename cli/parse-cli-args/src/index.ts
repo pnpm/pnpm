@@ -17,7 +17,7 @@ export interface ParsedCliArgs {
   cmd: string | null
   unknownOptions: Map<string, string[]>
   fallbackCommandUsed: boolean
-  workspaceDir?: string
+  workspaceDir: string | undefined
 }
 
 export async function parseCliArgs (
@@ -60,11 +60,29 @@ export async function parseCliArgs (
     commandName = opts.fallbackCommand!
     inputArgv.unshift(opts.fallbackCommand!)
   // The run command has special casing for --help and is handled further below.
-  } else if (cmd !== 'run' && noptExploratoryResults['help']) {
-    return getParsedArgsForHelp()
+  } else if (cmd !== 'run') {
+    if (noptExploratoryResults['help']) {
+      return {
+        ...getParsedArgsForHelp(),
+        workspaceDir: await getWorkspaceDir(noptExploratoryResults),
+      }
+    }
+    if (noptExploratoryResults['version'] || noptExploratoryResults['v']) {
+      return {
+        argv: noptExploratoryResults.argv,
+        cmd: null,
+        options: {
+          version: true,
+        },
+        params: noptExploratoryResults.argv.remain,
+        unknownOptions: new Map(),
+        fallbackCommandUsed: false,
+        workspaceDir: await getWorkspaceDir(noptExploratoryResults),
+      }
+    }
   }
 
-  function getParsedArgsForHelp () {
+  function getParsedArgsForHelp (): Omit<ParsedCliArgs, 'workspaceDir'> {
     return {
       argv: noptExploratoryResults.argv,
       cmd: 'help',
@@ -80,7 +98,7 @@ export async function parseCliArgs (
     ...opts.getTypesByCommandName(commandName),
   } as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
-  function getCommandName (args: string[]) {
+  function getCommandName (args: string[]): string {
     if (recursiveCommandUsed) {
       args = args.slice(1)
     }
@@ -90,7 +108,7 @@ export async function parseCliArgs (
     return 'add'
   }
 
-  function getEscapeArgsWithSpecialCaseForRun () {
+  function getEscapeArgsWithSpecialCaseForRun (): string[] | undefined {
     if (cmd !== 'run') {
       return opts.escapeArgs
     }
@@ -123,11 +141,15 @@ export async function parseCliArgs (
     0,
     { escapeArgs: getEscapeArgsWithSpecialCaseForRun() }
   )
+  const workspaceDir = await getWorkspaceDir(options)
 
   // For the run command, it's not clear whether --help should be passed to the
   // underlying script or invoke pnpm's help text until an additional nopt call.
   if (cmd === 'run' && options['help']) {
-    return getParsedArgsForHelp()
+    return {
+      ...getParsedArgsForHelp(),
+      workspaceDir,
+    }
   }
 
   if (opts.renamedOptions != null) {
@@ -139,8 +161,7 @@ export async function parseCliArgs (
     }
   }
 
-  // `pnpm install ""` is going to be just `pnpm install`
-  const params = argv.remain.slice(1).filter(Boolean)
+  const params = argv.remain.slice(1)
 
   if (options['recursive'] !== true && (options['filter'] || options['filter-prod'] || recursiveCommandUsed)) {
     options['recursive'] = true
@@ -151,10 +172,6 @@ export async function parseCliArgs (
       cmd = subCmd
     }
   }
-  const dir = options['dir'] ?? process.cwd()
-  const workspaceDir = options['global'] || options['ignore-workspace']
-    ? undefined
-    : await findWorkspaceDir(dir)
   if (options['workspace-root']) {
     if (options['global']) {
       throw new PnpmError('OPTIONS_CONFLICT', '--workspace-root may not be used with --global')
@@ -167,8 +184,7 @@ export async function parseCliArgs (
 
   if (cmd === 'install' && params.length > 0) {
     cmd = 'add'
-  }
-  if (!cmd && options['recursive']) {
+  } else if (!cmd && options['recursive']) {
     cmd = 'recursive'
   }
 
@@ -185,7 +201,12 @@ export async function parseCliArgs (
 
 const CUSTOM_OPTION_PREFIX = 'config.'
 
-function normalizeOptions (options: Record<string, unknown>, knownOptions: Set<string>) {
+interface NormalizeOptionsResult {
+  options: Record<string, unknown>
+  unknownOptions: Map<string, string[]>
+}
+
+function normalizeOptions (options: Record<string, unknown>, knownOptions: Set<string>): NormalizeOptionsResult {
   const standardOptionNames = []
   const normalizedOptions: Record<string, unknown> = {}
   for (const [optionName, optionValue] of Object.entries(options)) {
@@ -200,7 +221,7 @@ function normalizeOptions (options: Record<string, unknown>, knownOptions: Set<s
   return { options: normalizedOptions, unknownOptions }
 }
 
-function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>) {
+function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>): Map<string, string[]> {
   const unknownOptions = new Map<string, string[]>()
   const closestMatches = getClosestOptionMatches.bind(null, Array.from(knownOptions))
   for (const usedOption of usedOptions) {
@@ -211,8 +232,14 @@ function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>) {
   return unknownOptions
 }
 
-function getClosestOptionMatches (knownOptions: string[], option: string) {
+function getClosestOptionMatches (knownOptions: string[], option: string): string[] {
   return didYouMean(option, knownOptions, {
     returnType: ReturnTypeEnums.ALL_CLOSEST_MATCHES,
   })
+}
+
+async function getWorkspaceDir (parsedOpts: Record<string, unknown>): Promise<string | undefined> {
+  if (parsedOpts['global'] || parsedOpts['ignore-workspace']) return undefined
+  const dir = parsedOpts['dir'] ?? process.cwd()
+  return findWorkspaceDir(dir as string)
 }

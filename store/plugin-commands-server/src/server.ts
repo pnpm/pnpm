@@ -11,10 +11,9 @@ import { stop } from './stop'
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
-      'store',
       'store-dir',
     ], allTypes),
     background: Boolean,
@@ -27,7 +26,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['server']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Manage a store server',
     descriptionLists: [
@@ -103,7 +102,7 @@ export function handler (
     unstoppable?: boolean
   },
   params: string[]
-) {
+): Promise<void> | undefined {
   // We can only support TCP at the moment because node-fetch does not support IPC
   opts.protocol = 'tcp'
   switch (params[0]) {

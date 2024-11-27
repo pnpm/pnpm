@@ -1,12 +1,21 @@
+import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   type Project,
   type ProjectManifest,
   type ProjectsGraph,
   type Registries,
+  type SslConfig,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
+
+export interface WantedPackageManager {
+  name: string
+  version?: string
+}
+
+export type VerifyDepsBeforeRun = 'install' | 'warn' | 'error' | 'prompt' | false
 
 export interface Config {
   allProjects?: Project[]
@@ -22,6 +31,7 @@ export interface Config {
   excludeLinksFromLockfile: boolean
   extraBinPaths: string[]
   extraEnv: Record<string, string>
+  failIfNoMatch: boolean
   filter: string[]
   filterProd: string[]
   rawLocalConfig: Record<string, any>, // eslint-disable-line
@@ -30,6 +40,7 @@ export interface Config {
   global?: boolean
   dir: string
   bin: string
+  verifyDepsBeforeRun?: VerifyDepsBeforeRun
   ignoreDepScripts?: boolean
   ignoreScripts?: boolean
   ignoreCompatibilityDb?: boolean
@@ -71,6 +82,7 @@ export interface Config {
     name: string
     version: string
   }
+  wantedPackageManager?: WantedPackageManager
   preferOffline?: boolean
   sideEffectsCache?: boolean // for backward compatibility
   sideEffectsCacheReadonly?: boolean // for backward compatibility
@@ -90,6 +102,7 @@ export interface Config {
   failedToLoadBuiltInConfig: boolean
   resolvePeersFromWorkspaceRoot?: boolean
   deployAllFiles?: boolean
+  reporterHidePrefix?: boolean
 
   // proxy
   httpProxy?: string
@@ -119,17 +132,19 @@ export interface Config {
   fetchingConcurrency?: number
   lockfileOnly?: boolean // like npm's --package-lock-only
   childConcurrency?: number
-  repeatInstallDepth?: number
   ignorePnpmfile?: boolean
   pnpmfile: string
   hooks?: Hooks
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   hoistPattern?: string[]
-  publicHoistPattern?: string[]
+  publicHoistPattern?: string[] | string
+  hoistWorkspacePackages?: boolean
   useStoreServer?: boolean
   useRunningStoreServer?: boolean
   workspaceConcurrency: number
   workspaceDir?: string
+  workspacePackagePatterns?: string[]
+  catalogs?: Catalogs
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
@@ -153,6 +168,7 @@ export interface Config {
   enablePnp?: boolean
   enableModulesDir: boolean
   modulesCacheMaxAge: number
+  dlxCacheMaxAge: number
   embedReadme?: boolean
   gitShallowHosts?: string[]
   legacyDirFiltering?: boolean
@@ -160,19 +176,44 @@ export interface Config {
   dedupePeerDependents?: boolean
   patchesDir?: string
   ignoreWorkspaceCycles?: boolean
+  disallowWorkspaceCycles?: boolean
   packGzipLevel?: number
 
   registries: Registries
+  sslConfigs: Record<string, SslConfig>
   ignoreWorkspaceRootCheck: boolean
   workspaceRoot: boolean
 
   testPattern?: string[]
   changedFilesIgnorePattern?: string[]
+  rootProjectManifestDir: string
   rootProjectManifest?: ProjectManifest
   userConfig: Record<string, string>
+
+  globalconfig: string
+  hoist: boolean
+  packageLock: boolean
+  pending: boolean
+  userconfig: string
+  workspacePrefix?: string
+  dedupeDirectDeps?: boolean
+  extendNodePath?: boolean
+  gitBranchLockfile?: boolean
+  globalDir?: string
+  globalPkgDir: string
+  lockfile?: boolean
+  dedupeInjectedDeps?: boolean
+  nodeOptions?: string
+  packageManagerStrict?: boolean
+  packageManagerStrictVersion?: boolean
+  virtualStoreDirMaxLength: number
+  peersSuffixMaxLength?: number
+  strictStorePkgContentCheck: boolean
+  managePackageManagerVersions: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
   globalPrefix?: string
   proxy?: string
+  shamefullyFlatten?: boolean
 }

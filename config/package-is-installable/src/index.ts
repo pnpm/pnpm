@@ -2,9 +2,10 @@ import {
   installCheckLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
+import { getSystemNodeVersion } from '@pnpm/env.system-node-version'
 import { checkEngine, UnsupportedEngineError, type WantedEngine } from './checkEngine'
 import { checkPlatform, UnsupportedPlatformError } from './checkPlatform'
-import { getSystemNodeVersion } from './getSystemNodeVersion'
+import { type SupportedArchitectures } from '@pnpm/types'
 
 export type { Engine } from './checkEngine'
 export type { Platform, WantedPlatform } from './checkPlatform'
@@ -31,6 +32,7 @@ export function packageIsInstallable (
     optional: boolean
     pnpmVersion?: string
     lockfileDir: string
+    supportedArchitectures?: SupportedArchitectures
   }
 ): boolean | null {
   const warn = checkPackage(pkgId, pkg, options)
@@ -73,17 +75,18 @@ export function checkPackage (
   options: {
     nodeVersion?: string
     pnpmVersion?: string
+    supportedArchitectures?: SupportedArchitectures
   }
 ): null | UnsupportedEngineError | UnsupportedPlatformError {
   return checkPlatform(pkgId, {
     cpu: manifest.cpu ?? ['any'],
     os: manifest.os ?? ['any'],
     libc: manifest.libc ?? ['any'],
-  }) ?? (
+  }, options.supportedArchitectures) ?? (
     (manifest.engines == null)
       ? null
       : checkEngine(pkgId, manifest.engines, {
-        node: options.nodeVersion ?? getSystemNodeVersion(),
+        node: options.nodeVersion ?? getSystemNodeVersion() ?? process.version,
         pnpm: options.pnpmVersion,
       })
   )

@@ -18,9 +18,37 @@ test('exec should set npm_config_user_agent', async () => {
     userAgent,
   }, ['eslint'])
 
-  expect(execa).toBeCalledWith('eslint', [], expect.objectContaining({
+  expect(execa).toHaveBeenCalledWith('eslint', [], expect.objectContaining({
     env: expect.objectContaining({
       npm_config_user_agent: userAgent,
     }),
   }))
+})
+
+test('exec should set the NODE_OPTIONS env var', async () => {
+  prepareEmpty()
+
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    selectedProjectsGraph: {},
+    nodeOptions: '--max-old-space-size=4096',
+  }, ['eslint'])
+
+  expect(execa).toHaveBeenCalledWith('eslint', [], expect.objectContaining({
+    env: expect.objectContaining({
+      NODE_OPTIONS: '--max-old-space-size=4096',
+    }),
+  }))
+})
+
+test('exec should specify the command', async () => {
+  prepareEmpty()
+
+  await expect(exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    selectedProjectsGraph: {},
+  }, [])
+  ).rejects.toThrow("'pnpm exec' requires a command to run")
 })

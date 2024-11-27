@@ -13,10 +13,12 @@ coverage
 
 .tmp
 _docpress
+.DS_Store
 
 lib
 dist
 tsconfig.tsbuildinfo
+test.lib/
 
 # Visual Studio Code configs
 .vscode/

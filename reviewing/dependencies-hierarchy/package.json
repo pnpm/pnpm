@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/reviewing.dependencies-hierarchy",
-  "version": "2.0.8",
+  "version": "3.2.2",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -16,11 +16,11 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/dependencies-hierarchy",
   "keywords": [
-    "pnpm8",
+    "pnpm10",
     "hierarchy",
     "pnpm",
     "dependencies",
@@ -33,25 +33,33 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/dependencies-hierarchy#readme",
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*",
-    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile.detect-dep-types": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
+    "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "normalize-path": "^3.0.0",
-    "realpath-missing": "^1.1.0",
-    "resolve-link-target": "^2.0.0"
+    "normalize-path": "catalog:",
+    "realpath-missing": "catalog:",
+    "resolve-link-target": "catalog:",
+    "semver": "catalog:"
   },
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/normalize-path": "^3.0.0"
+    "@types/normalize-path": "catalog:",
+    "@types/semver": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

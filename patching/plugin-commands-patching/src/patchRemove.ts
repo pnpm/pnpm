@@ -5,21 +5,22 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { PnpmError } from '@pnpm/error'
+import { type ProjectRootDir } from '@pnpm/types'
 import renderHelp from 'render-help'
 import { prompt } from 'enquirer'
 import pick from 'ramda/src/pick'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return { ...rcOptionsTypes() }
 }
 
 export const commandNames = ['patch-remove']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Remove existing patch files',
     url: docsUrl('patch-remove'),
@@ -29,9 +30,9 @@ export function help () {
 
 export type PatchRemoveCommandOptions = install.InstallCommandOptions & Pick<Config, 'dir' | 'lockfileDir' | 'patchesDir' | 'rootProjectManifest'>
 
-export async function handler (opts: PatchRemoveCommandOptions, params: string[]) {
+export async function handler (opts: PatchRemoveCommandOptions, params: string[]): Promise<void> {
   let patchesToRemove = params
-  const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
+  const lockfileDir = (opts.lockfileDir ?? opts.dir ?? process.cwd()) as ProjectRootDir
   const { writeProjectManifest, manifest } = await tryReadProjectManifest(lockfileDir)
   const rootProjectManifest = opts.rootProjectManifest ?? manifest ?? {}
   const patchedDependencies = rootProjectManifest.pnpm?.patchedDependencies ?? {}
@@ -57,9 +58,11 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
     throw new PnpmError('NO_PATCHES_TO_REMOVE', 'There are no patches that need to be removed')
   }
 
+  const patchesDirs = new Set<string>()
   await Promise.all(patchesToRemove.map(async (patch) => {
     if (Object.prototype.hasOwnProperty.call(patchedDependencies, patch)) {
       const patchFile = path.join(lockfileDir, patchedDependencies[patch])
+      patchesDirs.add(path.dirname(patchFile))
       await fs.rm(patchFile, { force: true })
       delete rootProjectManifest.pnpm!.patchedDependencies![patch]
       if (!Object.keys(rootProjectManifest.pnpm!.patchedDependencies!).length) {
@@ -69,6 +72,15 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
         }
       }
     }
+  }))
+
+  await Promise.all(Array.from(patchesDirs).map(async (dir) => {
+    try {
+      const files = await fs.readdir(dir)
+      if (!files.length) {
+        await fs.rmdir(dir)
+      }
+    } catch {}
   }))
 
   await writeProjectManifest(rootProjectManifest)

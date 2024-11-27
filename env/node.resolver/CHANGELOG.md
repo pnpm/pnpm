@@ -1,5 +1,316 @@
 # @pnpm/node.resolver
 
+## 3.0.16
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.16
+
+## 3.0.15
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.15
+
+## 3.0.14
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.14
+
+## 3.0.13
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.13
+
+## 3.0.12
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.12
+
+## 3.0.11
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.11
+
+## 3.0.10
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.10
+
+## 3.0.9
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.9
+
+## 3.0.8
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/node.fetcher@4.0.8
+
+## 3.0.7
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.7
+
+## 3.0.6
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.6
+
+## 3.0.5
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.5
+
+## 3.0.4
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.4
+
+## 3.0.3
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.3
+
+## 3.0.2
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.2
+
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [43cdd87]
+- Updated dependencies [730929e]
+  - @pnpm/fetching-types@6.0.0
+  - @pnpm/node.fetcher@4.0.0
+
+## 2.0.40
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.39
+
+## 2.0.39
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.38
+
+## 2.0.38
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.37
+
+## 2.0.37
+
+### Patch Changes
+
+- Updated dependencies [33313d2fd]
+  - @pnpm/node.fetcher@3.0.36
+
+## 2.0.36
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.35
+
+## 2.0.35
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.34
+
+## 2.0.34
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.33
+
+## 2.0.33
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.32
+
+## 2.0.32
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.31
+
+## 2.0.31
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.30
+
+## 2.0.30
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.29
+
+## 2.0.29
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.28
+
+## 2.0.28
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.27
+
+## 2.0.27
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.26
+
+## 2.0.26
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.25
+
+## 2.0.25
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.24
+
+## 2.0.24
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.23
+
+## 2.0.23
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.22
+
+## 2.0.22
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.21
+
+## 2.0.21
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.20
+
+## 2.0.20
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/node.fetcher@4.0.0
+
+## 2.0.19
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.18
+
+## 2.0.18
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.17
+
+## 2.0.17
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.16
+
+## 2.0.16
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.15
+
+## 2.0.15
+
+### Patch Changes
+
+- Updated dependencies [66423df83]
+  - @pnpm/node.fetcher@3.0.14
+
+## 2.0.14
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.13
+
+## 2.0.13
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.12
+
+## 2.0.12
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.11
+
+## 2.0.11
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.10
+
+## 2.0.10
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.9
+
+## 2.0.9
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.8
+
+## 2.0.8
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.7
+
 ## 2.0.7
 
 ### Patch Changes

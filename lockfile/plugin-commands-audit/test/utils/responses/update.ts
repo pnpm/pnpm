@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { audit } from '@pnpm/audit'
-import { readWantedLockfile } from '@pnpm/lockfile-file'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 
 const f = fixtures(__dirname)
@@ -17,6 +17,7 @@ async function writeResponse (lockfileDir: string, filename: string, opts: {
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
+  // @ts-expect-error
   const auditReport = await audit(lockfile!, {
     agentOptions: {},
     include,

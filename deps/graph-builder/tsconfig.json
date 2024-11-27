@@ -13,10 +13,10 @@
       "path": "../../config/package-is-installable"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../packages/constants"
@@ -28,7 +28,16 @@
       "path": "../../packages/dependency-path"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../../patching/config"
+    },
+    {
+      "path": "../../patching/types"
     },
     {
       "path": "../../pkg-manager/modules-yaml"
@@ -36,6 +45,5 @@
     {
       "path": "../../store/store-controller-types"
     }
-  ],
-  "composite": true
+  ]
 }

@@ -13,13 +13,19 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../packages/constants"
     },
     {
       "path": "../../packages/dependency-path"
+    },
+    {
+      "path": "../../packages/logger"
     },
     {
       "path": "../../packages/types"
@@ -30,6 +36,5 @@
     {
       "path": "../../store/store-path"
     }
-  ],
-  "composite": true
+  ]
 }

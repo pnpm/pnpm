@@ -43,6 +43,33 @@ test('libc wrong', () => {
   expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
 })
 
+test('cpu null', () => {
+  const target = {
+    cpu: [null] as unknown as string[], // Casting since this is technically invalid by the pnpm spec.
+    os: 'any',
+    libc: 'any',
+  }
+  expect(checkPlatform(packageId, target)).toBeFalsy()
+})
+
+test('os null', () => {
+  const target = {
+    cpu: 'any',
+    os: [null] as unknown as string[], // Casting since this is technically invalid by the pnpm spec.
+    libc: 'any',
+  }
+  expect(checkPlatform(packageId, target)).toBeFalsy()
+})
+
+test('libc null', () => {
+  const target = {
+    cpu: 'any',
+    os: 'any',
+    libc: [null] as unknown as string[], // Casting since this is technically invalid by the pnpm spec.
+  }
+  expect(checkPlatform(packageId, target)).toBeFalsy()
+})
+
 test('nothing wrong', () => {
   const target = {
     cpu: 'any',
@@ -78,4 +105,46 @@ test('os wrong (negation)', () => {
 
 test('nothing wrong (negation)', () => {
   expect(checkPlatform(packageId, { cpu: '!enten-cpu', os: '!enten-os', libc: '!enten-libc' })).toBe(null)
+})
+
+test('override OS', () => {
+  expect(checkPlatform(packageId, { cpu: 'any', os: 'win32', libc: 'any' }, {
+    os: ['win32'],
+    cpu: ['current'],
+    libc: ['current'],
+  })).toBe(null)
+})
+
+test('accept another CPU', () => {
+  expect(checkPlatform(packageId, { cpu: 'x64', os: 'any', libc: 'any' }, {
+    os: ['current'],
+    cpu: ['current', 'x64'],
+    libc: ['current'],
+  })).toBe(null)
+})
+
+test('fail when CPU is different', () => {
+  const err = checkPlatform(packageId, { cpu: 'x64', os: 'any', libc: 'any' }, {
+    os: ['current'],
+    cpu: ['arm64'],
+    libc: ['current'],
+  })
+  expect(err).toBeTruthy()
+  expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
+})
+
+test('override libc', () => {
+  expect(checkPlatform(packageId, { cpu: 'any', os: 'any', libc: 'glibc' }, {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['glibc'],
+  })).toBe(null)
+})
+
+test('accept another libc', () => {
+  expect(checkPlatform(packageId, { cpu: 'any', os: 'any', libc: 'glibc' }, {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current', 'glibc'],
+  })).toBe(null)
 })

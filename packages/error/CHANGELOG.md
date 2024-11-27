@@ -1,5 +1,32 @@
 # @pnpm/error
 
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+  - @pnpm/constants@9.0.0
+
+## 6.0.1
+
+### Patch Changes
+
+- a7aef51: Hide auth token in FetchError object [#8069](https://github.com/pnpm/pnpm/pull/8069).
+
+## 6.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- 3ded840: Print the right error code when a package fails to be added to the store [#7679](https://github.com/pnpm/pnpm/issues/7679).
+- Updated dependencies [c692f80]
+- Updated dependencies [43cdd87]
+- Updated dependencies [d381a60]
+  - @pnpm/constants@8.0.0
+
 ## 5.0.2
 
 ### Patch Changes

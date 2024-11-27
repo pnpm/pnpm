@@ -3,7 +3,8 @@ import path from 'path'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject } from '@pnpm/core'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import rimraf from '@zkochan/rimraf'
+import { type ProjectRootDir } from '@pnpm/types'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { sync as loadJsonFile } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
@@ -19,7 +20,7 @@ test('installing with hoisted node-linker', async () => {
       ms: '1.0.0',
     },
   }
-  await install(manifest, await testDefaults({
+  await install(manifest, testDefaults({
     nodeLinker: 'hoisted',
   }))
 
@@ -31,8 +32,8 @@ test('installing with hoisted node-linker', async () => {
   expect(readYamlFile<{ nodeLinker: string }>('node_modules/.modules.yaml').nodeLinker).toBe('hoisted')
 
   // If a package from node_modules is removed, it should be re-added.
-  await rimraf('node_modules/send')
-  await install(manifest, await testDefaults({
+  rimraf('node_modules/send')
+  await install(manifest, testDefaults({
     nodeLinker: 'hoisted',
   }))
   expect(fs.realpathSync('node_modules/send')).toEqual(path.resolve('node_modules/send'))
@@ -45,7 +46,7 @@ test('installing with hoisted node-linker and no lockfile', async () => {
     dependencies: {
       ms: '1.0.0',
     },
-  }, await testDefaults({
+  }, testDefaults({
     useLockfile: false,
     nodeLinker: 'hoisted',
   }))
@@ -59,18 +60,18 @@ test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
   const manifest = await addDependenciesToPackage(
     {},
     ['is-positive@3.0.0'],
-    await testDefaults({ nodeLinker: 'hoisted', save: true })
+    testDefaults({ nodeLinker: 'hoisted', save: true })
   )
 
-  await project.storeHas('is-positive', '3.0.0')
+  project.storeHas('is-positive', '3.0.0')
 
   const updatedManifest = await addDependenciesToPackage(
     manifest,
     ['is-positive@latest'],
-    await testDefaults({ nodeLinker: 'hoisted', save: true })
+    testDefaults({ nodeLinker: 'hoisted', save: true })
   )
 
-  await project.storeHas('is-positive', '3.1.0')
+  project.storeHas('is-positive', '3.1.0')
   expect(updatedManifest.dependencies?.['is-positive']).toBe('3.1.0')
   expect(loadJsonFile<{ version: string }>('node_modules/is-positive/package.json').version).toBe('3.1.0')
 })
@@ -82,7 +83,7 @@ test('overwriting existing files in node_modules', async () => {
   const manifest = await addDependenciesToPackage(
     {},
     ['is-positive@3.0.0'],
-    await testDefaults({ nodeLinker: 'hoisted', save: true })
+    testDefaults({ nodeLinker: 'hoisted', save: true })
   )
 
   expect(manifest.dependencies?.['is-positive']).toBe('3.0.0')
@@ -97,13 +98,13 @@ test('preserve subdeps on update', async () => {
   const manifest = await addDependenciesToPackage(
     {},
     ['@pnpm.e2e/foobarqar@1.0.0', '@pnpm.e2e/bar@100.1.0'],
-    await testDefaults({ nodeLinker: 'hoisted' })
+    testDefaults({ nodeLinker: 'hoisted' })
   )
 
   await addDependenciesToPackage(
     manifest,
     ['@pnpm.e2e/foobarqar@1.0.1'],
-    await testDefaults({ nodeLinker: 'hoisted' })
+    testDefaults({ nodeLinker: 'hoisted' })
   )
 
   expect(loadJsonFile<{ version: string }>('node_modules/@pnpm.e2e/bar/package.json').version).toBe('100.1.0')
@@ -117,13 +118,13 @@ test('adding a new dependency to one of the workspace projects', async () => {
   let [{ manifest }] = (await mutateModules([
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
-  ], await testDefaults({
+  ], testDefaults({
     allProjects: [
       {
         buildIndex: 0,
@@ -135,7 +136,7 @@ test('adding a new dependency to one of the workspace projects', async () => {
             '@pnpm.e2e/bar': '100.0.0',
           },
         },
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
       {
         buildIndex: 1,
@@ -147,7 +148,7 @@ test('adding a new dependency to one of the workspace projects', async () => {
             '@pnpm.e2e/foobarqar': '1.0.0',
           },
         },
-        rootDir: path.resolve('project-2'),
+        rootDir: path.resolve('project-2') as ProjectRootDir,
       },
     ],
     nodeLinker: 'hoisted',
@@ -155,7 +156,7 @@ test('adding a new dependency to one of the workspace projects', async () => {
   manifest = await addDependenciesToPackage(
     manifest,
     ['is-negative@1.0.0'],
-    await testDefaults({ nodeLinker: 'hoisted', prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' })
+    testDefaults({ nodeLinker: 'hoisted', prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' })
   )
 
   expect(manifest.dependencies).toStrictEqual({ '@pnpm.e2e/bar': '100.0.0' })
@@ -171,7 +172,7 @@ test('installing the same package with alias and no alias', async () => {
   await addDependenciesToPackage(
     {},
     ['@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0', '@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0'],
-    await testDefaults({ nodeLinker: 'hoisted' })
+    testDefaults({ nodeLinker: 'hoisted' })
   )
 
   expect(loadJsonFile<{ version: string }>('node_modules/@pnpm.e2e/pkg-with-1-aliased-dep/package.json').version).toBe('100.0.0')
@@ -183,7 +184,7 @@ test('run pre/postinstall scripts. bin files should be linked in a hoisted node_
   const project = prepareEmpty()
   await addDependenciesToPackage({},
     ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
-    await testDefaults({ fastUnpack: false, nodeLinker: 'hoisted', targetDependenciesField: 'devDependencies' })
+    testDefaults({ fastUnpack: false, nodeLinker: 'hoisted', targetDependenciesField: 'devDependencies' })
   )
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-prepare.js')).toBeFalsy()
@@ -210,8 +211,8 @@ test('running install scripts in a workspace that has no root project', async ()
       },
     },
     mutation: 'install',
-    rootDir: path.resolve('project-1'),
-  }, await testDefaults({ fastUnpack: false, nodeLinker: 'hoisted' }))
+    rootDir: path.resolve('project-1') as ProjectRootDir,
+  }, testDefaults({ fastUnpack: false, nodeLinker: 'hoisted' }))
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
 })
@@ -225,7 +226,7 @@ test('hoistingLimits should prevent packages to be hoisted', async () => {
     dependencies: {
       send: '0.17.2',
     },
-  }, await testDefaults({
+  }, testDefaults({
     nodeLinker: 'hoisted',
     hoistingLimits,
   }))
@@ -242,7 +243,7 @@ test('externalDependencies should prevent package from being hoisted to the root
     dependencies: {
       send: '0.17.2',
     },
-  }, await testDefaults({
+  }, testDefaults({
     nodeLinker: 'hoisted',
     externalDependencies,
   }))
@@ -273,45 +274,29 @@ test('linking bins of local projects when node-linker is set to hoisted', async 
   ])
   fs.writeFileSync('project-2/index.js', '#!/usr/bin/env node\nconsole.log("hello")', 'utf8')
 
-  const workspacePackages = {
-    'project-1': {
-      '1.0.0': {
-        dir: path.resolve('project-1'),
-        manifest: project1Manifest,
-      },
-    },
-    'project-2': {
-      '1.0.0': {
-        dir: path.resolve('project-2'),
-        manifest: project2Manifest,
-      },
-    },
-  }
-
   await mutateModules([
     {
       mutation: 'install',
-      rootDir: path.resolve('project-1'),
+      rootDir: path.resolve('project-1') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
-  ], await testDefaults({
+  ], testDefaults({
     allProjects: [
       {
         buildIndex: 0,
         manifest: project1Manifest,
-        rootDir: path.resolve('project-1'),
+        rootDir: path.resolve('project-1') as ProjectRootDir,
       },
       {
         buildIndex: 1,
         manifest: project2Manifest,
-        rootDir: path.resolve('project-2'),
+        rootDir: path.resolve('project-2') as ProjectRootDir,
       },
     ],
     nodeLinker: 'hoisted',
-    workspacePackages,
   }))
 
   expect(fs.existsSync('project-1/node_modules/.bin/project-2')).toBeTruthy()
@@ -323,7 +308,7 @@ test('peerDependencies should be installed when autoInstallPeers is set to true 
     dependencies: {
       'react-dom': '18.2.0',
     },
-  }, await testDefaults({
+  }, testDefaults({
     nodeLinker: 'hoisted',
     autoInstallPeers: true,
   }))

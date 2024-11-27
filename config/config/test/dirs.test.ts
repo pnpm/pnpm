@@ -43,7 +43,7 @@ test('getStateDir()', () => {
   expect(getStateDir({
     env: {},
     platform: 'darwin',
-  })).toBe(path.join(os.homedir(), '.pnpm-state'))
+  })).toBe(path.join(os.homedir(), '.local/state/pnpm'))
   expect(getStateDir({
     env: {
       LOCALAPPDATA: '/localappdata',

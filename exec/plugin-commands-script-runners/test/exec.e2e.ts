@@ -1,10 +1,11 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { exec, run } from '@pnpm/plugin-commands-script-runners'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
-import rimraf from '@zkochan/rimraf'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { type ProjectRootDirRealPath, type ProjectRootDir } from '@pnpm/types'
 import execa from 'execa'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
@@ -12,16 +13,16 @@ const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 const testOnPosixOnly = process.platform === 'win32' ? test.skip : test
 
 test('pnpm recursive exec', async () => {
+  await using server1 = await createTestIpcServer()
+  await using server2 = await createTestIpcServer()
+
   preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
 
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json && node -e "process.stdout.write(\'project-1\')" | json-append ../output2.json',
+        build: `${server1.sendLineScript('project-1')} && ${server2.sendLineScript('project-1')}`,
       },
     },
     {
@@ -29,13 +30,12 @@ test('pnpm recursive exec', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
-        postbuild: 'node -e "process.stdout.write(\'project-2-postbuild\')" | json-append ../output1.json',
-        prebuild: 'node -e "process.stdout.write(\'project-2-prebuild\')" | json-append ../output1.json',
+        build: server1.sendLineScript('project-2'),
+        postbuild: server1.sendLineScript('project-2-postbuild'),
+        prebuild: server1.sendLineScript('project-2-prebuild'),
       },
     },
     {
@@ -43,16 +43,15 @@ test('pnpm recursive exec', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output2.json',
+        build: server2.sendLineScript('project-3'),
       },
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -68,11 +67,8 @@ test('pnpm recursive exec', async () => {
     selectedProjectsGraph,
   }, ['npm', 'run', 'build'])
 
-  const { default: outputs1 } = await import(path.resolve('output1.json'))
-  const { default: outputs2 } = await import(path.resolve('output2.json'))
-
-  expect(outputs1).toStrictEqual(['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
-  expect(outputs2).toStrictEqual(['project-1', 'project-3'])
+  expect(server1.getLines()).toStrictEqual(['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
+  expect(server2.getLines()).toStrictEqual(['project-1', 'project-3'])
 })
 
 test('pnpm recursive exec finds bin files of workspace projects', async () => {
@@ -95,7 +91,7 @@ test('pnpm recursive exec finds bin files of workspace projects', async () => {
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -115,16 +111,16 @@ test('pnpm recursive exec finds bin files of workspace projects', async () => {
 })
 
 test('exec inside a workspace package', async () => {
+  await using server1 = await createTestIpcServer()
+  await using server2 = await createTestIpcServer()
+
   preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
 
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json && node -e "process.stdout.write(\'project-1\')" | json-append ../output2.json',
+        build: `${server1.sendLineScript('project-1')} && ${server2.sendLineScript('project-1')}`,
       },
     },
     {
@@ -132,13 +128,12 @@ test('exec inside a workspace package', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
-        postbuild: 'node -e "process.stdout.write(\'project-2-postbuild\')" | json-append ../output1.json',
-        prebuild: 'node -e "process.stdout.write(\'project-2-prebuild\')" | json-append ../output1.json',
+        build: server1.sendLineScript('project-2'),
+        postbuild: server1.sendLineScript('project-2-postbuild'),
+        prebuild: server1.sendLineScript('project-2-prebuild'),
       },
     },
     {
@@ -146,11 +141,10 @@ test('exec inside a workspace package', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output2.json',
+        build: server2.sendLineScript('project-3'),
       },
     },
   ])
@@ -170,11 +164,8 @@ test('exec inside a workspace package', async () => {
     selectedProjectsGraph: {},
   }, ['npm', 'run', 'build'])
 
-  const { default: outputs1 } = await import(path.resolve('output1.json'))
-  const { default: outputs2 } = await import(path.resolve('output2.json'))
-
-  expect(outputs1).toStrictEqual(['project-1'])
-  expect(outputs2).toStrictEqual(['project-1'])
+  expect(server1.getLines()).toStrictEqual(['project-1'])
+  expect(server2.getLines()).toStrictEqual(['project-1'])
 })
 
 test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async () => {
@@ -185,7 +176,7 @@ test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async () => {
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await exec.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
@@ -193,20 +184,19 @@ test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async () => {
     selectedProjectsGraph,
   }, ['node', '-e', 'require(\'fs\').writeFileSync(\'pkgname\', process.env.PNPM_PACKAGE_NAME, \'utf8\')'])
 
-  expect(await fs.readFile('foo/pkgname', 'utf8')).toBe('foo')
+  expect(fs.readFileSync('foo/pkgname', 'utf8')).toBe('foo')
 })
 
 test('testing the bail config with "pnpm recursive exec"', async () => {
+  await using server = await createTestIpcServer()
+
   preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
 
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output.json',
+        build: server.sendLineScript('project-1'),
       },
     },
     {
@@ -214,11 +204,10 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        build: 'exit 1 && node -e "process.stdout.write(\'project-2\')" | json-append ../output.json',
+        build: `exit 1 && ${server.sendLineScript('project-2')}`,
       },
     },
     {
@@ -226,16 +215,15 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output.json',
+        build: server.sendLineScript('project-3'),
       },
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -261,10 +249,7 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
   expect(err1.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
   expect(failed).toBeTruthy()
 
-  const { default: outputs } = await import(path.resolve('output.json'))
-  expect(outputs).toStrictEqual(['project-1', 'project-3'])
-
-  await rimraf('./output.json')
+  expect(server.getLines()).toStrictEqual(['project-1', 'project-3'])
 
   failed = false
   let err2!: PnpmError
@@ -285,33 +270,31 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
 })
 
 test('pnpm recursive exec --no-sort', async () => {
+  await using server = await createTestIpcServer()
+
   preparePackages([
     {
       name: 'a-dependent',
       version: '1.0.0',
 
       dependencies: {
-        'b-dependency': '1.0.0',
-        'json-append': '1',
+        'b-dependency': 'workspace:*',
       },
       scripts: {
-        build: 'node -e "process.stdout.write(\'a-dependent\')" | json-append ../output.json',
+        build: server.sendLineScript('a-dependent'),
       },
     },
     {
       name: 'b-dependency',
       version: '1.0.0',
 
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        build: 'node -e "process.stdout.write(\'b-dependency\')" | json-append ../output.json',
+        build: server.sendLineScript('b-dependency'),
       },
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -329,22 +312,19 @@ test('pnpm recursive exec --no-sort', async () => {
     workspaceConcurrency: 1,
   }, ['npm', 'run', 'build'])
 
-  const { default: outputs } = await import(path.resolve('output.json'))
-
-  expect(outputs).toStrictEqual(['a-dependent', 'b-dependency'])
+  expect(server.getLines()).toStrictEqual(['a-dependent', 'b-dependency'])
 })
 
 test('pnpm recursive exec --reverse', async () => {
+  await using server = await createTestIpcServer()
+
   preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
 
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json',
+        build: server.sendLineScript('project-1'),
       },
     },
     {
@@ -352,11 +332,10 @@ test('pnpm recursive exec --reverse', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
+        build: server.sendLineScript('project-2'),
       },
     },
     {
@@ -364,16 +343,15 @@ test('pnpm recursive exec --reverse', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output1.json',
+        build: server.sendLineScript('project-3'),
       },
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -391,7 +369,7 @@ test('pnpm recursive exec --reverse', async () => {
     reverse: true,
   }, ['npm', 'run', 'build'])
 
-  const { default: outputs1 } = await import(path.resolve('output1.json'))
+  const outputs1 = server.getLines()
 
   expect(outputs1[outputs1.length - 1]).toBe('project-1')
 })
@@ -464,10 +442,11 @@ test('pnpm exec shell mode', async () => {
     dir: process.cwd(),
     recursive: false,
     selectedProjectsGraph: {
-      [process.cwd()]: {
+      [process.cwd() as ProjectRootDir]: {
         dependencies: [],
         package: {
-          dir: process.cwd(),
+          rootDir: process.cwd() as ProjectRootDir,
+          rootDirRealPath: process.cwd() as ProjectRootDirRealPath,
           writeProjectManifest: async () => {},
           manifest: {
             name: 'test_shell_mode',
@@ -478,23 +457,23 @@ test('pnpm exec shell mode', async () => {
     shellMode: true,
   }, ['echo', echoArgs])
 
-  const result = (await fs.readFile(path.resolve('name.txt'), 'utf8')).trim()
+  const result = (fs.readFileSync(path.resolve('name.txt'), 'utf8')).trim()
 
   expect(result).toBe('test_shell_mode')
 })
 
 // This test is not stable on Windows
 testOnPosixOnly('pnpm recursive exec works with PnP', async () => {
+  await using server1 = await createTestIpcServer()
+  await using server2 = await createTestIpcServer()
+
   preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
 
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json && node -e "process.stdout.write(\'project-1\')" | json-append ../output2.json',
+        build: `${server1.sendLineScript('project-1')} && ${server2.sendLineScript('project-1')}`,
       },
     },
     {
@@ -502,13 +481,12 @@ testOnPosixOnly('pnpm recursive exec works with PnP', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
-        postbuild: 'node -e "process.stdout.write(\'project-2-postbuild\')" | json-append ../output1.json',
-        prebuild: 'node -e "process.stdout.write(\'project-2-prebuild\')" | json-append ../output1.json',
+        build: server1.sendLineScript('project-2'),
+        postbuild: server1.sendLineScript('project-2-postbuild'),
+        prebuild: server1.sendLineScript('project-2-prebuild'),
       },
     },
     {
@@ -516,16 +494,15 @@ testOnPosixOnly('pnpm recursive exec works with PnP', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output2.json',
+        build: server2.sendLineScript('project-3'),
       },
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -546,60 +523,51 @@ testOnPosixOnly('pnpm recursive exec works with PnP', async () => {
     selectedProjectsGraph,
   }, ['npm', 'run', 'build'])
 
-  const { default: outputs1 } = await import(path.resolve('output1.json'))
-  const { default: outputs2 } = await import(path.resolve('output2.json'))
-
-  expect(outputs1).toStrictEqual(['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
-  expect(outputs2).toStrictEqual(['project-1', 'project-3'])
+  expect(server1.getLines()).toStrictEqual(['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
+  expect(server2.getLines()).toStrictEqual(['project-1', 'project-3'])
 })
 
 test('pnpm recursive exec --resume-from should work', async () => {
+  await using server = await createTestIpcServer()
+
   preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json',
+        build: server.sendLineScript('project-1'),
       },
     },
     {
       name: 'project-2',
       version: '1.0.0',
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
+        build: server.sendLineScript('project-2'),
       },
     },
     {
       name: 'project-3',
       version: '1.0.0',
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output1.json',
+        build: server.sendLineScript('project-3'),
       },
     },
     {
       name: 'project-4',
       version: '1.0.0',
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-4\')" | json-append ../output1.json',
+        build: server.sendLineScript('project-4'),
       },
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -608,6 +576,7 @@ test('pnpm recursive exec --resume-from should work', async () => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
+
   await exec.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
@@ -617,11 +586,7 @@ test('pnpm recursive exec --resume-from should work', async () => {
     resumeFrom: 'project-3',
   }, ['npm', 'run', 'build'])
 
-  const { default: outputs1 } = await import(path.resolve('output1.json'))
-  expect(outputs1).not.toContain('project-1')
-  expect(outputs1).not.toContain('project-4')
-  expect(outputs1).toContain('project-2')
-  expect(outputs1).toContain('project-3')
+  expect(server.getLines().sort()).toEqual(['project-2', 'project-3'])
 })
 
 test('should throw error when the package specified by resume-from does not exist', async () => {
@@ -629,16 +594,13 @@ test('should throw error when the package specified by resume-from does not exis
     {
       name: 'foo',
       version: '1.0.0',
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
         build: 'echo foo',
       },
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -673,7 +635,7 @@ test('pnpm exec in directory with path delimiter', async () => {
     },
   ])
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await execa(pnpmBin, [
     'install',
     '-r',
@@ -728,7 +690,7 @@ test('pnpm recursive exec report summary', async () => {
       },
     },
   ])
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   let error
   try {
     await exec.handler({
@@ -786,7 +748,7 @@ test('pnpm recursive exec report summary with --bail', async () => {
       },
     },
   ])
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   let error
   try {
     await exec.handler({
@@ -812,15 +774,15 @@ test('pnpm recursive exec report summary with --bail', async () => {
   expect(executionStatus[path.resolve('project-4')].status).toBe('queued')
 })
 
-test('pnpm exec command not found', async () => {
+test('pnpm exec command not found (implicit fallback)', async () => {
   prepare({
     scripts: {
       build: 'echo hello',
     },
   })
 
-  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  let error!: Error & { hint: string }
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  let error!: Error & { hint?: string }
   try {
     await exec.handler({
       ...DEFAULT_OPTS,
@@ -828,9 +790,92 @@ test('pnpm exec command not found', async () => {
       recursive: false,
       bail: true,
       selectedProjectsGraph,
-    }, ['buil'])
+      implicitlyFellbackFromRun: true,
+    }, ['buil']) // cspell:disable-line
   } catch (err: any) { // eslint-disable-line
     error = err
   }
-  expect(error?.hint).toBe('Command "buil" not found. Did you mean "pnpm run build"?')
+  expect(error?.message).toBe('Command "buil" not found') // cspell:disable-line
+  expect(error?.hint).toBe('Did you mean "pnpm build"?')
+})
+
+test('pnpm exec command not found (explicit call, without near name packages)', async () => {
+  prepare({
+    scripts: {
+      cwsay: 'echo hello',
+    },
+  })
+
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+  let error!: Error & { hint?: string }
+  try {
+    await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: false,
+      bail: true,
+      selectedProjectsGraph,
+      implicitlyFellbackFromRun: false,
+    }, ['cwsay'])
+  } catch (err: any) { // eslint-disable-line
+    error = err
+  }
+  expect(error?.message).toBe('Command "cwsay" not found')
+  expect(error?.hint).toBeFalsy()
+})
+
+test('pnpm exec command not found (explicit call, with a near name package)', async () => {
+  prepare({
+    dependencies: {
+      cowsay: '1.5.0',
+    },
+  })
+
+  const { selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+
+  await execa(pnpmBin, [
+    'install',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+
+  let error!: Error & { hint?: string }
+  try {
+    await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: false,
+      bail: true,
+      selectedProjectsGraph,
+      implicitlyFellbackFromRun: false,
+    }, ['cwsay'])
+  } catch (err: any) { // eslint-disable-line
+    error = err
+  }
+  expect(error?.message).toBe('Command "cwsay" not found')
+  expect(error?.hint).toBe('Did you mean "pnpm exec cowsay"?')
+})
+
+test('pnpm exec --workspace-root when command not found', async () => {
+  prepare({})
+
+  let error!: any // eslint-disable-line
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      argv: {
+        original: ['pnpm', '--workspace-root', 'command-that-does-not-exist'],
+      },
+      dir: process.cwd(),
+      fallbackCommandUsed: true,
+      recursive: false,
+      selectedProjectsGraph: {},
+    }, ['command-that-does-not-exist'])
+  } catch (err: any) { // eslint-disable-line
+    error = err
+  }
+
+  expect(error?.failures[0].message).toBe('Command "command-that-does-not-exist" not found')
 })

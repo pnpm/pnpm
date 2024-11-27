@@ -1,14 +1,25 @@
+import { promises as fs } from 'fs'
+import util from 'util'
 import path from 'path'
-import { getLockfileImporterId } from '@pnpm/lockfile-file'
+import { getLockfileImporterId } from '@pnpm/lockfile.fs'
 import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
-import { type DependenciesField, type HoistedDependencies, type Registries } from '@pnpm/types'
+import {
+  type DepPath,
+  type DependenciesField,
+  type HoistedDependencies,
+  type ProjectId,
+  type Registries,
+  type ProjectRootDir,
+  type ProjectRootDirRealPath,
+} from '@pnpm/types'
 import realpathMissing from 'realpath-missing'
 
 export interface ProjectOptions {
   binsDir?: string
   modulesDir?: string
-  rootDir: string
+  rootDir: ProjectRootDir
+  rootDirRealPath?: ProjectRootDirRealPath
 }
 
 export async function readProjectsContext<T> (
@@ -23,14 +34,15 @@ export async function readProjectsContext<T> (
     hoist?: boolean
     hoistedDependencies: HoistedDependencies
     projects: Array<{
-      id: string
+      id: ProjectId
     } & T & Required<ProjectOptions>>
     include: Record<DependenciesField, boolean>
     modules: Modules | null
     pendingBuilds: string[]
     registries: Registries | null | undefined
     rootModulesDir: string
-    skipped: Set<string>
+    skipped: Set<DepPath>
+    virtualStoreDirMaxLength?: number
   }> {
   const relativeModulesDir = opts.modulesDir ?? 'node_modules'
   const rootModulesDir = await realpathMissing(path.join(opts.lockfileDir, relativeModulesDir))
@@ -53,10 +65,23 @@ export async function readProjectsContext<T> (
           binsDir: project.binsDir ?? path.join(project.rootDir, relativeModulesDir, '.bin'),
           id: importerId,
           modulesDir,
+          rootDirRealPath: project.rootDirRealPath ?? await realpath(project.rootDir),
         }
       })),
     registries: ((modules?.registries) != null) ? normalizeRegistries(modules.registries) : undefined,
     rootModulesDir,
-    skipped: new Set(modules?.skipped ?? []),
+    skipped: new Set((modules?.skipped ?? []) as DepPath[]),
+    virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength,
+  }
+}
+
+async function realpath (path: ProjectRootDir): Promise<ProjectRootDirRealPath> {
+  try {
+    return await fs.realpath(path) as ProjectRootDirRealPath
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return path as unknown as ProjectRootDirRealPath
+    }
+    throw err
   }
 }

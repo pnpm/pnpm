@@ -3,7 +3,8 @@ import {
   mutateModules,
   type MutatedProject,
 } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
+import { type ProjectRootDir } from '@pnpm/types'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
 test('spec not specified in package.json.dependencies', async () => {
@@ -12,7 +13,7 @@ test('spec not specified in package.json.dependencies', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -26,18 +27,18 @@ test('spec not specified in package.json.dependencies', async () => {
           'is-positive': '1.0.0',
         },
       },
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
   ]
   {
-    const { stats } = await mutateModules(importers, await testDefaults({ allProjects }))
+    const { stats } = await mutateModules(importers, testDefaults({ allProjects }))
     expect(stats.added).toEqual(1)
     expect(stats.removed).toEqual(0)
     expect(stats.linkedToRoot).toEqual(1)
   }
-  await rimraf('node_modules')
+  rimraf('node_modules')
   {
-    const { stats } = await mutateModules(importers, await testDefaults({ allProjects, frozenLockfile: true }))
+    const { stats } = await mutateModules(importers, testDefaults({ allProjects, frozenLockfile: true }))
     expect(stats.added).toEqual(1)
     expect(stats.removed).toEqual(0)
     expect(stats.linkedToRoot).toEqual(1)
@@ -47,9 +48,9 @@ test('spec not specified in package.json.dependencies', async () => {
       {
         mutation: 'uninstallSome',
         dependencyNames: ['is-positive'],
-        rootDir: process.cwd(),
+        rootDir: process.cwd() as ProjectRootDir,
       },
-    ], await testDefaults({ allProjects, frozenLockfile: true }))
+    ], testDefaults({ allProjects, frozenLockfile: true }))
     expect(stats.added).toEqual(0)
     expect(stats.removed).toEqual(1)
     expect(stats.linkedToRoot).toEqual(0)

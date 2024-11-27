@@ -1,48 +1,17 @@
+import assert from 'assert'
 import { type IncomingMessage } from 'http'
+import util from 'util'
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { FetchError, PnpmError } from '@pnpm/error'
-import { type FetchResult } from '@pnpm/fetcher-base'
-import type { Cafs, DeferredManifestPromise } from '@pnpm/cafs-types'
+import { FetchError } from '@pnpm/error'
+import { type FetchResult, type FetchOptions } from '@pnpm/fetcher-base'
+import { type Cafs } from '@pnpm/cafs-types'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
+import { addFilesFromTarball } from '@pnpm/worker'
 import * as retry from '@zkochan/retry'
-import ssri from 'ssri'
+import throttle from 'lodash.throttle'
 import { BadTarballError } from './errorTypes'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
-
-export class TarballIntegrityError extends PnpmError {
-  public readonly found: string
-  public readonly expected: string
-  public readonly algorithm: string
-  public readonly sri: string
-  public readonly url: string
-
-  constructor (opts: {
-    attempts?: number
-    found: string
-    expected: string
-    algorithm: string
-    sri: string
-    url: string
-  }) {
-    super('TARBALL_INTEGRITY',
-      `Got unexpected checksum for "${opts.url}". Wanted "${opts.expected}". Got "${opts.found}".`,
-      {
-        attempts: opts.attempts,
-        hint: `This error may happen when a package is republished to the registry with the same version.
-In this case, the metadata in the local pnpm cache will contain the old integrity checksum.
-
-If you think that this is the case, then run "pnpm store prune" and rerun the command that failed.
-"pnpm store prune" will remove your local metadata cache.`,
-      }
-    )
-    this.found = opts.found
-    this.expected = opts.expected
-    this.algorithm = opts.algorithm
-    this.sri = opts.sri
-    this.url = opts.url
-  }
-}
 
 export interface HttpResponse {
   body: string
@@ -51,12 +20,13 @@ export interface HttpResponse {
 export type DownloadFunction = (url: string, opts: {
   getAuthHeaderByURI: (registry: string) => string | undefined
   cafs: Cafs
-  manifest?: DeferredManifestPromise
+  readManifest?: boolean
   registry?: string
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
   integrity?: string
-}) => Promise<FetchResult>
+  filesIndexFile: string
+} & Pick<FetchOptions, 'pkg'>) => Promise<FetchResult>
 
 export interface NpmRegistryClient {
   get: (url: string, getOpts: object, cb: (err: Error, data: object, raw: object, res: HttpResponse) => void) => void
@@ -88,12 +58,13 @@ export function createDownloader (
   return async function download (url: string, opts: {
     getAuthHeaderByURI: (registry: string) => string | undefined
     cafs: Cafs
-    manifest?: DeferredManifestPromise
+    readManifest?: boolean
     registry?: string
     onStart?: (totalSize: number | null, attempt: number) => void
     onProgress?: (downloaded: number) => void
     integrity?: string
-  }): Promise<FetchResult> {
+    filesIndexFile: string
+  } & Pick<FetchOptions, 'pkg'>): Promise<FetchResult> {
     const authHeaderValue = opts.getAuthHeaderByURI(url)
 
     const op = retry.operation(retryOpts)
@@ -106,6 +77,7 @@ export function createDownloader (
           if (
             error.response?.status === 401 ||
             error.response?.status === 403 ||
+            error.response?.status === 404 ||
             error.code === 'ERR_PNPM_PREPARE_PKG_FAILURE'
           ) {
             reject(error)
@@ -129,6 +101,7 @@ export function createDownloader (
     })
 
     async function fetch (currentAttempt: number): Promise<FetchResult> {
+      let data: Buffer
       try {
         const res = await fetchFromRegistry(url, {
           authHeaderValue,
@@ -153,90 +126,48 @@ export function createDownloader (
           opts.onStart(size, currentAttempt)
         }
         // In order to reduce the amount of logs, we only report the download progress of big tarballs
-        const onProgress = size != null && size >= BIG_TARBALL_SIZE
-          ? opts.onProgress
+        const onProgress = (size != null && size >= BIG_TARBALL_SIZE && opts.onProgress)
+          ? throttle(opts.onProgress, 500)
           : undefined
         let downloaded = 0
-        res.body!.on('data', (chunk: Buffer) => {
+        const chunks: Buffer[] = []
+        // This will handle the 'data', 'error', and 'end' events.
+        for await (const chunk of res.body!) {
+          chunks.push(chunk as Buffer)
           downloaded += chunk.length
-          if (onProgress != null) onProgress(downloaded)
+          onProgress?.(downloaded)
+        }
+        if (size !== null && size !== downloaded) {
+          throw new BadTarballError({
+            expectedSize: size,
+            receivedSize: downloaded,
+            tarballUrl: url,
+          })
+        }
+
+        data = Buffer.from(new SharedArrayBuffer(downloaded))
+        let offset: number = 0
+        for (const chunk of chunks) {
+          chunk.copy(data, offset)
+          offset += chunk.length
+        }
+      } catch (err: unknown) {
+        assert(util.types.isNativeError(err))
+        Object.assign(err, {
+          attempts: currentAttempt,
+          resource: url,
         })
-
-        // eslint-disable-next-line no-async-promise-executor
-        return await new Promise<FetchResult>(async (resolve, reject) => {
-          const stream = res.body!
-            .on('error', reject)
-
-          try {
-            const [integrityCheckResult, filesIndex] = await Promise.all([
-              opts.integrity ? safeCheckStream(res.body, opts.integrity, url) : true,
-              opts.cafs.addFilesFromTarball(res.body!, opts.manifest),
-              waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
-            ])
-            if (integrityCheckResult !== true) {
-              // eslint-disable-next-line
-              throw integrityCheckResult
-            }
-
-            resolve({ filesIndex })
-          } catch (err: any) { // eslint-disable-line
-            // If the error is not an integrity check error, then it happened during extracting the tarball
-            if (
-              err['code'] !== 'ERR_PNPM_TARBALL_INTEGRITY' &&
-              err['code'] !== 'ERR_PNPM_BAD_TARBALL_SIZE'
-            ) {
-              const extractError = new PnpmError('TARBALL_EXTRACT', `Failed to unpack the tarball from "${url}": ${err.message as string}`)
-              reject(extractError)
-              return
-            }
-            reject(err)
-          }
-        })
-      } catch (err: any) { // eslint-disable-line
-        err.attempts = currentAttempt
-        err.resource = url
         throw err
       }
+      return addFilesFromTarball({
+        buffer: data,
+        storeDir: opts.cafs.storeDir,
+        readManifest: opts.readManifest,
+        integrity: opts.integrity,
+        filesIndexFile: opts.filesIndexFile,
+        url,
+        pkg: opts.pkg,
+      })
     }
   }
-}
-
-async function safeCheckStream (stream: any, integrity: string, url: string): Promise<true | Error> { // eslint-disable-line @typescript-eslint/no-explicit-any
-  try {
-    await ssri.checkStream(stream, integrity)
-    return true
-  } catch (err: any) { // eslint-disable-line
-    return new TarballIntegrityError({
-      algorithm: err['algorithm'],
-      expected: err['expected'],
-      found: err['found'],
-      sri: err['sri'],
-      url,
-    })
-  }
-}
-
-async function waitTillClosed (
-  opts: {
-    stream: NodeJS.EventEmitter
-    size: null | number
-    getDownloaded: () => number
-    url: string
-  }
-) {
-  return new Promise<void>((resolve, reject) => {
-    opts.stream.on('end', () => {
-      const downloaded = opts.getDownloaded()
-      if (opts.size !== null && opts.size !== downloaded) {
-        const err = new BadTarballError({
-          expectedSize: opts.size,
-          receivedSize: downloaded,
-          tarballUrl: opts.url,
-        })
-        reject(err)
-        return
-      }
-      resolve()
-    })
-  })
 }

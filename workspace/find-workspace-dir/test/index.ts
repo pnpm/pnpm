@@ -10,7 +10,7 @@ function isFileSystemCaseSensitive () {
   try {
     fs.realpathSync.native(process.cwd().toUpperCase())
     return false
-  } catch (_) {
+  } catch {
     return true
   }
 }
@@ -31,7 +31,7 @@ testOnCaseInSensitiveSystems('finds workspace dir with wrong case from cwd', asy
   expect(workspaceDir).toBe(path.resolve(__dirname, '..', '..', '..'))
 })
 
-test('finds overriden workspace dir', async () => {
+test('finds overridden workspace dir', async () => {
   const oldValue = process.env[NPM_CONFIG_WORKSPACE_DIR_ENV_VAR]
   process.env[NPM_CONFIG_WORKSPACE_DIR_ENV_VAR] = FAKE_PATH
   const workspaceDir = await findWorkspaceDir(process.cwd())

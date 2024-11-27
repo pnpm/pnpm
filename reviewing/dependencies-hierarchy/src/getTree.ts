@@ -1,5 +1,6 @@
 import path from 'path'
-import { type PackageSnapshots, type ProjectSnapshot } from '@pnpm/lockfile-file'
+import { type PackageSnapshots, type ProjectSnapshot } from '@pnpm/lockfile.fs'
+import { type DepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { type Registries } from '@pnpm/types'
 import { type SearchFunction } from './types'
 import { type PackageNode } from './PackageNode'
@@ -12,15 +13,18 @@ interface GetTreeOpts {
   maxDepth: number
   rewriteLinkVersionDir: string
   includeOptionalDependencies: boolean
+  excludePeerDependencies?: boolean
   lockfileDir: string
   onlyProjects?: boolean
   search?: SearchFunction
   skipped: Set<string>
   registries: Registries
   importers: Record<string, ProjectSnapshot>
+  depTypes: DepTypes
   currentPackages: PackageSnapshots
   wantedPackages: PackageSnapshots
   virtualStoreDir?: string
+  virtualStoreDirMaxLength: number
 }
 
 interface DependencyInfo {
@@ -121,10 +125,12 @@ function getTreeHelper (
   let resultHeight: number | 'unknown' = 0
   let resultCircular: boolean = false
 
-  Object.entries(deps).forEach(([alias, ref]) => {
+  for (const alias in deps) {
+    const ref = deps[alias]
     const packageInfo = getPkgInfo({
       alias,
       currentPackages: opts.currentPackages,
+      depTypes: opts.depTypes,
       rewriteLinkVersionDir: opts.rewriteLinkVersionDir,
       linkedPathBaseDir,
       peers,
@@ -133,6 +139,7 @@ function getTreeHelper (
       skipped: opts.skipped,
       wantedPackages: opts.wantedPackages,
       virtualStoreDir: opts.virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
     let circular: boolean
     const matchedSearched = opts.search?.(packageInfo)
@@ -145,7 +152,7 @@ function getTreeHelper (
     })
 
     if (opts.onlyProjects && nodeId?.type !== 'importer') {
-      return
+      continue
     } else if (nodeId == null) {
       circular = false
       if (opts.search == null || matchedSearched) {
@@ -204,9 +211,11 @@ function getTreeHelper (
       if (matchedSearched) {
         newEntry.searched = true
       }
-      resultDependencies.push(newEntry)
+      if (!newEntry.isPeer || !opts.excludePeerDependencies || newEntry.dependencies?.length) {
+        resultDependencies.push(newEntry)
+      }
     }
-  })
+  }
 
   const result: DependencyInfo = {
     dependencies: resultDependencies,

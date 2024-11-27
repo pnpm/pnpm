@@ -28,16 +28,25 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../exec/plugin-commands-script-runners"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../packages/constants"
     },
     {
       "path": "../../packages/dependency-path"
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
     },
     {
       "path": "../../packages/parse-wanted-dependency"
@@ -60,6 +69,5 @@
     {
       "path": "../store-path"
     }
-  ],
-  "composite": true
+  ]
 }

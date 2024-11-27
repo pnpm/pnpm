@@ -1,10 +1,9 @@
 {
   "scripts": {
-    "install": "node -e \"process.stdout.write('install')\" | json-append output.json",
-    "postinstall": "node -e \"process.stdout.write('postinstall')\" | json-append output.json"
+    "install": "node -e \"console.log('install')\" | test-ipc-server-client ./test.sock",
+    "postinstall": "node -e \"console.log('postinstall')\" | test-ipc-server-client ./test.sock"
   },
   "dependencies": {
-    "json-append": "1.1.1",
     "@pnpm.e2e/pre-and-postinstall-scripts-example": "*"
   }
 }

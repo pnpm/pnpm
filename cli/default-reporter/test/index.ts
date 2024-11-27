@@ -644,34 +644,36 @@ ${formatError('ERROR', 'f failed')}`)
     },
   })
 
-  const err = new PnpmError('RECURSIVE_FAIL', '...')
-  err['failures'] = [
-    {
-      message: 'a failed',
-      prefix: '/a',
-    },
-    {
-      message: 'b failed',
-      prefix: '/b',
-    },
-    {
-      message: 'c failed',
-      prefix: '/c',
-    },
-    {
-      message: 'd failed',
-      prefix: '/d',
-    },
-    {
-      message: 'e failed',
-      prefix: '/e',
-    },
-    {
-      message: 'f failed',
-      prefix: '/f',
-    },
-  ]
-  err['passes'] = 7
+  const err = Object.assign(new PnpmError('RECURSIVE_FAIL', '...'), {
+    failures: [
+      {
+        message: 'a failed',
+        prefix: '/a',
+      },
+      {
+        message: 'b failed',
+        prefix: '/b',
+      },
+      {
+        message: 'c failed',
+        prefix: '/c',
+      },
+      {
+        message: 'd failed',
+        prefix: '/d',
+      },
+      {
+        message: 'e failed',
+        prefix: '/e',
+      },
+      {
+        message: 'f failed',
+        prefix: '/f',
+      },
+    ],
+    passes: 7,
+  })
+
   logger.error(err, err)
 })
 
@@ -926,10 +928,12 @@ test('prints added/removed stats and warnings during recursive installation', (d
     prefix: '/home/jane/repo/dir/pkg-2',
   })
   statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/dir/pkg-2' })
+  // cspell:disable
   statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong/pkg-3' })
   statsLogger.debug({ added: 1, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong/pkg-3' })
   statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong-pkg-4' })
   statsLogger.debug({ added: 0, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong-pkg-4' })
+  // cspell:enable
   deprecationLogger.debug({
     deprecated: 'This package was deprecated because bla bla bla',
     depth: 0,
@@ -945,6 +949,7 @@ test('prints added/removed stats and warnings during recursive installation', (d
     complete: () => done(),
     error: done,
     next: output => {
+      // cspell:disable
       expect(output).toBe(`\
 pkg-5                                    | ${formatWarn('Some issue')}
 .                                        | ${formatWarn('Some other issue')}
@@ -955,6 +960,7 @@ dir/pkg-2                                |   ${chalk.green('+2')} ${ADD}
 .../pkg-3                                |   ${chalk.green('+1')} ${ADD}
 ...ooooooooooooooooooooooooooooong-pkg-4 |   ${chalk.red('-1')} ${SUB}
 .                                        | ${formatWarn(`${DEPRECATED} foo@1.0.0`)}`)
+      // cspell:enable
     },
   })
 })

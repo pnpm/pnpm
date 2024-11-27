@@ -10,7 +10,6 @@ export interface StrictStoreStatusOptions {
   dir: string
   storeDir: string
   force: boolean
-  forceSharedLockfile: boolean
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   useLockfile: boolean
   registries: Registries
@@ -21,19 +20,20 @@ export interface StrictStoreStatusOptions {
   development: boolean
   optional: boolean
   binsDir: string
+  virtualStoreDirMaxLength: number
+  peersSuffixMaxLength: number
 }
 
 export type StoreStatusOptions = Partial<StrictStoreStatusOptions> &
-Pick<StrictStoreStatusOptions, 'storeDir'>
+Pick<StrictStoreStatusOptions, 'storeDir' | 'virtualStoreDirMaxLength'>
 
-const defaults = async (opts: StoreStatusOptions) => {
+const defaults = async (opts: StoreStatusOptions): Promise<StrictStoreStatusOptions> => {
   const dir = opts.dir ?? process.cwd()
   const lockfileDir = opts.lockfileDir ?? dir
   return {
     binsDir: path.join(dir, 'node_modules', '.bin'),
     dir,
     force: false,
-    forceSharedLockfile: false,
     lockfileDir,
     nodeLinker: 'isolated',
     registries: DEFAULT_REGISTRIES,

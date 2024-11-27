@@ -1,5 +1,51 @@
 # @pnpm/parse-cli-args
 
+## 8.0.3
+
+### Patch Changes
+
+- f066efc: All commands should read settings from the `package.json` at the root of the workspace [#8667](https://github.com/pnpm/pnpm/issues/8667).
+
+## 8.0.2
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+- @pnpm/find-workspace-dir@7.0.2
+
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/find-workspace-dir@7.0.1
+
+## 8.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+  - @pnpm/error@6.0.0
+  - @pnpm/find-workspace-dir@7.0.0
+
+## 7.0.4
+
+### Patch Changes
+
+- 1ce2dd13a: Update didyoumean2 to v6.
+
+## 7.0.3
+
+### Patch Changes
+
+- 32679f0ad: Don't ignore empty strings in params [#6594](https://github.com/pnpm/pnpm/issues/6594).
+
 ## 7.0.2
 
 ### Patch Changes

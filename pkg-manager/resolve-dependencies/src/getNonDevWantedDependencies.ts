@@ -9,8 +9,13 @@ export interface WantedDependency {
   injected?: boolean
 }
 
-export function getNonDevWantedDependencies (pkg: Pick<DependencyManifest, 'bundleDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'>) {
-  const bd = pkg.bundleDependencies ?? pkg.bundleDependencies
+type GetNonDevWantedDependenciesManifest = Pick<DependencyManifest, 'bundleDependencies' | 'bundledDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'>
+
+export function getNonDevWantedDependencies (pkg: GetNonDevWantedDependenciesManifest): WantedDependency[] {
+  let bd = pkg.bundledDependencies ?? pkg.bundleDependencies
+  if (bd === true) {
+    bd = pkg.dependencies != null ? Object.keys(pkg.dependencies) : []
+  }
   const bundledDeps = new Set(Array.isArray(bd) ? bd : [])
   const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
   return getWantedDependenciesFromGivenSet(

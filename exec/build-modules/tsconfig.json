@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../deps/graph-sequencer"
+    },
+    {
       "path": "../../fs/hard-link-dir"
     },
     {
@@ -19,10 +22,16 @@
       "path": "../../packages/core-loggers"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {
       "path": "../../patching/apply-patch"
+    },
+    {
+      "path": "../../patching/types"
     },
     {
       "path": "../../pkg-manager/link-bins"
@@ -34,8 +43,10 @@
       "path": "../../store/store-controller-types"
     },
     {
+      "path": "../../worker"
+    },
+    {
       "path": "../lifecycle"
     }
-  ],
-  "composite": true
+  ]
 }

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "11.0.7",
+  "version": "14.0.5",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/exec/build-modules",
   "keywords": [
-    "pnpm8",
+    "pnpm10",
     "pnpm",
     "resolver",
     "npm"
@@ -31,29 +31,35 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/build-modules#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "dependencies": {
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
-    "@pnpm/graph-sequencer": "1.1.1",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",
+    "@pnpm/patching.types": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "p-defer": "^3.0.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "run-groups": "^3.0.1"
+    "@pnpm/worker": "workspace:*",
+    "p-defer": "catalog:",
+    "ramda": "catalog:",
+    "run-groups": "catalog:"
   },
   "devDependencies": {
     "@pnpm/build-modules": "workspace:*",
-    "@types/ramda": "0.28.20"
+    "@pnpm/logger": "workspace:*",
+    "@types/ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

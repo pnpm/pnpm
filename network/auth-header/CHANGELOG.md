@@ -1,5 +1,54 @@
 # @pnpm/network.auth-header
 
+## 3.0.2
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+  - @pnpm/error@6.0.0
+
+## 2.2.0
+
+### Minor Changes
+
+- 5a5e42551: Export the loadToken function.
+
+## 2.1.0
+
+### Minor Changes
+
+- 3ac0487b3: Add support for basic authorization header [#7371](https://github.com/pnpm/pnpm/issues/7371).
+
+## 2.0.6
+
+### Patch Changes
+
+- 23039a6d6: Fix missing auth tokens in registries with paths specified (e.g. //npm.pkg.github.com/pnpm). #5970 #2933
+
+## 2.0.5
+
+### Patch Changes
+
+- aa20818a0: Authorization token should be found in the configuration, when the requested URL is explicitly specified with a default port (443 on HTTPS or 80 on HTTP) [#6863](https://github.com/pnpm/pnpm/pull/6864).
+
 ## 2.0.4
 
 ### Patch Changes

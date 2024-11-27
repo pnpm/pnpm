@@ -5,7 +5,7 @@ import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 // @ts-expect-error
 import { debug } from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 
 const f = fixtures(__dirname)
 jest.mock('@pnpm/logger', () => {
@@ -63,10 +63,6 @@ test('fetch including all files', async () => {
 test('fetch a directory that has no package.json', async () => {
   process.chdir(f.find('no-manifest'))
   const fetcher = createDirectoryFetcher()
-  const manifest = {
-    resolve: jest.fn(),
-    reject: jest.fn(),
-  }
 
   // eslint-disable-next-line
   const fetchResult = await fetcher.directory({} as any, {
@@ -74,10 +70,10 @@ test('fetch a directory that has no package.json', async () => {
     type: 'directory',
   }, {
     lockfileDir: process.cwd(),
-    manifest,
+    readManifest: true,
   })
 
-  expect(manifest.resolve).toBeCalledWith({})
+  expect(fetchResult.manifest).toEqual(undefined)
   expect(fetchResult.local).toBe(true)
   expect(fetchResult.packageImportMethod).toBe('hardlink')
   expect(fetchResult.filesIndex['index.js']).toBe(path.resolve('index.js'))
@@ -118,9 +114,9 @@ describe('fetch resolves symlinked files to their real locations', () => {
   const srcPath = f.find('simple-pkg')
   beforeAll(async () => {
     process.chdir(f.find('pkg-with-symlinked-dir-and-files'))
-    await rimraf('index.js')
+    rimraf('index.js')
     fs.symlinkSync(indexJsPath, path.resolve('index.js'), 'file')
-    await rimraf('src')
+    rimraf('src')
     fs.symlinkSync(srcPath, path.resolve('src'), 'dir')
   })
   test('fetch resolves symlinked files to their real locations', async () => {

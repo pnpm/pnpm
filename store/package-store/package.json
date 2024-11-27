@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "16.0.7",
+  "version": "20.4.2",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -12,36 +12,37 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0",
+    "@pnpm/worker": "workspace:^"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@zkochan/rimraf": "^2.1.2",
-    "load-json-file": "^6.2.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "ssri": "10.0.4",
-    "write-json-file": "^4.3.0"
+    "@zkochan/rimraf": "catalog:",
+    "load-json-file": "catalog:",
+    "ramda": "catalog:",
+    "ssri": "catalog:"
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/ramda": "0.28.20",
-    "@types/ssri": "^7.1.1",
-    "tempy": "^1.0.1"
+    "@types/ramda": "catalog:",
+    "@types/ssri": "catalog:",
+    "tempy": "catalog:"
   },
   "directories": {
     "test": "test"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/package-store#readme",
   "keywords": [
-    "pnpm8",
+    "pnpm10",
     "store",
     "storage",
     "global store",
@@ -52,7 +53,7 @@
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/store/package-store",
   "scripts": {
@@ -68,5 +69,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

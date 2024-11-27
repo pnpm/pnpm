@@ -1,5 +1,42 @@
 # @pnpm/store-path
 
+## 9.0.2
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+
+## 9.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+  - @pnpm/error@6.0.0
+
+## 8.0.2
+
+### Patch Changes
+
+- 37ccff637: Throw an error when calculating the store directory without the pnpm home directory.
+
+## 8.0.1
+
+### Patch Changes
+
+- 7d65d901a: Fix issue when trying to use `pnpm dlx` in the root of a Windows Drive [#7263](https://github.com/pnpm/pnpm/issues/7263).
+
 ## 8.0.0
 
 ### Major Changes

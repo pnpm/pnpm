@@ -1,11 +1,11 @@
-import { createReadStream, promises as fs, mkdirSync } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
-import loadJsonFile from 'load-json-file'
+import isWindows from 'is-windows'
 import {
   execPnpm,
   execPnpmSync,
@@ -25,14 +25,14 @@ test('some commands pass through to npm', () => {
 test('installs in the folder where the package.json file is', async () => {
   const project = prepare()
 
-  await fs.mkdir('subdir')
+  fs.mkdirSync('subdir')
   process.chdir('subdir')
 
   await execPnpm(['install', 'rimraf@2.5.1'])
 
   const m = project.requireModule('rimraf')
   expect(typeof m).toBe('function')
-  await project.isExecutable('.bin/rimraf')
+  project.isExecutable('.bin/rimraf')
 })
 
 test('pnpm import does not move modules created by npm', async () => {
@@ -41,18 +41,18 @@ test('pnpm import does not move modules created by npm', async () => {
   await execa('npm', ['install', 'is-positive@1.0.0', '--save'])
   await execa('npm', ['shrinkwrap'])
 
-  const packageManifestInodeBefore = (await fs.stat('node_modules/is-positive/package.json')).ino
+  const packageManifestInodeBefore = (fs.statSync('node_modules/is-positive/package.json')).ino
 
   await execPnpm(['import'])
 
-  const packageManifestInodeAfter = (await fs.stat('node_modules/is-positive/package.json')).ino
+  const packageManifestInodeAfter = (fs.statSync('node_modules/is-positive/package.json')).ino
 
   expect(packageManifestInodeBefore).toBe(packageManifestInodeAfter)
 })
 
 test('pass through to npm with all the args', async () => {
   prepare()
-  await rimraf('package.json')
+  rimraf('package.json')
 
   const result = execPnpmSync(['dist-tag', 'ls', 'pnpm'])
 
@@ -64,7 +64,7 @@ test('pnpm fails when an unsupported command is used', async () => {
 
   const { status } = execPnpmSync(['unsupported-command'])
 
-  expect(status).toBe(1)
+  expect(status).toBe(isWindows() ? 1 : 254)
 })
 
 test('pnpm fails when no command is specified', async () => {
@@ -79,10 +79,10 @@ test('pnpm fails when no command is specified', async () => {
 test('command fails when an unsupported flag is used', async () => {
   prepare()
 
-  const { status, stdout } = execPnpmSync(['update', '--save-dev'])
+  const { status, stderr } = execPnpmSync(['update', '--save-dev'])
 
   expect(status).toBe(1)
-  expect(stdout.toString()).toMatch(/Unknown option: 'save-dev'/)
+  expect(stderr.toString()).toMatch(/Unknown option: 'save-dev'/)
 })
 
 test('command does not fail when a deprecated option is used', async () => {
@@ -112,17 +112,17 @@ test('adding new dep does not fail if node_modules was created with --public-hoi
   expect(execPnpmSync(['add', 'is-negative', '--no-shamefully-hoist']).status).toBe(1)
   expect(execPnpmSync(['add', 'is-negative']).status).toBe(0)
 
-  await project.has('is-negative')
+  project.has('is-negative')
 })
 
 test('pnpx works', () => {
   prepareEmpty()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
-  mkdirSync(global)
+  fs.mkdirSync(global)
 
   const env = {
-    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]}`, // eslint-disable-line
+    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]}`,
     PNPM_HOME: pnpmHome,
     XDG_DATA_HOME: global,
   }
@@ -141,61 +141,32 @@ test('exit code from plugin is used to end the process', () => {
   expect(result.stdout.toString()).toMatch(/is-positive/)
 })
 
-const PNPM_CLI = path.join(__dirname, '../dist/pnpm.cjs')
-
-test('the bundled CLI is independent', async () => {
-  const project = prepare()
-
-  await fs.copyFile(PNPM_CLI, 'pnpm.cjs')
-
-  await execa('node', ['./pnpm.cjs', 'add', 'is-positive'])
-
-  await project.has('is-positive')
-})
-
-test('the bundled CLI can be executed from stdin', async () => {
-  const project = prepare()
-
-  const nodeProcess = execa('node', ['-', 'add', 'is-positive'])
-
-  createReadStream(PNPM_CLI).pipe(nodeProcess.stdin!)
-
-  await nodeProcess
-
-  await project.has('is-positive')
-})
-
-test('the bundled CLI prints the correct version, when executed from stdin', async () => {
-  const nodeProcess = execa('node', ['-', '--version'])
-
-  createReadStream(PNPM_CLI).pipe(nodeProcess.stdin!)
-
-  const { version } = await loadJsonFile<{ version: string }>(path.join(__dirname, '../package.json'))
-  expect((await nodeProcess).stdout).toBe(version)
-})
-
 test('use the specified Node.js version for running scripts', async () => {
   prepare({
     scripts: {
       test: "node -e \"require('fs').writeFileSync('version',process.version,'utf8')\"",
     },
   })
-  await fs.writeFile('.npmrc', 'use-node-version=14.0.0', 'utf8')
-  await execPnpm(['run', 'test'])
-  expect(await fs.readFile('version', 'utf8')).toBe('v14.0.0')
+  fs.writeFileSync('.npmrc', 'use-node-version=14.0.0', 'utf8')
+  await execPnpm(['run', 'test'], {
+    env: {
+      PNPM_HOME: path.resolve('pnpm_home'),
+    },
+  })
+  expect(fs.readFileSync('version', 'utf8')).toBe('v14.0.0')
 })
 
 test('if an unknown command is executed, run it', async () => {
   prepare({})
   await execPnpm(['node', '-e', "require('fs').writeFileSync('foo','','utf8')"])
-  expect(await fs.readFile('foo', 'utf8')).toBe('')
+  expect(fs.readFileSync('foo', 'utf8')).toBe('')
 })
 
 test.each([
   { message: 'npm_command env available on special lifecycle hooks', script: 'prepare', command: 'install' },
   { message: 'npm_command env available on special lifecycle hooks (alias)', script: 'prepare', command: 'i', expected: 'install' },
   { message: 'npm_command env available on pre lifecycle hooks', script: 'prepack', command: 'pack' },
-  { message: 'npm_command env available on special commands', script: 'test', command: 'test' },
+  { message: 'npm_command env available on special commands', script: 'test', command: 'test', expected: 'run-script' },
   { message: 'npm_command env available on scripts', script: 'dev', command: 'dev', expected: 'run-script' },
 ])('$message', async ({ script, command, expected }) => {
   prepare({

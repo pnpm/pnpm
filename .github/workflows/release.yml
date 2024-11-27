@@ -16,25 +16,27 @@ jobs:
     environment: release
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install ldid
         run: |
           sudo apt-get update
-          sudo apt-get install git build-essential libplist-dev libssl-dev openssl qemu-user-binfmt
+          sudo apt-get install git build-essential libplist-dev libssl-dev openssl qemu-user-binfmt pkg-config
           cd /tmp
           git clone https://gitlab.com/opensource-saurik/ldid.git
           cd ldid
           git submodule update --init
           gcc -I. -c -o lookup2.o lookup2.c
-          g++ -std=c++11 -o ldid lookup2.o ldid.cpp -I. -lcrypto -lplist -lxml2
+          g++ -std=c++11 -o ldid lookup2.o ldid.cpp -I. -lcrypto $(pkg-config --cflags --libs libplist-2.0) -lxml2
           sudo mv ldid /usr/local/bin
-      - name: install pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@next-8 --activate
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4.0.0
+        with:
+          standalone: true
       - name: pnpm install
-        run: pnpm install
+        # We use --force because we want all artifacts of @reflink/reflink to be installed.
+        run: pnpm install --force
       - name: Publish Packages
+        continue-on-error: true
         env:
           # setting the "npm_config_//registry.npmjs.org/:_authToken" env variable directly doesn't work.
           # probably "pnpm release" doesn't pass auth tokens to child processes
@@ -47,7 +49,7 @@ jobs:
       - name: Generate release description
         run: pnpm run make-release-description
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           draft: true
           files: dist/*

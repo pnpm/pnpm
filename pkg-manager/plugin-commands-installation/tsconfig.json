@@ -19,6 +19,9 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -37,6 +40,9 @@
       "path": "../../dedupe/check"
     },
     {
+      "path": "../../env/plugin-commands-env"
+    },
+    {
       "path": "../../exec/plugin-commands-rebuild"
     },
     {
@@ -46,13 +52,16 @@
       "path": "../../hooks/pnpmfile"
     },
     {
-      "path": "../../lockfile/lockfile-types"
+      "path": "../../lockfile/types"
     },
     {
       "path": "../../packages/constants"
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
     },
     {
       "path": "../../packages/parse-wanted-dependency"
@@ -67,6 +76,9 @@
       "path": "../../pkg-manifest/read-project-manifest"
     },
     {
+      "path": "../../pkg-manifest/write-project-manifest"
+    },
+    {
       "path": "../../resolving/resolver-base"
     },
     {
@@ -77,6 +89,9 @@
     },
     {
       "path": "../../store/store-connection-manager"
+    },
+    {
+      "path": "../../workspace/filter-packages-from-dir"
     },
     {
       "path": "../../workspace/filter-workspace-packages"
@@ -94,11 +109,16 @@
       "path": "../../workspace/sort-packages"
     },
     {
+      "path": "../../workspace/state"
+    },
+    {
       "path": "../core"
+    },
+    {
+      "path": "../get-context"
     },
     {
       "path": "../modules-yaml"
     }
-  ],
-  "composite": true
+  ]
 }

@@ -2,7 +2,8 @@ import fs from 'fs'
 import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { mutateModules, type MutatedProject } from '@pnpm/core'
-import rimraf from '@zkochan/rimraf'
+import { type ProjectRootDir } from '@pnpm/types'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
 test('dedupe direct dependencies', async () => {
@@ -26,15 +27,15 @@ test('dedupe direct dependencies', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -49,7 +50,7 @@ test('dedupe direct dependencies', async () => {
           'is-odd': '1.0.0',
         },
       },
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -58,10 +59,10 @@ test('dedupe direct dependencies', async () => {
         version: '1.0.0',
 
         dependencies: {
-          'is-negative': '1.0.0',
+          '@pnpm.e2e/hello-world-js-bin': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -70,37 +71,39 @@ test('dedupe direct dependencies', async () => {
         version: '1.0.0',
 
         dependencies: {
-          'is-negative': '1.0.0',
+          '@pnpm.e2e/hello-world-js-bin': '1.0.0',
         },
       },
-      rootDir: path.resolve('project-3'),
+      rootDir: path.resolve('project-3') as ProjectRootDir,
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects, dedupeDirectDeps: true }))
-  await projects['project-2'].has('is-negative')
-  await projects['project-3'].has('is-negative')
+  await mutateModules(importers, testDefaults({ allProjects, dedupeDirectDeps: true }))
+  projects['project-2'].has('@pnpm.e2e/hello-world-js-bin')
+  projects['project-3'].has('@pnpm.e2e/hello-world-js-bin')
 
-  allProjects[0].manifest.dependencies['is-negative'] = '1.0.0'
+  allProjects[0].manifest.dependencies['@pnpm.e2e/hello-world-js-bin'] = '1.0.0'
   allProjects[1].manifest.dependencies['is-positive'] = '1.0.0'
   allProjects[1].manifest.dependencies['is-odd'] = '2.0.0'
-  await mutateModules(importers, await testDefaults({ allProjects, dedupeDirectDeps: true }))
+  await mutateModules(importers, testDefaults({ allProjects, dedupeDirectDeps: true }))
 
   expect(Array.from(fs.readdirSync('node_modules').sort())).toEqual([
+    '.bin',
     '.modules.yaml',
     '.pnpm',
+    '@pnpm.e2e',
     'foo',
-    'is-negative',
     'is-odd',
     'is-positive',
   ])
+  expect(Array.from(fs.readdirSync('node_modules/@pnpm.e2e'))).toEqual(['hello-world-js-bin'])
   expect(fs.readdirSync('project-2/node_modules').sort()).toEqual(['is-odd'])
-  await projects['project-3'].hasNot('is-negative')
+  projects['project-3'].hasNot('@pnpm.e2e/hello-world-js-bin')
   expect(fs.existsSync('project-3/node_modules')).toBeFalsy()
 
   // Test the same with headless install
-  await mutateModules(importers, await testDefaults({ allProjects, dedupeDirectDeps: true, frozenLockfile: true }))
+  await mutateModules(importers, testDefaults({ allProjects, dedupeDirectDeps: true, frozenLockfile: true }))
   expect(fs.readdirSync('project-2/node_modules').sort()).toEqual(['is-odd'])
-  await projects['project-3'].hasNot('is-negative')
+  projects['project-3'].hasNot('@pnpm.e2e/hello-world-js-bin')
   expect(fs.existsSync('project-3/node_modules')).toBeFalsy()
 })
 
@@ -119,11 +122,11 @@ test('dedupe direct dependencies after public hoisting', async () => {
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       mutation: 'install',
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
   const allProjects = [
@@ -137,7 +140,7 @@ test('dedupe direct dependencies after public hoisting', async () => {
           '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
         },
       },
-      rootDir: process.cwd(),
+      rootDir: process.cwd() as ProjectRootDir,
     },
     {
       buildIndex: 0,
@@ -149,17 +152,17 @@ test('dedupe direct dependencies after public hoisting', async () => {
           '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         },
       },
-      rootDir: path.resolve('project-2'),
+      rootDir: path.resolve('project-2') as ProjectRootDir,
     },
   ]
-  const opts = await testDefaults({
+  const opts = testDefaults({
     allProjects,
     dedupeDirectDeps: true,
     publicHoistPattern: ['@pnpm.e2e/dep-of-pkg-with-1-dep'],
   })
   await mutateModules(importers, opts)
-  await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
-  await projects['project-2'].hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  projects['project-2'].hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
   expect(Array.from(fs.readdirSync('node_modules/@pnpm.e2e').sort())).toEqual([
     'dep-of-pkg-with-1-dep',
     'pkg-with-1-dep',
@@ -167,10 +170,10 @@ test('dedupe direct dependencies after public hoisting', async () => {
   expect(fs.existsSync('project-2/node_modules')).toBeFalsy()
 
   // Test the same with headless install
-  await rimraf('node_modules')
+  rimraf('node_modules')
   await mutateModules(importers, { ...opts, frozenLockfile: true })
-  await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
-  await projects['project-2'].hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  projects['project-2'].hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
   expect(Array.from(fs.readdirSync('node_modules/@pnpm.e2e').sort())).toEqual([
     'dep-of-pkg-with-1-dep',
     'pkg-with-1-dep',

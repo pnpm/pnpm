@@ -1,9 +1,12 @@
+import path from 'path'
 import { type PnpmError } from '@pnpm/error'
 import { why } from '@pnpm/plugin-commands-listing'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import execa from 'execa'
 import stripAnsi from 'strip-ansi'
+
+const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
 test('`pnpm why` should fail if no package name was provided', async () => {
   prepare()
@@ -12,6 +15,7 @@ test('`pnpm why` should fail if no package name was provided', async () => {
   try {
     await why.handler({
       dir: process.cwd(),
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     }, [])
   } catch (_err: any) { // eslint-disable-line
     err = _err
@@ -29,12 +33,13 @@ test('"why" should find non-direct dependency', async () => {
     },
   })
 
-  await execa('pnpm', ['install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
 
   const output = await why.handler({
     dev: false,
     dir: process.cwd(),
     optional: false,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
   }, ['@pnpm.e2e/dep-of-pkg-with-1-dep'])
 
   expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only

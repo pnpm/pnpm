@@ -10,8 +10,10 @@
   ],
   "references": [
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../store/cafs"
     }
-  ],
-  "composite": true
+  ]
 }

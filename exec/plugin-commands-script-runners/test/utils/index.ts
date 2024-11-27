@@ -10,10 +10,12 @@ export const DEFAULT_OPTS = {
     original: [],
   },
   bail: false,
+  bin: 'node_modules/.bin',
   ca: undefined,
   cacheDir: '../cache',
   cert: undefined,
   extraEnv: {},
+  excludeLinksFromLockfile: false,
   cliOptions: {},
   extraBinPaths: [],
   fetchRetries: 2,
@@ -40,6 +42,7 @@ export const DEFAULT_OPTS = {
   proxy: undefined,
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: {},
+  rootProjectManifestDir: '',
   registries: { default: REGISTRY_URL },
   registry: REGISTRY_URL,
   sort: true,
@@ -49,6 +52,12 @@ export const DEFAULT_OPTS = {
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,
+  supportedArchitectures: {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  },
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 export const DLX_DEFAULT_OPTS = {
@@ -59,7 +68,9 @@ export const DLX_DEFAULT_OPTS = {
   bin: 'node_modules/.bin',
   cacheDir: path.join(tmp, 'cache'),
   extraEnv: {},
+  extraBinPaths: [],
   cliOptions: {},
+  dlxCacheMaxAge: Infinity,
   include: {
     dependencies: true,
     devDependencies: true,
@@ -74,8 +85,16 @@ export const DLX_DEFAULT_OPTS = {
   registries: {
     default: REGISTRY_URL,
   },
+  rootProjectManifestDir: '',
   sort: true,
   storeDir: path.join(tmp, 'store'),
+  symlink: true,
   userConfig: {},
   workspaceConcurrency: 1,
+  supportedArchitectures: {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  },
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }

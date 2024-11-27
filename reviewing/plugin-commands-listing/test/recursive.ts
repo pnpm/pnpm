@@ -1,13 +1,13 @@
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
-import { readProjects } from '@pnpm/filter-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { install } from '@pnpm/plugin-commands-installation'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import stripAnsi from 'strip-ansi'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 
 test('recursive list', async () => {
@@ -34,7 +34,7 @@ test('recursive list', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -93,10 +93,10 @@ test('recursive list with shared-workspace-lockfile', async () => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  fs.writeFileSync('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -164,7 +164,7 @@ test('recursive list --filter', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
+    ...await filterPackagesFromDir(process.cwd(), []),
     cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     recursive: true,
@@ -175,7 +175,7 @@ test('recursive list --filter', async () => {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     recursive: true,
-    ...await readProjects(process.cwd(), [
+    ...await filterPackagesFromDir(process.cwd(), [
       { includeDependencies: true, namePattern: 'project-1' },
     ]),
   }, [])
@@ -218,7 +218,7 @@ test('recursive list --filter link-workspace-packages=false', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), [], { linkWorkspacePackages: false }),
+    ...await filterPackagesFromDir(process.cwd(), [], { linkWorkspacePackages: false }),
     cacheDir: path.resolve('cache'),
     dir: process.cwd(),
     linkWorkspacePackages: false,
@@ -230,7 +230,7 @@ test('recursive list --filter link-workspace-packages=false', async () => {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     recursive: true,
-    ...await readProjects(process.cwd(), [
+    ...await filterPackagesFromDir(process.cwd(), [
       { includeDependencies: true, namePattern: 'project-1' },
     ], { linkWorkspacePackages: false }),
   }, [])
@@ -251,7 +251,7 @@ test('`pnpm recursive why` should fail if no package name was provided', async (
   try {
     await why.handler({
       ...DEFAULT_OPTS,
-      ...await readProjects(process.cwd(), []),
+      ...await filterPackagesFromDir(process.cwd(), []),
       dir: process.cwd(),
       recursive: true,
     }, [])

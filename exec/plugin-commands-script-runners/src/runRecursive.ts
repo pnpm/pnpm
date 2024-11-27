@@ -1,12 +1,16 @@
+import assert from 'assert'
 import path from 'path'
+import util from 'util'
 import { throwOnCommandFail } from '@pnpm/cli-utils'
 import { type Config } from '@pnpm/config'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
+import { groupStart } from '@pnpm/log.group'
 import { sortPackages } from '@pnpm/sort-packages'
 import pLimit from 'p-limit'
 import realpathMissing from 'realpath-missing'
@@ -14,11 +18,13 @@ import { existsInDir } from './existsInDir'
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec'
 import { runScript } from './run'
 import { tryBuildRegExpFromCommand } from './regexpCommand'
-import { type PackageScripts } from '@pnpm/types'
+import { type PackageScripts, type ProjectRootDir } from '@pnpm/types'
 
 export type RecursiveRunOpts = Pick<Config,
+| 'bin'
 | 'enablePrePostScripts'
 | 'unsafePerm'
+| 'pnpmHomeDir'
 | 'rawConfig'
 | 'rootProjectManifest'
 | 'scriptsPrependNodePath'
@@ -26,7 +32,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'shellEmulator'
 | 'stream'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir' | 'dir'>> &
-Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
+Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
   resumeFrom?: string
@@ -36,7 +42,7 @@ Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' 
 export async function runRecursive (
   params: string[],
   opts: RecursiveRunOpts
-) {
+): Promise<void> {
   const [scriptName, ...passedThruArgs] = params
   if (!scriptName) {
     throw new PnpmError('SCRIPT_NAME_IS_REQUIRED', 'You must specify the script you want to run')
@@ -45,8 +51,8 @@ export async function runRecursive (
 
   const sortedPackageChunks = opts.sort
     ? sortPackages(opts.selectedProjectsGraph)
-    : [Object.keys(opts.selectedProjectsGraph).sort()]
-  let packageChunks = opts.reverse ? sortedPackageChunks.reverse() : sortedPackageChunks
+    : [(Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()]
+  let packageChunks: ProjectRootDir[][] = opts.reverse ? sortedPackageChunks.reverse() : sortedPackageChunks
 
   if (opts.resumeFrom) {
     packageChunks = getResumedPackageChunks({
@@ -64,7 +70,7 @@ export async function runRecursive (
       ? 'inherit'
       : 'pipe'
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
-  const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
+  const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
 
   const requiredScripts = opts.rootProjectManifest?.pnpm?.requiredScripts ?? []
   if (requiredScripts.includes(scriptName)) {
@@ -72,7 +78,7 @@ export async function runRecursive (
       .flat()
       .map((prefix) => opts.selectedProjectsGraph[prefix])
       .filter((pkg) => getSpecifiedScripts(pkg.package.manifest.scripts ?? {}, scriptName).length < 1)
-      .map((pkg) => pkg.package.manifest.name ?? pkg.package.dir)
+      .map((pkg) => pkg.package.manifest.name ?? pkg.package.rootDir)
     if (missingScriptPackages.length) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in packages: ${missingScriptPackages.join(', ')}`)
     }
@@ -114,11 +120,16 @@ export async function runRecursive (
             rootModulesDir: await realpathMissing(path.join(prefix, 'node_modules')),
             scriptsPrependNodePath: opts.scriptsPrependNodePath,
             scriptShell: opts.scriptShell,
+            silent: opts.reporter === 'silent',
             shellEmulator: opts.shellEmulator,
             stdio,
             unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
           }
-          const pnpPath = workspacePnpPath ?? await existsPnp(prefix)
+          const { executionEnv } = pkg.package.manifest.pnpm ?? {}
+          if (executionEnv != null) {
+            lifecycleOpts.extraBinPaths = (await prepareExecutionEnv(opts, { executionEnv })).extraBinPaths
+          }
+          const pnpPath = workspacePnpPath ?? existsPnp(prefix)
           if (pnpPath) {
             lifecycleOpts.extraEnv = {
               ...lifecycleOpts.extraEnv,
@@ -127,12 +138,20 @@ export async function runRecursive (
           }
 
           const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
+          const groupEnd = (opts.workspaceConcurrency ?? 4) > 1
+            ? undefined
+            : groupStart(formatSectionName({
+              name: pkg.package.manifest.name,
+              script: scriptName,
+              version: pkg.package.manifest.version,
+              prefix: path.normalize(path.relative(opts.workspaceDir, prefix)),
+            }))
           await _runScript(scriptName)
+          groupEnd?.()
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
-        } catch (err: any) { // eslint-disable-line
-          logger.info(err)
-
+        } catch (err: unknown) {
+          assert(util.types.isNativeError(err))
           result[prefix] = {
             status: 'failure',
             duration: getExecutionDuration(startTime),
@@ -145,13 +164,15 @@ export async function runRecursive (
             return
           }
 
-          err['code'] = 'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL'
-          err['prefix'] = prefix
+          Object.assign(err, {
+            code: 'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL',
+            prefix,
+          })
           opts.reportSummary && await writeRecursiveSummary({
             dir: opts.workspaceDir ?? opts.dir,
             summary: result,
           })
-          /* eslint-enable @typescript-eslint/dot-notation */
+
           throw err
         }
       }
@@ -176,7 +197,21 @@ export async function runRecursive (
   throwOnCommandFail('pnpm recursive run', result)
 }
 
-export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {
+function formatSectionName ({
+  script,
+  name,
+  version,
+  prefix,
+}: {
+  script?: string
+  name?: string
+  version?: string
+  prefix: string
+}) {
+  return `${name ?? 'unknown'}${version ? `@${version}` : ''} ${script ? `: ${script}` : ''} ${prefix}`
+}
+
+export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string): string[] {
   // if scripts in package.json has script which is equal to scriptName a user passes, return it.
   if (scripts[scriptName]) {
     return [scriptName]

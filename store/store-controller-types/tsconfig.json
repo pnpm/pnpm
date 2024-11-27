@@ -21,6 +21,5 @@
     {
       "path": "../cafs-types"
     }
-  ],
-  "composite": true
+  ]
 }

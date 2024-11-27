@@ -1,10 +1,10 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import util from 'util'
 import {
   type DependencyType,
   rootLogger,
 } from '@pnpm/core-loggers'
-import { globalWarn } from '@pnpm/logger'
 import { type DependenciesField } from '@pnpm/types'
 import symlinkDir from 'symlink-dir'
 
@@ -26,7 +26,7 @@ export async function symlinkDirectRootDependency (
     }
     prefix: string
   }
-) {
+): Promise<void> {
   // `opts.destModulesDir` may be a non-existent `node_modules` dir
   // so `fs.realpath` would throw.
   // Even though `symlinkDir` creates the dir if it doesn't exist,
@@ -35,8 +35,8 @@ export async function symlinkDirectRootDependency (
   let destModulesDirReal
   try {
     destModulesDirReal = await fs.realpath(destModulesDir)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') {
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       await fs.mkdir(destModulesDir, { recursive: true })
       destModulesDirReal = await fs.realpath(destModulesDir)
     } else {
@@ -44,25 +44,13 @@ export async function symlinkDirectRootDependency (
     }
   }
 
-  let dependencyRealLocation!: string
-  try {
-    dependencyRealLocation = await fs.realpath(dependencyLocation)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT') throw err
-    globalWarn(`Local dependency not found at ${dependencyLocation}`)
-    // Sometimes the linked in local package does not exist during installation
-    // and is created later via a build script.
-    // That is why we create the symlink even if the target directory does not exist.
-    dependencyRealLocation = dependencyLocation
-  }
-
   const dest = path.join(destModulesDirReal, importAs)
-  const { reused } = await symlinkDir(dependencyRealLocation, dest)
+  const { reused } = await symlinkDir(dependencyLocation, dest)
   if (reused) return // if the link was already present, don't log
   rootLogger.debug({
     added: {
       dependencyType: opts.fromDependenciesField && DEP_TYPE_BY_DEPS_FIELD_NAME[opts.fromDependenciesField] as DependencyType,
-      linkedFrom: dependencyRealLocation,
+      linkedFrom: dependencyLocation,
       name: importAs,
       realName: opts.linkedPackage.name,
       version: opts.linkedPackage.version,

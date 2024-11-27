@@ -25,7 +25,7 @@ class RecursiveFailError extends PnpmError {
   }
 }
 
-export function throwOnCommandFail (command: string, recursiveSummary: RecursiveSummary) {
+export function throwOnCommandFail (command: string, recursiveSummary: RecursiveSummary): void {
   const failures = Object.values(recursiveSummary).filter(({ status }) => status === 'failure') as ActionFailure[]
   if (failures.length > 0) {
     throw new RecursiveFailError(command, recursiveSummary, failures)

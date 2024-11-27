@@ -1,5 +1,38 @@
 # @pnpm/parse-overrides
 
+## 5.1.1
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+- @pnpm/catalogs.resolver@0.1.1
+
+## 5.1.0
+
+### Minor Changes
+
+- 0f0e441: Overrides now support catalogs [#8303](https://github.com/pnpm/pnpm/issues/8303).
+
+## 5.0.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+  - @pnpm/error@6.0.0
+  - @pnpm/parse-wanted-dependency@6.0.0
+
 ## 4.0.2
 
 ### Patch Changes

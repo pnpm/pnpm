@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/client",
-  "version": "10.0.11",
+  "version": "11.1.12",
   "description": "Creates the package resolve and fetch functions",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/client",
   "keywords": [
-    "pnpm8",
+    "pnpm10",
     "pnpm",
     "resolver",
     "npm"
@@ -39,15 +39,19 @@
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "@pnpm/types": "workspace:*",
+    "ramda": "catalog:"
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
-    "@types/ramda": "0.28.20"
+    "@types/ramda": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

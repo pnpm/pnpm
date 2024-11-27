@@ -1,27 +1,27 @@
-import {
-  type PackageFilesIndex,
-} from '@pnpm/cafs'
-import { createCafsStore } from '@pnpm/create-cafs-store'
+import path from 'path'
+import fs from 'fs'
+import { createCafsStore, createPackageImporterAsync, type CafsLocker } from '@pnpm/create-cafs-store'
 import { type Fetchers } from '@pnpm/fetcher-base'
 import { createPackageRequester } from '@pnpm/package-requester'
 import { type ResolveFunction } from '@pnpm/resolver-base'
 import {
-  type ImportIndexedPackage,
-  type PackageFileInfo,
+  type ImportIndexedPackageAsync,
   type StoreController,
 } from '@pnpm/store-controller-types'
-import loadJsonFile from 'load-json-file'
-import writeJsonFile from 'write-json-file'
+import { addFilesFromDir, importPackage, initStoreDir } from '@pnpm/worker'
 import { prune } from './prune'
 
-export async function createPackageStore (
+export { type CafsLocker }
+
+export function createPackageStore (
   resolve: ResolveFunction,
   fetchers: Fetchers,
   initOpts: {
+    cafsLocker?: CafsLocker
     engineStrict?: boolean
     force?: boolean
     nodeVersion?: string
-    importPackage?: ImportIndexedPackage
+    importPackage?: ImportIndexedPackageAsync
     pnpmVersion?: string
     ignoreFile?: (filename: string) => boolean
     cacheDir: string
@@ -29,10 +29,19 @@ export async function createPackageStore (
     networkConcurrency?: number
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
     verifyStoreIntegrity: boolean
+    virtualStoreDirMaxLength: number
+    strictStorePkgContentCheck?: boolean
+    clearResolutionCache: () => void
   }
-): Promise<StoreController> {
+): StoreController {
   const storeDir = initOpts.storeDir
-  const cafs = createCafsStore(storeDir, initOpts)
+  if (!fs.existsSync(path.join(storeDir, 'files'))) {
+    initStoreDir(storeDir).catch() // eslint-disable-line @typescript-eslint/no-floating-promises
+  }
+  const cafs = createCafsStore(storeDir, {
+    cafsLocker: initOpts.cafsLocker,
+    packageImportMethod: initOpts.packageImportMethod,
+  })
   const packageRequester = createPackageRequester({
     force: initOpts.force,
     engineStrict: initOpts.engineStrict,
@@ -45,46 +54,35 @@ export async function createPackageStore (
     networkConcurrency: initOpts.networkConcurrency,
     storeDir: initOpts.storeDir,
     verifyStoreIntegrity: initOpts.verifyStoreIntegrity,
+    virtualStoreDirMaxLength: initOpts.virtualStoreDirMaxLength,
+    strictStorePkgContentCheck: initOpts.strictStorePkgContentCheck,
   })
 
   return {
     close: async () => {}, // eslint-disable-line:no-empty
     fetchPackage: packageRequester.fetchPackageToStore,
     getFilesIndexFilePath: packageRequester.getFilesIndexFilePath,
-    importPackage: cafs.importPackage,
+    importPackage: initOpts.importPackage
+      ? createPackageImporterAsync({ importIndexedPackage: initOpts.importPackage, storeDir: cafs.storeDir })
+      : (targetDir, opts) => importPackage({
+        ...opts,
+        packageImportMethod: initOpts.packageImportMethod,
+        storeDir: initOpts.storeDir,
+        targetDir,
+      }),
     prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir }),
     requestPackage: packageRequester.requestPackage,
     upload,
+    clearResolutionCache: initOpts.clearResolutionCache,
   }
 
-  async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }) {
-    const sideEffectsIndex = await cafs.addFilesFromDir(builtPkgLocation)
-    // TODO: move this to a function
-    // This is duplicated in @pnpm/package-requester
-    const integrity: Record<string, PackageFileInfo> = {}
-    await Promise.all(
-      Object.entries(sideEffectsIndex)
-        .map(async ([filename, { writeResult, mode, size }]) => {
-          const {
-            checkedAt,
-            integrity: fileIntegrity,
-          } = await writeResult
-          integrity[filename] = {
-            checkedAt,
-            integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
-            mode,
-            size,
-          }
-        })
-    )
-    let filesIndex!: PackageFilesIndex
-    try {
-      filesIndex = await loadJsonFile<PackageFilesIndex>(opts.filesIndexFile)
-    } catch (err: any) { // eslint-disable-line
-      filesIndex = { files: integrity }
-    }
-    filesIndex.sideEffects = filesIndex.sideEffects ?? {}
-    filesIndex.sideEffects[opts.sideEffectsCacheKey] = integrity
-    await writeJsonFile(opts.filesIndexFile, filesIndex, { indent: undefined })
+  async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }): Promise<void> {
+    await addFilesFromDir({
+      storeDir: cafs.storeDir,
+      dir: builtPkgLocation,
+      sideEffectsCacheKey: opts.sideEffectsCacheKey,
+      filesIndexFile: opts.filesIndexFile,
+      pkg: {},
+    })
   }
 }

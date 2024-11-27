@@ -1,6 +1,8 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
+    "moduleResolution": "node16",
+    "module": "Node16",
     "outDir": "lib",
     "rootDir": "src"
   },
@@ -10,17 +12,22 @@
   ],
   "references": [
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../packages/dependency-path"
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
     }
-  ],
-  "composite": true
+  ]
 }

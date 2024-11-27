@@ -2,12 +2,13 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { type InstallCommandOptions } from './install'
 import { installDeps } from './installDeps'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
     'child-concurrency',
@@ -37,7 +38,7 @@ export function rcOptionsTypes () {
     'network-concurrency',
     'node-linker',
     'noproxy',
-    'npmPath',
+    'npm-path',
     'package-import-method',
     'pnpmfile',
     'prefer-offline',
@@ -58,7 +59,6 @@ export function rcOptionsTypes () {
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',
     'side-effects-cache',
-    'store',
     'store-dir',
     'strict-peer-dependencies',
     'unsafe-perm',
@@ -72,7 +72,7 @@ export function rcOptionsTypes () {
   ], allTypes)
 }
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
     recursive: Boolean,
@@ -83,7 +83,7 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['add']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Installs a package and any packages that it depends on.',
     descriptionLists: [
@@ -173,7 +173,7 @@ export type AddCommandOptions = InstallCommandOptions & {
 export async function handler (
   opts: AddCommandOptions,
   params: string[]
-) {
+): Promise<void> {
   if (opts.cliOptions['save'] === false) {
     throw new PnpmError('OPTION_NOT_SUPPORTED', 'The "add" command currently does not support the no-save option')
   }
@@ -193,10 +193,15 @@ export async function handler (
       'If you don\'t want to see this warning anymore, you may set the ignore-workspace-root-check setting to true.'
     )
   }
-  if (opts.global && !opts.bin) {
-    throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
-      hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
-    })
+  if (opts.global) {
+    if (!opts.bin) {
+      throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
+        hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
+      })
+    }
+    if (params.includes('pnpm') || params.includes('@pnpm/exe')) {
+      throw new PnpmError('GLOBAL_PNPM_INSTALL', 'Use the "pnpm self-update" command to install or update pnpm')
+    }
   }
 
   const include = {
@@ -208,5 +213,6 @@ export async function handler (
     ...opts,
     include,
     includeDirect: include,
+    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   }, params)
 }

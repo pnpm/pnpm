@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
       "path": "../../packages/constants"
@@ -19,10 +19,13 @@
       "path": "../../packages/core-loggers"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../packages/logger"
     },
     {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../../resolving/resolver-base"
     },
     {
       "path": "../modules-yaml"
@@ -30,6 +33,5 @@
     {
       "path": "../read-projects-context"
     }
-  ],
-  "composite": true
+  ]
 }

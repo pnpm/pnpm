@@ -25,6 +25,9 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {
@@ -34,17 +37,19 @@
       "path": "../../reviewing/list"
     },
     {
-      "path": "../lockfile-file"
+      "path": "../detect-dep-types"
     },
     {
-      "path": "../lockfile-types"
+      "path": "../fs"
     },
     {
-      "path": "../lockfile-utils"
+      "path": "../types"
     },
     {
-      "path": "../lockfile-walker"
+      "path": "../utils"
+    },
+    {
+      "path": "../walker"
     }
-  ],
-  "composite": true
+  ]
 }

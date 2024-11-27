@@ -10,8 +10,13 @@
   ],
   "references": [
     {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../resolving/npm-resolver"
+    },
+    {
       "path": "../resolve-workspace-range"
     }
-  ],
-  "composite": true
+  ]
 }

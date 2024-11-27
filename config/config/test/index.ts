@@ -1,10 +1,9 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import PATH from 'path-name'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import { getConfig } from '@pnpm/config'
-import { type PnpmError } from '@pnpm/error'
 import loadNpmConf from '@pnpm/npm-conf'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -22,6 +21,7 @@ delete process.env.npm_config_virtual_store_dir
 delete process.env.npm_config_shared_workspace_lockfile
 delete process.env.npm_config_side_effects_cache
 delete process.env.npm_config_node_version
+delete process.env.npm_config_fetch_retries
 
 const env = {
   PNPM_HOME: __dirname,
@@ -48,22 +48,20 @@ test('getConfig()', async () => {
 })
 
 test('throw error if --link-workspace-packages is used with --global', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        global: true,
-        'link-workspace-packages': true,
-      },
-      env,
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Configuration conflict. "link-workspace-packages" may not be used with "global"')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      global: true,
+      'link-workspace-packages': true,
+    },
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL',
+    message: 'Configuration conflict. "link-workspace-packages" may not be used with "global"',
+  })
 })
 
 test('correct settings on global install', async () => {
@@ -82,79 +80,71 @@ test('correct settings on global install', async () => {
 })
 
 test('throw error if --shared-workspace-lockfile is used with --global', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        global: true,
-        'shared-workspace-lockfile': true,
-      },
-      env,
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Configuration conflict. "shared-workspace-lockfile" may not be used with "global"')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      global: true,
+      'shared-workspace-lockfile': true,
+    },
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL',
+    message: 'Configuration conflict. "shared-workspace-lockfile" may not be used with "global"',
+  })
 })
 
 test('throw error if --lockfile-dir is used with --global', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        global: true,
-        'lockfile-dir': '/home/src',
-      },
-      env,
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Configuration conflict. "lockfile-dir" may not be used with "global"')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIR_WITH_GLOBAL')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      global: true,
+      'lockfile-dir': '/home/src',
+    },
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIR_WITH_GLOBAL',
+    message: 'Configuration conflict. "lockfile-dir" may not be used with "global"',
+  })
 })
 
 test('throw error if --hoist-pattern is used with --global', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        global: true,
-        'hoist-pattern': 'eslint',
-      },
-      env,
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Configuration conflict. "hoist-pattern" may not be used with "global"')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      global: true,
+      'hoist-pattern': 'eslint',
+    },
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL',
+    message: 'Configuration conflict. "hoist-pattern" may not be used with "global"',
+  })
 })
 
 test('throw error if --virtual-store-dir is used with --global', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        global: true,
-        'virtual-store-dir': 'pkgs',
-      },
-      env,
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('Configuration conflict. "virtual-store-dir" may not be used with "global"')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      global: true,
+      'virtual-store-dir': 'pkgs',
+    },
+    env,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
+    message: 'Configuration conflict. "virtual-store-dir" may not be used with "global"',
+  })
 })
 
 test('when using --global, link-workspace-packages, shared-workspace-lockfile and lockfile-dir are false even if it is set to true in a .npmrc file', async () => {
@@ -165,8 +155,8 @@ test('when using --global, link-workspace-packages, shared-workspace-lockfile an
     'shared-workspace-lockfile=true',
     'lockfile-dir=/home/src',
   ].join('\n')
-  await fs.writeFile('.npmrc', npmrc, 'utf8')
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('.npmrc', npmrc, 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
 
   {
     const { config } = await getConfig({
@@ -223,7 +213,7 @@ test('registries of scoped packages are read and normalized', async () => {
 test('registries in current directory\'s .npmrc have bigger priority then global config settings', async () => {
   prepare()
 
-  await fs.writeFile('.npmrc', 'registry=https://pnpm.io/', 'utf8')
+  fs.writeFileSync('.npmrc', 'registry=https://pnpm.io/', 'utf8')
 
   const { config } = await getConfig({
     cliOptions: {
@@ -246,8 +236,8 @@ test('registries in current directory\'s .npmrc have bigger priority then global
 test('filter is read from .npmrc as an array', async () => {
   prepareEmpty()
 
-  await fs.writeFile('.npmrc', 'filter=foo bar...', 'utf8')
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('.npmrc', 'filter=foo bar...', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
 
   const { config } = await getConfig({
     cliOptions: {
@@ -264,8 +254,8 @@ test('filter is read from .npmrc as an array', async () => {
 test('filter-prod is read from .npmrc as an array', async () => {
   prepareEmpty()
 
-  await fs.writeFile('.npmrc', 'filter-prod=foo bar...', 'utf8')
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('.npmrc', 'filter-prod=foo bar...', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
 
   const { config } = await getConfig({
     cliOptions: {
@@ -280,39 +270,35 @@ test('filter-prod is read from .npmrc as an array', async () => {
 })
 
 test('throw error if --save-prod is used with --save-peer', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        'save-peer': true,
-        'save-prod': true,
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('A package cannot be a peer dependency and a prod dependency at the same time')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      'save-peer': true,
+      'save-prod': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP',
+    message: 'A package cannot be a peer dependency and a prod dependency at the same time',
+  })
 })
 
 test('throw error if --save-optional is used with --save-peer', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        'save-optional': true,
-        'save-peer': true,
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('A package cannot be a peer dependency and an optional dependency at the same time')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      'save-optional': true,
+      'save-peer': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP',
+    message: 'A package cannot be a peer dependency and an optional dependency at the same time',
+  })
 })
 
 test('extraBinPaths', async () => {
@@ -393,57 +379,51 @@ test('hoist-pattern is undefined if --no-hoist used', async () => {
 })
 
 test('throw error if --no-hoist is used with --shamefully-hoist', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        hoist: false,
-        'shamefully-hoist': true,
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('--shamefully-hoist cannot be used with --no-hoist')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      hoist: false,
+      'shamefully-hoist': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_HOIST',
+    message: '--shamefully-hoist cannot be used with --no-hoist',
+  })
 })
 
 test('throw error if --no-hoist is used with --shamefully-flatten', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        hoist: false,
-        'shamefully-flatten': true,
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('--shamefully-flatten cannot be used with --no-hoist')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      hoist: false,
+      'shamefully-flatten': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_HOIST',
+    message: '--shamefully-flatten cannot be used with --no-hoist',
+  })
 })
 
 test('throw error if --no-hoist is used with --hoist-pattern', async () => {
-  try {
-    await getConfig({
-      cliOptions: {
-        hoist: false,
-        'hoist-pattern': 'eslint-*',
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toEqual('--hoist-pattern cannot be used with --no-hoist')
-    expect((err as PnpmError).code).toEqual('ERR_PNPM_CONFIG_CONFLICT_HOIST')
-  }
+  await expect(getConfig({
+    cliOptions: {
+      hoist: false,
+      'hoist-pattern': 'eslint-*',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_CONFLICT_HOIST',
+    message: '--hoist-pattern cannot be used with --no-hoist',
+  })
 })
 
 test('normalizing the value of public-hoist-pattern', async () => {
@@ -479,10 +459,10 @@ test.skip('rawLocalConfig in a workspace', async () => {
   prepareEmpty()
 
   const workspaceDir = process.cwd()
-  await fs.writeFile('.npmrc', 'hoist-pattern=*', 'utf8')
-  await fs.mkdir('package')
+  fs.writeFileSync('.npmrc', 'hoist-pattern=*', 'utf8')
+  fs.mkdirSync('package')
   process.chdir('package')
-  await fs.writeFile('.npmrc', 'hoist-pattern=eslint-*', 'utf8')
+  fs.writeFileSync('.npmrc', 'hoist-pattern=eslint-*', 'utf8')
 
   {
     const { config } = await getConfig({
@@ -503,7 +483,7 @@ test.skip('rawLocalConfig in a workspace', async () => {
   }
 
   // package w/o its own .npmrc
-  await fs.mkdir('package2')
+  fs.mkdirSync('package2')
   process.chdir('package2')
   {
     const { config } = await getConfig({
@@ -527,7 +507,7 @@ test.skip('rawLocalConfig in a workspace', async () => {
 test.skip('rawLocalConfig', async () => {
   prepareEmpty()
 
-  await fs.writeFile('.npmrc', 'modules-dir=modules', 'utf8')
+  fs.writeFileSync('.npmrc', 'modules-dir=modules', 'utf8')
 
   const { config } = await getConfig({
     cliOptions: {
@@ -577,7 +557,7 @@ test('normalize the value of the color flag', async () => {
 test('read only supported settings from config', async () => {
   prepare()
 
-  await fs.writeFile('.npmrc', 'store-dir=__store__\nfoo=bar', 'utf8')
+  fs.writeFileSync('.npmrc', 'store-dir=__store__\nfoo=bar', 'utf8')
 
   const { config } = await getConfig({
     cliOptions: {},
@@ -620,6 +600,21 @@ test('local prefix search stops on pnpm-workspace.yaml', async () => {
   })
 
   expect(config.dir).toEqual(workspaceDir)
+})
+
+test('reads workspacePackagePatterns', async () => {
+  const workspaceDir = path.join(__dirname, 'fixtures/pkg-with-valid-workspace-yaml')
+  process.chdir(workspaceDir)
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir,
+  })
+
+  expect(config.workspacePackagePatterns).toEqual(['packages/*'])
 })
 
 test('respects test-pattern', async () => {
@@ -670,7 +665,7 @@ test('respects changed-files-ignore-pattern', async () => {
       'changed-files-ignore-pattern[]=**/README.md',
     ].join('\n')
 
-    await fs.writeFile('.npmrc', npmrc, 'utf8')
+    fs.writeFileSync('.npmrc', npmrc, 'utf8')
 
     const { config } = await getConfig({
       cliOptions: {
@@ -689,7 +684,7 @@ test('respects changed-files-ignore-pattern', async () => {
 test('dir is resolved to real path', async () => {
   prepareEmpty()
   const realDir = path.resolve('real-path')
-  await fs.mkdir(realDir)
+  fs.mkdirSync(realDir)
   const symlink = path.resolve('symlink')
   await symlinkDir(realDir, symlink)
   const { config } = await getConfig({
@@ -712,7 +707,7 @@ test('warn user unknown settings in npmrc', async () => {
     '//foo.bar:_authToken=aaa',
     '@qar:registry=https://registry.example.org/',
   ].join('\n')
-  await fs.writeFile('.npmrc', npmrc, 'utf8')
+  fs.writeFileSync('.npmrc', npmrc, 'utf8')
 
   const { warnings } = await getConfig({
     cliOptions: {},
@@ -753,8 +748,8 @@ test('getConfig() converts noproxy to noProxy', async () => {
 
 test('getConfig() returns the userconfig', async () => {
   prepareEmpty()
-  await fs.mkdir('user-home')
-  await fs.writeFile(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
   loadNpmConf.defaults.userconfig = path.resolve('user-home', '.npmrc')
   const { config } = await getConfig({
     cliOptions: {},
@@ -768,10 +763,10 @@ test('getConfig() returns the userconfig', async () => {
 
 test('getConfig() returns the userconfig even when overridden locally', async () => {
   prepareEmpty()
-  await fs.mkdir('user-home')
-  await fs.writeFile(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
+  fs.mkdirSync('user-home')
+  fs.writeFileSync(path.resolve('user-home', '.npmrc'), 'registry = https://registry.example.test', 'utf-8')
   loadNpmConf.defaults.userconfig = path.resolve('user-home', '.npmrc')
-  await fs.writeFile('.npmrc', 'registry = https://project-local.example.test', 'utf-8')
+  fs.writeFileSync('.npmrc', 'registry = https://project-local.example.test', 'utf-8')
   const { config } = await getConfig({
     cliOptions: {},
     packageManager: {
@@ -834,7 +829,7 @@ test('respect merge-git-branch-lockfiles-branch-pattern', async () => {
       'merge-git-branch-lockfiles-branch-pattern[]=release/**',
     ].join('\n')
 
-    await fs.writeFile('.npmrc', npmrc, 'utf8')
+    fs.writeFileSync('.npmrc', npmrc, 'utf8')
 
     const { config } = await getConfig({
       cliOptions: {
@@ -858,7 +853,7 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
       'merge-git-branch-lockfiles-branch-pattern[]=release/**',
     ].join('\n')
 
-    await fs.writeFile('.npmrc', npmrc, 'utf8')
+    fs.writeFileSync('.npmrc', npmrc, 'utf8')
 
     ;(getCurrentBranch as jest.Mock).mockReturnValue('develop')
     const { config } = await getConfig({
@@ -918,7 +913,7 @@ test('preferSymlinkedExecutables should be true when nodeLinker is hoisted', asy
 })
 
 test('return a warning when the .npmrc has an env variable that does not exist', async () => {
-  await fs.writeFile('.npmrc', 'foo=${ENV_VAR_123}', 'utf8') // eslint-disable-line
+  fs.writeFileSync('.npmrc', 'foo=${ENV_VAR_123}', 'utf8') // eslint-disable-line
   const { warnings } = await getConfig({
     cliOptions: {},
     packageManager: {
@@ -990,6 +985,27 @@ test('read PNPM_HOME defined in environment variables', async () => {
     },
   })
   expect(config.pnpmHomeDir).toBe(homeDir)
+
+  process.env = oldEnv
+})
+
+test('xxx', async () => {
+  const oldEnv = process.env
+  process.env = {
+    ...oldEnv,
+    FOO: 'fetch-retries',
+  }
+
+  const { config } = await getConfig({
+    cliOptions: {
+      dir: f.find('has-env-in-key'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.fetchRetries).toBe(999)
 
   process.env = oldEnv
 })

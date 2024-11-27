@@ -1,10 +1,8 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
-    "composite": false,
-    "declaration": false,
+    "composite": true,
     "outDir": "lib",
-    "sourceMap": false,
     "rootDir": "src",
     "suppressImplicitAnyIndexErrors": true,
     "ignoreDeprecations": "5.0"
@@ -22,6 +20,12 @@
     },
     {
       "path": "../__utils__/test-fixtures"
+    },
+    {
+      "path": "../__utils__/test-ipc-server"
+    },
+    {
+      "path": "../cache/commands"
     },
     {
       "path": "../cli/cli-meta"
@@ -42,6 +46,9 @@
       "path": "../cli/parse-cli-args"
     },
     {
+      "path": "../completion/plugin-commands-completion"
+    },
+    {
       "path": "../config/config"
     },
     {
@@ -49,6 +56,12 @@
     },
     {
       "path": "../config/plugin-commands-config"
+    },
+    {
+      "path": "../crypto/hash"
+    },
+    {
+      "path": "../env/path"
     },
     {
       "path": "../env/plugin-commands-env"
@@ -63,10 +76,10 @@
       "path": "../exec/run-npm"
     },
     {
-      "path": "../lockfile/lockfile-types"
+      "path": "../lockfile/plugin-commands-audit"
     },
     {
-      "path": "../lockfile/plugin-commands-audit"
+      "path": "../lockfile/types"
     },
     {
       "path": "../packages/constants"
@@ -76,6 +89,12 @@
     },
     {
       "path": "../packages/dependency-path"
+    },
+    {
+      "path": "../packages/error"
+    },
+    {
+      "path": "../packages/logger"
     },
     {
       "path": "../packages/plugin-commands-doctor"
@@ -126,10 +145,25 @@
       "path": "../reviewing/plugin-commands-outdated"
     },
     {
+      "path": "../store/cafs"
+    },
+    {
       "path": "../store/plugin-commands-server"
     },
     {
       "path": "../store/plugin-commands-store"
+    },
+    {
+      "path": "../store/plugin-commands-store-inspecting"
+    },
+    {
+      "path": "../tools/path"
+    },
+    {
+      "path": "../tools/plugin-commands-self-updater"
+    },
+    {
+      "path": "../worker"
     },
     {
       "path": "../workspace/filter-workspace-packages"
@@ -142,7 +176,9 @@
     },
     {
       "path": "../workspace/pkgs-graph"
+    },
+    {
+      "path": "../workspace/state"
     }
-  ],
-  "composite": true
+  ]
 }

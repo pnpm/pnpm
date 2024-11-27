@@ -1,10 +1,11 @@
 import path from 'path'
+import util from 'util'
 import { runNpm } from '@pnpm/run-npm'
 import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
 import { type ConfigCommandOptions } from './ConfigCommandOptions'
 
-export async function configSet (opts: ConfigCommandOptions, key: string, value: string | null) {
+export async function configSet (opts: ConfigCommandOptions, key: string, value: string | null): Promise<void> {
   const configPath = opts.global ? path.join(opts.configDir, 'rc') : path.join(opts.dir, '.npmrc')
   if (opts.global && settingShouldFallBackToNpm(key)) {
     const _runNpm = runNpm.bind(null, opts.npmPath)
@@ -36,8 +37,8 @@ function settingShouldFallBackToNpm (key: string): boolean {
 async function safeReadIniFile (configPath: string): Promise<Record<string, unknown>> {
   try {
     return await readIniFile(configPath) as Record<string, unknown>
-  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (err.code === 'ENOENT') return {}
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return {}
     throw err
   }
 }

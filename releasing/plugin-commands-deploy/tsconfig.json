@@ -16,6 +16,12 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -28,10 +34,16 @@
       "path": "../../fs/indexed-pkg-importer"
     },
     {
-      "path": "../../lockfile/lockfile-types"
+      "path": "../../fs/is-empty-dir-or-nothing"
+    },
+    {
+      "path": "../../lockfile/types"
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
     },
     {
       "path": "../../packages/types"
@@ -40,8 +52,7 @@
       "path": "../../pkg-manager/plugin-commands-installation"
     },
     {
-      "path": "../../workspace/filter-workspace-packages"
+      "path": "../../workspace/filter-packages-from-dir"
     }
-  ],
-  "composite": true
+  ]
 }

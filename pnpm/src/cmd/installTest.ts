@@ -1,6 +1,6 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { install } from '@pnpm/plugin-commands-installation'
-import { test } from '@pnpm/plugin-commands-script-runners'
+import { run } from '@pnpm/plugin-commands-script-runners'
 import renderHelp from 'render-help'
 import { type PnpmOptions } from '../types'
 
@@ -10,7 +10,7 @@ export const rcOptionsTypes = install.rcOptionsTypes
 
 export const commandNames = ['install-test', 'it']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['it'],
     description: 'Runs a `pnpm install` followed immediately by a `pnpm test`. It takes exactly the same arguments as `pnpm install`.',
@@ -19,7 +19,7 @@ export function help () {
   })
 }
 
-export async function handler (opts: PnpmOptions, params: string[]) {
+export async function handler (opts: PnpmOptions, params: string[]): Promise<void> {
   await install.handler(opts)
-  await test.handler(opts as any, params) // eslint-disable-line
+  await run.handler(opts as any, ['test', ...params]) // eslint-disable-line
 }

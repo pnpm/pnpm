@@ -1,5 +1,646 @@
 # @pnpm/plugin-commands-env
 
+## 5.1.11
+
+### Patch Changes
+
+- d04f7f2: pnpm no longer downloads the required `use-node-version` if the running node version is the same as the wanted version
+
+  The required `use-node-version` is no longer downloaded if the running Node version is the same as the wanted version [#8673](https://github.com/pnpm/pnpm/pull/8673).
+
+- Updated dependencies [d04f7f2]
+  - @pnpm/env.system-node-version@1.0.0
+  - @pnpm/node.fetcher@4.0.16
+  - @pnpm/cli-utils@4.0.7
+  - @pnpm/config@21.8.5
+  - @pnpm/node.resolver@3.0.16
+
+## 5.1.10
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.15
+- @pnpm/node.resolver@3.0.15
+- @pnpm/cli-utils@4.0.6
+- @pnpm/config@21.8.4
+
+## 5.1.9
+
+### Patch Changes
+
+- @pnpm/config@21.8.4
+- @pnpm/error@6.0.2
+- @pnpm/cli-utils@4.0.6
+- @pnpm/node.fetcher@4.0.14
+- @pnpm/store-path@9.0.2
+- @pnpm/node.resolver@3.0.14
+- @pnpm/remove-bins@6.0.9
+
+## 5.1.8
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/cli-utils@4.0.5
+  - @pnpm/config@21.8.3
+  - @pnpm/fetch@8.0.7
+  - @pnpm/remove-bins@6.0.8
+  - @pnpm/node.fetcher@4.0.13
+  - @pnpm/node.resolver@3.0.13
+
+## 5.1.7
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/cli-utils@4.0.4
+  - @pnpm/config@21.8.2
+  - @pnpm/fetch@8.0.6
+  - @pnpm/remove-bins@6.0.7
+  - @pnpm/node.fetcher@4.0.12
+  - @pnpm/node.resolver@3.0.12
+
+## 5.1.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.3
+
+## 5.1.5
+
+### Patch Changes
+
+- Updated dependencies [251ab21]
+  - @pnpm/config@21.8.1
+  - @pnpm/cli-utils@4.0.2
+
+## 5.1.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.1
+
+## 5.1.3
+
+### Patch Changes
+
+- Updated dependencies [26b065c]
+- Updated dependencies [26b065c]
+  - @pnpm/cli-utils@4.0.0
+  - @pnpm/config@21.8.0
+
+## 5.1.2
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+- Updated dependencies [98c8bd6]
+- Updated dependencies [d20eed3]
+  - @pnpm/types@12.0.0
+  - @pnpm/cli-utils@3.1.7
+  - @pnpm/config@21.7.0
+  - @pnpm/fetch@8.0.5
+  - @pnpm/remove-bins@6.0.6
+  - @pnpm/node.fetcher@4.0.11
+  - @pnpm/node.resolver@3.0.11
+
+## 5.1.1
+
+### Patch Changes
+
+- @pnpm/config@21.6.3
+- @pnpm/node.fetcher@4.0.10
+- @pnpm/cli-utils@3.1.6
+- @pnpm/node.resolver@3.0.10
+
+## 5.1.0
+
+### Minor Changes
+
+- 0ef168b: Support specifying node version (via `pnpm.executionEnv.nodeVersion` in `package.json`) for running lifecycle scripts per each package in a workspace [#6720](https://github.com/pnpm/pnpm/issues/6720).
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/config@21.6.2
+  - @pnpm/fetch@8.0.4
+  - @pnpm/remove-bins@6.0.5
+  - @pnpm/node.fetcher@4.0.9
+  - @pnpm/node.resolver@3.0.9
+
+## 5.0.12
+
+### Patch Changes
+
+- afe520d: Update symlink-dir to v6.0.1.
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/node.fetcher@4.0.8
+  - @pnpm/config@21.6.1
+  - @pnpm/node.resolver@3.0.8
+  - @pnpm/cli-utils@3.1.4
+
+## 5.0.11
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+  - @pnpm/config@21.6.0
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/fetch@8.0.3
+  - @pnpm/remove-bins@6.0.4
+  - @pnpm/node.fetcher@4.0.7
+  - @pnpm/node.resolver@3.0.7
+
+## 5.0.10
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/fetch@8.0.2
+  - @pnpm/remove-bins@6.0.3
+  - @pnpm/node.fetcher@4.0.6
+  - @pnpm/node.resolver@3.0.6
+
+## 5.0.9
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/config@21.4.0
+  - @pnpm/cli-utils@3.1.1
+  - @pnpm/node.fetcher@4.0.5
+
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+  - @pnpm/node.fetcher@4.0.5
+  - @pnpm/node.resolver@3.0.5
+
+## 5.0.7
+
+### Patch Changes
+
+- @pnpm/config@21.2.3
+- @pnpm/node.fetcher@4.0.4
+- @pnpm/cli-utils@3.0.7
+- @pnpm/node.resolver@3.0.4
+
+## 5.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.6
+- @pnpm/config@21.2.2
+- @pnpm/fetch@8.0.1
+- @pnpm/remove-bins@6.0.2
+- @pnpm/node.fetcher@4.0.3
+- @pnpm/node.resolver@3.0.3
+
+## 5.0.5
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/node.fetcher@4.0.2
+  - @pnpm/store-path@9.0.1
+  - @pnpm/node.resolver@3.0.2
+  - @pnpm/remove-bins@6.0.1
+
+## 5.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+
+## 5.0.3
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/config@21.2.0
+  - @pnpm/cli-utils@3.0.3
+  - @pnpm/node.fetcher@4.0.1
+
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+  - @pnpm/node.fetcher@4.0.1
+  - @pnpm/node.resolver@3.0.1
+
+## 5.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+  - @pnpm/cli-utils@3.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 7733f3a: Added support for registry-scoped SSL configurations (cert, key, and ca). Three new settings supported: `<registryURL>:certfile`, `<registryURL>:keyfile`, and `<registryURL>:ca`. For instance:
+
+  ```
+  //registry.mycomp.com/:certfile=server-cert.pem
+  //registry.mycomp.com/:keyfile=server-key.pem
+  //registry.mycomp.com/:cafile=client-cert.pem
+  ```
+
+  Related issue: [#7427](https://github.com/pnpm/pnpm/issues/7427).
+  Related PR: [#7626](https://github.com/pnpm/pnpm/pull/7626).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/config@21.0.0
+  - @pnpm/fetch@8.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/remove-bins@6.0.0
+  - @pnpm/node.resolver@3.0.0
+  - @pnpm/node.fetcher@4.0.0
+  - @pnpm/store-path@9.0.0
+  - @pnpm/cli-utils@3.0.0
+
+## 4.1.22
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.9
+- @pnpm/config@20.4.2
+- @pnpm/node.fetcher@3.0.39
+- @pnpm/node.resolver@2.0.40
+
+## 4.1.21
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.38
+- @pnpm/node.resolver@2.0.39
+
+## 4.1.20
+
+### Patch Changes
+
+- Updated dependencies [37ccff637]
+- Updated dependencies [d9564e354]
+  - @pnpm/store-path@8.0.2
+  - @pnpm/config@20.4.1
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/node.fetcher@3.0.37
+
+## 4.1.19
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.37
+- @pnpm/node.resolver@2.0.38
+
+## 4.1.18
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
+## 4.1.17
+
+### Patch Changes
+
+- 4d2923858: Fix error message texts in the `pnpm env` commands [#7456](https://github.com/pnpm/pnpm/pull/7456).
+- Updated dependencies [4e71066dd]
+- Updated dependencies [33313d2fd]
+  - @pnpm/config@20.3.0
+  - @pnpm/node.fetcher@3.0.36
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/node.resolver@2.0.37
+  - @pnpm/remove-bins@5.0.7
+  - @pnpm/fetch@7.0.7
+
+## 4.1.16
+
+### Patch Changes
+
+- Updated dependencies [672c559e4]
+  - @pnpm/config@20.2.0
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/remove-bins@5.0.6
+  - @pnpm/node.fetcher@3.0.35
+  - @pnpm/fetch@7.0.6
+  - @pnpm/node.resolver@2.0.36
+
+## 4.1.15
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.34
+- @pnpm/node.resolver@2.0.35
+
+## 4.1.14
+
+### Patch Changes
+
+- b9c7fb91f: chore: unify expressions
+  - @pnpm/cli-utils@2.1.4
+
+## 4.1.13
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+
+## 4.1.12
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.33
+- @pnpm/node.resolver@2.0.34
+
+## 4.1.11
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.32
+- @pnpm/node.resolver@2.0.33
+- @pnpm/config@20.1.2
+- @pnpm/cli-utils@2.1.2
+
+## 4.1.10
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.31
+- @pnpm/node.resolver@2.0.32
+
+## 4.1.9
+
+### Patch Changes
+
+- Updated dependencies [7d65d901a]
+  - @pnpm/store-path@8.0.1
+  - @pnpm/node.fetcher@3.0.30
+  - @pnpm/node.resolver@2.0.31
+  - @pnpm/config@20.1.1
+  - @pnpm/cli-utils@2.1.1
+
+## 4.1.8
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.29
+- @pnpm/node.resolver@2.0.30
+
+## 4.1.7
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d6592964f]
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/config@20.1.0
+  - @pnpm/remove-bins@5.0.5
+  - @pnpm/node.fetcher@3.0.28
+  - @pnpm/fetch@7.0.5
+  - @pnpm/node.resolver@2.0.29
+
+## 4.1.6
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.27
+- @pnpm/node.resolver@2.0.28
+
+## 4.1.5
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.26
+- @pnpm/node.resolver@2.0.27
+
+## 4.1.4
+
+### Patch Changes
+
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/config@20.0.0
+  - @pnpm/cli-utils@2.0.24
+  - @pnpm/node.fetcher@3.0.25
+  - @pnpm/node.resolver@2.0.26
+
+## 4.1.3
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.24
+- @pnpm/node.resolver@2.0.25
+
+## 4.1.2
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.23
+- @pnpm/node.resolver@2.0.24
+
+## 4.1.1
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+  - @pnpm/cli-utils@2.0.23
+
+## 4.1.0
+
+### Minor Changes
+
+- 2e6915727: Allow `env rm` to remove multiple node versions at once, and introduce `env add` for installing node versions without setting as default [#7155](https://github.com/pnpm/pnpm/pull/7155).
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/remove-bins@5.0.4
+  - @pnpm/node.fetcher@3.0.22
+  - @pnpm/fetch@7.0.4
+  - @pnpm/node.resolver@2.0.23
+
+## 4.0.30
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+  - @pnpm/config@19.1.0
+  - @pnpm/cli-utils@2.0.21
+  - @pnpm/node.fetcher@3.0.21
+  - @pnpm/node.resolver@2.0.22
+
+## 4.0.29
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+- @pnpm/node.fetcher@3.0.20
+- @pnpm/node.resolver@2.0.21
+
+## 4.0.28
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/node.fetcher@4.0.0
+  - @pnpm/node.resolver@2.0.20
+  - @pnpm/config@19.0.3
+  - @pnpm/cli-utils@2.0.19
+
+## 4.0.27
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.18
+- @pnpm/node.resolver@2.0.19
+
+## 4.0.26
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.17
+- @pnpm/config@19.0.2
+- @pnpm/node.resolver@2.0.18
+- @pnpm/cli-utils@2.0.18
+
+## 4.0.25
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.16
+- @pnpm/node.resolver@2.0.17
+- @pnpm/config@19.0.1
+
+## 4.0.24
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.15
+- @pnpm/node.resolver@2.0.16
+- @pnpm/config@19.0.1
+- @pnpm/cli-utils@2.0.17
+
+## 4.0.23
+
+### Patch Changes
+
+- Updated dependencies [cb8bcc8df]
+- Updated dependencies [66423df83]
+  - @pnpm/config@19.0.0
+  - @pnpm/node.fetcher@3.0.14
+  - @pnpm/cli-utils@2.0.16
+  - @pnpm/node.resolver@2.0.15
+
+## 4.0.22
+
+### Patch Changes
+
+- 34724dd0f: `pnpm env use` should retry deleting the previous node.js executable [#6587](https://github.com/pnpm/pnpm/issues/6587).
+  - @pnpm/cli-utils@2.0.15
+  - @pnpm/node.fetcher@3.0.13
+  - @pnpm/node.resolver@2.0.14
+
+## 4.0.21
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.12
+- @pnpm/node.resolver@2.0.13
+
+## 4.0.20
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.14
+
+## 4.0.19
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.11
+- @pnpm/node.resolver@2.0.12
+- @pnpm/config@18.4.4
+
+## 4.0.18
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.10
+- @pnpm/node.resolver@2.0.11
+- @pnpm/config@18.4.4
+
+## 4.0.17
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.9
+- @pnpm/node.resolver@2.0.10
+- @pnpm/config@18.4.4
+
+## 4.0.16
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.13
+- @pnpm/config@18.4.4
+- @pnpm/remove-bins@5.0.3
+- @pnpm/node.fetcher@3.0.8
+- @pnpm/fetch@7.0.3
+- @pnpm/node.resolver@2.0.9
+
+## 4.0.15
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.12
+- @pnpm/config@18.4.3
+- @pnpm/node.fetcher@3.0.7
+- @pnpm/node.resolver@2.0.8
+
 ## 4.0.14
 
 ### Patch Changes

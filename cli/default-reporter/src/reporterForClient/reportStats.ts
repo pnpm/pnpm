@@ -20,8 +20,15 @@ export function reportStats (
     cwd: string
     isRecursive: boolean
     width: number
+    hideProgressPrefix?: boolean
   }
-) {
+): Array<Rx.Observable<Rx.Observable<{ msg: string }>>> {
+  if (opts.hideProgressPrefix) {
+    return [statsForCurrentPackage(log$.stats, {
+      cmd: opts.cmd,
+      width: opts.width,
+    })]
+  }
   const stats$ = opts.isRecursive
     ? log$.stats
     : log$.stats.pipe(filter((log) => log.prefix !== opts.cwd))
@@ -35,9 +42,10 @@ export function reportStats (
   ]
 
   if (!opts.isRecursive) {
-    outputs.push(statsForCurrentPackage(log$.stats, {
+    outputs.push(statsForCurrentPackage(log$.stats.pipe(
+      filter((log) => log.prefix === opts.cwd)
+    ), {
       cmd: opts.cmd,
-      currentPrefix: opts.cwd,
       width: opts.width,
     }))
   }
@@ -49,13 +57,11 @@ function statsForCurrentPackage (
   stats$: Rx.Observable<StatsLog>,
   opts: {
     cmd: string
-    currentPrefix: string
     width: number
   }
-) {
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
   return stats$.pipe(
-    filter((log) => log.prefix === opts.currentPrefix),
-    take((opts.cmd === 'install' || opts.cmd === 'install-test' || opts.cmd === 'add' || opts.cmd === 'update') ? 2 : 1),
+    take((opts.cmd === 'install' || opts.cmd === 'install-test' || opts.cmd === 'add' || opts.cmd === 'update' || opts.cmd === 'dlx') ? 2 : 1),
     reduce((acc, log) => {
       if (typeof log['added'] === 'number') {
         acc['added'] = log['added']
@@ -63,7 +69,7 @@ function statsForCurrentPackage (
         acc['removed'] = log['removed']
       }
       return acc
-    }, {}),
+    }, {} as { added?: number, removed?: number }),
     map((stats) => {
       if (!stats['removed'] && !stats['added']) {
         if (opts.cmd === 'link') {
@@ -74,14 +80,12 @@ function statsForCurrentPackage (
 
       let msg = 'Packages:'
       if (stats['added']) {
-        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         msg += ' ' + chalk.green(`+${stats['added'].toString()}`)
       }
       if (stats['removed']) {
-        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         msg += ' ' + chalk.red(`-${stats['removed'].toString()}`)
       }
-      msg += EOL + printPlusesAndMinuses(opts.width, (stats['added'] || 0), (stats['removed'] || 0))
+      msg += EOL + printPlusesAndMinuses(opts.width, (stats['added'] ?? 0), (stats['removed'] ?? 0))
       return Rx.of({ msg })
     })
   )
@@ -94,28 +98,32 @@ function statsForNotCurrentPackage (
     currentPrefix: string
     width: number
   }
-) {
-  const stats = {}
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
+  const stats: Record<string, StatsLog> = {}
+  type CookedStats =
+    | { prefix: string, added?: number, removed?: number }
+    | { seed: typeof stats, value: null, prefix?: never, added?: never, removed?: never }
   const cookedStats$ = (
     opts.cmd !== 'remove'
       ? stats$.pipe(
-        map((log) => {
+        map((log): CookedStats => {
           // As of pnpm v2.9.0, during `pnpm recursive link`, logging of removed stats happens twice
           //  1. during linking
           //  2. during installing
           // Hence, the stats are added before reported
-          if (!stats[log.prefix]) {
-            stats[log.prefix] = log
+          const { prefix } = log
+          if (!stats[prefix]) {
+            stats[prefix] = log
             return { seed: stats, value: null }
-          } else if (typeof stats[log.prefix].added === 'number' && typeof log['added'] === 'number') {
-            stats[log.prefix].added += log['added'] // eslint-disable-line
+          } else if (typeof stats[prefix].added === 'number' && typeof log['added'] === 'number') {
+            stats[prefix].added += log['added']
             return { seed: stats, value: null }
-          } else if (typeof stats[log.prefix].removed === 'number' && typeof log['removed'] === 'number') {
-            stats[log.prefix].removed += log['removed'] // eslint-disable-line
+          } else if (typeof stats[prefix].removed === 'number' && typeof log['removed'] === 'number') {
+            stats[prefix].removed += log['removed']
             return { seed: stats, value: null }
           } else {
-            const value = { ...stats[log.prefix], ...log }
-            delete stats[log.prefix]
+            const value = { ...stats[prefix], ...log }
+            delete stats[prefix]
             return value
           }
         }, {})
@@ -123,28 +131,27 @@ function statsForNotCurrentPackage (
       : stats$
   )
   return cookedStats$.pipe(
-    filter((stats) => stats !== null && (stats['removed'] || stats['added'])),
+    filter((stats) => stats !== null && Boolean(stats['removed'] || stats['added'])), // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
     map((stats) => {
       const parts = [] as string[]
 
       if (stats['added']) {
-        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         parts.push(padStep(chalk.green(`+${stats['added'].toString()}`), 4))
       }
       if (stats['removed']) {
-        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         parts.push(padStep(chalk.red(`-${stats['removed'].toString()}`), 4))
       }
 
-      let msg = zoomOut(opts.currentPrefix, stats['prefix'], parts.join(' '))
+      let msg = zoomOut(opts.currentPrefix, stats.prefix!, parts.join(' '))
       const rest = Math.max(0, opts.width - 1 - stringLength(msg))
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
       msg += ' ' + printPlusesAndMinuses(rest, roundStats(stats['added'] || 0), roundStats(stats['removed'] || 0))
       return Rx.of({ msg })
     })
   )
 }
 
-function padStep (s: string, step: number) {
+function padStep (s: string, step: number): string {
   const sLength = stringLength(s)
   const placeholderLength = Math.ceil(sLength / step) * step
   if (sLength < placeholderLength) {
@@ -158,7 +165,7 @@ function roundStats (stat: number): number {
   return Math.max(1, Math.round(stat / 10))
 }
 
-function printPlusesAndMinuses (maxWidth: number, added: number, removed: number) {
+function printPlusesAndMinuses (maxWidth: number, added: number, removed: number): string {
   if (maxWidth === 0) return ''
   const changes = added + removed
   let addedChars: number

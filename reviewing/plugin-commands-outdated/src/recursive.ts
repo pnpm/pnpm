@@ -8,6 +8,7 @@ import {
   type DependenciesField,
   type IncludedDependencies,
   type ProjectManifest,
+  type ProjectRootDir,
 } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
@@ -23,7 +24,7 @@ import {
   renderPackageName,
   toOutdatedWithVersionDiff,
 } from './outdated'
-import { DEFAULT_COMPARATORS } from './utils'
+import { DEFAULT_COMPARATORS, type OutdatedWithVersionDiff } from './utils'
 
 const DEP_PRIORITY: Record<DependenciesField, number> = {
   dependencies: 1,
@@ -47,12 +48,12 @@ interface OutdatedInWorkspace extends OutdatedPackage {
 }
 
 export async function outdatedRecursive (
-  pkgs: Array<{ dir: string, manifest: ProjectManifest }>,
+  pkgs: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>,
   params: string[],
   opts: OutdatedCommandOptions & { include: IncludedDependencies }
-) {
+): Promise<{ output: string, exitCode: number }> {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
-  const rootManifest = pkgs.find(({ dir }) => dir === opts.lockfileDir ?? opts.dir)
+  const rootManifest = pkgs.find(({ rootDir }) => rootDir === opts.lockfileDir)
   const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, params, {
     ...opts,
     fullMetadata: opts.long,
@@ -66,14 +67,14 @@ export async function outdatedRecursive (
     timeout: opts.fetchTimeout,
   })
   for (let i = 0; i < outdatedPackagesByProject.length; i++) {
-    const { dir, manifest } = pkgs[i]
-    outdatedPackagesByProject[i].forEach((outdatedPkg) => {
+    const { rootDir, manifest } = pkgs[i]
+    for (const outdatedPkg of outdatedPackagesByProject[i]) {
       const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.current, outdatedPkg.belongsTo])
       if (!outdatedMap[key]) {
         outdatedMap[key] = { ...outdatedPkg, dependentPkgs: [] }
       }
-      outdatedMap[key].dependentPkgs.push({ location: dir, manifest })
-    })
+      outdatedMap[key].dependentPkgs.push({ location: rootDir, manifest })
+    }
   }
 
   let output!: string
@@ -100,7 +101,7 @@ export async function outdatedRecursive (
   }
 }
 
-function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
+function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }): string {
   if (isEmpty(outdatedMap)) return ''
   const columnNames = [
     'Package',
@@ -143,7 +144,7 @@ function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, 
   })
 }
 
-function renderOutdatedList (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
+function renderOutdatedList (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }): string {
   if (isEmpty(outdatedMap)) return ''
   return sortOutdatedPackages(Object.values(outdatedMap))
     .map((outdatedPkg) => {
@@ -199,14 +200,16 @@ function renderOutdatedJSON (
   return JSON.stringify(outdatedPackagesJSON, null, 2)
 }
 
-function dependentPackages ({ dependentPkgs }: OutdatedInWorkspace) {
+function dependentPackages ({ dependentPkgs }: OutdatedInWorkspace): string {
   return dependentPkgs
     .map(({ manifest, location }) => manifest.name ?? location)
     .sort()
     .join(', ')
 }
 
-function sortOutdatedPackages (outdatedPackages: readonly OutdatedInWorkspace[]) {
+interface SortedOutdatedPackage extends OutdatedInWorkspace, OutdatedWithVersionDiff {}
+
+function sortOutdatedPackages (outdatedPackages: readonly OutdatedInWorkspace[]): SortedOutdatedPackage[] {
   return sortWith(
     COMPARATORS,
     outdatedPackages.map(toOutdatedWithVersionDiff)

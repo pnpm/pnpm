@@ -38,6 +38,7 @@ export const DEFAULT_OPTS = {
   rawLocalConfig: {},
   registries: { default: REGISTRY },
   registry: REGISTRY,
+  rootProjectManifestDir: '',
   sort: true,
   storeDir: '../store',
   strictSsl: false,
@@ -46,4 +47,5 @@ export const DEFAULT_OPTS = {
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }

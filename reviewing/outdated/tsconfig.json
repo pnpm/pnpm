@@ -10,16 +10,28 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../config/matcher"
+    },
+    {
+      "path": "../../config/parse-overrides"
     },
     {
       "path": "../../config/pick-registry-for-package"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../hooks/read-package-hook"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../packages/constants"
@@ -29,6 +41,9 @@
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
     },
     {
       "path": "../../packages/types"
@@ -44,7 +59,9 @@
     },
     {
       "path": "../../resolving/npm-resolver"
+    },
+    {
+      "path": "../../resolving/resolver-base"
     }
-  ],
-  "composite": true
+  ]
 }

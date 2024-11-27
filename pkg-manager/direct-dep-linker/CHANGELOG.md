@@ -1,5 +1,123 @@
 # @pnpm/pkg-manager.direct-dep-linker
 
+## 3.0.8
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@8.0.8
+- @pnpm/core-loggers@10.0.7
+
+## 3.0.7
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@8.0.7
+- @pnpm/core-loggers@10.0.6
+
+## 3.0.6
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@8.0.6
+- @pnpm/core-loggers@10.0.5
+
+## 3.0.5
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@8.0.5
+- @pnpm/core-loggers@10.0.4
+
+## 3.0.4
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/symlink-dependency@8.0.4
+
+## 3.0.3
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@8.0.3
+- @pnpm/core-loggers@10.0.3
+
+## 3.0.2
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@8.0.2
+- @pnpm/core-loggers@10.0.2
+
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@8.0.1
+- @pnpm/core-loggers@10.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [43cdd87]
+  - @pnpm/symlink-dependency@8.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/read-modules-dir@7.0.0
+
+## 2.1.9
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@7.1.4
+- @pnpm/core-loggers@9.0.6
+
+## 2.1.8
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@7.1.3
+- @pnpm/core-loggers@9.0.5
+
+## 2.1.7
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@7.1.2
+- @pnpm/core-loggers@9.0.4
+
+## 2.1.6
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@7.1.1
+- @pnpm/core-loggers@9.0.3
+
+## 2.1.5
+
+### Patch Changes
+
+- Updated dependencies [48dcd108c]
+  - @pnpm/symlink-dependency@7.1.0
+
+## 2.1.4
+
+### Patch Changes
+
+- Updated dependencies [3d9503461]
+  - @pnpm/symlink-dependency@7.0.3
+
+## 2.1.3
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@7.0.2
+- @pnpm/core-loggers@9.0.2
+
 ## 2.1.2
 
 ### Patch Changes

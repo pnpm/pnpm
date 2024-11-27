@@ -10,14 +10,22 @@
   ],
   "references": [
     {
+      "path": "../../cli/cli-meta"
+    },
+    {
+      "path": "../../env/system-node-version"
+    },
+    {
       "path": "../../packages/core-loggers"
     },
     {
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     }
-  ],
-  "composite": true
+  ]
 }

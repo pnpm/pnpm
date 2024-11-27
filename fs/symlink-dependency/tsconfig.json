@@ -16,8 +16,10 @@
       "path": "../../packages/core-loggers"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     }
-  ],
-  "composite": true
+  ]
 }

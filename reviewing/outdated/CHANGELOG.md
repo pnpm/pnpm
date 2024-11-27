@@ -1,5 +1,611 @@
 # @pnpm/outdated
 
+## 15.1.7
+
+### Patch Changes
+
+- Updated dependencies [222d10a]
+  - @pnpm/npm-resolver@21.1.1
+  - @pnpm/dependency-path@5.1.7
+  - @pnpm/client@11.1.12
+  - @pnpm/lockfile.fs@1.0.5
+  - @pnpm/lockfile.utils@1.0.4
+
+## 15.1.6
+
+### Patch Changes
+
+- @pnpm/client@11.1.11
+- @pnpm/npm-resolver@21.1.0
+
+## 15.1.5
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+- Updated dependencies [b7fb704]
+  - @pnpm/constants@9.0.0
+  - @pnpm/npm-resolver@21.1.0
+  - @pnpm/hooks.read-package-hook@5.1.0
+  - @pnpm/lockfile.fs@1.0.4
+  - @pnpm/error@6.0.2
+  - @pnpm/catalogs.resolver@0.1.1
+  - @pnpm/parse-overrides@5.1.1
+  - @pnpm/manifest-utils@6.0.9
+  - @pnpm/client@11.1.10
+
+## 15.1.4
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/pick-registry-for-package@6.0.7
+  - @pnpm/hooks.read-package-hook@5.0.3
+  - @pnpm/lockfile.fs@1.0.3
+  - @pnpm/lockfile.utils@1.0.3
+  - @pnpm/dependency-path@5.1.6
+  - @pnpm/client@11.1.9
+  - @pnpm/modules-yaml@13.1.7
+  - @pnpm/manifest-utils@6.0.8
+  - @pnpm/npm-resolver@21.0.5
+
+## 15.1.3
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/pick-registry-for-package@6.0.6
+  - @pnpm/hooks.read-package-hook@5.0.2
+  - @pnpm/lockfile.fs@1.0.2
+  - @pnpm/lockfile.utils@1.0.2
+  - @pnpm/dependency-path@5.1.5
+  - @pnpm/client@11.1.8
+  - @pnpm/modules-yaml@13.1.6
+  - @pnpm/manifest-utils@6.0.7
+  - @pnpm/npm-resolver@21.0.4
+
+## 15.1.2
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.fs@1.0.1
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/pick-registry-for-package@6.0.5
+  - @pnpm/hooks.read-package-hook@5.0.1
+  - @pnpm/dependency-path@5.1.4
+  - @pnpm/client@11.1.7
+  - @pnpm/modules-yaml@13.1.5
+  - @pnpm/manifest-utils@6.0.6
+  - @pnpm/npm-resolver@21.0.3
+
+## 15.1.1
+
+### Patch Changes
+
+- Updated dependencies [c5ef9b0]
+- Updated dependencies [8055a30]
+  - @pnpm/lockfile.utils@1.0.0
+  - @pnpm/lockfile.fs@1.0.0
+  - @pnpm/client@11.1.6
+  - @pnpm/npm-resolver@21.0.2
+
+## 15.1.0
+
+### Minor Changes
+
+- 0f0e441: Overrides now support catalogs [#8303](https://github.com/pnpm/pnpm/issues/8303).
+
+### Patch Changes
+
+- f6e7ace: The `pnpm outdated` command now supports the [`catalog:` protocol](https://pnpm.io/catalogs).
+- Updated dependencies [0f0e441]
+- Updated dependencies [0ef168b]
+  - @pnpm/hooks.read-package-hook@5.0.0
+  - @pnpm/parse-overrides@5.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/pick-registry-for-package@6.0.4
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/dependency-path@5.1.3
+  - @pnpm/client@11.1.5
+  - @pnpm/modules-yaml@13.1.4
+  - @pnpm/manifest-utils@6.0.5
+  - @pnpm/npm-resolver@21.0.2
+
+## 15.0.1
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/npm-resolver@21.0.1
+  - @pnpm/client@11.1.4
+
+## 15.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/npm-resolver@21.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/client@11.1.3
+  - @pnpm/pick-registry-for-package@6.0.3
+  - @pnpm/hooks.read-package-hook@4.0.5
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/modules-yaml@13.1.3
+  - @pnpm/manifest-utils@6.0.4
+
+## 14.0.12
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/pick-registry-for-package@6.0.2
+  - @pnpm/hooks.read-package-hook@4.0.4
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/client@11.1.2
+  - @pnpm/modules-yaml@13.1.2
+  - @pnpm/manifest-utils@6.0.3
+  - @pnpm/npm-resolver@20.0.1
+
+## 14.0.11
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/lockfile-utils@11.0.1
+  - @pnpm/npm-resolver@20.0.0
+
+## 14.0.10
+
+### Patch Changes
+
+- @pnpm/client@11.1.1
+
+## 14.0.9
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+- Updated dependencies [0c08e1c]
+  - @pnpm/npm-resolver@20.0.0
+  - @pnpm/client@11.1.0
+
+## 14.0.8
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/pick-registry-for-package@6.0.1
+  - @pnpm/hooks.read-package-hook@4.0.3
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/client@11.0.6
+  - @pnpm/modules-yaml@13.1.1
+  - @pnpm/manifest-utils@6.0.2
+  - @pnpm/npm-resolver@19.0.4
+
+## 14.0.7
+
+### Patch Changes
+
+- Updated dependencies [b1d7f8c]
+- Updated dependencies [b1d7f8c]
+- Updated dependencies [a7aef51]
+  - @pnpm/hooks.read-package-hook@4.0.2
+  - @pnpm/error@6.0.1
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/manifest-utils@6.0.1
+  - @pnpm/npm-resolver@19.0.3
+  - @pnpm/client@11.0.5
+
+## 14.0.6
+
+### Patch Changes
+
+- Updated dependencies [43b6bb7]
+  - @pnpm/npm-resolver@19.0.2
+  - @pnpm/client@11.0.4
+
+## 14.0.5
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+- Updated dependencies [cb0f459]
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/npm-resolver@19.0.1
+  - @pnpm/lockfile-file@9.0.4
+  - @pnpm/client@11.0.3
+
+## 14.0.4
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/modules-yaml@13.1.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/lockfile-file@9.0.3
+  - @pnpm/npm-resolver@19.0.0
+
+## 14.0.3
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/lockfile-file@9.0.2
+  - @pnpm/client@11.0.2
+
+## 14.0.2
+
+### Patch Changes
+
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [6b6ca69]
+- Updated dependencies [04310be]
+  - @pnpm/lockfile-file@9.0.1
+  - @pnpm/hooks.read-package-hook@4.0.1
+
+## 14.0.1
+
+### Patch Changes
+
+- @pnpm/client@11.0.1
+
+## 14.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- d381a60: Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [aa33269]
+- Updated dependencies [3ded840]
+- Updated dependencies [cdd8365]
+- Updated dependencies [c692f80]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [0963390]
+- Updated dependencies [d381a60]
+- Updated dependencies [f67ad31]
+- Updated dependencies [730929e]
+- Updated dependencies [98a1266]
+  - @pnpm/client@11.0.0
+  - @pnpm/types@10.0.0
+  - @pnpm/hooks.read-package-hook@4.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/npm-resolver@19.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/pick-registry-for-package@6.0.0
+  - @pnpm/manifest-utils@6.0.0
+  - @pnpm/modules-yaml@13.0.0
+  - @pnpm/lockfile-file@9.0.0
+  - @pnpm/matcher@6.0.0
+
+## 13.0.42
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/npm-resolver@18.1.0
+  - @pnpm/lockfile-utils@9.0.5
+  - @pnpm/client@10.0.46
+
+## 13.0.41
+
+### Patch Changes
+
+- @pnpm/client@10.0.45
+
+## 13.0.40
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/client@10.0.44
+  - @pnpm/npm-resolver@18.0.2
+
+## 13.0.39
+
+### Patch Changes
+
+- @pnpm/client@10.0.43
+
+## 13.0.38
+
+### Patch Changes
+
+- 8fd4e349a: Fix error as in `update -i -r` with Git specifiers [#7415](https://github.com/pnpm/pnpm/issues/7415).
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/npm-resolver@18.0.2
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/pick-registry-for-package@5.0.6
+  - @pnpm/hooks.read-package-hook@3.0.10
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/modules-yaml@12.1.6
+  - @pnpm/manifest-utils@5.0.7
+  - @pnpm/client@10.0.42
+
+## 13.0.37
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/pick-registry-for-package@5.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/modules-yaml@12.1.5
+  - @pnpm/manifest-utils@5.0.6
+  - @pnpm/npm-resolver@18.0.1
+  - @pnpm/client@10.0.41
+
+## 13.0.36
+
+### Patch Changes
+
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/client@10.0.40
+
+## 13.0.35
+
+### Patch Changes
+
+- @pnpm/client@10.0.39
+
+## 13.0.34
+
+### Patch Changes
+
+- @pnpm/client@10.0.38
+
+## 13.0.33
+
+### Patch Changes
+
+- Updated dependencies [cd4fcfff0]
+  - @pnpm/npm-resolver@18.0.0
+  - @pnpm/client@10.0.37
+
+## 13.0.32
+
+### Patch Changes
+
+- @pnpm/client@10.0.36
+
+## 13.0.31
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+
+## 13.0.30
+
+### Patch Changes
+
+- @pnpm/client@10.0.35
+- @pnpm/npm-resolver@17.0.0
+
+## 13.0.29
+
+### Patch Changes
+
+- @pnpm/client@10.0.34
+
+## 13.0.28
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/lockfile-utils@9.0.0
+  - @pnpm/npm-resolver@17.0.0
+  - @pnpm/client@10.0.33
+
+## 13.0.27
+
+### Patch Changes
+
+- @pnpm/client@10.0.32
+
+## 13.0.26
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/pick-registry-for-package@5.0.4
+  - @pnpm/lockfile-file@8.1.4
+  - @pnpm/lockfile-utils@8.0.7
+  - @pnpm/dependency-path@2.1.5
+  - @pnpm/modules-yaml@12.1.4
+  - @pnpm/manifest-utils@5.0.5
+  - @pnpm/npm-resolver@16.0.13
+  - @pnpm/client@10.0.31
+
+## 13.0.25
+
+### Patch Changes
+
+- @pnpm/client@10.0.30
+
+## 13.0.24
+
+### Patch Changes
+
+- @pnpm/client@10.0.29
+
+## 13.0.23
+
+### Patch Changes
+
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [ff55119a8]
+  - @pnpm/npm-resolver@16.0.12
+  - @pnpm/client@10.0.28
+
+## 13.0.22
+
+### Patch Changes
+
+- @pnpm/client@10.0.27
+
+## 13.0.21
+
+### Patch Changes
+
+- @pnpm/client@10.0.26
+
+## 13.0.20
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/pick-registry-for-package@5.0.3
+  - @pnpm/lockfile-file@8.1.3
+  - @pnpm/lockfile-utils@8.0.6
+  - @pnpm/dependency-path@2.1.4
+  - @pnpm/modules-yaml@12.1.3
+  - @pnpm/manifest-utils@5.0.4
+  - @pnpm/npm-resolver@16.0.11
+  - @pnpm/client@10.0.25
+
+## 13.0.19
+
+### Patch Changes
+
+- Updated dependencies [f394cfccd]
+  - @pnpm/lockfile-utils@8.0.5
+
+## 13.0.18
+
+### Patch Changes
+
+- @pnpm/client@10.0.24
+
+## 13.0.17
+
+### Patch Changes
+
+- @pnpm/client@10.0.23
+- @pnpm/npm-resolver@16.0.10
+
+## 13.0.16
+
+### Patch Changes
+
+- @pnpm/client@10.0.22
+
+## 13.0.15
+
+### Patch Changes
+
+- @pnpm/client@10.0.21
+- @pnpm/npm-resolver@16.0.9
+
+## 13.0.14
+
+### Patch Changes
+
+- @pnpm/client@10.0.20
+- @pnpm/npm-resolver@16.0.9
+
+## 13.0.13
+
+### Patch Changes
+
+- @pnpm/client@10.0.19
+- @pnpm/npm-resolver@16.0.9
+
+## 13.0.12
+
+### Patch Changes
+
+- Updated dependencies [41c2b65cf]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/npm-resolver@16.0.9
+  - @pnpm/lockfile-utils@8.0.4
+  - @pnpm/client@10.0.18
+
+## 13.0.11
+
+### Patch Changes
+
+- @pnpm/client@10.0.17
+
+## 13.0.10
+
+### Patch Changes
+
+- @pnpm/client@10.0.16
+
+## 13.0.9
+
+### Patch Changes
+
+- @pnpm/client@10.0.15
+- @pnpm/npm-resolver@16.0.8
+
+## 13.0.8
+
+### Patch Changes
+
+- @pnpm/client@10.0.14
+
+## 13.0.7
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+- Updated dependencies [e958707b2]
+  - @pnpm/types@9.2.0
+  - @pnpm/npm-resolver@16.0.8
+  - @pnpm/pick-registry-for-package@5.0.2
+  - @pnpm/lockfile-file@8.1.2
+  - @pnpm/lockfile-utils@8.0.3
+  - @pnpm/dependency-path@2.1.3
+  - @pnpm/modules-yaml@12.1.2
+  - @pnpm/manifest-utils@5.0.3
+  - @pnpm/client@10.0.13
+
+## 13.0.6
+
+### Patch Changes
+
+- @pnpm/client@10.0.12
+
 ## 13.0.5
 
 ### Patch Changes

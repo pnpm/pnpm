@@ -10,8 +10,22 @@
   ],
   "references": [
     {
+      "path": "../../crypto/object-hasher"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
       "path": "../constants"
+    },
+    {
+      "path": "../dependency-path"
+    },
+    {
+      "path": "../types"
     }
-  ],
-  "composite": true
+  ]
 }

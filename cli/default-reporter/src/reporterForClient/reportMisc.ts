@@ -7,6 +7,7 @@ import { filter, map } from 'rxjs/operators'
 import { reportError } from '../reportError'
 import { formatWarn } from './utils/formatWarn'
 import { autozoom } from './utils/zooming'
+import { type PeerDependencyRules } from '@pnpm/types'
 
 // eslint-disable:object-literal-sort-keys
 export const LOG_LEVEL_NUMBER: Record<LogLevel, number> = {
@@ -30,8 +31,9 @@ export function reportMisc (
     logLevel?: LogLevel
     config?: Config
     zoomOutCurrent: boolean
+    peerDependencyRules?: PeerDependencyRules
   }
-) {
+): Rx.Observable<Rx.Observable<{ msg: string }>> {
   const maxLogLevel = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
   const reportWarning = makeWarningReporter(opts)
   return Rx.merge(log$.registry, log$.other).pipe(
@@ -42,19 +44,27 @@ export function reportMisc (
       case 'warn': {
         return reportWarning(obj)
       }
-      case 'error':
+      case 'error': {
+        const errorOutput = reportError(obj, opts.config, opts.peerDependencyRules)
+        if (!errorOutput) return Rx.NEVER
         if (obj['prefix'] && obj['prefix'] !== opts.cwd) {
           return Rx.of({
-            msg: `${obj['prefix'] as string}:` + os.EOL + reportError(obj, opts.config),
+            msg: `${obj['prefix'] as string}:` + os.EOL + errorOutput,
           })
         }
-        return Rx.of({ msg: reportError(obj, opts.config) })
+        return Rx.of({ msg: errorOutput })
+      }
       default:
-        return Rx.of({ msg: obj['message'] })
+        return Rx.of({ msg: obj.message! })
       }
     })
   )
 }
+
+type WarningReporter = (obj: {
+  prefix: string
+  message: string
+}) => Rx.Observable<{ msg: string }>
 
 // Sometimes, when installing new dependencies that rely on many peer dependencies,
 // or when running installation on a huge monorepo, there will be hundreds or thousands of warnings.
@@ -66,7 +76,7 @@ function makeWarningReporter (
     cwd: string
     zoomOutCurrent: boolean
   }
-) {
+): WarningReporter {
   let warningsCounter = 0
   let collapsedWarnings: Rx.Subject<{ msg: string }>
   return (obj: { prefix: string, message: string }) => {

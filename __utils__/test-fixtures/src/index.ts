@@ -2,7 +2,13 @@ import fs from 'fs'
 import path from 'path'
 import { tempDir } from '@pnpm/prepare'
 
-export function fixtures (searchFromDir: string) {
+export interface FixturesHandle {
+  copy: (name: string, dest: string) => void
+  find: (name: string) => string
+  prepare: (name: string) => string
+}
+
+export function fixtures (searchFromDir: string): FixturesHandle {
   return {
     copy: copyFixture.bind(null, searchFromDir),
     find: findFixture.bind(null, searchFromDir),
@@ -29,10 +35,10 @@ function copyFixture (searchFromDir: string, name: string, dest: string): void {
   }
 }
 
-function copyAndRename (src: string, dest: string) {
+function copyAndRename (src: string, dest: string): void {
   const entries = fs.readdirSync(src)
 
-  entries.forEach(entry => {
+  for (const entry of entries) {
     const srcPath = path.join(src, entry)
     const destPath = path.join(dest, entry.startsWith('_') ? entry.substring(1) : entry)
     const stats = fs.statSync(srcPath)
@@ -46,7 +52,7 @@ function copyAndRename (src: string, dest: string) {
     } else if (stats.isFile()) {
       fs.copyFileSync(srcPath, destPath)
     }
-  })
+  }
 }
 
 function findFixture (dir: string, name: string): string {

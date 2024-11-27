@@ -1,5 +1,524 @@
 # @pnpm/cli-utils
 
+## 4.0.7
+
+### Patch Changes
+
+- @pnpm/package-is-installable@9.0.11
+- @pnpm/config@21.8.5
+- @pnpm/default-reporter@14.0.4
+
+## 4.0.6
+
+### Patch Changes
+
+- @pnpm/default-reporter@14.0.3
+- @pnpm/config@21.8.4
+- @pnpm/error@6.0.2
+- @pnpm/package-is-installable@9.0.10
+- @pnpm/manifest-utils@6.0.9
+- @pnpm/read-project-manifest@6.0.9
+
+## 4.0.5
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/cli-meta@6.2.2
+  - @pnpm/default-reporter@14.0.2
+  - @pnpm/config@21.8.3
+  - @pnpm/package-is-installable@9.0.9
+  - @pnpm/manifest-utils@6.0.8
+  - @pnpm/read-project-manifest@6.0.8
+
+## 4.0.4
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/cli-meta@6.2.1
+  - @pnpm/default-reporter@14.0.1
+  - @pnpm/config@21.8.2
+  - @pnpm/package-is-installable@9.0.8
+  - @pnpm/manifest-utils@6.0.7
+  - @pnpm/read-project-manifest@6.0.7
+
+## 4.0.3
+
+### Patch Changes
+
+- Updated dependencies [eb8bf2a]
+- Updated dependencies [33ba536]
+  - @pnpm/default-reporter@14.0.0
+  - @pnpm/cli-meta@6.2.0
+  - @pnpm/package-is-installable@9.0.7
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [251ab21]
+  - @pnpm/config@21.8.1
+  - @pnpm/default-reporter@13.1.13
+
+## 4.0.1
+
+### Patch Changes
+
+- Updated dependencies [a64e440]
+  - @pnpm/default-reporter@13.1.12
+
+## 4.0.0
+
+### Major Changes
+
+- 26b065c: Removed packageManager field check.
+
+### Patch Changes
+
+- Updated dependencies [26b065c]
+  - @pnpm/config@21.8.0
+  - @pnpm/default-reporter@13.1.11
+
+## 3.1.7
+
+### Patch Changes
+
+- 98c8bd6: Print warnings to stderr [#8342](https://github.com/pnpm/pnpm/pull/8342).
+- Updated dependencies [cb006df]
+- Updated dependencies [64e2e4f]
+- Updated dependencies [d20eed3]
+- Updated dependencies [e7f6330]
+  - @pnpm/types@12.0.0
+  - @pnpm/cli-meta@6.1.0
+  - @pnpm/config@21.7.0
+  - @pnpm/default-reporter@13.1.10
+  - @pnpm/package-is-installable@9.0.6
+  - @pnpm/manifest-utils@6.0.6
+  - @pnpm/read-project-manifest@6.0.6
+
+## 3.1.6
+
+### Patch Changes
+
+- @pnpm/config@21.6.3
+- @pnpm/default-reporter@13.1.9
+
+## 3.1.5
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-meta@6.0.4
+  - @pnpm/default-reporter@13.1.8
+  - @pnpm/config@21.6.2
+  - @pnpm/package-is-installable@9.0.5
+  - @pnpm/manifest-utils@6.0.5
+  - @pnpm/read-project-manifest@6.0.5
+
+## 3.1.4
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/default-reporter@13.1.7
+
+## 3.1.3
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [9bf9f71]
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/config@21.6.0
+  - @pnpm/default-reporter@13.1.6
+  - @pnpm/types@11.0.0
+  - @pnpm/cli-meta@6.0.3
+  - @pnpm/package-is-installable@9.0.4
+  - @pnpm/manifest-utils@6.0.4
+  - @pnpm/read-project-manifest@6.0.4
+
+## 3.1.2
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [13e55b2]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/types@10.1.1
+  - @pnpm/default-reporter@13.1.5
+  - @pnpm/cli-meta@6.0.2
+  - @pnpm/package-is-installable@9.0.3
+  - @pnpm/manifest-utils@6.0.3
+  - @pnpm/read-project-manifest@6.0.3
+
+## 3.1.1
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/config@21.4.0
+  - @pnpm/default-reporter@13.1.4
+
+## 3.1.0
+
+### Minor Changes
+
+- b7ca13f: If `package-manager-strict-version` is set to `true` pnpm will fail if its version will not exactly match the version in the `packageManager` field of `package.json`.
+
+### Patch Changes
+
+- b7ca13f: pnpm doesn't fail if its version doesn't match the one specified in the "packageManager" field of `package.json` [#8087](https://github.com/pnpm/pnpm/issues/8087).
+- Updated dependencies [b7ca13f]
+  - @pnpm/config@21.3.0
+  - @pnpm/default-reporter@13.1.3
+
+## 3.0.7
+
+### Patch Changes
+
+- @pnpm/config@21.2.3
+- @pnpm/default-reporter@13.1.2
+
+## 3.0.6
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/cli-meta@6.0.1
+  - @pnpm/default-reporter@13.1.1
+  - @pnpm/config@21.2.2
+  - @pnpm/package-is-installable@9.0.2
+  - @pnpm/manifest-utils@6.0.2
+  - @pnpm/read-project-manifest@6.0.2
+
+## 3.0.5
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+- Updated dependencies [524990f]
+  - @pnpm/error@6.0.1
+  - @pnpm/default-reporter@13.1.0
+  - @pnpm/config@21.2.1
+  - @pnpm/package-is-installable@9.0.1
+  - @pnpm/manifest-utils@6.0.1
+  - @pnpm/read-project-manifest@6.0.1
+
+## 3.0.4
+
+### Patch Changes
+
+- Updated dependencies [43b6bb7]
+  - @pnpm/default-reporter@13.0.3
+
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/config@21.2.0
+  - @pnpm/default-reporter@13.0.2
+
+## 3.0.2
+
+### Patch Changes
+
+- a80b539: Print a hint about the `package-manager-strict` setting, when pnpm doesn't match the version specified in the `packageManager` field in `package.json`.
+
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+  - @pnpm/default-reporter@13.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- 3477ee5: pnpm will now check the `package.json` file for a `packageManager` field. If this field is present and specifies a different package manager or a different version of pnpm than the one you're currently using, pnpm will not proceed. This ensures that you're always using the correct package manager and version that the project requires.
+
+  To disable this behaviour, set the `package-manager-strict` setting to `false` or the `COREPACK_ENABLE_STRICT` env variable to `0`.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [aa33269]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/types@10.0.0
+  - @pnpm/config@21.0.0
+  - @pnpm/default-reporter@13.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/read-project-manifest@6.0.0
+  - @pnpm/package-is-installable@9.0.0
+  - @pnpm/manifest-utils@6.0.0
+  - @pnpm/cli-meta@6.0.0
+
+## 2.1.9
+
+### Patch Changes
+
+- Updated dependencies [f12884def]
+  - @pnpm/default-reporter@12.4.13
+  - @pnpm/config@20.4.2
+
+## 2.1.8
+
+### Patch Changes
+
+- Updated dependencies [d9564e354]
+  - @pnpm/config@20.4.1
+  - @pnpm/default-reporter@12.4.12
+
+## 2.1.7
+
+### Patch Changes
+
+- Updated dependencies [fac2ed424]
+- Updated dependencies [c597f72ec]
+  - @pnpm/default-reporter@12.4.11
+  - @pnpm/config@20.4.0
+
+## 2.1.6
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/config@20.3.0
+  - @pnpm/types@9.4.2
+  - @pnpm/default-reporter@12.4.10
+  - @pnpm/cli-meta@5.0.6
+  - @pnpm/package-is-installable@8.1.2
+  - @pnpm/manifest-utils@5.0.7
+  - @pnpm/read-project-manifest@5.0.10
+
+## 2.1.5
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/types@9.4.1
+  - @pnpm/config@20.2.0
+  - @pnpm/cli-meta@5.0.5
+  - @pnpm/default-reporter@12.4.9
+  - @pnpm/package-is-installable@8.1.1
+  - @pnpm/manifest-utils@5.0.6
+  - @pnpm/read-project-manifest@5.0.9
+
+## 2.1.4
+
+### Patch Changes
+
+- Updated dependencies [633c0d6f8]
+  - @pnpm/default-reporter@12.4.8
+
+## 2.1.3
+
+### Patch Changes
+
+- Updated dependencies [45bdc79b1]
+  - @pnpm/default-reporter@12.4.7
+
+## 2.1.2
+
+### Patch Changes
+
+- @pnpm/config@20.1.2
+- @pnpm/default-reporter@12.4.6
+
+## 2.1.1
+
+### Patch Changes
+
+- @pnpm/config@20.1.1
+- @pnpm/default-reporter@12.4.5
+
+## 2.1.0
+
+### Minor Changes
+
+- 43ce9e4a6: Support for multiple architectures when installing dependencies [#5965](https://github.com/pnpm/pnpm/issues/5965).
+
+  You can now specify architectures for which you'd like to install optional dependencies, even if they don't match the architecture of the system running the install. Use the `supportedArchitectures` field in `package.json` to define your preferences.
+
+  For example, the following configuration tells pnpm to install optional dependencies for Windows x64:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32"],
+        "cpu": ["x64"]
+      }
+    }
+  }
+  ```
+
+  Whereas this configuration will have pnpm install optional dependencies for Windows, macOS, and the architecture of the system currently running the install. It includes artifacts for both x64 and arm64 CPUs:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32", "darwin", "current"],
+        "cpu": ["x64", "arm64"]
+      }
+    }
+  }
+  ```
+
+  Additionally, `supportedArchitectures` also supports specifying the `libc` of the system.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d6592964f]
+  - @pnpm/package-is-installable@8.1.0
+  - @pnpm/types@9.4.0
+  - @pnpm/config@20.1.0
+  - @pnpm/cli-meta@5.0.4
+  - @pnpm/default-reporter@12.4.4
+  - @pnpm/manifest-utils@5.0.5
+  - @pnpm/read-project-manifest@5.0.8
+
+## 2.0.24
+
+### Patch Changes
+
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/config@20.0.0
+  - @pnpm/default-reporter@12.4.3
+
+## 2.0.23
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+  - @pnpm/default-reporter@12.4.2
+
+## 2.0.22
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/types@9.3.0
+  - @pnpm/default-reporter@12.4.1
+  - @pnpm/cli-meta@5.0.3
+  - @pnpm/package-is-installable@8.0.5
+  - @pnpm/manifest-utils@5.0.4
+  - @pnpm/read-project-manifest@5.0.7
+
+## 2.0.21
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+  - @pnpm/default-reporter@12.4.0
+  - @pnpm/config@19.1.0
+
+## 2.0.20
+
+### Patch Changes
+
+- Updated dependencies [61b9ca189]
+  - @pnpm/default-reporter@12.3.5
+
+## 2.0.19
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@5.0.6
+- @pnpm/config@19.0.3
+- @pnpm/default-reporter@12.3.4
+
+## 2.0.18
+
+### Patch Changes
+
+- @pnpm/config@19.0.2
+- @pnpm/default-reporter@12.3.3
+
+## 2.0.17
+
+### Patch Changes
+
+- @pnpm/config@19.0.1
+- @pnpm/default-reporter@12.3.2
+
+## 2.0.16
+
+### Patch Changes
+
+- Updated dependencies [cb8bcc8df]
+- Updated dependencies [cc785f7e1]
+  - @pnpm/config@19.0.0
+  - @pnpm/default-reporter@12.3.1
+  - @pnpm/read-project-manifest@5.0.5
+
+## 2.0.15
+
+### Patch Changes
+
+- Updated dependencies [8a4dac63c]
+  - @pnpm/default-reporter@12.2.9
+
+## 2.0.14
+
+### Patch Changes
+
+- Updated dependencies [25396e3c5]
+- Updated dependencies [751c157cd]
+  - @pnpm/default-reporter@12.2.8
+
+## 2.0.13
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+  - @pnpm/cli-meta@5.0.2
+  - @pnpm/default-reporter@12.2.7
+  - @pnpm/config@18.4.4
+  - @pnpm/package-is-installable@8.0.4
+  - @pnpm/manifest-utils@5.0.3
+  - @pnpm/read-project-manifest@5.0.4
+
+## 2.0.12
+
+### Patch Changes
+
+- Updated dependencies [b4892acc5]
+  - @pnpm/read-project-manifest@5.0.3
+  - @pnpm/config@18.4.3
+  - @pnpm/default-reporter@12.2.6
+
 ## 2.0.11
 
 ### Patch Changes

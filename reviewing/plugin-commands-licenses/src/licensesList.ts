@@ -1,10 +1,11 @@
 import { readProjectManifestOnly } from '@pnpm/cli-utils'
-import { type Config } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { getStorePath } from '@pnpm/store-path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { readWantedLockfile } from '@pnpm/lockfile-file'
+import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { findDependencyLicenses } from '@pnpm/license-scanner'
+import { type LicensesCommandResult } from './LicensesCommandResult'
 import { renderLicences } from './outputRenderer'
 
 export type LicensesCommandOptions = {
@@ -24,10 +25,14 @@ Config,
 | 'virtualStoreDir'
 | 'modulesDir'
 | 'pnpmHomeDir'
+| 'selectedProjectsGraph'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
+| 'virtualStoreDirMaxLength'
 > &
 Partial<Pick<Config, 'userConfig'>>
 
-export async function licensesList (opts: LicensesCommandOptions) {
+export async function licensesList (opts: LicensesCommandOptions): Promise<LicensesCommandResult> {
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, {
     ignoreIncompatible: true,
   })
@@ -44,7 +49,12 @@ export async function licensesList (opts: LicensesCommandOptions) {
     optionalDependencies: opts.optional !== false,
   }
 
-  const manifest = await readProjectManifestOnly(opts.dir, {})
+  const manifest = await readProjectManifestOnly(opts.dir)
+
+  const includedImporterIds = opts.selectedProjectsGraph
+    ? Object.keys(opts.selectedProjectsGraph)
+      .map((path) => getLockfileImporterId(opts.lockfileDir ?? opts.dir, path))
+    : undefined
 
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
@@ -54,13 +64,16 @@ export async function licensesList (opts: LicensesCommandOptions) {
 
   const licensePackages = await findDependencyLicenses({
     include,
-    lockfileDir: opts.dir,
+    lockfileDir: opts.lockfileDir ?? opts.dir,
     storeDir,
     virtualStoreDir: opts.virtualStoreDir ?? '.',
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir: opts.modulesDir,
     registries: opts.registries,
     wantedLockfile: lockfile,
     manifest,
+    includedImporterIds,
+    supportedArchitectures: getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}).supportedArchitectures,
   })
 
   if (licensePackages.length === 0)

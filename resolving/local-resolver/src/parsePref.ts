@@ -2,6 +2,7 @@ import os from 'os'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import normalize from 'normalize-path'
+import { type PkgResolutionId } from '@pnpm/resolver-base'
 
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
@@ -12,7 +13,7 @@ const isAbsolutePath = /^[/]|^[A-Za-z]:/
 export interface LocalPackageSpec {
   dependencyPath: string
   fetchSpec: string
-  id: string
+  id: PkgResolutionId
   type: 'directory' | 'file'
   normalizedPref: string
 }
@@ -47,7 +48,7 @@ export function parsePref (
     err['pref'] = wd.pref
     // @ts-expect-error
     err['protocol'] = 'path:'
-    /* eslint-enable @typescript-eslint/dot-notation */
+
     throw err
   }
   return null
@@ -90,9 +91,11 @@ function fromLocal (
   const dependencyPath = injected
     ? normalize(path.relative(lockfileDir, fetchSpec))
     : normalize(path.resolve(fetchSpec))
-  const id = !injected && (type === 'directory' || projectDir === lockfileDir)
-    ? `${protocol}${normalize(path.relative(projectDir, fetchSpec))}`
-    : `${protocol}${normalize(path.relative(lockfileDir, fetchSpec))}`
+  const id = (
+    !injected && (type === 'directory' || projectDir === lockfileDir)
+      ? `${protocol}${normalize(path.relative(projectDir, fetchSpec))}`
+      : `${protocol}${normalize(path.relative(lockfileDir, fetchSpec))}`
+  ) as PkgResolutionId
 
   return {
     dependencyPath,
@@ -103,12 +106,12 @@ function fromLocal (
   }
 }
 
-function resolvePath (where: string, spec: string) {
+function resolvePath (where: string, spec: string): string {
   if (isAbsolutePath.test(spec)) return spec
   return path.resolve(where, spec)
 }
 
-function isAbsolute (dir: string) {
+function isAbsolute (dir: string): boolean {
   if (dir[0] === '/') return true
   if (/^[A-Za-z]:/.test(dir)) return true
   return false

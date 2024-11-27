@@ -1,7 +1,13 @@
 import { parseString, stripComments } from 'strip-comments-strings'
 import { type CommentSpecifier } from './CommentSpecifier'
 
-export function extractComments (text: string) {
+interface ExtractedComments {
+  text: string
+  comments: CommentSpecifier[] | undefined
+  hasFinalNewline: boolean
+}
+
+export function extractComments (text: string): ExtractedComments {
   const hasFinalNewline = text.endsWith('\n')
   if (!hasFinalNewline) {
     /* For the sake of the comment parser, which otherwise loses the

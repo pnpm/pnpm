@@ -1,10 +1,10 @@
-import { type ResolvedDependencies, type Lockfile } from '@pnpm/lockfile-types'
+import { type ResolvedDependencies, type Lockfile } from '@pnpm/lockfile.types'
 import {
   type ResolutionChangesByAlias,
   type DedupeCheckIssues,
   type SnapshotsChanges,
 } from '@pnpm/dedupe.types'
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { type DepPath, DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { DedupeCheckIssuesError } from './DedupeCheckIssuesError'
 
 const PACKAGE_SNAPSHOT_DEP_FIELDS = ['dependencies', 'optionalDependencies'] as const
@@ -43,32 +43,32 @@ type KeyValueMatch<T, K, U> = K extends keyof T
 type PossiblyResolvedDependenciesKeys<TSnapshot> = KeysOfValue<TSnapshot, ResolvedDependencies | undefined>
 
 function diffSnapshots<TSnapshot> (
-  prev: Record<string, TSnapshot>,
-  next: Record<string, TSnapshot>,
+  prev: Record<DepPath, TSnapshot>,
+  next: Record<DepPath, TSnapshot>,
   fields: ReadonlyArray<PossiblyResolvedDependenciesKeys<TSnapshot>>
 ): SnapshotsChanges {
   const removed: string[] = []
   const updated: Record<string, ResolutionChangesByAlias> = {}
 
   for (const [id, prevSnapshot] of Object.entries(prev)) {
-    const nextSnapshot = next[id]
+    const nextSnapshot = next[id as DepPath]
 
     if (nextSnapshot == null) {
       removed.push(id)
       continue
     }
 
-    const updates = fields.reduce((acc: ResolutionChangesByAlias, dependencyField) => ({
-      ...acc,
-      ...getResolutionUpdates(prevSnapshot[dependencyField] ?? {}, nextSnapshot[dependencyField] ?? {}),
-    }), {})
+    const updates: ResolutionChangesByAlias = {}
+    for (const dependencyField of fields) {
+      Object.assign(updates, getResolutionUpdates(prevSnapshot[dependencyField] ?? {}, nextSnapshot[dependencyField] ?? {}))
+    }
 
     if (Object.keys(updates).length > 0) {
       updated[id] = updates
     }
   }
 
-  const added = Object.keys(next).filter(id => prev[id] == null)
+  const added = (Object.keys(next) as DepPath[]).filter(id => prev[id] == null)
 
   return { added, removed, updated }
 }

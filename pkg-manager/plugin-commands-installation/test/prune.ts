@@ -1,8 +1,11 @@
 import path from 'path'
-import { add, install, link, prune } from '@pnpm/plugin-commands-installation'
+import { add, install, prune } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import symlinkDir from 'symlink-dir'
+import fs from 'fs'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(__dirname)
@@ -30,9 +33,11 @@ const DEFAULT_OPTIONS = {
   registries: {
     default: REGISTRY_URL,
   },
+  rootProjectManifestDir: '',
   sort: true,
   userConfig: {},
   workspaceConcurrency: 1,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 test('prune removes external link that is not in package.json', async () => {
@@ -40,14 +45,9 @@ test('prune removes external link that is not in package.json', async () => {
   const storeDir = path.resolve('store')
   f.copy('local-pkg', 'local')
 
-  await link.handler({
-    ...DEFAULT_OPTIONS,
-    cacheDir: path.resolve('cache'),
-    dir: process.cwd(),
-    storeDir,
-  }, ['./local'])
+  symlinkDir.sync(path.resolve('local'), path.join('node_modules/local-pkg'))
 
-  await project.has('local-pkg')
+  project.has('local-pkg')
 
   await prune.handler({
     ...DEFAULT_OPTIONS,
@@ -56,7 +56,7 @@ test('prune removes external link that is not in package.json', async () => {
     storeDir,
   })
 
-  await project.hasNot('local-pkg')
+  project.hasNot('local-pkg')
 })
 
 test('prune keeps hoisted dependencies', async () => {
@@ -78,7 +78,7 @@ test('prune keeps hoisted dependencies', async () => {
     storeDir,
   })
 
-  await project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
 })
 
 test('prune removes dev dependencies', async () => {
@@ -104,8 +104,50 @@ test('prune removes dev dependencies', async () => {
     storeDir,
   })
 
-  await project.has('is-positive')
-  await project.has('.pnpm/is-positive@1.0.0')
-  await project.hasNot('is-negative')
-  await project.hasNot('.pnpm/is-negative@1.0.0')
+  project.has('is-positive')
+  project.has('.pnpm/is-positive@1.0.0')
+  project.hasNot('is-negative')
+  project.hasNot('.pnpm/is-negative@1.0.0')
+})
+
+test('prune: ignores all the lifecycle scripts when --ignore-scripts is used', async () => {
+  await using server = await createTestIpcServer()
+
+  prepare({
+    name: 'test-prune-with-ignore-scripts',
+    version: '0.0.0',
+
+    scripts: {
+      // eslint-disable:object-literal-sort-keys
+      preinstall: server.sendLineScript('preinstall'),
+      prepare: server.sendLineScript('prepare'),
+      postinstall: server.sendLineScript('postinstall'),
+      // eslint-enable:object-literal-sort-keys
+    },
+  })
+
+  const storeDir = path.resolve('store')
+
+  const opts = {
+    ...DEFAULT_OPTIONS,
+    ignoreScripts: true,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    storeDir,
+  }
+
+  await install.handler(opts)
+
+  await prune.handler(opts)
+
+  expect(fs.existsSync('package.json')).toBeTruthy()
+  expect(server.getLines()).toStrictEqual([])
+})
+
+test('cliOptionsTypes', () => {
+  expect(prune.cliOptionsTypes()).toHaveProperty('production')
+  expect(prune.cliOptionsTypes()).toHaveProperty('dev')
+  expect(prune.cliOptionsTypes()).toHaveProperty('ignore-scripts')
+  expect(prune.cliOptionsTypes()).toHaveProperty('optional')
 })

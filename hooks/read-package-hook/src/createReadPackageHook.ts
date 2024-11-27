@@ -2,30 +2,29 @@ import { packageExtensions as compatPackageExtensions } from '@yarnpkg/extension
 import {
   type PackageExtension,
   type PackageManifest,
-  type PeerDependencyRules,
   type ProjectManifest,
   type ReadPackageHook,
 } from '@pnpm/types'
 import isEmpty from 'ramda/src/isEmpty'
 import pipeWith from 'ramda/src/pipeWith'
+import { createOptionalDependenciesRemover } from './createOptionalDependenciesRemover'
 import { createPackageExtender } from './createPackageExtender'
-import { createVersionsOverrider } from './createVersionsOverrider'
-import { createPeerDependencyPatcher } from './createPeerDependencyPatcher'
+import { createVersionsOverrider, type VersionOverrideWithoutRawSelector } from './createVersionsOverrider'
 
 export function createReadPackageHook (
   {
     ignoreCompatibilityDb,
     lockfileDir,
     overrides,
+    ignoredOptionalDependencies,
     packageExtensions,
-    peerDependencyRules,
     readPackageHook,
   }: {
     ignoreCompatibilityDb?: boolean
     lockfileDir: string
-    overrides?: Record<string, string>
+    overrides?: VersionOverrideWithoutRawSelector[]
+    ignoredOptionalDependencies?: string[]
     packageExtensions?: Record<string, PackageExtension>
-    peerDependencyRules?: PeerDependencyRules
     readPackageHook?: ReadPackageHook[] | ReadPackageHook
   }
 ): ReadPackageHook | undefined {
@@ -44,15 +43,8 @@ export function createReadPackageHook (
   if (!isEmpty(overrides ?? {})) {
     hooks.push(createVersionsOverrider(overrides!, lockfileDir))
   }
-  if (
-    peerDependencyRules != null &&
-    (
-      !isEmpty(peerDependencyRules.ignoreMissing) ||
-      !isEmpty(peerDependencyRules.allowedVersions) ||
-      !isEmpty(peerDependencyRules.allowAny)
-    )
-  ) {
-    hooks.push(createPeerDependencyPatcher(peerDependencyRules))
+  if (ignoredOptionalDependencies && !isEmpty(ignoredOptionalDependencies)) {
+    hooks.push(createOptionalDependenciesRemover(ignoredOptionalDependencies))
   }
 
   if (hooks.length === 0) {

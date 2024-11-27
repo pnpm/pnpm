@@ -13,6 +13,9 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../crypto/hash"
+    },
+    {
       "path": "../../fs/graceful-fs"
     },
     {
@@ -22,10 +25,16 @@
       "path": "../../network/fetching-types"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/core-loggers"
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
     },
     {
       "path": "../../packages/types"
@@ -34,8 +43,10 @@
       "path": "../../workspace/resolve-workspace-range"
     },
     {
+      "path": "../../workspace/spec-parser"
+    },
+    {
       "path": "../resolver-base"
     }
-  ],
-  "composite": true
+  ]
 }

@@ -1,7 +1,7 @@
 import path from 'path'
-import { type Lockfile } from '@pnpm/lockfile-file'
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import { type Lockfile } from '@pnpm/lockfile.fs'
+import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import * as dp from '@pnpm/dependency-path'
 import normalize from 'normalize-path'
 
@@ -26,10 +26,10 @@ export function makeVirtualNodeModules (lockfile: Lockfile): DirEntry {
     },
   }
   for (const depType of DEPENDENCIES_FIELDS) {
-    for (const [depName, ref] of Object.entries(lockfile.importers['.'][depType] ?? {})) {
+    for (const [depName, ref] of Object.entries(lockfile.importers['.' as ProjectId][depType] ?? {})) {
       const symlink: DirEntry = {
         entryType: 'symlink',
-        target: `./.pnpm/${dp.depPathToFilename(dp.refToRelative(ref, depName)!)}/node_modules/${depName}`,
+        target: `./.pnpm/${dp.depPathToFilename(dp.refToRelative(ref, depName)!, 120)}/node_modules/${depName}`,
       }
       addDirEntry(entries, depName, symlink)
     }
@@ -40,12 +40,12 @@ export function makeVirtualNodeModules (lockfile: Lockfile): DirEntry {
   }
 }
 
-function createVirtualStoreDir (lockfile: Lockfile) {
+function createVirtualStoreDir (lockfile: Lockfile): Record<string, DirEntry> {
   const rootDir = {} as Record<string, DirEntry>
   for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages ?? {})) {
     const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
     const pkgNodeModules = {} as Record<string, DirEntry>
-    const currentPath = dp.depPathToFilename(depPath)
+    const currentPath = dp.depPathToFilename(depPath, 120)
     const pkgDir: DirEntry = {
       entryType: 'index',
       depPath,
@@ -54,7 +54,7 @@ function createVirtualStoreDir (lockfile: Lockfile) {
     for (const [depName, ref] of Object.entries({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })) {
       const symlink: DirEntry = {
         entryType: 'symlink',
-        target: normalize(path.relative(`${currentPath}/node_modules/`, `${dp.depPathToFilename(dp.refToRelative(ref, depName)!)}/node_modules/${depName}`)),
+        target: normalize(path.relative(`${currentPath}/node_modules/`, `${dp.depPathToFilename(dp.refToRelative(ref as string, depName)!, 120)}/node_modules/${depName}`)),
       }
       addDirEntry(pkgNodeModules, depName, symlink)
     }
@@ -71,7 +71,7 @@ function createVirtualStoreDir (lockfile: Lockfile) {
   return rootDir
 }
 
-function addDirEntry (target: Record<string, DirEntry>, subPath: string[] | string, newEntry: DirEntry) {
+function addDirEntry (target: Record<string, DirEntry>, subPath: string[] | string, newEntry: DirEntry): void {
   const subPathArray = typeof subPath === 'string' ? subPath.split('/') : subPath
   const p = subPathArray.shift()!
   if (subPathArray.length > 0) {

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-yaml",
-  "version": "12.1.1",
+  "version": "13.1.7",
   "description": "Reads/writes `node_modules/.modules.yaml`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -21,7 +21,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/modules-yaml",
   "keywords": [
-    "pnpm8",
+    "pnpm10",
     "pnpm",
     "modules.yaml"
   ],
@@ -32,19 +32,22 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/modules-yaml#readme",
   "dependencies": {
     "@pnpm/types": "workspace:*",
-    "is-windows": "^1.0.2",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "read-yaml-file": "^2.1.0",
-    "write-yaml-file": "^5.0.0"
+    "is-windows": "catalog:",
+    "ramda": "catalog:",
+    "read-yaml-file": "catalog:",
+    "write-yaml-file": "catalog:"
   },
   "devDependencies": {
     "@pnpm/modules-yaml": "workspace:*",
-    "@types/is-windows": "^1.0.0",
-    "@types/ramda": "0.28.20",
-    "tempy": "^1.0.1"
+    "@types/is-windows": "catalog:",
+    "@types/ramda": "catalog:",
+    "tempy": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

@@ -1,6 +1,7 @@
 import { refToRelative } from '@pnpm/dependency-path'
-import { type PackageSnapshots } from '@pnpm/lockfile-file'
+import { type PackageSnapshots } from '@pnpm/lockfile.fs'
 import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type DepPath } from '@pnpm/types'
 import { getTree } from '../lib/getTree'
 import { type TreeNodeId } from '../lib/TreeNodeId'
 
@@ -44,7 +45,7 @@ function generateMockCurrentPackages (version: string, mockPackages: MockPackage
   return currentPackages
 }
 
-function refToRelativeOrThrow (reference: string, pkgName: string): string {
+function refToRelativeOrThrow (reference: string, pkgName: string): DepPath {
   const relative = refToRelative(reference, pkgName)
   if (relative == null) {
     throw new Error(`Unable to create key for ${pkgName} with reference ${reference}`)
@@ -83,6 +84,7 @@ describe('getTree', () => {
     const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'a') }
 
     const getTreeArgs = {
+      depTypes: {},
       maxDepth: 0,
       rewriteLinkVersionDir: '',
       virtualStoreDir: '.pnpm',
@@ -98,7 +100,7 @@ describe('getTree', () => {
     }
 
     test('full test case to print when max depth is large', () => {
-      const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, maxDepth: 9999 }, rootNodeId))
+      const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, maxDepth: 9999, virtualStoreDirMaxLength: 120 }, rootNodeId))
 
       expect(result).toEqual([
         expect.objectContaining({
@@ -118,12 +120,12 @@ describe('getTree', () => {
     })
 
     test('no result when current depth exceeds max depth', () => {
-      const result = getTree({ ...getTreeArgs, maxDepth: 0 }, rootNodeId)
+      const result = getTree({ ...getTreeArgs, maxDepth: 0, virtualStoreDirMaxLength: 120 }, rootNodeId)
       expect(result).toEqual([])
     })
 
     test('max depth of 1 to print flat dependencies', () => {
-      const result = getTree({ ...getTreeArgs, maxDepth: 1 }, rootNodeId)
+      const result = getTree({ ...getTreeArgs, maxDepth: 1, virtualStoreDirMaxLength: 120 }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({ alias: 'b1', dependencies: undefined }),
@@ -133,7 +135,7 @@ describe('getTree', () => {
     })
 
     test('max depth of 2 to print a1 -> b1 -> c1, but not d1', () => {
-      const result = getTree({ ...getTreeArgs, maxDepth: 2 }, rootNodeId)
+      const result = getTree({ ...getTreeArgs, maxDepth: 2, virtualStoreDirMaxLength: 120 }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
@@ -159,6 +161,7 @@ describe('getTree', () => {
   // result in incorrect output if the cache was used when it's not supposed to.
   describe('prints at expected depth for cache regression testing cases', () => {
     const commonMockGetTreeArgs = {
+      depTypes: {},
       rewriteLinkVersionDir: '',
       modulesDir: '',
       importers: {},
@@ -170,7 +173,7 @@ describe('getTree', () => {
       },
     }
 
-    test('revisiting package at lower depth prints dependenices not previously printed', () => {
+    test('revisiting package at lower depth prints dependencies not previously printed', () => {
       // This tests the "glob" npm package on a subset of its dependency tree.
       // Max depth shown in square brackets.
       //
@@ -195,6 +198,7 @@ describe('getTree', () => {
         maxDepth: 3,
         currentPackages,
         wantedPackages: currentPackages,
+        virtualStoreDirMaxLength: 120,
       }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
@@ -229,7 +233,7 @@ describe('getTree', () => {
       ])
     })
 
-    test('revisiting package at higher depth does not print extra dependenices', () => {
+    test('revisiting package at higher depth does not print extra dependencies', () => {
       // This tests the "glob" npm package on a subset of its dependency tree.
       // Max depth shown in square brackets.
       //
@@ -253,6 +257,7 @@ describe('getTree', () => {
         maxDepth: 3,
         currentPackages,
         wantedPackages: currentPackages,
+        virtualStoreDirMaxLength: 120,
       }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
@@ -294,6 +299,7 @@ describe('getTree', () => {
   // result in incorrect output if the cache was used when it's not supposed to.
   describe('fully visited cache optimization handles requested depth correctly', () => {
     const commonMockGetTreeArgs = {
+      depTypes: {},
       rewriteLinkVersionDir: '',
       modulesDir: '',
       importers: {},
@@ -303,6 +309,7 @@ describe('getTree', () => {
       registries: {
         default: 'mock-registry-for-testing.example',
       },
+      virtualStoreDirMaxLength: 120,
     }
 
     // The fully visited cache can be used in this situation.
@@ -542,5 +549,69 @@ describe('getTree', () => {
         }),
       ])
     })
+  })
+  test('exclude peers', () => {
+    const version = '1.0.0'
+    const currentPackages = {
+      'foo@1.0.0': {
+        dependencies: {
+          peer1: '1.0.0',
+          peer2: '1.0.0',
+          qar: '1.0.0',
+        },
+        peerDependencies: {
+          peer1: '^1.0.0',
+          peer2: '^1.0.0',
+        },
+        resolution: { integrity: '000' },
+      },
+      'bar@1.0.0': {
+        resolution: { integrity: '000' },
+      },
+      'qar@1.0.0': {
+        resolution: { integrity: '000' },
+      },
+      'peer1@1.0.0': {
+        dependencies: {
+          bar: '1.0.0',
+        },
+        resolution: { integrity: '000' },
+      },
+      'peer2@1.0.0': {
+        dependencies: {},
+        resolution: { integrity: '000' },
+      },
+    }
+    const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'foo') }
+
+    const getTreeArgs = {
+      depTypes: {},
+      excludePeerDependencies: true,
+      maxDepth: 3,
+      rewriteLinkVersionDir: '',
+      virtualStoreDir: '.pnpm',
+      importers: {},
+      includeOptionalDependencies: false,
+      lockfileDir: '',
+      skipped: new Set<string>(),
+      registries: {
+        default: 'mock-registry-for-testing.example',
+      },
+      currentPackages,
+      wantedPackages: currentPackages,
+    }
+    const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, maxDepth: 9999, virtualStoreDirMaxLength: 120 }, rootNodeId))
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        alias: 'peer1',
+        dependencies: [
+          expect.objectContaining({
+            alias: 'bar',
+          }),
+        ],
+      }),
+      expect.objectContaining({ alias: 'qar', dependencies: undefined }),
+    ])
   })
 })

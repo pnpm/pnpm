@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetch",
-  "version": "7.0.2",
+  "version": "8.0.7",
   "description": "node-fetch with retries",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/network/fetch",
   "keywords": [
-    "pnpm8",
+    "pnpm10",
     "fetch",
     "npm"
   ],
@@ -29,22 +29,28 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/network/fetch#readme",
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/network.agent": "0.1.0",
-    "@zkochan/retry": "^0.2.0",
-    "node-fetch": "npm:@pnpm/node-fetch@1.0.0"
+    "@pnpm/network.agent": "catalog:",
+    "@pnpm/types": "workspace:*",
+    "@zkochan/retry": "catalog:",
+    "node-fetch": "catalog:"
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
-    "nock": "13.3.1"
+    "@pnpm/logger": "workspace:*",
+    "https-proxy-server-express": "catalog:",
+    "nock": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Setting Up the Environment](#setting-up-the-environment)
+- [Running Tests](#running-tests)
 - [Submitting a Pull Request (PR)](#submitting-a-pull-request-pr)
   - [After your pull request is merged](#after-your-pull-request-is-merged)
 - [Coding Style Guidelines](#coding-style-guidelines)
@@ -22,12 +23,34 @@
 1. Run `pnpm run compile` to create an initial build of pnpm from the source in the repository.
 1. Now you can change any source code file and run `pd [command] [flags]` to run `pnpm` directly from the source code by compiling all the files without typechecking in memory.
 1. Alternatively, for recompiling all the projects with typechecking after your changes, again run `pnpm run compile` in the root of the repository. To run a task that will recompile the projects on change, run `pnpm run watch`.
+1. Install [`git-lfs` following the directions from its docs](https://github.com/git-lfs/git-lfs#installing). This is required to run certain tests that require large files.
+   - Run `git lfs pull` after installing for good measure. This is required if Git LFS was installed after cloning the pnpm git repo.
 1. In order to run all the tests in the repository, run `pnpm run test-main`. You may also run tests of specific projects by running `pnpm test` inside a project's directory or using `pnpm --filter <project name> test`.
 
 Some of the e2e tests run node-gyp, so you might need to install some build-essentials on your system for those tests to pass. On Fedora, install these:
 
 ```
 sudo dnf install make automake gcc gcc-c++ kernel-devel
+```
+
+## Running Tests
+
+You can run the tests of the project that you modified by going to the project's directory and running:
+
+```shell
+pnpm test
+```
+
+Alternatively, you can run it from anywhere by specifying the name of the project using the `--filter` option:
+
+```shell
+pnpm --filter core test
+```
+
+If you want to pass options to Jest, use the `pnpm run test` command and append any needed options. For instance, if you want to run a single test in a single file, run:
+
+```shell
+pnpm --filter core run test test/lockfile.ts -t "lockfile has dev deps even when installing for prod only"
 ```
 
 ## Submitting a Pull Request (PR)
@@ -106,17 +129,16 @@ from the main (upstream) repository:
 
 ## Coding Style Guidelines
 
-[![js-standard-style](https://cdn.rawgit.com/feross/standard/main/badge.svg)](https://github.com/feross/standard)
+[![js-standard-style](https://raw.githubusercontent.com/standard/standard/master/badge.svg)](https://github.com/standard/standard)
 
-Use the [Standard Style](https://github.com/feross/standard).
+Use the [Standard Style](https://github.com/standard/standard).
 
 ## Commit Message Guidelines
 
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
 
 We have very precise rules over how our git commit messages can be formatted. This leads to **more
-readable messages** that are easy to follow when looking through the **project history**. Helper script `npm run commit`
-provides command line based wizard to format commit message easily.
+readable messages** that are easy to follow when looking through the **project history**.
 
 ### Commit Message Format
 

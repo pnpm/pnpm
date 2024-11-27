@@ -17,7 +17,9 @@
     },
     {
       "path": "../../packages/core-loggers"
+    },
+    {
+      "path": "../../packages/logger"
     }
-  ],
-  "composite": true
+  ]
 }

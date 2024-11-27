@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-projects-context",
-  "version": "8.0.5",
+  "version": "9.1.13",
   "description": "Reads the current state of projects from modules manifest",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,14 +9,14 @@
     "!*.map"
   ],
   "keywords": [
-    "pnpm8"
+    "pnpm10"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.1.0"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/read-projects-context",
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/read-projects-context#readme",
@@ -28,13 +28,14 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "realpath-missing": "^1.1.0"
+    "realpath-missing": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*"
   },
   "bugs": {
@@ -43,5 +44,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

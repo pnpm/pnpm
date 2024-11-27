@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-project",
   "description": "Utils for testing projects that use pnpm",
-  "version": "2.3.28",
+  "version": "2.3.62",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -17,9 +17,9 @@
   ],
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
-    "@types/is-windows": "^1.0.0",
-    "@types/isexe": "2.0.1",
-    "@types/node": "^14.18.52"
+    "@types/is-windows": "catalog:",
+    "@types/isexe": "2.0.2",
+    "@types/node": "catalog:"
   },
   "directories": {
     "test": "test"
@@ -42,14 +42,13 @@
   "dependencies": {
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
-    "@pnpm/registry-mock": "3.8.0",
+    "@pnpm/registry-mock": "catalog:",
     "@pnpm/types": "workspace:*",
-    "is-windows": "^1.0.2",
+    "is-windows": "catalog:",
     "isexe": "2.0.0",
-    "path-exists": "^4.0.0",
-    "read-yaml-file": "^2.1.0",
-    "write-pkg": "4.0.0"
+    "read-yaml-file": "catalog:",
+    "write-pkg": "catalog:"
   }
 }

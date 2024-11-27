@@ -1,10 +1,7 @@
 import type { IntegrityLike } from 'ssri'
 import type { DependencyManifest } from '@pnpm/types'
 
-export interface DeferredManifestPromise {
-  resolve: (manifest: DependencyManifest | undefined) => void
-  reject: (err: Error) => void
-}
+export type PackageFiles = Record<string, PackageFileInfo>
 
 export interface PackageFileInfo {
   checkedAt?: number // Nullable for backward compatibility
@@ -13,19 +10,30 @@ export interface PackageFileInfo {
   size: number
 }
 
+export type SideEffects = Record<string, SideEffectsDiff>
+
+export interface SideEffectsDiff {
+  deleted?: string[]
+  added?: PackageFiles
+}
+
+export type ResolvedFrom = 'store' | 'local-dir' | 'remote'
+
 export type PackageFilesResponse = {
-  fromStore: boolean
+  resolvedFrom: ResolvedFrom
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-  sideEffects?: Record<string, Record<string, PackageFileInfo>>
+  sideEffects?: SideEffects
+  requiresBuild: boolean
 } & ({
-  local: true
+  unprocessed?: false
   filesIndex: Record<string, string>
 } | {
-  local?: false
-  filesIndex: Record<string, PackageFileInfo>
+  unprocessed: true
+  filesIndex: PackageFiles
 })
 
 export interface ImportPackageOpts {
+  disableRelinkLocalDirDeps?: boolean
   requiresBuild?: boolean
   sideEffectsCacheKey?: string
   filesResponse: PackageFilesResponse
@@ -36,6 +44,11 @@ export interface ImportPackageOpts {
 export type ImportPackageFunction = (
   to: string,
   opts: ImportPackageOpts
+) => { isBuilt: boolean, importMethod: undefined | string }
+
+export type ImportPackageFunctionAsync = (
+  to: string,
+  opts: ImportPackageOpts
 ) => Promise<{ isBuilt: boolean, importMethod: undefined | string }>
 
 export type FileType = 'exec' | 'nonexec' | 'index'
@@ -44,20 +57,25 @@ export interface FilesIndex {
   [filename: string]: {
     mode: number
     size: number
-    writeResult: Promise<FileWriteResult>
-  }
+  } & FileWriteResult
 }
 
 export interface FileWriteResult {
   checkedAt: number
+  filePath: string
   integrity: IntegrityLike
 }
 
+export interface AddToStoreResult {
+  filesIndex: FilesIndex
+  manifest?: DependencyManifest
+}
+
 export interface Cafs {
-  cafsDir: string
-  addFilesFromDir: (dir: string, manifest?: DeferredManifestPromise) => Promise<FilesIndex>
-  addFilesFromTarball: (stream: NodeJS.ReadableStream, manifest?: DeferredManifestPromise) => Promise<FilesIndex>
-  getFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string
+  storeDir: string
+  addFilesFromDir: (dir: string) => AddToStoreResult
+  addFilesFromTarball: (buffer: Buffer) => AddToStoreResult
+  getIndexFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string
   getFilePathByModeInCafs: (integrity: string | IntegrityLike, mode: number) => string
   importPackage: ImportPackageFunction
   tempDir: () => Promise<string>

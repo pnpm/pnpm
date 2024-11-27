@@ -2,11 +2,22 @@ import AdmZip from 'adm-zip'
 import { Response } from 'node-fetch'
 import path from 'path'
 import { Readable } from 'stream'
-import { node } from '@pnpm/plugin-commands-env'
+import tar from 'tar-stream'
+import {
+  getNodeDir,
+  getNodeBinDir,
+  getNodeVersionsBaseDir,
+  type NvmNodeCommandOptions,
+  prepareExecutionEnv,
+} from '../lib/node'
 import { tempDir } from '@pnpm/prepare'
 
 const fetchMock = jest.fn(async (url: string) => {
-  if (url.endsWith('.zip')) {
+  if (url.endsWith('.tar.gz')) {
+    const pack = tar.pack()
+    pack.finalize()
+    return new Response(pack) // pack is a readable stream
+  } else if (url.endsWith('.zip')) {
     // The Windows code path for pnpm's node bootstrapping expects a subdir
     // within the .zip file.
     const pkgName = path.basename(url, '.zip')
@@ -28,7 +39,7 @@ beforeEach(() => {
 })
 
 test('check API (placeholder test)', async () => {
-  expect(typeof node.getNodeDir).toBe('function')
+  expect(typeof getNodeDir).toBe('function')
 })
 
 test('install Node uses node-mirror:release option', async () => {
@@ -36,7 +47,7 @@ test('install Node uses node-mirror:release option', async () => {
   const configDir = path.resolve('config')
 
   const nodeMirrorRelease = 'https://pnpm-node-mirror-test.localhost/download/release'
-  const opts: node.NvmNodeCommandOptions = {
+  const opts: NvmNodeCommandOptions = {
     bin: process.cwd(),
     configDir,
     global: true,
@@ -47,18 +58,18 @@ test('install Node uses node-mirror:release option', async () => {
     useNodeVersion: '16.4.0',
   }
 
-  await node.getNodeBinDir(opts)
+  await getNodeBinDir(opts)
 
   for (const call of fetchMock.mock.calls) {
     expect(call[0]).toMatch(nodeMirrorRelease)
   }
 })
 
-test('install and rc version of Node.js', async () => {
+test('install an rc version of Node.js', async () => {
   tempDir()
   const configDir = path.resolve('config')
 
-  const opts: node.NvmNodeCommandOptions = {
+  const opts: NvmNodeCommandOptions = {
     bin: process.cwd(),
     configDir,
     global: true,
@@ -67,7 +78,7 @@ test('install and rc version of Node.js', async () => {
     useNodeVersion: 'rc/18.0.0-rc.3',
   }
 
-  await node.getNodeBinDir(opts)
+  await getNodeBinDir(opts)
 
   const platform = process.platform === 'win32' ? 'win' : process.platform
   const arch = process.arch
@@ -78,7 +89,23 @@ test('install and rc version of Node.js', async () => {
 })
 
 test('get node version base dir', async () => {
-  expect(typeof node.getNodeVersionsBaseDir).toBe('function')
-  const versionDir = node.getNodeVersionsBaseDir(process.cwd())
+  expect(typeof getNodeVersionsBaseDir).toBe('function')
+  const versionDir = getNodeVersionsBaseDir(process.cwd())
   expect(versionDir).toBe(path.resolve(process.cwd(), 'nodejs'))
+})
+
+describe('prepareExecutionEnv', () => {
+  test('should not proceed to fetch Node.js if the process is already running in wanted node version', async () => {
+    fetchMock.mockImplementationOnce(() => {
+      throw new Error('prepareExecutionEnv should not proceed to fetch Node.js when wanted version is running')
+    })
+
+    await prepareExecutionEnv({
+      bin: '',
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, {
+      executionEnv: { nodeVersion: process.versions.node },
+    })
+  })
 })

@@ -1,3 +1,4 @@
+// cspell:ignore diable
 import {
   close as _close,
   closeSync,
@@ -11,7 +12,7 @@ import path from 'path'
 import { packageManager } from '@pnpm/cli-meta'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import { createServer } from '@pnpm/server'
+import { type StoreServerHandle, createServer } from '@pnpm/server'
 import {
   createNewStoreController,
   type CreateStoreControllerOptions,
@@ -36,7 +37,7 @@ export async function start (
     ignoreStopRequests?: boolean
     ignoreUploadRequests?: boolean
   }
-) {
+): Promise<void> {
   if (opts.protocol === 'ipc' && opts.port) {
     throw new Error('Port cannot be selected when server communicates via IPC')
   }
@@ -64,7 +65,7 @@ export async function start (
     }
     throw new PnpmError('SERVER_MANIFEST_LOCKED', `Canceling startup of server (pid ${process.pid}) because another process got exclusive access to server.json`)
   }
-  let server: null | { close: () => Promise<void> } = null
+  let server: null | StoreServerHandle = null
   onExit(() => {
     if (server !== null) {
       // Note that server.close returns a Promise, but we cannot wait for it because we may be
@@ -118,6 +119,17 @@ export async function start (
   // Set fd to null so we only attempt to close it once.
   fd = null
   await close(fdForClose)
+
+  // Intentionally avoid returning control back to the caller until the server
+  // exits. This defers cleanup operations that should not run before the server
+  // finishes.
+  await server.waitForClose
+}
+
+interface ServerOptions {
+  hostname?: string
+  port?: number
+  path?: string
 }
 
 async function getServerOptions (
@@ -126,12 +138,7 @@ async function getServerOptions (
     protocol: 'auto' | 'tcp' | 'ipc'
     port?: number
   }
-): Promise<(
-    {
-      hostname: string
-      port: number
-    } | { path: string }
-  ) & { hostname?: string, port?: number, path?: string }> {
+): Promise<ServerOptions> {
   switch (opts.protocol) {
   case 'tcp':
     return getTcpOptions()
@@ -156,7 +163,7 @@ async function getServerOptions (
     }
   }
 
-  function getIpcOptions () {
+  function getIpcOptions (): ServerOptions {
     return {
       path: path.join(connectionInfoDir, 'socket'),
     }

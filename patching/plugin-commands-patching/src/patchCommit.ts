@@ -2,30 +2,35 @@ import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
+import { PnpmError } from '@pnpm/error'
+import { packlist } from '@pnpm/fs.packlist'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { type ProjectRootDir } from '@pnpm/types'
 import glob from 'fast-glob'
 import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
 import equals from 'ramda/src/equals'
 import execa from 'safe-execa'
 import escapeStringRegexp from 'escape-string-regexp'
+import makeEmptyDir from 'make-empty-dir'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
 import { writePackage } from './writePackage'
-import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import packlist from 'npm-packlist'
+import { type ParseWantedDependencyResult, parseWantedDependency } from '@pnpm/parse-wanted-dependency'
+import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency'
+import { readEditDirState } from './stateFile'
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
+export function cliOptionsTypes (): Record<string, unknown> {
   return pick(['patches-dir'], allTypes)
 }
 
 export const commandNames = ['patch-commit']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     description: 'Generate a patch out of a directory',
     descriptionLists: [{
@@ -42,25 +47,56 @@ export function help () {
   })
 }
 
-export async function handler (opts: install.InstallCommandOptions & Pick<Config, 'patchesDir' | 'rootProjectManifest'>, params: string[]) {
+type PatchCommitCommandOptions = install.InstallCommandOptions & Pick<Config, 'patchesDir' | 'rootProjectManifest' | 'rootProjectManifestDir'>
+
+export async function handler (opts: PatchCommitCommandOptions, params: string[]): Promise<string | undefined> {
   const userDir = params[0]
-  const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
+  const lockfileDir = (opts.lockfileDir ?? opts.dir ?? process.cwd()) as ProjectRootDir
   const patchesDirName = normalizePath(path.normalize(opts.patchesDir ?? 'patches'))
   const patchesDir = path.join(lockfileDir, patchesDirName)
-  await fs.promises.mkdir(patchesDir, { recursive: true })
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)
-  const pkgNameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
+  const editDir = path.resolve(opts.dir, userDir)
+  const stateValue = readEditDirState({
+    editDir,
+    modulesDir: path.join(opts.dir, opts.modulesDir ?? 'node_modules'),
+  })
+  if (!stateValue) {
+    throw new PnpmError('INVALID_PATCH_DIR', `${userDir} is not a valid patch directory`, {
+      hint: 'A valid patch directory should be created by `pnpm patch`',
+    })
+  }
+  const { applyToAll } = stateValue
+  const nameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
+  const patchKey = applyToAll ? patchedPkgManifest.name : nameAndVersion
+  let gitTarballUrl: string | undefined
+  if (!applyToAll) {
+    gitTarballUrl = await getGitTarballUrlFromLockfile({
+      alias: patchedPkgManifest.name,
+      pref: patchedPkgManifest.version,
+    }, {
+      lockfileDir,
+      modulesDir: opts.modulesDir,
+      virtualStoreDir: opts.virtualStoreDir,
+    })
+  }
   const srcDir = tempy.directory()
-  await writePackage(parseWantedDependency(pkgNameAndVersion), srcDir, opts)
-
+  await writePackage(parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : nameAndVersion), srcDir, opts)
   const patchedPkgDir = await preparePkgFilesForDiff(userDir)
   const patchContent = await diffFolders(srcDir, patchedPkgDir)
+  if (patchedPkgDir !== userDir) {
+    fs.rmSync(patchedPkgDir, { recursive: true })
+  }
 
-  const patchFileName = pkgNameAndVersion.replace('/', '__')
+  if (!patchContent.length) {
+    return `No changes were found to the following directory: ${userDir}`
+  }
+  await fs.promises.mkdir(patchesDir, { recursive: true })
+
+  const patchFileName = patchKey.replace('/', '__')
   await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')
   const { writeProjectManifest, manifest } = await tryReadProjectManifest(lockfileDir)
 
-  const rootProjectManifest = opts.rootProjectManifest ?? manifest ?? {}
+  const rootProjectManifest = (!opts.sharedWorkspaceLockfile ? manifest : (opts.rootProjectManifest ?? manifest)) ?? {}
 
   if (!rootProjectManifest.pnpm) {
     rootProjectManifest.pnpm = {
@@ -69,7 +105,7 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
   } else if (!rootProjectManifest.pnpm.patchedDependencies) {
     rootProjectManifest.pnpm.patchedDependencies = {}
   }
-  rootProjectManifest.pnpm.patchedDependencies![pkgNameAndVersion] = `${patchesDirName}/${patchFileName}.patch`
+  rootProjectManifest.pnpm.patchedDependencies![patchKey] = `${patchesDirName}/${patchFileName}.patch`
   await writeProjectManifest(rootProjectManifest)
 
   if (opts?.selectedProjectsGraph?.[lockfileDir]) {
@@ -82,21 +118,22 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
 
   return install.handler({
     ...opts,
+    rootProjectManifest,
     rawLocalConfig: {
       ...opts.rawLocalConfig,
       'frozen-lockfile': false,
     },
-  })
+  }) as Promise<undefined>
 }
 
-async function diffFolders (folderA: string, folderB: string) {
+async function diffFolders (folderA: string, folderB: string): Promise<string> {
   const folderAN = folderA.replace(/\\/g, '/')
   const folderBN = folderB.replace(/\\/g, '/')
   let stdout!: string
   let stderr!: string
 
   try {
-    const result = await execa('git', ['-c', 'core.safecrlf=false', 'diff', '--src-prefix=a/', '--dst-prefix=b/', '--ignore-cr-at-eol', '--irreversible-delete', '--full-index', '--no-index', '--text', folderAN, folderBN], {
+    const result = await execa('git', ['-c', 'core.safecrlf=false', 'diff', '--src-prefix=a/', '--dst-prefix=b/', '--ignore-cr-at-eol', '--irreversible-delete', '--full-index', '--no-index', '--text', '--no-ext-diff', folderAN, folderBN], {
       cwd: process.cwd(),
       env: {
         ...process.env,
@@ -109,6 +146,7 @@ async function diffFolders (folderA: string, folderB: string) {
         USERPROFILE: '',
         // #endregion
       },
+      stripFinalNewline: false,
     })
     stdout = result.stdout
     stderr = result.stderr
@@ -126,11 +164,11 @@ async function diffFolders (folderA: string, folderB: string) {
     .replace(new RegExp(`(a|b)${escapeStringRegexp(`/${removeTrailingAndLeadingSlash(folderBN)}/`)}`, 'g'), '$1/')
     .replace(new RegExp(escapeStringRegexp(`${folderAN}/`), 'g'), '')
     .replace(new RegExp(escapeStringRegexp(`${folderBN}/`), 'g'), '')
-    .replace(/\n\\ No newline at end of file$/, '')
+    .replace(/\n\\ No newline at end of file\n$/, '\n')
 }
 
-function removeTrailingAndLeadingSlash (p: string) {
-  if (p.startsWith('/') || p.endsWith('/')) {
+function removeTrailingAndLeadingSlash (p: string): string {
+  if (p[0] === '/' || p.endsWith('/')) {
     return p.replace(/^\/|\/$/g, '')
   }
   return p
@@ -143,13 +181,14 @@ function removeTrailingAndLeadingSlash (p: string) {
  * This is required in order for the diff to not include files that are not part of the package.
  */
 async function preparePkgFilesForDiff (src: string): Promise<string> {
-  const files = Array.from(new Set((await packlist({ path: src })).map((f) => path.join(f))))
+  const files = Array.from(new Set((await packlist(src)).map((f) => path.join(f))))
   // If there are no extra files in the source directories, then there is no reason
   // to copy.
   if (await areAllFilesInPkg(files, src)) {
     return src
   }
-  const dest = tempy.directory()
+  const dest = `${src}_tmp`
+  await makeEmptyDir(dest)
   await Promise.all(
     files.map(async (file) => {
       const srcFile = path.join(src, file)
@@ -162,9 +201,14 @@ async function preparePkgFilesForDiff (src: string): Promise<string> {
   return dest
 }
 
-async function areAllFilesInPkg (files: string[], basePath: string) {
+async function areAllFilesInPkg (files: string[], basePath: string): Promise<boolean> {
   const allFiles = await glob('**', {
     cwd: basePath,
   })
   return equals(allFiles.sort(), files.sort())
+}
+
+async function getGitTarballUrlFromLockfile (dep: ParseWantedDependencyResult, opts: GetPatchedDependencyOptions): Promise<string | undefined> {
+  const { preferredVersions } = await getVersionsFromLockfile(dep, opts)
+  return preferredVersions[0]?.gitTarballUrl
 }

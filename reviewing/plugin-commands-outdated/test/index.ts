@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type PnpmError } from '@pnpm/error'
@@ -17,6 +17,7 @@ const hasNotOutdatedDepsFixture = f.find('has-not-outdated-deps')
 const hasMajorOutdatedDepsFixture = f.find('has-major-outdated-deps')
 const hasNoLockfileFixture = f.find('has-no-lockfile')
 const withPnpmUpdateIgnore = f.find('with-pnpm-update-ignore')
+const hasOutdatedDepsUsingCatalogProtocol = f.find('has-outdated-deps-using-catalog-protocol')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -40,9 +41,9 @@ const OUTDATED_OPTIONS = {
 test('pnpm outdated: show details', async () => {
   tempDir()
 
-  await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  fs.mkdirSync(path.resolve('node_modules/.pnpm'), { recursive: true })
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
@@ -70,9 +71,9 @@ test('pnpm outdated: show details', async () => {
 test('pnpm outdated: show details (using the public registry to verify that full metadata is being requested)', async () => {
   tempDir()
 
-  await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
-  await fs.copyFile(path.join(has2OutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
-  await fs.copyFile(path.join(has2OutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  fs.mkdirSync(path.resolve('node_modules/.pnpm'), { recursive: true })
+  fs.copyFileSync(path.join(has2OutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  fs.copyFileSync(path.join(has2OutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
@@ -97,9 +98,9 @@ test('pnpm outdated: show details (using the public registry to verify that full
 test('pnpm outdated: showing only prod or dev dependencies', async () => {
   tempDir()
 
-  await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  fs.mkdirSync(path.resolve('node_modules/.pnpm'), { recursive: true })
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
   {
     const { output, exitCode } = await outdated.handler({
@@ -141,9 +142,9 @@ test('pnpm outdated: showing only prod or dev dependencies', async () => {
 test('pnpm outdated: no table', async () => {
   tempDir()
 
-  await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  fs.mkdirSync(path.resolve('node_modules/.pnpm'), { recursive: true })
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
   {
     const { output, exitCode } = await outdated.handler({
@@ -175,9 +176,7 @@ is-positive (dev)
     expect(exitCode).toBe(1)
     expect(stripAnsi(output)).toBe(`@pnpm.e2e/deprecated
 1.0.0 => Deprecated
-This package is deprecated. Lorem ipsum
-dolor sit amet, consectetur adipiscing
-elit.
+This package is deprecated. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
 https://foo.bar/qar
 
 is-negative
@@ -194,9 +193,9 @@ https://github.com/kevva/is-positive#readme
 test('pnpm outdated: format json', async () => {
   tempDir()
 
-  await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  fs.mkdirSync(path.resolve('node_modules/.pnpm'), { recursive: true })
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
   {
     const { output, exitCode } = await outdated.handler({
@@ -248,9 +247,9 @@ test('pnpm outdated: format json when there are no outdated dependencies', async
 test('pnpm outdated: only current lockfile is available', async () => {
   tempDir()
 
-  await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  fs.mkdirSync(path.resolve('node_modules/.pnpm'), { recursive: true })
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
@@ -274,8 +273,8 @@ test('pnpm outdated: only current lockfile is available', async () => {
 test('pnpm outdated: only wanted lockfile is available', async () => {
   tempDir()
 
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'pnpm-lock.yaml'), path.resolve('pnpm-lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'pnpm-lock.yaml'), path.resolve('pnpm-lock.yaml'))
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
@@ -386,5 +385,52 @@ test('ignore packages in package.json > pnpm.updateConfig.ignoreDependencies in 
 ├─────────────┼─────────┼────────┤
 │ is-negative │ 1.0.0   │ 2.1.0  │
 └─────────────┴─────────┴────────┘
+`)
+})
+
+test('pnpm outdated: catalog protocol', async () => {
+  const { output, exitCode } = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    catalogs: {
+      // Duplicating the catalog config in the pnpm-workspace.yaml inline to
+      // avoid an async read and catalog config normalization call.
+      default: { 'is-negative': '^1.0.0' },
+    },
+    dir: hasOutdatedDepsUsingCatalogProtocol,
+  })
+
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
+┌─────────────┬─────────┬────────┐
+│ Package     │ Current │ Latest │
+├─────────────┼─────────┼────────┤
+│ is-negative │ 1.0.0   │ 2.1.0  │
+└─────────────┴─────────┴────────┘
+`)
+})
+
+test('pnpm outdated: support --sortField option', async () => {
+  tempDir()
+
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'pnpm-lock.yaml'), path.resolve('pnpm-lock.yaml'))
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+
+  const { output, exitCode } = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: hasOutdatedDepsFixture,
+    sortBy: 'name',
+  })
+
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
+┌──────────────────────┬──────────────────────┬────────────┐
+│ Package              │ Current              │ Latest     │
+├──────────────────────┼──────────────────────┼────────────┤
+│ @pnpm.e2e/deprecated │ 1.0.0                │ Deprecated │
+├──────────────────────┼──────────────────────┼────────────┤
+│ is-negative          │ 1.0.0 (wanted 2.1.0) │ 2.1.0      │
+├──────────────────────┼──────────────────────┼────────────┤
+│ is-positive (dev)    │ 1.0.0 (wanted 3.1.0) │ 3.1.0      │
+└──────────────────────┴──────────────────────┴────────────┘
 `)
 })

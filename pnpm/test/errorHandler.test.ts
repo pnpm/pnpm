@@ -1,5 +1,5 @@
 import { prepare, preparePackages } from '@pnpm/prepare'
-import writeYamlFile from 'write-yaml-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpmSync } from './utils'
 import { fixtures } from '@pnpm/test-fixtures'
 import { isPortInUse } from './utils/isPortInUse'
@@ -32,7 +32,7 @@ test('should print json format error when add dependency on workspace root', asy
       version: '1.0.0',
     },
   ])
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   const { status, stdout } = execPnpmSync(['add', 'nanoid', '-p'])
 
@@ -73,7 +73,7 @@ test('should print error summary when some packages fail with --no-bail', async 
       },
     },
   ])
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   const { stdout } = execPnpmSync(['-r', '--no-bail', 'run', 'build'])
   const output = stdout.toString()
   expect(output).toContain('ERR_PNPM_RECURSIVE_FAIL')

@@ -2,13 +2,14 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, OUTPUT_OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { isCI } from 'ci-info'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { installDeps, type InstallDepsOptions } from './installDeps'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
     'child-concurrency',
@@ -55,14 +56,12 @@ export function rcOptionsTypes () {
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',
     'side-effects-cache',
-    'store',
     'store-dir',
     'strict-peer-dependencies',
     'offline',
     'only',
     'optional',
     'unsafe-perm',
-    'use-lockfile-v6',
     'use-running-store-server',
     'use-store-server',
     'verify-store-integrity',
@@ -70,7 +69,7 @@ export function rcOptionsTypes () {
   ], allTypes)
 }
 
-export const cliOptionsTypes = () => ({
+export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   ...pick(['force'], allTypes),
   'fix-lockfile': Boolean,
@@ -78,14 +77,14 @@ export const cliOptionsTypes = () => ({
   recursive: Boolean,
 })
 
-export const shorthands = {
+export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
 }
 
 export const commandNames = ['install', 'i']
 
-export function help () {
+export function help (): string {
   return renderHelp({
     aliases: ['i'],
     description: 'Installs all dependencies of the project in the current working directory. \
@@ -184,6 +183,10 @@ by any dependencies, so it is an emulation of a flat node_modules',
             name: '--ignore-pnpmfile',
           },
           {
+            description: 'Ignore pnpm-workspace.yaml if exists in the parent directory, and treat the installation as normal non-workspace installation.',
+            name: '--ignore-workspace',
+          },
+          {
             description: "If false, doesn't check whether packages in the store were mutated",
             name: '--[no-]verify-store-integrity',
           },
@@ -249,7 +252,10 @@ export type InstallCommandOptions = Pick<Config,
 | 'autoInstallPeers'
 | 'bail'
 | 'bin'
+| 'catalogs'
 | 'cliOptions'
+| 'dedupeDirectDeps'
+| 'dedupePeerDependents'
 | 'deployAllFiles'
 | 'depth'
 | 'dev'
@@ -265,10 +271,13 @@ export type InstallCommandOptions = Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'modulesDir'
+| 'nodeLinker'
 | 'pnpmfile'
 | 'preferFrozenLockfile'
 | 'production'
 | 'registries'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
 | 'save'
 | 'saveDev'
 | 'saveExact'
@@ -289,14 +298,17 @@ export type InstallCommandOptions = Pick<Config,
 | 'virtualStoreDir'
 | 'workspaceConcurrency'
 | 'workspaceDir'
+| 'workspacePackagePatterns'
 | 'extraEnv'
 | 'resolutionMode'
 | 'ignoreWorkspaceCycles'
+| 'disallowWorkspaceCycles'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
   }
   fixLockfile?: boolean
+  frozenLockfileIfExists?: boolean
   useBetaCli?: boolean
   pruneDirectDependencies?: boolean
   pruneStore?: boolean
@@ -306,23 +318,28 @@ export type InstallCommandOptions = Pick<Config,
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
   confirmModulesPurge?: boolean
-} & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages'>>
+} & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'useLockfile'>>
 
-export async function handler (
-  opts: InstallCommandOptions
-) {
+export async function handler (opts: InstallCommandOptions): Promise<void> {
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
+  // npm registry's abbreviated metadata currently does not contain libc
+  // see <https://github.com/pnpm/pnpm/issues/7362#issuecomment-1971964689>
+  const fetchFullMetadata: true | undefined = opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc && true
   const installDepsOptions: InstallDepsOptions = {
     ...opts,
-    frozenLockfileIfExists: isCI && !opts.lockfileOnly &&
+    frozenLockfileIfExists: opts.frozenLockfileIfExists ?? (
+      isCI && !opts.lockfileOnly &&
       typeof opts.rawLocalConfig['frozen-lockfile'] === 'undefined' &&
-      typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined',
+      typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined'
+    ),
     include,
     includeDirect: include,
+    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
+    fetchFullMetadata,
   }
   if (opts.resolutionOnly) {
     installDepsOptions.lockfileOnly = true

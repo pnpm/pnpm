@@ -1,5 +1,600 @@
 # @pnpm/plugin-commands-licenses
 
+## 4.1.22
+
+### Patch Changes
+
+- @pnpm/license-scanner@3.1.17
+- @pnpm/cli-utils@4.0.7
+- @pnpm/config@21.8.5
+- @pnpm/lockfile.fs@1.0.5
+
+## 4.1.21
+
+### Patch Changes
+
+- @pnpm/license-scanner@3.1.16
+- @pnpm/cli-utils@4.0.6
+- @pnpm/config@21.8.4
+
+## 4.1.20
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+  - @pnpm/constants@9.0.0
+  - @pnpm/config@21.8.4
+  - @pnpm/lockfile.fs@1.0.4
+  - @pnpm/error@6.0.2
+  - @pnpm/license-scanner@3.1.15
+  - @pnpm/cli-utils@4.0.6
+  - @pnpm/store-path@9.0.2
+
+## 4.1.19
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.5
+- @pnpm/config@21.8.3
+- @pnpm/lockfile.fs@1.0.3
+- @pnpm/license-scanner@3.1.14
+
+## 4.1.18
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.4
+- @pnpm/config@21.8.2
+- @pnpm/lockfile.fs@1.0.2
+- @pnpm/license-scanner@3.1.13
+
+## 4.1.17
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.3
+- @pnpm/license-scanner@3.1.12
+
+## 4.1.16
+
+### Patch Changes
+
+- Updated dependencies [251ab21]
+  - @pnpm/config@21.8.1
+  - @pnpm/cli-utils@4.0.2
+
+## 4.1.15
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.1
+
+## 4.1.14
+
+### Patch Changes
+
+- Updated dependencies [26b065c]
+- Updated dependencies [26b065c]
+  - @pnpm/cli-utils@4.0.0
+  - @pnpm/config@21.8.0
+
+## 4.1.13
+
+### Patch Changes
+
+- Updated dependencies [98c8bd6]
+- Updated dependencies [d20eed3]
+  - @pnpm/cli-utils@3.1.7
+  - @pnpm/config@21.7.0
+  - @pnpm/lockfile.fs@1.0.1
+  - @pnpm/license-scanner@3.1.11
+
+## 4.1.12
+
+### Patch Changes
+
+- Updated dependencies [8055a30]
+  - @pnpm/lockfile.fs@1.0.0
+  - @pnpm/license-scanner@3.1.10
+  - @pnpm/config@21.6.3
+  - @pnpm/cli-utils@3.1.6
+
+## 4.1.11
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.5
+- @pnpm/config@21.6.2
+- @pnpm/lockfile-file@9.1.3
+- @pnpm/license-scanner@3.1.9
+
+## 4.1.10
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+  - @pnpm/config@21.6.1
+  - @pnpm/license-scanner@3.1.8
+  - @pnpm/cli-utils@3.1.4
+
+## 4.1.9
+
+### Patch Changes
+
+- Updated dependencies [1b03682]
+- Updated dependencies [9b5b869]
+  - @pnpm/config@21.6.0
+  - @pnpm/command@5.0.2
+  - @pnpm/cli-utils@3.1.3
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/license-scanner@3.1.7
+
+## 4.1.8
+
+### Patch Changes
+
+- Updated dependencies [7c6c923]
+- Updated dependencies [7d10394]
+- Updated dependencies [d8eab39]
+- Updated dependencies [04b8363]
+  - @pnpm/config@21.5.0
+  - @pnpm/cli-utils@3.1.2
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/license-scanner@3.1.6
+
+## 4.1.7
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/config@21.4.0
+  - @pnpm/license-scanner@3.1.5
+  - @pnpm/cli-utils@3.1.1
+
+## 4.1.6
+
+### Patch Changes
+
+- Updated dependencies [b7ca13f]
+- Updated dependencies [b7ca13f]
+  - @pnpm/cli-utils@3.1.0
+  - @pnpm/config@21.3.0
+
+## 4.1.5
+
+### Patch Changes
+
+- @pnpm/config@21.2.3
+- @pnpm/license-scanner@3.1.4
+- @pnpm/cli-utils@3.0.7
+
+## 4.1.4
+
+### Patch Changes
+
+- 34bc8f4: Details in the `pnpm licenses` output are misplaced [#8071](https://github.com/pnpm/pnpm/pull/8071).
+  - @pnpm/cli-utils@3.0.6
+  - @pnpm/config@21.2.2
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/license-scanner@3.1.3
+
+## 4.1.3
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+- Updated dependencies [37538f5]
+  - @pnpm/error@6.0.1
+  - @pnpm/command@5.0.1
+  - @pnpm/cli-utils@3.0.5
+  - @pnpm/config@21.2.1
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/license-scanner@3.1.2
+  - @pnpm/store-path@9.0.1
+
+## 4.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.0.4
+
+## 4.1.1
+
+### Patch Changes
+
+- 21de734: Details in the `pnpm outdated` output are wrapped correctly [#8037](https://github.com/pnpm/pnpm/pull/8037).
+  - @pnpm/lockfile-file@9.0.4
+  - @pnpm/license-scanner@3.1.1
+
+## 4.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/license-scanner@3.1.0
+  - @pnpm/config@21.2.0
+  - @pnpm/lockfile-file@9.0.3
+  - @pnpm/cli-utils@3.0.3
+
+## 4.0.4
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/lockfile-file@9.0.2
+  - @pnpm/license-scanner@3.0.2
+
+## 4.0.3
+
+### Patch Changes
+
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [6b6ca69]
+  - @pnpm/lockfile-file@9.0.1
+  - @pnpm/license-scanner@3.0.1
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [a80b539]
+  - @pnpm/cli-utils@3.0.2
+
+## 4.0.1
+
+### Patch Changes
+
+- Updated dependencies [e0f47f4]
+  - @pnpm/config@21.1.0
+  - @pnpm/cli-utils@3.0.1
+
+## 4.0.0
+
+### Major Changes
+
+- f5766d9: `pnpm licenses list` prints license information of all versions of the same package in case different versions use different licenses. The format of the `pnpm licenses list --json` output has been changed [#7528](https://github.com/pnpm/pnpm/pull/7528).
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- 3878ced: Fix `pnpm licenses list --json` command not returning correct paths when run on workspace members
+- Updated dependencies [7733f3a]
+- Updated dependencies [f5766d9]
+- Updated dependencies [3ded840]
+- Updated dependencies [c692f80]
+- Updated dependencies [43cdd87]
+- Updated dependencies [2d9e3b8]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [3477ee5]
+- Updated dependencies [cfa33f1]
+- Updated dependencies [e748162]
+- Updated dependencies [f67ad31]
+- Updated dependencies [2b89155]
+- Updated dependencies [60839fc]
+- Updated dependencies [730929e]
+- Updated dependencies [98566d9]
+  - @pnpm/config@21.0.0
+  - @pnpm/license-scanner@3.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/common-cli-options-help@2.0.0
+  - @pnpm/lockfile-file@9.0.0
+  - @pnpm/store-path@9.0.0
+  - @pnpm/cli-utils@3.0.0
+  - @pnpm/command@5.0.0
+
+## 3.0.14
+
+### Patch Changes
+
+- Updated dependencies [fd42caf24]
+  - @pnpm/license-scanner@2.3.0
+  - @pnpm/cli-utils@2.1.9
+  - @pnpm/config@20.4.2
+
+## 3.0.13
+
+### Patch Changes
+
+- @pnpm/license-scanner@2.2.10
+
+## 3.0.12
+
+### Patch Changes
+
+- dcf3ef7e4: Handle Git repository names containing capital letters [#7488](https://github.com/pnpm/pnpm/pull/7488).
+- Updated dependencies [37ccff637]
+- Updated dependencies [d9564e354]
+- Updated dependencies [fe737aeb4]
+- Updated dependencies [dcf3ef7e4]
+  - @pnpm/store-path@8.0.2
+  - @pnpm/config@20.4.1
+  - @pnpm/license-scanner@2.2.9
+  - @pnpm/cli-utils@2.1.8
+
+## 3.0.11
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
+## 3.0.10
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+  - @pnpm/common-cli-options-help@1.1.0
+  - @pnpm/config@20.3.0
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/license-scanner@2.2.8
+  - @pnpm/lockfile-file@8.1.6
+
+## 3.0.9
+
+### Patch Changes
+
+- Updated dependencies [672c559e4]
+  - @pnpm/config@20.2.0
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/license-scanner@2.2.7
+  - @pnpm/cli-utils@2.1.5
+
+## 3.0.8
+
+### Patch Changes
+
+- @pnpm/license-scanner@2.2.6
+
+## 3.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.4
+
+## 3.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+
+## 3.0.5
+
+### Patch Changes
+
+- @pnpm/license-scanner@2.2.5
+
+## 3.0.4
+
+### Patch Changes
+
+- @pnpm/config@20.1.2
+- @pnpm/license-scanner@2.2.4
+- @pnpm/cli-utils@2.1.2
+
+## 3.0.3
+
+### Patch Changes
+
+- @pnpm/license-scanner@2.2.3
+
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [7d65d901a]
+  - @pnpm/store-path@8.0.1
+  - @pnpm/license-scanner@2.2.2
+  - @pnpm/config@20.1.1
+  - @pnpm/cli-utils@2.1.1
+
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/license-scanner@2.2.1
+
+## 3.0.0
+
+### Major Changes
+
+- d6592964f: `rootProjectManifestDir` is a required field.
+
+### Minor Changes
+
+- 43ce9e4a6: Support for multiple architectures when installing dependencies [#5965](https://github.com/pnpm/pnpm/issues/5965).
+
+  You can now specify architectures for which you'd like to install optional dependencies, even if they don't match the architecture of the system running the install. Use the `supportedArchitectures` field in `package.json` to define your preferences.
+
+  For example, the following configuration tells pnpm to install optional dependencies for Windows x64:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32"],
+        "cpu": ["x64"]
+      }
+    }
+  }
+  ```
+
+  Whereas this configuration will have pnpm install optional dependencies for Windows, macOS, and the architecture of the system currently running the install. It includes artifacts for both x64 and arm64 CPUs:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32", "darwin", "current"],
+        "cpu": ["x64", "arm64"]
+      }
+    }
+  }
+  ```
+
+  Additionally, `supportedArchitectures` also supports specifying the `libc` of the system.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d6592964f]
+  - @pnpm/license-scanner@2.2.0
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/config@20.1.0
+  - @pnpm/lockfile-file@8.1.4
+
+## 2.1.0
+
+### Minor Changes
+
+- fff7866f3: The `pnpm licenses list` command now accepts the `--filter` option to check the licenses of the dependencies of a subset of workspace projects [#5806](https://github.com/pnpm/pnpm/issues/5806).
+
+### Patch Changes
+
+- Updated dependencies [fff7866f3]
+  - @pnpm/license-scanner@2.1.0
+
+## 2.0.30
+
+### Patch Changes
+
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/config@20.0.0
+  - @pnpm/license-scanner@2.0.22
+  - @pnpm/cli-utils@2.0.24
+
+## 2.0.29
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+  - @pnpm/cli-utils@2.0.23
+
+## 2.0.28
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/lockfile-file@8.1.3
+  - @pnpm/license-scanner@2.0.21
+
+## 2.0.27
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+  - @pnpm/config@19.1.0
+  - @pnpm/cli-utils@2.0.21
+  - @pnpm/license-scanner@2.0.20
+
+## 2.0.26
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+
+## 2.0.25
+
+### Patch Changes
+
+- @pnpm/config@19.0.3
+- @pnpm/license-scanner@2.0.19
+- @pnpm/cli-utils@2.0.19
+
+## 2.0.24
+
+### Patch Changes
+
+- @pnpm/config@19.0.2
+- @pnpm/license-scanner@2.0.18
+- @pnpm/cli-utils@2.0.18
+
+## 2.0.23
+
+### Patch Changes
+
+- @pnpm/license-scanner@2.0.17
+- @pnpm/config@19.0.1
+
+## 2.0.22
+
+### Patch Changes
+
+- @pnpm/license-scanner@2.0.16
+- @pnpm/config@19.0.1
+- @pnpm/cli-utils@2.0.17
+
+## 2.0.21
+
+### Patch Changes
+
+- Updated dependencies [cb8bcc8df]
+  - @pnpm/config@19.0.0
+  - @pnpm/license-scanner@2.0.15
+  - @pnpm/cli-utils@2.0.16
+
+## 2.0.20
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.15
+
+## 2.0.19
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.14
+
+## 2.0.18
+
+### Patch Changes
+
+- @pnpm/license-scanner@2.0.14
+- @pnpm/config@18.4.4
+
+## 2.0.17
+
+### Patch Changes
+
+- @pnpm/license-scanner@2.0.13
+- @pnpm/config@18.4.4
+
+## 2.0.16
+
+### Patch Changes
+
+- @pnpm/license-scanner@2.0.12
+- @pnpm/config@18.4.4
+
+## 2.0.15
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.13
+- @pnpm/config@18.4.4
+- @pnpm/lockfile-file@8.1.2
+- @pnpm/license-scanner@2.0.11
+
+## 2.0.14
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.12
+- @pnpm/config@18.4.3
+- @pnpm/license-scanner@2.0.10
+
 ## 2.0.13
 
 ### Patch Changes

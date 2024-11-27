@@ -1,9 +1,9 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.utils'
 import { type Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
 import { generateInlinedScript, type PackageRegistry } from '@yarnpkg/pnp'
@@ -15,13 +15,13 @@ export async function writePnpFile (
     importerNames: Record<string, string>
     lockfileDir: string
     virtualStoreDir: string
+    virtualStoreDirMaxLength: number
     registries: Registries
   }
-) {
+): Promise<void> {
   const packageRegistry = lockfileToPackageRegistry(lockfile, opts)
 
   const loaderFile = generateInlinedScript({
-    blacklistedLocations: undefined,
     dependencyTreeRoots: [],
     ignorePattern: undefined,
     packageRegistry,
@@ -36,6 +36,7 @@ export function lockfileToPackageRegistry (
     importerNames: { [importerId: string]: string }
     lockfileDir: string
     virtualStoreDir: string
+    virtualStoreDirMaxLength: number
     registries: Registries
   }
 ): PackageRegistry {
@@ -87,7 +88,7 @@ export function lockfileToPackageRegistry (
     // Seems like this field should always contain a relative path
     let packageLocation = normalizePath(path.relative(opts.lockfileDir, path.join(
       opts.virtualStoreDir,
-      depPathToFilename(relDepPath),
+      depPathToFilename(relDepPath, opts.virtualStoreDirMaxLength),
       'node_modules',
       name
     )))
@@ -131,6 +132,6 @@ function toPackageDependenciesMap (
 
 function toPnPVersion (version: string, peersSuffix: string | undefined) {
   return peersSuffix
-    ? `virtual:${version}_${peersSuffix}#${version}`
+    ? `virtual:${version}${peersSuffix}#${version}`
     : version
 }

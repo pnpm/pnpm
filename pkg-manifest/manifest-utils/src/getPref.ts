@@ -2,7 +2,7 @@ import { PnpmError } from '@pnpm/error'
 
 export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
 
-export const getPrefix = (alias: string, name: string) => alias !== name ? `npm:${name}@` : ''
+export const getPrefix = (alias: string, name: string): string => alias !== name ? `npm:${name}@` : ''
 
 export function getPref (
   alias: string,
@@ -11,12 +11,12 @@ export function getPref (
   opts: {
     pinnedVersion?: PinnedVersion
   }
-) {
+): string {
   const prefix = getPrefix(alias, name)
   return `${prefix}${createVersionSpec(version, { pinnedVersion: opts.pinnedVersion })}`
 }
 
-export function createVersionSpec (version: string | undefined, opts: { pinnedVersion?: PinnedVersion, rolling?: boolean }) {
+export function createVersionSpec (version: string | undefined, opts: { pinnedVersion?: PinnedVersion, rolling?: boolean }): string {
   switch (opts.pinnedVersion ?? 'major') {
   case 'none':
   case 'major':

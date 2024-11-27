@@ -13,10 +13,10 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
-      "path": "../../lockfile/prune-lockfile"
+      "path": "../../lockfile/pruner"
     },
     {
       "path": "../../pkg-manifest/exportable-manifest"
@@ -31,8 +31,10 @@
       "path": "../error"
     },
     {
+      "path": "../logger"
+    },
+    {
       "path": "../types"
     }
-  ],
-  "composite": true
+  ]
 }

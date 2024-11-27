@@ -1,6 +1,6 @@
 {
-  "name": "@pnpm/cafs",
-  "version": "7.0.4",
+  "name": "@pnpm/store.cafs",
+  "version": "4.0.2",
   "description": "A content-addressable filesystem for the packages storage",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -12,41 +12,35 @@
     "prepublishOnly": "pnpm run compile"
   },
   "keywords": [
-    "pnpm8"
+    "pnpm10"
   ],
   "license": "MIT",
   "dependencies": {
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
-    "@zkochan/rimraf": "^2.1.2",
-    "concat-stream": "^2.0.0",
-    "get-stream": "^6.0.1",
-    "gunzip-maybe": "1.4.2",
-    "p-limit": "^3.1.0",
-    "path-temp": "^2.0.0",
-    "rename-overwrite": "^4.0.3",
-    "ssri": "10.0.4",
-    "strip-bom": "^4.0.0",
-    "tar-stream": "^2.2.0"
+    "@zkochan/rimraf": "catalog:",
+    "is-gzip": "catalog:",
+    "p-limit": "catalog:",
+    "rename-overwrite": "catalog:",
+    "ssri": "catalog:",
+    "strip-bom": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/cafs": "workspace:*",
     "@pnpm/cafs-types": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@types/concat-stream": "^2.0.0",
-    "@types/gunzip-maybe": "1.4.0",
-    "@types/node": "^14.18.52",
-    "@types/ssri": "^7.1.1",
-    "@types/tar-stream": "^2.2.2",
-    "p-defer": "^3.0.0",
-    "tempy": "^1.0.1"
+    "@types/is-gzip": "catalog:",
+    "@types/node": "catalog:",
+    "@types/ssri": "catalog:",
+    "symlink-dir": "catalog:",
+    "tempy": "catalog:"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "files": [
     "lib",
@@ -57,5 +51,8 @@
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }
