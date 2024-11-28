@@ -44,6 +44,11 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         ...(manifest.keywords ?? []).filter((keyword) => !/^pnpm[0-9]+$/.test(keyword)),
       ]
       if (manifest.name !== CLI_PKG_NAME) {
+        const smallestAllowedLibVersion = Number(pnpmMajorNumber) * 100
+        const libMajorVersion = Number(manifest.version!.split('.')[0])
+        if (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100) {
+          manifest.version = `${smallestAllowedLibVersion}.0.0`
+        }
         for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
           if (!manifest[depType]) continue
           for (const depName of Object.keys(manifest[depType] ?? {})) {
