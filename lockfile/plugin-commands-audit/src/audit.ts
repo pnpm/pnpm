@@ -1,4 +1,4 @@
-import { audit, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoreAuditVulnerabilityCounts } from '@pnpm/audit'
+import { audit, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts } from '@pnpm/audit'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config'
@@ -210,7 +210,7 @@ ${JSON.stringify(newOverrides, null, 2)}`,
     }
   }
   const vulnerabilities = auditReport.metadata.vulnerabilities
-  const ignoreVulnerabilities: IgnoreAuditVulnerabilityCounts = {
+  const ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts = {
     low: 0,
     moderate: 0,
     high: 0,
@@ -225,7 +225,7 @@ ${JSON.stringify(newOverrides, null, 2)}`,
       if (!ignoreGhsas.includes(github_advisory_id)) {
         return true
       }
-      ignoreVulnerabilities[severity as AuditLevelString] += 1
+      ignoredVulnerabilities[severity as AuditLevelString] += 1
       return false
     }, auditReport.advisories)
   }
@@ -235,7 +235,7 @@ ${JSON.stringify(newOverrides, null, 2)}`,
       if (cves.length === 0 || difference(cves, ignoreCves).length > 0) {
         return true
       }
-      ignoreVulnerabilities[severity as AuditLevelString] += 1
+      ignoredVulnerabilities[severity as AuditLevelString] += 1
       return false
     }, auditReport.advisories)
   }
@@ -275,16 +275,16 @@ ${JSON.stringify(newOverrides, null, 2)}`,
   }
   return {
     exitCode: output ? 1 : 0,
-    output: `${output}${reportSummary(auditReport.metadata.vulnerabilities, totalVulnerabilityCount, ignoreVulnerabilities)}`,
+    output: `${output}${reportSummary(auditReport.metadata.vulnerabilities, totalVulnerabilityCount, ignoredVulnerabilities)}`,
   }
 }
 
-function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number, ignoreVulnerabilities: IgnoreAuditVulnerabilityCounts): string {
+function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number, ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts): string {
   if (totalVulnerabilityCount === 0) return 'No known vulnerabilities found\n'
   return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
     Object.entries(vulnerabilities)
       .filter(([auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
-      .map(([auditLevel, vulnerabilitiesCount]) => AUDIT_COLOR[auditLevel as AuditLevelString](`${vulnerabilitiesCount as string} ${auditLevel}${ignoreVulnerabilities[auditLevel as AuditLevelString] > 0 ? ` (${ignoreVulnerabilities[auditLevel as AuditLevelString]} ignored)` : ''}`))
+      .map(([auditLevel, vulnerabilitiesCount]) => AUDIT_COLOR[auditLevel as AuditLevelString](`${vulnerabilitiesCount as string} ${auditLevel}${ignoredVulnerabilities[auditLevel as AuditLevelString] > 0 ? ` (${ignoredVulnerabilities[auditLevel as AuditLevelString]} ignored)` : ''}`))
       .join(' | ')
   }`
 }
