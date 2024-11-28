@@ -1,5 +1,12 @@
 # @pnpm/local-resolver
 
+## 12.0.10
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+- @pnpm/read-project-manifest@6.0.10
+
 ## 12.0.9
 
 ### Patch Changes

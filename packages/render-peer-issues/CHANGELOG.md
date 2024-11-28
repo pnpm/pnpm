@@ -1,5 +1,13 @@
 # @pnpm/render-peer-issues
 
+## 5.0.10
+
+### Patch Changes
+
+- ee5dde3: Don't fail to render missing peer dependencies, when the parents field is an empty array.
+  - @pnpm/error@6.0.3
+  - @pnpm/parse-overrides@5.1.2
+
 ## 5.0.9
 
 ### Patch Changes

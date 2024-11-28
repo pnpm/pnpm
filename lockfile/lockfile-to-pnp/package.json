@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-to-pnp",
-  "version": "4.1.14",
+  "version": "4.1.15",
   "description": "Creates a Plug'n'Play file from a pnpm-lock.yaml",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

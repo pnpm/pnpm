@@ -1,5 +1,31 @@
 # @pnpm/resolve-dependencies
 
+## 36.0.7
+
+### Patch Changes
+
+- 5b91ec4: Don't duplicate leaf nodes in dependenciesTree.
+- ee5dde3: Fix `Cannot read properties of undefined (reading 'name')` that is printed while trying to render the missing peer dependencies warning message [#8538](https://github.com/pnpm/pnpm/issues/8538).
+- 52d2965: Fixed some edge cases where resolving circular peer dependencies caused a dead lock [#8720](https://github.com/pnpm/pnpm/issues/8720).
+- bd01a2a: Detection of circular peer dependencies should not crash with aliased dependencies [#8759](https://github.com/pnpm/pnpm/issues/8759). Fixes a regression introduced in the previous version.
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [dcd2917]
+- Updated dependencies [501c152]
+- Updated dependencies [d55b259]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/npm-resolver@22.0.0
+  - @pnpm/lockfile.pruner@0.0.7
+  - @pnpm/error@6.0.3
+  - @pnpm/lockfile.utils@1.0.5
+  - @pnpm/store-controller-types@18.1.6
+  - @pnpm/catalogs.resolver@0.1.2
+  - @pnpm/manifest-utils@6.0.10
+  - @pnpm/read-package-json@9.0.10
+  - @pnpm/lockfile.preferred-versions@1.0.15
+
 ## 36.0.6
 
 ### Patch Changes

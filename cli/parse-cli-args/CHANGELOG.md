@@ -1,5 +1,12 @@
 # @pnpm/parse-cli-args
 
+## 8.0.4
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+- @pnpm/find-workspace-dir@7.0.3
+
 ## 8.0.3
 
 ### Patch Changes

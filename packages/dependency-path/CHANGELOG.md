@@ -1,5 +1,17 @@
 # @pnpm/dependency-path
 
+## 6.0.0
+
+### Major Changes
+
+- dcd2917: Use sha256 for hashing long paths inside `node_modules/.pnpm`.
+- d55b259: Escape the `#` character in directory names within the virtual store (`node_modules/.pnpm`) [#8557](https://github.com/pnpm/pnpm/pull/8557).
+
+### Patch Changes
+
+- Updated dependencies [dcd2917]
+  - @pnpm/crypto.hash@1.0.0
+
 ## 5.1.7
 
 ### Patch Changes

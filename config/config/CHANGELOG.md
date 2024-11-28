@@ -1,5 +1,37 @@
 # @pnpm/config
 
+## 22.0.0
+
+### Major Changes
+
+- 477e0c1: The `pnpm link` command adds overrides to the root `package.json`. In a workspace the override is added to the root of the workspace, so it links the dependency to all projects in a workspace.
+
+  To link a package globally, just run `pnpm link` from the package's directory. Previously, the command `pnpm link -g` was required to link a package globally.
+
+  Related PR: [#8653](https://github.com/pnpm/pnpm/pull/8653).
+
+- dfcf034: pnpm will now manage it's own versions according to the `packageManager` filed of `package.json`. To disable this, set `manage-package-manager-versions` to `false`.
+- 592e2ef: Do not hoist to the root of `node_modules` packages that contain the word `eslint` or `prettier` in their name. Changed the default value of the `public-hoist-pattern` setting [#8378](https://github.com/pnpm/pnpm/issues/8378).
+- e9985b6: The default value of `virtual-store-dir-max-length` on Windows reduced to 60 characters.
+
+### Minor Changes
+
+- 19d5b51: Add a feature to check dependencies before running scripts [#8585](https://github.com/pnpm/pnpm/issues/8585).
+
+### Patch Changes
+
+- 1dbc56a: Convert settings in local `.npmrc` files to their correct types. For instance, `child-concurrency` should be a number, not a string [#5075](https://github.com/pnpm/pnpm/issues/5075).
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [bcffd4d]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/pnpmfile@7.0.0
+  - @pnpm/error@6.0.3
+  - @pnpm/workspace.read-manifest@2.2.2
+  - @pnpm/catalogs.config@0.1.2
+  - @pnpm/read-project-manifest@6.0.10
+
 ## 21.8.5
 
 ### Patch Changes

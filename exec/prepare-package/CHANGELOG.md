@@ -1,5 +1,13 @@
 # @pnpm/prepare-package
 
+## 6.0.15
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+- @pnpm/lifecycle@17.1.6
+- @pnpm/read-package-json@9.0.10
+
 ## 6.0.14
 
 ### Patch Changes

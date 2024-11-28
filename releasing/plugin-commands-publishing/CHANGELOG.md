@@ -1,5 +1,31 @@
 # @pnpm/plugin-commands-publishing
 
+## 10.1.0
+
+### Minor Changes
+
+- 2f210d9: Added support for `pnpm pack --json` to print packed tarball and contents in JSON format [#8765](https://github.com/pnpm/pnpm/pull/8765).
+
+### Patch Changes
+
+- b3333fb: Display packed files list in `pnpm pack`
+- 29447d7: `pnpm publish --json` should work [#8788](https://github.com/pnpm/pnpm/issues/8788).
+- Updated dependencies [477e0c1]
+- Updated dependencies [dfcf034]
+- Updated dependencies [592e2ef]
+- Updated dependencies [19d5b51]
+- Updated dependencies [1dbc56a]
+- Updated dependencies [e9985b6]
+- Updated dependencies [39c5385]
+  - @pnpm/config@22.0.0
+  - @pnpm/plugin-commands-env@5.1.12
+  - @pnpm/error@6.0.3
+  - @pnpm/cli-utils@4.0.8
+  - @pnpm/lifecycle@17.1.6
+  - @pnpm/network.auth-header@3.0.3
+  - @pnpm/exportable-manifest@7.0.7
+  - @pnpm/client@11.1.13
+
 ## 10.0.12
 
 ### Patch Changes

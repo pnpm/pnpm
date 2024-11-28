@@ -1,5 +1,11 @@
 # @pnpm/catalogs.resolver
 
+## 0.1.2
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+
 ## 0.1.1
 
 ### Patch Changes

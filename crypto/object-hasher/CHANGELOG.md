@@ -1,5 +1,11 @@
 # @pnpm/crypto.object-hasher
 
+## 3.0.0
+
+### Major Changes
+
+- 501c152: Use SHA256 encoded in base64 to hash objects.
+
 ## 2.0.0
 
 ### Major Changes

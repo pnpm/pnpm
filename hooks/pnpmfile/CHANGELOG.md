@@ -1,5 +1,18 @@
 # @pnpm/pnpmfile
 
+## 7.0.0
+
+### Major Changes
+
+- bcffd4d: Use SHA256 for storing the pnpmfile checksum in the lockfile [#8530](https://github.com/pnpm/pnpm/pull/8530).
+
+### Patch Changes
+
+- Updated dependencies [dcd2917]
+  - @pnpm/crypto.hash@1.0.0
+  - @pnpm/error@6.0.3
+  - @pnpm/store-controller-types@18.1.6
+
 ## 6.0.13
 
 ### Patch Changes

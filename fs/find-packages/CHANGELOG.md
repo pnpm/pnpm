@@ -1,5 +1,11 @@
 # @pnpm/fs.find-packages
 
+## 4.0.6
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@6.0.10
+
 ## 4.0.5
 
 ### Patch Changes

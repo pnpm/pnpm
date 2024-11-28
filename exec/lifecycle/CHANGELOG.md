@@ -1,5 +1,15 @@
 # @pnpm/lifecycle
 
+## 17.1.6
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+- @pnpm/store-controller-types@18.1.6
+- @pnpm/link-bins@10.0.12
+- @pnpm/read-package-json@9.0.10
+- @pnpm/directory-fetcher@8.0.10
+
 ## 17.1.5
 
 ### Patch Changes

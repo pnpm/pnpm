@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-setup
 
+## 5.1.14
+
+### Patch Changes
+
+- c64d36c: `pnpm setup` should remove the CLI from the target location before moving the new binary [#8173](https://github.com/pnpm/pnpm/issues/8173).
+  - @pnpm/cli-utils@4.0.8
+
 ## 5.1.13
 
 ### Patch Changes

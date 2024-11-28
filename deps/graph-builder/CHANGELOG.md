@@ -1,5 +1,22 @@
 # @pnpm/deps.graph-builder
 
+## 2.0.6
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [dcd2917]
+- Updated dependencies [e476b07]
+- Updated dependencies [d55b259]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/package-is-installable@9.0.12
+  - @pnpm/lockfile.fs@1.0.6
+  - @pnpm/lockfile.utils@1.0.5
+  - @pnpm/store-controller-types@18.1.6
+
 ## 2.0.5
 
 ### Patch Changes

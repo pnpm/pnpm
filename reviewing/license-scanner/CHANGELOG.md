@@ -1,5 +1,38 @@
 # @pnpm/license-scanner
 
+## 4.0.0
+
+### Major Changes
+
+- d433cb9: Some registries allow identical content to be published under different package names or versions. To accommodate this, index files in the store are now stored using both the content hash and package identifier.
+
+  This approach ensures that we can:
+
+  1. Validate that the integrity in the lockfile corresponds to the correct package,
+     which might not be the case after a poorly resolved Git conflict.
+  2. Allow the same content to be referenced by different packages or different versions of the same package.
+
+  Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
+  Related issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
+
+### Patch Changes
+
+- Updated dependencies [dcd2917]
+- Updated dependencies [d433cb9]
+- Updated dependencies [e476b07]
+- Updated dependencies [099e6af]
+- Updated dependencies [d55b259]
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/store.cafs@5.0.0
+  - @pnpm/package-is-installable@9.0.12
+  - @pnpm/lockfile.fs@1.0.6
+  - @pnpm/error@6.0.3
+  - @pnpm/lockfile.detect-dep-types@2.0.10
+  - @pnpm/lockfile.utils@1.0.5
+  - @pnpm/lockfile.walker@1.0.5
+  - @pnpm/read-package-json@9.0.10
+  - @pnpm/directory-fetcher@8.0.10
+
 ## 3.1.17
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.read-manifest",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "Reads a workspace manifest file",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

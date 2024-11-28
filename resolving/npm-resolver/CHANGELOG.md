@@ -1,5 +1,21 @@
 # @pnpm/npm-resolver
 
+## 22.0.0
+
+### Major Changes
+
+- 501c152: Use SHA256 to encode the package name of a package that has upper case letters in its name.
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [dcd2917]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/crypto.hash@1.0.0
+  - @pnpm/error@6.0.3
+
 ## 21.1.1
 
 ### Patch Changes

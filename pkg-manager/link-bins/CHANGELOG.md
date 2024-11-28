@@ -1,5 +1,14 @@
 # @pnpm/link-bins
 
+## 10.0.12
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+- @pnpm/manifest-utils@6.0.10
+- @pnpm/read-package-json@9.0.10
+- @pnpm/read-project-manifest@6.0.10
+
 ## 10.0.11
 
 ### Patch Changes

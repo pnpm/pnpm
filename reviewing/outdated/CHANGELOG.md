@@ -1,5 +1,28 @@
 # @pnpm/outdated
 
+## 15.1.8
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [dcd2917]
+- Updated dependencies [7fb4371]
+- Updated dependencies [501c152]
+- Updated dependencies [d55b259]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/hooks.read-package-hook@6.0.0
+  - @pnpm/npm-resolver@22.0.0
+  - @pnpm/lockfile.fs@1.0.6
+  - @pnpm/error@6.0.3
+  - @pnpm/lockfile.utils@1.0.5
+  - @pnpm/catalogs.resolver@0.1.2
+  - @pnpm/parse-overrides@5.1.2
+  - @pnpm/manifest-utils@6.0.10
+  - @pnpm/client@11.1.13
+
 ## 15.1.7
 
 ### Patch Changes

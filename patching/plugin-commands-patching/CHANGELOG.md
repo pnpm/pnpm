@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-patching
 
+## 6.4.15
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [477e0c1]
+- Updated dependencies [dfcf034]
+- Updated dependencies [592e2ef]
+- Updated dependencies [19d5b51]
+- Updated dependencies [19d5b51]
+- Updated dependencies [1dbc56a]
+- Updated dependencies [6b27c81]
+- Updated dependencies [e9985b6]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/plugin-commands-installation@18.0.0
+  - @pnpm/config@22.0.0
+  - @pnpm/lockfile.fs@1.0.6
+  - @pnpm/error@6.0.3
+  - @pnpm/cli-utils@4.0.8
+  - @pnpm/store-connection-manager@8.4.3
+  - @pnpm/lockfile.utils@1.0.5
+  - @pnpm/patching.apply-patch@3.1.2
+  - @pnpm/read-package-json@9.0.10
+  - @pnpm/read-project-manifest@6.0.10
+
 ## 6.4.14
 
 ### Patch Changes

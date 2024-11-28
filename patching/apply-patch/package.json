@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/patching.apply-patch",
-  "version": "3.1.1",
+  "version": "3.1.2",
   "description": "Apply a patch to a directory",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -1,5 +1,27 @@
 # @pnpm/store.cafs
 
+## 5.0.0
+
+### Major Changes
+
+- d433cb9: Some registries allow identical content to be published under different package names or versions. To accommodate this, index files in the store are now stored using both the content hash and package identifier.
+
+  This approach ensures that we can:
+
+  1. Validate that the integrity in the lockfile corresponds to the correct package,
+     which might not be the case after a poorly resolved Git conflict.
+  2. Allow the same content to be referenced by different packages or different versions of the same package.
+
+  Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
+  Related issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
+
+- 099e6af: Changed the structure of the index files in the store to store side effects cache information more efficiently. In the new version, side effects do not list all the files of the package but just the differences [#8636](https://github.com/pnpm/pnpm/pull/8636).
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.7
+- @pnpm/store-controller-types@18.1.6
+
 ## 4.0.2
 
 ### Patch Changes

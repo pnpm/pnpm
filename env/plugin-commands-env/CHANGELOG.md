@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-env
 
+## 5.1.12
+
+### Patch Changes
+
+- 39c5385: Some commands should ignore the `packageManager` field check of `package.json` [#7959](https://github.com/pnpm/pnpm/issues/7959).
+- Updated dependencies [477e0c1]
+- Updated dependencies [dfcf034]
+- Updated dependencies [592e2ef]
+- Updated dependencies [19d5b51]
+- Updated dependencies [e476b07]
+- Updated dependencies [1dbc56a]
+- Updated dependencies [e9985b6]
+  - @pnpm/config@22.0.0
+  - @pnpm/env.system-node-version@1.0.1
+  - @pnpm/error@6.0.3
+  - @pnpm/store-path@9.0.3
+  - @pnpm/cli-utils@4.0.8
+  - @pnpm/node.fetcher@4.0.17
+  - @pnpm/node.resolver@3.0.17
+  - @pnpm/remove-bins@6.0.10
+
 ## 5.1.11
 
 ### Patch Changes

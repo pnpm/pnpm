@@ -1,5 +1,25 @@
 # @pnpm/lockfile.verification
 
+## 1.1.0
+
+### Minor Changes
+
+- 19d5b51: Export `linkedPackagesAreUpToDate` and `getWorkspacePackagesByDirectory`
+
+### Patch Changes
+
+- Updated dependencies [dcd2917]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [d55b259]
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/get-context@13.0.0
+  - @pnpm/lockfile.utils@1.0.5
+  - @pnpm/read-package-json@9.0.10
+
 ## 1.0.6
 
 ### Patch Changes

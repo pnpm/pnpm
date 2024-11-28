@@ -1,5 +1,46 @@
 # @pnpm/plugin-commands-script-runners
 
+## 13.0.0
+
+### Major Changes
+
+- 74c6dd3: `pnpm test` should pass all the params after the `test` keyword to the underlying script. This is similar to how `pnpm run test` works [#8619](https://github.com/pnpm/pnpm/pull/8619).
+- 7d7c51e: The `dlx` command should always resolve packages to their exact versions and use those exact versions to create a cache key. This way `dlx` will always install the newest versions of the directly requested packages.
+- f10256d: Update dlx cache key to use SHA256.
+
+### Minor Changes
+
+- 19d5b51: Add a feature to check dependencies before running scripts [#8585](https://github.com/pnpm/pnpm/issues/8585).
+
+### Patch Changes
+
+- ef7c102: `pnpm exec` should print a meaningful error message when no command is provided [#8752](https://github.com/pnpm/pnpm/issues/8752).
+- f76ff63: Fix race condition of symlink creations caused by multiple parallel `dlx` processes.
+- 39c5385: Some commands should ignore the `packageManager` field check of `package.json` [#7959](https://github.com/pnpm/pnpm/issues/7959).
+- Updated dependencies [477e0c1]
+- Updated dependencies [19d5b51]
+- Updated dependencies [dcd2917]
+- Updated dependencies [dfcf034]
+- Updated dependencies [592e2ef]
+- Updated dependencies [19d5b51]
+- Updated dependencies [19d5b51]
+- Updated dependencies [1dbc56a]
+- Updated dependencies [6b27c81]
+- Updated dependencies [e9985b6]
+- Updated dependencies [39c5385]
+  - @pnpm/plugin-commands-installation@18.0.0
+  - @pnpm/config@22.0.0
+  - @pnpm/deps.status@1.0.0
+  - @pnpm/crypto.hash@1.0.0
+  - @pnpm/plugin-commands-env@5.1.12
+  - @pnpm/error@6.0.3
+  - @pnpm/store-path@9.0.3
+  - @pnpm/cli-utils@4.0.8
+  - @pnpm/lifecycle@17.1.6
+  - @pnpm/read-package-json@9.0.10
+  - @pnpm/read-project-manifest@6.0.10
+  - @pnpm/client@11.1.13
+
 ## 12.0.10
 
 ### Patch Changes

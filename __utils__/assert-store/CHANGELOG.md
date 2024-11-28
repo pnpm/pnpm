@@ -1,5 +1,26 @@
 # @pnpm/assert-store
 
+## 2.0.0
+
+### Major Changes
+
+- d433cb9: Some registries allow identical content to be published under different package names or versions. To accommodate this, index files in the store are now stored using both the content hash and package identifier.
+
+  This approach ensures that we can:
+
+  1. Validate that the integrity in the lockfile corresponds to the correct package,
+     which might not be the case after a poorly resolved Git conflict.
+  2. Allow the same content to be referenced by different packages or different versions of the same package.
+
+  Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
+  Related issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
+
+### Patch Changes
+
+- Updated dependencies [d433cb9]
+- Updated dependencies [099e6af]
+  - @pnpm/store.cafs@5.0.0
+
 ## 1.0.92
 
 ### Patch Changes

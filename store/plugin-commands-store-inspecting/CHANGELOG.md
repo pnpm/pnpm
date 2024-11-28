@@ -1,5 +1,41 @@
 # @pnpm/plugin-commands-store-inspecting
 
+## 1.0.0
+
+### Major Changes
+
+- 099e6af: Changed the structure of the index files in the store to store side effects cache information more efficiently. In the new version, side effects do not list all the files of the package but just the differences [#8636](https://github.com/pnpm/pnpm/pull/8636).
+
+### Minor Changes
+
+- d433cb9: Some registries allow identical content to be published under different package names or versions. To accommodate this, index files in the store are now stored using both the content hash and package identifier.
+
+  This approach ensures that we can:
+
+  1. Validate that the integrity in the lockfile corresponds to the correct package,
+     which might not be the case after a poorly resolved Git conflict.
+  2. Allow the same content to be referenced by different packages or different versions of the same package.
+
+  Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
+  Related issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
+
+### Patch Changes
+
+- 39c5385: Some commands should ignore the `packageManager` field check of `package.json` [#7959](https://github.com/pnpm/pnpm/issues/7959).
+- Updated dependencies [477e0c1]
+- Updated dependencies [dfcf034]
+- Updated dependencies [592e2ef]
+- Updated dependencies [19d5b51]
+- Updated dependencies [d433cb9]
+- Updated dependencies [1dbc56a]
+- Updated dependencies [099e6af]
+- Updated dependencies [e9985b6]
+  - @pnpm/config@22.0.0
+  - @pnpm/store.cafs@5.0.0
+  - @pnpm/error@6.0.3
+  - @pnpm/store-path@9.0.3
+  - @pnpm/client@11.1.13
+
 ## 0.2.24
 
 ### Patch Changes

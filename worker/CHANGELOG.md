@@ -1,5 +1,22 @@
 # @pnpm/worker
 
+## 2.0.0
+
+### Major Changes
+
+- 099e6af: Changed the structure of the index files in the store to store side effects cache information more efficiently. In the new version, side effects do not list all the files of the package but just the differences [#8636](https://github.com/pnpm/pnpm/pull/8636).
+
+### Patch Changes
+
+- Updated dependencies [d433cb9]
+- Updated dependencies [099e6af]
+  - @pnpm/store.cafs@5.0.0
+  - @pnpm/cafs-types@6.0.0
+  - @pnpm/error@6.0.3
+  - @pnpm/create-cafs-store@7.0.12
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/symlink-dependency@8.0.8
+
 ## 1.0.13
 
 ### Patch Changes

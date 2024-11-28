@@ -1,5 +1,49 @@
 # @pnpm/plugin-commands-store
 
+## 10.0.0
+
+### Major Changes
+
+- d433cb9: Some registries allow identical content to be published under different package names or versions. To accommodate this, index files in the store are now stored using both the content hash and package identifier.
+
+  This approach ensures that we can:
+
+  1. Validate that the integrity in the lockfile corresponds to the correct package,
+     which might not be the case after a poorly resolved Git conflict.
+  2. Allow the same content to be referenced by different packages or different versions of the same package.
+
+  Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
+  Related issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
+
+### Patch Changes
+
+- 39c5385: Some commands should ignore the `packageManager` field check of `package.json` [#7959](https://github.com/pnpm/pnpm/issues/7959).
+- Updated dependencies [477e0c1]
+- Updated dependencies [dcd2917]
+- Updated dependencies [dfcf034]
+- Updated dependencies [592e2ef]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [19d5b51]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [d433cb9]
+- Updated dependencies [1dbc56a]
+- Updated dependencies [099e6af]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [e9985b6]
+- Updated dependencies [d55b259]
+  - @pnpm/config@22.0.0
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/get-context@13.0.0
+  - @pnpm/store.cafs@5.0.0
+  - @pnpm/error@6.0.3
+  - @pnpm/store-path@9.0.3
+  - @pnpm/cli-utils@4.0.8
+  - @pnpm/store-connection-manager@8.4.3
+  - @pnpm/lockfile.utils@1.0.5
+  - @pnpm/store-controller-types@18.1.6
+
 ## 9.2.15
 
 ### Patch Changes

@@ -1,5 +1,67 @@
 # @pnpm/plugin-commands-installation
 
+## 18.0.0
+
+### Major Changes
+
+- 477e0c1: The `pnpm link` command adds overrides to the root `package.json`. In a workspace the override is added to the root of the workspace, so it links the dependency to all projects in a workspace.
+
+  To link a package globally, just run `pnpm link` from the package's directory. Previously, the command `pnpm link -g` was required to link a package globally.
+
+  Related PR: [#8653](https://github.com/pnpm/pnpm/pull/8653).
+
+- 6b27c81: `pnpm add --global pnpm` or (`pnpm add --global @pnpm/exe`) fails with an error suggesting to use `pnpm self-update`.
+
+### Minor Changes
+
+- 19d5b51: Save a cache of packages list on every recursive install
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [477e0c1]
+- Updated dependencies [19d5b51]
+- Updated dependencies [dfcf034]
+- Updated dependencies [501c152]
+- Updated dependencies [592e2ef]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [bcffd4d]
+- Updated dependencies [7cd0d20]
+- Updated dependencies [19d5b51]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [d433cb9]
+- Updated dependencies [1dbc56a]
+- Updated dependencies [099e6af]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [e9985b6]
+- Updated dependencies [39c5385]
+- Updated dependencies [d55b259]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/core@16.0.0
+  - @pnpm/config@22.0.0
+  - @pnpm/workspace.state@1.0.0
+  - @pnpm/get-context@13.0.0
+  - @pnpm/pnpmfile@7.0.0
+  - @pnpm/plugin-commands-rebuild@13.0.0
+  - @pnpm/package-store@21.0.0
+  - @pnpm/plugin-commands-env@5.1.12
+  - @pnpm/error@6.0.3
+  - @pnpm/outdated@15.1.8
+  - @pnpm/cli-utils@4.0.8
+  - @pnpm/store-connection-manager@8.4.3
+  - @pnpm/workspace.pkgs-graph@4.0.8
+  - @pnpm/dedupe.check@2.0.12
+  - @pnpm/manifest-utils@6.0.10
+  - @pnpm/read-project-manifest@6.0.10
+  - @pnpm/filter-workspace-packages@10.0.13
+  - @pnpm/find-workspace-dir@7.0.3
+  - @pnpm/workspace.find-packages@4.0.13
+
 ## 17.2.7
 
 ### Patch Changes

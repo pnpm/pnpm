@@ -1,5 +1,15 @@
 # @pnpm/store-path
 
+## 9.0.3
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/error@6.0.3
+
 ## 9.0.2
 
 ### Patch Changes

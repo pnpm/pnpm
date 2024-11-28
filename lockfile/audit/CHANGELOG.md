@@ -1,5 +1,16 @@
 # @pnpm/audit
 
+## 8.2.3
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+- @pnpm/lockfile.detect-dep-types@2.0.10
+- @pnpm/lockfile.utils@1.0.5
+- @pnpm/lockfile.walker@1.0.5
+- @pnpm/read-project-manifest@6.0.10
+- @pnpm/list@10.2.3
+
 ## 8.2.2
 
 ### Patch Changes

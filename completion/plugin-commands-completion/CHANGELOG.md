@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-completion
 
+## 1.0.24
+
+### Patch Changes
+
+- 39c5385: Some commands should ignore the `packageManager` field check of `package.json` [#7959](https://github.com/pnpm/pnpm/issues/7959).
+  - @pnpm/error@6.0.3
+  - @pnpm/workspace.read-manifest@2.2.2
+  - @pnpm/cli-utils@4.0.8
+  - @pnpm/parse-cli-args@8.0.4
+  - @pnpm/find-workspace-dir@7.0.3
+  - @pnpm/workspace.find-packages@4.0.13
+
 ## 1.0.23
 
 ### Patch Changes

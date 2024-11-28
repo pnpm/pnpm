@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/env.system-node-version",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Detects the current system node version",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -1,5 +1,11 @@
 # @pnpm/tarball-resolver
 
+## 9.0.8
+
+### Patch Changes
+
+- 3be45b7: Fix `ERR_PNPM_TARBALL_EXTRACT` error while installing a dependency from GitHub having a slash in branch name [#7697](https://github.com/pnpm/pnpm/issues/7697).
+
 ## 9.0.7
 
 ### Patch Changes

@@ -1,5 +1,24 @@
 # @pnpm/get-context
 
+## 13.0.0
+
+### Major Changes
+
+- 9ea8fa4: Don't validate (and possibly purge) modules directory as a side effect of `getContext` and `getContextForSingleImporter` [#8657](https://github.com/pnpm/pnpm/pull/8657).
+- 9ea8fa4: `PnpmContext.hoistPattern` and `PnpmContext.publicHoistPattern` are no longer affected by modules directory state [#8657](https://github.com/pnpm/pnpm/pull/8657). Prior behavior can be recreated with the new properties `PnpmContext.currentHoistPattern` (`_.currentHoistPattern ?? _.hoistPattern`) and `PnpmContext.currentPublicHoistPattern` (`_.currentPublicHoistPattern ?? _.publicHoistPattern`).
+- 9ea8fa4: `PnpmSingleContext.hoistPattern` and `PnpmSingleContext.publicHoistPattern` are no longer affected by modules directory state [#8657](https://github.com/pnpm/pnpm/pull/8657).
+- 9ea8fa4: `UnexpectedStoreError` and `UnexpectedVirtualStoreDirError` are no longer exported [#8657](https://github.com/pnpm/pnpm/pull/8657). They can be imported from `@pnpm/core` instead.
+- 9ea8fa4: Argument `alreadyPurged` removed from `getContextForSingleImporter` [#8657](https://github.com/pnpm/pnpm/pull/8657).
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/lockfile.fs@1.0.6
+  - @pnpm/read-projects-context@9.1.14
+
 ## 12.0.7
 
 ### Patch Changes

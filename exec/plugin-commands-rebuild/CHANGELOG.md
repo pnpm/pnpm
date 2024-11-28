@@ -1,5 +1,57 @@
 # @pnpm/plugin-commands-rebuild
 
+## 13.0.0
+
+### Major Changes
+
+- d433cb9: Some registries allow identical content to be published under different package names or versions. To accommodate this, index files in the store are now stored using both the content hash and package identifier.
+
+  This approach ensures that we can:
+
+  1. Validate that the integrity in the lockfile corresponds to the correct package,
+     which might not be the case after a poorly resolved Git conflict.
+  2. Allow the same content to be referenced by different packages or different versions of the same package.
+
+  Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
+  Related issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [477e0c1]
+- Updated dependencies [dcd2917]
+- Updated dependencies [dfcf034]
+- Updated dependencies [592e2ef]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [19d5b51]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [d433cb9]
+- Updated dependencies [1dbc56a]
+- Updated dependencies [099e6af]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [e9985b6]
+- Updated dependencies [d55b259]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/config@22.0.0
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/get-context@13.0.0
+  - @pnpm/store.cafs@5.0.0
+  - @pnpm/worker@2.0.0
+  - @pnpm/calc-dep-state@7.0.11
+  - @pnpm/error@6.0.3
+  - @pnpm/cli-utils@4.0.8
+  - @pnpm/store-connection-manager@8.4.3
+  - @pnpm/lockfile.utils@1.0.5
+  - @pnpm/lockfile.walker@1.0.5
+  - @pnpm/store-controller-types@18.1.6
+  - @pnpm/lifecycle@17.1.6
+  - @pnpm/link-bins@10.0.12
+  - @pnpm/workspace.find-packages@4.0.13
+
 ## 12.1.2
 
 ### Patch Changes

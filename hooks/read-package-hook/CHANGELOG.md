@@ -1,5 +1,16 @@
 # @pnpm/hooks.read-package-hook
 
+## 6.0.0
+
+### Major Changes
+
+- 7fb4371: Update the compatibility database (`@yarnpkg/extensions` to v2.0.3). This might change your lockfile.
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+- @pnpm/parse-overrides@5.1.2
+
 ## 5.1.0
 
 ### Minor Changes

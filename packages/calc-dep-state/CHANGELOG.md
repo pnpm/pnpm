@@ -1,5 +1,20 @@
 # @pnpm/calc-dep-state
 
+## 7.0.11
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [dcd2917]
+- Updated dependencies [501c152]
+- Updated dependencies [d55b259]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/crypto.object-hasher@3.0.0
+  - @pnpm/lockfile.utils@1.0.5
+
 ## 7.0.10
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/default-resolver
 
+## 20.0.10
+
+### Patch Changes
+
+- Updated dependencies [3be45b7]
+- Updated dependencies [501c152]
+  - @pnpm/tarball-resolver@9.0.8
+  - @pnpm/npm-resolver@22.0.0
+  - @pnpm/error@6.0.3
+  - @pnpm/local-resolver@12.0.10
+
 ## 20.0.9
 
 ### Patch Changes

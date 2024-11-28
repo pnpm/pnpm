@@ -1,5 +1,15 @@
 # @pnpm/tarball-fetcher
 
+## 20.0.0
+
+### Patch Changes
+
+- Updated dependencies [099e6af]
+  - @pnpm/worker@2.0.0
+  - @pnpm/error@6.0.3
+  - @pnpm/fetcher-base@16.0.7
+  - @pnpm/prepare-package@6.0.15
+
 ## 19.0.16
 
 ### Patch Changes

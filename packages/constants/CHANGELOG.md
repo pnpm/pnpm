@@ -1,5 +1,16 @@
 # @pnpm/constants
 
+## 10.0.0
+
+### Major Changes
+
+- 8108680: Changed the format of the side-effects cache key.
+- c4f5231: Store version bumped to v10. The new store layout has a different directory called "index" for storing the package content mappings. Previously these files were stored in the same directory where the package contents are (in "files"). The new store has also a new format for storing the mappings for side-effects cache.
+
+### Minor Changes
+
+- 19d5b51: Add `MANIFEST_BASE_NAMES`
+
 ## 9.0.0
 
 ### Major Changes
