@@ -989,7 +989,7 @@ importers:
     dependencies:
       '@pnpm/workspace.find-packages':
         specifier: 4.0.6
-        version: 4.0.6(@pnpm/logger@packages+logger)
+        version: 4.0.6(@pnpm/logger@5.1.0)
       '@pnpm/workspace.read-manifest':
         specifier: 2.2.0
         version: 2.2.0
@@ -1007,8 +1007,8 @@ importers:
         version: 3.0.0
     devDependencies:
       '@pnpm/logger':
-        specifier: 'workspace:'
-        version: link:../../packages/logger
+        specifier: '5'
+        version: 5.1.0
       '@pnpm/scripts':
         specifier: workspace:*
         version: 'link:'
@@ -15419,6 +15419,20 @@ snapshots:
       '@pnpm/types': 12.0.0
       load-json-file: 6.2.0
 
+  '@pnpm/cli-utils@4.0.1(@pnpm/logger@5.1.0)':
+    dependencies:
+      '@pnpm/cli-meta': 6.1.0
+      '@pnpm/config': 21.8.0(@pnpm/logger@5.1.0)
+      '@pnpm/default-reporter': 13.1.12(@pnpm/logger@5.1.0)
+      '@pnpm/error': 6.0.1
+      '@pnpm/logger': 5.1.0
+      '@pnpm/manifest-utils': 6.0.6(@pnpm/logger@5.1.0)
+      '@pnpm/package-is-installable': 9.0.6(@pnpm/logger@5.1.0)
+      '@pnpm/read-project-manifest': 6.0.6
+      '@pnpm/types': 12.0.0
+      chalk: 4.1.2
+      load-json-file: 6.2.0
+
   '@pnpm/cli-utils@4.0.1(@pnpm/logger@5.2.0)':
     dependencies:
       '@pnpm/cli-meta': 6.1.0
@@ -15433,20 +15447,6 @@ snapshots:
       chalk: 4.1.2
       load-json-file: 6.2.0
 
-  '@pnpm/cli-utils@4.0.1(@pnpm/logger@packages+logger)':
-    dependencies:
-      '@pnpm/cli-meta': 6.1.0
-      '@pnpm/config': 21.8.0(@pnpm/logger@packages+logger)
-      '@pnpm/default-reporter': 13.1.12(@pnpm/logger@packages+logger)
-      '@pnpm/error': 6.0.1
-      '@pnpm/logger': link:packages/logger
-      '@pnpm/manifest-utils': 6.0.6(@pnpm/logger@packages+logger)
-      '@pnpm/package-is-installable': 9.0.6(@pnpm/logger@packages+logger)
-      '@pnpm/read-project-manifest': 6.0.6
-      '@pnpm/types': 12.0.0
-      chalk: 4.1.2
-      load-json-file: 6.2.0
-
   '@pnpm/colorize-semver-diff@1.0.1':
     dependencies:
       chalk: 4.1.2
@@ -15454,6 +15454,36 @@ snapshots:
   '@pnpm/config.env-replace@1.1.0': {}
 
   '@pnpm/config.env-replace@3.0.0': {}
+
+  '@pnpm/config@21.8.0(@pnpm/logger@5.1.0)':
+    dependencies:
+      '@pnpm/catalogs.config': 0.1.0
+      '@pnpm/catalogs.types': 0.1.0
+      '@pnpm/config.env-replace': 3.0.0
+      '@pnpm/constants': 8.0.0
+      '@pnpm/error': 6.0.1
+      '@pnpm/git-utils': 2.0.0
+      '@pnpm/matcher': 6.0.0
+      '@pnpm/npm-conf': 2.3.0
+      '@pnpm/pnpmfile': 6.0.9(@pnpm/logger@5.1.0)
+      '@pnpm/read-project-manifest': 6.0.6
+      '@pnpm/types': 12.0.0
+      '@pnpm/workspace.read-manifest': 2.2.0
+      better-path-resolve: 1.0.0
+      camelcase: 6.3.0
+      camelcase-keys: 6.2.2
+      can-write-to-dir: 1.1.1
+      is-subdir: 1.2.0
+      is-windows: 1.0.2
+      normalize-registry-url: 2.0.0
+      path-absolute: 1.0.1
+      path-name: 1.0.0
+      ramda: '@pnpm/ramda@0.28.1'
+      read-ini-file: 4.0.0
+      realpath-missing: 1.1.0
+      which: '@pnpm/which@3.0.1'
+    transitivePeerDependencies:
+      - '@pnpm/logger'
 
   '@pnpm/config@21.8.0(@pnpm/logger@5.2.0)':
     dependencies:
@@ -15485,48 +15515,18 @@ snapshots:
     transitivePeerDependencies:
       - '@pnpm/logger'
 
-  '@pnpm/config@21.8.0(@pnpm/logger@packages+logger)':
-    dependencies:
-      '@pnpm/catalogs.config': 0.1.0
-      '@pnpm/catalogs.types': 0.1.0
-      '@pnpm/config.env-replace': 3.0.0
-      '@pnpm/constants': 8.0.0
-      '@pnpm/error': 6.0.1
-      '@pnpm/git-utils': 2.0.0
-      '@pnpm/matcher': 6.0.0
-      '@pnpm/npm-conf': 2.3.0
-      '@pnpm/pnpmfile': 6.0.9(@pnpm/logger@packages+logger)
-      '@pnpm/read-project-manifest': 6.0.6
-      '@pnpm/types': 12.0.0
-      '@pnpm/workspace.read-manifest': 2.2.0
-      better-path-resolve: 1.0.0
-      camelcase: 6.3.0
-      camelcase-keys: 6.2.2
-      can-write-to-dir: 1.1.1
-      is-subdir: 1.2.0
-      is-windows: 1.0.2
-      normalize-registry-url: 2.0.0
-      path-absolute: 1.0.1
-      path-name: 1.0.0
-      ramda: '@pnpm/ramda@0.28.1'
-      read-ini-file: 4.0.0
-      realpath-missing: 1.1.0
-      which: '@pnpm/which@3.0.1'
-    transitivePeerDependencies:
-      - '@pnpm/logger'
-
   '@pnpm/constants@8.0.0': {}
 
   '@pnpm/constants@9.0.0': {}
 
+  '@pnpm/core-loggers@10.0.5(@pnpm/logger@5.1.0)':
+    dependencies:
+      '@pnpm/logger': 5.1.0
+      '@pnpm/types': 12.0.0
+
   '@pnpm/core-loggers@10.0.5(@pnpm/logger@5.2.0)':
     dependencies:
       '@pnpm/logger': 5.2.0
-      '@pnpm/types': 12.0.0
-
-  '@pnpm/core-loggers@10.0.5(@pnpm/logger@packages+logger)':
-    dependencies:
-      '@pnpm/logger': link:packages/logger
       '@pnpm/types': 12.0.0
 
   '@pnpm/crypto.base32-hash@3.0.0':
@@ -15541,15 +15541,15 @@ snapshots:
 
   '@pnpm/dedupe.types@2.0.0': {}
 
-  '@pnpm/default-reporter@13.1.12(@pnpm/logger@5.2.0)':
+  '@pnpm/default-reporter@13.1.12(@pnpm/logger@5.1.0)':
     dependencies:
       '@pnpm/cli-meta': 6.1.0
-      '@pnpm/config': 21.8.0(@pnpm/logger@5.2.0)
-      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.2.0)
+      '@pnpm/config': 21.8.0(@pnpm/logger@5.1.0)
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.1.0)
       '@pnpm/dedupe.issues-renderer': 2.0.0
       '@pnpm/dedupe.types': 2.0.0
       '@pnpm/error': 6.0.1
-      '@pnpm/logger': 5.2.0
+      '@pnpm/logger': 5.1.0
       '@pnpm/render-peer-issues': 5.0.6
       '@pnpm/types': 12.0.0
       ansi-diff: 1.2.0
@@ -15565,15 +15565,15 @@ snapshots:
       stacktracey: 2.1.8
       string-length: 4.0.2
 
-  '@pnpm/default-reporter@13.1.12(@pnpm/logger@packages+logger)':
+  '@pnpm/default-reporter@13.1.12(@pnpm/logger@5.2.0)':
     dependencies:
       '@pnpm/cli-meta': 6.1.0
-      '@pnpm/config': 21.8.0(@pnpm/logger@packages+logger)
-      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@packages+logger)
+      '@pnpm/config': 21.8.0(@pnpm/logger@5.2.0)
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.2.0)
       '@pnpm/dedupe.issues-renderer': 2.0.0
       '@pnpm/dedupe.types': 2.0.0
       '@pnpm/error': 6.0.1
-      '@pnpm/logger': link:packages/logger
+      '@pnpm/logger': 5.2.0
       '@pnpm/render-peer-issues': 5.0.6
       '@pnpm/types': 12.0.0
       ansi-diff: 1.2.0
@@ -15662,17 +15662,17 @@ snapshots:
       bole: 5.0.17
       ndjson: 2.0.0
 
-  '@pnpm/manifest-utils@6.0.6(@pnpm/logger@5.2.0)':
+  '@pnpm/manifest-utils@6.0.6(@pnpm/logger@5.1.0)':
     dependencies:
-      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.2.0)
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.1.0)
       '@pnpm/error': 6.0.1
       '@pnpm/types': 12.0.0
     transitivePeerDependencies:
       - '@pnpm/logger'
 
-  '@pnpm/manifest-utils@6.0.6(@pnpm/logger@packages+logger)':
+  '@pnpm/manifest-utils@6.0.6(@pnpm/logger@5.2.0)':
     dependencies:
-      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@packages+logger)
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.2.0)
       '@pnpm/error': 6.0.1
       '@pnpm/types': 12.0.0
     transitivePeerDependencies:
@@ -15781,24 +15781,24 @@ snapshots:
       '@pnpm/os.env.path-extender-posix': 2.0.0
       '@pnpm/os.env.path-extender-windows': 2.0.0
 
-  '@pnpm/package-is-installable@9.0.6(@pnpm/logger@5.2.0)':
+  '@pnpm/package-is-installable@9.0.6(@pnpm/logger@5.1.0)':
     dependencies:
       '@pnpm/cli-meta': 6.1.0
-      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.2.0)
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.1.0)
       '@pnpm/error': 6.0.1
-      '@pnpm/logger': 5.2.0
+      '@pnpm/logger': 5.1.0
       '@pnpm/types': 12.0.0
       detect-libc: 2.0.3
       execa: safe-execa@0.1.2
       mem: 8.1.1
       semver: 7.6.3
 
-  '@pnpm/package-is-installable@9.0.6(@pnpm/logger@packages+logger)':
+  '@pnpm/package-is-installable@9.0.6(@pnpm/logger@5.2.0)':
     dependencies:
       '@pnpm/cli-meta': 6.1.0
-      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@packages+logger)
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.2.0)
       '@pnpm/error': 6.0.1
-      '@pnpm/logger': link:packages/logger
+      '@pnpm/logger': 5.2.0
       '@pnpm/types': 12.0.0
       detect-libc: 2.0.3
       execa: safe-execa@0.1.2
@@ -15835,6 +15835,19 @@ snapshots:
 
   '@pnpm/patching.types@1.0.0': {}
 
+  '@pnpm/pnpmfile@6.0.9(@pnpm/logger@5.1.0)':
+    dependencies:
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.1.0)
+      '@pnpm/crypto.base32-hash': 3.0.0
+      '@pnpm/error': 6.0.1
+      '@pnpm/hooks.types': 2.0.7
+      '@pnpm/lockfile.types': 1.0.1
+      '@pnpm/logger': 5.1.0
+      '@pnpm/store-controller-types': 18.1.4
+      '@pnpm/types': 12.0.0
+      chalk: 4.1.2
+      path-absolute: 1.0.1
+
   '@pnpm/pnpmfile@6.0.9(@pnpm/logger@5.2.0)':
     dependencies:
       '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.2.0)
@@ -15843,19 +15856,6 @@ snapshots:
       '@pnpm/hooks.types': 2.0.7
       '@pnpm/lockfile.types': 1.0.1
       '@pnpm/logger': 5.2.0
-      '@pnpm/store-controller-types': 18.1.4
-      '@pnpm/types': 12.0.0
-      chalk: 4.1.2
-      path-absolute: 1.0.1
-
-  '@pnpm/pnpmfile@6.0.9(@pnpm/logger@packages+logger)':
-    dependencies:
-      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@packages+logger)
-      '@pnpm/crypto.base32-hash': 3.0.0
-      '@pnpm/error': 6.0.1
-      '@pnpm/hooks.types': 2.0.7
-      '@pnpm/lockfile.types': 1.0.1
-      '@pnpm/logger': link:packages/logger
       '@pnpm/store-controller-types': 18.1.4
       '@pnpm/types': 12.0.0
       chalk: 4.1.2
@@ -15947,19 +15947,19 @@ snapshots:
     dependencies:
       isexe: 2.0.0
 
+  '@pnpm/workspace.find-packages@4.0.6(@pnpm/logger@5.1.0)':
+    dependencies:
+      '@pnpm/cli-utils': 4.0.1(@pnpm/logger@5.1.0)
+      '@pnpm/fs.find-packages': 4.0.2
+      '@pnpm/logger': 5.1.0
+      '@pnpm/types': 12.0.0
+      '@pnpm/util.lex-comparator': 3.0.0
+
   '@pnpm/workspace.find-packages@4.0.6(@pnpm/logger@5.2.0)':
     dependencies:
       '@pnpm/cli-utils': 4.0.1(@pnpm/logger@5.2.0)
       '@pnpm/fs.find-packages': 4.0.2
       '@pnpm/logger': 5.2.0
-      '@pnpm/types': 12.0.0
-      '@pnpm/util.lex-comparator': 3.0.0
-
-  '@pnpm/workspace.find-packages@4.0.6(@pnpm/logger@packages+logger)':
-    dependencies:
-      '@pnpm/cli-utils': 4.0.1(@pnpm/logger@packages+logger)
-      '@pnpm/fs.find-packages': 4.0.2
-      '@pnpm/logger': link:packages/logger
       '@pnpm/types': 12.0.0
       '@pnpm/util.lex-comparator': 3.0.0
 
