@@ -10,6 +10,7 @@
   "dependencies": {
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/meta-updater": "catalog:",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/normalize-path": "catalog:",
     "is-subdir": "catalog:",

@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/patching/apply-patch#readme",
   "peerDependencies": {
-    "@pnpm/logger": "workspace:*"
+    "@pnpm/logger": ">=5.1.0 <901.0.0"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
