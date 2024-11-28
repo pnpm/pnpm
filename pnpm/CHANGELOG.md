@@ -1,5 +1,11 @@
 # pnpm
 
+## 9.14.3
+
+### Patch Changes
+
+- Some commands should ignore the `packageManager` field check of `package.json` [#7959](https://github.com/pnpm/pnpm/issues/7959).
+
 ## 9.14.2
 
 ### Patch Changes
