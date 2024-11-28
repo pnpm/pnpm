@@ -6,7 +6,7 @@ export interface AuditVulnerabilityCounts {
   critical: number
 }
 
-export interface IngoreAuditVulnerabilityCounts {
+export interface IgnoreAuditVulnerabilityCounts {
   low: number
   moderate: number
   high: number

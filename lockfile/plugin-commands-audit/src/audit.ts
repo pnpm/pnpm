@@ -1,4 +1,4 @@
-import { audit, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IngoreAuditVulnerabilityCounts } from '@pnpm/audit'
+import { audit, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoreAuditVulnerabilityCounts } from '@pnpm/audit'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config'
@@ -210,7 +210,7 @@ ${JSON.stringify(newOverrides, null, 2)}`,
     }
   }
   const vulnerabilities = auditReport.metadata.vulnerabilities
-  const ignoreVulnerabilities: IngoreAuditVulnerabilityCounts = {
+  const ignoreVulnerabilities: IgnoreAuditVulnerabilityCounts = {
     low: 0,
     moderate: 0,
     high: 0,
@@ -279,12 +279,12 @@ ${JSON.stringify(newOverrides, null, 2)}`,
   }
 }
 
-function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number, ignoreVulnerabilities: IngoreAuditVulnerabilityCounts): string {
+function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number, ignoreVulnerabilities: IgnoreAuditVulnerabilityCounts): string {
   if (totalVulnerabilityCount === 0) return 'No known vulnerabilities found\n'
   return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
     Object.entries(vulnerabilities)
       .filter(([auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
-      .map(([auditLevel, vulnerabilitiesCount]) => AUDIT_COLOR[auditLevel as AuditLevelString](`${vulnerabilitiesCount as string} ${auditLevel}${ ignoreVulnerabilities[auditLevel as AuditLevelString] > 0 ? ` (${ignoreVulnerabilities[auditLevel as AuditLevelString]} ignored)` : '' }`))
+      .map(([auditLevel, vulnerabilitiesCount]) => AUDIT_COLOR[auditLevel as AuditLevelString](`${vulnerabilitiesCount as string} ${auditLevel}${ignoreVulnerabilities[auditLevel as AuditLevelString] > 0 ? ` (${ignoreVulnerabilities[auditLevel as AuditLevelString]} ignored)` : '' }`))
       .join(' | ')
   }`
 }
