@@ -6,6 +6,13 @@ export interface AuditVulnerabilityCounts {
   critical: number
 }
 
+export interface IngoreAuditVulnerabilityCounts {
+  low: number
+  moderate: number
+  high: number
+  critical: number
+}
+
 export interface AuditResolution {
   id: number
   path: string
