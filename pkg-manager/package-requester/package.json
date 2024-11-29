@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "26.0.0",
+  "version": "1000.0.0",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/package-requester#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0",
+    "@pnpm/logger": ">=5.1.0 <1001.0.0",
     "@pnpm/worker": "workspace:^"
   },
   "dependencies": {

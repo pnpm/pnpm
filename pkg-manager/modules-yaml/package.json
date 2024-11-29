@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-yaml",
-  "version": "13.1.7",
+  "version": "1000.0.0",
   "description": "Reads/writes `node_modules/.modules.yaml`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

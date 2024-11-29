@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@types/normalize-path": "catalog:",
-    "@pnpm/scripts": "workspace:*"
+    "@pnpm/scripts": "workspace:*",
+    "@pnpm/logger": "5"
   }
 }

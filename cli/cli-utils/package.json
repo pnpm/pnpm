@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli-utils",
-  "version": "4.0.8",
+  "version": "1000.0.0",
   "description": "Utils for pnpm commands",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -47,7 +47,7 @@
     "load-json-file": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

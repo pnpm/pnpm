@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "14.0.5",
+  "version": "1000.0.0",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,7 +30,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:*",

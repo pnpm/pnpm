@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/local-resolver",
-  "version": "12.0.10",
+  "version": "1000.0.0",
   "description": "Resolver for local packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -47,7 +47,7 @@
     "@types/ssri": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

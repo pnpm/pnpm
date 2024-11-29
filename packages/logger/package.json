@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/logger",
-  "version": "5.2.0",
+  "version": "1000.0.0",
   "description": "Logger for pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

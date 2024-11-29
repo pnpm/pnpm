@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "13.0.0",
+  "version": "1000.0.0",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -45,8 +45,8 @@
     "write-yaml-file": "catalog:"
   },
   "dependencies": {
-    "@pnpm/client": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/client": "workspace:*",
     "@pnpm/command": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/config": "workspace:*",
@@ -80,7 +80,7 @@
     "write-json-file": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

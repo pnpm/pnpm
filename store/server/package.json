@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/server",
-  "version": "18.2.6",
+  "version": "1000.0.0",
   "description": "A pnpm installer server",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/server#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",

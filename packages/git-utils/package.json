@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/git-utils",
-  "version": "2.0.0",
+  "version": "1000.0.0",
   "description": "Utilities for git",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

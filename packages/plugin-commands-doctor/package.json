@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-doctor",
-  "version": "3.0.24",
+  "version": "1000.0.0",
   "description": "Commands for checks of known common issues ",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -35,7 +35,7 @@
     "render-help": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "devDependencies": {
     "@pnpm/logger": "workspace:*",

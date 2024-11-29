@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tools.path",
-  "version": "1.0.0",
+  "version": "1000.0.0",
   "description": "Path to tools",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

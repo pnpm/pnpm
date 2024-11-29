@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lifecycle",
-  "version": "17.1.6",
+  "version": "1000.0.0",
   "description": "Package lifecycle hook runner",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/lifecycle#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",

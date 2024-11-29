@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/crypto.polyfill",
-  "version": "1.0.0",
+  "version": "1000.0.0",
   "description": "Polyfill for functions in the crypto library",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",

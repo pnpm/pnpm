@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.hard-link-dir",
-  "version": "4.0.0",
+  "version": "1000.0.0",
   "description": "Hard link (or copy if linking fails) all files from a directory to several target directories.",
   "main": "lib/index.js",
   "files": [
@@ -31,7 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/hard-link-dir#readme",
   "funding": "https://opencollective.com/pnpm",
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "devDependencies": {
     "@pnpm/fs.hard-link-dir": "workspace:*",

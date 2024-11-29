@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/remove-bins",
-  "version": "6.0.10",
+  "version": "1000.0.0",
   "description": "Remove bins from .bin",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "keywords": [
     "pnpm10"

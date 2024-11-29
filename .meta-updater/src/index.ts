@@ -43,7 +43,12 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         pnpmMajorKeyword,
         ...(manifest.keywords ?? []).filter((keyword) => !/^pnpm[0-9]+$/.test(keyword)),
       ]
+      const smallestAllowedLibVersion = Number(pnpmMajorNumber) * 100
+      const libMajorVersion = Number(manifest.version!.split('.')[0])
       if (manifest.name !== CLI_PKG_NAME) {
+        if (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100) {
+          manifest.version = `${smallestAllowedLibVersion}.0.0`
+        }
         for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
           if (!manifest[depType]) continue
           for (const depName of Object.keys(manifest[depType] ?? {})) {
@@ -69,6 +74,9 @@ export default async (workspaceDir: string) => { // eslint-disable-line
             }
           }
         }
+      }
+      if (manifest.peerDependencies?.['@pnpm/logger'] != null) {
+        manifest.peerDependencies['@pnpm/logger'] = `>=5.1.0 <${smallestAllowedLibVersion + 1}.0.0`
       }
       if (dir.includes('artifacts') || manifest.name === '@pnpm/exe') {
         manifest.version = pnpmVersion

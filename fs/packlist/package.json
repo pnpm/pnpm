@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.packlist",
-  "version": "2.0.0",
+  "version": "1000.0.0",
   "description": "Get a list of the files to add from a directory into an npm package",
   "main": "lib/index.js",
   "files": [

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/patching.config",
-  "version": "1.0.0",
+  "version": "1000.0.0",
   "description": "Functions related to patching configurations",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
