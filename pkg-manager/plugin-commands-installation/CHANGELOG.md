@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-installation
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/outdated@900.0.1
+- @pnpm/workspace.pkgs-graph@900.0.1
+- @pnpm/core@900.0.1
+- @pnpm/filter-workspace-packages@900.0.1
+- @pnpm/package-store@900.0.0
+- @pnpm/store-connection-manager@900.0.1
+- @pnpm/plugin-commands-rebuild@900.0.1
+
 ## 17.2.12
 
 ### Patch Changes

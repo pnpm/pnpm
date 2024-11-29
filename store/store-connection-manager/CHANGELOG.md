@@ -1,5 +1,13 @@
 # @pnpm/store-connection-manager
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/client@900.0.1
+- @pnpm/package-store@900.0.0
+- @pnpm/server@900.0.0
+
 ## 8.4.3
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/client@900.0.1
+
 ## 10.1.1
 
 ### Patch Changes

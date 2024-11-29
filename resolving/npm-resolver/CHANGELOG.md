@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 900.0.1
+
+### Patch Changes
+
+- 11afcdd: Don't ever save mutated metadata to the metadata cache.
+
 ## 21.1.1
 
 ### Patch Changes

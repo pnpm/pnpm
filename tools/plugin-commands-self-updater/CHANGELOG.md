@@ -1,5 +1,12 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/client@900.0.1
+- @pnpm/plugin-commands-installation@900.0.1
+
 ## 1.1.4
 
 ### Patch Changes

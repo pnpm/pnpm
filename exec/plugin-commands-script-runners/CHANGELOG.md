@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-script-runners
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@900.0.1
+
 ## 12.0.15
 
 ### Patch Changes

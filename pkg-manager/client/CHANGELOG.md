@@ -1,5 +1,11 @@
 # @pnpm/client
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/default-resolver@900.0.1
+
 ## 11.1.13
 
 ### Patch Changes

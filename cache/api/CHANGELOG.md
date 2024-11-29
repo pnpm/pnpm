@@ -1,5 +1,12 @@
 # @pnpm/cache.api
 
+## 900.0.1
+
+### Patch Changes
+
+- Updated dependencies [11afcdd]
+  - @pnpm/npm-resolver@900.0.1
+
 ## 0.1.4
 
 ### Patch Changes

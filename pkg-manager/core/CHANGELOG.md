@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/resolve-dependencies@900.0.1
+- @pnpm/headless@900.0.0
+- @pnpm/package-requester@900.0.0
+
 ## 15.3.13
 
 ### Patch Changes

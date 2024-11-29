@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-deploy
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@900.0.1
+
 ## 5.1.36
 
 ### Patch Changes

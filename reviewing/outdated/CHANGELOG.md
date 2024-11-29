@@ -1,5 +1,13 @@
 # @pnpm/outdated
 
+## 900.0.1
+
+### Patch Changes
+
+- Updated dependencies [11afcdd]
+  - @pnpm/npm-resolver@900.0.1
+  - @pnpm/client@900.0.1
+
 ## 15.1.9
 
 ### Patch Changes

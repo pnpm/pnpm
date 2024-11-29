@@ -1,5 +1,11 @@
 # pnpm
 
+## 9.14.4
+
+### Patch Changes
+
+- Don't ever save mutated metadata to the metadata cache.
+
 ## 9.14.3
 
 ### Patch Changes

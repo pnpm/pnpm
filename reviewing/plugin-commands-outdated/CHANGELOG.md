@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-outdated
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/default-resolver@900.0.1
+- @pnpm/outdated@900.0.1
+
 ## 12.1.5
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 900.0.1
+
+### Patch Changes
+
+- Updated dependencies [11afcdd]
+  - @pnpm/npm-resolver@900.0.1
+
 ## 20.0.10
 
 ### Patch Changes

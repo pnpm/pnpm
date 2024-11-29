@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-rebuild
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@900.0.1
+
 ## 12.1.5
 
 ### Patch Changes
