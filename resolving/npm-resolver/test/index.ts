@@ -93,6 +93,27 @@ test('resolveFromNpm()', async () => {
   expect(meta['dist-tags']).toBeTruthy()
 })
 
+test('resolveFromNpm() does not save mutated meta to the cache', async () => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = tempy.directory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    cacheDir,
+  })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {
+    registry,
+  })
+
+  resolveResult!.manifest!.version = '1000'
+
+  // The resolve function does not wait for the package meta cache file to be saved
+  // so we must delay for a bit in order to read it
+  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, 'metadata/registry.npmjs.org/is-positive.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(meta.versions['1.0.0'].version).toBe('1.0.0')
+})
+
 test('resolveFromNpm() should save metadata to a unique file when the package name has upper case letters', async () => {
   nock(registry)
     .get('/JSON')

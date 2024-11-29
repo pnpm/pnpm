@@ -205,10 +205,12 @@ export async function pickPackage (
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(spec.name, meta)
       if (!opts.dryRun) {
+        // We stringify this meta here to avoid saving any mutations that could happen to the meta object.
+        const stringifiedMeta = JSON.stringify(meta)
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         runLimited(pkgMirror, (limit) => limit(async () => {
           try {
-            await saveMeta(pkgMirror, meta)
+            await saveMeta(pkgMirror, stringifiedMeta)
           } catch (err: any) { // eslint-disable-line
             // We don't care if this file was not written to the cache
           }
@@ -285,14 +287,14 @@ async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
 
 const createdDirs = new Set<string>()
 
-async function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<void> {
+async function saveMeta (pkgMirror: string, meta: string): Promise<void> {
   const dir = path.dirname(pkgMirror)
   if (!createdDirs.has(dir)) {
     await fs.mkdir(dir, { recursive: true })
     createdDirs.add(dir)
   }
   const temp = pathTemp(pkgMirror)
-  await gfs.writeFile(temp, JSON.stringify(meta))
+  await gfs.writeFile(temp, meta)
   await renameOverwrite(temp, pkgMirror)
 }
 
