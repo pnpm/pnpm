@@ -3852,6 +3852,9 @@ importers:
       camelcase-keys:
         specifier: 'catalog:'
         version: 6.2.2
+      enquirer:
+        specifier: 'catalog:'
+        version: 2.4.1
       render-help:
         specifier: 'catalog:'
         version: 1.0.3

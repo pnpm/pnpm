@@ -42,7 +42,8 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
     "camelcase-keys": "catalog:",
-    "render-help": "catalog:"
+    "render-help": "catalog:",
+    "enquirer": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
