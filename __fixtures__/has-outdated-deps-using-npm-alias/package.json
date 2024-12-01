@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "is-negative-alias": "npm:is-negative@^1.0.0"
+  }
+}

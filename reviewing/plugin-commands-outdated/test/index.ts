@@ -18,6 +18,7 @@ const hasMajorOutdatedDepsFixture = f.find('has-major-outdated-deps')
 const hasNoLockfileFixture = f.find('has-no-lockfile')
 const withPnpmUpdateIgnore = f.find('with-pnpm-update-ignore')
 const hasOutdatedDepsUsingCatalogProtocol = f.find('has-outdated-deps-using-catalog-protocol')
+const hasOutdatedDepsUsingNpmAlias = f.find('has-outdated-deps-using-npm-alias')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -405,6 +406,25 @@ test('pnpm outdated: catalog protocol', async () => {
 │ Package     │ Current │ Latest │
 ├─────────────┼─────────┼────────┤
 │ is-negative │ 1.0.0   │ 2.1.0  │
+└─────────────┴─────────┴────────┘
+`)
+})
+
+test('pnpm outdated: --compatible works with npm aliases', async () => {
+  const { output, exitCode } = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    compatible: true,
+    dir: hasOutdatedDepsUsingNpmAlias,
+  })
+
+  // Although is-negative@2.1.0 is the latest version at the time of writing,
+  // the "compatible: true" option above should make pnpm to only find 1.0.1.
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
+┌─────────────┬─────────┬────────┐
+│ Package     │ Current │ Latest │
+├─────────────┼─────────┼────────┤
+│ is-negative │ 1.0.0   │ 1.0.1  │
 └─────────────┴─────────┴────────┘
 `)
 })
