@@ -155,7 +155,7 @@ export async function outdated (
 
           const latestManifest = await opts.getLatestManifest(
             name,
-            opts.compatible ? (allDeps[name] ?? 'latest') : 'latest'
+            opts.compatible ? (pref ?? 'latest') : 'latest'
           )
 
           if (latestManifest == null) return
