@@ -80,7 +80,11 @@ export function createDeployFiles ({
     for (const name in inputDependencies) {
       const spec = inputDependencies[name]
       const prefix = REPLACEABLE_PREFIXES.find(prefix => spec.startsWith(prefix))
-      if (!prefix) continue
+      if (!prefix) {
+        targetSpecifiers[name] = targetDependencies[name] = spec
+        continue
+      }
+
       const targetPath = spec.slice(prefix.length)
       const targetRealPath = path.resolve(lockfileDir, projectId, targetPath) // importer IDs are relative to its project dir
       const targetFileUrl = url.pathToFileURL(targetRealPath).toString()
