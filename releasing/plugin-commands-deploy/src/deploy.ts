@@ -95,7 +95,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   const includeOnlyPackageFiles = !opts.deployAllFiles
   await copyProject(deployedDir, deployDir, { includeOnlyPackageFiles })
 
-  if (opts.sharedWorkspaceLockfile && opts.nodeLinker !== 'hoisted') {
+  if (opts.sharedWorkspaceLockfile) {
     const warning = await deployFromSharedLockfile(opts, selectedProject, deployDir)
     if (warning) {
       globalWarn(warning)
