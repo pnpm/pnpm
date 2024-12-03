@@ -180,12 +180,10 @@ async function deployFromSharedLockfile (
     targetDir: deployDir,
   })
 
-  const rootProjectManifest: ProjectManifest = deployFiles.manifest
-
   await Promise.all([
     fs.promises.writeFile(
       path.join(deployDir, 'package.json'),
-      JSON.stringify(rootProjectManifest, undefined, 2) + '\n'
+      JSON.stringify(deployFiles.manifest, undefined, 2) + '\n'
     ),
     writeWantedLockfile(deployDir, deployFiles.lockfile),
   ])
@@ -195,7 +193,7 @@ async function deployFromSharedLockfile (
     allProjects: undefined,
     allProjectsGraph: undefined,
     selectedProjectsGraph: undefined,
-    rootProjectManifest,
+    rootProjectManifest: deployFiles.manifest,
     rootProjectManifestDir: deployDir,
     dir: deployDir,
     lockfileDir: deployDir,
