@@ -12,7 +12,7 @@ import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
 import { deployHook } from './deployHook'
 import { logger, globalWarn } from '@pnpm/logger'
-import { type Project, type ProjectId, type ProjectManifest } from '@pnpm/types'
+import { type Project, type ProjectId } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import { createDeployFiles } from './createDeployFiles'
 import { deployCatalogHook } from './deployCatalogHook'
@@ -65,7 +65,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   if (!opts.workspaceDir) {
     throw new PnpmError('CANNOT_DEPLOY', 'A deploy is only possible from inside a workspace')
   }
-  const selectedProjects = Object.entries(opts.selectedProjectsGraph ?? {})
+  const selectedProjects = Object.values(opts.selectedProjectsGraph ?? {})
   if (selectedProjects.length === 0) {
     throw new PnpmError('NOTHING_TO_DEPLOY', 'No project was selected for deployment')
   }
@@ -75,10 +75,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   if (params.length !== 1) {
     throw new PnpmError('INVALID_DEPLOY_TARGET', 'This command requires one parameter')
   }
-  // TODO: replace `deployedDir` with `selectedProject.rootDir`
-  const [deployedDir, {
-    package: selectedProject,
-  }] = selectedProjects[0]
+  const selectedProject = selectedProjects[0].package
   const deployDirParam = params[0]
   const deployDir = path.isAbsolute(deployDirParam) ? deployDirParam : path.join(opts.dir, deployDirParam)
 
@@ -93,7 +90,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   await rimraf(deployDir)
   await fs.promises.mkdir(deployDir, { recursive: true })
   const includeOnlyPackageFiles = !opts.deployAllFiles
-  await copyProject(deployedDir, deployDir, { includeOnlyPackageFiles })
+  await copyProject(selectedProject.rootDir, deployDir, { includeOnlyPackageFiles })
 
   if (opts.sharedWorkspaceLockfile) {
     const warning = await deployFromSharedLockfile(opts, selectedProject, deployDir)
@@ -104,9 +101,9 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     }
   }
 
-  const deployedProject = opts.allProjects?.find(({ rootDir }) => rootDir === deployedDir)
+  const deployedProject = opts.allProjects?.find(({ rootDir }) => rootDir === selectedProject.rootDir)
   if (deployedProject) {
-    deployedProject.modulesDir = path.relative(deployedDir, path.join(deployDir, 'node_modules'))
+    deployedProject.modulesDir = path.relative(selectedProject.rootDir, path.join(deployDir, 'node_modules'))
   }
   await install.handler({
     ...opts,
