@@ -37,6 +37,9 @@
       "path": "../../fs/is-empty-dir-or-nothing"
     },
     {
+      "path": "../../lockfile/fs"
+    },
+    {
       "path": "../../lockfile/types"
     },
     {

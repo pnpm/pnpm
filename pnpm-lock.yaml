@@ -6095,15 +6095,27 @@ importers:
       '@pnpm/fs.is-empty-dir-or-nothing':
         specifier: workspace:*
         version: link:../../fs/is-empty-dir-or-nothing
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../../pkg-manager/plugin-commands-installation
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@types/normalize-path':
+        specifier: 'catalog:'
+        version: 3.0.2
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
+      normalize-path:
+        specifier: 'catalog:'
+        version: 3.0.0
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
@@ -6111,9 +6123,6 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
-      '@pnpm/lockfile.types':
-        specifier: workspace:*
-        version: link:../../lockfile/types
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger

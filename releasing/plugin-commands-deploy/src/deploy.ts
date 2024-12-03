@@ -7,10 +7,14 @@ import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 import { install } from '@pnpm/plugin-commands-installation'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { PnpmError } from '@pnpm/error'
+import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
 import { deployHook } from './deployHook'
-import { logger } from '@pnpm/logger'
+import { logger, globalWarn } from '@pnpm/logger'
+import { type Project, type ProjectId, type ProjectManifest } from '@pnpm/types'
+import normalizePath from 'normalize-path'
+import { createDeployFiles } from './createDeployFiles'
 import { deployCatalogHook } from './deployCatalogHook'
 
 export const shorthands = install.shorthands
@@ -55,24 +59,26 @@ export function help (): string {
   })
 }
 
-export async function handler (
-  opts: Omit<install.InstallCommandOptions, 'useLockfile'>,
-  params: string[]
-): Promise<void> {
+export type DeployOptions = Omit<install.InstallCommandOptions, 'useLockfile'>
+
+export async function handler (opts: DeployOptions, params: string[]): Promise<void> {
   if (!opts.workspaceDir) {
     throw new PnpmError('CANNOT_DEPLOY', 'A deploy is only possible from inside a workspace')
   }
-  const selectedDirs = Object.keys(opts.selectedProjectsGraph ?? {})
-  if (selectedDirs.length === 0) {
+  const selectedProjects = Object.entries(opts.selectedProjectsGraph ?? {})
+  if (selectedProjects.length === 0) {
     throw new PnpmError('NOTHING_TO_DEPLOY', 'No project was selected for deployment')
   }
-  if (selectedDirs.length > 1) {
+  if (selectedProjects.length > 1) {
     throw new PnpmError('CANNOT_DEPLOY_MANY', 'Cannot deploy more than 1 project')
   }
   if (params.length !== 1) {
     throw new PnpmError('INVALID_DEPLOY_TARGET', 'This command requires one parameter')
   }
-  const deployedDir = selectedDirs[0]
+  // TODO: replace `deployedDir` with `selectedProject.rootDir`
+  const [deployedDir, {
+    package: selectedProject,
+  }] = selectedProjects[0]
   const deployDirParam = params[0]
   const deployDir = path.isAbsolute(deployDirParam) ? deployDirParam : path.join(opts.dir, deployDirParam)
 
@@ -88,6 +94,17 @@ export async function handler (
   await fs.promises.mkdir(deployDir, { recursive: true })
   const includeOnlyPackageFiles = !opts.deployAllFiles
   await copyProject(deployedDir, deployDir, { includeOnlyPackageFiles })
+
+  if (opts.sharedWorkspaceLockfile && opts.nodeLinker !== 'hoisted') {
+    console.log('SHARED WORKSPACE LOCKFILE') // TODO: remove this line
+    const warning = await deployFromSharedLockfile(opts, selectedProject, deployDir)
+    if (warning) {
+      globalWarn(warning)
+    } else {
+      return
+    }
+  }
+
   const deployedProject = opts.allProjects?.find(({ rootDir }) => rootDir === deployedDir)
   if (deployedProject) {
     deployedProject.modulesDir = path.relative(deployedDir, path.join(deployDir, 'node_modules'))
@@ -130,4 +147,77 @@ async function copyProject (src: string, dest: string, opts: { includeOnlyPackag
   const { filesIndex } = await fetchFromDir(src, opts)
   const importPkg = createIndexedPkgImporter('clone-or-copy')
   importPkg(dest, { filesMap: filesIndex, force: true, resolvedFrom: 'local-dir' })
+}
+
+async function deployFromSharedLockfile (
+  opts: DeployOptions,
+  selectedProject: Pick<Project, 'rootDir'> & {
+    manifest: Pick<Project['manifest'], 'name' | 'version'>
+  },
+  deployDir: string
+): Promise<string | undefined> {
+  const { lockfileDir, workspaceDir } = opts
+
+  if (!lockfileDir) {
+    return 'opts.lockfileDir is undefined. Falling back to installing without a lockfile.'
+  }
+
+  if (!workspaceDir) {
+    return 'opts.workspaceDir is undefined. Falling back to installing without a lockfile.'
+  }
+
+  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
+  if (!lockfile) {
+    return 'Shared lockfile not found. Falling back to installing without a lockfile.'
+  }
+
+  const projectId = normalizePath(path.relative(workspaceDir, selectedProject.rootDir)) as ProjectId
+
+  const deployFiles = createDeployFiles({
+    lockfile,
+    lockfileDir,
+    manifest: selectedProject.manifest,
+    projectId,
+    targetDir: deployDir,
+  })
+
+  const rootProjectManifest: ProjectManifest = deployFiles.manifest
+
+  await Promise.all([
+    fs.promises.writeFile(
+      path.join(deployDir, 'package.json'),
+      JSON.stringify(rootProjectManifest, undefined, 2) + '\n'
+    ),
+    writeWantedLockfile(deployDir, deployFiles.lockfile),
+  ])
+
+  await install.handler({
+    ...opts,
+    allProjects: undefined,
+    allProjectsGraph: undefined,
+    selectedProjectsGraph: undefined,
+    rootProjectManifest,
+    rootProjectManifestDir: deployDir,
+    dir: deployDir,
+    lockfileDir: deployDir,
+    workspaceDir: undefined,
+    virtualStoreDir: undefined,
+    modulesDir: undefined,
+    confirmModulesPurge: false,
+    frozenLockfile: true,
+    hooks: {
+      ...opts.hooks,
+      readPackage: [
+        ...(opts.hooks?.readPackage ?? []),
+        deployHook,
+        deployCatalogHook.bind(null, opts.catalogs ?? {}),
+      ],
+    },
+    rawLocalConfig: {
+      ...opts.rawLocalConfig,
+      'frozen-lockfile': true,
+    },
+  })
+
+  return undefined
 }
