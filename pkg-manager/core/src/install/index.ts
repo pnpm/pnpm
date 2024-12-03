@@ -663,6 +663,7 @@ Note that in CI environments, this setting is enabled by default.`,
         updateWorkspaceDependencies: project.update,
         preferredSpecs,
         overrides: opts.overrides,
+        defaultCatalog: opts.catalogs?.default,
       })
       projectsToInstall.push({
         pruneDirectDependencies: false,
