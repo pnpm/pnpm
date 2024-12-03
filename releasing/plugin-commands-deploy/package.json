@@ -55,8 +55,10 @@
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/normalize-path": "catalog:",
+    "@types/ramda": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "normalize-path": "catalog:",
+    "ramda": "catalog:",
     "render-help": "catalog:"
   },
   "peerDependencies": {

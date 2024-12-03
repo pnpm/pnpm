@@ -6110,12 +6110,18 @@ importers:
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
       render-help:
         specifier: 'catalog:'
         version: 1.0.3

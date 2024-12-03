@@ -1,6 +1,7 @@
 import path from 'path'
 import url from 'url'
 import normalizePath from 'normalize-path'
+import pick from 'ramda/src/pick'
 import { globalWarn } from '@pnpm/logger'
 import {
   type DirectoryResolution,
@@ -19,7 +20,18 @@ import {
 const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependencies'] as const satisfies DependenciesField[]
 const REPLACEABLE_PREFIXES = ['link:', 'file:'] as const
 
-export type DeployManifest = Pick<ProjectManifest, 'name' | 'version' | DependenciesField>
+const INHERITED_MANIFEST_KEYS = [
+  'name',
+  'description',
+  'version',
+  'private',
+  'author',
+  'bin',
+  'scripts',
+  'packageManager',
+] as const satisfies Array<keyof ProjectManifest>
+
+export type DeployManifest = Pick<ProjectManifest, typeof INHERITED_MANIFEST_KEYS[number] | DependenciesField>
 
 export interface CreateDeployFilesOptions {
   lockfile: Lockfile
@@ -100,8 +112,7 @@ export function createDeployFiles ({
       packages: targetPackageSnapshots,
     },
     manifest: {
-      name: manifest.name,
-      version: manifest.version,
+      ...pick(INHERITED_MANIFEST_KEYS, manifest),
       dependencies: targetSnapshot.dependencies,
       devDependencies: targetSnapshot.devDependencies,
       optionalDependencies: targetSnapshot.optionalDependencies,
