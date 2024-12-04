@@ -61,6 +61,18 @@ export function resolveFromCatalog (catalogs: Catalogs, wantedDependency: Wanted
   const catalogName = parseCatalogProtocol(wantedDependency.pref)
 
   if (catalogName == null) {
+    for (const catalogName in catalogs) {
+      const catalog = catalogs[catalogName]!
+      if (catalog[wantedDependency.alias]) {
+        return {
+          type: 'misconfiguration',
+          catalogName,
+          error: new PnpmError(
+            'CATALOG_ENTRY_NOT_USED',
+            `The catalog entry '${wantedDependency.alias}' in catalog '${catalogName}' is not used. The entry should be referenced using the catalog protocol.`),
+        }
+      }
+    }
     return { type: 'unused' }
   }
 
