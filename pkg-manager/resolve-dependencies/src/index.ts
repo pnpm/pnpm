@@ -127,6 +127,7 @@ export async function resolveDependencies (
     workspacePackages: opts.workspacePackages,
     updateToLatest: opts.updateToLatest,
     noDependencySelectors: importers.every(({ wantedDependencies }) => wantedDependencies.length === 0),
+    injectWorkspacePackages: opts.injectWorkspacePackages,
   })
   const projectsToResolve = await Promise.all(importers.map(async (project) => _toResolveImporter(project)))
   const {

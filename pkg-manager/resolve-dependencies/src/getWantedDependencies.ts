@@ -28,6 +28,7 @@ export function getWantedDependencies (
     includeDirect?: IncludedDependencies
     nodeExecPath?: string
     updateWorkspaceDependencies?: boolean
+    injectWorkspacePackages?: boolean
   }
 ): WantedDependency[] {
   let depsToInstall = filterDependenciesByType(pkg,
@@ -51,6 +52,7 @@ export function getWantedDependencies (
     updatePref: opts?.updateWorkspaceDependencies === true
       ? updateWorkspacePref
       : (pref) => pref,
+    injectWorkspacePackages: opts?.injectWorkspacePackages,
   })
 }
 
@@ -71,6 +73,7 @@ function getWantedDependenciesFromGivenSet (
     dependenciesMeta: DependenciesMeta
     nodeExecPath?: string
     updatePref: (pref: string) => string
+    injectWorkspacePackages?: boolean
   }
 ): WantedDependency[] {
   if (!deps) return []
@@ -84,7 +87,7 @@ function getWantedDependenciesFromGivenSet (
     return {
       alias,
       dev: depType === 'dev',
-      injected: opts.dependenciesMeta[alias]?.injected,
+      injected: opts.injectWorkspacePackages === true || opts.dependenciesMeta[alias]?.injected,
       optional: depType === 'optional',
       nodeExecPath: opts.nodeExecPath ?? opts.dependenciesMeta[alias]?.node,
       pinnedVersion: whichVersionIsPinned(pref),

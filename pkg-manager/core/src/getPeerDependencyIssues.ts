@@ -46,7 +46,7 @@ export async function getPeerDependencyIssues (
   const projectsToResolve = Object.values(ctx.projects).map((project) => ({
     ...project,
     updatePackageManifest: false,
-    wantedDependencies: getWantedDependencies(project.manifest),
+    wantedDependencies: getWantedDependencies(project.manifest, opts),
   }))
   const preferredVersions = getPreferredVersionsFromLockfileAndManifests(
     ctx.wantedLockfile.packages,

@@ -153,6 +153,7 @@ export interface ResolutionContext {
   pendingNodes: PendingNode[]
   wantedLockfile: Lockfile
   currentLockfile: Lockfile
+  injectWorkspacePackages?: boolean
   linkWorkspacePackagesDepth: number
   lockfileDir: string
   storeController: StoreController
@@ -344,7 +345,7 @@ export async function resolveRootDependencies (
         if (!missingRequiredPeers.length) break
         const dependencies = hoistPeers(missingRequiredPeers, ctx)
         if (!Object.keys(dependencies).length) break
-        const wantedDependencies = getNonDevWantedDependencies({ dependencies })
+        const wantedDependencies = getNonDevWantedDependencies({ dependencies }, ctx)
 
         const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
           ...options,
@@ -366,7 +367,7 @@ export async function resolveRootDependencies (
         const optionalDependencies = getHoistableOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions)
         if (Object.keys(optionalDependencies).length) {
           hasNewMissingPeers = true
-          const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
+          const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies }, ctx)
           const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
             ...options,
             parentPkgAliases,
@@ -954,7 +955,7 @@ async function resolveChildren (
       {}
     ).length
   )
-  const wantedDependencies = getNonDevWantedDependencies(parentPkg.pkg)
+  const wantedDependencies = getNonDevWantedDependencies(parentPkg.pkg, ctx)
   const {
     pkgAddresses,
     resolvingPeers,

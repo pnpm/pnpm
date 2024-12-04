@@ -118,6 +118,7 @@ export interface ResolveDependenciesOptions {
   preferWorkspacePackages?: boolean
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   resolvePeersFromWorkspaceRoot?: boolean
+  injectWorkspacePackages?: boolean
   linkWorkspacePackagesDepth?: number
   lockfileDir: string
   storeController: StoreController

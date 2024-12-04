@@ -614,6 +614,7 @@ Note that in CI environments, this setting is enabled by default.`,
         includeDirect: opts.includeDirect,
         updateWorkspaceDependencies: project.update,
         nodeExecPath: opts.nodeExecPath,
+        injectWorkspacePackages: opts.injectWorkspacePackages,
       })
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
 
@@ -976,6 +977,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
       supportedArchitectures: opts.supportedArchitectures,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
+      injectWorkspacePackages: opts.injectWorkspacePackages,
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
@@ -1355,6 +1357,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
             includeDirect: opts.includeDirect,
             updateWorkspaceDependencies: false,
             nodeExecPath: opts.nodeExecPath,
+            injectWorkspacePackages: opts.injectWorkspacePackages,
           }
           for (const project of allProjectsLocatedInsideWorkspace) {
             if (!newProjects.some(({ rootDir }) => rootDir === project.rootDir)) {
