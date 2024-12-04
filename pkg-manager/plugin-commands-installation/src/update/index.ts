@@ -171,6 +171,9 @@ export async function handler (
   opts: UpdateCommandOptions,
   params: string[] = []
 ): Promise<string | undefined> {
+  if (opts.global && opts.rootProjectManifest == null) {
+    return 'No global packages found'
+  }
   if (opts.interactive) {
     return interactiveUpdate(params, opts)
   }
