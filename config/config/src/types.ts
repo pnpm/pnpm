@@ -42,6 +42,7 @@ export const types = Object.assign({
   'ignore-workspace-cycles': Boolean,
   'ignore-workspace-root-check': Boolean,
   'include-workspace-root': Boolean,
+  'inject-workspace-packages': Boolean,
   'legacy-dir-filtering': Boolean,
   'link-workspace-packages': [Boolean, 'deep'],
   lockfile: Boolean,

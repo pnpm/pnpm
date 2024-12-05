@@ -9,6 +9,7 @@ export interface LockfileSettings {
   autoInstallPeers?: boolean
   excludeLinksFromLockfile?: boolean
   peersSuffixMaxLength?: number
+  injectWorkspacePackages?: boolean
 }
 
 export interface Lockfile {

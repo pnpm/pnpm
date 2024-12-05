@@ -155,6 +155,7 @@ export interface StrictInstallOptions {
   peersSuffixMaxLength: number
   prepareExecutionEnv?: PrepareExecutionEnv
   returnListOfDepsRequiringBuild?: boolean
+  injectWorkspacePackages?: boolean
 }
 
 export type InstallOptions =

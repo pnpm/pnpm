@@ -148,6 +148,7 @@ export interface Config {
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
+  injectWorkspacePackages?: boolean
   preferWorkspacePackages: boolean
   reverse: boolean
   sort: boolean

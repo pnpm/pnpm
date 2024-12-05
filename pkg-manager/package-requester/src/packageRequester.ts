@@ -188,6 +188,7 @@ async function resolveAndFetch (
       registry: options.registry,
       workspacePackages: options.workspacePackages,
       updateToLatest: options.updateToLatest,
+      injectWorkspacePackages: options.injectWorkspacePackages,
     }), { priority: options.downloadPriority })
 
     manifest = resolveResult.manifest

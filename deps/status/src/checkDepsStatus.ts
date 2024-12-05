@@ -46,6 +46,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'autoInstallPeers'
 | 'catalogs'
 | 'excludeLinksFromLockfile'
+| 'injectWorkspacePackages'
 | 'linkWorkspacePackages'
 | 'hooks'
 | 'peersSuffixMaxLength'
@@ -74,6 +75,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
   const {
     allProjects,
     autoInstallPeers,
+    injectWorkspacePackages,
     catalogs,
     excludeLinksFromLockfile,
     linkWorkspacePackages,
@@ -192,6 +194,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
 
     const assertCtx: AssertWantedLockfileUpToDateContext = {
       autoInstallPeers,
+      injectWorkspacePackages,
       config: opts,
       excludeLinksFromLockfile,
       linkWorkspacePackages,
@@ -272,6 +275,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
       logger.debug({ msg: 'The manifest is newer than the lockfile. Continuing check.' })
       await assertWantedLockfileUpToDate({
         autoInstallPeers,
+        injectWorkspacePackages,
         config: opts,
         excludeLinksFromLockfile,
         linkWorkspacePackages,
@@ -311,6 +315,7 @@ interface AssertWantedLockfileUpToDateContext {
   autoInstallPeers?: boolean
   config: CheckDepsStatusOptions
   excludeLinksFromLockfile?: boolean
+  injectWorkspacePackages?: boolean
   linkWorkspacePackages: boolean | 'deep'
   getManifestsByDir: () => Record<string, DependencyManifest>
   getWorkspacePackages: () => WorkspacePackages | undefined
@@ -359,6 +364,7 @@ async function assertWantedLockfileUpToDate (
 
   const outdatedLockfileSettingName = getOutdatedLockfileSetting(wantedLockfile, {
     autoInstallPeers: config.autoInstallPeers,
+    injectWorkspacePackages: config.injectWorkspacePackages,
     excludeLinksFromLockfile: config.excludeLinksFromLockfile,
     peersSuffixMaxLength: config.peersSuffixMaxLength,
     overrides: createOverridesMapFromParsed(parseOverrides(rootManifestOptions?.overrides ?? {}, config.catalogs)),

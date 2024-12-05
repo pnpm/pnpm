@@ -132,6 +132,7 @@ export interface RequestPackageOptions {
   supportedArchitectures?: SupportedArchitectures
   onFetchError?: OnFetchError
   updateToLatest?: boolean
+  injectWorkspacePackages?: boolean
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
