@@ -101,7 +101,6 @@
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
     "mem": "catalog:",
-    "p-filter": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
