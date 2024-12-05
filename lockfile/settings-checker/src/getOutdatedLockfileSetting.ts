@@ -63,7 +63,7 @@ export function getOutdatedLockfileSetting (
   if (lockfile.pnpmfileChecksum !== pnpmfileChecksum) {
     return 'pnpmfileChecksum'
   }
-  if (Boolean(lockfile.settings?.injectWorkspacePackages) !== injectWorkspacePackages) {
+  if (Boolean(lockfile.settings?.injectWorkspacePackages) !== Boolean(injectWorkspacePackages)) {
     return 'settings.injectWorkspacePackages'
   }
   return null
