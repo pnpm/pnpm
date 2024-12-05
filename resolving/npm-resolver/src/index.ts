@@ -118,6 +118,7 @@ export type ResolveFromNpmOptions = {
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
   updateToLatest?: boolean
+  injectWorkspacePackages?: boolean
 } & ({
   projectDir?: string
   workspacePackages?: undefined
@@ -143,6 +144,7 @@ async function resolveNpm (
       projectDir: opts.projectDir,
       registry: opts.registry,
       workspacePackages: opts.workspacePackages,
+      injectWorkspacePackages: opts.injectWorkspacePackages,
     })
     if (resolvedFromWorkspace != null) {
       return resolvedFromWorkspace
@@ -173,7 +175,7 @@ async function resolveNpm (
           wantedDependency,
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
-          hardLinkLocalPackages: wantedDependency.injected,
+          hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
         })
       } catch {
         // ignore
@@ -190,7 +192,7 @@ async function resolveNpm (
           wantedDependency,
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
-          hardLinkLocalPackages: wantedDependency.injected,
+          hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
         })
       } catch {
         // ignore
@@ -207,7 +209,7 @@ async function resolveNpm (
         ...resolveFromLocalPackage(matchedPkg, spec.normalizedPref, {
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
-          hardLinkLocalPackages: wantedDependency.injected,
+          hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
         }),
         latest: meta['dist-tags'].latest,
       }
@@ -218,7 +220,7 @@ async function resolveNpm (
         ...resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec.normalizedPref, {
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
-          hardLinkLocalPackages: wantedDependency.injected,
+          hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
         }),
         latest: meta['dist-tags'].latest,
       }
@@ -249,6 +251,7 @@ function tryResolveFromWorkspace (
     projectDir?: string
     registry: string
     workspacePackages?: WorkspacePackages
+    injectWorkspacePackages?: boolean
   }
 ): ResolveResult | null {
   if (!wantedDependency.pref?.startsWith('workspace:')) {
@@ -267,7 +270,7 @@ function tryResolveFromWorkspace (
   return tryResolveFromWorkspacePackages(opts.workspacePackages, spec, {
     wantedDependency,
     projectDir: opts.projectDir,
-    hardLinkLocalPackages: wantedDependency.injected,
+    hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
     lockfileDir: opts.lockfileDir,
   })
 }

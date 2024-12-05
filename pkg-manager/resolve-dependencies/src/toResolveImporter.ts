@@ -27,11 +27,10 @@ export async function toResolveImporter (
     workspacePackages: WorkspacePackages
     updateToLatest?: boolean
     noDependencySelectors: boolean
-    injectWorkspacePackages?: boolean
   },
   project: ImporterToResolve
 ): Promise<ResolveImporter> {
-  const allDeps = getWantedDependencies(project.manifest, opts)
+  const allDeps = getWantedDependencies(project.manifest)
   const nonLinkedDependencies = await partitionLinkedPackages(allDeps, {
     lockfileOnly: opts.lockfileOnly,
     modulesDir: project.modulesDir,

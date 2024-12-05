@@ -345,7 +345,7 @@ export async function resolveRootDependencies (
         if (!missingRequiredPeers.length) break
         const dependencies = hoistPeers(missingRequiredPeers, ctx)
         if (!Object.keys(dependencies).length) break
-        const wantedDependencies = getNonDevWantedDependencies({ dependencies }, ctx)
+        const wantedDependencies = getNonDevWantedDependencies({ dependencies })
 
         const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
           ...options,
@@ -367,7 +367,7 @@ export async function resolveRootDependencies (
         const optionalDependencies = getHoistableOptionalPeers(allMissingOptionalPeers, ctx.allPreferredVersions)
         if (Object.keys(optionalDependencies).length) {
           hasNewMissingPeers = true
-          const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies }, ctx)
+          const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
           const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
             ...options,
             parentPkgAliases,
@@ -955,7 +955,7 @@ async function resolveChildren (
       {}
     ).length
   )
-  const wantedDependencies = getNonDevWantedDependencies(parentPkg.pkg, ctx)
+  const wantedDependencies = getNonDevWantedDependencies(parentPkg.pkg)
   const {
     pkgAddresses,
     resolvingPeers,
@@ -1262,6 +1262,7 @@ async function resolveDependency (
         return err
       },
       updateToLatest: options.updateToLatest,
+      injectWorkspacePackages: ctx.injectWorkspacePackages,
     })
   } catch (err: any) { // eslint-disable-line
     const wantedDependencyDetails = {

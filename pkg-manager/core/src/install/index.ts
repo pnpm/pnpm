@@ -617,7 +617,6 @@ Note that in CI environments, this setting is enabled by default.`,
         includeDirect: opts.includeDirect,
         updateWorkspaceDependencies: project.update,
         nodeExecPath: opts.nodeExecPath,
-        injectWorkspacePackages: opts.injectWorkspacePackages,
       })
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
 

@@ -11,7 +11,7 @@ export interface WantedDependency {
 
 type GetNonDevWantedDependenciesManifest = Pick<DependencyManifest, 'bundleDependencies' | 'bundledDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'>
 
-export function getNonDevWantedDependencies (pkg: GetNonDevWantedDependenciesManifest, opts: { injectWorkspacePackages?: boolean }): WantedDependency[] {
+export function getNonDevWantedDependencies (pkg: GetNonDevWantedDependenciesManifest): WantedDependency[] {
   let bd = pkg.bundledDependencies ?? pkg.bundleDependencies
   if (bd === true) {
     bd = pkg.dependencies != null ? Object.keys(pkg.dependencies) : []
@@ -24,7 +24,6 @@ export function getNonDevWantedDependencies (pkg: GetNonDevWantedDependenciesMan
       dependenciesMeta: pkg.dependenciesMeta ?? {},
       devDependencies: {},
       optionalDependencies: pkg.optionalDependencies ?? {},
-      injectWorkspacePackages: opts.injectWorkspacePackages,
     }
   )
 }
@@ -35,14 +34,13 @@ function getWantedDependenciesFromGivenSet (
     devDependencies: Dependencies
     optionalDependencies: Dependencies
     dependenciesMeta: DependenciesMeta
-    injectWorkspacePackages?: boolean
   }
 ): WantedDependency[] {
   if (!deps) return []
   return Object.entries(deps).map(([alias, pref]) => ({
     alias,
     dev: !!opts.devDependencies[alias],
-    injected: opts.injectWorkspacePackages === true || opts.dependenciesMeta[alias]?.injected,
+    injected: opts.dependenciesMeta[alias]?.injected,
     optional: !!opts.optionalDependencies[alias],
     pref,
   }))

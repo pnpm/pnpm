@@ -166,6 +166,7 @@ export async function resolveDependencyTree<T> (
     force: opts.force,
     forceFullResolution: opts.forceFullResolution,
     ignoreScripts: opts.ignoreScripts,
+    injectWorkspacePackages: opts.injectWorkspacePackages,
     linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? -1,
     lockfileDir: opts.lockfileDir,
     nodeVersion: opts.nodeVersion,

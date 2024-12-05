@@ -212,6 +212,204 @@ test('inject local packages', async () => {
   }
 })
 
+test('inject local packages using the injectWorkspacePackages setting', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+    devDependencies: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+    },
+    peerDependencies: {
+      'is-positive': '>=1.0.0',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:1.0.0',
+    },
+    devDependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  const project3Manifest = {
+    name: 'project-3',
+    version: '1.0.0',
+    dependencies: {
+      'project-2': 'workspace:1.0.0',
+    },
+    devDependencies: {
+      'is-positive': '2.0.0',
+    },
+  }
+  const projects = preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+    {
+      location: 'project-3',
+      package: project3Manifest,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-3') as ProjectRootDir,
+    },
+  ]
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: project3Manifest,
+      rootDir: path.resolve('project-3') as ProjectRootDir,
+    },
+  ]
+  await mutateModules(importers, testDefaults({
+    autoInstallPeers: false,
+    allProjects,
+    injectWorkspacePackages: true,
+  }))
+
+  projects['project-1'].has('is-negative')
+  projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  projects['project-1'].hasNot('is-positive')
+
+  projects['project-2'].has('is-positive')
+  projects['project-2'].has('project-1')
+
+  projects['project-3'].has('is-positive')
+  projects['project-3'].has('project-2')
+
+  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
+
+  const rootModules = assertProject(process.cwd())
+  {
+    const lockfile = rootModules.readLockfile()
+    expect(lockfile.settings.injectWorkspacePackages).toBe(true)
+    expect(lockfile.importers['project-2'].dependenciesMeta).not.toEqual({
+      'project-1': {
+        injected: true,
+      },
+    })
+    expect(lockfile.packages['project-1@file:project-1']).toEqual({
+      resolution: {
+        directory: 'project-1',
+        type: 'directory',
+      },
+      peerDependencies: {
+        'is-positive': '>=1.0.0',
+      },
+    })
+    expect(lockfile.snapshots['project-1@file:project-1(is-positive@1.0.0)']).toEqual({
+      dependencies: {
+        'is-negative': '1.0.0',
+        'is-positive': '1.0.0',
+      },
+    })
+    expect(lockfile.packages['project-2@file:project-2']).toEqual({
+      resolution: {
+        directory: 'project-2',
+        type: 'directory',
+      },
+    })
+    expect(lockfile.snapshots['project-2@file:project-2(is-positive@2.0.0)']).toEqual({
+      dependencies: {
+        'project-1': 'file:project-1(is-positive@2.0.0)',
+      },
+      transitivePeerDependencies: ['is-positive'],
+    })
+
+    const modulesState = rootModules.readModulesManifest()
+    expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
+    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
+    expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
+  }
+
+  rimraf('node_modules')
+  rimraf('project-1/node_modules')
+  rimraf('project-2/node_modules')
+  rimraf('project-3/node_modules')
+
+  await mutateModules(importers, testDefaults({
+    autoInstallPeers: false,
+    allProjects,
+    frozenLockfile: true,
+    injectWorkspacePackages: true,
+  }))
+
+  projects['project-1'].has('is-negative')
+  projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  projects['project-1'].hasNot('is-positive')
+
+  projects['project-2'].has('is-positive')
+  projects['project-2'].has('project-1')
+
+  projects['project-3'].has('is-positive')
+  projects['project-3'].has('project-2')
+
+  expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
+
+  // The injected project is updated when one of its dependencies needs to be updated
+  allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
+  await mutateModules(importers, testDefaults({ autoInstallPeers: false, allProjects, injectWorkspacePackages: true }))
+  {
+    const lockfile = rootModules.readLockfile()
+    expect(lockfile.settings.injectWorkspacePackages).toBe(true)
+    expect(lockfile.importers['project-2'].dependenciesMeta).not.toEqual({
+      'project-1': {
+        injected: true,
+      },
+    })
+    expect(lockfile.packages['project-1@file:project-1']).toEqual({
+      resolution: {
+        directory: 'project-1',
+        type: 'directory',
+      },
+      peerDependencies: {
+        'is-positive': '>=1.0.0',
+      },
+    })
+    expect(lockfile.snapshots['project-1@file:project-1(is-positive@1.0.0)']).toEqual({
+      dependencies: {
+        'is-negative': '2.0.0',
+        'is-positive': '1.0.0',
+      },
+    })
+    const modulesState = rootModules.readModulesManifest()
+    expect(modulesState?.injectedDeps?.['project-1'].length).toEqual(2)
+    expect(modulesState?.injectedDeps?.['project-1'][0]).toContain(`node_modules${path.sep}.pnpm`)
+    expect(modulesState?.injectedDeps?.['project-1'][1]).toContain(`node_modules${path.sep}.pnpm`)
+  }
+})
+
 test('inject local packages declared via file protocol', async () => {
   const project1Manifest = {
     name: 'project-1',
