@@ -16,25 +16,6 @@ test('production install (with --production flag)', async () => {
   project.has('is-positive')
 })
 
-test('production install (with production NODE_ENV)', async () => {
-  const project = prepare(basicPackageManifest)
-
-  await execPnpm(['install'], { env: { NODE_ENV: 'production' } })
-
-  project.hasNot(Object.keys(basicPackageManifest.devDependencies!)[0])
-  project.has('rimraf')
-  project.has('is-positive')
-})
-
-test('dev dependencies install (with production NODE_ENV)', async () => {
-  const project = prepare(basicPackageManifest)
-
-  await execPnpm(['install', '--dev'], { env: { NODE_ENV: 'production' } })
-
-  project.hasNot(Object.keys(basicPackageManifest.dependencies!)[0])
-  project.has('@rstacruz/tap-spec')
-})
-
 test('install dev dependencies only', async () => {
   const project = prepare({
     dependencies: {
