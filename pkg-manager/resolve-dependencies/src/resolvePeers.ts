@@ -3,7 +3,7 @@ import { analyzeGraph, type Graph } from 'graph-cycles'
 import path from 'path'
 import pDefer from 'p-defer'
 import semver from 'semver'
-import { semverUtils } from '@yarnpkg/core'
+import * as semverUtils from '@yarnpkg/core/semverUtils'
 import {
   type DepPath,
   type ParentPackages,
