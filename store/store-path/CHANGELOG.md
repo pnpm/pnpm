@@ -1,5 +1,11 @@
 # @pnpm/store-path
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/error@900.0.1
+
 ## 9.0.2
 
 ### Patch Changes

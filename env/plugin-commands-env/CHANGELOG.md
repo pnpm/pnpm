@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-env
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/config@900.0.1
+- @pnpm/error@900.0.1
+- @pnpm/cli-utils@900.0.1
+- @pnpm/node.fetcher@900.0.1
+- @pnpm/store-path@900.0.1
+- @pnpm/node.resolver@900.0.1
+- @pnpm/remove-bins@900.0.1
+
 ## 5.1.13
 
 ### Patch Changes

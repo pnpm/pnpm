@@ -1,5 +1,11 @@
 # @pnpm/lockfile.preferred-versions
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/manifest-utils@900.0.1
+
 ## 1.0.14
 
 ### Patch Changes

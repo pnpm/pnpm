@@ -1,5 +1,13 @@
 # @pnpm/package-store
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/package-requester@900.0.1
+- @pnpm/worker@900.0.1
+- @pnpm/create-cafs-store@900.0.0
+
 ## 20.4.3
 
 ### Patch Changes

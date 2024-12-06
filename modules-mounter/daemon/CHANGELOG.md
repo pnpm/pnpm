@@ -1,5 +1,13 @@
 # @pnpm/mount-modules
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/config@900.0.1
+- @pnpm/lockfile.fs@900.0.1
+- @pnpm/store-path@900.0.1
+
 ## 0.6.21
 
 ### Patch Changes

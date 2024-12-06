@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-store
 
+## 900.0.2
+
+### Patch Changes
+
+- @pnpm/config@900.0.1
+- @pnpm/error@900.0.1
+- @pnpm/get-context@900.0.1
+- @pnpm/cli-utils@900.0.1
+- @pnpm/store-connection-manager@900.0.2
+- @pnpm/store-path@900.0.1
+
 ## 900.0.1
 
 ### Patch Changes

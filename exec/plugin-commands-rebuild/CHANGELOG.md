@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-rebuild
 
+## 900.0.2
+
+### Patch Changes
+
+- Updated dependencies [28b4622]
+  - @pnpm/constants@901.0.0
+  - @pnpm/config@900.0.1
+  - @pnpm/calc-dep-state@900.0.1
+  - @pnpm/error@900.0.1
+  - @pnpm/get-context@900.0.1
+  - @pnpm/cli-utils@900.0.1
+  - @pnpm/store-connection-manager@900.0.2
+  - @pnpm/lifecycle@900.0.1
+  - @pnpm/link-bins@900.0.1
+  - @pnpm/worker@900.0.1
+  - @pnpm/workspace.find-packages@900.0.1
+
 ## 900.0.1
 
 ### Patch Changes

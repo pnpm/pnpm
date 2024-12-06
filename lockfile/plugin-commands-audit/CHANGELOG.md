@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-audit
 
+## 900.0.1
+
+### Patch Changes
+
+- Updated dependencies [28b4622]
+  - @pnpm/constants@901.0.0
+  - @pnpm/config@900.0.1
+  - @pnpm/audit@900.0.1
+  - @pnpm/lockfile.fs@900.0.1
+  - @pnpm/error@900.0.1
+  - @pnpm/cli-utils@900.0.1
+  - @pnpm/network.auth-header@900.0.1
+  - @pnpm/read-project-manifest@900.0.1
+
 ## 10.3.5
 
 ### Patch Changes

@@ -1,5 +1,38 @@
 # @pnpm/core
 
+## 900.0.2
+
+### Patch Changes
+
+- Updated dependencies [28b4622]
+  - @pnpm/constants@901.0.0
+  - @pnpm/lockfile.filtering@900.0.1
+  - @pnpm/lockfile.fs@900.0.1
+  - @pnpm/lockfile.pruner@900.0.1
+  - @pnpm/lockfile.verification@900.0.1
+  - @pnpm/calc-dep-state@900.0.1
+  - @pnpm/error@900.0.1
+  - @pnpm/get-context@900.0.1
+  - @pnpm/headless@900.0.1
+  - @pnpm/hoist@900.0.1
+  - @pnpm/resolve-dependencies@900.0.2
+  - @pnpm/modules-cleaner@900.0.1
+  - @pnpm/lockfile-to-pnp@900.0.1
+  - @pnpm/build-modules@900.0.1
+  - @pnpm/parse-overrides@900.0.1
+  - @pnpm/lifecycle@900.0.1
+  - @pnpm/hooks.read-package-hook@900.0.1
+  - @pnpm/link-bins@900.0.1
+  - @pnpm/package-requester@900.0.1
+  - @pnpm/manifest-utils@900.0.1
+  - @pnpm/read-project-manifest@900.0.1
+  - @pnpm/worker@900.0.1
+  - @pnpm/symlink-dependency@900.0.0
+  - @pnpm/lockfile.settings-checker@900.0.1
+  - @pnpm/crypto.base32-hash@900.0.0
+  - @pnpm/lockfile.preferred-versions@900.0.1
+  - @pnpm/remove-bins@900.0.1
+
 ## 900.0.1
 
 ### Patch Changes

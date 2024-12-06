@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/catalogs.resolver",
-  "version": "900.0.0",
+  "version": "900.0.1",
   "description": "Dereferences catalog protocol specifiers into usable specifiers.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

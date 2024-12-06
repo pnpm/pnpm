@@ -1,5 +1,12 @@
 # @pnpm/pnpmfile
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/error@900.0.1
+- @pnpm/crypto.base32-hash@900.0.0
+
 ## 6.0.13
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-deploy
 
+## 900.0.2
+
+### Patch Changes
+
+- Updated dependencies [ddfd640]
+  - @pnpm/plugin-commands-installation@900.0.2
+  - @pnpm/error@900.0.1
+  - @pnpm/cli-utils@900.0.1
+  - @pnpm/catalogs.resolver@900.0.1
+  - @pnpm/fs.indexed-pkg-importer@900.0.0
+  - @pnpm/directory-fetcher@900.0.1
+
 ## 900.0.1
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @pnpm/resolve-dependencies
 
+## 900.0.2
+
+### Patch Changes
+
+- Updated dependencies [28b4622]
+  - @pnpm/constants@901.0.0
+  - @pnpm/lockfile.pruner@900.0.1
+  - @pnpm/error@900.0.1
+  - @pnpm/npm-resolver@900.0.2
+  - @pnpm/catalogs.resolver@900.0.1
+  - @pnpm/manifest-utils@900.0.1
+  - @pnpm/read-package-json@900.0.1
+  - @pnpm/lockfile.preferred-versions@900.0.1
+
 ## 900.0.1
 
 ### Patch Changes

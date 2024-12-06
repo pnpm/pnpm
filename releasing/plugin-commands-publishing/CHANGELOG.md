@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-publishing
 
+## 900.0.2
+
+### Patch Changes
+
+- @pnpm/config@900.0.1
+- @pnpm/error@900.0.1
+- @pnpm/cli-utils@900.0.1
+- @pnpm/plugin-commands-env@900.0.1
+- @pnpm/lifecycle@900.0.1
+- @pnpm/network.auth-header@900.0.1
+- @pnpm/exportable-manifest@900.0.1
+- @pnpm/client@900.0.2
+
 ## 900.0.1
 
 ### Patch Changes

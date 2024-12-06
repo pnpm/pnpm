@@ -1,5 +1,12 @@
 # @pnpm/parse-cli-args
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/error@900.0.1
+- @pnpm/find-workspace-dir@900.0.1
+
 ## 8.0.3
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/package-requester
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/error@900.0.1
+- @pnpm/package-is-installable@900.0.1
+- @pnpm/read-package-json@900.0.1
+- @pnpm/worker@900.0.1
+
 ## 25.2.11
 
 ### Patch Changes

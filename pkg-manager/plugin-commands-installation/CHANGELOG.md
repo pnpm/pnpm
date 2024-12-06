@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-installation
 
+## 900.0.2
+
+### Patch Changes
+
+- ddfd640: `pnpm update --global` should not crash if there are no any global packages installed [#7898](https://github.com/pnpm/pnpm/issues/7898).
+- Updated dependencies [28b4622]
+- Updated dependencies [5fc8669]
+  - @pnpm/constants@901.0.0
+  - @pnpm/outdated@900.0.2
+  - @pnpm/config@900.0.1
+  - @pnpm/plugin-commands-rebuild@900.0.2
+  - @pnpm/error@900.0.1
+  - @pnpm/core@900.0.2
+  - @pnpm/get-context@900.0.1
+  - @pnpm/cli-utils@900.0.1
+  - @pnpm/plugin-commands-env@900.0.1
+  - @pnpm/store-connection-manager@900.0.2
+  - @pnpm/dedupe.check@900.0.1
+  - @pnpm/pnpmfile@900.0.1
+  - @pnpm/manifest-utils@900.0.1
+  - @pnpm/read-project-manifest@900.0.1
+  - @pnpm/filter-workspace-packages@900.0.2
+  - @pnpm/find-workspace-dir@900.0.1
+  - @pnpm/workspace.pkgs-graph@900.0.2
+  - @pnpm/workspace.find-packages@900.0.1
+  - @pnpm/package-store@900.0.1
+
 ## 900.0.1
 
 ### Patch Changes

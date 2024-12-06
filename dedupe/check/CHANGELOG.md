@@ -1,5 +1,11 @@
 # @pnpm/dedupe.check
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/error@900.0.1
+
 ## 2.0.11
 
 ### Patch Changes

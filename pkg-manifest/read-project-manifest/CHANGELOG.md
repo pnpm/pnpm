@@ -1,5 +1,11 @@
 # @pnpm/read-project-manifest
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/error@900.0.1
+
 ## 6.0.9
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @pnpm/outdated
 
+## 900.0.2
+
+### Patch Changes
+
+- 5fc8669: Fix an exception when running `pnpm update --interactive` if catalogs are used.
+- Updated dependencies [28b4622]
+  - @pnpm/constants@901.0.0
+  - @pnpm/lockfile.fs@900.0.1
+  - @pnpm/error@900.0.1
+  - @pnpm/npm-resolver@900.0.2
+  - @pnpm/catalogs.resolver@900.0.1
+  - @pnpm/parse-overrides@900.0.1
+  - @pnpm/hooks.read-package-hook@900.0.1
+  - @pnpm/manifest-utils@900.0.1
+  - @pnpm/client@900.0.2
+
 ## 900.0.1
 
 ### Patch Changes

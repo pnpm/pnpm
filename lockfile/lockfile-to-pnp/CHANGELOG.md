@@ -1,5 +1,11 @@
 # @pnpm/lockfile-to-pnp
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@900.0.1
+
 ## 4.1.15
 
 ### Patch Changes

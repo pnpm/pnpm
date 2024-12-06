@@ -1,5 +1,14 @@
 # @pnpm/worker
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/error@900.0.1
+- @pnpm/fs.hard-link-dir@900.0.0
+- @pnpm/symlink-dependency@900.0.0
+- @pnpm/create-cafs-store@900.0.0
+
 ## 1.0.13
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/cli-utils
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/config@900.0.1
+- @pnpm/error@900.0.1
+- @pnpm/default-reporter@900.0.1
+- @pnpm/package-is-installable@900.0.1
+- @pnpm/manifest-utils@900.0.1
+- @pnpm/read-project-manifest@900.0.1
+
 ## 4.0.9
 
 ### Patch Changes

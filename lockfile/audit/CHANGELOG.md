@@ -1,5 +1,13 @@
 # @pnpm/audit
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/error@900.0.1
+- @pnpm/read-project-manifest@900.0.1
+- @pnpm/list@900.0.1
+
 ## 8.2.3
 
 ### Patch Changes

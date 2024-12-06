@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/config@900.0.1
+- @pnpm/error@900.0.1
+- @pnpm/render-peer-issues@900.0.1
+
 ## 14.0.6
 
 ### Patch Changes

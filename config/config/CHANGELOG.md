@@ -1,5 +1,17 @@
 # @pnpm/config
 
+## 900.0.1
+
+### Patch Changes
+
+- Updated dependencies [28b4622]
+  - @pnpm/constants@901.0.0
+  - @pnpm/error@900.0.1
+  - @pnpm/workspace.read-manifest@900.0.1
+  - @pnpm/catalogs.config@900.0.1
+  - @pnpm/pnpmfile@900.0.1
+  - @pnpm/read-project-manifest@900.0.1
+
 ## 21.8.6
 
 ### Patch Changes

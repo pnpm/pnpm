@@ -1,5 +1,11 @@
 # @pnpm/constants
 
+## 901.0.0
+
+### Major Changes
+
+- 28b4622: Metadata directory version bumped to force fresh cache after we shipped a fix to the metadata write function. This change is backward compatible as install doesn't require a metadata cache.
+
 ## 9.0.0
 
 ### Major Changes

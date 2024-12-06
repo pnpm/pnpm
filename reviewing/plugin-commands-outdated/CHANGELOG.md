@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-outdated
 
+## 900.0.2
+
+### Patch Changes
+
+- Updated dependencies [5fc8669]
+  - @pnpm/outdated@900.0.2
+  - @pnpm/config@900.0.1
+  - @pnpm/lockfile.fs@900.0.1
+  - @pnpm/error@900.0.1
+  - @pnpm/cli-utils@900.0.1
+  - @pnpm/default-resolver@900.0.2
+  - @pnpm/store-path@900.0.1
+
 ## 900.0.1
 
 ### Patch Changes

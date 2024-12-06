@@ -1,5 +1,12 @@
 # @pnpm/modules-cleaner
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/lockfile.filtering@900.0.1
+- @pnpm/remove-bins@900.0.1
+
 ## 15.1.17
 
 ### Patch Changes

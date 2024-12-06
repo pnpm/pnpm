@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-script-runners
 
+## 900.0.2
+
+### Patch Changes
+
+- Updated dependencies [ddfd640]
+  - @pnpm/plugin-commands-installation@900.0.2
+  - @pnpm/config@900.0.1
+  - @pnpm/error@900.0.1
+  - @pnpm/cli-utils@900.0.1
+  - @pnpm/plugin-commands-env@900.0.1
+  - @pnpm/lifecycle@900.0.1
+  - @pnpm/read-package-json@900.0.1
+  - @pnpm/read-project-manifest@900.0.1
+  - @pnpm/store-path@900.0.1
+  - @pnpm/crypto.base32-hash@900.0.0
+
 ## 900.0.1
 
 ### Patch Changes

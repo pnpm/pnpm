@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-patching
 
+## 900.0.2
+
+### Patch Changes
+
+- Updated dependencies [28b4622]
+- Updated dependencies [ddfd640]
+  - @pnpm/constants@901.0.0
+  - @pnpm/plugin-commands-installation@900.0.2
+  - @pnpm/config@900.0.1
+  - @pnpm/lockfile.fs@900.0.1
+  - @pnpm/error@900.0.1
+  - @pnpm/cli-utils@900.0.1
+  - @pnpm/store-connection-manager@900.0.2
+  - @pnpm/patching.apply-patch@900.0.1
+  - @pnpm/read-package-json@900.0.1
+  - @pnpm/read-project-manifest@900.0.1
+
 ## 900.0.1
 
 ### Patch Changes

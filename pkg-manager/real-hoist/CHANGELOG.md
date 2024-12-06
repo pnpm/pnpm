@@ -1,5 +1,11 @@
 # @pnpm/real-hoist
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/error@900.0.1
+
 ## 3.0.14
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/prepare-package
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/error@900.0.1
+- @pnpm/lifecycle@900.0.1
+- @pnpm/read-package-json@900.0.1
+
 ## 6.0.14
 
 ### Patch Changes

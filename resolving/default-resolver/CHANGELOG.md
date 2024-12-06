@@ -1,5 +1,13 @@
 # @pnpm/default-resolver
 
+## 900.0.2
+
+### Patch Changes
+
+- @pnpm/error@900.0.1
+- @pnpm/npm-resolver@900.0.2
+- @pnpm/local-resolver@900.0.1
+
 ## 900.0.1
 
 ### Patch Changes

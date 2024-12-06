@@ -1,5 +1,30 @@
 # @pnpm/headless
 
+## 900.0.1
+
+### Patch Changes
+
+- Updated dependencies [28b4622]
+  - @pnpm/constants@901.0.0
+  - @pnpm/deps.graph-builder@900.0.1
+  - @pnpm/lockfile.filtering@900.0.1
+  - @pnpm/lockfile.fs@900.0.1
+  - @pnpm/calc-dep-state@900.0.1
+  - @pnpm/error@900.0.1
+  - @pnpm/hoist@900.0.1
+  - @pnpm/modules-cleaner@900.0.1
+  - @pnpm/lockfile-to-pnp@900.0.1
+  - @pnpm/real-hoist@900.0.1
+  - @pnpm/build-modules@900.0.1
+  - @pnpm/package-is-installable@900.0.1
+  - @pnpm/lifecycle@900.0.1
+  - @pnpm/link-bins@900.0.1
+  - @pnpm/package-requester@900.0.1
+  - @pnpm/read-package-json@900.0.1
+  - @pnpm/read-project-manifest@900.0.1
+  - @pnpm/worker@900.0.1
+  - @pnpm/symlink-dependency@900.0.0
+
 ## 23.2.10
 
 ### Patch Changes

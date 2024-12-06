@@ -1,5 +1,12 @@
 # @pnpm/error
 
+## 900.0.1
+
+### Patch Changes
+
+- Updated dependencies [28b4622]
+  - @pnpm/constants@901.0.0
+
 ## 6.0.2
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/build-modules
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@900.0.1
+- @pnpm/lifecycle@900.0.1
+- @pnpm/patching.apply-patch@900.0.1
+- @pnpm/link-bins@900.0.1
+- @pnpm/read-package-json@900.0.1
+- @pnpm/worker@900.0.1
+- @pnpm/fs.hard-link-dir@900.0.0
+
 ## 14.0.5
 
 ### Patch Changes

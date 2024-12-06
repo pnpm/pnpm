@@ -1,5 +1,12 @@
 # @pnpm/local-resolver
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/error@900.0.1
+- @pnpm/read-project-manifest@900.0.1
+
 ## 12.0.9
 
 ### Patch Changes

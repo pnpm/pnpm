@@ -1,5 +1,14 @@
 # @pnpm/deps.graph-builder
 
+## 900.0.1
+
+### Patch Changes
+
+- Updated dependencies [28b4622]
+  - @pnpm/constants@901.0.0
+  - @pnpm/lockfile.fs@900.0.1
+  - @pnpm/package-is-installable@900.0.1
+
 ## 2.0.7
 
 ### Patch Changes

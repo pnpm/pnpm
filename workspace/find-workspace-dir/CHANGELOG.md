@@ -1,5 +1,11 @@
 # @pnpm/find-workspace-dir
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/error@900.0.1
+
 ## 7.0.2
 
 ### Patch Changes

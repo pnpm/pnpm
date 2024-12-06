@@ -1,5 +1,18 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 900.0.2
+
+### Patch Changes
+
+- Updated dependencies [ddfd640]
+  - @pnpm/plugin-commands-installation@900.0.2
+  - @pnpm/config@900.0.1
+  - @pnpm/error@900.0.1
+  - @pnpm/cli-utils@900.0.1
+  - @pnpm/link-bins@900.0.1
+  - @pnpm/read-project-manifest@900.0.1
+  - @pnpm/client@900.0.2
+
 ## 900.0.1
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/lockfile-file
 
+## 900.0.1
+
+### Patch Changes
+
+- Updated dependencies [28b4622]
+  - @pnpm/constants@901.0.0
+  - @pnpm/error@900.0.1
+
 ## 1.1.0
 
 ### Minor Changes

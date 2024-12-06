@@ -1,5 +1,16 @@
 # pnpm
 
+## 9.15.0
+
+### Minor Changes
+
+- Metadata directory version bumped to force fresh cache after we shipped a fix to the metadata write function. This change is backward compatible as install doesn't require a metadata cache.
+
+### Patch Changes
+
+- `pnpm update --global` should not crash if there are no any global packages installed [#7898](https://github.com/pnpm/pnpm/issues/7898).
+- Fix an exception when running `pnpm update --interactive` if catalogs are used.
+
 ## 9.14.4
 
 ### Patch Changes

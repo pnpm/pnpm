@@ -1,5 +1,16 @@
 # @pnpm/store-connection-manager
 
+## 900.0.2
+
+### Patch Changes
+
+- @pnpm/config@900.0.1
+- @pnpm/error@900.0.1
+- @pnpm/store-path@900.0.1
+- @pnpm/package-store@900.0.1
+- @pnpm/client@900.0.2
+- @pnpm/server@900.0.0
+
 ## 900.0.1
 
 ### Patch Changes

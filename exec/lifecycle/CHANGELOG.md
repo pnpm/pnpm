@@ -1,5 +1,14 @@
 # @pnpm/lifecycle
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/error@900.0.1
+- @pnpm/link-bins@900.0.1
+- @pnpm/read-package-json@900.0.1
+- @pnpm/directory-fetcher@900.0.1
+
 ## 17.1.5
 
 ### Patch Changes
