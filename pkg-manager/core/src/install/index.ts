@@ -86,6 +86,7 @@ import { linkPackages } from './link'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
 import { validateModules } from './validateModules'
 import { isCI } from 'ci-info'
+import { createFetchFromRegistry } from '@pnpm/fetch'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -193,6 +194,17 @@ export async function mutateModulesInSingleProject (
   },
   maybeOpts: Omit<MutateModulesOptions, 'allProjects'> & InstallMutationOptions
 ): Promise<UpdatedProject> {
+  // @ts-expect-error - There is no declaration in the type, but there is actually a value
+  const selectors = project.dependencySelectors ?? []
+  if (selectors.length) {
+    const fetchRetry = createFetchFromRegistry({})
+    for (const selector of selectors) {
+      if (selector.startsWith('https:')) {
+        const info = await fetchRetry(selector)
+        selectors[selectors.indexOf(selector)] = info.url
+      }
+    }
+  }
   const result = await mutateModules(
     [
       {
