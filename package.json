@@ -87,7 +87,8 @@
       "cookie@<0.7.0": ">=0.7.0",
       "http-proxy-middleware@<2.0.7": "^2.0.7",
       "path-to-regexp@>=7.0.0 <8.0.0": ">=8.0.0",
-      "cross-spawn@<7.0.5": ">=7.0.5"
+      "cross-spawn@<7.0.5": ">=7.0.5",
+      "path-to-regexp@<0.1.12": ">=0.1.12"
     },
     "packageExtensions": {
       "@babel/parser": {
