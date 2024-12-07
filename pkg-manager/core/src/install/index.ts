@@ -200,6 +200,7 @@ export async function mutateModulesInSingleProject (
     const fetchRetry = createFetchFromRegistry({})
     for (const selector of selectors) {
       if (selector.startsWith('https:')) {
+        // eslint-disable-next-line no-await-in-loop
         const info = await fetchRetry(selector)
         selectors[selectors.indexOf(selector)] = info.url
       }
