@@ -40,6 +40,7 @@
     "@pnpm/lockfile.settings-checker": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
     "@pnpm/parse-overrides": "workspace:*",
+    "@pnpm/pnpmfile": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",

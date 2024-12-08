@@ -4,8 +4,6 @@ import { preparePackages } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
 import { loadWorkspaceState, updateWorkspaceState } from '../src/index'
 
-const lastValidatedTimestamp = Date.now()
-
 const originalLoggerDebug = logger.debug
 afterEach(() => {
   logger.debug = originalLoggerDebug
@@ -23,20 +21,22 @@ test('updateWorkspaceState()', async () => {
 
   logger.debug = jest.fn(originalLoggerDebug)
   await updateWorkspaceState({
-    lastValidatedTimestamp,
+    hasPnpmfile: true,
     workspaceDir,
     catalogs: undefined,
     allProjects: [],
+    linkWorkspacePackages: true,
+    filteredInstall: false,
   })
   expect((logger.debug as jest.Mock).mock.calls).toStrictEqual([[{ msg: 'updating workspace state' }]])
-  expect(loadWorkspaceState(workspaceDir)).toStrictEqual({
-    lastValidatedTimestamp,
-    projectRootDirs: [],
-  })
+  expect(loadWorkspaceState(workspaceDir)).toStrictEqual(expect.objectContaining({
+    lastValidatedTimestamp: expect.any(Number),
+    projects: {},
+  }))
 
   logger.debug = jest.fn(originalLoggerDebug)
   await updateWorkspaceState({
-    lastValidatedTimestamp,
+    hasPnpmfile: false,
     workspaceDir,
     catalogs: {
       default: {
@@ -44,25 +44,27 @@ test('updateWorkspaceState()', async () => {
       },
     },
     allProjects: [
-      { rootDir: path.resolve('packages/c') as ProjectRootDir },
-      { rootDir: path.resolve('packages/a') as ProjectRootDir },
-      { rootDir: path.resolve('packages/d') as ProjectRootDir },
-      { rootDir: path.resolve('packages/b') as ProjectRootDir },
+      { rootDir: path.resolve('packages/c') as ProjectRootDir, manifest: {} },
+      { rootDir: path.resolve('packages/a') as ProjectRootDir, manifest: {} },
+      { rootDir: path.resolve('packages/d') as ProjectRootDir, manifest: {} },
+      { rootDir: path.resolve('packages/b') as ProjectRootDir, manifest: {} },
     ],
+    linkWorkspacePackages: true,
+    filteredInstall: false,
   })
   expect((logger.debug as jest.Mock).mock.calls).toStrictEqual([[{ msg: 'updating workspace state' }]])
-  expect(loadWorkspaceState(workspaceDir)).toStrictEqual({
+  expect(loadWorkspaceState(workspaceDir)).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         foo: '0.1.2',
       },
     },
-    lastValidatedTimestamp,
-    projectRootDirs: [
-      path.resolve('packages/a'),
-      path.resolve('packages/b'),
-      path.resolve('packages/c'),
-      path.resolve('packages/d'),
-    ],
-  })
+    lastValidatedTimestamp: expect.any(Number),
+    projects: {
+      [path.resolve('packages/a')]: {},
+      [path.resolve('packages/b')]: {},
+      [path.resolve('packages/c')]: {},
+      [path.resolve('packages/d')]: {},
+    },
+  }))
 })

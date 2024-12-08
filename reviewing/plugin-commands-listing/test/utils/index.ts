@@ -10,6 +10,7 @@ export const DEFAULT_OPTS = {
   bin: 'node_modules/.bin',
   ca: undefined,
   cert: undefined,
+  excludeLinksFromLockfile: false,
   extraEnv: {},
   cliOptions: {},
   fetchRetries: 2,

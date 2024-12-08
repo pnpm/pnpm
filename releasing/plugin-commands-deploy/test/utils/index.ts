@@ -12,6 +12,7 @@ export const DEFAULT_OPTS = {
   cacheDir: '../cache',
   cert: undefined,
   extraEnv: {},
+  excludeLinksFromLockfile: false,
   cliOptions: {},
   deployAllFiles: false,
   fetchRetries: 2,

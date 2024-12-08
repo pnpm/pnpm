@@ -16,6 +16,7 @@ const DEFAULT_OPTIONS = {
   },
   bail: false,
   bin: 'node_modules/.bin',
+  excludeLinksFromLockfile: false,
   extraEnv: {},
   cliOptions: {},
   deployAllFiles: false,

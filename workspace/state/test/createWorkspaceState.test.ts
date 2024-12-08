@@ -3,8 +3,6 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
 import { createWorkspaceState } from '../src/createWorkspaceState'
 
-const lastValidatedTimestamp = Date.now()
-
 test('createWorkspaceState() on empty list', () => {
   prepareEmpty()
 
@@ -12,13 +10,16 @@ test('createWorkspaceState() on empty list', () => {
     createWorkspaceState({
       allProjects: [],
       catalogs: undefined,
-      lastValidatedTimestamp,
+      hasPnpmfile: true,
+      linkWorkspacePackages: true,
+      filteredInstall: false,
     })
-  ).toStrictEqual({
+  ).toStrictEqual(expect.objectContaining({
     catalogs: undefined,
-    lastValidatedTimestamp,
-    projectRootDirs: [],
-  })
+    projects: {},
+    hasPnpmfile: true,
+    lastValidatedTimestamp: expect.any(Number),
+  }))
 })
 
 test('createWorkspaceState() on non-empty list', () => {
@@ -30,30 +31,33 @@ test('createWorkspaceState() on non-empty list', () => {
   expect(
     createWorkspaceState({
       allProjects: [
-        { rootDir: path.resolve('packages/c') as ProjectRootDir },
-        { rootDir: path.resolve('packages/b') as ProjectRootDir },
-        { rootDir: path.resolve('packages/a') as ProjectRootDir },
-        { rootDir: path.resolve('packages/d') as ProjectRootDir },
+        { rootDir: path.resolve('packages/c') as ProjectRootDir, manifest: {} },
+        { rootDir: path.resolve('packages/b') as ProjectRootDir, manifest: {} },
+        { rootDir: path.resolve('packages/a') as ProjectRootDir, manifest: {} },
+        { rootDir: path.resolve('packages/d') as ProjectRootDir, manifest: {} },
       ],
-      lastValidatedTimestamp,
       catalogs: {
         default: {
           foo: '0.1.2',
         },
       },
+      hasPnpmfile: false,
+      linkWorkspacePackages: true,
+      filteredInstall: false,
     })
-  ).toStrictEqual({
+  ).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         foo: '0.1.2',
       },
     },
-    lastValidatedTimestamp,
-    projectRootDirs: [
-      path.resolve('packages/a'),
-      path.resolve('packages/b'),
-      path.resolve('packages/c'),
-      path.resolve('packages/d'),
-    ],
-  })
+    lastValidatedTimestamp: expect.any(Number),
+    projects: {
+      [path.resolve('packages/a')]: {},
+      [path.resolve('packages/b')]: {},
+      [path.resolve('packages/c')]: {},
+      [path.resolve('packages/d')]: {},
+    },
+    hasPnpmfile: false,
+  }))
 })

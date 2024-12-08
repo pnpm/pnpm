@@ -260,6 +260,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'depth'
 | 'dev'
 | 'engineStrict'
+| 'excludeLinksFromLockfile'
 | 'frozenLockfile'
 | 'global'
 | 'globalPnpmfile'

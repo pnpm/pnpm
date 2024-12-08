@@ -14,6 +14,7 @@ const DEFAULT_OPTIONS = {
   bin: 'node_modules/.bin',
   cliOptions: {},
   deployAllFiles: false,
+  excludeLinksFromLockfile: false,
   extraEnv: {},
   include: {
     dependencies: true,

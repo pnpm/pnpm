@@ -38,6 +38,7 @@ function prepareOptions (dir: string) {
       original: [],
     },
     cliOptions: {},
+    excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     bail: true,
     pnpmHomeDir: dir,

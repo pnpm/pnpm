@@ -9,8 +9,10 @@ import { type ProjectsList } from './types'
 export interface UpdateWorkspaceStateOptions {
   allProjects: ProjectsList
   catalogs: Catalogs | undefined
-  lastValidatedTimestamp: number
   workspaceDir: string
+  hasPnpmfile: boolean
+  linkWorkspacePackages: boolean | 'deep'
+  filteredInstall: boolean
 }
 
 export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): Promise<void> {

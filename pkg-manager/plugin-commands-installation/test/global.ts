@@ -16,6 +16,7 @@ const DEFAULT_OPTIONS = {
   bail: false,
   bin: 'node_modules/.bin',
   cacheDir: path.join(tmp, 'cache'),
+  excludeLinksFromLockfile: false,
   extraEnv: {},
   cliOptions: {},
   deployAllFiles: false,

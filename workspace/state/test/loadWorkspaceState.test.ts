@@ -47,12 +47,15 @@ test('loadWorkspaceState() when cache file exists and is correct', async () => {
       },
     },
     lastValidatedTimestamp,
-    projectRootDirs: [
-      path.resolve('packages/a') as ProjectRootDir,
-      path.resolve('packages/b') as ProjectRootDir,
-      path.resolve('packages/c') as ProjectRootDir,
-      path.resolve('packages/d') as ProjectRootDir,
-    ],
+    projects: {
+      [path.resolve('packages/a') as ProjectRootDir]: {},
+      [path.resolve('packages/b') as ProjectRootDir]: {},
+      [path.resolve('packages/c') as ProjectRootDir]: {},
+      [path.resolve('packages/d') as ProjectRootDir]: {},
+    },
+    hasPnpmfile: false,
+    linkWorkspacePackages: true,
+    filteredInstall: false,
   }
   fs.writeFileSync(cacheFile, JSON.stringify(workspaceState))
   expect(loadWorkspaceState(workspaceDir)).toStrictEqual(workspaceState)

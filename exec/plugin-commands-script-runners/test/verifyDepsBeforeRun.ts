@@ -56,7 +56,7 @@ test('throw an error if verifyDepsBeforeRun is set to error', async () => {
   } catch (_err) {
     err = _err as Error
   }
-  expect(err.message).toContain('Cannot find a lockfile in')
+  expect(err.message).toContain('Cannot check whether dependencies are outdated')
 })
 
 test('install the dependencies if verifyDepsBeforeRun is set to install', async () => {
