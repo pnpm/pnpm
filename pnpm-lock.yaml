@@ -669,6 +669,7 @@ overrides:
   http-proxy-middleware@<2.0.7: ^2.0.7
   path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
   cross-spawn@<7.0.5: '>=7.0.5'
+  path-to-regexp@<0.1.12: '>=0.1.12'
 
 packageExtensionsChecksum: sha256-VLztJiT59DQuLj+e7xg8kB9fTEUJlTrj+wQKDJ4xUfs=
 
@@ -12881,9 +12882,6 @@ packages:
     resolution: {integrity: sha512-cMMJTAZlion/RWRRC48UbrDymEIt+/YSD/l8NqjneyDw2rDOBQcP5yRkMB4CYGn47KMhZvbblBP7Z79OsMw72w==}
     engines: {node: '>=8.15'}
 
-  path-to-regexp@0.1.10:
-    resolution: {integrity: sha512-7lf7qcQidTku0Gu3YDPc8DJ1q7OOucfa/BSsIwjuh56VU7katFvuM8hULfkwB3Fns/rsVF7PwPKVw1sl5KQS9w==}
-
   path-to-regexp@7.0.0:
     resolution: {integrity: sha512-58Y94bQqF3zBIASFNiufRPH1NfgZth1qwZ35radL87sg8pgbVqr6uikAhqZtFD+w65MGH6SWnY/ly3GbrM4fbg==}
     engines: {node: '>=16'}
@@ -18290,7 +18288,7 @@ snapshots:
       methods: 1.1.2
       on-finished: 2.4.1
       parseurl: 1.3.3
-      path-to-regexp: 0.1.10
+      path-to-regexp: 7.0.0
       proxy-addr: 2.0.7
       qs: 6.11.0
       range-parser: 1.2.1
@@ -20539,8 +20537,6 @@ snapshots:
   path-temp@2.1.0:
     dependencies:
       unique-string: 2.0.0
-
-  path-to-regexp@0.1.10: {}
 
   path-to-regexp@7.0.0: {}
 
