@@ -1824,6 +1824,9 @@ importers:
       '@pnpm/parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides
+      '@pnpm/pnpmfile':
+        specifier: workspace:*
+        version: link:../../hooks/pnpmfile
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -5088,6 +5091,9 @@ importers:
       '@pnpm/dedupe.check':
         specifier: workspace:*
         version: link:../../dedupe/check
+      '@pnpm/deps.status':
+        specifier: workspace:*
+        version: link:../../deps/status
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -7901,6 +7907,9 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -7917,6 +7926,9 @@ importers:
       '@pnpm/workspace.state':
         specifier: workspace:*
         version: 'link:'
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
 
 packages:
 

@@ -179,14 +179,14 @@ test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace 
       name: 'node-version-unset',
       version: '1.0.0',
       scripts: {
-        install: 'node -v > node-version.txt',
+        test: 'node -v > node-version.txt',
       },
     },
     {
       name: 'node-version-18',
       version: '1.0.0',
       scripts: {
-        install: 'node -v > node-version.txt',
+        test: 'node -v > node-version.txt',
       },
       pnpm: {
         executionEnv: {
@@ -198,7 +198,7 @@ test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace 
       name: 'node-version-20',
       version: '1.0.0',
       scripts: {
-        install: 'node -v > node-version.txt',
+        test: 'node -v > node-version.txt',
       },
       pnpm: {
         executionEnv: {
@@ -212,7 +212,7 @@ test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace 
     packages: ['*'],
   })
 
-  execPnpmSync(['install'])
+  execPnpmSync(['-r', 'test'])
   expect(
     ['node-version-unset', 'node-version-18', 'node-version-20'].map(name => {
       const filePath = path.join(projects[name].dir(), 'node-version.txt')
@@ -220,7 +220,7 @@ test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace 
     })
   ).toStrictEqual([process.version, 'v18.0.0', 'v20.0.0'])
 
-  execPnpmSync(['--config.use-node-version=19.0.0', 'install'])
+  execPnpmSync(['--config.use-node-version=19.0.0', '-r', 'test'])
   expect(
     ['node-version-unset', 'node-version-18', 'node-version-20'].map(name => {
       const filePath = path.join(projects[name].dir(), 'node-version.txt')

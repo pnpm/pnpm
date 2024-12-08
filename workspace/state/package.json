@@ -32,13 +32,15 @@
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/config": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:"
   },
   "devDependencies": {
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/workspace.state": "workspace:*"
+    "@pnpm/workspace.state": "workspace:*",
+    "@types/ramda": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

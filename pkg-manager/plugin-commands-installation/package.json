@@ -66,6 +66,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/core": "workspace:*",
     "@pnpm/dedupe.check": "workspace:*",
+    "@pnpm/deps.status": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/find-workspace-dir": "workspace:*",

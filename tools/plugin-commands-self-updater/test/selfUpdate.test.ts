@@ -38,9 +38,11 @@ function prepareOptions (dir: string) {
       original: [],
     },
     cliOptions: {},
+    excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     bail: true,
     pnpmHomeDir: dir,
+    preferWorkspacePackages: true,
     registries: {
       default: 'https://registry.npmjs.org/',
     },
