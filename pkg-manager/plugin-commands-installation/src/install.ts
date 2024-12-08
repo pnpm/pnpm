@@ -275,6 +275,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'nodeLinker'
 | 'pnpmfile'
 | 'preferFrozenLockfile'
+| 'preferWorkspacePackages'
 | 'production'
 | 'registries'
 | 'rootProjectManifest'

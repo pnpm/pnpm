@@ -23,7 +23,7 @@ import {
 import { globalInfo, logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
-import { updateWorkspaceState } from '@pnpm/workspace.state'
+import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import isSubdir from 'is-subdir'
 import { getPinnedVersion } from './getPinnedVersion'
 import { getSaveType } from './getSaveType'
@@ -68,6 +68,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'lockfileOnly'
 | 'pnpmfile'
 | 'production'
+| 'preferWorkspacePackages'
 | 'rawLocalConfig'
 | 'registries'
 | 'rootProjectManifestDir'
@@ -323,10 +324,9 @@ when running add/update with the --workspace option')
     if (!opts.lockfileOnly) {
       await updateWorkspaceState({
         allProjects,
-        catalogs: opts.catalogs,
+        settings: opts,
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
-        hasPnpmfile: opts.hooks?.calculatePnpmfileChecksum != null,
-        linkWorkspacePackages: opts.linkWorkspacePackages,
+        pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
       })
     }
@@ -377,10 +377,9 @@ when running add/update with the --workspace option')
     if (!opts.lockfileOnly) {
       await updateWorkspaceState({
         allProjects,
-        catalogs: opts.catalogs,
+        settings: opts,
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
-        hasPnpmfile: opts.hooks?.calculatePnpmfileChecksum != null,
-        linkWorkspacePackages: opts.linkWorkspacePackages,
+        pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
       })
     }
@@ -396,17 +395,16 @@ function selectProjectByDir (projects: Project[], searchedDir: string): Projects
 async function recursiveInstallThenUpdateWorkspaceState (
   allProjects: Project[],
   params: string[],
-  opts: RecursiveOptions & Pick<InstallDepsOptions, 'catalogs' | 'workspaceDir'>,
+  opts: RecursiveOptions & WorkspaceStateSettings,
   cmdFullName: CommandFullName
 ): Promise<boolean | string> {
   const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
   if (!opts.lockfileOnly) {
     await updateWorkspaceState({
       allProjects,
-      catalogs: opts.catalogs,
+      settings: opts,
       workspaceDir: opts.workspaceDir,
-      hasPnpmfile: opts.hooks?.calculatePnpmfileChecksum != null,
-      linkWorkspacePackages: opts.linkWorkspacePackages,
+      pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
       filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
     })
   }

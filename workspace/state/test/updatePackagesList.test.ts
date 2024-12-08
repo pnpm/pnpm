@@ -21,12 +21,18 @@ test('updateWorkspaceState()', async () => {
 
   logger.debug = jest.fn(originalLoggerDebug)
   await updateWorkspaceState({
-    hasPnpmfile: true,
+    pnpmfileExists: true,
     workspaceDir,
-    catalogs: undefined,
     allProjects: [],
-    linkWorkspacePackages: true,
     filteredInstall: false,
+    settings: {
+      autoInstallPeers: true,
+      dedupeDirectDeps: true,
+      excludeLinksFromLockfile: false,
+      preferWorkspacePackages: false,
+      linkWorkspacePackages: false,
+      injectWorkspacePackages: false,
+    },
   })
   expect((logger.debug as jest.Mock).mock.calls).toStrictEqual([[{ msg: 'updating workspace state' }]])
   expect(loadWorkspaceState(workspaceDir)).toStrictEqual(expect.objectContaining({
@@ -36,12 +42,20 @@ test('updateWorkspaceState()', async () => {
 
   logger.debug = jest.fn(originalLoggerDebug)
   await updateWorkspaceState({
-    hasPnpmfile: false,
+    pnpmfileExists: false,
     workspaceDir,
-    catalogs: {
-      default: {
-        foo: '0.1.2',
+    settings: {
+      autoInstallPeers: true,
+      dedupeDirectDeps: true,
+      excludeLinksFromLockfile: false,
+      preferWorkspacePackages: false,
+      injectWorkspacePackages: false,
+      catalogs: {
+        default: {
+          foo: '0.1.2',
+        },
       },
+      linkWorkspacePackages: true,
     },
     allProjects: [
       { rootDir: path.resolve('packages/c') as ProjectRootDir, manifest: {} },
@@ -49,16 +63,17 @@ test('updateWorkspaceState()', async () => {
       { rootDir: path.resolve('packages/d') as ProjectRootDir, manifest: {} },
       { rootDir: path.resolve('packages/b') as ProjectRootDir, manifest: {} },
     ],
-    linkWorkspacePackages: true,
     filteredInstall: false,
   })
   expect((logger.debug as jest.Mock).mock.calls).toStrictEqual([[{ msg: 'updating workspace state' }]])
   expect(loadWorkspaceState(workspaceDir)).toStrictEqual(expect.objectContaining({
-    catalogs: {
-      default: {
-        foo: '0.1.2',
+    settings: expect.objectContaining({
+      catalogs: {
+        default: {
+          foo: '0.1.2',
+        },
       },
-    },
+    }),
     lastValidatedTimestamp: expect.any(Number),
     projects: {
       [path.resolve('packages/a')]: {},

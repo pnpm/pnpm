@@ -9,15 +9,20 @@ test('createWorkspaceState() on empty list', () => {
   expect(
     createWorkspaceState({
       allProjects: [],
-      catalogs: undefined,
-      hasPnpmfile: true,
-      linkWorkspacePackages: true,
+      pnpmfileExists: true,
       filteredInstall: false,
+      settings: {
+        autoInstallPeers: true,
+        dedupeDirectDeps: true,
+        excludeLinksFromLockfile: false,
+        preferWorkspacePackages: false,
+        linkWorkspacePackages: false,
+        injectWorkspacePackages: false,
+      },
     })
   ).toStrictEqual(expect.objectContaining({
-    catalogs: undefined,
     projects: {},
-    hasPnpmfile: true,
+    pnpmfileExists: true,
     lastValidatedTimestamp: expect.any(Number),
   }))
 })
@@ -36,21 +41,30 @@ test('createWorkspaceState() on non-empty list', () => {
         { rootDir: path.resolve('packages/a') as ProjectRootDir, manifest: {} },
         { rootDir: path.resolve('packages/d') as ProjectRootDir, manifest: {} },
       ],
+      settings: {
+        autoInstallPeers: true,
+        dedupeDirectDeps: true,
+        excludeLinksFromLockfile: false,
+        preferWorkspacePackages: false,
+        linkWorkspacePackages: false,
+        injectWorkspacePackages: false,
+        catalogs: {
+          default: {
+            foo: '0.1.2',
+          },
+        },
+      },
+      pnpmfileExists: false,
+      filteredInstall: false,
+    })
+  ).toStrictEqual(expect.objectContaining({
+    settings: expect.objectContaining({
       catalogs: {
         default: {
           foo: '0.1.2',
         },
       },
-      hasPnpmfile: false,
-      linkWorkspacePackages: true,
-      filteredInstall: false,
-    })
-  ).toStrictEqual(expect.objectContaining({
-    catalogs: {
-      default: {
-        foo: '0.1.2',
-      },
-    },
+    }),
     lastValidatedTimestamp: expect.any(Number),
     projects: {
       [path.resolve('packages/a')]: {},
@@ -58,6 +72,6 @@ test('createWorkspaceState() on non-empty list', () => {
       [path.resolve('packages/c')]: {},
       [path.resolve('packages/d')]: {},
     },
-    hasPnpmfile: false,
+    pnpmfileExists: false,
   }))
 })

@@ -1,16 +1,14 @@
-import { type Catalogs } from '@pnpm/catalogs.types'
-import { type WorkspaceState, type ProjectsList } from './types'
+import pick from 'ramda/src/pick'
+import { type WorkspaceState, type WorkspaceStateSettings, type ProjectsList } from './types'
 
 export interface CreateWorkspaceStateOptions {
   allProjects: ProjectsList
-  catalogs: Catalogs | undefined
-  hasPnpmfile: boolean
-  linkWorkspacePackages: boolean | 'deep'
+  pnpmfileExists: boolean
   filteredInstall: boolean
+  settings: WorkspaceStateSettings
 }
 
 export const createWorkspaceState = (opts: CreateWorkspaceStateOptions): WorkspaceState => ({
-  catalogs: opts.catalogs,
   lastValidatedTimestamp: Date.now(),
   projects: Object.fromEntries(opts.allProjects.map(project => [
     project.rootDir,
@@ -19,7 +17,25 @@ export const createWorkspaceState = (opts: CreateWorkspaceStateOptions): Workspa
       version: project.manifest.version,
     },
   ])),
-  hasPnpmfile: opts.hasPnpmfile,
-  linkWorkspacePackages: opts.linkWorkspacePackages,
+  pnpmfileExists: opts.pnpmfileExists,
+  settings: pick([
+    'autoInstallPeers',
+    'catalogs',
+    'dedupeDirectDeps',
+    'dedupeInjectedDeps',
+    'dedupePeerDependents',
+    'dev',
+    'excludeLinksFromLockfile',
+    'hoistPattern',
+    'hoistWorkspacePackages',
+    'injectWorkspacePackages',
+    'linkWorkspacePackages',
+    'nodeLinker',
+    'optional',
+    'preferWorkspacePackages',
+    'production',
+    'publicHoistPattern',
+    'workspacePackagePatterns',
+  ], opts.settings),
   filteredInstall: opts.filteredInstall,
 })

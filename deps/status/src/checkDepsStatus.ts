@@ -41,6 +41,7 @@ import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { loadWorkspaceState, updateWorkspaceState } from '@pnpm/workspace.state'
 import { assertLockfilesEqual } from './assertLockfilesEqual'
 import { safeStat, safeStatSync, statManifestFile } from './statManifestFile'
+import { type WorkspaceStateSettings } from '@pnpm/workspace.state/src/types'
 
 export type CheckDepsStatusOptions = Pick<Config,
 | 'allProjects'
@@ -60,7 +61,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'pnpmfile'
 > & {
   ignoreFilteredInstallCache?: boolean
-}
+} & WorkspaceStateSettings
 
 export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDate: boolean | undefined, issue?: string }> {
   try {
@@ -105,16 +106,20 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
     return { upToDate: undefined }
   }
 
-  if (workspaceState.linkWorkspacePackages !== linkWorkspacePackages) {
-    return {
-      upToDate: false,
-      issue: 'The value of the link-workspace-packages setting has changed',
+  for (const [settingName, settingValue] of Object.entries(workspaceState.settings)) {
+    if (settingName === 'catalogs') continue
+    // @ts-expect-error
+    if (!equals(settingValue, opts[settingName])) {
+      return {
+        upToDate: false,
+        issue: `The value of the ${settingName} setting has changed`,
+      }
     }
   }
 
   if (allProjects && workspaceDir) {
     if (!equals(
-      filter(value => value != null, workspaceState.catalogs ?? {}),
+      filter(value => value != null, workspaceState.settings.catalogs ?? {}),
       filter(value => value != null, catalogs ?? {})
     )) {
       return {
@@ -160,7 +165,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
       rootDir: rootProjectManifestDir,
       lastValidatedTimestamp: workspaceState.lastValidatedTimestamp,
       pnpmfile: opts.pnpmfile,
-      hadPnpmfile: workspaceState.hasPnpmfile,
+      hadPnpmfile: workspaceState.pnpmfileExists,
     })
     if (issue) {
       return { upToDate: false, issue }
@@ -253,10 +258,9 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
     // update lastValidatedTimestamp to prevent pointless repeat
     await updateWorkspaceState({
       allProjects,
-      catalogs,
       workspaceDir,
-      hasPnpmfile: workspaceState.hasPnpmfile,
-      linkWorkspacePackages: opts.linkWorkspacePackages,
+      pnpmfileExists: workspaceState.pnpmfileExists,
+      settings: opts,
       filteredInstall: workspaceState.filteredInstall,
     })
 
@@ -302,7 +306,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
       rootDir: rootProjectManifestDir,
       lastValidatedTimestamp: wantedLockfileStats.mtime.valueOf(),
       pnpmfile: opts.pnpmfile,
-      hadPnpmfile: workspaceState.hasPnpmfile,
+      hadPnpmfile: workspaceState.pnpmfileExists,
     })
     if (issue) {
       return { upToDate: false, issue }

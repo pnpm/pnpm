@@ -39,6 +39,7 @@ export const DEFAULT_OPTS = {
   pending: false,
   pnpmfile: './.pnpmfile.cjs',
   pnpmHomeDir: '',
+  preferWorkspacePackages: true,
   proxy: undefined,
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: {},
@@ -81,6 +82,7 @@ export const DLX_DEFAULT_OPTS = {
   lock: true,
   pnpmfile: '.pnpmfile.cjs',
   pnpmHomeDir: '',
+  preferWorkspacePackages: true,
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
   registries: {

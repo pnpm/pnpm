@@ -7907,6 +7907,9 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -7923,6 +7926,9 @@ importers:
       '@pnpm/workspace.state':
         specifier: workspace:*
         version: 'link:'
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
 
 packages:
 

@@ -26,6 +26,7 @@ const DEFAULT_OPTIONS = {
     optionalDependencies: true,
   },
   lock: true,
+  preferWorkspacePackages: true,
   pnpmfile: '.pnpmfile.cjs',
   pnpmHomeDir: '',
   rawConfig: { registry: REGISTRY_URL },

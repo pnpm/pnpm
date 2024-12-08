@@ -36,6 +36,7 @@ export const DEFAULT_OPTS = {
   pending: false,
   pnpmfile: './.pnpmfile.cjs',
   pnpmHomeDir: '',
+  preferWorkspacePackages: true,
   proxy: undefined,
   rawConfig: { registry: REGISTRY },
   rawLocalConfig: {},
