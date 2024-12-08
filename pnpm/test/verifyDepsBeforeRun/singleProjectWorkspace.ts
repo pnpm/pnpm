@@ -26,16 +26,14 @@ test('single dependency', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('Cannot find a lockfile in')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
 
   await execPnpm([...CONFIG, 'install'])
 
-  // installing dependencies on a single package workspace should not create a packages list cache
-  {
-    const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toBeUndefined()
-  }
+  // installing dependencies on a single package workspace should create a packages list cache
+  const workspaceState = loadWorkspaceState(process.cwd())
+  expect(workspaceState).toBeDefined()
 
   // should be able to execute a script after dependencies have been installed
   {
@@ -65,7 +63,7 @@ test('single dependency', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).not.toContain('The manifest file is not newer than the lockfile. Exiting check.')
     expect(stdout.toString()).toContain('The manifest is newer than the lockfile. Continuing check.')
   }
@@ -89,7 +87,7 @@ test('single dependency', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -122,16 +120,14 @@ test('deleting node_modules after install', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('Cannot find a lockfile in')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
   }
 
   await execPnpm([...CONFIG, 'install'])
 
-  // installing dependencies on a single package workspace should not create a packages list cache
-  {
-    const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toBeUndefined()
-  }
+  // installing dependencies on a single package workspace should create a packages list cache
+  const workspaceState = loadWorkspaceState(process.cwd())
+  expect(workspaceState).toBeDefined()
 
   // should be able to execute a script after dependencies have been installed
   {
@@ -145,7 +141,7 @@ test('deleting node_modules after install', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_DEPS')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
   }
 })
 
@@ -164,16 +160,14 @@ test('no dependencies', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('Cannot find a lockfile in')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
 
   await execPnpm([...CONFIG, 'install'])
 
-  // installing dependencies on a single package workspace should not create a packages list cache
-  {
-    const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toBeUndefined()
-  }
+  // installing dependencies on a single package workspace should create a packages list cache
+  const workspaceState = loadWorkspaceState(process.cwd())
+  expect(workspaceState).toBeDefined()
 
   // should be able to execute a script after the lockfile has been created
   {
@@ -220,7 +214,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('Cannot find a lockfile in')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -236,7 +230,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
   }
 
   await execPnpm([...CONFIG, 'install'])

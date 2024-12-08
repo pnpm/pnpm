@@ -90,15 +90,16 @@ test('single dependency', async () => {
   // pnpm install should create a packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual({
-      catalogs: {},
+    expect(workspaceState).toStrictEqual(expect.objectContaining({
       lastValidatedTimestamp: expect.any(Number),
-      projectRootDirs: [
-        path.resolve('.'),
-        path.resolve('foo'),
-        path.resolve('bar'),
-      ].sort(),
-    })
+      pnpmfileExists: false,
+      filteredInstall: false,
+      projects: {
+        [path.resolve('.')]: { name: 'root', version: '0.0.0' },
+        [path.resolve('foo')]: { name: 'foo', version: '0.0.0' },
+        [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
+      },
+    }))
   }
 
   // should be able to execute a script in root after dependencies have been installed
@@ -159,7 +160,7 @@ test('single dependency', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).toContain('project of id foo')
     expect(stdout.toString()).not.toContain('No manifest files were modified since the last validation. Exiting check.')
     expect(stdout.toString()).toContain('Some manifest files were modified since the last validation. Continuing check.')
@@ -170,7 +171,7 @@ test('single dependency', async () => {
       cwd: projects.foo.dir(),
     })
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).toContain('project of id foo')
   }
   {
@@ -178,21 +179,21 @@ test('single dependency', async () => {
       cwd: projects.bar.dir(),
     })
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).toContain('project of id foo')
   }
   // attempting to execute a script recursively without updating dependencies should fail
   {
     const { status, stdout } = execPnpmSync([...CONFIG, '--recursive', 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).toContain('project of id foo')
   }
   // attempting to execute a script with filter without updating dependencies should fail
   {
     const { status, stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).toContain('project of id foo')
   }
 
@@ -233,7 +234,7 @@ test('single dependency', async () => {
   }
 
   manifests.baz = {
-    name: 'bar',
+    name: 'baz',
     private: true,
     dependencies: {
       '@pnpm.e2e/foo': '=100.0.0',
@@ -258,16 +259,17 @@ test('single dependency', async () => {
   // pnpm install should update the packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual({
-      catalogs: {},
+    expect(workspaceState).toStrictEqual(expect.objectContaining({
       lastValidatedTimestamp: expect.any(Number),
-      projectRootDirs: [
-        path.resolve('.'),
-        path.resolve('foo'),
-        path.resolve('bar'),
-        path.resolve('baz'),
-      ].sort(),
-    })
+      pnpmfileExists: false,
+      filteredInstall: false,
+      projects: {
+        [path.resolve('.')]: { name: 'root', version: '0.0.0' },
+        [path.resolve('foo')]: { name: 'foo' },
+        [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
+        [path.resolve('baz')]: { name: 'baz' },
+      },
+    }))
   }
 
   // should be able to execute a script after projects list have been updated
@@ -362,15 +364,16 @@ test('multiple lockfiles', async () => {
   // pnpm install should create a packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual({
-      catalogs: {},
+    expect(workspaceState).toStrictEqual(expect.objectContaining({
       lastValidatedTimestamp: expect.any(Number),
-      projectRootDirs: [
-        path.resolve('.'),
-        path.resolve('foo'),
-        path.resolve('bar'),
-      ].sort(),
-    })
+      pnpmfileExists: false,
+      filteredInstall: false,
+      projects: {
+        [path.resolve('.')]: { name: 'root', version: '0.0.0' },
+        [path.resolve('foo')]: { name: 'foo', version: '0.0.0' },
+        [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
+      },
+    }))
   }
 
   // should be able to execute a script in root after dependencies have been installed
@@ -431,7 +434,7 @@ test('multiple lockfiles', async () => {
   {
     const { status, stdout } = execPnpmSync([...config, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).toContain(`The lockfile in ${path.resolve('foo')} does not satisfy project of id .`)
   }
   // attempting to execute a script in any workspace package without updating dependencies should fail
@@ -440,7 +443,7 @@ test('multiple lockfiles', async () => {
       cwd: projects.foo.dir(),
     })
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).toContain(`The lockfile in ${path.resolve('foo')} does not satisfy project of id .`)
   }
   {
@@ -448,21 +451,21 @@ test('multiple lockfiles', async () => {
       cwd: projects.bar.dir(),
     })
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).toContain(`The lockfile in ${path.resolve('foo')} does not satisfy project of id .`)
   }
   // attempting to execute a script recursively without updating dependencies should fail
   {
     const { status, stdout } = execPnpmSync([...config, '--recursive', 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).toContain(`The lockfile in ${path.resolve('foo')} does not satisfy project of id .`)
   }
   // attempting to execute a script with filter without updating dependencies should fail
   {
     const { status, stdout } = execPnpmSync([...config, '--filter=foo', 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).toContain(`The lockfile in ${path.resolve('foo')} does not satisfy project of id .`)
   }
 
@@ -501,7 +504,7 @@ test('multiple lockfiles', async () => {
   }
 
   manifests.baz = {
-    name: 'bar',
+    name: 'baz',
     private: true,
     dependencies: {
       '@pnpm.e2e/foo': '=100.0.0',
@@ -525,16 +528,17 @@ test('multiple lockfiles', async () => {
   // pnpm install should update the packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual({
-      catalogs: {},
+    expect(workspaceState).toStrictEqual(expect.objectContaining({
       lastValidatedTimestamp: expect.any(Number),
-      projectRootDirs: [
-        path.resolve('.'),
-        path.resolve('foo'),
-        path.resolve('bar'),
-        path.resolve('baz'),
-      ].sort(),
-    })
+      pnpmfileExists: false,
+      filteredInstall: false,
+      projects: {
+        [path.resolve('.')]: { name: 'root', version: '0.0.0' },
+        [path.resolve('foo')]: { name: 'foo' },
+        [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
+        [path.resolve('baz')]: { name: 'baz' },
+      },
+    }))
   }
 
   // should be able to execute a script after projects list have been updated
@@ -611,7 +615,7 @@ test('filtered install', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
   }
 
   await execPnpm([...CONFIG, '--filter=foo', 'install'])
@@ -671,15 +675,16 @@ test('no dependencies', async () => {
   // pnpm install should create a packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual({
-      catalogs: {},
+    expect(workspaceState).toStrictEqual(expect.objectContaining({
       lastValidatedTimestamp: expect.any(Number),
-      projectRootDirs: [
-        path.resolve('.'),
-        path.resolve('foo'),
-        path.resolve('bar'),
-      ].sort(),
-    })
+      pnpmfileExists: false,
+      filteredInstall: false,
+      projects: {
+        [path.resolve('.')]: { name: 'root', version: '0.0.0' },
+        [path.resolve('foo')]: { name: 'foo', version: '0.0.0' },
+        [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
+      },
+    }))
   }
 
   // should be able to execute a script after `pnpm install`
@@ -761,7 +766,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, '--recursive', 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -849,15 +854,19 @@ test('should check for outdated catalogs', async () => {
   {
     const workspaceState = loadWorkspaceState(process.cwd())
     expect(workspaceState).toStrictEqual({
-      catalogs: {
-        default: workspaceManifest.catalog,
-      },
+      settings: expect.objectContaining({
+        catalogs: {
+          default: workspaceManifest.catalog,
+        },
+      }),
+      pnpmfileExists: false,
+      filteredInstall: false,
       lastValidatedTimestamp: expect.any(Number),
-      projectRootDirs: [
-        path.resolve('.'),
-        path.resolve('foo'),
-        path.resolve('bar'),
-      ].sort(),
+      projects: {
+        [path.resolve('.')]: { name: 'root', version: '0.0.0' },
+        [path.resolve('foo')]: { name: 'foo', version: '0.0.0' },
+        [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
+      },
     })
   }
 
@@ -954,6 +963,6 @@ test('failed to install dependencies', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
   }
 })

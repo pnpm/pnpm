@@ -40,6 +40,9 @@
       "path": "../../dedupe/check"
     },
     {
+      "path": "../../deps/status"
+    },
+    {
       "path": "../../env/plugin-commands-env"
     },
     {

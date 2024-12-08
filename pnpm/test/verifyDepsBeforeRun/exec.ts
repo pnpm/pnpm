@@ -25,16 +25,14 @@ test('single package workspace', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, ...EXEC])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('Cannot find a lockfile')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
   }
 
   await execPnpm([...CONFIG, 'install'])
 
-  // installing dependencies on a single package workspace should not create a packages list cache
-  {
-    const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toBeUndefined()
-  }
+  // installing dependencies on a single package workspace should create a packages list cache
+  const workspaceState = loadWorkspaceState(process.cwd())
+  expect(workspaceState).toBeDefined()
 
   // should be able to execute a command after dependencies have been installed
   {
@@ -62,7 +60,7 @@ test('single package workspace', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, ...EXEC])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -82,7 +80,7 @@ test('single package workspace', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, ...EXEC])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -167,15 +165,16 @@ test('multi-project workspace', async () => {
   // pnpm install should create a packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual({
-      catalogs: {},
+    expect(workspaceState).toStrictEqual(expect.objectContaining({
       lastValidatedTimestamp: expect.any(Number),
-      projectRootDirs: [
-        path.resolve('.'),
-        path.resolve('foo'),
-        path.resolve('bar'),
-      ].sort(),
-    })
+      pnpmfileExists: false,
+      filteredInstall: false,
+      projects: {
+        [path.resolve('.')]: { name: 'root', version: '0.0.0' },
+        [path.resolve('foo')]: { name: 'foo', version: '0.0.0' },
+        [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
+      },
+    }))
   }
 
   // should be able to execute a command in root after dependencies have been installed
@@ -229,7 +228,7 @@ test('multi-project workspace', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, ...EXEC])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).toContain('project of id foo')
   }
   // attempting to execute a command in any workspace package without updating dependencies should fail
@@ -238,7 +237,7 @@ test('multi-project workspace', async () => {
       cwd: projects.foo.dir(),
     })
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).toContain('project of id foo')
   }
   {
@@ -246,21 +245,21 @@ test('multi-project workspace', async () => {
       cwd: projects.bar.dir(),
     })
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).toContain('project of id foo')
   }
   // attempting to execute a command recursively without updating dependencies should fail
   {
     const { status, stdout } = execPnpmSync([...CONFIG, '--recursive', ...EXEC])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).toContain('project of id foo')
   }
   // attempting to execute a command with filter without updating dependencies should fail
   {
     const { status, stdout } = execPnpmSync([...CONFIG, '--filter=foo', ...EXEC])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).toContain('project of id foo')
   }
 
@@ -300,7 +299,7 @@ test('multi-project workspace', async () => {
   }
 
   manifests.baz = {
-    name: 'bar',
+    name: 'baz',
     private: true,
     dependencies: {
       '@pnpm.e2e/foo': '=100.0.0',
@@ -321,16 +320,17 @@ test('multi-project workspace', async () => {
   // pnpm install should update the packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual({
-      catalogs: {},
+    expect(workspaceState).toStrictEqual(expect.objectContaining({
       lastValidatedTimestamp: expect.any(Number),
-      projectRootDirs: [
-        path.resolve('.'),
-        path.resolve('foo'),
-        path.resolve('bar'),
-        path.resolve('baz'),
-      ].sort(),
-    })
+      pnpmfileExists: false,
+      filteredInstall: false,
+      projects: {
+        [path.resolve('.')]: { name: 'root', version: '0.0.0' },
+        [path.resolve('foo')]: { name: 'foo' },
+        [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
+        [path.resolve('baz')]: { name: 'baz' },
+      },
+    }))
   }
 
   // should be able to execute a command after projects list have been updated

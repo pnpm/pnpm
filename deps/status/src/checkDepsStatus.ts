@@ -28,6 +28,7 @@ import {
 } from '@pnpm/lockfile.verification'
 import { globalWarn, logger } from '@pnpm/logger'
 import { parseOverrides } from '@pnpm/parse-overrides'
+import { getPnpmfilePath } from '@pnpm/pnpmfile'
 import { type WorkspacePackages } from '@pnpm/resolver-base'
 import {
   type DependencyManifest,
@@ -39,7 +40,8 @@ import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { loadWorkspaceState, updateWorkspaceState } from '@pnpm/workspace.state'
 import { assertLockfilesEqual } from './assertLockfilesEqual'
-import { statManifestFile } from './statManifestFile'
+import { safeStat, safeStatSync, statManifestFile } from './statManifestFile'
+import { type WorkspaceStateSettings } from '@pnpm/workspace.state/src/types'
 
 export type CheckDepsStatusOptions = Pick<Config,
 | 'allProjects'
@@ -55,9 +57,13 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'virtualStoreDir'
 | 'workspaceDir'
->
+| 'patchesDir'
+| 'pnpmfile'
+> & {
+  ignoreFilteredInstallCache?: boolean
+} & WorkspaceStateSettings
 
-export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDate: boolean, issue?: string }> {
+export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDate: boolean | undefined, issue?: string }> {
   try {
     return await _checkDepsStatus(opts)
   } catch (error) {
@@ -71,7 +77,7 @@ export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ 
   }
 }
 
-async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDate: boolean, issue?: string }> {
+async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDate: boolean | undefined, issue?: string }> {
   const {
     allProjects,
     autoInstallPeers,
@@ -89,17 +95,31 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
     ? getOptionsFromRootManifest(rootProjectManifestDir, rootProjectManifest)
     : undefined
 
-  if (allProjects && workspaceDir) {
-    const workspaceState = loadWorkspaceState(workspaceDir)
-    if (!workspaceState) {
+  const workspaceState = loadWorkspaceState(workspaceDir ?? rootProjectManifestDir)
+  if (!workspaceState) {
+    return {
+      upToDate: false,
+      issue: 'Cannot check whether dependencies are outdated',
+    }
+  }
+  if (opts.ignoreFilteredInstallCache && workspaceState.filteredInstall) {
+    return { upToDate: undefined }
+  }
+
+  for (const [settingName, settingValue] of Object.entries(workspaceState.settings)) {
+    if (settingName === 'catalogs') continue
+    // @ts-expect-error
+    if (!equals(settingValue, opts[settingName])) {
       return {
         upToDate: false,
-        issue: 'Cannot check whether dependencies are outdated',
+        issue: `The value of the ${settingName} setting has changed`,
       }
     }
+  }
 
+  if (allProjects && workspaceDir) {
     if (!equals(
-      filter(value => value != null, workspaceState.catalogs ?? {}),
+      filter(value => value != null, workspaceState.settings.catalogs ?? {}),
       filter(value => value != null, catalogs ?? {})
     )) {
       return {
@@ -108,8 +128,13 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
       }
     }
 
-    const currentProjectRootDirs = allProjects.map(project => project.rootDir).sort()
-    if (!equals(workspaceState.projectRootDirs, currentProjectRootDirs)) {
+    if (allProjects.length !== Object.keys(workspaceState.projects).length ||
+      !allProjects.every((currentProject) => {
+        const prevProject = workspaceState.projects[currentProject.rootDir]
+        if (!prevProject) return false
+        return prevProject.name === currentProject.manifest.name && (prevProject.version ?? '0.0.0') === (currentProject.manifest.version ?? '0.0.0')
+      })
+    ) {
       return {
         upToDate: false,
         issue: 'The workspace structure has changed since last install',
@@ -133,6 +158,17 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
     if (modifiedProjects.length === 0) {
       logger.debug({ msg: 'No manifest files were modified since the last validation. Exiting check.' })
       return { upToDate: true }
+    }
+
+    const issue = await patchesAreModified({
+      rootManifestOptions,
+      rootDir: rootProjectManifestDir,
+      lastValidatedTimestamp: workspaceState.lastValidatedTimestamp,
+      pnpmfile: opts.pnpmfile,
+      hadPnpmfile: workspaceState.pnpmfileExists,
+    })
+    if (issue) {
+      return { upToDate: false, issue }
     }
 
     logger.debug({ msg: 'Some manifest files were modified since the last validation. Continuing check.' })
@@ -204,23 +240,28 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
       rootManifestOptions,
     }
 
-    await Promise.all(modifiedProjects.map(async ({ project }) => {
-      const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
-      await assertWantedLockfileUpToDate(assertCtx, {
-        projectDir: project.rootDir,
-        projectId: getProjectId(project),
-        projectManifest: project.manifest,
-        wantedLockfile,
-        wantedLockfileDir,
-      })
-    }))
+    try {
+      await Promise.all(modifiedProjects.map(async ({ project }) => {
+        const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
+        await assertWantedLockfileUpToDate(assertCtx, {
+          projectDir: project.rootDir,
+          projectId: getProjectId(project),
+          projectManifest: project.manifest,
+          wantedLockfile,
+          wantedLockfileDir,
+        })
+      }))
+    } catch (err) {
+      return { upToDate: false, issue: (util.types.isNativeError(err) && 'message' in err) ? err.message : undefined }
+    }
 
     // update lastValidatedTimestamp to prevent pointless repeat
     await updateWorkspaceState({
       allProjects,
-      catalogs,
-      lastValidatedTimestamp: Date.now(),
       workspaceDir,
+      pnpmfileExists: workspaceState.pnpmfileExists,
+      settings: opts,
+      filteredInstall: workspaceState.filteredInstall,
     })
 
     return { upToDate: true }
@@ -260,6 +301,17 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
 
     if (!wantedLockfileStats) return throwLockfileNotFound(rootProjectManifestDir)
 
+    const issue = await patchesAreModified({
+      rootManifestOptions,
+      rootDir: rootProjectManifestDir,
+      lastValidatedTimestamp: wantedLockfileStats.mtime.valueOf(),
+      pnpmfile: opts.pnpmfile,
+      hadPnpmfile: workspaceState.pnpmfileExists,
+    })
+    if (issue) {
+      return { upToDate: false, issue }
+    }
+
     if (currentLockfileStats && wantedLockfileStats.mtime.valueOf() > currentLockfileStats.mtime.valueOf()) {
       const currentLockfile = await currentLockfilePromise
       const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir)
@@ -273,23 +325,27 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
 
     if (manifestStats.mtime.valueOf() > wantedLockfileStats.mtime.valueOf()) {
       logger.debug({ msg: 'The manifest is newer than the lockfile. Continuing check.' })
-      await assertWantedLockfileUpToDate({
-        autoInstallPeers,
-        injectWorkspacePackages,
-        config: opts,
-        excludeLinksFromLockfile,
-        linkWorkspacePackages,
-        getManifestsByDir: () => ({}),
-        getWorkspacePackages: () => undefined,
-        rootDir: rootProjectManifestDir,
-        rootManifestOptions,
-      }, {
-        projectDir: rootProjectManifestDir,
-        projectId: '.' as ProjectId,
-        projectManifest: rootProjectManifest,
-        wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir),
-        wantedLockfileDir: rootProjectManifestDir,
-      })
+      try {
+        await assertWantedLockfileUpToDate({
+          autoInstallPeers,
+          injectWorkspacePackages,
+          config: opts,
+          excludeLinksFromLockfile,
+          linkWorkspacePackages,
+          getManifestsByDir: () => ({}),
+          getWorkspacePackages: () => undefined,
+          rootDir: rootProjectManifestDir,
+          rootManifestOptions,
+        }, {
+          projectDir: rootProjectManifestDir,
+          projectId: '.' as ProjectId,
+          projectManifest: rootProjectManifest,
+          wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(rootProjectManifestDir),
+          wantedLockfileDir: rootProjectManifestDir,
+        })
+      } catch (err) {
+        return { upToDate: false, issue: (util.types.isNativeError(err) && 'message' in err) ? err.message : undefined }
+      }
     } else if (currentLockfileStats) {
       logger.debug({ msg: 'The manifest file is not newer than the lockfile. Exiting check.' })
     } else {
@@ -308,7 +364,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
   // `rootProjectManifest` being `undefined` means that there's no root manifest.
   // Both means that `pnpm run` would fail, so checking lockfiles here is pointless.
   globalWarn('Skipping check.')
-  return { upToDate: true }
+  return { upToDate: undefined }
 }
 
 interface AssertWantedLockfileUpToDateContext {
@@ -427,4 +483,36 @@ function throwLockfileNotFound (wantedLockfileDir: string): never {
   throw new PnpmError('RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND', `Cannot find a lockfile in ${wantedLockfileDir}`, {
     hint: 'Run `pnpm install` to create the lockfile',
   })
+}
+
+async function patchesAreModified (opts: {
+  rootManifestOptions: OptionsFromRootManifest | undefined
+  rootDir: string
+  lastValidatedTimestamp: number
+  pnpmfile: string
+  hadPnpmfile: boolean
+}): Promise<string | undefined> {
+  if (opts.rootManifestOptions?.patchedDependencies) {
+    const allPatchStats = await Promise.all(Object.values(opts.rootManifestOptions.patchedDependencies).map((patchFile) => {
+      return safeStat(path.relative(opts.rootDir, patchFile))
+    }))
+    if (allPatchStats.some(
+      (patch) =>
+        patch && patch.mtime.valueOf() > opts.lastValidatedTimestamp
+    )) {
+      return 'Patches were modified'
+    }
+  }
+  const pnpmfilePath = getPnpmfilePath(opts.rootDir, opts.pnpmfile)
+  const pnpmfileStats = safeStatSync(pnpmfilePath)
+  if (pnpmfileStats != null && pnpmfileStats.mtime.valueOf() > opts.lastValidatedTimestamp) {
+    return `pnpmfile at "${pnpmfilePath}" was modified`
+  }
+  if (opts.hadPnpmfile && pnpmfileStats == null) {
+    return `pnpmfile at "${pnpmfilePath}" was removed`
+  }
+  if (!opts.hadPnpmfile && pnpmfileStats != null) {
+    return `pnpmfile at "${pnpmfilePath}" was added`
+  }
+  return undefined
 }
