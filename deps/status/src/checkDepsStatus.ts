@@ -73,7 +73,10 @@ export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ 
         issue: error.message,
       }
     }
-    throw error
+    return {
+      upToDate: undefined,
+      issue: util.types.isNativeError(error) ? error.message : undefined,
+    }
   }
 }
 
