@@ -106,13 +106,15 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
     return { upToDate: undefined }
   }
 
-  for (const [settingName, settingValue] of Object.entries(workspaceState.settings)) {
-    if (settingName === 'catalogs') continue
-    // @ts-expect-error
-    if (!equals(settingValue, opts[settingName])) {
-      return {
-        upToDate: false,
-        issue: `The value of the ${settingName} setting has changed`,
+  if (workspaceState.settings) {
+    for (const [settingName, settingValue] of Object.entries(workspaceState.settings)) {
+      if (settingName === 'catalogs') continue
+      // @ts-expect-error
+      if (!equals(settingValue, opts[settingName])) {
+        return {
+          upToDate: false,
+          issue: `The value of the ${settingName} setting has changed`,
+        }
       }
     }
   }
