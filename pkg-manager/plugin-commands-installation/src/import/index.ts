@@ -20,7 +20,7 @@ import loadJsonFile from 'load-json-file'
 import mapValues from 'ramda/src/map'
 import renderHelp from 'render-help'
 import { parse as parseYarnLock, type LockFileObject } from '@yarnpkg/lockfile'
-import * as yarnCore from '@yarnpkg/core'
+import * as structUtils from '@yarnpkg/core/structUtils'
 import { parseSyml } from '@yarnpkg/parsers'
 import { recursive } from '../recursive'
 import { yarnLockFileKeyNormalizer } from './yarnUtil'
@@ -214,7 +214,6 @@ function parseYarn2Lock (lockFileContents: string): YarnLock2Struct {
   delete parseYarnLock.__metadata
   const dependencies: YarnPackageLock = {}
 
-  const { structUtils } = yarnCore
   const { parseDescriptor, parseRange } = structUtils
   const keyNormalizer = yarnLockFileKeyNormalizer(
     parseDescriptor,

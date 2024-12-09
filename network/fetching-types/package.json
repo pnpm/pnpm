@@ -34,7 +34,8 @@
     "node-fetch": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/fetching-types": "workspace:*"
+    "@pnpm/fetching-types": "workspace:*",
+    "@types/node-fetch": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"
