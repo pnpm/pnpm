@@ -79,9 +79,6 @@ export function reportSummary (
           } else if (CONFIG_BY_DEP_TYPE[depType] && opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
             msg += EOL
             msg += `${chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)} skipped`
-            if (opts.env.NODE_ENV === 'production' && depType === 'dev') {
-              msg += ' because NODE_ENV is set to production'
-            }
             msg += EOL
           }
         }
