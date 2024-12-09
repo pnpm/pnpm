@@ -7,6 +7,7 @@ import isWindows from 'is-windows'
 import {
   addDistTag,
   execPnpm,
+  execPnpmSync,
 } from '../utils'
 
 test('global installation', async () => {
@@ -101,4 +102,15 @@ test('global update to latest', async () => {
 
   const { default: isPositive } = await import(path.join(globalPrefix, 'node_modules/is-positive/package.json'))
   expect(isPositive.version).toBe('3.1.0')
+})
+
+test('global update should not crash if there are no global packages', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  expect(execPnpmSync(['update', '--global'], { env }).status).toBe(0)
 })

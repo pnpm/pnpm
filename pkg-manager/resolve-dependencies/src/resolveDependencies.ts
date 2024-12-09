@@ -153,6 +153,7 @@ export interface ResolutionContext {
   pendingNodes: PendingNode[]
   wantedLockfile: Lockfile
   currentLockfile: Lockfile
+  injectWorkspacePackages?: boolean
   linkWorkspacePackagesDepth: number
   lockfileDir: string
   storeController: StoreController
@@ -1261,6 +1262,7 @@ async function resolveDependency (
         return err
       },
       updateToLatest: options.updateToLatest,
+      injectWorkspacePackages: ctx.injectWorkspacePackages,
     })
   } catch (err: any) { // eslint-disable-line
     const wantedDependencyDetails = {

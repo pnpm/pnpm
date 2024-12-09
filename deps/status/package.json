@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.status",
-  "version": "1.0.0",
+  "version": "1000.0.0",
   "description": "Check dependencies status",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -40,6 +40,7 @@
     "@pnpm/lockfile.settings-checker": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
     "@pnpm/parse-overrides": "workspace:*",
+    "@pnpm/pnpmfile": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
@@ -54,7 +55,7 @@
     "@types/ramda": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

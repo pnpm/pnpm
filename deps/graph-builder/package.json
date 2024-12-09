@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/deps.graph-builder",
   "description": "A package for building a dependency graph from a lockfile",
-  "version": "2.0.6",
+  "version": "1000.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -16,7 +16,7 @@
     ".": "./lib/index.js"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "devDependencies": {
     "@pnpm/deps.graph-builder": "workspace:*",

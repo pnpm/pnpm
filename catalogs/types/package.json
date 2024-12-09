@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/catalogs.types",
-  "version": "0.1.0",
+  "version": "1000.0.0",
   "description": "Types related to the pnpm catalogs feature.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

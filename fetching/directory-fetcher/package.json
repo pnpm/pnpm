@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/directory-fetcher",
-  "version": "8.0.10",
+  "version": "1000.0.0",
   "description": "A fetcher for local directory packages",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fetching/directory-fetcher#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "dependencies": {
     "@pnpm/exec.pkg-requires-build": "workspace:*",

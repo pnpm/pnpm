@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.graph-sequencer",
-  "version": "2.0.1",
+  "version": "1000.0.0",
   "description": "Sort items in a graph using a topological sort",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

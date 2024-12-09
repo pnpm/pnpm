@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-outdated",
-  "version": "12.1.3",
+  "version": "1000.0.0",
   "description": "The outdated command of pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

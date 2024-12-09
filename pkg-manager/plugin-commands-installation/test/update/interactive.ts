@@ -21,6 +21,7 @@ const DEFAULT_OPTIONS = {
   },
   bail: false,
   bin: 'node_modules/.bin',
+  excludeLinksFromLockfile: false,
   extraEnv: {},
   cliOptions: {},
   deployAllFiles: false,
@@ -32,6 +33,7 @@ const DEFAULT_OPTIONS = {
   lock: true,
   pnpmfile: '.pnpmfile.cjs',
   pnpmHomeDir: '',
+  preferWorkspacePackages: true,
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
   registries: {

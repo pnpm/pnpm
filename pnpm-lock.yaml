@@ -644,31 +644,32 @@ catalogs:
       version: 1.1.0
 
 overrides:
+  '@yarnpkg/fslib@2': '3'
   body-parser@<1.20.3: ^1.20.3
   clipanion: 3.2.0-rc.6
+  cookie@<0.7.0: '>=0.7.0'
+  cross-spawn@<7.0.5: '>=7.0.5'
   debug@<3.1.0: '>=3.1.0'
   express@<4.20.0: ^4.20.0
+  follow-redirects@<=1.15.5: '>=1.15.6'
   glob-parent@<5.1.2: '>=5.1.2'
   hosted-git-info@1: npm:@pnpm/hosted-git-info@1.0.0
+  http-proxy-middleware@<2.0.7: ^2.0.7
   istanbul-reports: npm:@zkochan/istanbul-reports
   js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.7
   json5@<2.2.2: ^2.2.3
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   nopt@5: npm:@pnpm/nopt@^0.2.1
-  verdaccio: 5.20.1
-  yaml@<2.2.2: '>=2.2.2'
+  path-to-regexp@<0.1.12: ^0.1.12
+  path-to-regexp@>=4.0.0 <6.3.0: '>=6.3.0'
+  path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
   semver@<7.5.2: ^7.6.2
-  tough-cookie@<4.1.3: '>=4.1.3'
-  '@yarnpkg/fslib@2': '3'
   send@<0.19.0: ^0.19.0
   serve-static@<1.16.0: ^1.16.0
   socks@2: ^2.8.1
-  follow-redirects@<=1.15.5: '>=1.15.6'
-  path-to-regexp@>=4.0.0 <6.3.0: '>=6.3.0'
-  cookie@<0.7.0: '>=0.7.0'
-  http-proxy-middleware@<2.0.7: ^2.0.7
-  path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
-  cross-spawn@<7.0.5: '>=7.0.5'
+  tough-cookie@<4.1.3: '>=4.1.3'
+  verdaccio: 5.20.1
+  yaml@<2.2.2: '>=2.2.2'
 
 packageExtensionsChecksum: sha256-VLztJiT59DQuLj+e7xg8kB9fTEUJlTrj+wQKDJ4xUfs=
 
@@ -779,6 +780,9 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../lockfile/fs
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../packages/logger
       '@pnpm/meta-updater':
         specifier: 'catalog:'
         version: 2.0.3
@@ -986,7 +990,7 @@ importers:
     dependencies:
       '@pnpm/workspace.find-packages':
         specifier: 4.0.6
-        version: 4.0.6(@pnpm/logger@5.2.0)
+        version: 4.0.6(@pnpm/logger@5.1.0)
       '@pnpm/workspace.read-manifest':
         specifier: 2.2.0
         version: 2.2.0
@@ -1003,6 +1007,9 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
+      '@pnpm/logger':
+        specifier: '5'
+        version: 5.1.0
       '@pnpm/scripts':
         specifier: workspace:*
         version: 'link:'
@@ -1813,11 +1820,14 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/verification
       '@pnpm/logger':
-        specifier: ^5.1.0
+        specifier: '>=5.1.0 <1001.0.0'
         version: 5.1.0
       '@pnpm/parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides
+      '@pnpm/pnpmfile':
+        specifier: workspace:*
+        version: link:../../hooks/pnpmfile
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -5082,6 +5092,9 @@ importers:
       '@pnpm/dedupe.check':
         specifier: workspace:*
         version: link:../../dedupe/check
+      '@pnpm/deps.status':
+        specifier: workspace:*
+        version: link:../../deps/status
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -7622,7 +7635,7 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
       '@pnpm/logger':
-        specifier: ^5.1.0
+        specifier: '>=5.1.0 <1001.0.0'
         version: 5.1.0
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
@@ -7910,6 +7923,9 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -7926,6 +7942,9 @@ importers:
       '@pnpm/workspace.state':
         specifier: workspace:*
         version: 'link:'
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
 
 packages:
 
@@ -12878,8 +12897,8 @@ packages:
     resolution: {integrity: sha512-cMMJTAZlion/RWRRC48UbrDymEIt+/YSD/l8NqjneyDw2rDOBQcP5yRkMB4CYGn47KMhZvbblBP7Z79OsMw72w==}
     engines: {node: '>=8.15'}
 
-  path-to-regexp@0.1.10:
-    resolution: {integrity: sha512-7lf7qcQidTku0Gu3YDPc8DJ1q7OOucfa/BSsIwjuh56VU7katFvuM8hULfkwB3Fns/rsVF7PwPKVw1sl5KQS9w==}
+  path-to-regexp@0.1.12:
+    resolution: {integrity: sha512-RA1GjUVMnvYFxuqovrEqZoxxW5NUZqbwKtYz/Tt7nXerk0LbLblQmrsgdeOxV5SFHf0UDggjS/bSeOZwt1pmEQ==}
 
   path-to-regexp@7.0.0:
     resolution: {integrity: sha512-58Y94bQqF3zBIASFNiufRPH1NfgZth1qwZ35radL87sg8pgbVqr6uikAhqZtFD+w65MGH6SWnY/ly3GbrM4fbg==}
@@ -15535,6 +15554,20 @@ snapshots:
       '@pnpm/types': 12.0.0
       load-json-file: 6.2.0
 
+  '@pnpm/cli-utils@4.0.1(@pnpm/logger@5.1.0)':
+    dependencies:
+      '@pnpm/cli-meta': 6.1.0
+      '@pnpm/config': 21.8.0(@pnpm/logger@5.1.0)
+      '@pnpm/default-reporter': 13.1.12(@pnpm/logger@5.1.0)
+      '@pnpm/error': 6.0.1
+      '@pnpm/logger': 5.1.0
+      '@pnpm/manifest-utils': 6.0.6(@pnpm/logger@5.1.0)
+      '@pnpm/package-is-installable': 9.0.6(@pnpm/logger@5.1.0)
+      '@pnpm/read-project-manifest': 6.0.6
+      '@pnpm/types': 12.0.0
+      chalk: 4.1.2
+      load-json-file: 6.2.0
+
   '@pnpm/cli-utils@4.0.1(@pnpm/logger@5.2.0)':
     dependencies:
       '@pnpm/cli-meta': 6.1.0
@@ -15556,6 +15589,36 @@ snapshots:
   '@pnpm/config.env-replace@1.1.0': {}
 
   '@pnpm/config.env-replace@3.0.0': {}
+
+  '@pnpm/config@21.8.0(@pnpm/logger@5.1.0)':
+    dependencies:
+      '@pnpm/catalogs.config': 0.1.0
+      '@pnpm/catalogs.types': 0.1.0
+      '@pnpm/config.env-replace': 3.0.0
+      '@pnpm/constants': 8.0.0
+      '@pnpm/error': 6.0.1
+      '@pnpm/git-utils': 2.0.0
+      '@pnpm/matcher': 6.0.0
+      '@pnpm/npm-conf': 2.3.0
+      '@pnpm/pnpmfile': 6.0.9(@pnpm/logger@5.1.0)
+      '@pnpm/read-project-manifest': 6.0.6
+      '@pnpm/types': 12.0.0
+      '@pnpm/workspace.read-manifest': 2.2.0
+      better-path-resolve: 1.0.0
+      camelcase: 6.3.0
+      camelcase-keys: 6.2.2
+      can-write-to-dir: 1.1.1
+      is-subdir: 1.2.0
+      is-windows: 1.0.2
+      normalize-registry-url: 2.0.0
+      path-absolute: 1.0.1
+      path-name: 1.0.0
+      ramda: '@pnpm/ramda@0.28.1'
+      read-ini-file: 4.0.0
+      realpath-missing: 1.1.0
+      which: '@pnpm/which@3.0.1'
+    transitivePeerDependencies:
+      - '@pnpm/logger'
 
   '@pnpm/config@21.8.0(@pnpm/logger@5.2.0)':
     dependencies:
@@ -15589,6 +15652,11 @@ snapshots:
 
   '@pnpm/constants@8.0.0': {}
 
+  '@pnpm/core-loggers@10.0.5(@pnpm/logger@5.1.0)':
+    dependencies:
+      '@pnpm/logger': 5.1.0
+      '@pnpm/types': 12.0.0
+
   '@pnpm/core-loggers@10.0.5(@pnpm/logger@5.2.0)':
     dependencies:
       '@pnpm/logger': 5.2.0
@@ -15605,6 +15673,30 @@ snapshots:
       chalk: 4.1.2
 
   '@pnpm/dedupe.types@2.0.0': {}
+
+  '@pnpm/default-reporter@13.1.12(@pnpm/logger@5.1.0)':
+    dependencies:
+      '@pnpm/cli-meta': 6.1.0
+      '@pnpm/config': 21.8.0(@pnpm/logger@5.1.0)
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.1.0)
+      '@pnpm/dedupe.issues-renderer': 2.0.0
+      '@pnpm/dedupe.types': 2.0.0
+      '@pnpm/error': 6.0.1
+      '@pnpm/logger': 5.1.0
+      '@pnpm/render-peer-issues': 5.0.6
+      '@pnpm/types': 12.0.0
+      ansi-diff: 1.2.0
+      boxen: 5.1.2
+      chalk: 4.1.2
+      cli-truncate: 2.1.0
+      normalize-path: 3.0.0
+      pretty-bytes: 5.6.0
+      pretty-ms: 7.0.1
+      ramda: '@pnpm/ramda@0.28.1'
+      rxjs: 7.8.1
+      semver: 7.6.3
+      stacktracey: 2.1.8
+      string-length: 4.0.2
 
   '@pnpm/default-reporter@13.1.12(@pnpm/logger@5.2.0)':
     dependencies:
@@ -15698,6 +15790,14 @@ snapshots:
     dependencies:
       bole: 5.0.14
       ndjson: 2.0.0
+
+  '@pnpm/manifest-utils@6.0.6(@pnpm/logger@5.1.0)':
+    dependencies:
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.1.0)
+      '@pnpm/error': 6.0.1
+      '@pnpm/types': 12.0.0
+    transitivePeerDependencies:
+      - '@pnpm/logger'
 
   '@pnpm/manifest-utils@6.0.6(@pnpm/logger@5.2.0)':
     dependencies:
@@ -15810,6 +15910,18 @@ snapshots:
       '@pnpm/os.env.path-extender-posix': 2.0.0
       '@pnpm/os.env.path-extender-windows': 2.0.0
 
+  '@pnpm/package-is-installable@9.0.6(@pnpm/logger@5.1.0)':
+    dependencies:
+      '@pnpm/cli-meta': 6.1.0
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.1.0)
+      '@pnpm/error': 6.0.1
+      '@pnpm/logger': 5.1.0
+      '@pnpm/types': 12.0.0
+      detect-libc: 2.0.3
+      execa: safe-execa@0.1.2
+      mem: 8.1.1
+      semver: 7.6.3
+
   '@pnpm/package-is-installable@9.0.6(@pnpm/logger@5.2.0)':
     dependencies:
       '@pnpm/cli-meta': 6.1.0
@@ -15851,6 +15963,19 @@ snapshots:
       yaml: 2.5.1
 
   '@pnpm/patching.types@1.0.0': {}
+
+  '@pnpm/pnpmfile@6.0.9(@pnpm/logger@5.1.0)':
+    dependencies:
+      '@pnpm/core-loggers': 10.0.5(@pnpm/logger@5.1.0)
+      '@pnpm/crypto.base32-hash': 3.0.0
+      '@pnpm/error': 6.0.1
+      '@pnpm/hooks.types': 2.0.7
+      '@pnpm/lockfile.types': 1.0.1
+      '@pnpm/logger': 5.1.0
+      '@pnpm/store-controller-types': 18.1.4
+      '@pnpm/types': 12.0.0
+      chalk: 4.1.2
+      path-absolute: 1.0.1
 
   '@pnpm/pnpmfile@6.0.9(@pnpm/logger@5.2.0)':
     dependencies:
@@ -15950,6 +16075,14 @@ snapshots:
   '@pnpm/which@3.0.1':
     dependencies:
       isexe: 2.0.0
+
+  '@pnpm/workspace.find-packages@4.0.6(@pnpm/logger@5.1.0)':
+    dependencies:
+      '@pnpm/cli-utils': 4.0.1(@pnpm/logger@5.1.0)
+      '@pnpm/fs.find-packages': 4.0.2
+      '@pnpm/logger': 5.1.0
+      '@pnpm/types': 12.0.0
+      '@pnpm/util.lex-comparator': 3.0.0
 
   '@pnpm/workspace.find-packages@4.0.6(@pnpm/logger@5.2.0)':
     dependencies:
@@ -18173,7 +18306,7 @@ snapshots:
       methods: 1.1.2
       on-finished: 2.4.1
       parseurl: 1.3.3
-      path-to-regexp: 0.1.10
+      path-to-regexp: 0.1.12
       proxy-addr: 2.0.7
       qs: 6.11.0
       range-parser: 1.2.1
@@ -20423,7 +20556,7 @@ snapshots:
     dependencies:
       unique-string: 2.0.0
 
-  path-to-regexp@0.1.10: {}
+  path-to-regexp@0.1.12: {}
 
   path-to-regexp@7.0.0: {}
 

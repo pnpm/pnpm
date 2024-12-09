@@ -41,18 +41,28 @@ test('loadWorkspaceState() when cache file exists and is correct', async () => {
   const cacheFile = getFilePath(workspaceDir)
   fs.mkdirSync(path.dirname(cacheFile), { recursive: true })
   const workspaceState: WorkspaceState = {
-    catalogs: {
-      default: {
-        foo: '0.1.2',
+    settings: {
+      autoInstallPeers: true,
+      dedupeDirectDeps: true,
+      excludeLinksFromLockfile: false,
+      preferWorkspacePackages: false,
+      injectWorkspacePackages: false,
+      catalogs: {
+        default: {
+          foo: '0.1.2',
+        },
       },
+      linkWorkspacePackages: true,
     },
     lastValidatedTimestamp,
-    projectRootDirs: [
-      path.resolve('packages/a') as ProjectRootDir,
-      path.resolve('packages/b') as ProjectRootDir,
-      path.resolve('packages/c') as ProjectRootDir,
-      path.resolve('packages/d') as ProjectRootDir,
-    ],
+    projects: {
+      [path.resolve('packages/a') as ProjectRootDir]: {},
+      [path.resolve('packages/b') as ProjectRootDir]: {},
+      [path.resolve('packages/c') as ProjectRootDir]: {},
+      [path.resolve('packages/d') as ProjectRootDir]: {},
+    },
+    pnpmfileExists: false,
+    filteredInstall: false,
   }
   fs.writeFileSync(cacheFile, JSON.stringify(workspaceState))
   expect(loadWorkspaceState(workspaceDir)).toStrictEqual(workspaceState)

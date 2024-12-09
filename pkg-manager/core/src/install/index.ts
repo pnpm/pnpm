@@ -361,6 +361,7 @@ export async function mutateModules (
     if (!opts.ignorePackageManifest) {
       const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         autoInstallPeers: opts.autoInstallPeers,
+        injectWorkspacePackages: opts.injectWorkspacePackages,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
         overrides: overridesMap,
@@ -384,6 +385,7 @@ export async function mutateModules (
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
+        injectWorkspacePackages: opts.injectWorkspacePackages,
       }
       ctx.wantedLockfile.overrides = overridesMap
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
@@ -395,6 +397,7 @@ export async function mutateModules (
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
+        injectWorkspacePackages: opts.injectWorkspacePackages,
       }
     }
     if (
@@ -976,6 +979,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
       supportedArchitectures: opts.supportedArchitectures,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
+      injectWorkspacePackages: opts.injectWorkspacePackages,
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
@@ -1355,6 +1359,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
             includeDirect: opts.includeDirect,
             updateWorkspaceDependencies: false,
             nodeExecPath: opts.nodeExecPath,
+            injectWorkspacePackages: opts.injectWorkspacePackages,
           }
           for (const project of allProjectsLocatedInsideWorkspace) {
             if (!newProjects.some(({ rootDir }) => rootDir === project.rootDir)) {

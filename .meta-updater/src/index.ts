@@ -8,13 +8,14 @@ import loadJsonFile from 'load-json-file'
 import normalizePath from 'normalize-path'
 import writeJsonFile from 'write-json-file'
 
-const NEXT_TAG = 'next-10'
 const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => { // eslint-disable-line
   const pnpmManifest = loadJsonFile.sync<ProjectManifest>(path.join(workspaceDir, 'pnpm/package.json'))
   const pnpmVersion = pnpmManifest!.version!
-  const pnpmMajorKeyword = `pnpm${pnpmVersion.split('.')[0]}`
+  const pnpmMajorNumber = pnpmVersion.split('.')[0]
+  const pnpmMajorKeyword = `pnpm${pnpmMajorNumber}`
+  const nextTag = `next-${pnpmMajorNumber}`
   const utilsDir = path.join(workspaceDir, '__utils__')
   const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
   if (lockfile == null) {
@@ -26,7 +27,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         return manifest
       }
       if (manifest.name === 'monorepo-root') {
-        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${NEXT_TAG} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${NEXT_TAG} --access=public`
+        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${nextTag} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${nextTag} --access=public`
         return manifest
       }
       if (manifest.name && manifest.name !== CLI_PKG_NAME) {
@@ -42,7 +43,12 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         pnpmMajorKeyword,
         ...(manifest.keywords ?? []).filter((keyword) => !/^pnpm[0-9]+$/.test(keyword)),
       ]
+      const smallestAllowedLibVersion = Number(pnpmMajorNumber) * 100
+      const libMajorVersion = Number(manifest.version!.split('.')[0])
       if (manifest.name !== CLI_PKG_NAME) {
+        if (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100) {
+          manifest.version = `${smallestAllowedLibVersion}.0.0`
+        }
         for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
           if (!manifest[depType]) continue
           for (const depName of Object.keys(manifest[depType] ?? {})) {
@@ -69,6 +75,9 @@ export default async (workspaceDir: string) => { // eslint-disable-line
           }
         }
       }
+      if (manifest.peerDependencies?.['@pnpm/logger'] != null) {
+        manifest.peerDependencies['@pnpm/logger'] = `>=5.1.0 <${smallestAllowedLibVersion + 1}.0.0`
+      }
       if (dir.includes('artifacts') || manifest.name === '@pnpm/exe') {
         manifest.version = pnpmVersion
         if (manifest.name === '@pnpm/exe') {
@@ -78,7 +87,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         }
         return manifest
       }
-      return updateManifest(workspaceDir, manifest, dir)
+      return updateManifest(workspaceDir, manifest, dir, nextTag)
     },
     'tsconfig.json': updateTSConfig.bind(null, {
       lockfile,
@@ -209,7 +218,7 @@ let registryMockPort = registryMockPortForCore
 
 type UpdatedManifest = ProjectManifest & Record<string, unknown>
 
-async function updateManifest (workspaceDir: string, manifest: ProjectManifest, dir: string): Promise<UpdatedManifest> {
+async function updateManifest (workspaceDir: string, manifest: ProjectManifest, dir: string, nextTag: string): Promise<UpdatedManifest> {
   const relative = normalizePath(path.relative(workspaceDir, dir))
   let scripts: Record<string, string>
   switch (manifest.name) {
@@ -258,7 +267,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     break
   }
   if (manifest.name === CLI_PKG_NAME) {
-    manifest.publishConfig!.tag = NEXT_TAG
+    manifest.publishConfig!.tag = nextTag
   }
   if (scripts._test) {
     if (scripts.pretest) {

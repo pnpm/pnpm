@@ -147,6 +147,7 @@ export async function getConfig (opts: {
     'hoist-workspace-packages': true,
     'ignore-workspace-cycles': false,
     'ignore-workspace-root-check': false,
+    'inject-workspace-packages': false,
     'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
     'manage-package-manager-versions': true,

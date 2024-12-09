@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/catalogs.protocol-parser",
-  "version": "0.1.0",
+  "version": "1000.0.0",
   "description": "Parse catalog protocol specifiers and return the catalog name.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

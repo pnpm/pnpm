@@ -549,7 +549,7 @@ test('installation with --link-workspace-packages links packages even if they we
     },
   ])
 
-  await execPnpm(['recursive', 'install', '--no-link-workspace-packages'])
+  await execPnpm(['-r', 'install', '--no-link-workspace-packages'])
 
   {
     const lockfile = projects.project.readLockfile()
@@ -557,7 +557,7 @@ test('installation with --link-workspace-packages links packages even if they we
     expect(lockfile.importers['.'].dependencies?.negative.version).toBe('is-negative@1.0.0')
   }
 
-  await execPnpm(['recursive', 'install', '--link-workspace-packages'])
+  await execPnpm(['-r', 'install', '--link-workspace-packages'])
 
   {
     const lockfile = projects.project.readLockfile()
@@ -590,7 +590,7 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   fs.writeFileSync('.npmrc', 'shared-workspace-lockfile = true\nlink-workspace-packages = true', 'utf8')
 
-  await execPnpm(['recursive', 'install'])
+  await execPnpm(['install'])
 
   {
     const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
@@ -608,7 +608,7 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
     version: '1.0.0',
   })
 
-  await execPnpm(['recursive', 'install'])
+  await execPnpm(['install'])
 
   {
     const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
@@ -1243,8 +1243,8 @@ test('dependencies of workspace projects are built during headless installation'
   fs.writeFileSync('.npmrc', 'shared-workspace-lockfile=false', 'utf8')
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm(['recursive', 'install', '--lockfile-only'])
-  await execPnpm(['recursive', 'install', '--frozen-lockfile'])
+  await execPnpm(['install', '--lockfile-only'])
+  await execPnpm(['install', '--frozen-lockfile'])
 
   {
     const generatedByPreinstall = projects['project-1'].requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -1277,14 +1277,15 @@ test("linking the package's bin to another workspace package in a monorepo", asy
 
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm(['recursive', 'install'])
+  await execPnpm(['install'])
 
   projects.main.isExecutable('.bin/hello')
 
   expect(fs.existsSync('main/node_modules')).toBeTruthy()
   rimraf('main/node_modules')
+  rimraf('node_modules')
 
-  await execPnpm(['recursive', 'install', '--frozen-lockfile'])
+  await execPnpm(['install', '--frozen-lockfile'])
 
   projects.main.isExecutable('.bin/hello')
 })
@@ -1433,6 +1434,7 @@ test('custom virtual store directory in a workspace with not shared lockfile', a
 
   rimraf('project-1/virtual-store')
   rimraf('project-1/node_modules')
+  rimraf('node_modules')
 
   await execPnpm(['install', '--frozen-lockfile'])
 

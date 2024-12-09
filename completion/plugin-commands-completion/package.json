@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-completion",
-  "version": "1.0.24",
+  "version": "1000.0.0",
   "description": "Commands for shell completions",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

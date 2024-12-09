@@ -14,6 +14,6 @@ export const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 // This file contains meta information
 // about all the packages published by the same name, not just the manifest
 // of one package/version
-export const META_DIR = 'metadata'
-export const FULL_META_DIR = 'metadata-full'
-export const FULL_FILTERED_META_DIR = 'metadata-v1.2'
+export const ABBREVIATED_META_DIR = 'metadata-v1.3'
+export const FULL_META_DIR = 'metadata-full-v1.3' // This is currently not used at all
+export const FULL_FILTERED_META_DIR = 'metadata-v1.3'

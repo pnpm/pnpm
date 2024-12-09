@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "18.0.0",
+  "version": "1000.0.0",
   "description": "Commands for installation",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -66,6 +66,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/core": "workspace:*",
     "@pnpm/dedupe.check": "workspace:*",
+    "@pnpm/deps.status": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/find-workspace-dir": "workspace:*",
@@ -109,7 +110,7 @@
     "which": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
