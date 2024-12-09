@@ -1,6 +1,6 @@
 # pnpm
 
-## 10.0.0-beta.1
+## 10.0.0-beta.2
 
 ### Major Changes
 
@@ -46,6 +46,10 @@
   - `prompt` - Prompts the user for permission to run install if `node_modules` is not up to date.
   - `error` - Throws an error if `node_modules` is not up to date.
   - `false` - Disables dependency checks.
+
+- A new setting, `inject-workspace-packages`, has been added to allow hard-linking all local workspace dependencies instead of symlinking them. Previously, this behavior was achievable via the [`dependenciesMeta[].injected`](https://pnpm.io/package_json#dependenciesmetainjected) setting, which remains supported [#8836](https://github.com/pnpm/pnpm/pull/8836).
+
+- On repeat install perform a fast check if `node_modules` is up to date [#8838](https://github.com/pnpm/pnpm/pull/8838).
 
 ### Patch Changes
 
