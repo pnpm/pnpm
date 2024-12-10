@@ -67,13 +67,19 @@ export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ 
   try {
     return await _checkDepsStatus(opts)
   } catch (error) {
-    if (util.types.isNativeError(error) && 'code' in error && error.code === 'ERR_PNPM_RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND') {
+    if (util.types.isNativeError(error) && 'code' in error && String(error.code).startsWith('ERR_PNPM_RUN_CHECK_DEPS_')) {
       return {
         upToDate: false,
         issue: error.message,
       }
     }
-    throw error
+    // This function never throws an error.
+    // We want to ensure that pnpm CLI never crashes when checking the status of dependencies.
+    // In the worst-case scenario, the install will run redundantly.
+    return {
+      upToDate: undefined,
+      issue: util.types.isNativeError(error) ? error.message : undefined,
+    }
   }
 }
 
