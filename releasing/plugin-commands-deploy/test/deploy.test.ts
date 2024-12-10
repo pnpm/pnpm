@@ -1,13 +1,30 @@
 import fs from 'fs'
 import path from 'path'
 import { deploy } from '@pnpm/plugin-commands-deploy'
+import { install } from '@pnpm/plugin-commands-installation'
 import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
-import { logger } from '@pnpm/logger'
+import { logger, globalWarn } from '@pnpm/logger'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { type ProjectManifest } from '@pnpm/types'
 import { DEFAULT_OPTS } from './utils'
 
-test('deploy', async () => {
+beforeEach(async () => {
+  const logger = await import('@pnpm/logger')
+  jest.spyOn(logger, 'globalWarn')
+})
+
+afterEach(() => {
+  jest.restoreAllMocks()
+})
+
+function readPackageJson (manifestDir: string): unknown {
+  const manifestPath = path.resolve(manifestDir, 'package.json')
+  const manifestText = fs.readFileSync(manifestPath, 'utf-8')
+  return JSON.parse(manifestText)
+}
+
+test('deploy without existing lockfile', async () => {
   preparePackages([
     {
       name: 'project-1',
@@ -62,6 +79,8 @@ test('deploy', async () => {
     workspaceDir: process.cwd(),
   }, ['deploy'])
 
+  expect(globalWarn).toHaveBeenCalledWith('Shared lockfile not found. Falling back to installing without a lockfile.')
+
   const project = assertProject(path.resolve('deploy'))
   project.has('project-2')
   project.has('is-positive')
@@ -75,6 +94,149 @@ test('deploy', async () => {
   expect(fs.existsSync('deploy/node_modules/.pnpm/project-3@file+project-3/node_modules/project-3/index.js')).toBeTruthy()
   expect(fs.existsSync('deploy/node_modules/.pnpm/project-3@file+project-3/node_modules/project-3/test.js')).toBeFalsy()
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
+})
+
+test('deploy with a shared lockfile after full install', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-2': 'workspace:*',
+        'is-positive': '1.0.0',
+      },
+      devDependencies: {
+        'project-3': 'workspace:*',
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-odd': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '2.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-odd': '1.0.0',
+      },
+    },
+  ])
+
+  for (const name of ['project-1', 'project-2', 'project-3']) {
+    fs.writeFileSync(`${name}/test.js`, '', 'utf8')
+    fs.writeFileSync(`${name}/index.js`, '', 'utf8')
+  }
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
+
+  const expectedDeployManifest: ProjectManifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'project-2': expect.stringContaining('file:'),
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'project-3': expect.stringContaining('file:'),
+      'is-negative': '1.0.0',
+    },
+    optionalDependencies: {},
+  }
+
+  // deploy prod only
+  {
+    fs.rmSync('deploy', { recursive: true, force: true })
+    await deploy.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      dev: false,
+      production: true,
+      recursive: true,
+      selectedProjectsGraph,
+      sharedWorkspaceLockfile: true,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+    }, ['deploy'])
+
+    const project = assertProject(path.resolve('deploy'))
+    project.has('project-2')
+    project.has('is-positive')
+    project.hasNot('project-3')
+    project.hasNot('is-negative')
+    expect(readPackageJson('deploy')).toStrictEqual(expectedDeployManifest)
+    expect(fs.existsSync('deploy/pnpm-lock.yaml'))
+    expect(fs.existsSync('deploy/index.js')).toBeTruthy()
+    expect(fs.existsSync('deploy/test.js')).toBeFalsy()
+    expect(fs.existsSync('deploy/node_modules/.modules.yaml')).toBeTruthy()
+    const project2Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.startsWith('project-2@'))
+    expect(project2Name).toBeDefined()
+    expect(fs.existsSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2/index.js`)).toBeTruthy()
+    expect(fs.existsSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2/test.js`)).toBeFalsy()
+    const project3Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.startsWith('project-3@'))
+    expect(project3Name).toBeUndefined()
+    expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('Falling back to installing without a lockfile'))
+  }
+
+  // deploy all
+  {
+    fs.rmSync('deploy', { recursive: true, force: true })
+    await deploy.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      sharedWorkspaceLockfile: true,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+    }, ['deploy'])
+
+    const project = assertProject(path.resolve('deploy'))
+    project.has('project-2')
+    project.has('is-positive')
+    project.has('project-3')
+    project.has('is-negative')
+    expect(readPackageJson('deploy')).toStrictEqual(expectedDeployManifest)
+    expect(fs.existsSync('deploy/pnpm-lock.yaml'))
+    expect(fs.existsSync('deploy/index.js')).toBeTruthy()
+    expect(fs.existsSync('deploy/test.js')).toBeFalsy()
+    expect(fs.existsSync('deploy/node_modules/.modules.yaml')).toBeTruthy()
+    const project2Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.startsWith('project-2@'))
+    expect(project2Name).toBeDefined()
+    expect(fs.existsSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2/index.js`)).toBeTruthy()
+    expect(fs.existsSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2/test.js`)).toBeFalsy()
+    const project3Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.startsWith('project-3@'))
+    expect(project3Name).toBeDefined()
+    expect(fs.existsSync(`deploy/node_modules/.pnpm/${project3Name}/node_modules/project-3/index.js`)).toBeTruthy()
+    expect(fs.existsSync(`deploy/node_modules/.pnpm/${project3Name}/node_modules/project-3/test.js`)).toBeFalsy()
+    expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('Falling back to installing without a lockfile'))
+  }
 })
 
 test('deploy in workspace with shared-workspace-lockfile=false', async () => {
