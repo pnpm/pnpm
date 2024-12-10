@@ -1,4 +1,5 @@
 import { type PkgResolutionId, type ResolveResult } from '@pnpm/resolver-base'
+import { createFetchFromRegistry } from '@pnpm/fetch'
 
 export async function resolveFromTarball (
   wantedDependency: { pref: string }
@@ -8,6 +9,11 @@ export async function resolveFromTarball (
   }
 
   if (isRepository(wantedDependency.pref)) return null
+
+  const fetchRetry = createFetchFromRegistry({})
+  try {
+    wantedDependency.pref = (await fetchRetry(wantedDependency.pref)).url
+  } catch {}
 
   return {
     id: wantedDependency.pref as PkgResolutionId,

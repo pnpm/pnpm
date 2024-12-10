@@ -4214,9 +4214,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fetch':
-        specifier: workspace:*
-        version: link:../../network/fetch
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../get-context
@@ -6513,6 +6510,9 @@ importers:
 
   resolving/tarball-resolver:
     dependencies:
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
