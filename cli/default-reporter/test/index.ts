@@ -604,7 +604,7 @@ ${ADD} bar ${versionColor('2.0.0')}
 
 ${h1('optionalDependencies:')} skipped
 
-${h1('devDependencies:')} skipped because NODE_ENV is set to production
+${h1('devDependencies:')} skipped
 `)
     },
   })
