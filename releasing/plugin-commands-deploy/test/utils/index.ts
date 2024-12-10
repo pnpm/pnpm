@@ -27,6 +27,7 @@ export const DEFAULT_OPTS = {
     optionalDependencies: true,
   },
   key: undefined,
+  injectWorkspacePackages: true,
   linkWorkspacePackages: true,
   localAddress: undefined,
   lock: false,

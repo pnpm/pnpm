@@ -141,6 +141,7 @@
     "nodetouch",
     "noent",
     "nonexec",
+    "noninjected",
     "nopadding",
     "noproxy",
     "nosystem",
