@@ -65,6 +65,9 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   if (!opts.workspaceDir) {
     throw new PnpmError('CANNOT_DEPLOY', 'A deploy is only possible from inside a workspace')
   }
+  if (!opts.injectWorkspacePackages) {
+    throw new PnpmError('DEPLOY_NONINJECTED_WORKSPACE', 'We only support deploy from workspaces that use the inject-workspace-packages=true setting')
+  }
   const selectedProjects = Object.values(opts.selectedProjectsGraph ?? {})
   if (selectedProjects.length === 0) {
     throw new PnpmError('NOTHING_TO_DEPLOY', 'No project was selected for deployment')
