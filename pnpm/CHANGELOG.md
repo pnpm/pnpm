@@ -1,6 +1,6 @@
 # pnpm
 
-## 10.0.0-beta.2
+## 10.0.0-beta.3
 
 ### Major Changes
 
@@ -36,6 +36,9 @@
 - Escape the `#` character in directory names within the virtual store (`node_modules/.pnpm`) [#8557](https://github.com/pnpm/pnpm/pull/8557).
 - Store version bumped to v10. The new store layout has a different directory called "index" for storing the package content mappings. Previously these files were stored in the same directory where the package contents are (in "files"). The new store has also a new format for storing the mappings for side-effects cache.
 - `pnpm add --global pnpm` or (`pnpm add --global @pnpm/exe`) fails with an error suggesting to use `pnpm self-update` [#8728](https://github.com/pnpm/pnpm/pull/8728).
+- Dependencies specified via a URL are now recorded in the lockfile using their final resolved URL. Thus, if the original URL redirects, the final redirect target will be saved in the lockfile [#8833](https://github.com/pnpm/pnpm/issues/8833).
+- The deploy command works only in workspaces that use the `inject-workspace-packages=true` setting.
+- Reduced the number of fields from `package.json` that are added as environment variables (`npm_package_` prefix) during script execution. Only the following fields are now included: `name`, `version`, `bin`, `engines`, and `config` [#8552](https://github.com/pnpm/pnpm/issues/8552).
 
 ### Minor Changes
 
