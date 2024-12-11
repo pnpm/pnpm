@@ -26,7 +26,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/tarball-resolver#readme",
   "dependencies": {
-    "@pnpm/fetch": "workspace:*",
+    "@pnpm/fetching-types": "workspace:*",
     "@pnpm/resolver-base": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
@@ -34,6 +34,7 @@
     "pnpm10"
   ],
   "devDependencies": {
+    "@pnpm/fetch": "workspace:*",
     "@pnpm/tarball-resolver": "workspace:*"
   },
   "exports": {

@@ -1,7 +1,8 @@
 import { type PkgResolutionId, type ResolveResult } from '@pnpm/resolver-base'
-import { createFetchFromRegistry } from '@pnpm/fetch'
+import { type FetchFromRegistry } from '@pnpm/fetching-types'
 
 export async function resolveFromTarball (
+  fetchFromRegistry: FetchFromRegistry,
   wantedDependency: { pref: string }
 ): Promise<ResolveResult | null> {
   if (!wantedDependency.pref.startsWith('http:') && !wantedDependency.pref.startsWith('https:')) {
@@ -10,16 +11,14 @@ export async function resolveFromTarball (
 
   if (isRepository(wantedDependency.pref)) return null
 
-  const fetchRetry = createFetchFromRegistry({})
-  try {
-    wantedDependency.pref = (await fetchRetry(wantedDependency.pref)).url
-  } catch {}
+  // If there are redirects, we want to get the final URL address
+  const { url: resolvedUrl } = await fetchFromRegistry(wantedDependency.pref, { method: 'OPTIONS' })
 
   return {
-    id: wantedDependency.pref as PkgResolutionId,
-    normalizedPref: wantedDependency.pref,
+    id: resolvedUrl as PkgResolutionId,
+    normalizedPref: resolvedUrl,
     resolution: {
-      tarball: wantedDependency.pref,
+      tarball: resolvedUrl,
     },
     resolvedVia: 'url',
   }
