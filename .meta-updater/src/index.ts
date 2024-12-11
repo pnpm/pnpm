@@ -3,6 +3,8 @@ import path from 'path'
 import { readWantedLockfile, type Lockfile } from '@pnpm/lockfile.fs'
 import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
+import { parsePkgAndParentSelector } from '@pnpm/parse-overrides'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import isSubdir from 'is-subdir'
 import loadJsonFile from 'load-json-file'
 import normalizePath from 'normalize-path'
@@ -11,6 +13,7 @@ import writeJsonFile from 'write-json-file'
 const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => { // eslint-disable-line
+  const workspaceManifest = await readWorkspaceManifest(workspaceDir)!
   const rootManifest = loadJsonFile.sync<ProjectManifest>(path.join(workspaceDir, 'package.json'))
   const pnpmManifest = loadJsonFile.sync<ProjectManifest>(path.join(workspaceDir, 'pnpm/package.json'))
   const pnpmVersion = pnpmManifest!.version!
@@ -60,7 +63,13 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         }
       } else {
         manifest.pnpm = manifest.pnpm ?? {}
-        manifest.pnpm.overrides = rootManifest.pnpm!.overrides
+        manifest.pnpm.overrides = { ...rootManifest.pnpm!.overrides }
+        for (const selector in manifest.pnpm.overrides) {
+          if (manifest.pnpm.overrides[selector] === 'catalog:') {
+            const { targetPkg } = parsePkgAndParentSelector(selector)
+            manifest.pnpm.overrides[selector] = workspaceManifest!.catalog![targetPkg.name]
+          }
+        }
         for (const depType of ['devDependencies'] as const) {
           if (!manifest[depType]) continue
           for (const depName of Object.keys(manifest[depType] ?? {})) {

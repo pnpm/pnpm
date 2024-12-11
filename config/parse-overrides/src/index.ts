@@ -43,7 +43,7 @@ export function parseOverrides (
     })
 }
 
-function parsePkgAndParentSelector (selector: string): Pick<VersionOverride, 'parentPkg' | 'targetPkg'> {
+export function parsePkgAndParentSelector (selector: string): Pick<VersionOverride, 'parentPkg' | 'targetPkg'> {
   let delimiterIndex = selector.search(DELIMITER_REGEX)
   if (delimiterIndex !== -1) {
     delimiterIndex++
