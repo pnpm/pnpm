@@ -67,6 +67,7 @@ export function createFetchFromRegistry (
         },
         // if verifying integrity, node-fetch must not decompress
         compress: opts?.compress ?? false,
+        method: opts?.method,
         headers,
         redirect: 'manual',
         retry: opts?.retry,
