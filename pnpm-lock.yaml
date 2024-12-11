@@ -786,9 +786,15 @@ importers:
       '@pnpm/meta-updater':
         specifier: 'catalog:'
         version: 2.0.3
+      '@pnpm/parse-overrides':
+        specifier: workspace:*
+        version: link:../config/parse-overrides
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../workspace/read-manifest
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
