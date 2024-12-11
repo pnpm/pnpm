@@ -1119,6 +1119,9 @@ test('tarball domain differs from registry domain', async () => {
 
 test('tarball installed through non-standard URL endpoint from the registry domain', async () => {
   nock('https://registry.npmjs.org', { allowUnmocked: true })
+    .head('/is-positive/download/is-positive-3.1.0.tgz')
+    .reply(200, '')
+  nock('https://registry.npmjs.org', { allowUnmocked: true })
     .get('/is-positive/download/is-positive-3.1.0.tgz')
     .replyWithFile(200, tarballPath)
 
