@@ -6517,10 +6517,16 @@ importers:
 
   resolving/tarball-resolver:
     dependencies:
+      '@pnpm/fetching-types':
+        specifier: workspace:*
+        version: link:../../network/fetching-types
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
     devDependencies:
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/tarball-resolver':
         specifier: workspace:*
         version: 'link:'

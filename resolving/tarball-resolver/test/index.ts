@@ -1,6 +1,10 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 // cspell:ignore buildserver
-import { resolveFromTarball } from '@pnpm/tarball-resolver'
+import { resolveFromTarball as _resolveFromTarball } from '@pnpm/tarball-resolver'
+import { createFetchFromRegistry } from '@pnpm/fetch'
+
+const fetch = createFetchFromRegistry({})
+const resolveFromTarball = _resolveFromTarball.bind(null, fetch)
 
 test('tarball from npm registry', async () => {
   const resolutionResult = await resolveFromTarball({ pref: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz' })
@@ -16,7 +20,9 @@ test('tarball from npm registry', async () => {
 })
 
 test('tarball from URL that contain port number', async () => {
-  const resolutionResult = await resolveFromTarball({ pref: 'http://buildserver.mycompany.com:81/my-private-package-0.1.6.tgz' })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fetch: any = async (url: string) => ({ url })
+  const resolutionResult = await _resolveFromTarball(fetch, { pref: 'http://buildserver.mycompany.com:81/my-private-package-0.1.6.tgz' })
 
   expect(resolutionResult).toStrictEqual({
     id: 'http://buildserver.mycompany.com:81/my-private-package-0.1.6.tgz',
