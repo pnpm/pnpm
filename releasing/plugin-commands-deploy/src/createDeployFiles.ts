@@ -29,6 +29,8 @@ const INHERITED_MANIFEST_KEYS = [
   'bin',
   'scripts',
   'packageManager',
+  'dependenciesMeta', // TODO: should this be improved?
+  'peerDependenciesMeta', // TODO: should this be improved?
 ] as const satisfies Array<keyof ProjectManifest>
 
 export type DeployManifest = Pick<ProjectManifest, typeof INHERITED_MANIFEST_KEYS[number] | DependenciesField>
