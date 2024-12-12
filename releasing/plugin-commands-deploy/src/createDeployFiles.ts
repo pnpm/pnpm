@@ -9,6 +9,7 @@ import {
   type PackageSnapshot,
   type PackageSnapshots,
   type ProjectSnapshot,
+  type ResolvedDependencies,
 } from '@pnpm/lockfile.types'
 import {
   type DependenciesField,
@@ -29,8 +30,8 @@ const INHERITED_MANIFEST_KEYS = [
   'bin',
   'scripts',
   'packageManager',
-  'dependenciesMeta', // TODO: should this be improved?
-  'peerDependenciesMeta', // TODO: should this be improved?
+  'dependenciesMeta',
+  'peerDependenciesMeta',
 ] as const satisfies Array<keyof ProjectManifest>
 
 export type DeployManifest = Pick<ProjectManifest, typeof INHERITED_MANIFEST_KEYS[number] | DependenciesField>
@@ -81,13 +82,13 @@ export function createDeployFiles ({
     const inputDependencies = inputSnapshot[field] ?? {}
     for (const name in inputDependencies) {
       const spec = inputDependencies[name]
-      const prefix = REPLACEABLE_PREFIXES.find(prefix => spec.startsWith(prefix))
-      if (!prefix) {
+      const splitPrefixResult = splitPrefix(spec)
+      if (!splitPrefixResult) {
         targetSpecifiers[name] = targetDependencies[name] = spec
         continue
       }
 
-      const targetPath = spec.slice(prefix.length)
+      const { targetPath } = splitPrefixResult
       const targetRealPath = path.resolve(lockfileDir, projectId, targetPath) // importer IDs are relative to its project dir
       const targetFileUrl = url.pathToFileURL(targetRealPath).toString()
       targetSpecifiers[name] = targetDependencies[name] = targetFileUrl
@@ -153,9 +154,52 @@ function getPackageSnapshot ({
       type: 'directory',
       directory,
     }
-    return { ...projectSnapshot, resolution }
+    const dependencies = convertResolvedDependencies(projectSnapshot.dependencies, targetDir)
+    const optionalDependencies = convertResolvedDependencies(projectSnapshot.optionalDependencies, targetDir)
+    return {
+      dependencies,
+      optionalDependencies,
+      resolution,
+    }
   }
 
   const depPath = `${name}@${spec}` as DepPath
   return lockfile.packages?.[depPath]
+}
+
+function convertResolvedDependencies (input: ResolvedDependencies | undefined, dir: string): ResolvedDependencies | undefined {
+  if (!input) return undefined
+  const output: ResolvedDependencies = {}
+
+  for (const key in input) {
+    const spec = input[key]
+    const splitPrefixResult = splitPrefix(spec)
+    if (!splitPrefixResult) {
+      output[key] = spec
+      continue
+    }
+
+    const { targetPath } = splitPrefixResult
+    const targetRealPath = path.resolve(dir, targetPath)
+    if (['', '.'].includes(path.relative(dir, targetRealPath))) {
+      output[key] = 'link:.'
+      continue
+    }
+
+    output[key] = url.pathToFileURL(targetRealPath).toString()
+  }
+
+  return output
+}
+
+interface SplitPrefixResult {
+  prefix: typeof REPLACEABLE_PREFIXES[number]
+  targetPath: string
+}
+
+function splitPrefix (spec: string): SplitPrefixResult | undefined {
+  const prefix = REPLACEABLE_PREFIXES.find(prefix => spec.startsWith(prefix))
+  if (!prefix) return undefined
+  const targetPath = spec.slice(prefix.length)
+  return { prefix, targetPath }
 }
