@@ -93,10 +93,14 @@ test('lockfile with scoped package', async () => {
   prepareEmpty()
 
   writeYamlFile(WANTED_LOCKFILE, {
-    dependencies: {
-      '@types/semver': {
-        specifier: '^5.3.31',
-        version: '5.3.31',
+    importers: {
+      '.': {
+        dependencies: {
+          '@types/semver': {
+            specifier: '^5.3.31',
+            version: '5.3.31',
+          },
+        },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
