@@ -1,14 +1,16 @@
 lockfileVersion: '9.0'
 
-dependencies:
-  is-negative:
-    version: 1.0.0
-    specifier: 1.0.0
+importers:
+  '.':
+    dependencies:
+      is-negative:
+        version: 1.0.0
+        specifier: 1.0.0
 
-devDependencies:
-  is-positive:
-    version: 2.0.0
-    specifier: 2.0.0
+    devDependencies:
+      is-positive:
+        version: 2.0.0
+        specifier: 2.0.0
 
 packages:
 
