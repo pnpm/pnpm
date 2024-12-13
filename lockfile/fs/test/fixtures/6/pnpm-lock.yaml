@@ -1,9 +1,11 @@
 lockfileVersion: '9.0'
 
-dependencies:
-  is-positive:
-    version: '1.0.0'
-    specifier: '1.0.0'
+importers:
+  .:
+    dependencies:
+      is-positive:
+        version: '1.0.0'
+        specifier: '1.0.0'
 
 packages:
   /is-positive@1.0.0:

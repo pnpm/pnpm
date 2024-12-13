@@ -1,11 +1,11 @@
 lockfileVersion: 5.3-inlineSpecifiers
 
-specifiers: {}
-
-dependencies:
-  is-positive:
-    specifier: '^1.0.0'
-    version: '1.0.0'
+importers:
+  .:
+    dependencies:
+      is-positive:
+        specifier: '^1.0.0'
+        version: '1.0.0'
 
 packages:
   /is-positive/1.0.0:
