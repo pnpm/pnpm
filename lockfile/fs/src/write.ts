@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { type LockfileFileV9, type Lockfile, type LockfileFile } from '@pnpm/lockfile.types'
+import { type LockfileFileV9, type LockfileObject, type LockfileFile } from '@pnpm/lockfile.types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
 import yaml from 'js-yaml'
@@ -29,7 +29,7 @@ const LOCKFILE_YAML_FORMAT = {
 
 export async function writeWantedLockfile (
   pkgPath: string,
-  wantedLockfile: Lockfile,
+  wantedLockfile: LockfileObject,
   opts?: {
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
@@ -41,7 +41,7 @@ export async function writeWantedLockfile (
 
 export async function writeCurrentLockfile (
   virtualStoreDir: string,
-  currentLockfile: Lockfile
+  currentLockfile: LockfileObject
 ): Promise<void> {
   // empty lockfile is not saved
   if (isEmptyLockfile(currentLockfile)) {
@@ -55,7 +55,7 @@ export async function writeCurrentLockfile (
 async function writeLockfile (
   lockfileFilename: string,
   pkgPath: string,
-  wantedLockfile: Lockfile
+  wantedLockfile: LockfileObject
 ): Promise<void> {
   const lockfilePath = path.join(pkgPath, lockfileFilename)
 
@@ -73,15 +73,15 @@ function yamlStringify (lockfile: LockfileFile) {
   return yaml.dump(sortedLockfile, LOCKFILE_YAML_FORMAT)
 }
 
-export function isEmptyLockfile (lockfile: Lockfile): boolean {
+export function isEmptyLockfile (lockfile: LockfileObject): boolean {
   return Object.values(lockfile.importers).every((importer) => isEmpty(importer.specifiers ?? {}) && isEmpty(importer.dependencies ?? {}))
 }
 
 export async function writeLockfiles (
   opts: {
-    wantedLockfile: Lockfile
+    wantedLockfile: LockfileObject
     wantedLockfileDir: string
-    currentLockfile: Lockfile
+    currentLockfile: LockfileObject
     currentLockfileDir: string
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean

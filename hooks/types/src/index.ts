@@ -1,9 +1,9 @@
-import type { Lockfile } from '@pnpm/lockfile.types'
-import type { Registries } from '@pnpm/types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
+import { type Registries } from '@pnpm/types'
 
 export interface PreResolutionHookContext {
-  wantedLockfile: Lockfile
-  currentLockfile: Lockfile
+  wantedLockfile: LockfileObject
+  currentLockfile: LockfileObject
   existsCurrentLockfile: boolean
   existsNonEmptyWantedLockfile: boolean
   lockfileDir: string

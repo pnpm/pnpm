@@ -4,7 +4,7 @@ import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { type RootLog } from '@pnpm/core-loggers'
 import { type PnpmError } from '@pnpm/error'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type Lockfile, type TarballResolution } from '@pnpm/lockfile.fs'
+import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.fs'
 import { type LockfileFileV9 } from '@pnpm/lockfile.types'
 import { tempDir, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -1382,7 +1382,7 @@ test('a broken lockfile should not break the store', async () => {
 
   const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], { ...opts, lockfileOnly: true })
 
-  const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
+  const lockfile: LockfileObject = readYamlFile(WANTED_LOCKFILE)
   lockfile.packages!['is-positive@1.0.0' as DepPath].name = 'bad-name'
   lockfile.packages!['is-positive@1.0.0' as DepPath].version = '1.0.0'
 
@@ -1495,7 +1495,7 @@ test('update the lockfile when a new project is added to the workspace', async (
   })
   await mutateModules(importers, testDefaults({ allProjects }))
 
-  const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
+  const lockfile: LockfileObject = readYamlFile(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
 })
 
@@ -1543,7 +1543,7 @@ test('update the lockfile when a new project is added to the workspace and lockf
   })
   await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true }))
 
-  const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
+  const lockfile: LockfileObject = readYamlFile(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
 })
 

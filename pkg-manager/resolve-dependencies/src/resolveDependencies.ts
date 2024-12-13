@@ -7,7 +7,7 @@ import {
 } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import {
-  type Lockfile,
+  type LockfileObject,
   type PackageSnapshot,
   type ResolvedDependencies,
 } from '@pnpm/lockfile.types'
@@ -151,8 +151,8 @@ export interface ResolutionContext {
   childrenByParentId: ChildrenByParentId
   patchedDependencies?: Record<string, PatchFile>
   pendingNodes: PendingNode[]
-  wantedLockfile: Lockfile
-  currentLockfile: Lockfile
+  wantedLockfile: LockfileObject
+  currentLockfile: LockfileObject
   injectWorkspacePackages?: boolean
   linkWorkspacePackagesDepth: number
   lockfileDir: string
@@ -995,7 +995,7 @@ async function resolveChildren (
 
 function getDepsToResolve (
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
-  wantedLockfile: Lockfile,
+  wantedLockfile: LockfileObject,
   options: {
     preferredDependencies?: ResolvedDependencies
     prefix: string
@@ -1070,7 +1070,7 @@ function getDepsToResolve (
 
 function referenceSatisfiesWantedSpec (
   opts: {
-    lockfile: Lockfile
+    lockfile: LockfileObject
     prefix: string
   },
   wantedDep: { alias: string, pref: string },
@@ -1107,7 +1107,7 @@ type InfoFromLockfile = {
 } | unknown)
 
 function getInfoFromLockfile (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   registries: Registries,
   reference: string | undefined,
   alias: string | undefined

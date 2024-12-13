@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { readWantedLockfile, type Lockfile } from '@pnpm/lockfile.fs'
+import { readWantedLockfile, type LockfileObject } from '@pnpm/lockfile.fs'
 import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
 import { parsePkgAndParentSelector } from '@pnpm/parse-overrides'
@@ -116,7 +116,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
 
 async function updateTSConfig (
   context: {
-    lockfile: Lockfile
+    lockfile: LockfileObject
     workspaceDir: string
   },
   tsConfig: object | null,

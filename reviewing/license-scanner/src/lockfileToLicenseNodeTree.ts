@@ -1,4 +1,4 @@
-import { type Lockfile, type TarballResolution } from '@pnpm/lockfile.types'
+import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import {
@@ -124,7 +124,7 @@ export async function lockfileToLicenseNode (
  * @returns
  */
 export async function lockfileToLicenseNodeTree (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean }
     includedImporterIds?: ProjectId[]

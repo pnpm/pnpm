@@ -11,7 +11,7 @@ import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import {
-  type Lockfile,
+  type LockfileObject,
   getLockfileImporterId,
   readCurrentLockfile,
   readWantedLockfile,
@@ -182,7 +182,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
     logger.debug({ msg: 'Some manifest files were modified since the last validation. Continuing check.' })
 
     let readWantedLockfileAndDir: (projectDir: string) => Promise<{
-      wantedLockfile: Lockfile
+      wantedLockfile: LockfileObject
       wantedLockfileDir: string
     }>
     if (sharedWorkspaceLockfile) {
@@ -391,7 +391,7 @@ interface AssertWantedLockfileUpToDateOptions {
   projectDir: string
   projectId: ProjectId
   projectManifest: ProjectManifest
-  wantedLockfile: Lockfile
+  wantedLockfile: LockfileObject
   wantedLockfileDir: string
 }
 

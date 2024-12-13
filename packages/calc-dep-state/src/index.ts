@@ -1,6 +1,6 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
-import { type Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
 import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import sortKeys from 'sort-keys'
@@ -64,7 +64,7 @@ function calcDepStateObj<T extends string> (
   return cache[depPath]
 }
 
-export function lockfileToDepGraph (lockfile: Lockfile): DepsGraph<DepPath> {
+export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath> {
   const graph: DepsGraph<DepPath> = {}
   if (lockfile.packages != null) {
     for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages)) {

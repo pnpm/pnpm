@@ -1,4 +1,4 @@
-import type { Lockfile, PackageSnapshot, ProjectSnapshot } from '.'
+import type { LockfileObject, PackageSnapshot, ProjectSnapshot } from '.'
 import type { DependenciesMeta } from '@pnpm/types'
 
 export type LockfileFile = Omit<InlineSpecifiersLockfile, 'importers'> &
@@ -20,7 +20,7 @@ Partial<Pick<InlineSpecifiersLockfile, 'importers'>> & {
  * This is an experiment to reduce one flavor of merge conflicts in lockfiles.
  * For more info: https://github.com/pnpm/pnpm/issues/4725.
  */
-export interface InlineSpecifiersLockfile extends Omit<Lockfile, 'lockfileVersion' | 'importers'> {
+export interface InlineSpecifiersLockfile extends Omit<LockfileObject, 'lockfileVersion' | 'importers'> {
   lockfileVersion: string
   importers?: Record<string, InlineSpecifiersProjectSnapshot>
 }

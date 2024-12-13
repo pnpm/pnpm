@@ -1,7 +1,7 @@
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { type ProjectOptions } from '@pnpm/get-context'
 import {
-  type Lockfile,
+  type LockfileObject,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.types'
 import { refIsLocalTarball } from '@pnpm/lockfile.utils'
@@ -22,7 +22,7 @@ export async function allProjectsAreUpToDate (
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
     linkWorkspacePackages: boolean
-    wantedLockfile: Lockfile
+    wantedLockfile: LockfileObject
     workspacePackages: WorkspacePackages
     lockfileDir: string
   }

@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { DedupeCheckIssuesError } from '@pnpm/dedupe.check'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { type Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { dedupe, install } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -157,7 +157,7 @@ async function testFixture (fixtureName: string) {
     resolutionMode: 'highest' as const, // TODO: this should work with the default resolution mode (TODOv8)
   }
 
-  const readProjectLockfile = () => readYamlFile<Lockfile>(path.join(project.dir(), './pnpm-lock.yaml'))
+  const readProjectLockfile = () => readYamlFile<LockfileObject>(path.join(project.dir(), './pnpm-lock.yaml'))
 
   const originalLockfile = readProjectLockfile()
 

@@ -1,6 +1,6 @@
 import { type PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { type Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { install, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
@@ -109,7 +109,7 @@ test('recursive update prod dependencies only', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = readYamlFile<Lockfile>('./pnpm-lock.yaml')
+  const lockfile = readYamlFile<LockfileObject>('./pnpm-lock.yaml')
   expect(
     Object.keys(lockfile.packages ?? {})
   ).toStrictEqual(
@@ -314,7 +314,7 @@ test('recursive update --latest foo should only update projects that have foo', 
     workspaceDir: process.cwd(),
   }, ['@zkochan/async-regex-replace', '@pnpm.e2e/foo'])
 
-  const lockfile = readYamlFile<Lockfile>('./pnpm-lock.yaml')
+  const lockfile = readYamlFile<LockfileObject>('./pnpm-lock.yaml')
 
   expect(Object.keys(lockfile.packages ?? {}).sort()).toStrictEqual([
     '@zkochan/async-regex-replace@0.2.0',

@@ -1,7 +1,7 @@
 import pathExists from 'path-exists'
 import path from 'path'
 import {
-  type Lockfile,
+  type LockfileObject,
   type PackageSnapshot,
   type PatchFile,
   type ProjectSnapshot,
@@ -54,8 +54,8 @@ export interface LockfileToHoistedDepGraphOptions {
 }
 
 export async function lockfileToHoistedDepGraph (
-  lockfile: Lockfile,
-  currentLockfile: Lockfile | null,
+  lockfile: LockfileObject,
+  currentLockfile: LockfileObject | null,
   opts: LockfileToHoistedDepGraphOptions
 ): Promise<LockfileToDepGraphResult> {
   let prevGraph!: DependenciesGraph
@@ -75,7 +75,7 @@ export async function lockfileToHoistedDepGraph (
 }
 
 async function _lockfileToHoistedDepGraph (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   opts: LockfileToHoistedDepGraphOptions
 ): Promise<Omit<LockfileToDepGraphResult, 'prevGraph'>> {
   const tree = hoist(lockfile, {
@@ -157,7 +157,7 @@ function pickLinkedDirectDeps (
 async function fetchDeps (
   opts: {
     graph: DependenciesGraph
-    lockfile: Lockfile
+    lockfile: LockfileObject
     pkgLocationsByDepPath: Record<string, string[]>
     hoistedLocations: Record<string, string[]>
   } & LockfileToHoistedDepGraphOptions,

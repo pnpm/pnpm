@@ -1,15 +1,15 @@
 import { parseDepPath, removeSuffix } from '@pnpm/dependency-path'
 import { createGitHostedPkgId } from '@pnpm/git-resolver'
 import {
-  type Lockfile,
+  type LockfileObject,
   type ProjectSnapshot,
-  type PackageSnapshotV7,
+  type LockfilePackageSnapshot,
   type ResolvedDependencies,
   type LockfileFile,
   type InlineSpecifiersLockfile,
   type InlineSpecifiersProjectSnapshot,
   type InlineSpecifiersResolvedDependencies,
-  type PackageInfo,
+  type LockfilePackageInfo,
   type LockfileFileV9,
   type PackageSnapshots,
 } from '@pnpm/lockfile.types'
@@ -26,9 +26,9 @@ export interface NormalizeLockfileOpts {
   forceSharedFormat: boolean
 }
 
-export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfileOpts): LockfileFile {
-  const packages: Record<string, PackageInfo> = {}
-  const snapshots: Record<string, PackageSnapshotV7> = {}
+export function convertToLockfileFile (lockfile: LockfileObject, opts: NormalizeLockfileOpts): LockfileFile {
+  const packages: Record<string, LockfilePackageInfo> = {}
+  const snapshots: Record<string, LockfilePackageSnapshot> = {}
   for (const [depPath, pkg] of Object.entries(lockfile.packages ?? {})) {
     snapshots[depPath] = pick([
       'dependencies',
@@ -193,7 +193,7 @@ function convertFromLockfileFileMutable (lockfileFile: LockfileFile): LockfileFi
   return lockfileFile as LockfileFileV9
 }
 
-export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV9): Lockfile {
+export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV9): LockfileObject {
   if ((lockfile as LockfileFileV9).snapshots) {
     return convertLockfileV9ToLockfileObject(lockfile as LockfileFileV9)
   }
@@ -295,7 +295,7 @@ function convertPkgIds (lockfile: LockfileFile): void {
   }
 }
 
-export function convertLockfileV9ToLockfileObject (lockfile: LockfileFileV9): Lockfile {
+export function convertLockfileV9ToLockfileObject (lockfile: LockfileFileV9): LockfileObject {
   const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
 
   const packages: PackageSnapshots = {}
