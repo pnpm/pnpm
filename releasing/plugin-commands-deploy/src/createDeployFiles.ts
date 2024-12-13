@@ -1,8 +1,6 @@
 import path from 'path'
 import url from 'url'
-import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
-import { globalWarn } from '@pnpm/logger'
 import {
   type DirectoryResolution,
   type Lockfile,
@@ -41,7 +39,6 @@ export interface CreateDeployFilesOptions {
   lockfileDir: string
   manifest: DeployManifest
   projectId: ProjectId
-  targetDir: string // necessary to make `packageSnapshot.resolution.directory` a relative path
 }
 
 export interface DeployFiles {
@@ -54,15 +51,8 @@ export function createDeployFiles ({
   lockfileDir,
   manifest,
   projectId,
-  targetDir,
 }: CreateDeployFilesOptions): DeployFiles {
   const inputSnapshot = lockfile.importers[projectId]
-
-  const resolvedProjectSnapshots: Record<string, ProjectSnapshot | undefined> = {}
-  for (const [id, snapshot] of Object.entries(lockfile.importers)) {
-    const resolvedPath = path.resolve(lockfileDir, id)
-    resolvedProjectSnapshots[resolvedPath] = snapshot
-  }
 
   const targetSnapshot: ProjectSnapshot = {
     ...inputSnapshot,
@@ -74,6 +64,17 @@ export function createDeployFiles ({
 
   const targetPackageSnapshots: PackageSnapshots = {
     ...lockfile.packages,
+  }
+
+  for (const importerPath in lockfile.importers) {
+    if (importerPath === projectId) continue
+    const projectSnapshot = lockfile.importers[importerPath as ProjectId]
+    const importerRealPath = path.resolve(lockfileDir, importerPath)
+    const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, importerRealPath)
+    const name = path.basename(importerPath) // TODO: use real name from manifest from opts.allProjects
+    const targetFileUrl = url.pathToFileURL(importerRealPath).toString()
+    const targetDepPath = `${name}@${targetFileUrl}` as DepPath
+    targetPackageSnapshots[targetDepPath] = packageSnapshot
   }
 
   for (const field of DEPENDENCIES_FIELD) {
@@ -92,21 +93,6 @@ export function createDeployFiles ({
       const targetRealPath = path.resolve(lockfileDir, projectId, targetPath) // importer IDs are relative to its project dir
       const targetFileUrl = url.pathToFileURL(targetRealPath).toString()
       targetSpecifiers[name] = targetDependencies[name] = targetFileUrl
-
-      const packageSnapshot = getPackageSnapshot({
-        lockfile,
-        name,
-        resolvedProjectSnapshots,
-        spec,
-        targetDir,
-        targetRealPath,
-      })
-      if (packageSnapshot) {
-        const targetDepPath = `${name}@${targetFileUrl}` as DepPath
-        targetPackageSnapshots[targetDepPath] = packageSnapshot
-      } else {
-        globalWarn(`Entry ${name}@${spec} has neither a project snapshot nor a package snapshot in the lockfile`)
-      }
     }
   }
 
@@ -127,47 +113,21 @@ export function createDeployFiles ({
   }
 }
 
-interface GetPackageSnapshotOptions {
-  lockfile: Pick<Lockfile, 'packages'>
-  name: string
-  resolvedProjectSnapshots: Record<string, ProjectSnapshot | undefined>
-  spec: string
-  targetDir: string // necessary to make `packageSnapshot.resolution.directory` a relative path
-  targetRealPath: string
-}
-
-function getPackageSnapshot ({
-  lockfile,
-  name,
-  resolvedProjectSnapshots,
-  spec,
-  targetDir,
-  targetRealPath,
-}: GetPackageSnapshotOptions): PackageSnapshot | undefined {
-  const projectSnapshot = resolvedProjectSnapshots[targetRealPath]
-  if (projectSnapshot) {
-    const directory = normalizePath(
-      // path.relative is necessary because `pnpm install` doesn't join absolute path correctly
-      path.relative(targetDir, targetRealPath)
-    )
-    const resolution: DirectoryResolution = {
-      type: 'directory',
-      directory,
-    }
-    const dependencies = convertResolvedDependencies(projectSnapshot.dependencies, targetDir)
-    const optionalDependencies = convertResolvedDependencies(projectSnapshot.optionalDependencies, targetDir)
-    return {
-      dependencies,
-      optionalDependencies,
-      resolution,
-    }
+function convertProjectSnapshotToPackageSnapshot (projectSnapshot: ProjectSnapshot, importerRealPath: string): PackageSnapshot {
+  const resolution: DirectoryResolution = {
+    type: 'directory',
+    directory: '.',
   }
-
-  const depPath = `${name}@${spec}` as DepPath
-  return lockfile.packages?.[depPath]
+  const dependencies = convertResolvedDependencies(projectSnapshot.dependencies, importerRealPath)
+  const optionalDependencies = convertResolvedDependencies(projectSnapshot.optionalDependencies, importerRealPath)
+  return {
+    dependencies,
+    optionalDependencies,
+    resolution,
+  }
 }
 
-function convertResolvedDependencies (input: ResolvedDependencies | undefined, dir: string): ResolvedDependencies | undefined {
+function convertResolvedDependencies (input: ResolvedDependencies | undefined, importerRealPath: string): ResolvedDependencies | undefined {
   if (!input) return undefined
   const output: ResolvedDependencies = {}
 
@@ -180,13 +140,13 @@ function convertResolvedDependencies (input: ResolvedDependencies | undefined, d
     }
 
     const { targetPath } = splitPrefixResult
-    const targetRealPath = path.resolve(dir, targetPath)
-    if (['', '.'].includes(path.relative(dir, targetRealPath))) {
+    const depRealPath = path.resolve(importerRealPath, targetPath)
+    if (['', '.'].includes(path.relative(importerRealPath, depRealPath))) {
       output[key] = 'link:.'
       continue
     }
 
-    output[key] = url.pathToFileURL(targetRealPath).toString()
+    output[key] = url.pathToFileURL(depRealPath).toString()
   }
 
   return output

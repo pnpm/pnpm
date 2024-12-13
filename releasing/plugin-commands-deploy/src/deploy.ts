@@ -177,7 +177,6 @@ async function deployFromSharedLockfile (
     lockfileDir,
     manifest: selectedProject.manifest,
     projectId,
-    targetDir: deployDir,
   })
 
   await Promise.all([
