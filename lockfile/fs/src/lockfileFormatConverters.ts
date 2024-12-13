@@ -216,17 +216,6 @@ function convertPkgIds (lockfile: LockfileFile): void {
     }
   }
   lockfile.packages = newLockfilePackages
-  if ((lockfile.dependencies != null || lockfile.devDependencies != null || lockfile.optionalDependencies != null) && !lockfile.importers?.['.']) {
-    lockfile.importers = lockfile.importers ?? {}
-    lockfile.importers['.'] = {
-      dependencies: lockfile.dependencies,
-      devDependencies: lockfile.devDependencies,
-      optionalDependencies: lockfile.optionalDependencies,
-    }
-    delete lockfile.dependencies
-    delete lockfile.devDependencies
-    delete lockfile.optionalDependencies
-  }
   for (const importer of Object.values(lockfile.importers ?? {})) {
     for (const depType of ['dependencies', 'optionalDependencies', 'devDependencies'] as const) {
       for (const [alias, { version }] of Object.entries(importer[depType] ?? {})) {
@@ -237,13 +226,6 @@ function convertPkgIds (lockfile: LockfileFile): void {
             importer[depType]![alias].version = oldIdToNewId[version]
           }
         }
-      }
-    }
-  }
-  for (const depType of ['dependencies', 'optionalDependencies', 'devDependencies'] as const) {
-    for (const [alias, { version }] of Object.entries(lockfile[depType] ?? {})) {
-      if (oldIdToNewId[version]) {
-        lockfile[depType]![alias].version = oldIdToNewId[version]
       }
     }
   }

@@ -40,10 +40,6 @@ const ROOT_KEYS: readonly RootKey[] = [
   'packageExtensionsChecksum',
   'pnpmfileChecksum',
   'patchedDependencies',
-  'dependencies',
-  'optionalDependencies',
-  'devDependencies',
-  'dependenciesMeta',
   'importers',
   'packages',
 ]
@@ -96,7 +92,7 @@ export function sortLockfileKeys (lockfile: LockfileFileV9): LockfileFileV9 {
       })
     }
   }
-  for (const key of ['dependencies', 'devDependencies', 'optionalDependencies', 'time', 'patchedDependencies'] as const) {
+  for (const key of ['time', 'patchedDependencies'] as const) {
     if (!lockfile[key]) continue
     lockfile[key] = sortKeys<any>(lockfile[key]) // eslint-disable-line @typescript-eslint/no-explicit-any
   }

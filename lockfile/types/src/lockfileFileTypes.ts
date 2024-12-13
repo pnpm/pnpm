@@ -2,11 +2,9 @@ import type { LockfileObject, PackageSnapshot, ProjectSnapshot } from '.'
 import type { DependenciesMeta } from '@pnpm/types'
 
 export type LockfileFile = Omit<InlineSpecifiersLockfile, 'importers'> &
-Partial<InlineSpecifiersProjectSnapshot> &
 Partial<Pick<InlineSpecifiersLockfile, 'importers'>>
 
 export type LockfileFileV9 = Omit<InlineSpecifiersLockfile, 'importers' | 'packages'> &
-Partial<InlineSpecifiersProjectSnapshot> &
 Partial<Pick<InlineSpecifiersLockfile, 'importers'>> & {
   packages?: Record<string, Pick<PackageSnapshot, 'resolution' | 'engines' | 'cpu' | 'os' | 'hasBin' | 'name' | 'version' | 'bundledDependencies' | 'peerDependencies' | 'peerDependenciesMeta' | 'deprecated'>>
   snapshots?: Record<string, Pick<PackageSnapshot, 'dependencies' | 'optionalDependencies' | 'patched' | 'optional' | 'transitivePeerDependencies' | 'id'>>

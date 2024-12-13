@@ -164,7 +164,7 @@ test('dependency should be removed from the old field when installing it as a di
   {
     const lockfile = project.readCurrentLockfile()
     expect(Object.keys(lockfile.importers['.'].devDependencies ?? {})).toStrictEqual(['@pnpm.e2e/bar', '@pnpm.e2e/foo', '@pnpm.e2e/qar'])
-    expect(lockfile.dependencies).toBeFalsy()
+    expect(lockfile.importers['.'].dependencies).toBeFalsy()
   }
 })
 
