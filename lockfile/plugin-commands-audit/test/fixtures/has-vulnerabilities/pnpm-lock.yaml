@@ -1,19 +1,21 @@
 lockfileVersion: '9.0'
 
-dependencies:
-  karma:
-    specifier: ~2.0.0
-    version: 2.0.5
+importers:
+  .:
+    dependencies:
+      karma:
+        specifier: ~2.0.0
+        version: 2.0.5
 
-optionalDependencies:
-  sync-exec:
-    specifier: 0.6.2
-    version: 0.6.2
+    optionalDependencies:
+      sync-exec:
+        specifier: 0.6.2
+        version: 0.6.2
 
-devDependencies:
-  axios:
-    specifier: '0.15'
-    version: 0.15.3
+    devDependencies:
+      axios:
+        specifier: '0.15'
+        version: 0.15.3
 
 packages:
 
