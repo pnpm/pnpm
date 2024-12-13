@@ -155,7 +155,11 @@ async function deployFromSharedLockfile (
   },
   deployDir: string
 ): Promise<string | undefined> {
-  const { lockfileDir, workspaceDir } = opts
+  const { allProjects, lockfileDir, workspaceDir } = opts
+
+  if (!allProjects) {
+    return 'opts.allProjects is undefined. Falling back to installing without a lockfile.'
+  }
 
   if (!lockfileDir) {
     return 'opts.lockfileDir is undefined. Falling back to installing without a lockfile.'
@@ -173,6 +177,7 @@ async function deployFromSharedLockfile (
   const projectId = normalizePath(path.relative(workspaceDir, selectedProject.rootDir)) as ProjectId
 
   const deployFiles = createDeployFiles({
+    allProjects,
     lockfile,
     lockfileDir,
     manifest: selectedProject.manifest,
