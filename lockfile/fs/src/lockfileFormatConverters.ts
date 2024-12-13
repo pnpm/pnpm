@@ -14,7 +14,6 @@ import {
   type PackageSnapshots,
 } from '@pnpm/lockfile.types'
 import { type DepPath, DEPENDENCIES_FIELDS } from '@pnpm/types'
-import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import _mapValues from 'ramda/src/map'
 import omit from 'ramda/src/omit'
@@ -22,11 +21,7 @@ import pickBy from 'ramda/src/pickBy'
 import pick from 'ramda/src/pick'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 
-export interface NormalizeLockfileOpts {
-  forceSharedFormat: boolean
-}
-
-export function convertToLockfileFile (lockfile: LockfileObject, opts: NormalizeLockfileOpts): LockfileFile {
+export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
   const packages: Record<string, LockfilePackageInfo> = {}
   const snapshots: Record<string, LockfilePackageSnapshot> = {}
   for (const [depPath, pkg] of Object.entries(lockfile.packages ?? {})) {
@@ -68,53 +63,33 @@ export function convertToLockfileFile (lockfile: LockfileObject, opts: Normalize
   if (newLockfile.settings?.injectWorkspacePackages === false) {
     delete newLockfile.settings.injectWorkspacePackages
   }
-  return normalizeLockfile(newLockfile, opts)
+  return normalizeLockfile(newLockfile)
 }
 
-function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeLockfileOpts): LockfileFile {
-  let lockfileToSave!: LockfileFile
-  if (!opts.forceSharedFormat && equals(Object.keys(lockfile.importers ?? {}), ['.'])) {
-    lockfileToSave = {
-      ...lockfile,
-      ...lockfile.importers?.['.'],
-    }
-    delete lockfileToSave.importers
-    for (const depType of DEPENDENCIES_FIELDS) {
-      if (isEmpty(lockfileToSave[depType])) {
-        delete lockfileToSave[depType]
+function normalizeLockfile (lockfile: InlineSpecifiersLockfile): LockfileFile {
+  const lockfileToSave: LockfileFile = {
+    ...lockfile,
+    importers: _mapValues((importer) => {
+      const normalizedImporter: Partial<InlineSpecifiersProjectSnapshot> = {}
+      if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
+        normalizedImporter.dependenciesMeta = importer.dependenciesMeta
       }
-    }
-    if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
-      delete lockfileToSave.packages
-    }
-    if (isEmpty((lockfileToSave as LockfileFileV9).snapshots) || ((lockfileToSave as LockfileFileV9).snapshots == null)) {
-      delete (lockfileToSave as LockfileFileV9).snapshots
-    }
-  } else {
-    lockfileToSave = {
-      ...lockfile,
-      importers: _mapValues((importer) => {
-        const normalizedImporter: Partial<InlineSpecifiersProjectSnapshot> = {}
-        if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
-          normalizedImporter.dependenciesMeta = importer.dependenciesMeta
+      for (const depType of DEPENDENCIES_FIELDS) {
+        if (!isEmpty(importer[depType] ?? {})) {
+          normalizedImporter[depType] = importer[depType]
         }
-        for (const depType of DEPENDENCIES_FIELDS) {
-          if (!isEmpty(importer[depType] ?? {})) {
-            normalizedImporter[depType] = importer[depType]
-          }
-        }
-        if (importer.publishDirectory) {
-          normalizedImporter.publishDirectory = importer.publishDirectory
-        }
-        return normalizedImporter as InlineSpecifiersProjectSnapshot
-      }, lockfile.importers ?? {}),
-    }
-    if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
-      delete lockfileToSave.packages
-    }
-    if (isEmpty((lockfileToSave as LockfileFileV9).snapshots) || ((lockfileToSave as LockfileFileV9).snapshots == null)) {
-      delete (lockfileToSave as LockfileFileV9).snapshots
-    }
+      }
+      if (importer.publishDirectory) {
+        normalizedImporter.publishDirectory = importer.publishDirectory
+      }
+      return normalizedImporter as InlineSpecifiersProjectSnapshot
+    }, lockfile.importers ?? {}),
+  }
+  if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
+    delete lockfileToSave.packages
+  }
+  if (isEmpty((lockfileToSave as LockfileFileV9).snapshots) || ((lockfileToSave as LockfileFileV9).snapshots == null)) {
+    delete (lockfileToSave as LockfileFileV9).snapshots
   }
   if (lockfileToSave.time) {
     lockfileToSave.time = pruneTimeInLockfileV6(lockfileToSave.time, lockfile.importers ?? {})
@@ -172,33 +147,12 @@ function refToRelative (
   return reference
 }
 
-/**
- * Reverts changes from the "forceSharedFormat" write option if necessary.
- */
-function convertFromLockfileFileMutable (lockfileFile: LockfileFile): LockfileFileV9 {
-  if (typeof lockfileFile?.['importers'] === 'undefined') {
-    lockfileFile.importers = {
-      '.': {
-        dependenciesMeta: lockfileFile['dependenciesMeta'],
-        publishDirectory: lockfileFile['publishDirectory'],
-      },
-    }
-    for (const depType of DEPENDENCIES_FIELDS) {
-      if (lockfileFile[depType] != null) {
-        lockfileFile.importers['.'][depType] = lockfileFile[depType]
-        delete lockfileFile[depType]
-      }
-    }
-  }
-  return lockfileFile as LockfileFileV9
-}
-
 export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV9): LockfileObject {
   if ((lockfile as LockfileFileV9).snapshots) {
     return convertLockfileV9ToLockfileObject(lockfile as LockfileFileV9)
   }
   convertPkgIds(lockfile)
-  const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
+  const { importers, ...rest } = lockfile
 
   const newLockfile = {
     ...rest,
@@ -296,7 +250,7 @@ function convertPkgIds (lockfile: LockfileFile): void {
 }
 
 export function convertLockfileV9ToLockfileObject (lockfile: LockfileFileV9): LockfileObject {
-  const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
+  const { importers, ...rest } = lockfile
 
   const packages: PackageSnapshots = {}
   for (const [depPath, pkg] of Object.entries(lockfile.snapshots ?? {})) {

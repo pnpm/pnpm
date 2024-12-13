@@ -87,7 +87,7 @@ test('convertToLockfileFile()', () => {
       '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {},
     },
   }
-  expect(convertToLockfileFile(lockfileV5, { forceSharedFormat: false })).toEqual(lockfileV6)
+  expect(convertToLockfileFile(lockfileV5)).toEqual(lockfileV6)
   expect(convertToLockfileObject(lockfileV6)).toEqual(lockfileV5)
 })
 
@@ -178,7 +178,7 @@ test('convertToLockfileFile() with lockfile v6', () => {
       '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {},
     },
   }
-  expect(convertToLockfileFile(lockfileV5, { forceSharedFormat: false })).toEqual(lockfileV6)
+  expect(convertToLockfileFile(lockfileV5)).toEqual(lockfileV6)
   expect(convertToLockfileObject(lockfileV6)).toEqual(lockfileV5)
 })
 

@@ -59,9 +59,7 @@ async function writeLockfile (
 ): Promise<void> {
   const lockfilePath = path.join(pkgPath, lockfileFilename)
 
-  const lockfileToStringify = convertToLockfileFile(wantedLockfile, {
-    forceSharedFormat: true,
-  })
+  const lockfileToStringify = convertToLockfileFile(wantedLockfile)
 
   const yamlDoc = yamlStringify(lockfileToStringify)
 
@@ -91,10 +89,7 @@ export async function writeLockfiles (
   const wantedLockfilePath = path.join(opts.wantedLockfileDir, wantedLockfileName)
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 
-  const normalizeOpts = {
-    forceSharedFormat: true,
-  }
-  const wantedLockfileToStringify = convertToLockfileFile(opts.wantedLockfile, normalizeOpts)
+  const wantedLockfileToStringify = convertToLockfileFile(opts.wantedLockfile)
   const yamlDoc = yamlStringify(wantedLockfileToStringify)
 
   // in most cases the `pnpm-lock.yaml` and `node_modules/.pnpm-lock.yaml` are equal
@@ -120,7 +115,7 @@ export async function writeLockfiles (
     prefix: opts.wantedLockfileDir,
   })
 
-  const currentLockfileToStringify = convertToLockfileFile(opts.currentLockfile, normalizeOpts)
+  const currentLockfileToStringify = convertToLockfileFile(opts.currentLockfile)
   const currentYamlDoc = yamlStringify(currentLockfileToStringify)
 
   await Promise.all([
