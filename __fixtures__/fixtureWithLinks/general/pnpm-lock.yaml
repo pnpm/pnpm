@@ -1,22 +1,24 @@
 lockfileVersion: '9.0'
 
-dependencies:
-  minimatch:
-    specifier: ^3.0.4
-    version: 3.0.4
-  rimraf:
-    specifier: 2.5.1
-    version: 2.5.1
+importers:
+  .:
+    dependencies:
+      minimatch:
+        specifier: ^3.0.4
+        version: 3.0.4
+      rimraf:
+        specifier: 2.5.1
+        version: 2.5.1
 
-optionalDependencies:
-  is-negative:
-    specifier: 1.0.0
-    version: 1.0.0
+    optionalDependencies:
+      is-negative:
+        specifier: 1.0.0
+        version: 1.0.0
 
-devDependencies:
-  is-positive:
-    specifier: 1.0.0
-    version: 1.0.0
+    devDependencies:
+      is-positive:
+        specifier: 1.0.0
+        version: 1.0.0
 
 packages:
 
