@@ -1,6 +1,6 @@
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import sortKeys from 'sort-keys'
-import { type LockfileFileV9, type LockfileFile } from '@pnpm/lockfile.types'
+import { type LockfileFile } from '@pnpm/lockfile.types'
 
 const ORDERED_KEYS = {
   resolution: 1,
@@ -54,7 +54,7 @@ function compareWithPriority (priority: Record<string, number>, left: string, ri
   return lexCompare(left, right)
 }
 
-export function sortLockfileKeys (lockfile: LockfileFileV9): LockfileFileV9 {
+export function sortLockfileKeys (lockfile: LockfileFile): LockfileFile {
   const compareRootKeys = compareWithPriority.bind(null, ROOT_KEYS_ORDER)
   if (lockfile.importers != null) {
     lockfile.importers = sortKeys(lockfile.importers)

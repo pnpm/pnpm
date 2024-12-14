@@ -5,11 +5,9 @@ import {
   type LockfilePackageSnapshot,
   type ResolvedDependencies,
   type LockfileFile,
-  type InlineSpecifiersLockfile,
   type InlineSpecifiersProjectSnapshot,
   type InlineSpecifiersResolvedDependencies,
   type LockfilePackageInfo,
-  type LockfileFileV9,
   type PackageSnapshots,
 } from '@pnpm/lockfile.types'
 import { type DepPath, DEPENDENCIES_FIELDS } from '@pnpm/types'
@@ -65,8 +63,8 @@ export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
   return normalizeLockfile(newLockfile)
 }
 
-function normalizeLockfile (lockfile: InlineSpecifiersLockfile): LockfileFile {
-  const lockfileToSave: LockfileFile = {
+function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
+  const lockfileToSave = {
     ...lockfile,
     importers: _mapValues((importer) => {
       const normalizedImporter: Partial<InlineSpecifiersProjectSnapshot> = {}
@@ -87,8 +85,8 @@ function normalizeLockfile (lockfile: InlineSpecifiersLockfile): LockfileFile {
   if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
     delete lockfileToSave.packages
   }
-  if (isEmpty((lockfileToSave as LockfileFileV9).snapshots) || ((lockfileToSave as LockfileFileV9).snapshots == null)) {
-    delete (lockfileToSave as LockfileFileV9).snapshots
+  if (isEmpty((lockfileToSave as LockfileFile).snapshots) || ((lockfileToSave as LockfileFile).snapshots == null)) {
+    delete (lockfileToSave as LockfileFile).snapshots
   }
   if (lockfileToSave.time) {
     lockfileToSave.time = pruneTimeInLockfileV6(lockfileToSave.time, lockfile.importers ?? {})
@@ -146,20 +144,7 @@ function refToRelative (
   return reference
 }
 
-export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV9): LockfileObject {
-  if ((lockfile as LockfileFileV9).snapshots) {
-    return convertLockfileV9ToLockfileObject(lockfile as LockfileFileV9)
-  }
-  const { importers, ...rest } = lockfile
-
-  const newLockfile = {
-    ...rest,
-    importers: mapValues(importers ?? {}, revertProjectSnapshot),
-  }
-  return newLockfile
-}
-
-export function convertLockfileV9ToLockfileObject (lockfile: LockfileFileV9): LockfileObject {
+export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject {
   const { importers, ...rest } = lockfile
 
   const packages: PackageSnapshots = {}

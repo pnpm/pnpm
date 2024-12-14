@@ -6,7 +6,7 @@ import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type MutatedProject, type ProjectOptions, addDependenciesToPackage, mutateModulesInSingleProject, mutateModules } from '@pnpm/core'
-import { type LockfileFileV9 } from '@pnpm/lockfile.types'
+import { type LockfileFile } from '@pnpm/lockfile.types'
 import { type ProjectRootDir, type ProjectManifest } from '@pnpm/types'
 import { testDefaults } from '../utils'
 
@@ -206,7 +206,7 @@ test('overrides with local file and link specs', async () => {
     },
   })
 
-  const lockfile = readYamlFile<LockfileFileV9>(WANTED_LOCKFILE)
+  const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
 
   expect(lockfile.importers?.['packages/direct']).toStrictEqual({
     dependencies: {
