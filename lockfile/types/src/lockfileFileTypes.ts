@@ -1,23 +1,10 @@
 import type { LockfileObject, PackageSnapshot, ProjectSnapshot } from '.'
 import type { DependenciesMeta } from '@pnpm/types'
 
-export type LockfileFile = Omit<InlineSpecifiersLockfile, 'importers' | 'packages'> &
-Partial<Pick<InlineSpecifiersLockfile, 'importers'>> & {
+export type LockfileFile = Omit<LockfileObject, 'importers' | 'packages'> & {
+  importers?: Record<string, InlineSpecifiersProjectSnapshot>
   packages?: Record<string, Pick<PackageSnapshot, 'resolution' | 'engines' | 'cpu' | 'os' | 'hasBin' | 'name' | 'version' | 'bundledDependencies' | 'peerDependencies' | 'peerDependenciesMeta' | 'deprecated'>>
   snapshots?: Record<string, Pick<PackageSnapshot, 'dependencies' | 'optionalDependencies' | 'patched' | 'optional' | 'transitivePeerDependencies' | 'id'>>
-}
-
-/**
- * Similar to the current Lockfile importers format (lockfile version 5.4 at
- * time of writing), but specifiers are moved to each ResolvedDependencies block
- * instead of being declared on its own dictionary.
- *
- * This is an experiment to reduce one flavor of merge conflicts in lockfiles.
- * For more info: https://github.com/pnpm/pnpm/issues/4725.
- */
-export interface InlineSpecifiersLockfile extends Omit<LockfileObject, 'lockfileVersion' | 'importers'> {
-  lockfileVersion: string
-  importers?: Record<string, InlineSpecifiersProjectSnapshot>
 }
 
 /**
