@@ -290,7 +290,7 @@ test('readWantedLockfile() with inlineSpecifiersFormat', async () => {
       },
     },
     packages: {
-      'is-positive/1.0.0': {
+      'is-positive@1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },

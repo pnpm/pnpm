@@ -50,7 +50,6 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/git-resolver": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
     "@pnpm/lockfile.merger": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",

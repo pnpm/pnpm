@@ -1,5 +1,4 @@
-import { parseDepPath, removeSuffix } from '@pnpm/dependency-path'
-import { createGitHostedPkgId } from '@pnpm/git-resolver'
+import { removeSuffix } from '@pnpm/dependency-path'
 import {
   type LockfileObject,
   type ProjectSnapshot,
@@ -151,7 +150,6 @@ export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV9
   if ((lockfile as LockfileFileV9).snapshots) {
     return convertLockfileV9ToLockfileObject(lockfile as LockfileFileV9)
   }
-  convertPkgIds(lockfile)
   const { importers, ...rest } = lockfile
 
   const newLockfile = {
@@ -159,76 +157,6 @@ export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV9
     importers: mapValues(importers ?? {}, revertProjectSnapshot),
   }
   return newLockfile
-}
-
-function convertPkgIds (lockfile: LockfileFile): void {
-  const oldIdToNewId: Record<string, DepPath> = {}
-  if (lockfile.packages == null || isEmpty(lockfile.packages)) return
-  for (const [pkgId, pkg] of Object.entries(lockfile.packages ?? {})) {
-    if (pkg.name) {
-      const { id, peersSuffix } = parseDepPath(pkgId)
-      let newId = `${pkg.name}@`
-      if ('tarball' in pkg.resolution) {
-        newId += pkg.resolution.tarball
-        if (pkg.resolution.path) {
-          newId += `#path:${pkg.resolution.path}`
-        }
-      } else if ('repo' in pkg.resolution) {
-        newId += createGitHostedPkgId(pkg.resolution)
-      } else if ('directory' in pkg.resolution) {
-        newId += id
-      } else {
-        continue
-      }
-      oldIdToNewId[pkgId] = `${newId}${peersSuffix}` as DepPath
-      if (id !== pkgId) {
-        oldIdToNewId[id] = newId as DepPath
-      }
-    } else {
-      const { id, peersSuffix } = parseDepPath(pkgId)
-      const newId = id.substring(1)
-      oldIdToNewId[pkgId] = `${newId}${peersSuffix}` as DepPath
-      if (id !== pkgId) {
-        oldIdToNewId[id] = newId as DepPath
-      }
-    }
-  }
-  const newLockfilePackages: PackageSnapshots = {}
-  for (const [pkgId, pkg] of Object.entries(lockfile.packages ?? {})) {
-    if (oldIdToNewId[pkgId]) {
-      if (pkg.id) {
-        pkg.id = oldIdToNewId[pkg.id]
-      }
-      newLockfilePackages[oldIdToNewId[pkgId]] = pkg
-    } else {
-      newLockfilePackages[pkgId as DepPath] = pkg
-    }
-    for (const depType of ['dependencies', 'optionalDependencies'] as const) {
-      for (const [alias, depPath] of Object.entries(pkg[depType] ?? {})) {
-        if (oldIdToNewId[depPath as string]) {
-          if (oldIdToNewId[depPath as string].startsWith(`${alias}@`)) {
-            pkg[depType]![alias] = oldIdToNewId[depPath as string].substring(alias.length + 1)
-          } else {
-            pkg[depType]![alias] = oldIdToNewId[depPath as string]
-          }
-        }
-      }
-    }
-  }
-  lockfile.packages = newLockfilePackages
-  for (const importer of Object.values(lockfile.importers ?? {})) {
-    for (const depType of ['dependencies', 'optionalDependencies', 'devDependencies'] as const) {
-      for (const [alias, { version }] of Object.entries(importer[depType] ?? {})) {
-        if (oldIdToNewId[version]) {
-          if (oldIdToNewId[version].startsWith(`${alias}@`)) {
-            importer[depType]![alias].version = oldIdToNewId[version].substring(alias.length + 1)
-          } else {
-            importer[depType]![alias].version = oldIdToNewId[version]
-          }
-        }
-      }
-    }
-  }
 }
 
 export function convertLockfileV9ToLockfileObject (lockfile: LockfileFileV9): LockfileObject {
