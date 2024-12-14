@@ -1,6 +1,6 @@
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type LockfileV9 as Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
@@ -110,7 +110,7 @@ test('update dependency when external lockfile directory is used', async () => {
 
   await install(manifest, testDefaults({ update: true, depth: 0, lockfileDir }))
 
-  const lockfile = readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))
+  const lockfile = readYamlFile<LockfileFile>(path.join('..', WANTED_LOCKFILE))
 
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/foo@100.1.0'])
 })

@@ -1,10 +1,10 @@
-import type { LockfileObject, PackageSnapshot, ProjectSnapshot } from '.'
-import type { DependenciesMeta } from '@pnpm/types'
+import { type LockfileObject, type LockfilePackageInfo, type LockfilePackageSnapshot, type ProjectSnapshot } from '.'
+import { type DependenciesMeta } from '@pnpm/types'
 
 export type LockfileFile = Omit<LockfileObject, 'importers' | 'packages'> & {
   importers?: Record<string, InlineSpecifiersProjectSnapshot>
-  packages?: Record<string, Pick<PackageSnapshot, 'resolution' | 'engines' | 'cpu' | 'os' | 'hasBin' | 'name' | 'version' | 'bundledDependencies' | 'peerDependencies' | 'peerDependenciesMeta' | 'deprecated'>>
-  snapshots?: Record<string, Pick<PackageSnapshot, 'dependencies' | 'optionalDependencies' | 'patched' | 'optional' | 'transitivePeerDependencies' | 'id'>>
+  packages?: Record<string, LockfilePackageInfo>
+  snapshots?: Record<string, LockfilePackageSnapshot>
 }
 
 /**

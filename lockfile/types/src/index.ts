@@ -26,19 +26,9 @@ export interface LockfileObject {
   settings?: LockfileSettings
 }
 
-export interface LockfileV9 {
-  importers: Record<string, ProjectSnapshot>
-  lockfileVersion: string
-  time?: Record<string, string>
-  snapshots?: Record<string, LockfilePackageSnapshot>
-  packages?: Record<string, LockfilePackageInfo>
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  overrides?: Record<string, string>
-  packageExtensionsChecksum?: string
-  patchedDependencies?: Record<string, PatchFile>
-  settings?: LockfileSettings
-}
+export type LockfilePackageSnapshot = Pick<PackageSnapshot, 'optional' | 'dependencies' | 'optionalDependencies' | 'transitivePeerDependencies'>
+
+export type LockfilePackageInfo = Pick<PackageSnapshot, 'id' | 'patched' | 'hasBin' | 'name' | 'version' | 'resolution' | 'peerDependencies' | 'peerDependenciesMeta' | 'bundledDependencies' | 'engines' | 'cpu' | 'os' | 'libc' | 'deprecated'>
 
 export interface ProjectSnapshot {
   specifiers: ResolvedDependencies
@@ -91,10 +81,6 @@ export type Resolution =
 export type LockfileResolution = Resolution | {
   integrity: string
 }
-
-export type LockfilePackageSnapshot = Pick<PackageSnapshot, 'optional' | 'dependencies' | 'optionalDependencies' | 'transitivePeerDependencies'>
-
-export type LockfilePackageInfo = Pick<PackageSnapshot, 'id' | 'patched' | 'hasBin' | 'name' | 'version' | 'resolution' | 'peerDependencies' | 'peerDependenciesMeta' | 'bundledDependencies' | 'engines' | 'cpu' | 'os' | 'libc' | 'deprecated'>
 
 export interface PackageSnapshot {
   id?: string
