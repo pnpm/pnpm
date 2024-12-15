@@ -40,7 +40,7 @@ export function help (): string {
             shortAlias: '-P',
           },
           {
-            description: 'Only `devDependencies` are installed regardless of the `NODE_ENV`',
+            description: 'Only `devDependencies` are installed',
             name: '--dev',
             shortAlias: '-D',
           },
