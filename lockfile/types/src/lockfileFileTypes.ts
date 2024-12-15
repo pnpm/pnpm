@@ -1,7 +1,7 @@
-import { type LockfileObject, type LockfilePackageInfo, type LockfilePackageSnapshot, type ProjectSnapshotBase } from '.'
+import { type LockfileBase, type LockfilePackageInfo, type LockfilePackageSnapshot, type ProjectSnapshotBase } from '.'
 
-export type LockfileFile = Omit<LockfileObject, 'importers' | 'packages'> & {
-  importers?: Record<string, InlineSpecifiersProjectSnapshot>
+export interface LockfileFile extends LockfileBase {
+  importers?: Record<string, LockfileFileProjectSnapshot>
   packages?: Record<string, LockfilePackageInfo>
   snapshots?: Record<string, LockfilePackageSnapshot>
 }
@@ -11,13 +11,13 @@ export type LockfileFile = Omit<LockfileObject, 'importers' | 'packages'> & {
  * field in favor of inlining each specifier next to its version resolution in
  * dependency blocks.
  */
-export interface InlineSpecifiersProjectSnapshot extends ProjectSnapshotBase {
-  dependencies?: InlineSpecifiersResolvedDependencies
-  devDependencies?: InlineSpecifiersResolvedDependencies
-  optionalDependencies?: InlineSpecifiersResolvedDependencies
+export interface LockfileFileProjectSnapshot extends ProjectSnapshotBase {
+  dependencies?: LockfileFileProjectResolvedDependencies
+  devDependencies?: LockfileFileProjectResolvedDependencies
+  optionalDependencies?: LockfileFileProjectResolvedDependencies
 }
 
-export interface InlineSpecifiersResolvedDependencies {
+export interface LockfileFileProjectResolvedDependencies {
   [depName: string]: SpecifierAndResolution
 }
 

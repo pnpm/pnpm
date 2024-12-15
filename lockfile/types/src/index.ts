@@ -12,18 +12,21 @@ export interface LockfileSettings {
   injectWorkspacePackages?: boolean
 }
 
-export interface LockfileObject {
-  importers: Record<ProjectId, ProjectSnapshot>
-  lockfileVersion: string
-  time?: Record<string, string>
+export interface LockfileBase {
   catalogs?: CatalogSnapshots
-  packages?: PackageSnapshots
+  ignoredOptionalDependencies?: string[]
+  lockfileVersion: string
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
-  ignoredOptionalDependencies?: string[]
   patchedDependencies?: Record<string, PatchFile>
   pnpmfileChecksum?: string
   settings?: LockfileSettings
+  time?: Record<string, string>
+}
+
+export interface LockfileObject extends LockfileBase {
+  importers: Record<ProjectId, ProjectSnapshot>
+  packages?: PackageSnapshots
 }
 
 export interface LockfilePackageSnapshot {

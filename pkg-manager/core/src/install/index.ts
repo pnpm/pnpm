@@ -6,7 +6,6 @@ import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
   LOCKFILE_MAJOR_VERSION,
-  LOCKFILE_VERSION_V6,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
@@ -378,7 +377,7 @@ export async function mutateModules (
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
-      !upToDateLockfileMajorVersion && ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION_V6 ||
+      !upToDateLockfileMajorVersion ||
       opts.forceFullResolution
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
@@ -412,11 +411,7 @@ export async function mutateModules (
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
         ctx.existsNonEmptyWantedLockfile &&
-        (
-          ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION ||
-          ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V6 ||
-          ctx.wantedLockfile.lockfileVersion === '6.1'
-        ) &&
+        ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
           catalogs: opts.catalogs,
           autoInstallPeers: opts.autoInstallPeers,

@@ -5,8 +5,8 @@ import {
   type LockfilePackageSnapshot,
   type ResolvedDependencies,
   type LockfileFile,
-  type InlineSpecifiersProjectSnapshot,
-  type InlineSpecifiersResolvedDependencies,
+  type LockfileFileProjectSnapshot,
+  type LockfileFileProjectResolvedDependencies,
   type LockfilePackageInfo,
   type PackageSnapshots,
 } from '@pnpm/lockfile.types'
@@ -67,7 +67,7 @@ function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
   const lockfileToSave = {
     ...lockfile,
     importers: _mapValues((importer) => {
-      const normalizedImporter: Partial<InlineSpecifiersProjectSnapshot> = {}
+      const normalizedImporter: Partial<LockfileFileProjectSnapshot> = {}
       if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
         normalizedImporter.dependenciesMeta = importer.dependenciesMeta
       }
@@ -79,7 +79,7 @@ function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
       if (importer.publishDirectory) {
         normalizedImporter.publishDirectory = importer.publishDirectory
       }
-      return normalizedImporter as InlineSpecifiersProjectSnapshot
+      return normalizedImporter as LockfileFileProjectSnapshot
     }, lockfile.importers ?? {}),
   }
   if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
@@ -89,7 +89,7 @@ function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
     delete (lockfileToSave as LockfileFile).snapshots
   }
   if (lockfileToSave.time) {
-    lockfileToSave.time = pruneTimeInLockfileV6(lockfileToSave.time, lockfile.importers ?? {})
+    lockfileToSave.time = pruneTimeInLockfile(lockfileToSave.time, lockfile.importers ?? {})
   }
   if ((lockfileToSave.catalogs != null) && isEmpty(lockfileToSave.catalogs)) {
     delete lockfileToSave.catalogs
@@ -112,7 +112,7 @@ function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
   return lockfileToSave
 }
 
-function pruneTimeInLockfileV6 (time: Record<string, string>, importers: Record<string, InlineSpecifiersProjectSnapshot>): Record<string, string> {
+function pruneTimeInLockfile (time: Record<string, string>, importers: Record<string, LockfileFileProjectSnapshot>): Record<string, string> {
   const rootDepPaths = new Set<string>()
   for (const importer of Object.values(importers)) {
     for (const depType of DEPENDENCIES_FIELDS) {
@@ -161,9 +161,9 @@ export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject
 
 function convertProjectSnapshotToInlineSpecifiersFormat (
   projectSnapshot: ProjectSnapshot
-): InlineSpecifiersProjectSnapshot {
+): LockfileFileProjectSnapshot {
   const { specifiers, ...rest } = projectSnapshot
-  if (specifiers == null) return projectSnapshot as InlineSpecifiersProjectSnapshot
+  if (specifiers == null) return projectSnapshot as LockfileFileProjectSnapshot
   const convertBlock = (block?: ResolvedDependencies) =>
     block != null
       ? convertResolvedDependenciesToInlineSpecifiersFormat(block, { specifiers })
@@ -179,17 +179,17 @@ function convertProjectSnapshotToInlineSpecifiersFormat (
 function convertResolvedDependenciesToInlineSpecifiersFormat (
   resolvedDependencies: ResolvedDependencies,
   { specifiers }: { specifiers: ResolvedDependencies }
-): InlineSpecifiersResolvedDependencies {
+): LockfileFileProjectResolvedDependencies {
   return mapValues(resolvedDependencies, (version, depName) => ({
     specifier: specifiers[depName],
     version,
   }))
 }
 
-function revertProjectSnapshot (from: InlineSpecifiersProjectSnapshot): ProjectSnapshot {
+function revertProjectSnapshot (from: LockfileFileProjectSnapshot): ProjectSnapshot {
   const specifiers: ResolvedDependencies = {}
 
-  function moveSpecifiers (from: InlineSpecifiersResolvedDependencies): ResolvedDependencies {
+  function moveSpecifiers (from: LockfileFileProjectResolvedDependencies): ResolvedDependencies {
     const resolvedDependencies: ResolvedDependencies = {}
     for (const [depName, { specifier, version }] of Object.entries(from)) {
       const existingValue = specifiers[depName]

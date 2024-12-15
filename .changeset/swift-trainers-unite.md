@@ -11,6 +11,7 @@
 "@pnpm/assert-project": major
 "@pnpm/lockfile-to-pnp": major
 "@pnpm/calc-dep-state": major
+"@pnpm/constants": major
 "@pnpm/get-context": major
 "@pnpm/mount-modules": major
 "@pnpm/real-hoist": major
