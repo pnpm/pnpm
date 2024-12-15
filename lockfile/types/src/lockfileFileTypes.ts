@@ -1,5 +1,4 @@
-import { type LockfileObject, type LockfilePackageInfo, type LockfilePackageSnapshot, type ProjectSnapshot } from '.'
-import { type DependenciesMeta } from '@pnpm/types'
+import { type LockfileObject, type LockfilePackageInfo, type LockfilePackageSnapshot, type ProjectSnapshotBase } from '.'
 
 export type LockfileFile = Omit<LockfileObject, 'importers' | 'packages'> & {
   importers?: Record<string, InlineSpecifiersProjectSnapshot>
@@ -12,11 +11,10 @@ export type LockfileFile = Omit<LockfileObject, 'importers' | 'packages'> & {
  * field in favor of inlining each specifier next to its version resolution in
  * dependency blocks.
  */
-export type InlineSpecifiersProjectSnapshot = Omit<ProjectSnapshot, 'dependencies' | 'devDependencies' | 'optionalDependencies' | 'dependenciesMeta' | 'specifiers'> & {
+export interface InlineSpecifiersProjectSnapshot extends ProjectSnapshotBase {
   dependencies?: InlineSpecifiersResolvedDependencies
   devDependencies?: InlineSpecifiersResolvedDependencies
   optionalDependencies?: InlineSpecifiersResolvedDependencies
-  dependenciesMeta?: DependenciesMeta
 }
 
 export interface InlineSpecifiersResolvedDependencies {

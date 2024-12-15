@@ -30,13 +30,16 @@ export type LockfilePackageSnapshot = Pick<PackageSnapshot, 'optional' | 'depend
 
 export type LockfilePackageInfo = Pick<PackageSnapshot, 'id' | 'patched' | 'hasBin' | 'name' | 'version' | 'resolution' | 'peerDependencies' | 'peerDependenciesMeta' | 'bundledDependencies' | 'engines' | 'cpu' | 'os' | 'libc' | 'deprecated'>
 
-export interface ProjectSnapshot {
+export interface ProjectSnapshotBase {
+  dependenciesMeta?: DependenciesMeta
+  publishDirectory?: string
+}
+
+export interface ProjectSnapshot extends ProjectSnapshotBase {
   specifiers: ResolvedDependencies
   dependencies?: ResolvedDependencies
   optionalDependencies?: ResolvedDependencies
   devDependencies?: ResolvedDependencies
-  dependenciesMeta?: DependenciesMeta
-  publishDirectory?: string
 }
 
 export type ResolvedDependenciesOfImporters = Record<string, { version: string, specifier: string }>
