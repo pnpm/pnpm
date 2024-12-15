@@ -1,6 +1,7 @@
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+import { execSync } from 'child_process'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -50,6 +51,18 @@ type KebabCaseConfig = {
 const npmDefaults = loadNpmConf.defaults
 
 export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }
+
+// In Windows system exFAT drive, symlink will result in error.
+function shouldHoisted(): boolean {
+  try {
+    const currentDrive = process.cwd().split(':')[0] + ':'
+    const output = execSync(`wmic logicaldisk where "DeviceID='${currentDrive}'" get FileSystem`).toString();
+    const lines = output.trim().split('\n');
+    const name = lines.length > 1 ? lines[1].trim() : '';
+    return name === 'exFAT';
+  } catch {}
+  return false;
+}
 
 export async function getConfig (opts: {
   globalDirShouldAllowWrite?: boolean
@@ -445,6 +458,9 @@ export async function getConfig (opts: {
   if (!pnpmConfig.noProxy) {
     // @ts-expect-error
     pnpmConfig.noProxy = pnpmConfig['noproxy'] ?? getProcessEnv('no_proxy')
+  }
+  if (pnpmConfig.nodeLinker !== 'hoisted' && shouldHoisted()) {
+    pnpmConfig.nodeLinker = 'hoisted'
   }
   switch (pnpmConfig.nodeLinker) {
   case 'pnp':
