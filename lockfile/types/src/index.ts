@@ -26,9 +26,39 @@ export interface LockfileObject {
   settings?: LockfileSettings
 }
 
-export type LockfilePackageSnapshot = Pick<PackageSnapshot, 'optional' | 'dependencies' | 'optionalDependencies' | 'transitivePeerDependencies'>
+export interface LockfilePackageSnapshot {
+  optional?: true
+  dependencies?: ResolvedDependencies
+  optionalDependencies?: ResolvedDependencies
+  transitivePeerDependencies?: string[]
+}
 
-export type LockfilePackageInfo = Pick<PackageSnapshot, 'id' | 'patched' | 'hasBin' | 'name' | 'version' | 'resolution' | 'peerDependencies' | 'peerDependenciesMeta' | 'bundledDependencies' | 'engines' | 'cpu' | 'os' | 'libc' | 'deprecated'>
+export interface LockfilePackageInfo {
+  id?: string
+  patched?: true
+  hasBin?: true
+  // name and version are only needed
+  // for packages that are hosted not in the npm registry
+  name?: string
+  version?: string
+  resolution: LockfileResolution
+  peerDependencies?: {
+    [name: string]: string
+  }
+  peerDependenciesMeta?: {
+    [name: string]: {
+      optional: true
+    }
+  }
+  bundledDependencies?: string[] | boolean
+  engines?: Record<string, string> & {
+    node: string
+  }
+  os?: string[]
+  cpu?: string[]
+  libc?: string[]
+  deprecated?: string
+}
 
 export interface ProjectSnapshotBase {
   dependenciesMeta?: DependenciesMeta
@@ -85,36 +115,7 @@ export type LockfileResolution = Resolution | {
   integrity: string
 }
 
-export interface PackageSnapshot {
-  id?: string
-  optional?: true
-  patched?: true
-  hasBin?: true
-  // name and version are only needed
-  // for packages that are hosted not in the npm registry
-  name?: string
-  version?: string
-  resolution: LockfileResolution
-  dependencies?: ResolvedDependencies
-  optionalDependencies?: ResolvedDependencies
-  peerDependencies?: {
-    [name: string]: string
-  }
-  peerDependenciesMeta?: {
-    [name: string]: {
-      optional: true
-    }
-  }
-  transitivePeerDependencies?: string[]
-  bundledDependencies?: string[] | boolean
-  engines?: Record<string, string> & {
-    node: string
-  }
-  os?: string[]
-  cpu?: string[]
-  libc?: string[]
-  deprecated?: string
-}
+export type PackageSnapshot = LockfilePackageInfo & LockfilePackageSnapshot
 
 export interface Dependencies {
   [name: string]: string
