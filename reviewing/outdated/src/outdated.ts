@@ -9,7 +9,7 @@ import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {
   getLockfileImporterId,
-  type Lockfile,
+  type LockfileObject,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
@@ -48,7 +48,7 @@ export async function outdated (
   opts: {
     catalogs?: Catalogs
     compatible?: boolean
-    currentLockfile: Lockfile | null
+    currentLockfile: LockfileObject | null
     getLatestManifest: GetLatestManifestFunction
     ignoreDependencies?: string[]
     include?: IncludedDependencies
@@ -57,7 +57,7 @@ export async function outdated (
     match?: (dependencyName: string) => boolean
     prefix: string
     registries: Registries
-    wantedLockfile: Lockfile | null
+    wantedLockfile: LockfileObject | null
   }
 ): Promise<OutdatedPackage[]> {
   if (packageHasNoDeps(opts.manifest)) return []
@@ -81,7 +81,7 @@ export async function outdated (
 
   const allDeps = getAllDependenciesFromManifest(await getOverriddenManifest())
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
-  const currentLockfile: Lockfile = opts.currentLockfile ?? { lockfileVersion: LOCKFILE_VERSION, importers: { [importerId]: { specifiers: {} } } }
+  const currentLockfile: LockfileObject = opts.currentLockfile ?? { lockfileVersion: LOCKFILE_VERSION, importers: { [importerId]: { specifiers: {} } } }
 
   const outdated: OutdatedPackage[] = []
 

@@ -1,20 +1,16 @@
-import { parseDepPath, removeSuffix } from '@pnpm/dependency-path'
-import { createGitHostedPkgId } from '@pnpm/git-resolver'
+import { removeSuffix } from '@pnpm/dependency-path'
 import {
-  type Lockfile,
+  type LockfileObject,
   type ProjectSnapshot,
-  type PackageSnapshotV7,
+  type LockfilePackageSnapshot,
   type ResolvedDependencies,
   type LockfileFile,
-  type InlineSpecifiersLockfile,
   type InlineSpecifiersProjectSnapshot,
   type InlineSpecifiersResolvedDependencies,
-  type PackageInfo,
-  type LockfileFileV9,
+  type LockfilePackageInfo,
   type PackageSnapshots,
 } from '@pnpm/lockfile.types'
 import { type DepPath, DEPENDENCIES_FIELDS } from '@pnpm/types'
-import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import _mapValues from 'ramda/src/map'
 import omit from 'ramda/src/omit'
@@ -22,13 +18,9 @@ import pickBy from 'ramda/src/pickBy'
 import pick from 'ramda/src/pick'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 
-export interface NormalizeLockfileOpts {
-  forceSharedFormat: boolean
-}
-
-export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfileOpts): LockfileFile {
-  const packages: Record<string, PackageInfo> = {}
-  const snapshots: Record<string, PackageSnapshotV7> = {}
+export function convertToLockfileFile (lockfile: LockfileObject): LockfileFile {
+  const packages: Record<string, LockfilePackageInfo> = {}
+  const snapshots: Record<string, LockfilePackageSnapshot> = {}
   for (const [depPath, pkg] of Object.entries(lockfile.packages ?? {})) {
     snapshots[depPath] = pick([
       'dependencies',
@@ -68,53 +60,33 @@ export function convertToLockfileFile (lockfile: Lockfile, opts: NormalizeLockfi
   if (newLockfile.settings?.injectWorkspacePackages === false) {
     delete newLockfile.settings.injectWorkspacePackages
   }
-  return normalizeLockfile(newLockfile, opts)
+  return normalizeLockfile(newLockfile)
 }
 
-function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeLockfileOpts): LockfileFile {
-  let lockfileToSave!: LockfileFile
-  if (!opts.forceSharedFormat && equals(Object.keys(lockfile.importers ?? {}), ['.'])) {
-    lockfileToSave = {
-      ...lockfile,
-      ...lockfile.importers?.['.'],
-    }
-    delete lockfileToSave.importers
-    for (const depType of DEPENDENCIES_FIELDS) {
-      if (isEmpty(lockfileToSave[depType])) {
-        delete lockfileToSave[depType]
+function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
+  const lockfileToSave = {
+    ...lockfile,
+    importers: _mapValues((importer) => {
+      const normalizedImporter: Partial<InlineSpecifiersProjectSnapshot> = {}
+      if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
+        normalizedImporter.dependenciesMeta = importer.dependenciesMeta
       }
-    }
-    if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
-      delete lockfileToSave.packages
-    }
-    if (isEmpty((lockfileToSave as LockfileFileV9).snapshots) || ((lockfileToSave as LockfileFileV9).snapshots == null)) {
-      delete (lockfileToSave as LockfileFileV9).snapshots
-    }
-  } else {
-    lockfileToSave = {
-      ...lockfile,
-      importers: _mapValues((importer) => {
-        const normalizedImporter: Partial<InlineSpecifiersProjectSnapshot> = {}
-        if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
-          normalizedImporter.dependenciesMeta = importer.dependenciesMeta
+      for (const depType of DEPENDENCIES_FIELDS) {
+        if (!isEmpty(importer[depType] ?? {})) {
+          normalizedImporter[depType] = importer[depType]
         }
-        for (const depType of DEPENDENCIES_FIELDS) {
-          if (!isEmpty(importer[depType] ?? {})) {
-            normalizedImporter[depType] = importer[depType]
-          }
-        }
-        if (importer.publishDirectory) {
-          normalizedImporter.publishDirectory = importer.publishDirectory
-        }
-        return normalizedImporter as InlineSpecifiersProjectSnapshot
-      }, lockfile.importers ?? {}),
-    }
-    if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
-      delete lockfileToSave.packages
-    }
-    if (isEmpty((lockfileToSave as LockfileFileV9).snapshots) || ((lockfileToSave as LockfileFileV9).snapshots == null)) {
-      delete (lockfileToSave as LockfileFileV9).snapshots
-    }
+      }
+      if (importer.publishDirectory) {
+        normalizedImporter.publishDirectory = importer.publishDirectory
+      }
+      return normalizedImporter as InlineSpecifiersProjectSnapshot
+    }, lockfile.importers ?? {}),
+  }
+  if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
+    delete lockfileToSave.packages
+  }
+  if (isEmpty((lockfileToSave as LockfileFile).snapshots) || ((lockfileToSave as LockfileFile).snapshots == null)) {
+    delete (lockfileToSave as LockfileFile).snapshots
   }
   if (lockfileToSave.time) {
     lockfileToSave.time = pruneTimeInLockfileV6(lockfileToSave.time, lockfile.importers ?? {})
@@ -172,131 +144,8 @@ function refToRelative (
   return reference
 }
 
-/**
- * Reverts changes from the "forceSharedFormat" write option if necessary.
- */
-function convertFromLockfileFileMutable (lockfileFile: LockfileFile): LockfileFileV9 {
-  if (typeof lockfileFile?.['importers'] === 'undefined') {
-    lockfileFile.importers = {
-      '.': {
-        dependenciesMeta: lockfileFile['dependenciesMeta'],
-        publishDirectory: lockfileFile['publishDirectory'],
-      },
-    }
-    for (const depType of DEPENDENCIES_FIELDS) {
-      if (lockfileFile[depType] != null) {
-        lockfileFile.importers['.'][depType] = lockfileFile[depType]
-        delete lockfileFile[depType]
-      }
-    }
-  }
-  return lockfileFile as LockfileFileV9
-}
-
-export function convertToLockfileObject (lockfile: LockfileFile | LockfileFileV9): Lockfile {
-  if ((lockfile as LockfileFileV9).snapshots) {
-    return convertLockfileV9ToLockfileObject(lockfile as LockfileFileV9)
-  }
-  convertPkgIds(lockfile)
-  const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
-
-  const newLockfile = {
-    ...rest,
-    importers: mapValues(importers ?? {}, revertProjectSnapshot),
-  }
-  return newLockfile
-}
-
-function convertPkgIds (lockfile: LockfileFile): void {
-  const oldIdToNewId: Record<string, DepPath> = {}
-  if (lockfile.packages == null || isEmpty(lockfile.packages)) return
-  for (const [pkgId, pkg] of Object.entries(lockfile.packages ?? {})) {
-    if (pkg.name) {
-      const { id, peersSuffix } = parseDepPath(pkgId)
-      let newId = `${pkg.name}@`
-      if ('tarball' in pkg.resolution) {
-        newId += pkg.resolution.tarball
-        if (pkg.resolution.path) {
-          newId += `#path:${pkg.resolution.path}`
-        }
-      } else if ('repo' in pkg.resolution) {
-        newId += createGitHostedPkgId(pkg.resolution)
-      } else if ('directory' in pkg.resolution) {
-        newId += id
-      } else {
-        continue
-      }
-      oldIdToNewId[pkgId] = `${newId}${peersSuffix}` as DepPath
-      if (id !== pkgId) {
-        oldIdToNewId[id] = newId as DepPath
-      }
-    } else {
-      const { id, peersSuffix } = parseDepPath(pkgId)
-      const newId = id.substring(1)
-      oldIdToNewId[pkgId] = `${newId}${peersSuffix}` as DepPath
-      if (id !== pkgId) {
-        oldIdToNewId[id] = newId as DepPath
-      }
-    }
-  }
-  const newLockfilePackages: PackageSnapshots = {}
-  for (const [pkgId, pkg] of Object.entries(lockfile.packages ?? {})) {
-    if (oldIdToNewId[pkgId]) {
-      if (pkg.id) {
-        pkg.id = oldIdToNewId[pkg.id]
-      }
-      newLockfilePackages[oldIdToNewId[pkgId]] = pkg
-    } else {
-      newLockfilePackages[pkgId as DepPath] = pkg
-    }
-    for (const depType of ['dependencies', 'optionalDependencies'] as const) {
-      for (const [alias, depPath] of Object.entries(pkg[depType] ?? {})) {
-        if (oldIdToNewId[depPath as string]) {
-          if (oldIdToNewId[depPath as string].startsWith(`${alias}@`)) {
-            pkg[depType]![alias] = oldIdToNewId[depPath as string].substring(alias.length + 1)
-          } else {
-            pkg[depType]![alias] = oldIdToNewId[depPath as string]
-          }
-        }
-      }
-    }
-  }
-  lockfile.packages = newLockfilePackages
-  if ((lockfile.dependencies != null || lockfile.devDependencies != null || lockfile.optionalDependencies != null) && !lockfile.importers?.['.']) {
-    lockfile.importers = lockfile.importers ?? {}
-    lockfile.importers['.'] = {
-      dependencies: lockfile.dependencies,
-      devDependencies: lockfile.devDependencies,
-      optionalDependencies: lockfile.optionalDependencies,
-    }
-    delete lockfile.dependencies
-    delete lockfile.devDependencies
-    delete lockfile.optionalDependencies
-  }
-  for (const importer of Object.values(lockfile.importers ?? {})) {
-    for (const depType of ['dependencies', 'optionalDependencies', 'devDependencies'] as const) {
-      for (const [alias, { version }] of Object.entries(importer[depType] ?? {})) {
-        if (oldIdToNewId[version]) {
-          if (oldIdToNewId[version].startsWith(`${alias}@`)) {
-            importer[depType]![alias].version = oldIdToNewId[version].substring(alias.length + 1)
-          } else {
-            importer[depType]![alias].version = oldIdToNewId[version]
-          }
-        }
-      }
-    }
-  }
-  for (const depType of ['dependencies', 'optionalDependencies', 'devDependencies'] as const) {
-    for (const [alias, { version }] of Object.entries(lockfile[depType] ?? {})) {
-      if (oldIdToNewId[version]) {
-        lockfile[depType]![alias].version = oldIdToNewId[version]
-      }
-    }
-  }
-}
-
-export function convertLockfileV9ToLockfileObject (lockfile: LockfileFileV9): Lockfile {
-  const { importers, ...rest } = convertFromLockfileFileMutable(lockfile)
+export function convertToLockfileObject (lockfile: LockfileFile): LockfileObject {
+  const { importers, ...rest } = lockfile
 
   const packages: PackageSnapshots = {}
   for (const [depPath, pkg] of Object.entries(lockfile.snapshots ?? {})) {

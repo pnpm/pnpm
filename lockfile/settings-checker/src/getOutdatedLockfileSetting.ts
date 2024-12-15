@@ -1,4 +1,4 @@
-import { type Lockfile, type PatchFile } from '@pnpm/lockfile.types'
+import { type LockfileObject, type PatchFile } from '@pnpm/lockfile.types'
 import equals from 'ramda/src/equals'
 
 export type ChangedField =
@@ -13,7 +13,7 @@ export type ChangedField =
   | 'pnpmfileChecksum'
 
 export function getOutdatedLockfileSetting (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   {
     overrides,
     packageExtensionsChecksum,

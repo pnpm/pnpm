@@ -28,9 +28,6 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../resolving/git-resolver"
-    },
-    {
       "path": "../merger"
     },
     {

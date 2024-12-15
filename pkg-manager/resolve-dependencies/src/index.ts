@@ -5,7 +5,7 @@ import {
 } from '@pnpm/core-loggers'
 import { globalWarn } from '@pnpm/logger'
 import {
-  type Lockfile,
+  type LockfileObject,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.types'
 import {
@@ -99,7 +99,7 @@ export interface ResolveDependenciesResult {
     [pkgId: string]: string
   }
   linkedDependenciesByProjectId: Record<string, LinkedDependency[]>
-  newLockfile: Lockfile
+  newLockfile: LockfileObject
   peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   waitTillAllFetchingsFinish: () => Promise<void>
   wantedToBeSkippedPackageIds: Set<string>

@@ -10,7 +10,7 @@ import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { type Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir, type PrepareExecutionEnv } from '@pnpm/types'
@@ -118,7 +118,7 @@ export type InstallDepsOptions = Pick<Config,
    * lockfile will change on disk after installation. The lockfile arguments
    * passed to this callback should not be mutated.
    */
-  lockfileCheck?: (prev: Lockfile, next: Lockfile) => void
+  lockfileCheck?: (prev: LockfileObject, next: LockfileObject) => void
   update?: boolean
   updateToLatest?: boolean
   updateMatching?: (pkgName: string) => boolean

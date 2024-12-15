@@ -4,7 +4,7 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, type MutatedProject, mutateModules } from '@pnpm/core'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { sync as readYamlFile } from 'read-yaml-file'
-import { type LockfileV9 as Lockfile, type PackageSnapshots } from '@pnpm/lockfile.fs'
+import { type LockfileFile, type PackageSnapshots } from '@pnpm/lockfile.fs'
 import { type ProjectRootDir } from '@pnpm/types'
 import { testDefaults } from '../utils'
 
@@ -49,7 +49,7 @@ test('fix broken lockfile with --fix-lockfile', async () => {
     },
   }, testDefaults({ fixLockfile: true }))
 
-  const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
+  const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.packages as PackageSnapshots).length).toBe(2)
   expect(lockfile.packages?.['@types/semver@5.3.31']).toBeTruthy()
   expect(lockfile.packages?.['@types/semver@5.3.31']?.resolution).toEqual({
@@ -203,7 +203,7 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
     ],
   }))
 
-  const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
+  const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)
 
   expect(Object.keys(lockfile.packages as PackageSnapshots).length).toBe(5)
 

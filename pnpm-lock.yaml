@@ -3129,9 +3129,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/git-resolver':
-        specifier: workspace:*
-        version: link:../../resolving/git-resolver
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils

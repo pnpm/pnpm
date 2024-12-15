@@ -31,7 +31,7 @@ import {
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   type ProjectSnapshot,
-  type Lockfile,
+  type LockfileObject,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
@@ -730,7 +730,7 @@ function forgetResolutionsOfPrevWantedDeps (
   }
 }
 
-function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: Lockfile): void {
+function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): void {
   // Similar to the forgetResolutionsOfPrevWantedDeps function above, we can
   // delete existing resolutions in importers to make sure they're resolved
   // again.
@@ -815,7 +815,7 @@ export interface UpdatedProject {
 }
 
 interface InstallFunctionResult {
-  newLockfile: Lockfile
+  newLockfile: LockfileObject
   projects: UpdatedProject[]
   stats?: InstallationResultStats
   depsRequiringBuild: DepPath[]
@@ -1020,7 +1020,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   })
 
   newLockfile = ((opts.hooks?.afterAllResolved) != null)
-    ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as Lockfile // eslint-disable-line
+    ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as LockfileObject // eslint-disable-line
     : newLockfile
 
   if (opts.updateLockfileMinorVersion) {

@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { type LockfileFileV9 as LockfileFile } from '@pnpm/lockfile.types'
+import { type LockfileFile } from '@pnpm/lockfile.types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
   prepare,

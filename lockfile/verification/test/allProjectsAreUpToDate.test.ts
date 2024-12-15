@@ -4,7 +4,7 @@ import { type WorkspacePackages } from '@pnpm/resolver-base'
 import { type DependencyManifest, type ProjectId, type ProjectRootDir } from '@pnpm/types'
 import { allProjectsAreUpToDate } from '@pnpm/lockfile.verification'
 import { writeFile, mkdir } from 'fs/promises'
-import { type Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 
 const fooManifest = {
   name: 'foo',
@@ -436,7 +436,7 @@ describe('local file dependency', () => {
         },
       },
       lockfileVersion: LOCKFILE_VERSION,
-    } as Lockfile,
+    } as LockfileObject,
     workspacePackages,
     lockfileDir: process.cwd(),
   }
@@ -526,7 +526,7 @@ test('allProjectsAreUpToDate(): returns true if workspace dependency\'s version 
         },
       },
       lockfileVersion: LOCKFILE_VERSION,
-    } as Lockfile,
+    } as LockfileObject,
     workspacePackages,
     lockfileDir: process.cwd(),
   }

@@ -6,7 +6,7 @@ import {
 } from '@pnpm/core-loggers'
 import { filterLockfile, filterLockfileByImporters } from '@pnpm/lockfile.filtering'
 import {
-  type Lockfile,
+  type LockfileObject,
   type PackageSnapshots,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.types'
@@ -46,8 +46,8 @@ export async function prune (
     hoistedDependencies: HoistedDependencies
     hoistedModulesDir?: string
     publicHoistedModulesDir?: string
-    wantedLockfile: Lockfile
-    currentLockfile: Lockfile
+    wantedLockfile: LockfileObject
+    currentLockfile: LockfileObject
     pruneStore?: boolean
     pruneVirtualStore?: boolean
     skipped: Set<DepPath>
@@ -249,7 +249,7 @@ function getPkgsDepPaths (
 
 function getPkgsDepPathsOwnedOnlyByImporters (
   importerIds: ProjectId[],
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   include: { [dependenciesField in DependenciesField]: boolean },
   skipped: Set<DepPath>
 ): Record<string, string> {

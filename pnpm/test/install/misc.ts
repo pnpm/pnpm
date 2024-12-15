@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { type Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
@@ -105,7 +105,7 @@ test('install with external lockfile directory', async () => {
 
   project.has('is-positive')
 
-  const lockfile = readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
+  const lockfile = readYamlFile<LockfileObject>(path.resolve('..', WANTED_LOCKFILE))
 
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project'])
 })

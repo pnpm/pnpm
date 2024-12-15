@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { contextLogger, packageManifestLogger } from '@pnpm/core-loggers'
-import { type Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import {
   type IncludedDependencies,
   type Modules,
@@ -28,7 +28,7 @@ import { readLockfiles } from './readLockfiles'
  * mutating the modules directory only or in a manner that does not influence dependency resolution.
  */
 export interface PnpmContext {
-  currentLockfile: Lockfile
+  currentLockfile: LockfileObject
   currentLockfileIsUpToDate: boolean
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
@@ -61,7 +61,7 @@ export interface PnpmContext {
   /** As applied to existing modules directory, if it exists. */
   skipped: Set<DepPath>
   storeDir: string
-  wantedLockfile: Lockfile
+  wantedLockfile: LockfileObject
   wantedLockfileIsModified: boolean
   workspacePackages: WorkspacePackages
   registries: Registries
@@ -186,7 +186,7 @@ export async function getContext (
 }
 
 export interface PnpmSingleContext {
-  currentLockfile: Lockfile
+  currentLockfile: LockfileObject
   currentLockfileIsUpToDate: boolean
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
@@ -214,7 +214,7 @@ export interface PnpmSingleContext {
   /** As applied to existing modules directory, if it exists. */
   skipped: Set<string>
   storeDir: string
-  wantedLockfile: Lockfile
+  wantedLockfile: LockfileObject
   wantedLockfileIsModified: boolean
 }
 

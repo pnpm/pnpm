@@ -4,8 +4,8 @@ import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { type RootLog } from '@pnpm/core-loggers'
 import { type PnpmError } from '@pnpm/error'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type Lockfile, type TarballResolution } from '@pnpm/lockfile.fs'
-import { type LockfileFileV9 } from '@pnpm/lockfile.types'
+import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.fs'
+import { type LockfileFile } from '@pnpm/lockfile.types'
 import { tempDir, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -93,10 +93,14 @@ test('lockfile with scoped package', async () => {
   prepareEmpty()
 
   writeYamlFile(WANTED_LOCKFILE, {
-    dependencies: {
-      '@types/semver': {
-        specifier: '^5.3.31',
-        version: '5.3.31',
+    importers: {
+      '.': {
+        dependencies: {
+          '@types/semver': {
+            specifier: '^5.3.31',
+            version: '5.3.31',
+          },
+        },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
@@ -824,7 +828,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
   expect(modules.pendingBuilds.length).toBe(0)
 
   {
-    const lockfile: LockfileFileV9 = readYamlFile(WANTED_LOCKFILE)
+    const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)
     const id = '@pnpm.e2e/pkg-with-1-dep@100.0.0'
 
     expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
@@ -856,7 +860,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
   }))
 
   {
-    const lockfile = readYamlFile<LockfileFileV9>(path.join('..', WANTED_LOCKFILE))
+    const lockfile = readYamlFile<LockfileFile>(path.join('..', WANTED_LOCKFILE))
 
     expect(lockfile.importers).toHaveProperty(['project-2'])
 
@@ -942,7 +946,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     })
   )
 
-  const currentLockfile = readYamlFile<LockfileFileV9>(path.resolve('node_modules/.pnpm/lock.yaml'))
+  const currentLockfile = readYamlFile<LockfileFile>(path.resolve('node_modules/.pnpm/lock.yaml'))
 
   expect(Object.keys(currentLockfile.importers ?? {})).toStrictEqual(['pkg2'])
 
@@ -1382,7 +1386,7 @@ test('a broken lockfile should not break the store', async () => {
 
   const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], { ...opts, lockfileOnly: true })
 
-  const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
+  const lockfile: LockfileObject = readYamlFile(WANTED_LOCKFILE)
   lockfile.packages!['is-positive@1.0.0' as DepPath].name = 'bad-name'
   lockfile.packages!['is-positive@1.0.0' as DepPath].version = '1.0.0'
 
@@ -1495,7 +1499,7 @@ test('update the lockfile when a new project is added to the workspace', async (
   })
   await mutateModules(importers, testDefaults({ allProjects }))
 
-  const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
+  const lockfile: LockfileObject = readYamlFile(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
 })
 
@@ -1543,7 +1547,7 @@ test('update the lockfile when a new project is added to the workspace and lockf
   })
   await mutateModules(importers, testDefaults({ allProjects, lockfileOnly: true }))
 
-  const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
+  const lockfile: LockfileObject = readYamlFile(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
 })
 
