@@ -53,15 +53,15 @@ const npmDefaults = loadNpmConf.defaults
 export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }
 
 // In Windows system exFAT drive, symlink will result in error.
-function shouldHoisted(): boolean {
+function shouldHoisted (): boolean {
   try {
     const currentDrive = process.cwd().split(':')[0] + ':'
-    const output = execSync(`wmic logicaldisk where "DeviceID='${currentDrive}'" get FileSystem`).toString();
-    const lines = output.trim().split('\n');
-    const name = lines.length > 1 ? lines[1].trim() : '';
-    return name === 'exFAT';
+    const output = execSync(`wmic logicaldisk where "DeviceID='${currentDrive}'" get FileSystem`).toString()
+    const lines = output.trim().split('\n')
+    const name = lines.length > 1 ? lines[1].trim() : ''
+    return name === 'exFAT'
   } catch {}
-  return false;
+  return false
 }
 
 export async function getConfig (opts: {
