@@ -159,7 +159,7 @@ function convertResolvedDependencies (
     }
 
     if (depRealPath === deployedProjectRealPath) {
-      output[key] = 'link:../../..' // which is the deployed project location relative to the dependency dir within the virtual dir
+      output[key] = 'link:.' // the path is relative to the lockfile dir, which means '.' would reference the deploy dir
       continue
     }
 

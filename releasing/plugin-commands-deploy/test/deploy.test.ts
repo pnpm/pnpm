@@ -433,6 +433,97 @@ test('deploy with a shared lockfile and --prod filter should not fail even if de
   expect(fs.realpathSync('deploy/node_modules/prod-1')).toBe(path.resolve(`deploy/node_modules/.pnpm/${prod1Name}/node_modules/prod-1`))
 })
 
+test.only('deploy with a shared lockfile should correctly handle workspace dependencies that depend on the deployed project', async () => {
+  preparePackages([
+    {
+      name: 'project-0',
+      version: '0.0.0',
+      private: true,
+      dependencies: {
+        // 'project-0': 'workspace:*', // TODO: handle project that depends on itself
+        'project-1': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-1',
+      version: '0.0.0',
+      private: true,
+      dependencies: {
+        'project-0': 'workspace:*',
+        'project-1': 'workspace:*',
+      },
+    },
+  ])
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-0' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const project = assertProject(path.resolve('deploy'))
+  project.has('project-1')
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers).toStrictEqual({
+    '.': {
+      dependencies: {
+        'project-1': {
+          version: expect.stringContaining('project-1'),
+          specifier: expect.stringContaining('file:'),
+        },
+      },
+    },
+  } as LockfileFile['importers'])
+
+  const manifest = readPackageJson('deploy') as ProjectManifest
+  expect(manifest).toStrictEqual({
+    name: 'project-0',
+    version: '0.0.0',
+    private: true,
+    dependencies: {
+      'project-1': expect.stringContaining('project-1'),
+    },
+    devDependencies: {},
+    optionalDependencies: {},
+  } as ProjectManifest)
+
+  expect(
+    fs.readdirSync('deploy/node_modules')
+      .filter(name => !name.startsWith('.'))
+      .sort()
+  ).toStrictEqual(['project-1'])
+
+  const project1Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.includes('project-1@'))
+  expect(project1Name).toBeDefined()
+  expect(fs.readdirSync(`deploy/node_modules/.pnpm/${project1Name}/node_modules`).sort()).toStrictEqual(['project-0', 'project-1'])
+  expect(fs.realpathSync(`deploy/node_modules/.pnpm/${project1Name}/node_modules/project-0`)).toBe(path.resolve('deploy'))
+  expect(fs.realpathSync('deploy/node_modules/project-1')).toBe(path.resolve(`deploy/node_modules/.pnpm/${project1Name}/node_modules/project-1`))
+})
+
 test('deploy in workspace with shared-workspace-lockfile=false', async () => {
   preparePackages([
     {
