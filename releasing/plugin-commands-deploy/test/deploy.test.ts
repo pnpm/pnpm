@@ -117,6 +117,7 @@ test('deploy with a shared lockfile after full install', async () => {
       files: ['index.js'],
       dependencies: {
         'project-3': 'workspace:*',
+        'project-4': 'workspace:*',
         'is-odd': '1.0.0',
       },
     },
@@ -126,12 +127,21 @@ test('deploy with a shared lockfile after full install', async () => {
       files: ['index.js'],
       dependencies: {
         'project-3': 'workspace:*',
+        'project-5': 'workspace:*',
         'is-odd': '1.0.0',
       },
     },
+    {
+      name: 'project-4',
+      version: '0.0.0',
+    },
+    {
+      name: 'project-5',
+      version: '0.0.0',
+    },
   ])
 
-  for (const name of ['project-1', 'project-2', 'project-3']) {
+  for (const name of ['project-1', 'project-2', 'project-3', 'project-4', 'project-5']) {
     fs.writeFileSync(`${name}/test.js`, '', 'utf8')
     fs.writeFileSync(`${name}/index.js`, '', 'utf8')
   }
@@ -198,6 +208,13 @@ test('deploy with a shared lockfile after full install', async () => {
     expect(project2Name).toBeDefined()
     expect(fs.existsSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2/index.js`)).toBeTruthy()
     expect(fs.existsSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2/test.js`)).toBeFalsy()
+    expect(fs.readdirSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules`).sort()).toStrictEqual([
+      'is-odd',
+      'project-2',
+      'project-3',
+      'project-4',
+    ])
+    // expect(fs.realpathSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-3`)).toContain('project-3') // TODO: fix this
     const project3Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.startsWith('project-3@'))
     expect(project3Name).toBeUndefined()
     expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('Falling back to installing without a lockfile'))
@@ -231,6 +248,13 @@ test('deploy with a shared lockfile after full install', async () => {
     expect(project2Name).toBeDefined()
     expect(fs.existsSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2/index.js`)).toBeTruthy()
     expect(fs.existsSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2/test.js`)).toBeFalsy()
+    expect(fs.readdirSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules`).sort()).toStrictEqual([
+      'is-odd',
+      'project-2',
+      'project-3',
+      'project-4',
+    ])
+    // expect(fs.realpathSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-3`)).toContain('project-3') // TODO: fix this
     const project3Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.startsWith('project-3@'))
     expect(project3Name).toBeDefined()
     expect(fs.existsSync(`deploy/node_modules/.pnpm/${project3Name}/node_modules/project-3/index.js`)).toBeTruthy()
