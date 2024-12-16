@@ -153,13 +153,14 @@ function convertResolvedDependencies (
 
     const { targetPath } = splitPrefixResult
     const depRealPath = path.resolve(importerRealPath, targetPath) as ProjectRootDirRealPath
-    if (['', '.'].includes(path.relative(importerRealPath, depRealPath))) {
-      output[key] = 'link:.'
-      continue
-    }
 
     if (depRealPath === deployedProjectRealPath) {
       output[key] = 'link:.' // the path is relative to the lockfile dir, which means '.' would reference the deploy dir
+      continue
+    }
+
+    if (['', '.'].includes(path.relative(importerRealPath, depRealPath))) {
+      output[key] = 'link:.'
       continue
     }
 
