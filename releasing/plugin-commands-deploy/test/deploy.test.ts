@@ -256,6 +256,8 @@ test('deploy with a shared lockfile after full install', async () => {
     project.has('is-positive')
     project.has('project-3')
     project.has('is-negative')
+    project.hasNot('project-4')
+    project.hasNot('project-5')
     expect(readPackageJson('deploy')).toStrictEqual(expectedDeployManifest)
     expect(fs.existsSync('deploy/pnpm-lock.yaml'))
     expect(fs.existsSync('deploy/index.js')).toBeTruthy()
