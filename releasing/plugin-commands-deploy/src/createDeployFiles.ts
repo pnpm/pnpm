@@ -162,7 +162,7 @@ function convertResolvedDependencies (
     }
 
     if (depRealPath === selectedProject.rootDir) {
-      output[key] = '../../..' // which is the deployed project location relative to the dependency dir within the virtual dir
+      output[key] = 'link:../../..' // which is the deployed project location relative to the dependency dir within the virtual dir
       continue
     }
 
