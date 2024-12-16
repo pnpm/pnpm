@@ -4,6 +4,7 @@ import { deploy } from '@pnpm/plugin-commands-deploy'
 import { install } from '@pnpm/plugin-commands-installation'
 import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
+import { type LockfileFile } from '@pnpm/lockfile.types'
 import { logger, globalWarn } from '@pnpm/logger'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { type ProjectManifest } from '@pnpm/types'
@@ -296,6 +297,134 @@ test('deploy with a shared lockfile after full install', async () => {
     expect(fs.realpathSync(`deploy/node_modules/.pnpm/${project5Name}/node_modules/project-5`)).toContain(project5Name)
     expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('Falling back to installing without a lockfile'))
   }
+})
+
+test('deploy with a shared lockfile and --prod filter should not fail even if dev workspace package does not exist (#8778)', async () => {
+  preparePackages([
+    {
+      name: 'prod-0',
+      version: '0.0.0',
+      private: true,
+      dependencies: {
+        'prod-1': 'workspace:*',
+      },
+      devDependencies: {
+        'dev-0': 'workspace:*',
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'prod-1',
+      version: '0.0.0',
+      private: true,
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+      devDependencies: {
+        'dev-1': 'workspace:*',
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'dev-0',
+      version: '0.0.0',
+      private: true,
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'dev-1',
+      version: '0.0.0',
+      private: true,
+    },
+  ])
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'prod-0' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
+
+  fs.rmSync('dev-0', { recursive: true })
+  fs.rmSync('dev-1', { recursive: true })
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    production: true,
+    dev: false,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const project = assertProject(path.resolve('deploy'))
+  project.has('prod-1')
+  project.hasNot('dev-0')
+  project.hasNot('dev-1')
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers).toStrictEqual({
+    '.': {
+      dependencies: {
+        'prod-1': {
+          version: expect.stringContaining('prod-1'),
+          specifier: expect.stringContaining('file:'),
+        },
+      },
+      devDependencies: {
+        'dev-0': {
+          version: expect.stringContaining('dev-0'),
+          specifier: expect.stringContaining('file:'),
+        },
+        'is-negative': {
+          version: '1.0.0',
+          specifier: '1.0.0',
+        },
+      },
+    },
+  } as LockfileFile['importers'])
+
+  const manifest = readPackageJson('deploy') as ProjectManifest
+  expect(manifest).toStrictEqual({
+    name: 'prod-0',
+    version: '0.0.0',
+    private: true,
+    dependencies: {
+      'prod-1': expect.stringContaining('prod-1'),
+    },
+    devDependencies: {
+      'dev-0': expect.stringContaining('dev-0'),
+      'is-negative': '1.0.0',
+    },
+    optionalDependencies: {},
+  } as ProjectManifest)
+
+  expect(
+    fs.readdirSync('deploy/node_modules')
+      .filter(name => !name.startsWith('.'))
+      .sort()
+  ).toStrictEqual(['prod-1'])
+  const prod1Name = fs.readdirSync('deploy/node_modules/.pnpm').filter(name => name.includes('prod-1@'))
+  expect(prod1Name).toBeDefined()
+  expect(fs.readdirSync(`deploy/node_modules/.pnpm/${prod1Name}/node_modules`).sort()).toStrictEqual(['is-positive', 'prod-1'])
+  expect(fs.realpathSync('deploy/node_modules/prod-1')).toStrictEqual(path.resolve(`deploy/node_modules/.pnpm/${prod1Name}/node_modules/prod-1`))
 })
 
 test('deploy in workspace with shared-workspace-lockfile=false', async () => {
