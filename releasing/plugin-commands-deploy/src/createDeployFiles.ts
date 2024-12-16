@@ -1,7 +1,6 @@
 import path from 'path'
 import url from 'url'
 import pick from 'ramda/src/pick'
-import normalizePath from 'normalize-path'
 import {
   type DirectoryResolution,
   type LockfileObject,
@@ -38,10 +37,11 @@ const INHERITED_MANIFEST_KEYS = [
 export type DeployManifest = Pick<ProjectManifest, typeof INHERITED_MANIFEST_KEYS[number] | DependenciesField>
 
 export interface CreateDeployFilesOptions {
-  allProjects: Array<Pick<Project, 'manifest' | 'rootDir' | 'rootDirRealPath'>>
+  allProjects: Array<Pick<Project, 'manifest' | 'rootDirRealPath'>>
   lockfile: LockfileObject
   lockfileDir: string
-  selectedProject: Pick<Project, 'manifest' | 'rootDir'>
+  manifest: DeployManifest
+  projectId: ProjectId
 }
 
 export interface DeployFiles {
@@ -53,10 +53,11 @@ export function createDeployFiles ({
   allProjects,
   lockfile,
   lockfileDir,
-  selectedProject,
+  manifest,
+  projectId,
 }: CreateDeployFilesOptions): DeployFiles {
-  const selectedProjectId = normalizePath(path.relative(lockfileDir, selectedProject.rootDir)) as ProjectId
-  const inputSnapshot = lockfile.importers[selectedProjectId]
+  const deployedProjectRealPath = path.resolve(lockfileDir, projectId) as ProjectRootDirRealPath
+  const inputSnapshot = lockfile.importers[projectId]
 
   const targetSnapshot: ProjectSnapshot = {
     ...inputSnapshot,
@@ -70,12 +71,12 @@ export function createDeployFiles ({
     ...lockfile.packages,
   }
 
-  for (const project of allProjects) {
-    if (project.rootDir === selectedProject.rootDir) continue
-    const projectId = (normalizePath(path.relative(lockfileDir, project.rootDir)) || '.') as ProjectId
-    const projectSnapshot = lockfile.importers[projectId]
-    const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, project, selectedProject)
-    const depPath = createFileUrlDepPath(project)
+  for (const importerPath in lockfile.importers) {
+    if (importerPath === projectId) continue
+    const projectSnapshot = lockfile.importers[importerPath as ProjectId]
+    const importerRealPath = path.resolve(lockfileDir, importerPath) as ProjectRootDirRealPath
+    const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, importerRealPath, allProjects, deployedProjectRealPath)
+    const depPath = createFileUrlDepPath(importerRealPath, allProjects)
     targetPackageSnapshots[depPath] = packageSnapshot
   }
 
@@ -92,14 +93,8 @@ export function createDeployFiles ({
       }
 
       const { targetPath } = splitPrefixResult
-      const depRealPath = path.resolve(selectedProject.rootDir, targetPath) as ProjectRootDirRealPath
-      const depProject = allProjects.find(project => project.rootDirRealPath === depRealPath)
-      if (depProject) {
-        targetSpecifiers[name] = targetDependencies[name] = createFileUrlDepPath(depProject)
-      } else {
-        // if this branch is reached, it means that there is a bug in pnpm that needs to be fixed
-        throw new Error(`Cannot find any project in opts.allProject whose rootDirRealPath is '${depRealPath}'`)
-      }
+      const targetRealPath = path.resolve(lockfileDir, projectId, targetPath) as ProjectRootDirRealPath // importer IDs are relative to its project dir
+      targetSpecifiers[name] = targetDependencies[name] = createFileUrlDepPath(targetRealPath, allProjects)
     }
   }
 
@@ -112,7 +107,7 @@ export function createDeployFiles ({
       packages: targetPackageSnapshots,
     },
     manifest: {
-      ...pick(INHERITED_MANIFEST_KEYS, selectedProject.manifest),
+      ...pick(INHERITED_MANIFEST_KEYS, manifest),
       dependencies: targetSnapshot.dependencies,
       devDependencies: targetSnapshot.devDependencies,
       optionalDependencies: targetSnapshot.optionalDependencies,
@@ -122,15 +117,16 @@ export function createDeployFiles ({
 
 function convertProjectSnapshotToPackageSnapshot (
   projectSnapshot: ProjectSnapshot,
-  inputProject: Pick<Project, 'manifest' | 'rootDir'>,
-  selectedProject: Pick<Project, 'manifest' | 'rootDir'>
+  importerRealPath: string,
+  allProjects: CreateDeployFilesOptions['allProjects'],
+  deployedProjectRealPath: ProjectRootDirRealPath
 ): PackageSnapshot {
   const resolution: DirectoryResolution = {
     type: 'directory',
     directory: '.',
   }
-  const dependencies = convertResolvedDependencies(projectSnapshot.dependencies, inputProject, selectedProject)
-  const optionalDependencies = convertResolvedDependencies(projectSnapshot.optionalDependencies, inputProject, selectedProject)
+  const dependencies = convertResolvedDependencies(projectSnapshot.dependencies, importerRealPath, allProjects, deployedProjectRealPath)
+  const optionalDependencies = convertResolvedDependencies(projectSnapshot.optionalDependencies, importerRealPath, allProjects, deployedProjectRealPath)
   return {
     dependencies,
     optionalDependencies,
@@ -140,8 +136,9 @@ function convertProjectSnapshotToPackageSnapshot (
 
 function convertResolvedDependencies (
   input: ResolvedDependencies | undefined,
-  inputProject: Pick<Project, 'manifest' | 'rootDir'>,
-  selectedProject: Pick<Project, 'manifest' | 'rootDir'>
+  importerRealPath: string,
+  allProjects: CreateDeployFilesOptions['allProjects'],
+  deployedProjectRealPath: ProjectRootDirRealPath
 ): ResolvedDependencies | undefined {
   if (!input) return undefined
   const output: ResolvedDependencies = {}
@@ -155,18 +152,18 @@ function convertResolvedDependencies (
     }
 
     const { targetPath } = splitPrefixResult
-    const depRealPath = path.resolve(inputProject.rootDir, targetPath)
-    if (['', '.'].includes(path.relative(inputProject.rootDir, depRealPath))) {
+    const depRealPath = path.resolve(importerRealPath, targetPath) as ProjectRootDirRealPath
+    if (['', '.'].includes(path.relative(importerRealPath, depRealPath))) {
       output[key] = 'link:.'
       continue
     }
 
-    if (depRealPath === selectedProject.rootDir) {
+    if (depRealPath === deployedProjectRealPath) {
       output[key] = 'link:../../..' // which is the deployed project location relative to the dependency dir within the virtual dir
       continue
     }
 
-    output[key] = createFileUrlDepPath(inputProject)
+    output[key] = createFileUrlDepPath(depRealPath, allProjects)
   }
 
   return output
@@ -184,8 +181,12 @@ function splitPrefix (spec: string): SplitPrefixResult | undefined {
   return { prefix, targetPath }
 }
 
-function createFileUrlDepPath (inputProject: Pick<Project, 'manifest' | 'rootDir'>): DepPath {
-  const depFileUrl = url.pathToFileURL(inputProject.rootDir).toString()
-  const name = inputProject.manifest.name ?? path.basename(inputProject.rootDir)
+function createFileUrlDepPath (
+  depRealPath: ProjectRootDirRealPath,
+  allProjects: CreateDeployFilesOptions['allProjects']
+): DepPath {
+  const depFileUrl = url.pathToFileURL(depRealPath).toString()
+  const project = allProjects.find(project => project.rootDirRealPath === depRealPath)
+  const name = project?.manifest.name ?? path.basename(depRealPath)
   return `${name}@${depFileUrl}` as DepPath
 }

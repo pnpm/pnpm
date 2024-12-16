@@ -12,7 +12,8 @@ import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
 import { deployHook } from './deployHook'
 import { logger, globalWarn } from '@pnpm/logger'
-import { type Project } from '@pnpm/types'
+import { type Project, type ProjectId } from '@pnpm/types'
+import normalizePath from 'normalize-path'
 import { createDeployFiles } from './createDeployFiles'
 import { deployCatalogHook } from './deployCatalogHook'
 
@@ -154,7 +155,7 @@ async function deployFromSharedLockfile (
   },
   deployDir: string
 ): Promise<string | undefined> {
-  const { allProjects, lockfileDir } = opts
+  const { allProjects, lockfileDir, workspaceDir } = opts
 
   if (!allProjects) {
     return 'opts.allProjects is undefined. Falling back to installing without a lockfile.'
@@ -164,16 +165,23 @@ async function deployFromSharedLockfile (
     return 'opts.lockfileDir is undefined. Falling back to installing without a lockfile.'
   }
 
+  if (!workspaceDir) {
+    return 'opts.workspaceDir is undefined. Falling back to installing without a lockfile.'
+  }
+
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
   if (!lockfile) {
     return 'Shared lockfile not found. Falling back to installing without a lockfile.'
   }
 
+  const projectId = normalizePath(path.relative(workspaceDir, selectedProject.rootDir)) as ProjectId
+
   const deployFiles = createDeployFiles({
     allProjects,
     lockfile,
     lockfileDir,
-    selectedProject,
+    manifest: selectedProject.manifest,
+    projectId,
   })
 
   await Promise.all([
