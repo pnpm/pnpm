@@ -6,7 +6,6 @@ import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
   LOCKFILE_MAJOR_VERSION,
-  LOCKFILE_VERSION_V6,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
@@ -31,7 +30,7 @@ import {
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   type ProjectSnapshot,
-  type Lockfile,
+  type LockfileObject,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
@@ -378,7 +377,7 @@ export async function mutateModules (
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
-      !upToDateLockfileMajorVersion && ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION_V6 ||
+      !upToDateLockfileMajorVersion ||
       opts.forceFullResolution
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
@@ -412,11 +411,7 @@ export async function mutateModules (
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
         ctx.existsNonEmptyWantedLockfile &&
-        (
-          ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION ||
-          ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V6 ||
-          ctx.wantedLockfile.lockfileVersion === '6.1'
-        ) &&
+        ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
           catalogs: opts.catalogs,
           autoInstallPeers: opts.autoInstallPeers,
@@ -663,6 +658,7 @@ Note that in CI environments, this setting is enabled by default.`,
         updateWorkspaceDependencies: project.update,
         preferredSpecs,
         overrides: opts.overrides,
+        defaultCatalog: opts.catalogs?.default,
       })
       projectsToInstall.push({
         pruneDirectDependencies: false,
@@ -730,7 +726,7 @@ function forgetResolutionsOfPrevWantedDeps (
   }
 }
 
-function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: Lockfile): void {
+function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): void {
   // Similar to the forgetResolutionsOfPrevWantedDeps function above, we can
   // delete existing resolutions in importers to make sure they're resolved
   // again.
@@ -815,7 +811,7 @@ export interface UpdatedProject {
 }
 
 interface InstallFunctionResult {
-  newLockfile: Lockfile
+  newLockfile: LockfileObject
   projects: UpdatedProject[]
   stats?: InstallationResultStats
   depsRequiringBuild: DepPath[]
@@ -1020,7 +1016,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   })
 
   newLockfile = ((opts.hooks?.afterAllResolved) != null)
-    ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as Lockfile // eslint-disable-line
+    ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as LockfileObject // eslint-disable-line
     : newLockfile
 
   if (opts.updateLockfileMinorVersion) {

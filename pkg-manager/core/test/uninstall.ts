@@ -6,7 +6,7 @@ import {
   type RootLog,
   type StatsLog,
 } from '@pnpm/core-loggers'
-import { type Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -300,7 +300,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
   projects['project-1'].hasNot('is-positive')
   projects['project-2'].has('is-negative')
 
-  const lockfile = readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  const lockfile = readYamlFile<LockfileObject>(WANTED_LOCKFILE)
 
   expect(lockfile).toStrictEqual({
     settings: {

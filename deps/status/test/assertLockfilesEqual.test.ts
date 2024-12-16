@@ -1,5 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import { type ProjectId } from '@pnpm/types'
 import { assertLockfilesEqual } from '../src/assertLockfilesEqual'
 
@@ -32,7 +32,7 @@ test('should throw if wantedLockfile has specifiers but currentLockfile is null'
 })
 
 test('should not throw if wantedLockfile and currentLockfile are equal', () => {
-  const lockfile = (): Lockfile => ({
+  const lockfile = (): LockfileObject => ({
     lockfileVersion: LOCKFILE_VERSION,
     importers: {
       ['.' as ProjectId]: {

@@ -51,7 +51,7 @@ catalog:
   "@pnpm/network.agent": ^2.0.0
   "@pnpm/nopt": ^0.2.1
   "@pnpm/npm-conf": 2.3.1
-  "@pnpm/npm-lifecycle": ^3.0.4
+  "@pnpm/npm-lifecycle": ^1000.0.0
   "@pnpm/npm-package-arg": ^1.0.0
   "@pnpm/os.env.path-extender": ^2.0.0
   "@pnpm/patch-package": 0.0.0

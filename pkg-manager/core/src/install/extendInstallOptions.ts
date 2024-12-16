@@ -4,7 +4,7 @@ import { PnpmError } from '@pnpm/error'
 import { type ProjectOptions } from '@pnpm/get-context'
 import { type HoistingLimits } from '@pnpm/headless'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
-import { type Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { type WorkspacePackages } from '@pnpm/resolver-base'
@@ -47,7 +47,7 @@ export interface StrictInstallOptions {
   ignorePackageManifest: boolean
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean | 'rolling'
-  lockfileCheck?: (prev: Lockfile, next: Lockfile) => void
+  lockfileCheck?: (prev: LockfileObject, next: LockfileObject) => void
   lockfileIncludeTarballUrl: boolean
   preferWorkspacePackages: boolean
   preserveWorkspaceProtocol: boolean
@@ -83,7 +83,7 @@ export interface StrictInstallOptions {
   hooks: {
     readPackage?: ReadPackageHook[]
     preResolution?: (ctx: PreResolutionHookContext) => Promise<void>
-    afterAllResolved?: Array<(lockfile: Lockfile) => Lockfile | Promise<Lockfile>>
+    afterAllResolved?: Array<(lockfile: LockfileObject) => LockfileObject | Promise<LockfileObject>>
     calculatePnpmfileChecksum?: () => Promise<string | undefined>
   }
   sideEffectsCacheRead: boolean

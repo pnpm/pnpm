@@ -12,7 +12,7 @@ import {
 import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
 import { type InstallationResultStats } from '@pnpm/headless'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
-import { type Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
@@ -44,7 +44,7 @@ import { type ImporterToUpdate } from './index'
 const brokenModulesLogger = logger('_broken_node_modules')
 
 export interface LinkPackagesOptions {
-  currentLockfile: Lockfile
+  currentLockfile: LockfileObject
   dedupeDirectDeps: boolean
   dependenciesByProjectId: Record<string, Map<string, DepPath>>
   disableRelinkLocalDirDeps?: boolean
@@ -71,13 +71,13 @@ export interface LinkPackagesOptions {
   storeController: StoreController
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
-  wantedLockfile: Lockfile
+  wantedLockfile: LockfileObject
   wantedToBeSkippedPackageIds: Set<string>
   hoistWorkspacePackages?: boolean
 }
 
 export interface LinkPackagesResult {
-  currentLockfile: Lockfile
+  currentLockfile: LockfileObject
   newDepPaths: DepPath[]
   newHoistedDependencies: HoistedDependencies
   removedDepPaths: Set<string>
@@ -167,7 +167,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     stage: 'importing_done',
   })
 
-  let currentLockfile: Lockfile
+  let currentLockfile: LockfileObject
   const allImportersIncluded = equals(projectIds.sort(), Object.keys(opts.wantedLockfile.importers).sort())
   if (
     opts.makePartialCurrentLockfile ||
@@ -333,8 +333,8 @@ interface LinkNewPackagesResult {
 }
 
 async function linkNewPackages (
-  currentLockfile: Lockfile,
-  wantedLockfile: Lockfile,
+  currentLockfile: LockfileObject,
+  wantedLockfile: LockfileObject,
   depGraph: DependenciesGraph,
   opts: LinkNewPackagesOptions
 ): Promise<LinkNewPackagesResult> {
@@ -407,7 +407,7 @@ async function linkNewPackages (
 
 async function selectNewFromWantedDeps (
   wantedRelDepPaths: DepPath[],
-  currentLockfile: Lockfile,
+  currentLockfile: LockfileObject,
   depGraph: DependenciesGraph
 ): Promise<Set<DepPath>> {
   const newDeps = new Set<DepPath>()

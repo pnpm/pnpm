@@ -11,6 +11,9 @@
   ],
   "references": [
     {
+      "path": "../config/parse-overrides"
+    },
+    {
       "path": "../lockfile/fs"
     },
     {
@@ -18,6 +21,9 @@
     },
     {
       "path": "../packages/types"
+    },
+    {
+      "path": "../workspace/read-manifest"
     }
   ]
 }

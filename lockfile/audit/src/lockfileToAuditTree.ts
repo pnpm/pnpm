@@ -1,5 +1,5 @@
 import path from 'path'
-import { type Lockfile, type TarballResolution } from '@pnpm/lockfile.types'
+import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { detectDepTypes, type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
@@ -23,7 +23,7 @@ export type AuditTree = AuditNode & {
 }
 
 export async function lockfileToAuditTree (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean }
     lockfileDir: string

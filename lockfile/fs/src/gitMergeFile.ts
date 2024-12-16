@@ -1,4 +1,4 @@
-import { type Lockfile, type LockfileFile } from '@pnpm/lockfile.types'
+import { type LockfileObject, type LockfileFile } from '@pnpm/lockfile.types'
 import { mergeLockfileChanges } from '@pnpm/lockfile.merger'
 import yaml from 'js-yaml'
 import { convertToLockfileObject } from './lockfileFormatConverters'
@@ -8,7 +8,7 @@ const MERGE_CONFLICT_END = '>>>>>>>'
 const MERGE_CONFLICT_THEIRS = '======='
 const MERGE_CONFLICT_OURS = '<<<<<<<'
 
-export function autofixMergeConflicts (fileContent: string): Lockfile {
+export function autofixMergeConflicts (fileContent: string): LockfileObject {
   const { ours, theirs } = parseMergeFile(fileContent)
   return mergeLockfileChanges(
     convertToLockfileObject(yaml.load(ours) as LockfileFile),

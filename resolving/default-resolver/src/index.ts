@@ -30,7 +30,7 @@ export function createResolver (
     resolve: async (wantedDependency, opts) => {
       const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.pref && (
-          await resolveFromTarball(wantedDependency as { pref: string }) ??
+          await resolveFromTarball(fetchFromRegistry, wantedDependency as { pref: string }) ??
           await resolveFromGit(wantedDependency as { pref: string }) ??
           await resolveFromLocal(wantedDependency as { pref: string }, opts)
         ))

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type LockfileV9 as Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileFile } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
@@ -41,7 +41,7 @@ auto-install-peers=false`, 'utf8')
   await execPnpm(['install'])
   await execPnpm(['--filter=project-2', 'add', '@pnpm.e2e/abc@1.0.0'])
 
-  const lockfile = readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
+  const lockfile = readYamlFile<LockfileFile>(path.resolve(WANTED_LOCKFILE))
   const depPaths = Object.keys(lockfile.snapshots ?? {})
   expect(depPaths.length).toBe(8)
   expect(depPaths).toContain(`@pnpm.e2e/abc@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)

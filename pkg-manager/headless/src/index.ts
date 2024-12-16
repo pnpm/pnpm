@@ -26,7 +26,7 @@ import {
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   getLockfileImporterId,
-  type Lockfile,
+  type LockfileObject,
   type PatchFile,
   readCurrentLockfile,
   readWantedLockfile,
@@ -110,7 +110,7 @@ export interface HeadlessOptions {
   onlyBuiltDependenciesFile?: string
   autoInstallPeers?: boolean
   childConcurrency?: number
-  currentLockfile?: Lockfile
+  currentLockfile?: LockfileObject
   currentEngine: {
     nodeVersion?: string
     pnpmVersion: string
@@ -162,7 +162,7 @@ export interface HeadlessOptions {
   }
   pruneStore: boolean
   pruneVirtualStore?: boolean
-  wantedLockfile?: Lockfile
+  wantedLockfile?: LockfileObject
   ownLifecycleHooksStdio?: 'inherit' | 'pipe'
   pendingBuilds: string[]
   resolveSymlinksInInjectedDirs?: boolean
@@ -664,7 +664,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
 }
 
 type SymlinkDirectDependenciesOpts = Pick<HeadlessOptions, 'registries' | 'symlink' | 'lockfileDir'> & {
-  filteredLockfile: Lockfile
+  filteredLockfile: LockfileObject
   dedupe: boolean
   directDependenciesByImporterId: DirectDependenciesByImporterId
   projects: Project[]
@@ -741,7 +741,7 @@ async function linkBinsOfImporter (
 }
 
 async function getRootPackagesToLink (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   opts: {
     registries: Registries
     projectDir: string

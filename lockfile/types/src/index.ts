@@ -12,41 +12,67 @@ export interface LockfileSettings {
   injectWorkspacePackages?: boolean
 }
 
-export interface Lockfile {
-  importers: Record<ProjectId, ProjectSnapshot>
-  lockfileVersion: string
-  time?: Record<string, string>
+export interface LockfileBase {
   catalogs?: CatalogSnapshots
-  packages?: PackageSnapshots
+  ignoredOptionalDependencies?: string[]
+  lockfileVersion: string
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
-  ignoredOptionalDependencies?: string[]
   patchedDependencies?: Record<string, PatchFile>
   pnpmfileChecksum?: string
   settings?: LockfileSettings
-}
-
-export interface LockfileV9 {
-  importers: Record<string, ProjectSnapshot>
-  lockfileVersion: string
   time?: Record<string, string>
-  snapshots?: Record<string, PackageSnapshotV7>
-  packages?: Record<string, PackageInfo>
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  overrides?: Record<string, string>
-  packageExtensionsChecksum?: string
-  patchedDependencies?: Record<string, PatchFile>
-  settings?: LockfileSettings
 }
 
-export interface ProjectSnapshot {
+export interface LockfileObject extends LockfileBase {
+  importers: Record<ProjectId, ProjectSnapshot>
+  packages?: PackageSnapshots
+}
+
+export interface LockfilePackageSnapshot {
+  optional?: true
+  dependencies?: ResolvedDependencies
+  optionalDependencies?: ResolvedDependencies
+  transitivePeerDependencies?: string[]
+}
+
+export interface LockfilePackageInfo {
+  id?: string
+  patched?: true
+  hasBin?: true
+  // name and version are only needed
+  // for packages that are hosted not in the npm registry
+  name?: string
+  version?: string
+  resolution: LockfileResolution
+  peerDependencies?: {
+    [name: string]: string
+  }
+  peerDependenciesMeta?: {
+    [name: string]: {
+      optional: true
+    }
+  }
+  bundledDependencies?: string[] | boolean
+  engines?: Record<string, string> & {
+    node: string
+  }
+  os?: string[]
+  cpu?: string[]
+  libc?: string[]
+  deprecated?: string
+}
+
+export interface ProjectSnapshotBase {
+  dependenciesMeta?: DependenciesMeta
+  publishDirectory?: string
+}
+
+export interface ProjectSnapshot extends ProjectSnapshotBase {
   specifiers: ResolvedDependencies
   dependencies?: ResolvedDependencies
   optionalDependencies?: ResolvedDependencies
   devDependencies?: ResolvedDependencies
-  dependenciesMeta?: DependenciesMeta
-  publishDirectory?: string
 }
 
 export type ResolvedDependenciesOfImporters = Record<string, { version: string, specifier: string }>
@@ -92,40 +118,7 @@ export type LockfileResolution = Resolution | {
   integrity: string
 }
 
-export type PackageSnapshotV7 = Pick<PackageSnapshot, 'optional' | 'dependencies' | 'optionalDependencies' | 'transitivePeerDependencies'>
-
-export type PackageInfo = Pick<PackageSnapshot, 'id' | 'patched' | 'hasBin' | 'name' | 'version' | 'resolution' | 'peerDependencies' | 'peerDependenciesMeta' | 'bundledDependencies' | 'engines' | 'cpu' | 'os' | 'libc' | 'deprecated'>
-
-export interface PackageSnapshot {
-  id?: string
-  optional?: true
-  patched?: true
-  hasBin?: true
-  // name and version are only needed
-  // for packages that are hosted not in the npm registry
-  name?: string
-  version?: string
-  resolution: LockfileResolution
-  dependencies?: ResolvedDependencies
-  optionalDependencies?: ResolvedDependencies
-  peerDependencies?: {
-    [name: string]: string
-  }
-  peerDependenciesMeta?: {
-    [name: string]: {
-      optional: true
-    }
-  }
-  transitivePeerDependencies?: string[]
-  bundledDependencies?: string[] | boolean
-  engines?: Record<string, string> & {
-    node: string
-  }
-  os?: string[]
-  cpu?: string[]
-  libc?: string[]
-  deprecated?: string
-}
+export type PackageSnapshot = LockfilePackageInfo & LockfilePackageSnapshot
 
 export interface Dependencies {
   [name: string]: string

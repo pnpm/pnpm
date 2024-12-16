@@ -4,7 +4,7 @@ import {
   progressLogger,
 } from '@pnpm/core-loggers'
 import {
-  type Lockfile,
+  type LockfileObject,
   type PackageSnapshot,
 } from '@pnpm/lockfile.fs'
 import {
@@ -93,8 +93,8 @@ export interface LockfileToDepGraphResult {
 }
 
 export async function lockfileToDepGraph (
-  lockfile: Lockfile,
-  currentLockfile: Lockfile | null,
+  lockfile: LockfileObject,
+  currentLockfile: LockfileObject | null,
   opts: LockfileToDepGraphOptions
 ): Promise<LockfileToDepGraphResult> {
   const currentPackages = currentLockfile?.packages ?? {}

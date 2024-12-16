@@ -17,7 +17,7 @@ import {
 import { linkBins } from '@pnpm/link-bins'
 import { type TarballResolution } from '@pnpm/lockfile.types'
 import {
-  type Lockfile,
+  type LockfileObject,
   nameVerFromPkgSnapshot,
   packageIsIndependent,
   type PackageSnapshots,
@@ -240,7 +240,7 @@ async function _rebuild (
     skipped: Set<string>
     virtualStoreDir: string
     rootModulesDir: string
-    currentLockfile: Lockfile
+    currentLockfile: LockfileObject
     projects: Record<string, { id: ProjectId, rootDir: ProjectRootDir }>
     extraBinPaths: string[]
     extraNodePaths: string[]

@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { type LockfileFileV9, type Lockfile, type LockfileFile } from '@pnpm/lockfile.types'
+import { type LockfileObject, type LockfileFile } from '@pnpm/lockfile.types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
 import yaml from 'js-yaml'
@@ -29,7 +29,7 @@ const LOCKFILE_YAML_FORMAT = {
 
 export async function writeWantedLockfile (
   pkgPath: string,
-  wantedLockfile: Lockfile,
+  wantedLockfile: LockfileObject,
   opts?: {
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
@@ -41,7 +41,7 @@ export async function writeWantedLockfile (
 
 export async function writeCurrentLockfile (
   virtualStoreDir: string,
-  currentLockfile: Lockfile
+  currentLockfile: LockfileObject
 ): Promise<void> {
   // empty lockfile is not saved
   if (isEmptyLockfile(currentLockfile)) {
@@ -55,13 +55,11 @@ export async function writeCurrentLockfile (
 async function writeLockfile (
   lockfileFilename: string,
   pkgPath: string,
-  wantedLockfile: Lockfile
+  wantedLockfile: LockfileObject
 ): Promise<void> {
   const lockfilePath = path.join(pkgPath, lockfileFilename)
 
-  const lockfileToStringify = convertToLockfileFile(wantedLockfile, {
-    forceSharedFormat: true,
-  })
+  const lockfileToStringify = convertToLockfileFile(wantedLockfile)
 
   const yamlDoc = yamlStringify(lockfileToStringify)
 
@@ -69,19 +67,19 @@ async function writeLockfile (
 }
 
 function yamlStringify (lockfile: LockfileFile) {
-  const sortedLockfile = sortLockfileKeys(lockfile as LockfileFileV9)
+  const sortedLockfile = sortLockfileKeys(lockfile as LockfileFile)
   return yaml.dump(sortedLockfile, LOCKFILE_YAML_FORMAT)
 }
 
-export function isEmptyLockfile (lockfile: Lockfile): boolean {
+export function isEmptyLockfile (lockfile: LockfileObject): boolean {
   return Object.values(lockfile.importers).every((importer) => isEmpty(importer.specifiers ?? {}) && isEmpty(importer.dependencies ?? {}))
 }
 
 export async function writeLockfiles (
   opts: {
-    wantedLockfile: Lockfile
+    wantedLockfile: LockfileObject
     wantedLockfileDir: string
-    currentLockfile: Lockfile
+    currentLockfile: LockfileObject
     currentLockfileDir: string
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
@@ -91,10 +89,7 @@ export async function writeLockfiles (
   const wantedLockfilePath = path.join(opts.wantedLockfileDir, wantedLockfileName)
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 
-  const normalizeOpts = {
-    forceSharedFormat: true,
-  }
-  const wantedLockfileToStringify = convertToLockfileFile(opts.wantedLockfile, normalizeOpts)
+  const wantedLockfileToStringify = convertToLockfileFile(opts.wantedLockfile)
   const yamlDoc = yamlStringify(wantedLockfileToStringify)
 
   // in most cases the `pnpm-lock.yaml` and `node_modules/.pnpm-lock.yaml` are equal
@@ -120,7 +115,7 @@ export async function writeLockfiles (
     prefix: opts.wantedLockfileDir,
   })
 
-  const currentLockfileToStringify = convertToLockfileFile(opts.currentLockfile, normalizeOpts)
+  const currentLockfileToStringify = convertToLockfileFile(opts.currentLockfile)
   const currentYamlDoc = yamlStringify(currentLockfileToStringify)
 
   await Promise.all([

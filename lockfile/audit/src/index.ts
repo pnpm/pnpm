@@ -4,7 +4,7 @@ import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { type AgentOptions, fetchWithAgent, type RetryTimeoutOptions } from '@pnpm/fetch'
 import { type GetAuthHeader } from '@pnpm/fetching-types'
-import { type Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import { type DependenciesField } from '@pnpm/types'
 import { lockfileToAuditTree } from './lockfileToAuditTree'
@@ -14,7 +14,7 @@ import { searchForPackages, flattenSearchedPackages } from '@pnpm/list'
 export * from './types'
 
 export async function audit (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   getAuthHeader: GetAuthHeader,
   opts: {
     agentOptions?: AgentOptions
@@ -78,7 +78,7 @@ function getAuthHeaders (authHeaderValue: string | undefined): AuthHeaders {
 }
 
 async function extendWithDependencyPaths (auditReport: AuditReport, opts: {
-  lockfile: Lockfile
+  lockfile: LockfileObject
   lockfileDir: string
   include?: { [dependenciesField in DependenciesField]: boolean }
   virtualStoreDirMaxLength: number

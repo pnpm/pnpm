@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { type LockfileV9 as Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
 import deepRequireCwd from 'deep-require-cwd'
@@ -257,7 +257,7 @@ test('optional subdependency is not removed from current lockfile when new depen
     const modulesInfo = readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
     expect(modulesInfo.skipped).toStrictEqual(['@pnpm.e2e/dep-of-optional-pkg@1.0.0', '@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
 
-    const currentLockfile = readYamlFile<Lockfile>(path.resolve('node_modules/.pnpm/lock.yaml'))
+    const currentLockfile = readYamlFile<LockfileFile>(path.resolve('node_modules/.pnpm/lock.yaml'))
     expect(currentLockfile.packages).toHaveProperty(['@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
   }
 
@@ -270,7 +270,7 @@ test('optional subdependency is not removed from current lockfile when new depen
   ], testDefaults({ allProjects, fastUnpack: false, hoistPattern: ['*'] }))
 
   {
-    const currentLockfile = readYamlFile<Lockfile>(path.resolve('node_modules/.pnpm/lock.yaml'))
+    const currentLockfile = readYamlFile<LockfileFile>(path.resolve('node_modules/.pnpm/lock.yaml'))
     expect(currentLockfile.packages).toHaveProperty(['@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
   }
 })
