@@ -523,7 +523,7 @@ test('deploy with a shared lockfile should correctly handle package that depends
         // NOTE: there is an inexplicable bug in which 'renamed-workspace' and 'renamed-linked' cannot exist simultaneously
         // TODO: fix this bug
         'renamed-workspace': 'workspace:project-0@*',
-        // 'renamed-linked': 'link:.', // TODO: fix bug related to `injected-workspace-packages=true`
+        // 'renamed-linked': 'link:.',
       },
     },
   ])
