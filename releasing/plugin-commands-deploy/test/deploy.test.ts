@@ -446,7 +446,6 @@ test('deploy with a shared lockfile should correctly handle workspace dependenci
       private: true,
       dependencies: {
         'project-0': 'workspace:*',
-        'project-1': 'workspace:*',
       },
     },
   ])
