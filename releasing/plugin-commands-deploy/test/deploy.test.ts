@@ -209,6 +209,7 @@ test('deploy with a shared lockfile after full install', async () => {
     expect(fs.existsSync('deploy/node_modules/.modules.yaml')).toBeTruthy()
     const project2Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.startsWith('project-2@'))
     expect(project2Name).toBeDefined()
+    expect(fs.realpathSync('deploy/node_modules/project-2')).toBe(path.resolve(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2`))
     expect(fs.existsSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2/index.js`)).toBeTruthy()
     expect(fs.existsSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2/test.js`)).toBeFalsy()
     expect(fs.readdirSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules`).sort()).toStrictEqual([
@@ -268,6 +269,7 @@ test('deploy with a shared lockfile after full install', async () => {
     expect(fs.existsSync('deploy/node_modules/.modules.yaml')).toBeTruthy()
     const project2Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.startsWith('project-2@'))
     expect(project2Name).toBeDefined()
+    expect(fs.realpathSync('deploy/node_modules/project-2')).toBe(path.resolve(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2`))
     expect(fs.existsSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2/index.js`)).toBeTruthy()
     expect(fs.existsSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2/test.js`)).toBeFalsy()
     expect(fs.readdirSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules`).sort()).toStrictEqual([
