@@ -436,7 +436,6 @@ test('deploy with a shared lockfile should correctly handle workspace dependenci
       version: '0.0.0',
       private: true,
       dependencies: {
-        // 'project-0': 'workspace:*', // TODO: handle project that depends on itself
         'project-1': 'workspace:*',
       },
     },
@@ -511,6 +510,93 @@ test('deploy with a shared lockfile should correctly handle workspace dependenci
   expect(fs.readdirSync(`deploy/node_modules/.pnpm/${project1Name}/node_modules`).sort()).toStrictEqual(['project-0', 'project-1'])
   expect(fs.realpathSync(`deploy/node_modules/.pnpm/${project1Name}/node_modules/project-0`)).toBe(path.resolve('deploy'))
   expect(fs.realpathSync('deploy/node_modules/project-1')).toBe(path.resolve(`deploy/node_modules/.pnpm/${project1Name}/node_modules/project-1`))
+})
+
+test('deploy with a shared lockfile should correctly handle package that depends on itself', async () => {
+  preparePackages([
+    {
+      name: 'project-0',
+      version: '0.0.0',
+      private: true,
+      dependencies: {
+        'project-0': 'workspace:*',
+        // NOTE: there is an inexplicable bug in which 'renamed-workspace' and 'renamed-linked' cannot exist simultaneously
+        // TODO: fix this bug
+        'renamed-workspace': 'workspace:project-0@*',
+        // 'renamed-linked': 'link:.', // TODO: fix bug related to `injected-workspace-packages=true`
+      },
+    },
+  ])
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-0' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const project = assertProject(path.resolve('deploy'))
+  project.has('project-0')
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers).toStrictEqual({
+    '.': {
+      dependencies: {
+        'project-0': {
+          version: 'link:.',
+          specifier: 'link:.',
+        },
+        'renamed-workspace': {
+          version: 'link:.',
+          specifier: 'link:.',
+        },
+        // 'renamed-linked': {
+        //   version: 'link:.',
+        //   specifier: 'link:.',
+        // },
+      },
+    },
+  } as LockfileFile['importers'])
+
+  const manifest = readPackageJson('deploy') as ProjectManifest
+  expect(manifest).toStrictEqual({
+    name: 'project-0',
+    version: '0.0.0',
+    private: true,
+    dependencies: {
+      'project-0': 'link:.',
+      'renamed-workspace': 'link:.',
+      // 'renamed-linked': 'link:.',
+    },
+    devDependencies: {},
+    optionalDependencies: {},
+  } as ProjectManifest)
+
+  expect(fs.realpathSync('deploy/node_modules/project-0')).toBe(path.resolve('deploy'))
+  expect(fs.realpathSync('deploy/node_modules/renamed-workspace')).toBe(path.resolve('deploy'))
+  // expect(fs.realpathSync('deploy/node_modules/renamed-linked')).toBe(path.resolve('deploy'))
 })
 
 test('deploy in workspace with shared-workspace-lockfile=false', async () => {

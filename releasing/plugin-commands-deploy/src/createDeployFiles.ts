@@ -94,7 +94,8 @@ export function createDeployFiles ({
 
       const { targetPath } = splitPrefixResult
       const targetRealPath = path.resolve(lockfileDir, projectId, targetPath) as ProjectRootDirRealPath // importer IDs are relative to its project dir
-      targetSpecifiers[name] = targetDependencies[name] = createFileUrlDepPath(targetRealPath, allProjects)
+      targetSpecifiers[name] = targetDependencies[name] =
+        targetRealPath === deployedProjectRealPath ? 'link:.' : createFileUrlDepPath(targetRealPath, allProjects)
     }
   }
 
