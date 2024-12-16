@@ -45,7 +45,6 @@ export async function handler (
       prefix: process.cwd(),
     })
   }
-  console.log('nodeLinker', nodeLinker, currentDriveIsExFAT())
   if (nodeLinker !== 'hoisted' && currentDriveIsExFAT()) {
     // If the node_modules is not hoisted, and the current drive is exFAT, then there may have a symlink error, related:
     logger.warn({
