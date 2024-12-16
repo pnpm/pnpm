@@ -1,5 +1,13 @@
 # pd
 
+## 1.0.3
+
+### Patch Changes
+
+- @pnpm/workspace.read-manifest@1000.0.1
+- @pnpm/workspace.find-packages@1000.0.1
+- @pnpm/find-workspace-dir@1000.0.1
+
 ## 1.0.2
 
 ### Patch Changes

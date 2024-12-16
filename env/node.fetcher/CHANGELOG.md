@@ -1,5 +1,17 @@
 # @pnpm/node.fetcher
 
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [b0f3c71]
+  - @pnpm/fetching-types@1000.1.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/create-cafs-store@1000.0.1
+  - @pnpm/fetcher-base@1000.0.1
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/tarball-fetcher@1000.0.1
+
 ## 4.0.17
 
 ### Patch Changes

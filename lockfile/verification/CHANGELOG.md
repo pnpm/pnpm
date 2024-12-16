@@ -1,5 +1,21 @@
 # @pnpm/lockfile.verification
 
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/lockfile.types@1001.0.0
+  - @pnpm/get-context@1001.0.0
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/read-package-json@1000.0.1
+
 ## 1.1.0
 
 ### Minor Changes

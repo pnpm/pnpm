@@ -1,5 +1,39 @@
 # @pnpm/headless
 
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [3a6a417]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/package-requester@1000.1.0
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/lifecycle@1001.0.0
+  - @pnpm/modules-cleaner@1001.0.0
+  - @pnpm/lockfile-to-pnp@1001.0.0
+  - @pnpm/calc-dep-state@1001.0.0
+  - @pnpm/real-hoist@1001.0.0
+  - @pnpm/deps.graph-builder@1001.0.0
+  - @pnpm/lockfile.filtering@1001.0.0
+  - @pnpm/hoist@1001.0.0
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/build-modules@1000.0.1
+  - @pnpm/package-is-installable@1000.0.1
+  - @pnpm/link-bins@1000.0.1
+  - @pnpm/read-package-json@1000.0.1
+  - @pnpm/read-project-manifest@1000.0.1
+  - @pnpm/worker@1000.0.1
+  - @pnpm/symlink-dependency@1000.0.0
+
 ## 24.0.0
 
 ### Major Changes

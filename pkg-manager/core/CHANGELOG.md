@@ -1,5 +1,56 @@
 # @pnpm/core
 
+## 1001.0.0
+
+### Major Changes
+
+- b0f3c71: Dependencies specified via a URL are now recorded in the lockfile using their final resolved URL. Thus, if the original URL redirects, the final redirect target will be saved in the lockfile [#8833](https://github.com/pnpm/pnpm/issues/8833).
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Minor Changes
+
+- c0895e8: `pnpm add` will now check if the added dependency is in the default workspace catalog. If the added dependency is present in the default catalog and the version requirement of the added dependency matches the default catalog's version, then the `pnpm add` will use the `catalog:` protocol. Note that if no version is specified in the `pnpm add` it will match the version described in the default catalog. If the added dependency does not match the default catalog's version it will use the default `pnpm add` behavior [#8640](https://github.com/pnpm/pnpm/issues/8640).
+- 6483b64: A new setting, `inject-workspace-packages`, has been added to allow hard-linking all local workspace dependencies instead of symlinking them. Previously, this behavior was achievable via the [`dependenciesMeta[].injected`](https://pnpm.io/package_json#dependenciesmetainjected) setting, which remains supported [#8836](https://github.com/pnpm/pnpm/pull/8836).
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [3a6a417]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/resolve-dependencies@1001.0.0
+  - @pnpm/package-requester@1000.1.0
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/lockfile.settings-checker@1001.0.0
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/lifecycle@1001.0.0
+  - @pnpm/modules-cleaner@1001.0.0
+  - @pnpm/lockfile-to-pnp@1001.0.0
+  - @pnpm/calc-dep-state@1001.0.0
+  - @pnpm/get-context@1001.0.0
+  - @pnpm/lockfile.verification@1001.0.0
+  - @pnpm/headless@1001.0.0
+  - @pnpm/lockfile.filtering@1001.0.0
+  - @pnpm/hoist@1001.0.0
+  - @pnpm/lockfile.pruner@1001.0.0
+  - @pnpm/lockfile.walker@1001.0.0
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/hooks.types@1001.0.0
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/build-modules@1000.0.1
+  - @pnpm/lockfile.preferred-versions@1000.0.1
+  - @pnpm/parse-overrides@1000.0.1
+  - @pnpm/hooks.read-package-hook@1000.0.1
+  - @pnpm/link-bins@1000.0.1
+  - @pnpm/manifest-utils@1000.0.1
+  - @pnpm/read-project-manifest@1000.0.1
+  - @pnpm/worker@1000.0.1
+  - @pnpm/crypto.hash@1000.0.0
+  - @pnpm/symlink-dependency@1000.0.0
+  - @pnpm/remove-bins@1000.0.1
+
 ## 16.0.0
 
 ### Major Changes

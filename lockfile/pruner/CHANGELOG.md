@@ -1,5 +1,19 @@
 # @pnpm/prune-lockfile
 
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/lockfile.types@1001.0.0
+
 ## 0.0.7
 
 ### Patch Changes

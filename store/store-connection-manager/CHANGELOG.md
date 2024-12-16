@@ -1,5 +1,18 @@
 # @pnpm/store-connection-manager
 
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [ac5b9d8]
+- Updated dependencies [6483b64]
+  - @pnpm/config@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/store-path@1000.0.1
+  - @pnpm/package-store@1000.0.1
+  - @pnpm/server@1000.0.1
+  - @pnpm/client@1000.0.1
+
 ## 8.4.3
 
 ### Patch Changes

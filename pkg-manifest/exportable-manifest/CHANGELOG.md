@@ -1,5 +1,13 @@
 # @pnpm/exportable-manifest
 
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+- @pnpm/catalogs.resolver@1000.0.1
+- @pnpm/read-project-manifest@1000.0.1
+
 ## 7.0.7
 
 ### Patch Changes

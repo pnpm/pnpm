@@ -1,5 +1,11 @@
 # @pnpm/read-package-json
 
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+
 ## 9.0.10
 
 ### Patch Changes

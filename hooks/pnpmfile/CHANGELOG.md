@@ -1,5 +1,25 @@
 # @pnpm/pnpmfile
 
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Minor Changes
+
+- d47c426: On repeat install perform a fast check if `node_modules` is up to date [#8838](https://github.com/pnpm/pnpm/pull/8838).
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/lockfile.types@1001.0.0
+  - @pnpm/hooks.types@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/crypto.hash@1000.0.0
+
 ## 7.0.0
 
 ### Major Changes

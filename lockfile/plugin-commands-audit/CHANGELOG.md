@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-audit
 
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [ac5b9d8]
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/config@1001.0.0
+  - @pnpm/constants@1001.0.0
+  - @pnpm/audit@1001.0.0
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/cli-utils@1000.0.1
+  - @pnpm/error@1000.0.1
+  - @pnpm/network.auth-header@1000.0.1
+  - @pnpm/read-project-manifest@1000.0.1
+
 ## 10.3.3
 
 ### Patch Changes

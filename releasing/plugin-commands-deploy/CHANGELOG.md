@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.0.0
+
+### Major Changes
+
+- ac5b9d8: All dependencies are installed even when the `NODE_ENV` environment variable is set to `production [#8827](https://github.com/pnpm/pnpm/issues/8827).
+- 31911f1: The deploy command works only in workspaces that use the `inject-workspace-packages=true` setting.
+
+### Patch Changes
+
+- Updated dependencies [ac5b9d8]
+- Updated dependencies [31911f1]
+- Updated dependencies [b8bda0a]
+- Updated dependencies [d47c426]
+- Updated dependencies [a76da0c]
+  - @pnpm/plugin-commands-installation@1001.0.0
+  - @pnpm/cli-utils@1000.0.1
+  - @pnpm/error@1000.0.1
+  - @pnpm/fs.indexed-pkg-importer@1000.0.1
+  - @pnpm/directory-fetcher@1000.0.1
+  - @pnpm/catalogs.resolver@1000.0.1
+
 ## 5.1.32
 
 ### Patch Changes

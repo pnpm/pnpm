@@ -1,5 +1,12 @@
 # @pnpm/parse-overrides
 
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+- @pnpm/catalogs.resolver@1000.0.1
+
 ## 5.1.2
 
 ### Patch Changes

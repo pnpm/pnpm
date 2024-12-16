@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "1000.0.0",
+  "version": "1001.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

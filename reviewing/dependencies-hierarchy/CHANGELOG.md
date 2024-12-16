@@ -1,5 +1,19 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [a76da0c]
+  - @pnpm/lockfile.detect-dep-types@1001.0.0
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/read-package-json@1000.0.1
+
 ## 3.2.3
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm-private/updater
 
+## 3.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [a76da0c]
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/workspace.read-manifest@1000.0.1
+  - @pnpm/parse-overrides@1000.0.1
+
 ## 2.0.17
 
 ### Patch Changes

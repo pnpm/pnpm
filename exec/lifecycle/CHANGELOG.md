@@ -1,5 +1,20 @@
 # @pnpm/lifecycle
 
+## 1001.0.0
+
+### Major Changes
+
+- 3a6a417: Reduced the number of fields from `package.json` that are added as environment variables (`npm_package_` prefix) during script execution. Only the following fields are now included: `name`, `version`, `bin`, `engines`, and `config` [#8552](https://github.com/pnpm/pnpm/issues/8552).
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/directory-fetcher@1000.0.1
+  - @pnpm/link-bins@1000.0.1
+  - @pnpm/read-package-json@1000.0.1
+
 ## 17.1.6
 
 ### Patch Changes

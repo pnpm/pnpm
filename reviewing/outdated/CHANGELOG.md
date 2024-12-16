@@ -1,5 +1,28 @@
 # @pnpm/outdated
 
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- a724295: Fix an exception when running `pnpm update --interactive` if catalogs are used.
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/npm-resolver@1000.1.0
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/client@1000.0.1
+  - @pnpm/catalogs.resolver@1000.0.1
+  - @pnpm/parse-overrides@1000.0.1
+  - @pnpm/hooks.read-package-hook@1000.0.1
+  - @pnpm/manifest-utils@1000.0.1
+
 ## 15.1.8
 
 ### Patch Changes

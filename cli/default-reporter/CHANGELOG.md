@@ -1,5 +1,19 @@
 # @pnpm/default-reporter
 
+## 1001.0.0
+
+### Major Changes
+
+- ac5b9d8: All dependencies are installed even when the `NODE_ENV` environment variable is set to `production [#8827](https://github.com/pnpm/pnpm/issues/8827).
+
+### Patch Changes
+
+- Updated dependencies [ac5b9d8]
+- Updated dependencies [6483b64]
+  - @pnpm/config@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/render-peer-issues@1000.0.1
+
 ## 14.0.5
 
 ### Patch Changes

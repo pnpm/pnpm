@@ -1,5 +1,52 @@
 # @pnpm/plugin-commands-installation
 
+## 1001.0.0
+
+### Major Changes
+
+- ac5b9d8: All dependencies are installed even when the `NODE_ENV` environment variable is set to `production [#8827](https://github.com/pnpm/pnpm/issues/8827).
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Minor Changes
+
+- d47c426: On repeat install perform a fast check if `node_modules` is up to date [#8838](https://github.com/pnpm/pnpm/pull/8838).
+
+### Patch Changes
+
+- 31911f1: The deploy command works only in workspaces that use the `inject-workspace-packages=true` setting.
+- b8bda0a: `pnpm update --global` should not crash if there are no any global packages installed [#7898](https://github.com/pnpm/pnpm/issues/7898).
+- Updated dependencies [ac5b9d8]
+- Updated dependencies [d2e83b0]
+- Updated dependencies [c0895e8]
+- Updated dependencies [6483b64]
+- Updated dependencies [b0f3c71]
+- Updated dependencies [d47c426]
+- Updated dependencies [a76da0c]
+- Updated dependencies [a724295]
+  - @pnpm/config@1001.0.0
+  - @pnpm/constants@1001.0.0
+  - @pnpm/core@1001.0.0
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/lockfile.types@1001.0.0
+  - @pnpm/deps.status@1001.0.0
+  - @pnpm/pnpmfile@1001.0.0
+  - @pnpm/workspace.state@1001.0.0
+  - @pnpm/plugin-commands-rebuild@1001.0.0
+  - @pnpm/get-context@1001.0.0
+  - @pnpm/outdated@1001.0.0
+  - @pnpm/dedupe.check@1001.0.0
+  - @pnpm/cli-utils@1000.0.1
+  - @pnpm/plugin-commands-env@1000.0.1
+  - @pnpm/store-connection-manager@1000.0.1
+  - @pnpm/error@1000.0.1
+  - @pnpm/package-store@1000.0.1
+  - @pnpm/workspace.pkgs-graph@1000.0.1
+  - @pnpm/workspace.find-packages@1000.0.1
+  - @pnpm/manifest-utils@1000.0.1
+  - @pnpm/read-project-manifest@1000.0.1
+  - @pnpm/filter-workspace-packages@1000.0.1
+  - @pnpm/find-workspace-dir@1000.0.1
+
 ## 18.0.0
 
 ### Major Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.walker",
-  "version": "1000.0.0",
+  "version": "1001.0.0",
   "description": "Walk over all the dependencies in a lockfile",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

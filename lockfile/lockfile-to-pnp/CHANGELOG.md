@@ -1,5 +1,17 @@
 # @pnpm/lockfile-to-pnp
 
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [a76da0c]
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/lockfile.fs@1001.0.0
+
 ## 4.1.15
 
 ### Patch Changes

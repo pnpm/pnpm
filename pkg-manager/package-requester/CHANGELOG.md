@@ -1,5 +1,24 @@
 # @pnpm/package-requester
 
+## 1000.1.0
+
+### Minor Changes
+
+- 6483b64: A new setting, `inject-workspace-packages`, has been added to allow hard-linking all local workspace dependencies instead of symlinking them. Previously, this behavior was achievable via the [`dependenciesMeta[].injected`](https://pnpm.io/package_json#dependenciesmetainjected) setting, which remains supported [#8836](https://github.com/pnpm/pnpm/pull/8836).
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/store.cafs@1000.0.1
+  - @pnpm/fetcher-base@1000.0.1
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/package-is-installable@1000.0.1
+  - @pnpm/read-package-json@1000.0.1
+  - @pnpm/worker@1000.0.1
+
 ## 26.0.0
 
 ### Major Changes

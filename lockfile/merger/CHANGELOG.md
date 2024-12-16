@@ -1,5 +1,17 @@
 # @pnpm/merge-lockfile-changes
 
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/lockfile.types@1001.0.0
+
 ## 1.0.3
 
 ### Patch Changes

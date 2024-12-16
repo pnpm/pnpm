@@ -1,5 +1,35 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [ac5b9d8]
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [3a6a417]
+- Updated dependencies [a76da0c]
+  - @pnpm/config@1001.0.0
+  - @pnpm/constants@1001.0.0
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/lockfile.types@1001.0.0
+  - @pnpm/lifecycle@1001.0.0
+  - @pnpm/calc-dep-state@1001.0.0
+  - @pnpm/get-context@1001.0.0
+  - @pnpm/lockfile.walker@1001.0.0
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/cli-utils@1000.0.1
+  - @pnpm/store-connection-manager@1000.0.1
+  - @pnpm/error@1000.0.1
+  - @pnpm/store.cafs@1000.0.1
+  - @pnpm/workspace.find-packages@1000.0.1
+  - @pnpm/link-bins@1000.0.1
+  - @pnpm/worker@1000.0.1
+
 ## 13.0.0
 
 ### Major Changes
