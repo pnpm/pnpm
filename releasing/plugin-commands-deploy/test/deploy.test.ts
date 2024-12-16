@@ -423,6 +423,7 @@ test('deploy with a shared lockfile and --prod filter should not fail even if de
       .filter(name => !name.startsWith('.'))
       .sort()
   ).toStrictEqual(['prod-1'])
+
   const prod1Name = fs.readdirSync('deploy/node_modules/.pnpm').filter(name => name.includes('prod-1@'))
   expect(prod1Name).toBeDefined()
   expect(fs.readdirSync(`deploy/node_modules/.pnpm/${prod1Name}/node_modules`).sort()).toStrictEqual(['is-positive', 'prod-1'])
