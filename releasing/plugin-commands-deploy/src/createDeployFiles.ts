@@ -3,7 +3,7 @@ import url from 'url'
 import pick from 'ramda/src/pick'
 import {
   type DirectoryResolution,
-  type Lockfile,
+  type LockfileObject,
   type PackageSnapshot,
   type PackageSnapshots,
   type ProjectSnapshot,
@@ -38,14 +38,14 @@ export type DeployManifest = Pick<ProjectManifest, typeof INHERITED_MANIFEST_KEY
 
 export interface CreateDeployFilesOptions {
   allProjects: Array<Pick<Project, 'manifest' | 'rootDirRealPath'>>
-  lockfile: Lockfile
+  lockfile: LockfileObject
   lockfileDir: string
   manifest: DeployManifest
   projectId: ProjectId
 }
 
 export interface DeployFiles {
-  lockfile: Lockfile
+  lockfile: LockfileObject
   manifest: DeployManifest
 }
 
