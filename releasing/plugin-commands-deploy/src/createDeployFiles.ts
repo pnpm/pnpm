@@ -74,7 +74,8 @@ export function createDeployFiles ({
     if (importerPath === projectId) continue
     const projectSnapshot = lockfile.importers[importerPath as ProjectId]
     const importerRealPath = path.resolve(lockfileDir, importerPath) as ProjectRootDirRealPath
-    const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, importerRealPath, allProjects)
+    const deployedProjectRealPath = path.resolve(lockfileDir, projectId) as ProjectRootDirRealPath
+    const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, importerRealPath, allProjects, deployedProjectRealPath)
     const depPath = createFileUrlDepPath(importerRealPath, allProjects)
     targetPackageSnapshots[depPath] = packageSnapshot
   }
@@ -117,14 +118,15 @@ export function createDeployFiles ({
 function convertProjectSnapshotToPackageSnapshot (
   projectSnapshot: ProjectSnapshot,
   importerRealPath: string,
-  allProjects: CreateDeployFilesOptions['allProjects']
+  allProjects: CreateDeployFilesOptions['allProjects'],
+  deployedProjectRealPath: ProjectRootDirRealPath
 ): PackageSnapshot {
   const resolution: DirectoryResolution = {
     type: 'directory',
     directory: '.',
   }
-  const dependencies = convertResolvedDependencies(projectSnapshot.dependencies, importerRealPath, allProjects)
-  const optionalDependencies = convertResolvedDependencies(projectSnapshot.optionalDependencies, importerRealPath, allProjects)
+  const dependencies = convertResolvedDependencies(projectSnapshot.dependencies, importerRealPath, allProjects, deployedProjectRealPath)
+  const optionalDependencies = convertResolvedDependencies(projectSnapshot.optionalDependencies, importerRealPath, allProjects, deployedProjectRealPath)
   return {
     dependencies,
     optionalDependencies,
@@ -135,7 +137,8 @@ function convertProjectSnapshotToPackageSnapshot (
 function convertResolvedDependencies (
   input: ResolvedDependencies | undefined,
   importerRealPath: string,
-  allProjects: CreateDeployFilesOptions['allProjects']
+  allProjects: CreateDeployFilesOptions['allProjects'],
+  deployedProjectRealPath: ProjectRootDirRealPath
 ): ResolvedDependencies | undefined {
   if (!input) return undefined
   const output: ResolvedDependencies = {}
@@ -152,6 +155,11 @@ function convertResolvedDependencies (
     const depRealPath = path.resolve(importerRealPath, targetPath) as ProjectRootDirRealPath
     if (['', '.'].includes(path.relative(importerRealPath, depRealPath))) {
       output[key] = 'link:.'
+      continue
+    }
+
+    if (depRealPath === deployedProjectRealPath) {
+      output[key] = '../../..' // which is the deployed project location relative to the dependency dir within the virtual dir
       continue
     }
 
