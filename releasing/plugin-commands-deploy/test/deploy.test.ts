@@ -433,7 +433,7 @@ test('deploy with a shared lockfile and --prod filter should not fail even if de
   expect(fs.realpathSync('deploy/node_modules/prod-1')).toBe(path.resolve(`deploy/node_modules/.pnpm/${prod1Name}/node_modules/prod-1`))
 })
 
-test.only('deploy with a shared lockfile should correctly handle workspace dependencies that depend on the deployed project', async () => {
+test('deploy with a shared lockfile should correctly handle workspace dependencies that depend on the deployed project', async () => {
   preparePackages([
     {
       name: 'project-0',
