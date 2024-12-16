@@ -119,6 +119,7 @@ test('deploy with a shared lockfile after full install', async () => {
       dependencies: {
         'project-3': 'workspace:*',
         'project-4': 'workspace:*',
+        'renamed-project-2': 'workspace:project-2@*',
         'is-odd': '1.0.0',
       },
     },
@@ -217,7 +218,11 @@ test('deploy with a shared lockfile after full install', async () => {
       'project-2',
       'project-3',
       'project-4',
+      'renamed-project-2',
     ])
+    expect(fs.realpathSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/renamed-project-2`)).toBe(
+      path.resolve(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2`)
+    )
     const project3Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.startsWith('project-3@'))
     expect(project3Name).toBeDefined()
     expect(fs.realpathSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-3`)).toBe(

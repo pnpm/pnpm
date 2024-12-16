@@ -160,11 +160,6 @@ function convertResolvedDependencies (
       continue
     }
 
-    if (['', '.'].includes(path.relative(importerRealPath, depRealPath))) {
-      output[key] = 'link:.'
-      continue
-    }
-
     output[key] = createFileUrlDepPath(depRealPath, allProjects)
   }
 
