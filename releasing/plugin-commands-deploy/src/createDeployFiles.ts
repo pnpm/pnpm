@@ -56,6 +56,7 @@ export function createDeployFiles ({
   manifest,
   projectId,
 }: CreateDeployFilesOptions): DeployFiles {
+  const deployedProjectRealPath = path.resolve(lockfileDir, projectId) as ProjectRootDirRealPath
   const inputSnapshot = lockfile.importers[projectId]
 
   const targetSnapshot: ProjectSnapshot = {
@@ -74,7 +75,6 @@ export function createDeployFiles ({
     if (importerPath === projectId) continue
     const projectSnapshot = lockfile.importers[importerPath as ProjectId]
     const importerRealPath = path.resolve(lockfileDir, importerPath) as ProjectRootDirRealPath
-    const deployedProjectRealPath = path.resolve(lockfileDir, projectId) as ProjectRootDirRealPath
     const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, importerRealPath, allProjects, deployedProjectRealPath)
     const depPath = createFileUrlDepPath(importerRealPath, allProjects)
     targetPackageSnapshots[depPath] = packageSnapshot
