@@ -282,6 +282,7 @@ test('deploy with a shared lockfile after full install', async () => {
       'project-2',
       'project-3',
       'project-4',
+      'renamed-project-2',
     ])
     const project3Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.startsWith('project-3@'))
     expect(project3Name).toBeDefined()
