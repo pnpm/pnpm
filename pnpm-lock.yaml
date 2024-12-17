@@ -3846,6 +3846,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      is-windows:
+        specifier: 'catalog:'
+        version: 1.0.2
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
@@ -3856,6 +3859,9 @@ importers:
       '@pnpm/plugin-commands-doctor':
         specifier: workspace:*
         version: 'link:'
+      '@types/is-windows':
+        specifier: 'catalog:'
+        version: 1.0.2
 
   packages/plugin-commands-init:
     dependencies:
