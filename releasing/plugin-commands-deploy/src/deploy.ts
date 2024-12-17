@@ -157,17 +157,10 @@ async function deployFromSharedLockfile (
 ): Promise<string | undefined> {
   const { allProjects, lockfileDir, workspaceDir } = opts
 
-  if (!allProjects) {
-    return 'opts.allProjects is undefined. Falling back to installing without a lockfile.'
-  }
-
-  if (!lockfileDir) {
-    return 'opts.lockfileDir is undefined. Falling back to installing without a lockfile.'
-  }
-
-  if (!workspaceDir) {
-    return 'opts.workspaceDir is undefined. Falling back to installing without a lockfile.'
-  }
+  // The following errors should not be possible. It is a programmer error if they are reached.
+  if (!allProjects) throw new Error('opts.allProjects is undefined.')
+  if (!lockfileDir) throw new Error('opts.lockfileDir is undefined.')
+  if (!workspaceDir) throw new Error('opts.workspaceDir is undefined.')
 
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
   if (!lockfile) {
