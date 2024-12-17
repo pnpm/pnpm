@@ -1,3 +1,4 @@
+import { execSync } from 'child_process'
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, OUTPUT_OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
@@ -8,6 +9,8 @@ import { isCI } from 'ci-info'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { installDeps, type InstallDepsOptions } from './installDeps'
+import isWindows from 'is-windows'
+import { PnpmError } from '@pnpm/error'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -323,7 +326,19 @@ export type InstallCommandOptions = Pick<Config,
   confirmModulesPurge?: boolean
 } & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'useLockfile'>>
 
+// In Windows system exFAT drive, symlink will result in error.
+function currentDriveIsExFAT (dir: string): boolean {
+  const currentDrive = `${dir.split(':')[0]}:`
+  const output = execSync(`wmic logicaldisk where "DeviceID='${currentDrive}'" get FileSystem`).toString()
+  const lines = output.trim().split('\n')
+  const name = lines.length > 1 ? lines[1].trim() : ''
+  return name === 'exFAT'
+}
+
 export async function handler (opts: InstallCommandOptions): Promise<void> {
+  if (isWindows() && opts.nodeLinker !== 'hoisted' && currentDriveIsExFAT(opts.dir)) {
+    throw new PnpmError('FILESYSTEM', 'The current drive is exFAT, which does not support symlinks. This will cause installation to fail. You can set the node-linker to "hoisted" to avoid this issue.')
+  }
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,

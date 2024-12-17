@@ -5203,6 +5203,9 @@ importers:
       is-subdir:
         specifier: 'catalog:'
         version: 1.2.0
+      is-windows:
+        specifier: 'catalog:'
+        version: 1.0.2
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
@@ -5255,6 +5258,9 @@ importers:
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
+      '@types/is-windows':
+        specifier: 'catalog:'
+        version: 1.0.2
       '@types/proxyquire':
         specifier: 'catalog:'
         version: 1.3.31
