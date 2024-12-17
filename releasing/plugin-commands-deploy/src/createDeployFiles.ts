@@ -168,7 +168,7 @@ function convertResolvedDependencies (input: ResolvedDependencies | undefined, o
 
 function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): string | undefined {
   // try parsing `spec` as either @scope/name@pref or name@pref
-  const renamed = /^@(?<scope>[^@]+)\/(?<name>[^@]+)@(?<pref>.+)$/.exec(spec) ?? /^(?<name>[^@])+@(?<pref>.+)$/.exec(spec)
+  const renamed = /^@(?<scope>[^@]+)\/(?<name>[^@]+)@(?<pref>.+)$/.exec(spec) ?? /^(?<name>[^@]+)@(?<pref>.+)$/.exec(spec)
   if (renamed) return resolveLinkOrFile(renamed.groups!.pref, opts)
 
   const { lockfileDir, projectRootDirRealPath } = opts
