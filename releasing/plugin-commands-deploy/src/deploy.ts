@@ -27,7 +27,7 @@ export const commandNames = ['deploy']
 
 export function help (): string {
   return renderHelp({
-    description: 'Experimental! Deploy a package from a workspace',
+    description: 'Deploy a package from a workspace',
     url: docsUrl('deploy'),
     usages: ['pnpm --filter=<deployed project name> deploy <target directory>'],
     descriptionLists: [
