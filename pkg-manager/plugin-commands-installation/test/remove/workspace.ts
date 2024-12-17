@@ -67,7 +67,7 @@ test('pnpm remove --filter only changes the specified dependency, when run with 
     })
   }
 
-  // Anything left is still resolveable
+  // Anything left can still be resolved
   projects['project-1'].has('is-negative')
   projects['project-2'].has('project-1')
   projects['project-2'].hasNot('is-negative')
@@ -86,7 +86,7 @@ test('pnpm remove --filter only changes the specified dependency, when run with 
   })
 })
 
-test('pnpm remove from within package directory only affects the target depencency, when run with link-workspace-packages=false', async () => {
+test('pnpm remove from within package directory only affects the target dependency, when run with link-workspace-packages=false', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -147,7 +147,7 @@ test('pnpm remove from within package directory only affects the target depencen
     })
   }
 
-  // Anything left is still resolveable
+  // Anything left can still be resolved
   projects['project-1'].has('is-negative')
   projects['project-2'].has('project-1')
   projects['project-2'].hasNot('is-negative')
