@@ -19,7 +19,6 @@ import {
 } from '@pnpm/types'
 
 const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependencies'] as const satisfies DependenciesField[]
-const REPLACEABLE_PREFIXES = ['link:', 'file:'] as const
 
 const INHERITED_MANIFEST_KEYS = [
   'name',
