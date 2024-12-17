@@ -565,6 +565,8 @@ test('deploy with a shared lockfile should correctly handle package that depends
 
   const project = assertProject(path.resolve('deploy'))
   project.has('project-0')
+  project.has('renamed-workspace')
+  // project.has('renamed-linked')
 
   const lockfile = project.readLockfile()
   expect(lockfile.importers).toStrictEqual({
