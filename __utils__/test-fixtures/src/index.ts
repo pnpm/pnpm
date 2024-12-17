@@ -62,6 +62,8 @@ function findFixture (dir: string, name: string): string {
     if (fs.existsSync(checkDir)) return checkDir
     checkDir = path.join(dir, '__fixtures__', name)
     if (fs.existsSync(checkDir)) return checkDir
+    checkDir = path.join(dir, 'node_modules/@pnpm/tgz-fixtures/tgz', name)
+    if (fs.existsSync(checkDir)) return checkDir
     if (dir === root) throw new Error(`Local package "${name}" not found`)
     dir = path.dirname(dir)
   }
