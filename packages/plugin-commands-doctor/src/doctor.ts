@@ -3,6 +3,7 @@ import renderHelp from 'render-help'
 import { docsUrl } from '@pnpm/cli-utils'
 import { logger } from '@pnpm/logger'
 import { type Config } from '@pnpm/config'
+import isWindows from 'is-windows'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -22,20 +23,8 @@ export function help (): string {
   })
 }
 
-// In Windows system exFAT drive, symlink will result in error.
-function currentDriveIsExFAT (): boolean {
-  try {
-    const currentDrive = process.cwd().split(':')[0] + ':'
-    const output = execSync(`wmic logicaldisk where "DeviceID='${currentDrive}'" get FileSystem`).toString()
-    const lines = output.trim().split('\n')
-    const name = lines.length > 1 ? lines[1].trim() : ''
-    return name === 'exFAT'
-  } catch {}
-  return false
-}
-
 export async function handler (
-  opts: Pick<Config, 'failedToLoadBuiltInConfig' | 'nodeLinker'>
+  opts: Pick<Config, 'failedToLoadBuiltInConfig' | 'nodeLinker' | 'dir'>
 ): Promise<void> {
   const { failedToLoadBuiltInConfig, nodeLinker } = opts
   if (failedToLoadBuiltInConfig) {
@@ -45,11 +34,20 @@ export async function handler (
       prefix: process.cwd(),
     })
   }
-  if (nodeLinker !== 'hoisted' && currentDriveIsExFAT()) {
+  if (isWindows() && nodeLinker !== 'hoisted' && currentDriveIsExFAT(opts.dir)) {
     // If the node_modules is not hoisted, and the current drive is exFAT, then there may have a symlink error, related:
     logger.warn({
-      message: 'The current drive is exFAT, which does not support symlinks. This may cause some packages to fail to install. You can set the node-linker to "hoisted" to avoid this issue.',
+      message: 'The current drive is exFAT, which does not support symlinks. This will cause installation to fail. You can set the node-linker to "hoisted" to avoid this issue.',
       prefix: process.cwd(),
     })
   }
+}
+
+// In Windows system exFAT drive, symlink will result in error.
+function currentDriveIsExFAT (dir: string): boolean {
+  const currentDrive = `${dir.split(':')[0]}:`
+  const output = execSync(`wmic logicaldisk where "DeviceID='${currentDrive}'" get FileSystem`).toString()
+  const lines = output.trim().split('\n')
+  const name = lines.length > 1 ? lines[1].trim() : ''
+  return name === 'exFAT'
 }

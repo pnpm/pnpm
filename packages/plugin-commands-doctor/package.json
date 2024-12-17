@@ -32,6 +32,7 @@
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
+    "is-windows": "catalog:",
     "render-help": "catalog:"
   },
   "peerDependencies": {
@@ -39,7 +40,8 @@
   },
   "devDependencies": {
     "@pnpm/logger": "workspace:*",
-    "@pnpm/plugin-commands-doctor": "workspace:*"
+    "@pnpm/plugin-commands-doctor": "workspace:*",
+    "@types/is-windows": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
