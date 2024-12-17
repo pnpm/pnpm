@@ -74,9 +74,14 @@ export function createDeployFiles ({
   for (const importerPath in lockfile.importers) {
     if (importerPath === projectId) continue
     const projectSnapshot = lockfile.importers[importerPath as ProjectId]
-    const importerRealPath = path.resolve(lockfileDir, importerPath) as ProjectRootDirRealPath
-    const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, importerRealPath, allProjects, deployedProjectRealPath)
-    const depPath = createFileUrlDepPath(importerRealPath, allProjects)
+    const projectRootDirRealPath = path.resolve(lockfileDir, importerPath) as ProjectRootDirRealPath
+    const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, {
+      allProjects,
+      lockfileDir,
+      deployedProjectRealPath,
+      projectRootDirRealPath,
+    })
+    const depPath = createFileUrlDepPath(projectRootDirRealPath, allProjects)
     targetPackageSnapshots[depPath] = packageSnapshot
   }
 
@@ -86,16 +91,18 @@ export function createDeployFiles ({
     const inputDependencies = inputSnapshot[field] ?? {}
     for (const name in inputDependencies) {
       const spec = inputDependencies[name]
-      const splitPrefixResult = splitPrefix(spec)
-      if (!splitPrefixResult) {
+      const targetRealPath = resolveLinkOrFile(spec, {
+        lockfileDir,
+        projectRootDirRealPath: path.resolve(lockfileDir, projectId),
+      })
+
+      if (!targetRealPath) {
         targetSpecifiers[name] = targetDependencies[name] = spec
         continue
       }
 
-      const { targetPath } = splitPrefixResult
-      const targetRealPath = path.resolve(lockfileDir, projectId, targetPath) as ProjectRootDirRealPath // importer IDs are relative to its project dir
       targetSpecifiers[name] = targetDependencies[name] =
-        targetRealPath === deployedProjectRealPath ? 'link:.' : createFileUrlDepPath(targetRealPath, allProjects)
+        targetRealPath === deployedProjectRealPath ? 'link:.' : createFileUrlDepPath(targetRealPath as ProjectRootDirRealPath, allProjects)
     }
   }
 
@@ -116,18 +123,20 @@ export function createDeployFiles ({
   }
 }
 
-function convertProjectSnapshotToPackageSnapshot (
-  projectSnapshot: ProjectSnapshot,
-  importerRealPath: string,
-  allProjects: CreateDeployFilesOptions['allProjects'],
+interface ConvertOptions {
+  allProjects: CreateDeployFilesOptions['allProjects']
   deployedProjectRealPath: ProjectRootDirRealPath
-): PackageSnapshot {
+  projectRootDirRealPath: string
+  lockfileDir: string
+}
+
+function convertProjectSnapshotToPackageSnapshot (projectSnapshot: ProjectSnapshot, opts: ConvertOptions): PackageSnapshot {
   const resolution: DirectoryResolution = {
     type: 'directory',
     directory: '.',
   }
-  const dependencies = convertResolvedDependencies(projectSnapshot.dependencies, importerRealPath, allProjects, deployedProjectRealPath)
-  const optionalDependencies = convertResolvedDependencies(projectSnapshot.optionalDependencies, importerRealPath, allProjects, deployedProjectRealPath)
+  const dependencies = convertResolvedDependencies(projectSnapshot.dependencies, opts)
+  const optionalDependencies = convertResolvedDependencies(projectSnapshot.optionalDependencies, opts)
   return {
     dependencies,
     optionalDependencies,
@@ -135,47 +144,47 @@ function convertProjectSnapshotToPackageSnapshot (
   }
 }
 
-function convertResolvedDependencies (
-  input: ResolvedDependencies | undefined,
-  importerRealPath: string,
-  allProjects: CreateDeployFilesOptions['allProjects'],
-  deployedProjectRealPath: ProjectRootDirRealPath
-): ResolvedDependencies | undefined {
+function convertResolvedDependencies (input: ResolvedDependencies | undefined, opts: ConvertOptions): ResolvedDependencies | undefined {
   if (!input) return undefined
   const output: ResolvedDependencies = {}
 
   for (const key in input) {
     const spec = input[key]
-    const splitPrefixResult = splitPrefix(spec)
-    if (!splitPrefixResult) {
+    const depRealPath = resolveLinkOrFile(spec, opts)
+    if (!depRealPath) {
       output[key] = spec
       continue
     }
 
-    const { targetPath } = splitPrefixResult
-    const depRealPath = path.resolve(importerRealPath, targetPath) as ProjectRootDirRealPath
-
-    if (depRealPath === deployedProjectRealPath) {
+    if (depRealPath === opts.deployedProjectRealPath) {
       output[key] = 'link:.' // the path is relative to the lockfile dir, which means '.' would reference the deploy dir
       continue
     }
 
-    output[key] = createFileUrlDepPath(depRealPath, allProjects)
+    output[key] = createFileUrlDepPath(depRealPath as ProjectRootDirRealPath, opts.allProjects)
   }
 
   return output
 }
 
-interface SplitPrefixResult {
-  prefix: typeof REPLACEABLE_PREFIXES[number]
-  targetPath: string
-}
+function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): string | undefined {
+  // try parsing `spec` as either @scope/name@pref or name@pref
+  const renamed = /^@(?<scope>[^@]+)\/(?<name>[^@]+)@(?<pref>.+)$/.exec(spec) ?? /^(?<name>[^@])+@(?<pref>.+)$/.exec(spec)
+  if (renamed) return resolveLinkOrFile(renamed.groups!.pref, opts)
 
-function splitPrefix (spec: string): SplitPrefixResult | undefined {
-  const prefix = REPLACEABLE_PREFIXES.find(prefix => spec.startsWith(prefix))
-  if (!prefix) return undefined
-  const targetPath = spec.slice(prefix.length)
-  return { prefix, targetPath }
+  const { lockfileDir, projectRootDirRealPath } = opts
+
+  if (spec.startsWith('link:')) {
+    const targetPath = spec.slice('link:'.length)
+    return path.resolve(projectRootDirRealPath, targetPath)
+  }
+
+  if (spec.startsWith('file:')) {
+    const targetPath = spec.slice('file:'.length)
+    return path.resolve(lockfileDir, targetPath)
+  }
+
+  return undefined
 }
 
 function createFileUrlDepPath (

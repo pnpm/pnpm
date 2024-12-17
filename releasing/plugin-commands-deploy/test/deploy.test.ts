@@ -526,10 +526,8 @@ test('deploy with a shared lockfile should correctly handle package that depends
       private: true,
       dependencies: {
         'project-0': 'workspace:*',
-        // NOTE: there is an inexplicable bug in which 'renamed-workspace' and 'renamed-linked' cannot exist simultaneously
-        // TODO: fix this bug
         'renamed-workspace': 'workspace:project-0@*',
-        // 'renamed-linked': 'link:.',
+        'renamed-linked': 'link:.',
       },
     },
   ])
@@ -566,7 +564,7 @@ test('deploy with a shared lockfile should correctly handle package that depends
   const project = assertProject(path.resolve('deploy'))
   project.has('project-0')
   project.has('renamed-workspace')
-  // project.has('renamed-linked')
+  project.has('renamed-linked')
 
   const lockfile = project.readLockfile()
   expect(lockfile.importers).toStrictEqual({
@@ -580,10 +578,10 @@ test('deploy with a shared lockfile should correctly handle package that depends
           version: 'link:.',
           specifier: 'link:.',
         },
-        // 'renamed-linked': {
-        //   version: 'link:.',
-        //   specifier: 'link:.',
-        // },
+        'renamed-linked': {
+          version: 'link:.',
+          specifier: 'link:.',
+        },
       },
     },
   } as LockfileFile['importers'])
@@ -596,7 +594,7 @@ test('deploy with a shared lockfile should correctly handle package that depends
     dependencies: {
       'project-0': 'link:.',
       'renamed-workspace': 'link:.',
-      // 'renamed-linked': 'link:.',
+      'renamed-linked': 'link:.',
     },
     devDependencies: {},
     optionalDependencies: {},
@@ -604,7 +602,7 @@ test('deploy with a shared lockfile should correctly handle package that depends
 
   expect(fs.realpathSync('deploy/node_modules/project-0')).toBe(path.resolve('deploy'))
   expect(fs.realpathSync('deploy/node_modules/renamed-workspace')).toBe(path.resolve('deploy'))
-  // expect(fs.realpathSync('deploy/node_modules/renamed-linked')).toBe(path.resolve('deploy'))
+  expect(fs.realpathSync('deploy/node_modules/renamed-linked')).toBe(path.resolve('deploy'))
 })
 
 test('deploy in workspace with shared-workspace-lockfile=false', async () => {
