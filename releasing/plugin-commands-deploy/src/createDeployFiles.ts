@@ -93,7 +93,7 @@ export function createDeployFiles ({
       const spec = inputDependencies[name]
       const targetRealPath = resolveLinkOrFile(spec, {
         lockfileDir,
-        projectRootDirRealPath: path.resolve(lockfileDir, projectId),
+        projectRootDirRealPath: path.resolve(lockfileDir, projectId) as ProjectRootDirRealPath,
       })
 
       if (!targetRealPath) {
@@ -126,7 +126,7 @@ export function createDeployFiles ({
 interface ConvertOptions {
   allProjects: CreateDeployFilesOptions['allProjects']
   deployedProjectRealPath: ProjectRootDirRealPath
-  projectRootDirRealPath: string
+  projectRootDirRealPath: ProjectRootDirRealPath
   lockfileDir: string
 }
 
