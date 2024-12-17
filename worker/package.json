@@ -42,12 +42,14 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
     "@rushstack/worker-pool": "catalog:",
+    "is-windows": "catalog:",
     "load-json-file": "catalog:"
   },
   "devDependencies": {
     "@pnpm/logger": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/worker": "workspace:*"
+    "@pnpm/worker": "workspace:*",
+    "@types/is-windows": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
