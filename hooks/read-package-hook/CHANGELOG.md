@@ -1,5 +1,12 @@
 # @pnpm/hooks.read-package-hook
 
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+- @pnpm/parse-overrides@1000.0.1
+
 ## 6.0.0
 
 ### Major Changes

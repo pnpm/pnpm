@@ -1,5 +1,11 @@
 # @pnpm/find-workspace-dir
 
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+
 ## 7.0.3
 
 ### Patch Changes

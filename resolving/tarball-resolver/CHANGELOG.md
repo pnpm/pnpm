@@ -1,5 +1,18 @@
 # @pnpm/tarball-resolver
 
+## 1001.0.0
+
+### Major Changes
+
+- b0f3c71: Dependencies specified via a URL are now recorded in the lockfile using their final resolved URL. Thus, if the original URL redirects, the final redirect target will be saved in the lockfile [#8833](https://github.com/pnpm/pnpm/issues/8833).
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+- Updated dependencies [b0f3c71]
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/fetching-types@1000.1.0
+
 ## 9.0.8
 
 ### Patch Changes

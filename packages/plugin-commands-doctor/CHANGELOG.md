@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-doctor
 
+## 1000.1.0
+
+### Minor Changes
+
+- 835b4e8: Symlink are not supported in the exFAT driver, and installation of dependencies will result in errors. The doctor command checks if the current drive is exFAT and gives a warning message.
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [ac5b9d8]
+- Updated dependencies [6483b64]
+  - @pnpm/config@1001.0.0
+  - @pnpm/cli-utils@1000.0.1
+
 ## 3.0.24
 
 ### Patch Changes

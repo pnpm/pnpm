@@ -1,5 +1,16 @@
 # @pnpm/fetch
 
+## 1000.1.0
+
+### Minor Changes
+
+- b0f3c71: The `fetch` function accepts a `method` option now.
+
+### Patch Changes
+
+- Updated dependencies [b0f3c71]
+  - @pnpm/fetching-types@1000.1.0
+
 ## 8.0.7
 
 ### Patch Changes

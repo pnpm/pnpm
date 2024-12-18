@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store-path",
-  "version": "1000.0.0",
+  "version": "1000.0.1",
   "description": "Resolves the pnpm store path",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

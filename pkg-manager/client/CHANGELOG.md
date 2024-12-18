@@ -1,5 +1,21 @@
 # @pnpm/client
 
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+- Updated dependencies [b0f3c71]
+- Updated dependencies [b0f3c71]
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/default-resolver@1001.0.0
+  - @pnpm/fetch@1000.1.0
+  - @pnpm/fetching-types@1000.1.0
+  - @pnpm/directory-fetcher@1000.0.1
+  - @pnpm/tarball-fetcher@1000.0.1
+  - @pnpm/network.auth-header@1000.0.1
+  - @pnpm/git-fetcher@1000.0.1
+
 ## 11.1.13
 
 ### Patch Changes

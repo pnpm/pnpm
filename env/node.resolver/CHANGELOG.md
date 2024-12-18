@@ -1,5 +1,13 @@
 # @pnpm/node.resolver
 
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [b0f3c71]
+  - @pnpm/fetching-types@1000.1.0
+  - @pnpm/node.fetcher@1000.0.1
+
 ## 3.0.17
 
 ### Patch Changes

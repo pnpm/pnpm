@@ -1,5 +1,34 @@
 # @pnpm/resolve-dependencies
 
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Minor Changes
+
+- 6483b64: A new setting, `inject-workspace-packages`, has been added to allow hard-linking all local workspace dependencies instead of symlinking them. Previously, this behavior was achievable via the [`dependenciesMeta[].injected`](https://pnpm.io/package_json#dependenciesmetainjected) setting, which remains supported [#8836](https://github.com/pnpm/pnpm/pull/8836).
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/npm-resolver@1000.1.0
+  - @pnpm/lockfile.types@1001.0.0
+  - @pnpm/lockfile.pruner@1001.0.0
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/lockfile.preferred-versions@1000.0.1
+  - @pnpm/catalogs.resolver@1000.0.1
+  - @pnpm/manifest-utils@1000.0.1
+  - @pnpm/read-package-json@1000.0.1
+
 ## 36.0.7
 
 ### Patch Changes

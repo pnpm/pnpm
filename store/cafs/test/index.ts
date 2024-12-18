@@ -2,18 +2,21 @@ import fs from 'fs'
 import path from 'path'
 import symlinkDir from 'symlink-dir'
 import tempy from 'tempy'
+import { fixtures } from '@pnpm/test-fixtures'
 import {
   createCafs,
   checkPkgFilesIntegrity,
   getFilePathByModeInCafs,
 } from '../src'
 
+const f = fixtures(__dirname)
+
 describe('cafs', () => {
   it('unpack', () => {
     const dest = tempy.directory()
     const cafs = createCafs(dest)
     const { filesIndex } = cafs.addFilesFromTarball(
-      fs.readFileSync(path.join(__dirname, '../__fixtures__/node-gyp-6.1.0.tgz'))
+      fs.readFileSync(f.find('node-gyp-6.1.0.tgz'))
     )
     expect(Object.keys(filesIndex)).toHaveLength(121)
     const pkgFile = filesIndex['package.json']
@@ -86,7 +89,7 @@ test('file names are normalized when unpacking a tarball', () => {
   const dest = tempy.directory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
-    fs.readFileSync(path.join(__dirname, 'fixtures/colorize-semver-diff.tgz'))
+    fs.readFileSync(f.find('colorize-semver-diff.tgz'))
   )
   expect(Object.keys(filesIndex).sort()).toStrictEqual([
     'LICENSE',
@@ -101,7 +104,7 @@ test('broken magic in tarball headers is handled gracefully', () => {
   const dest = tempy.directory()
   const cafs = createCafs(dest)
   cafs.addFilesFromTarball(
-    fs.readFileSync(path.join(__dirname, 'fixtures/jquery.dirtyforms-2.0.0.tgz'))
+    fs.readFileSync(f.find('jquery.dirtyforms-2.0.0.tgz'))
   )
 })
 
@@ -109,7 +112,7 @@ test('unpack an older version of tar that prefixes with spaces', () => {
   const dest = tempy.directory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
-    fs.readFileSync(path.join(__dirname, 'fixtures/parsers-3.0.0-rc.48.1.tgz'))
+    fs.readFileSync(f.find('parsers-3.0.0-rc.48.1.tgz'))
   )
   expect(Object.keys(filesIndex).sort()).toStrictEqual([
     'lib/grammars/resolution.d.ts',
@@ -137,7 +140,7 @@ test('unpack a tarball that contains hard links', () => {
   const dest = tempy.directory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
-    fs.readFileSync(path.join(__dirname, 'fixtures/vue.examples.todomvc.todo-store-0.0.1.tgz'))
+    fs.readFileSync(f.find('vue.examples.todomvc.todo-store-0.0.1.tgz'))
   )
   expect(Object.keys(filesIndex).length).toBeGreaterThan(0)
 })
@@ -147,7 +150,7 @@ test('unpack should not fail when the tarball format seems to be not USTAR or GN
   const dest = tempy.directory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
-    fs.readFileSync(path.join(__dirname, '../__fixtures__/devextreme-17.1.6.tgz'))
+    fs.readFileSync(f.find('devextreme-17.1.6.tgz'))
   )
   expect(Object.keys(filesIndex).length).toBeGreaterThan(0)
 })

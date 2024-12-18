@@ -1,5 +1,27 @@
 # @pnpm/config
 
+## 1001.0.0
+
+### Major Changes
+
+- ac5b9d8: All dependencies are installed even when the `NODE_ENV` environment variable is set to `production [#8827](https://github.com/pnpm/pnpm/issues/8827).
+
+### Minor Changes
+
+- 6483b64: A new setting, `inject-workspace-packages`, has been added to allow hard-linking all local workspace dependencies instead of symlinking them. Previously, this behavior was achievable via the [`dependenciesMeta[].injected`](https://pnpm.io/package_json#dependenciesmetainjected) setting, which remains supported [#8836](https://github.com/pnpm/pnpm/pull/8836).
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [d47c426]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/pnpmfile@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/workspace.read-manifest@1000.0.1
+  - @pnpm/catalogs.config@1000.0.1
+  - @pnpm/read-project-manifest@1000.0.1
+
 ## 22.0.0
 
 ### Major Changes

@@ -1,5 +1,12 @@
 # @pnpm/render-peer-issues
 
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+- @pnpm/parse-overrides@1000.0.1
+
 ## 5.0.10
 
 ### Patch Changes

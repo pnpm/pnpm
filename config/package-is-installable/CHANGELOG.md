@@ -1,5 +1,11 @@
 # @pnpm/package-is-installable
 
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+
 ## 9.0.12
 
 ### Patch Changes

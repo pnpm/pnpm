@@ -13,6 +13,7 @@ test('doctor', async () => {
   // In the scope of jest, require.resolve.paths('npm') cannot reach global npm path by default
   await doctor.handler({
     failedToLoadBuiltInConfig: true,
+    dir: process.cwd(),
   })
 
   expect(logger.warn).toHaveBeenCalledWith({

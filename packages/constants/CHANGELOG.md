@@ -1,5 +1,12 @@
 # @pnpm/constants
 
+## 1001.0.0
+
+### Major Changes
+
+- d2e83b0: Metadata directory version bumped to force fresh cache after we shipped a fix to the metadata write function. This change is backward compatible as install doesn't require a metadata cache.
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
 ## 10.0.0
 
 ### Major Changes
