@@ -5,6 +5,8 @@ import { type DirectoryResolution } from '@pnpm/resolver-base'
 import normalize from 'normalize-path'
 import { logger } from '@pnpm/logger'
 
+const TEST_DIR = path.dirname(require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-local-resolver-0.1.1.tgz'))
+
 test('resolve directory', async () => {
   const resolveResult = await resolveFromLocal({ pref: '..' }, { projectDir: __dirname })
   expect(resolveResult!.id).toEqual('link:..')
@@ -63,7 +65,7 @@ test('resolve directory specified using the link: protocol', async () => {
 
 test('resolve file', async () => {
   const wantedDependency = { pref: './pnpm-local-resolver-0.1.1.tgz' }
-  const resolveResult = await resolveFromLocal(wantedDependency, { projectDir: __dirname })
+  const resolveResult = await resolveFromLocal(wantedDependency, { projectDir: TEST_DIR })
 
   expect(resolveResult).toEqual({
     id: 'file:pnpm-local-resolver-0.1.1.tgz',
@@ -79,16 +81,16 @@ test('resolve file', async () => {
 test("resolve file when lockfile directory differs from the package's dir", async () => {
   const wantedDependency = { pref: './pnpm-local-resolver-0.1.1.tgz' }
   const resolveResult = await resolveFromLocal(wantedDependency, {
-    lockfileDir: path.join(__dirname, '..'),
-    projectDir: __dirname,
+    lockfileDir: path.join(TEST_DIR, '..'),
+    projectDir: TEST_DIR,
   })
 
   expect(resolveResult).toEqual({
-    id: 'file:test/pnpm-local-resolver-0.1.1.tgz',
+    id: 'file:tgz/pnpm-local-resolver-0.1.1.tgz',
     normalizedPref: 'file:pnpm-local-resolver-0.1.1.tgz',
     resolution: {
       integrity: 'sha512-UHd2zKRT/w70KKzFlj4qcT81A1Q0H7NM9uKxLzIZ/VZqJXzt5Hnnp2PYPb5Ezq/hAamoYKIn5g7fuv69kP258w==',
-      tarball: 'file:test/pnpm-local-resolver-0.1.1.tgz',
+      tarball: 'file:tgz/pnpm-local-resolver-0.1.1.tgz',
     },
     resolvedVia: 'local-filesystem',
   })
@@ -96,7 +98,7 @@ test("resolve file when lockfile directory differs from the package's dir", asyn
 
 test('resolve tarball specified with file: protocol', async () => {
   const wantedDependency = { pref: 'file:./pnpm-local-resolver-0.1.1.tgz' }
-  const resolveResult = await resolveFromLocal(wantedDependency, { projectDir: __dirname })
+  const resolveResult = await resolveFromLocal(wantedDependency, { projectDir: TEST_DIR })
 
   expect(resolveResult).toEqual({
     id: 'file:pnpm-local-resolver-0.1.1.tgz',
@@ -112,7 +114,7 @@ test('resolve tarball specified with file: protocol', async () => {
 test('fail when resolving tarball specified with the link: protocol', async () => {
   try {
     const wantedDependency = { pref: 'link:./pnpm-local-resolver-0.1.1.tgz' }
-    await resolveFromLocal(wantedDependency, { projectDir: __dirname })
+    await resolveFromLocal(wantedDependency, { projectDir: TEST_DIR })
     fail()
   } catch (err: any) { // eslint-disable-line
     expect(err).toBeDefined()

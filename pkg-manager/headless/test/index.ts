@@ -472,6 +472,7 @@ test('available packages are relinked during forced install', async () => {
 
 test('installing local dependency', async () => {
   let prefix = f.prepare('has-local-dep')
+  f.copy('tar-pkg-1.0.0.tgz', path.join(prefix, 'tar-pkg-1.0.0.tgz'))
   prefix = path.join(prefix, 'pkg')
   const reporter = sinon.spy()
 

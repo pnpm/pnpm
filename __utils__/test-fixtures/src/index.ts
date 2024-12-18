@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { tempDir } from '@pnpm/prepare'
+import { tempDir } from '@pnpm/prepare-temp-dir'
 
 export interface FixturesHandle {
   copy: (name: string, dest: string) => void
@@ -61,6 +61,8 @@ function findFixture (dir: string, name: string): string {
     let checkDir = path.join(dir, 'fixtures', name)
     if (fs.existsSync(checkDir)) return checkDir
     checkDir = path.join(dir, '__fixtures__', name)
+    if (fs.existsSync(checkDir)) return checkDir
+    checkDir = path.join(dir, 'node_modules/@pnpm/tgz-fixtures/tgz', name)
     if (fs.existsSync(checkDir)) return checkDir
     if (dir === root) throw new Error(`Local package "${name}" not found`)
     dir = path.dirname(dir)

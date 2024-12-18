@@ -28,7 +28,7 @@ test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async () => {
 test('local tarball with bundledDependencies', async () => {
   const project = prepareEmpty()
 
-  f.copy('pkg-with-bundled-dependencies/pkg-with-bundled-dependencies-1.0.0.tgz', 'pkg.tgz')
+  f.copy('pkg-with-bundled-dependencies-1.0.0.tgz', 'pkg.tgz')
   await addDependenciesToPackage({}, ['file:pkg.tgz'], testDefaults({ fastUnpack: false }))
 
   const lockfile = project.readLockfile()
@@ -45,7 +45,7 @@ test('local tarball with bundledDependencies', async () => {
 test('local tarball with bundledDependencies true', async () => {
   const project = prepareEmpty()
 
-  f.copy('pkg-with-bundle-dependencies-true/pkg-with-bundle-dependencies-true-1.0.0.tgz', 'pkg.tgz')
+  f.copy('pkg-with-bundle-dependencies-true-1.0.0.tgz', 'pkg.tgz')
   await addDependenciesToPackage({}, ['file:pkg.tgz'], testDefaults({ fastUnpack: false }))
 
   const lockfile = project.readLockfile()

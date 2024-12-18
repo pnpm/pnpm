@@ -29,6 +29,7 @@
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/is-gzip": "catalog:",
     "@types/node": "catalog:",

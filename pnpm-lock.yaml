@@ -720,6 +720,9 @@ importers:
       '@pnpm/meta-updater':
         specifier: 'catalog:'
         version: 2.0.3
+      '@pnpm/tgz-fixtures':
+        specifier: 0.0.0
+        version: 0.0.0
       '@pnpm/tsconfig':
         specifier: workspace:*
         version: link:__utils__/tsconfig
@@ -972,6 +975,9 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../assert-project
+      '@pnpm/prepare-temp-dir':
+        specifier: workspace:*
+        version: link:../prepare-temp-dir
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -986,6 +992,15 @@ importers:
         version: 5.0.0
     devDependencies:
       '@pnpm/prepare':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/node':
+        specifier: 'catalog:'
+        version: 18.19.34
+
+  __utils__/prepare-temp-dir:
+    devDependencies:
+      '@pnpm/prepare-temp-dir':
         specifier: workspace:*
         version: 'link:'
       '@types/node':
@@ -1025,9 +1040,9 @@ importers:
 
   __utils__/test-fixtures:
     dependencies:
-      '@pnpm/prepare':
+      '@pnpm/prepare-temp-dir':
         specifier: workspace:*
-        version: link:../prepare
+        version: link:../prepare-temp-dir
       fs-extra:
         specifier: 'catalog:'
         version: 11.2.0
@@ -7060,6 +7075,9 @@ importers:
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -9090,6 +9108,9 @@ packages:
   '@pnpm/text.comments-parser@3.0.0':
     resolution: {integrity: sha512-BSGvYd59kPKVTUk1InekEp+TiPnJ8650/bQyiOUFSvqHi61YipcR+E4H2i3xTnk2e+GHdGbXvEtAZbQmyxb0/g==}
     engines: {node: '>=18.12'}
+
+  '@pnpm/tgz-fixtures@0.0.0':
+    resolution: {integrity: sha512-6YlfA/aWpeYbX9ADtSv3kKJYjTUE8rXw3gKzLPuO8hc4S7fP6sZwQXaYP7uwyWieU45TR3u0V/g8esQQYZrGMA==}
 
   '@pnpm/types@11.1.0':
     resolution: {integrity: sha512-wnlOhu7hjv9/qsf2cbK0YqpaV9c4LS69Utxd+r8hq/GWhyrOHcM1QOlfQb0Mzci0q4DDgB8VXT4dhBnEBL4c5g==}
@@ -16065,6 +16086,8 @@ snapshots:
   '@pnpm/text.comments-parser@3.0.0':
     dependencies:
       strip-comments-strings: 1.2.0
+
+  '@pnpm/tgz-fixtures@0.0.0': {}
 
   '@pnpm/types@11.1.0': {}
 

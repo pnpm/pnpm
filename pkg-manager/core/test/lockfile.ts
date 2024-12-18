@@ -1062,7 +1062,7 @@ const REGISTRY_MIRROR_DIR = path.join(__dirname, './registry-mirror')
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const isPositiveMeta = loadJsonFile.sync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-positive.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
-const tarballPath = path.join(REGISTRY_MIRROR_DIR, 'is-positive-3.1.0.tgz')
+const tarballPath = f.find('is-positive-3.1.0.tgz')
 
 test('tarball domain differs from registry domain', async () => {
   nock('https://registry.example.com', { allowUnmocked: true })
