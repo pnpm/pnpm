@@ -975,6 +975,9 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../assert-project
+      '@pnpm/prepare-temp-dir':
+        specifier: workspace:*
+        version: link:../prepare-temp-dir
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -989,6 +992,15 @@ importers:
         version: 5.0.0
     devDependencies:
       '@pnpm/prepare':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/node':
+        specifier: 'catalog:'
+        version: 18.19.34
+
+  __utils__/prepare-temp-dir:
+    devDependencies:
+      '@pnpm/prepare-temp-dir':
         specifier: workspace:*
         version: 'link:'
       '@types/node':
@@ -1028,9 +1040,9 @@ importers:
 
   __utils__/test-fixtures:
     dependencies:
-      '@pnpm/prepare':
+      '@pnpm/prepare-temp-dir':
         specifier: workspace:*
-        version: link:../prepare
+        version: link:../prepare-temp-dir
       fs-extra:
         specifier: 'catalog:'
         version: 11.2.0
