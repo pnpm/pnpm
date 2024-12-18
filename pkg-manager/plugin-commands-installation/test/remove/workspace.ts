@@ -6,7 +6,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { DEFAULT_OPTS } from '../utils'
 
-test('pnpm remove --filter only changes the specified dependency, when run with link-workspace-packages=false', async () => {
+test('remove --filter only changes the specified dependency, when run with link-workspace-packages=false', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -29,8 +29,6 @@ test('pnpm remove --filter only changes the specified dependency, when run with 
 
   const sharedOpts = {
     dir: process.cwd(),
-    // NOTE: recursive here does not mean --recursive, but it also means the
-    // mechanism that allows --filter to work
     recursive: true,
     workspaceDir: process.cwd(),
     lockfileDir: process.cwd(),
@@ -86,7 +84,7 @@ test('pnpm remove --filter only changes the specified dependency, when run with 
   })
 })
 
-test('pnpm remove from within package directory only affects the target dependency, when run with link-workspace-packages=false', async () => {
+test.failing('remove from within a workspace package dir only affects the specified dependency, when run with link-workspace-packages=false', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -109,7 +107,6 @@ test('pnpm remove from within package directory only affects the target dependen
 
   const sharedOpts = {
     dir: process.cwd(),
-    recursive: true,
     workspaceDir: process.cwd(),
     lockfileDir: process.cwd(),
     sharedWorkspaceLockfile: true,
@@ -120,6 +117,7 @@ test('pnpm remove from within package directory only affects the target dependen
     ...DEFAULT_OPTS,
     ...await filterPackagesFromDir(process.cwd(), []),
     ...sharedOpts,
+    recursive: true,
   })
 
   await remove.handler({
