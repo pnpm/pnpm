@@ -19,12 +19,14 @@ import normalizePath from 'normalize-path'
 import { createDeployFiles } from './createDeployFiles'
 import { deployCatalogHook } from './deployCatalogHook'
 
+const FORCE_LEGACY_DEPLOY = 'force-legacy-deploy' satisfies keyof typeof configTypes
+
 export const shorthands = {
   ...install.shorthands,
-  legacy: ['--config.force-legacy-deploy=true'],
+  legacy: [`--config.${FORCE_LEGACY_DEPLOY}=true`],
 }
 
-const DEPLOY_OWN_OPTIONS = pick(['force-legacy-deploy'], configTypes)
+const DEPLOY_OWN_OPTIONS = pick([FORCE_LEGACY_DEPLOY], configTypes)
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {
@@ -206,33 +208,39 @@ async function deployFromSharedLockfile (
     writeWantedLockfile(deployDir, deployFiles.lockfile),
   ])
 
-  await install.handler({
-    ...opts,
-    allProjects: undefined,
-    allProjectsGraph: undefined,
-    selectedProjectsGraph: undefined,
-    rootProjectManifest: deployFiles.manifest,
-    rootProjectManifestDir: deployDir,
-    dir: deployDir,
-    lockfileDir: deployDir,
-    workspaceDir: undefined,
-    virtualStoreDir: undefined,
-    modulesDir: undefined,
-    confirmModulesPurge: false,
-    frozenLockfile: true,
-    hooks: {
-      ...opts.hooks,
-      readPackage: [
-        ...(opts.hooks?.readPackage ?? []),
-        deployHook,
-        deployCatalogHook.bind(null, opts.catalogs ?? {}),
-      ],
-    },
-    rawLocalConfig: {
-      ...opts.rawLocalConfig,
-      'frozen-lockfile': true,
-    },
-  })
+  try {
+    await install.handler({
+      ...opts,
+      allProjects: undefined,
+      allProjectsGraph: undefined,
+      selectedProjectsGraph: undefined,
+      rootProjectManifest: deployFiles.manifest,
+      rootProjectManifestDir: deployDir,
+      dir: deployDir,
+      lockfileDir: deployDir,
+      workspaceDir: undefined,
+      virtualStoreDir: undefined,
+      modulesDir: undefined,
+      confirmModulesPurge: false,
+      frozenLockfile: true,
+      hooks: {
+        ...opts.hooks,
+        readPackage: [
+          ...(opts.hooks?.readPackage ?? []),
+          deployHook,
+          deployCatalogHook.bind(null, opts.catalogs ?? {}),
+        ],
+      },
+      rawLocalConfig: {
+        ...opts.rawLocalConfig,
+        'frozen-lockfile': true,
+      },
+    })
+  } catch (error) {
+    globalWarn('Deployment with a shared lockfile has failed. If this is a bug, please report it at <https://github.com/pnpm/pnpm/issues>.')
+    globalWarn(`As a workaround, you may add ${FORCE_LEGACY_DEPLOY}=true to .npmrc.`)
+    throw error
+  }
 
   return undefined
 }
