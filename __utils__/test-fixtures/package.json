@@ -32,7 +32,7 @@
     "prepublishOnly": "pnpm run compile"
   },
   "dependencies": {
-    "@pnpm/prepare": "workspace:*",
+    "@pnpm/prepare-temp-dir": "workspace:*",
     "fs-extra": "catalog:"
   },
   "devDependencies": {

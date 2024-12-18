@@ -39,6 +39,7 @@
     "@pnpm/eslint-config": "workspace:*",
     "@pnpm/jest-config": "workspace:*",
     "@pnpm/meta-updater": "catalog:",
+    "@pnpm/tgz-fixtures": "0.0.0",
     "@pnpm/tsconfig": "workspace:*",
     "@types/jest": "^29.5.12",
     "@types/node": "catalog:",

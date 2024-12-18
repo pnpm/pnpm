@@ -5,6 +5,7 @@
   "types": "lib/index.d.ts",
   "dependencies": {
     "@pnpm/assert-project": "workspace:*",
+    "@pnpm/prepare-temp-dir": "workspace:*",
     "@pnpm/types": "workspace:*",
     "write-json5-file": "^3.1.0",
     "write-pkg": "catalog:",

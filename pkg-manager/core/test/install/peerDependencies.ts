@@ -1176,7 +1176,7 @@ test('local tarball dependency with peer dependency', async () => {
   const reporter = sinon.spy()
 
   const manifest = await addDependenciesToPackage({}, [
-    `file:${f.find('tar-pkg-with-peers/tar-pkg-with-peers-1.0.0.tgz')}`,
+    `file:${f.find('tar-pkg-with-peers-1.0.0.tgz')}`,
     'bar@npm:@pnpm.e2e/bar@100.0.0',
     'foo@npm:@pnpm.e2e/foo@100.0.0',
   ], testDefaults({ reporter }))
