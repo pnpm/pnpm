@@ -1,5 +1,11 @@
 # @pnpm/audit
 
+## 1001.0.1
+
+### Patch Changes
+
+- @pnpm/list@1000.0.2
+
 ## 1001.0.0
 
 ### Major Changes

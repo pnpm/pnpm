@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-store
 
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/get-context@1001.0.1
+
 ## 1000.0.1
 
 ### Patch Changes

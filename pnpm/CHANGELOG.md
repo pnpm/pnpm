@@ -6,12 +6,14 @@
 
 - **`pnpm link` behavior updated**:
   The `pnpm link` command now adds overrides to the root `package.json`.
+
   - In a workspace: The override is added to the root of the workspace, linking the dependency to all projects in the workspace.
   - Global linking: To link a package globally, run `pnpm link` from the package’s directory. Previously, you needed to use `pnpm link -g`.
-  Related PR: [#8653](https://github.com/pnpm/pnpm/pull/8653)
+    Related PR: [#8653](https://github.com/pnpm/pnpm/pull/8653)
 
 - **Secure hashing with SHA256**:
   Various hashing algorithms have been updated to SHA256 for enhanced security and consistency:
+
   - Long paths inside `node_modules/.pnpm` are now hashed with SHA256.
   - Long peer dependency hashes in the lockfile now use SHA256 instead of MD5. (This affects very few users since these are only used for long keys.)
   - The hash stored in the `packageExtensionsChecksum` field of `pnpm-lock.yaml` is now SHA256.
@@ -34,10 +36,11 @@
 
 - **Improved store indexing**:
   Index files in the store now reference both the content hash and package identifier, allowing:
+
   1. Validation that the lockfile’s integrity matches the intended package (helpful after resolving Git conflicts).
   2. Multiple packages or versions with the same content to co-exist in the store.
-  Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
-  Related Issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
+     Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
+     Related Issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
 
 - **More efficient side effects indexing**:
   The structure of index files in the store has changed. Side effects are now tracked more efficiently by listing only file differences rather than all files.
@@ -52,6 +55,7 @@
 
 - **Store version bump to v10**:
   The store layout has changed:
+
   - A new `index` directory stores package content mappings.
   - Previously, these files were in `files`.
   - The new store format includes a new structure for side-effects cache mappings.
@@ -82,12 +86,13 @@
 
 - **New `verify-deps-before-run` setting**:
   This setting controls how `pnpm` checks `node_modules` before running scripts:
+
   - `install`: Automatically run `pnpm install` if `node_modules` is outdated.
   - `warn`: Print a warning if `node_modules` is outdated.
   - `prompt`: Prompt the user to confirm running `pnpm install` if `node_modules` is outdated.
   - `error`: Throw an error if `node_modules` is outdated.
   - `false`: Disable dependency checks.
-  Related Issue: [#8585](https://github.com/pnpm/pnpm/issues/8585)
+    Related Issue: [#8585](https://github.com/pnpm/pnpm/issues/8585)
 
 - **New `inject-workspace-packages` setting**:
   Enables hard-linking all local workspace dependencies instead of symlinking them. Previously, this could be achieved using [`dependenciesMeta[].injected`](https://pnpm.io/package_json#dependenciesmetainjected), which remains supported.
