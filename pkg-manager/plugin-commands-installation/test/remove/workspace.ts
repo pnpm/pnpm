@@ -84,7 +84,7 @@ test('remove --filter only changes the specified dependency, when run with link-
   })
 })
 
-test.failing('remove from within a workspace package dir only affects the specified dependency, when run with link-workspace-packages=false', async () => {
+test('remove from within a workspace package dir only affects the specified dependency, when run with link-workspace-packages=false', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
