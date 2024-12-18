@@ -1,6 +1,8 @@
 import fs from 'fs'
 import path from 'path'
+import pick from 'ramda/src/pick'
 import { docsUrl } from '@pnpm/cli-utils'
+import { type Config, types as configTypes } from '@pnpm/config'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
@@ -17,14 +19,25 @@ import normalizePath from 'normalize-path'
 import { createDeployFiles } from './createDeployFiles'
 import { deployCatalogHook } from './deployCatalogHook'
 
-export const shorthands = install.shorthands
+export const shorthands = {
+  ...install.shorthands,
+  legacy: ['--config.force-legacy-deploy=true'],
+}
+
+const DEPLOY_OWN_OPTIONS = pick(['force-legacy-deploy'], configTypes)
 
 export function rcOptionsTypes (): Record<string, unknown> {
-  return install.rcOptionsTypes()
+  return {
+    ...install.rcOptionsTypes(),
+    ...DEPLOY_OWN_OPTIONS,
+  }
 }
 
 export function cliOptionsTypes (): Record<string, unknown> {
-  return install.cliOptionsTypes()
+  return {
+    ...install.cliOptionsTypes(),
+    ...DEPLOY_OWN_OPTIONS,
+  }
 }
 
 export const commandNames = ['deploy']
@@ -52,6 +65,10 @@ export function help (): string {
             description: '`optionalDependencies` are not installed',
             name: '--no-optional',
           },
+          {
+            description: 'Force legacy deploy implementation',
+            name: '--legacy',
+          },
         ],
       },
       FILTERING,
@@ -59,7 +76,9 @@ export function help (): string {
   })
 }
 
-export type DeployOptions = Omit<install.InstallCommandOptions, 'useLockfile'>
+export type DeployOptions =
+  & Omit<install.InstallCommandOptions, 'useLockfile'>
+  & Pick<Config, 'forceLegacyDeploy'>
 
 export async function handler (opts: DeployOptions, params: string[]): Promise<void> {
   if (!opts.workspaceDir) {
@@ -96,7 +115,9 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   await copyProject(selectedProject.rootDir, deployDir, { includeOnlyPackageFiles })
 
   if (opts.sharedWorkspaceLockfile) {
-    const warning = await deployFromSharedLockfile(opts, selectedProject, deployDir)
+    const warning = opts.forceLegacyDeploy
+      ? 'Shared workspace lockfile detected but configuration forces legacy deploy implementation.'
+      : await deployFromSharedLockfile(opts, selectedProject, deployDir)
     if (warning) {
       globalWarn(warning)
     } else {
