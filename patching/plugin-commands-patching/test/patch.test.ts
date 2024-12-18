@@ -656,7 +656,7 @@ describe('prompt to choose version', () => {
   beforeEach(() => {
     prepare({
       dependencies: {
-        ava: '5.2.0',
+        '@pnpm.e2e/requires-chalk-530': '1.0.0',
         chalk: '4.1.2',
       },
     })
@@ -734,7 +734,7 @@ describe('prompt to choose version', () => {
     const patchContent = fs.readFileSync('patches/chalk@5.3.0.patch', 'utf8')
     expect(patchContent).toContain('diff --git')
     expect(patchContent).toContain('// test patching')
-    expect(fs.readFileSync('node_modules/.pnpm/ava@5.2.0/node_modules/chalk/source/index.js', 'utf8')).toContain('// test patching')
+    expect(fs.readFileSync('node_modules/.pnpm/@pnpm.e2e+requires-chalk-530@1.0.0/node_modules/chalk/source/index.js', 'utf8')).toContain('// test patching')
   })
 
   test('prompt to choose version if multiple versions found for patched package, apply to all', async () => {
@@ -801,7 +801,7 @@ describe('prompt to choose version', () => {
     const patchContent = fs.readFileSync('patches/chalk.patch', 'utf8')
     expect(patchContent).toContain('diff --git')
     expect(patchContent).toContain('// test patching')
-    expect(fs.readFileSync('node_modules/.pnpm/ava@5.2.0/node_modules/chalk/source/index.js', 'utf8')).toContain('// test patching')
+    expect(fs.readFileSync('node_modules/.pnpm/@pnpm.e2e+requires-chalk-530@1.0.0/node_modules/chalk/source/index.js', 'utf8')).toContain('// test patching')
   })
 })
 
