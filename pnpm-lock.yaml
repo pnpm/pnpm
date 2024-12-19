@@ -7728,6 +7728,9 @@ importers:
       '@rushstack/worker-pool':
         specifier: 'catalog:'
         version: 0.4.9(@types/node@22.5.3)
+      is-windows:
+        specifier: 'catalog:'
+        version: 1.0.2
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
@@ -7741,6 +7744,9 @@ importers:
       '@pnpm/worker':
         specifier: workspace:*
         version: 'link:'
+      '@types/is-windows':
+        specifier: 'catalog:'
+        version: 1.0.2
 
   workspace/filter-packages-from-dir:
     dependencies:
