@@ -174,6 +174,7 @@ export async function handler (
   const store = await createOrConnectStoreController(opts)
   const removeOpts = Object.assign(opts, {
     ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
+    linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     storeController: store.ctrl,
     storeDir: store.dir,
     include,
