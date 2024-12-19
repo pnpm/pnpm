@@ -114,6 +114,9 @@ catalogs:
     '@types/node':
       specifier: ^18.19.34
       version: 18.19.34
+    '@types/node-fetch':
+      specifier: ^2.6.12
+      version: 2.6.12
     '@types/normalize-package-data':
       specifier: ^2.4.4
       version: 2.4.4
@@ -3666,6 +3669,9 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@types/node-fetch':
+        specifier: 'catalog:'
+        version: 2.6.12
       https-proxy-server-express:
         specifier: 'catalog:'
         version: 0.1.2
@@ -3685,6 +3691,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: 'link:'
+      '@types/node-fetch':
+        specifier: 'catalog:'
+        version: 2.6.12
 
   packages/calc-dep-state:
     dependencies:
@@ -9336,6 +9345,9 @@ packages:
   '@types/minimist@1.2.5':
     resolution: {integrity: sha512-hov8bUuiLiyFPGyFPE1lwWhmzYbirOXQNNo40+y3zow8aFVTeyn3VWL0VFFfdNddA8S4Vf0Tc062rzyNr7Paag==}
 
+  '@types/node-fetch@2.6.12':
+    resolution: {integrity: sha512-8nneRWKCg3rMtF69nLQJnOYUcbafYeFSjqkw3jCRLsqkWFlHaoQrr5mXmofFGOx3DKn7UfmBMyov8ySvLRVldA==}
+
   '@types/node@12.20.55':
     resolution: {integrity: sha512-J8xLz7q2OFulZ2cyGTLE1TbbZcjpno7FaN6zdJNrgAdrJ+DZzh/uFR6YrTb4C+nXakvud8Q4+rbhoIWlYQbUFQ==}
 
@@ -11118,6 +11130,10 @@ packages:
   form-data@2.3.3:
     resolution: {integrity: sha512-1lLKB2Mu3aGP1Q/2eCOx0fNbRMe7XdwktwOruhfqqd0rIJWwN4Dh+E3hrPSlDCXnSR7UtZ1N38rVXm+6+MEhJQ==}
     engines: {node: '>= 0.12'}
+
+  form-data@4.0.1:
+    resolution: {integrity: sha512-tzN8e4TX8+kkxGPK8D5u0FNmjPUjw3lwC9lSLxxoB/+GtsJG91CO8bSWy73APlgAZzZbXEYZJuxjkHH2w+Ezhw==}
+    engines: {node: '>= 6'}
 
   forwarded@0.2.0:
     resolution: {integrity: sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==}
@@ -16361,6 +16377,11 @@ snapshots:
 
   '@types/minimist@1.2.5': {}
 
+  '@types/node-fetch@2.6.12':
+    dependencies:
+      '@types/node': 22.5.3
+      form-data: 4.0.1
+
   '@types/node@12.20.55': {}
 
   '@types/node@18.19.34':
@@ -18549,6 +18570,12 @@ snapshots:
   forever-agent@0.6.1: {}
 
   form-data@2.3.3:
+    dependencies:
+      asynckit: 0.4.0
+      combined-stream: 1.0.8
+      mime-types: 2.1.35
+
+  form-data@4.0.1:
     dependencies:
       asynckit: 0.4.0
       combined-stream: 1.0.8
