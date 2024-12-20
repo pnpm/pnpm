@@ -1635,6 +1635,7 @@ function getResolvedPackage (
 function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {
   if ((pkg.peerDependencies == null) && (pkg.peerDependenciesMeta == null)) return {}
   const ownDeps = new Set([
+    pkg.name,
     ...Object.keys(pkg.dependencies ?? {}),
     ...Object.keys(pkg.optionalDependencies ?? {}),
   ])
