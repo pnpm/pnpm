@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-patching
 
+## 900.0.3
+
+### Patch Changes
+
+- Updated dependencies [9daa9d0]
+  - @pnpm/plugin-commands-installation@900.0.3
+
 ## 900.0.2
 
 ### Patch Changes

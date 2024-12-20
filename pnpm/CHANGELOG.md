@@ -1,5 +1,12 @@
 # pnpm
 
+## 9.15.1
+
+### Patch Changes
+
+- `pnpm remove` should not link dependencies from the workspace, when `link-workspace-packages` is set to `false` [#7674](https://github.com/pnpm/pnpm/issues/7674).
+- Installation with hoisted `node_modules` should not fail, when a dependency has itself in its own peer dependencies [#8854](https://github.com/pnpm/pnpm/issues/8854).
+
 ## 9.15.0
 
 ### Minor Changes

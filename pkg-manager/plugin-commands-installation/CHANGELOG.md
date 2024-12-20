@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-installation
 
+## 900.0.3
+
+### Patch Changes
+
+- 9daa9d0: `pnpm remove` should not link dependencies from the workspace, when `link-workspace-packages` is set to `false` [#7674](https://github.com/pnpm/pnpm/issues/7674).
+  - @pnpm/core@900.0.3
+
 ## 900.0.2
 
 ### Patch Changes

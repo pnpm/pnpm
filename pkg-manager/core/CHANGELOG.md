@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 900.0.3
+
+### Patch Changes
+
+- Updated dependencies [93ab530]
+  - @pnpm/resolve-dependencies@900.0.3
+
 ## 900.0.2
 
 ### Patch Changes

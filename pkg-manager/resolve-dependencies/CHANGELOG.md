@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 900.0.3
+
+### Patch Changes
+
+- 93ab530: Installation with hoisted node_modules should not fail, when a dependency has itself in its own peer dependencies [#8854](https://github.com/pnpm/pnpm/issues/8854).
+
 ## 900.0.2
 
 ### Patch Changes
