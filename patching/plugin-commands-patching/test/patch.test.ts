@@ -1327,7 +1327,7 @@ describe('patch-remove', () => {
 })
 
 function getPatchDirFromPatchOutput (output: string): string {
-  const match = output.match(/'([^']+)'/)
+  const match = output.match(/['"]([^'"]+)['"]/)
   if (match?.[1] == null) throw new Error('No path in output')
   return match[1]
 }

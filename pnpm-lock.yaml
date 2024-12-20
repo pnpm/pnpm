@@ -4096,6 +4096,9 @@ importers:
       fast-glob:
         specifier: 'catalog:'
         version: 3.3.2
+      is-windows:
+        specifier: 'catalog:'
+        version: 1.0.2
       make-empty-dir:
         specifier: 'catalog:'
         version: 3.0.2
@@ -4142,6 +4145,9 @@ importers:
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
+      '@types/is-windows':
+        specifier: 'catalog:'
+        version: 1.0.2
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
