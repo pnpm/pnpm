@@ -33,7 +33,7 @@ const INHERITED_MANIFEST_KEYS = [
   'peerDependenciesMeta',
 ] as const satisfies Array<keyof ProjectManifest>
 
-export type DeployManifest = Pick<ProjectManifest, typeof INHERITED_MANIFEST_KEYS[number] | DependenciesField>
+export type DeployManifest = Pick<ProjectManifest, typeof INHERITED_MANIFEST_KEYS[number] | DependenciesField | 'pnpm'>
 
 export interface CreateDeployFilesOptions {
   allProjects: Array<Pick<Project, 'manifest' | 'rootDirRealPath'>>
@@ -41,6 +41,7 @@ export interface CreateDeployFilesOptions {
   lockfileDir: string
   manifest: DeployManifest
   projectId: ProjectId
+  rootProjectManifest?: Pick<ProjectManifest, 'pnpm'>
 }
 
 export interface DeployFiles {
@@ -54,6 +55,7 @@ export function createDeployFiles ({
   lockfileDir,
   manifest,
   projectId,
+  rootProjectManifest,
 }: CreateDeployFilesOptions): DeployFiles {
   const deployedProjectRealPath = path.resolve(lockfileDir, projectId) as ProjectRootDirRealPath
   const inputSnapshot = lockfile.importers[projectId]
@@ -105,9 +107,19 @@ export function createDeployFiles ({
     }
   }
 
-  return {
+  const overrides = convertResolvedDependencies(lockfile.overrides, {
+    allProjects,
+    deployedProjectRealPath,
+    lockfileDir,
+    projectRootDirRealPath: path.resolve(lockfileDir) as ProjectRootDirRealPath,
+  })
+
+  const result: DeployFiles = {
     lockfile: {
       ...lockfile,
+      overrides,
+      patchedDependencies: undefined,
+      packageExtensionsChecksum: lockfile.packageExtensionsChecksum, // TODO: does packageExtensions work with `link:`, `file:`, and `workspace:`?
       importers: {
         ['.' as ProjectId]: targetSnapshot,
       },
@@ -118,8 +130,31 @@ export function createDeployFiles ({
       dependencies: targetSnapshot.dependencies,
       devDependencies: targetSnapshot.devDependencies,
       optionalDependencies: targetSnapshot.optionalDependencies,
+      pnpm: {
+        ...manifest.pnpm,
+        overrides,
+        patchedDependencies: undefined,
+        packageExtensions: rootProjectManifest?.pnpm?.packageExtensions, // TODO: does packageExtensions work with `link:`, `file:`, and `workspace:`?
+      },
     },
   }
+
+  if (lockfile.patchedDependencies) {
+    result.lockfile.patchedDependencies = {}
+    result.manifest.pnpm!.patchedDependencies = {}
+
+    for (const name in lockfile.patchedDependencies) {
+      const patchInfo = lockfile.patchedDependencies[name]
+      const resolvedPath = path.resolve(lockfileDir, patchInfo.path)
+      result.manifest.pnpm!.patchedDependencies[name] = resolvedPath
+      result.lockfile.patchedDependencies[name] = {
+        hash: patchInfo.hash,
+        path: resolvedPath,
+      }
+    }
+  }
+
+  return result
 }
 
 interface ConvertOptions {

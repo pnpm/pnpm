@@ -178,7 +178,12 @@ async function deployFromSharedLockfile (
   },
   deployDir: string
 ): Promise<string | undefined> {
-  const { allProjects, lockfileDir, workspaceDir } = opts
+  const {
+    allProjects,
+    lockfileDir,
+    rootProjectManifest,
+    workspaceDir,
+  } = opts
 
   // The following errors should not be possible. It is a programmer error if they are reached.
   if (!allProjects) throw new Error('opts.allProjects is undefined.')
@@ -198,6 +203,7 @@ async function deployFromSharedLockfile (
     lockfileDir,
     manifest: selectedProject.manifest,
     projectId,
+    rootProjectManifest,
   })
 
   await Promise.all([
