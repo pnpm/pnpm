@@ -18,6 +18,7 @@ import { getEditDirPath } from './getEditDirPath'
 import { getPatchedDependency } from './getPatchedDependency'
 import { writeEditDirState } from './stateFile'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import isWindows from 'is-windows'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -122,13 +123,16 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
       })
     }
   }
+
+  const quote = isWindows() ? '"' : "'"
+
   return `Patch: You can now edit the package at:
 
   ${terminalLink(chalk.blue(editDir), 'file://' + editDir)}
 
 To commit your changes, run:
 
-  ${chalk.green(`pnpm patch-commit '${editDir}'`)}
+  ${chalk.green(`pnpm patch-commit ${quote}${editDir}${quote}`)}
 
 `
 }
