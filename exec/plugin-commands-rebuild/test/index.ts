@@ -375,7 +375,11 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
 })
 
 test('never build neverBuiltDependencies', async () => {
-  const project = prepare()
+  const project = prepare({
+    pnpm: {
+      neverBuiltDependencies: [],
+    },
+  })
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 

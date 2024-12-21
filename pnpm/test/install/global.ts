@@ -74,7 +74,9 @@ test('run lifecycle events of global packages in correct working directory', asy
   prepare()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
-  fs.mkdirSync(global)
+  const globalPkgDir = path.join(pnpmHome, 'global', String(LAYOUT_VERSION))
+  fs.mkdirSync(globalPkgDir, { recursive: true })
+  fs.writeFileSync(path.join(globalPkgDir, 'package.json'), JSON.stringify({ pnpm: { neverBuiltDependencies: [] } }))
 
   const env = {
     [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]!}`,
@@ -84,7 +86,7 @@ test('run lifecycle events of global packages in correct working directory', asy
 
   await execPnpm(['install', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
 
-  expect(fs.existsSync(path.join(global, `pnpm/global/${LAYOUT_VERSION}/node_modules/@pnpm.e2e/postinstall-calls-pnpm/created-by-postinstall`))).toBeTruthy()
+  expect(fs.existsSync(path.join(globalPkgDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm/created-by-postinstall'))).toBeTruthy()
 })
 
 test('global update to latest', async () => {
