@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+  },
+  "devDependencies": {
+    "@pnpm.e2e/has-foo-100.1.0-dep-1": "^1.0.0",
+    "@pnpm.e2e/has-foo-100.0.0-range-dep": "^1.0.0"
+  }
+}
