@@ -932,8 +932,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   } = await resolveDependencies(
     projects,
     {
-      // In the next major allow build should be just () => true here always
-      allowBuild: opts.onlyBuiltDependenciesFile ? () => true : createAllowBuildFunction({ onlyBuiltDependencies: opts.onlyBuiltDependencies, neverBuiltDependencies: opts.neverBuiltDependencies }),
       allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
       allowNonAppliedPatches: opts.allowNonAppliedPatches,
       autoInstallPeers: opts.autoInstallPeers,
