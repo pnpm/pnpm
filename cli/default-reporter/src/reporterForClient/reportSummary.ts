@@ -89,7 +89,7 @@ export function reportSummary (
           msg += EOL
           msg += `The following dependencies have build scripts that were ignored: ${Array.from(ignoredScripts.packageNames).sort().join(', ')}`
           msg += EOL
-          msg += 'To allow the execution of build scripts for these packages, add their names to "pnpm.onlyBuiltDependencies" in your package.json'
+          msg += 'To allow the execution of build scripts for these packages, add their names to "pnpm.onlyBuiltDependencies" in your "package.json", then run "pnpm rebuild"'
           msg += EOL
         }
         return Rx.of({ msg })
