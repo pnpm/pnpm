@@ -60,7 +60,7 @@ export function help (): string {
             name: '--json',
           },
           {
-            description: 'Custom filename for the tarball. By default, it is the name of the package and its version concatenated with a dash, e.g `foo-1.2.3.tgz`.',
+            description: 'Custom filename for the tarball. By default, it is the name of the package and its version concatenated with a dash, e.g `my-package-1.2.3.tgz`. Use `%s` and `%v` in the filename to interpolate the package name and version, respectively, e.g. `%s-%v.tgz`.',
             name: '--filename <filename>',
           },
         ],
@@ -129,13 +129,14 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     throw new PnpmError('PACKAGE_VERSION_NOT_FOUND', `Package version is not defined in the ${manifestFileName}.`)
   }
   let tarballName: string
+  const normalizedName = manifest.name.replace('@', '').replace('/', '-')
   if (opts.filename) {
-    tarballName = opts.filename
+    tarballName = opts.filename.replace('%s', normalizedName).replace('%v', manifest.version)
     if (path.basename(tarballName) !== tarballName) {
       throw new PnpmError('INVALID_FILENAME', 'Filename should not contain path specifiers. For specifying the directory where the tarball should be saved, use the --pack-destination option.')
     }
   } else {
-    tarballName = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
+    tarballName = `${normalizedName}-${manifest.version}.tgz`
   }
   const publishManifest = await createPublishManifest({
     projectDir: dir,

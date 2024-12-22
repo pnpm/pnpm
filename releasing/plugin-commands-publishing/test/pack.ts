@@ -101,16 +101,40 @@ test('pack: package with custom tarball name', async () => {
     version: '0.0.0',
   })
 
-  await pack.handler({
+  const generateHandlerConfig = (filename: string) => ({
     ...DEFAULT_OPTS,
     argv: { original: [] },
     dir: process.cwd(),
     extraBinPaths: [],
-    filename: 'custom-name.tgz',
+    filename,
   })
 
-  expect(fs.existsSync('custom-name.tgz')).toBeTruthy()
   expect(fs.existsSync('package.json')).toBeTruthy()
+
+  const cases = [
+    {
+      actual: 'custom-name.tgz',
+      expected: 'custom-name.tgz',
+    },
+    {
+      actual: '%s.tgz',
+      expected: 'test-publish-package.tgz',
+    },
+    {
+      actual: 'custom-name-%v.tgz',
+      expected: 'custom-name-0.0.0.tgz',
+    },
+    {
+      actual: '%s-%v.tgz',
+      expected: 'test-publish-package-0.0.0.tgz',
+    },
+  ]
+
+  for (const { actual, expected } of cases) {
+    // eslint-disable-next-line no-await-in-loop
+    await pack.handler(generateHandlerConfig(actual))
+    expect(fs.existsSync(expected)).toBeTruthy()
+  }
 })
 
 test('pack: path specifiers in the tarball name', async () => {
