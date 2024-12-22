@@ -95,23 +95,15 @@ test('pack when there is bundledDependencies but without node-linker=hoisted', a
   })
 })
 
-test('pack: package with custom tarball name', async () => {
-  prepare({
-    name: 'test-publish-package.json',
-    version: '0.0.0',
+describe('pack: package with custom tarball name', () => {
+  beforeAll(() => {
+    prepare({
+      name: 'test-publish-package',
+      version: '0.0.0',
+    })
   })
 
-  const generateHandlerConfig = (filename: string) => ({
-    ...DEFAULT_OPTS,
-    argv: { original: [] },
-    dir: process.cwd(),
-    extraBinPaths: [],
-    filename,
-  })
-
-  expect(fs.existsSync('package.json')).toBeTruthy()
-
-  const cases = [
+  test.each([
     {
       actual: 'custom-name.tgz',
       expected: 'custom-name.tgz',
@@ -128,29 +120,32 @@ test('pack: package with custom tarball name', async () => {
       actual: '%s-%v.tgz',
       expected: 'test-publish-package-0.0.0.tgz',
     },
-  ]
+  ])('should pack $actual as $expected', async ({ actual, expected }) => {
+    await pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: process.cwd(),
+      extraBinPaths: [],
+      filename: actual,
+    })
 
-  for (const { actual, expected } of cases) {
-    // eslint-disable-next-line no-await-in-loop
-    await pack.handler(generateHandlerConfig(actual))
     expect(fs.existsSync(expected)).toBeTruthy()
-  }
+  })
 })
 
-test('pack: path specifiers in the tarball name', async () => {
-  prepare({
-    name: 'test-publish-package.json',
-    version: '0.0.0',
+describe('pack: path specifiers in the tarball name', () => {
+  beforeAll(() => {
+    prepare({
+      name: 'test-publish-package',
+      version: '0.0.0',
+    })
   })
 
-  const cases = [
+  test.each([
     './custom-name.tgz',
     '../custom-name.tgz',
     '/home/user/custom-name.tgz',
-  ]
-
-  for (const filename of cases) {
-    // eslint-disable-next-line no-await-in-loop
+  ])('should throw on %s', async (filename) => {
     await expect(pack.handler({
       ...DEFAULT_OPTS,
       argv: { original: [] },
@@ -158,7 +153,7 @@ test('pack: path specifiers in the tarball name', async () => {
       extraBinPaths: [],
       filename,
     })).rejects.toThrow('Filename should not contain path specifiers. For specifying the directory where the tarball should be saved, use the --pack-destination option.')
-  }
+  })
 })
 
 test('pack a package without package name', async () => {
