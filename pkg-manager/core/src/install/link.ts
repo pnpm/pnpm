@@ -44,6 +44,7 @@ import { type ImporterToUpdate } from './index'
 const brokenModulesLogger = logger('_broken_node_modules')
 
 export interface LinkPackagesOptions {
+  allowBuild?: (pkgName: string) => boolean
   currentLockfile: LockfileObject
   dedupeDirectDeps: boolean
   dependenciesByProjectId: Record<string, Map<string, DepPath>>
@@ -148,6 +149,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     newCurrentLockfile,
     depGraph,
     {
+      allowBuild: opts.allowBuild,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       force: opts.force,
       depsStateCache: opts.depsStateCache,
@@ -314,6 +316,7 @@ function resolvePath (where: string, spec: string): string {
 }
 
 interface LinkNewPackagesOptions {
+  allowBuild?: (pkgName: string) => boolean
   depsStateCache: DepsStateCache
   disableRelinkLocalDirDeps?: boolean
   force: boolean
@@ -445,6 +448,7 @@ async function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
+    allowBuild?: (pkgName: string) => boolean
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
@@ -461,10 +465,12 @@ async function linkAllPkgs (
       depNode.requiresBuild = files.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && files.sideEffects && !isEmpty(files.sideEffects)) {
-        sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
-          isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
-          patchFileHash: depNode.patch?.file.hash,
-        })
+        if (opts?.allowBuild?.(depNode.name) !== false) {
+          sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
+            isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
+            patchFileHash: depNode.patch?.file.hash,
+          })
+        }
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,

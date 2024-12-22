@@ -74,12 +74,10 @@ export async function buildModules<T extends string> (
     }
 
     return chunk.map((depPath) =>
-      async () => {
-        return buildDependency(depPath, depGraph, {
-          ...buildDepOpts,
-          ignoreScripts: Boolean(buildDepOpts.ignoreScripts) || !allowBuild(depGraph[depPath].name),
-        })
-      }
+      () => buildDependency(depPath, depGraph, {
+        ...buildDepOpts,
+        ignoreScripts: Boolean(buildDepOpts.ignoreScripts) || !allowBuild(depGraph[depPath].name),
+      })
     )
   })
   await runGroups(opts.childConcurrency ?? 4, groups)
