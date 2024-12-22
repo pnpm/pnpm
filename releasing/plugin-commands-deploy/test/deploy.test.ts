@@ -178,6 +178,7 @@ test('deploy with a shared lockfile after full install', async () => {
       'is-negative': '1.0.0',
     },
     optionalDependencies: {},
+    pnpm: {},
   }
 
   // deploy prod only
@@ -427,6 +428,7 @@ test('deploy with a shared lockfile and --prod filter should not fail even if de
       'is-negative': '1.0.0',
     },
     optionalDependencies: {},
+    pnpm: {},
   } as ProjectManifest)
 
   const prod1Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.includes('prod-1@'))
@@ -509,6 +511,7 @@ test('deploy with a shared lockfile should correctly handle workspace dependenci
     },
     devDependencies: {},
     optionalDependencies: {},
+    pnpm: {},
   } as ProjectManifest)
 
   const project1Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.includes('project-1@'))
@@ -598,6 +601,7 @@ test('deploy with a shared lockfile should correctly handle package that depends
     },
     devDependencies: {},
     optionalDependencies: {},
+    pnpm: {},
   } as ProjectManifest)
 
   expect(fs.realpathSync('deploy/node_modules/project-0')).toBe(path.resolve('deploy'))
