@@ -95,6 +95,48 @@ test('pack when there is bundledDependencies but without node-linker=hoisted', a
   })
 })
 
+test('pack: package with custom tarball name', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+  })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    filename: 'custom-name.tgz',
+  })
+
+  expect(fs.existsSync('custom-name.tgz')).toBeTruthy()
+  expect(fs.existsSync('package.json')).toBeTruthy()
+})
+
+test('pack: path specifiers in the tarball name', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+  })
+
+  const cases = [
+    './custom-name.tgz',
+    '../custom-name.tgz',
+    '/home/user/custom-name.tgz',
+  ]
+
+  for (const filename of cases) {
+    // eslint-disable-next-line no-await-in-loop
+    await expect(pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: process.cwd(),
+      extraBinPaths: [],
+      filename,
+    })).rejects.toThrow('Filename should not contain path specifiers. For specifying the directory where the tarball should be saved, use the --pack-destination option.')
+  }
+})
+
 test('pack a package without package name', async () => {
   prepare({
     name: undefined,

@@ -32,6 +32,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     'pack-destination': String,
+    filename: String,
     ...pick([
       'pack-gzip-level',
       'json',
@@ -58,6 +59,10 @@ export function help (): string {
             description: 'Prints the packed tarball and contents in the json format.',
             name: '--json',
           },
+          {
+            description: 'Custom filename for the tarball. By default, it is the name of the package and its version concatenated with a dash, e.g `foo-1.2.3.tgz`.',
+            name: '--filename <filename>',
+          },
         ],
       },
     ],
@@ -70,6 +75,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
   }
   engineStrict?: boolean
   packDestination?: string
+  filename?: string
   workspaceDir?: string
   json?: boolean
 }
@@ -122,7 +128,15 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   if (!manifest.version) {
     throw new PnpmError('PACKAGE_VERSION_NOT_FOUND', `Package version is not defined in the ${manifestFileName}.`)
   }
-  const tarballName = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
+  let tarballName: string
+  if (opts.filename) {
+    tarballName = opts.filename
+    if (path.basename(tarballName) !== tarballName) {
+      throw new PnpmError('INVALID_FILENAME', 'Filename should not contain path specifiers. For specifying the directory where the tarball should be saved, use the --pack-destination option.')
+    }
+  } else {
+    tarballName = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
+  }
   const publishManifest = await createPublishManifest({
     projectDir: dir,
     modulesDir: path.join(opts.dir, 'node_modules'),
