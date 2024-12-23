@@ -1027,11 +1027,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
   let stats: InstallationResultStats | undefined
+  const allowBuild = createAllowBuildFunction(opts)
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,
       dependenciesGraph,
       {
+        allowBuild,
         currentLockfile: ctx.currentLockfile,
         dedupeDirectDeps: opts.dedupeDirectDeps,
         dependenciesByProjectId,
@@ -1081,6 +1083,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     ctx.pendingBuilds = ctx.pendingBuilds
       .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
 
+    let ignoredPkgs: string[] | undefined
     if (result.newDepPaths?.length) {
       if (opts.ignoreScripts) {
         // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
@@ -1101,8 +1104,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
           }
         }
-        await buildModules(dependenciesGraph, rootNodes, {
-          allowBuild: createAllowBuildFunction(opts),
+        ignoredPkgs = (await buildModules(dependenciesGraph, rootNodes, {
+          allowBuild,
           childConcurrency: opts.childConcurrency,
           depsStateCache,
           depsToBuild: new Set(result.newDepPaths),
@@ -1122,7 +1125,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           storeController: opts.storeController,
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
-        })
+        })).ignoredPkgs
       }
     }
 
@@ -1234,6 +1237,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           hoistPattern: ctx.hoistPattern,
           included: ctx.include,
           injectedDeps,
+          ignoredBuilds: ignoredPkgs ?? [],
           layoutVersion: LAYOUT_VERSION,
           nodeLinker: opts.nodeLinker,
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,

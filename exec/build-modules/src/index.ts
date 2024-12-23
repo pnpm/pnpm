@@ -44,7 +44,7 @@ export async function buildModules<T extends string> (
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
   }
-): Promise<void> {
+): Promise<{ ignoredPkgs: string[] }> {
   const warn = (message: string) => {
     logger.warn({ message, prefix: opts.lockfileDir })
   }
@@ -74,16 +74,16 @@ export async function buildModules<T extends string> (
     }
 
     return chunk.map((depPath) =>
-      async () => {
-        return buildDependency(depPath, depGraph, {
-          ...buildDepOpts,
-          ignoreScripts: Boolean(buildDepOpts.ignoreScripts) || !allowBuild(depGraph[depPath].name),
-        })
-      }
+      () => buildDependency(depPath, depGraph, {
+        ...buildDepOpts,
+        ignoreScripts: Boolean(buildDepOpts.ignoreScripts) || !allowBuild(depGraph[depPath].name),
+      })
     )
   })
   await runGroups(opts.childConcurrency ?? 4, groups)
-  ignoredScriptsLogger.debug({ packageNames: Array.from(ignoredPkgs) })
+  const packageNames = Array.from(ignoredPkgs)
+  ignoredScriptsLogger.debug({ packageNames })
+  return { ignoredPkgs: packageNames }
 }
 
 async function buildDependency<T extends string> (
