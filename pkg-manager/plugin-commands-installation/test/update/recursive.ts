@@ -447,7 +447,7 @@ test('recursive update with aliased workspace dependency (#7975)', async () => {
   expect(manifest).toHaveProperty(['dependencies', 'pkg'], 'workspace:project-2@^')
 })
 
-test.failing('update --filter only changes the specified dependency for the specified workspace package, with dedupe-peer-dependents=true', async () => {
+test('update --filter only changes the specified dependency for the specified workspace package, with dedupe-peer-dependents=true', async () => {
   await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
 

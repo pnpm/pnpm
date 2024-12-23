@@ -92,7 +92,7 @@ auto-install-peers=false`, 'utf8')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/8877
-test.failing('partial update --latest in a workspace should not affect other packages when dedupe-peer-dependents is true', async () => {
+test('partial update --latest in a workspace should not affect other packages when dedupe-peer-dependents is true', async () => {
   await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
 
