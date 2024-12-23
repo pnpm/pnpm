@@ -123,7 +123,7 @@ export function createDeployFiles ({
       ...lockfile,
       overrides,
       patchedDependencies: undefined,
-      packageExtensionsChecksum: undefined, // if package extensions exist, if should already be merged with the package snapshots
+      packageExtensionsChecksum: undefined, // the result of the package extensions should already be part of the package snapshots
       pnpmfileChecksum: undefined, // the result of the pnpmfile should already be part of the package snapshots
       importers: {
         ['.' as ProjectId]: targetSnapshot,
@@ -139,7 +139,7 @@ export function createDeployFiles ({
         ...manifest.pnpm,
         overrides,
         patchedDependencies: undefined,
-        packageExtensions: undefined, // if package extensions exist, if should already be merged with the package snapshots
+        packageExtensions: undefined, // the result of the package extensions should already be part of the package snapshots
       },
     },
   }
