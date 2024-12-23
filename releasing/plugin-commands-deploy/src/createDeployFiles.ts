@@ -124,6 +124,7 @@ export function createDeployFiles ({
       overrides,
       patchedDependencies: undefined,
       packageExtensionsChecksum: undefined, // if package extensions exist, if should already be merged with the package snapshots
+      pnpmfileChecksum: undefined, // the result of the pnpmfile should already be part of the package snapshots
       importers: {
         ['.' as ProjectId]: targetSnapshot,
       },
