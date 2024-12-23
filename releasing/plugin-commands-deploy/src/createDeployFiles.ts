@@ -114,12 +114,16 @@ export function createDeployFiles ({
     projectRootDirRealPath: path.resolve(lockfileDir) as ProjectRootDirRealPath,
   })
 
+  // TODO:
+  //   If packageExtensions is defined, there is a possibility that it contains `link:`, `file:`, `workspace:`.
+  //   The package snapshots should be processed.
+
   const result: DeployFiles = {
     lockfile: {
       ...lockfile,
       overrides,
       patchedDependencies: undefined,
-      packageExtensionsChecksum: lockfile.packageExtensionsChecksum, // TODO: does packageExtensions work with `link:`, `file:`, and `workspace:`?
+      packageExtensionsChecksum: undefined, // if package extensions exist, if should already be merged with the package snapshots
       importers: {
         ['.' as ProjectId]: targetSnapshot,
       },
@@ -134,7 +138,7 @@ export function createDeployFiles ({
         ...manifest.pnpm,
         overrides,
         patchedDependencies: undefined,
-        packageExtensions: rootProjectManifest?.pnpm?.packageExtensions, // TODO: does packageExtensions work with `link:`, `file:`, and `workspace:`?
+        packageExtensions: undefined, // if package extensions exist, if should already be merged with the package snapshots
       },
     },
   }
