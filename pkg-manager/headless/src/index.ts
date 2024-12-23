@@ -498,7 +498,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           .map(({ depPath }) => depPath)
       )
   }
-  let ignoredPkgs: string[] | undefined
+  let ignoredBuilds: string[] | undefined
   if ((!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) && opts.enableModulesDir !== false) {
     const directNodes = new Set<string>()
     for (const id of union(importerIds, ['.'])) {
@@ -520,7 +520,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
       }
     }
-    ignoredPkgs = (await buildModules(graph, Array.from(directNodes), {
+    ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
       allowBuild: createAllowBuildFunction(opts),
       childConcurrency: opts.childConcurrency,
       extraBinPaths,
@@ -540,7 +540,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       storeController: opts.storeController,
       unsafePerm: opts.unsafePerm,
       userAgent: opts.userAgent,
-    })).ignoredPkgs
+    })).ignoredBuilds
   }
 
   const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, wantedLockfile, {
@@ -601,7 +601,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       hoistPattern: opts.hoistPattern,
       included: opts.include,
       injectedDeps,
-      ignoredBuilds: ignoredPkgs ?? [],
+      ignoredBuilds,
       layoutVersion: LAYOUT_VERSION,
       hoistedLocations,
       nodeLinker: opts.nodeLinker,
