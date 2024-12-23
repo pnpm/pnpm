@@ -60,7 +60,7 @@ export function help (): string {
             name: '--json',
           },
           {
-            description: 'Customizes the output path for the tarball. Defaults to `<package-name>-<version>.tgz`. Use `%s` and `%v` to include the package name and version, e.g., `some/folder/%s.tgz`.',
+            description: 'Customizes the output path for the tarball. Use `%s` and `%v` to include the package name and version, e.g., `%s.tgz` or `some-dir/%s-%v.tgz`. By default, the tarball is saved in the current working directory with the name `<package-name>-<version>.tgz`.',
             name: '--out <path>',
           },
         ],
