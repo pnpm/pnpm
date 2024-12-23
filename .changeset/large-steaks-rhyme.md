@@ -2,4 +2,4 @@
 "@pnpm/plugin-commands-publishing": patch
 ---
 
-add custom filename support to the pack command
+Add support for specifying a custom output path in the pack command
