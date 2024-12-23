@@ -1,6 +1,6 @@
 import { type PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { type LockfileObject } from '@pnpm/lockfile.types'
+import { type LockfileFile, type LockfileObject } from '@pnpm/lockfile.types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { install, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
@@ -445,4 +445,72 @@ test('recursive update with aliased workspace dependency (#7975)', async () => {
 
   const manifest = await readProjectManifestOnly('project-1')
   expect(manifest).toHaveProperty(['dependencies', 'pkg'], 'workspace:project-2@^')
+})
+
+test.failing('update --filter only changes the specified dependency for the specified workspace package, with dedupe-peer-dependents=true', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
+
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/foo': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/foo': '1.0.0',
+        '@pnpm.e2e/bar': '100.0.0',
+      },
+    },
+  ])
+
+  const sharedOpts = {
+    dir: process.cwd(),
+    recursive: true,
+    workspaceDir: process.cwd(),
+    lockfileDir: process.cwd(),
+    dedupePeerDependents: true,
+  }
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterPackagesFromDir(process.cwd(), []),
+    ...sharedOpts,
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+
+  // Only update @pnpm.e2e/foo in project-1
+  await update.handler({
+    ...DEFAULT_OPTS,
+    ...await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }]),
+    ...sharedOpts,
+    latest: true,
+  }, ['@pnpm.e2e/foo'])
+
+  const lockfile = readYamlFile<LockfileFile>('./pnpm-lock.yaml')
+
+  // project-1 has the resolved dependency changed
+  expect(lockfile.importers?.['project-1'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '2.0.0',
+    version: '2.0.0',
+  })
+
+  // project-2 should be unaffected
+  expect(lockfile.importers?.['project-2'].dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '1.0.0',
+    version: '1.0.0',
+  })
+  expect(lockfile.importers?.['project-2'].dependencies?.['@pnpm.e2e/bar']).toStrictEqual({
+    specifier: '100.0.0',
+    version: '100.0.0',
+  })
 })
