@@ -32,7 +32,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     'pack-destination': String,
-    filename: String,
+    out: String,
     ...pick([
       'pack-gzip-level',
       'json',
@@ -60,8 +60,8 @@ export function help (): string {
             name: '--json',
           },
           {
-            description: 'Custom filename for the tarball. By default, it is the name of the package and its version concatenated with a dash, e.g `my-package-1.2.3.tgz`. Use `%s` and `%v` in the filename to interpolate the package name and version, respectively, e.g. `%s-%v.tgz`.',
-            name: '--filename <filename>',
+            description: 'Customizes the output path for the tarball. Defaults to `<package-name>-<version>.tgz`. Use `%s` and `%v` to include the package name and version, e.g., `some/folder/%s.tgz`.',
+            name: '--out <path>',
           },
         ],
       },
@@ -75,7 +75,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
   }
   engineStrict?: boolean
   packDestination?: string
-  filename?: string
+  out?: string
   workspaceDir?: string
   json?: boolean
 }
@@ -130,11 +130,16 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   }
   let tarballName: string
   const normalizedName = manifest.name.replace('@', '').replace('/', '-')
-  if (opts.filename) {
-    tarballName = opts.filename.replace('%s', normalizedName).replace('%v', manifest.version)
-    if (path.basename(tarballName) !== tarballName) {
-      throw new PnpmError('INVALID_FILENAME', 'Filename should not contain path specifiers. For specifying the directory where the tarball should be saved, use the --pack-destination option.')
+  if (opts.out) {
+    if (opts.packDestination) {
+      throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
     }
+    const preparedOut = opts.out.replaceAll('%s', normalizedName).replaceAll('%v', manifest.version)
+    const parsedOut = path.parse(preparedOut)
+    if (parsedOut.dir) {
+      opts.packDestination = parsedOut.dir
+    }
+    tarballName = parsedOut.base
   } else {
     tarballName = `${normalizedName}-${manifest.version}.tgz`
   }

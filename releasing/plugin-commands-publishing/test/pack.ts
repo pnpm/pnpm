@@ -95,7 +95,7 @@ test('pack when there is bundledDependencies but without node-linker=hoisted', a
   })
 })
 
-describe('pack: package with custom tarball name', () => {
+describe('pack: package with custom tarball path', () => {
   beforeAll(() => {
     prepare({
       name: 'test-publish-package',
@@ -120,40 +120,45 @@ describe('pack: package with custom tarball name', () => {
       actual: '%s-%v.tgz',
       expected: 'test-publish-package-0.0.0.tgz',
     },
+    {
+      actual: './foo/%s-%v.tgz',
+      expected: './foo/test-publish-package-0.0.0.tgz',
+    },
+    {
+      actual: './%s/out/%v.tgz',
+      expected: './test-publish-package/out/0.0.0.tgz',
+    },
+    {
+      actual: './%s/%s-%v.tgz',
+      expected: './test-publish-package/test-publish-package-0.0.0.tgz',
+    },
   ])('should pack $actual as $expected', async ({ actual, expected }) => {
     await pack.handler({
       ...DEFAULT_OPTS,
       argv: { original: [] },
       dir: process.cwd(),
       extraBinPaths: [],
-      filename: actual,
+      out: actual,
     })
 
     expect(fs.existsSync(expected)).toBeTruthy()
   })
 })
 
-describe('pack: path specifiers in the tarball name', () => {
-  beforeAll(() => {
-    prepare({
-      name: 'test-publish-package',
-      version: '0.0.0',
-    })
+test('pack: cannot use --pack-destination with --out', async () => {
+  prepare({
+    name: 'test-publish-package',
+    version: '0.0.0',
   })
 
-  test.each([
-    './custom-name.tgz',
-    '../custom-name.tgz',
-    '/home/user/custom-name.tgz',
-  ])('should throw on %s', async (filename) => {
-    await expect(pack.handler({
-      ...DEFAULT_OPTS,
-      argv: { original: [] },
-      dir: process.cwd(),
-      extraBinPaths: [],
-      filename,
-    })).rejects.toThrow('Filename should not contain path specifiers. For specifying the directory where the tarball should be saved, use the --pack-destination option.')
-  })
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    out: 'foo.tgz',
+    packDestination: 'bar',
+  })).rejects.toThrow('Cannot use --pack-destination and --out together')
 })
 
 test('pack a package without package name', async () => {
