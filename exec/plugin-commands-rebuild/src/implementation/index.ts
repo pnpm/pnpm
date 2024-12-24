@@ -151,7 +151,7 @@ export async function rebuildProjects (
     idsToRebuild = Object.keys(ctx.currentLockfile.packages)
   }
 
-  const pkgsThatWereRebuilt = await _rebuild(
+  const { pkgsThatWereRebuilt, ignoredPkgs } = await _rebuild(
     {
       pkgsToRebuild: new Set(idsToRebuild),
       ...ctx,
@@ -192,6 +192,7 @@ export async function rebuildProjects (
     hoistedDependencies: ctx.hoistedDependencies,
     hoistPattern: ctx.hoistPattern,
     included: ctx.include,
+    ignoredBuilds: ignoredPkgs,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
@@ -246,7 +247,7 @@ async function _rebuild (
     extraNodePaths: string[]
   } & Pick<PnpmContext, 'modulesFile'>,
   opts: StrictRebuildOptions
-): Promise<Set<string>> {
+): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: string[] }> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile)
   const depsStateCache: DepsStateCache = {}
   const pkgsThatWereRebuilt = new Set<string>()
@@ -286,7 +287,13 @@ async function _rebuild (
     logger.info({ message, prefix: opts.dir })
   }
 
-  const allowBuild = createAllowBuildFunction(opts) ?? (() => true)
+  const ignoredPkgs: string[] = []
+  const _allowBuild = createAllowBuildFunction(opts) ?? (() => true)
+  const allowBuild = (pkgName: string) => {
+    if (_allowBuild(pkgName)) return true
+    ignoredPkgs.push(pkgName)
+    return false
+  }
   const builtDepPaths = new Set<string>()
 
   const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath) && !ctx.skipped.has(depPath)).map((depPath) =>
@@ -419,7 +426,7 @@ async function _rebuild (
     })))
   }
 
-  return pkgsThatWereRebuilt
+  return { pkgsThatWereRebuilt, ignoredPkgs }
 }
 
 function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[] {
