@@ -461,6 +461,29 @@ test('resolve a private repository using the HTTPS protocol without auth token',
   })
 })
 
+test('resolve a private repository using the HTTPS protocol with a commit hash', async () => {
+  git.mockImplementation(async (args: string[]) => {
+    expect(args).toContain('ls-remote')
+    expect(args).toContain('https://github.com/foo/bar.git')
+    return {
+      // cspell:ignore aabbccddeeff
+      stdout: 'aabbccddeeff\tHEAD',
+    }
+  })
+  const resolveResult = await resolveFromGit({ pref: 'git+https://github.com/foo/bar.git#aabbccddeeff' })
+  expect(resolveResult).toStrictEqual({
+    id: 'git+https://github.com/foo/bar.git#aabbccddeeff',
+    normalizedPref: 'git+https://github.com/foo/bar.git',
+    resolution: {
+      // cspell:ignore aabbccddeeff
+      commit: 'aabbccddeeff',
+      repo: 'https://github.com/foo/bar.git',
+      type: 'git',
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
 test('resolve a private repository using the HTTPS protocol and an auth token', async () => {
   git.mockImplementation(async (args: string[]) => {
     if (!args.includes('https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git')) throw new Error('')
