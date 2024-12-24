@@ -114,7 +114,7 @@ test('partial update --latest in a workspace should not affect other packages wh
         name: 'project-2',
 
         dependencies: {
-          '@pnpm.e2e/bar': '1.0.0',
+          '@pnpm.e2e/foo': '1.0.0',
         },
       },
     },
@@ -140,7 +140,7 @@ auto-install-peers=false`, 'utf8')
   // similar for the importers in the lockfile; project 1 is unaffected, while project 2 resolves the latest foo
   const lockfile = readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
   expect(lockfile.importers['project-1']?.dependencies?.['@pnpm.e2e/foo'].version).toStrictEqual('1.0.0')
-  expect(lockfile.importers['project-1']?.dependencies?.['@pnpm.e2e/bar'].version).toStrictEqual('1.0.0')
+  expect(lockfile.importers['project-1']?.dependencies?.['@pnpm.e2e/bar'].version).toStrictEqual('100.0.0')
   expect(lockfile.importers['project-2']?.dependencies?.['@pnpm.e2e/foo'].version).toStrictEqual('2.0.0')
 })
 
