@@ -416,3 +416,98 @@ test('should not update tag version when --latest not set', async () => {
   expect(manifest.dependencies?.['@pnpm.e2e/peer-c']).toBe('canary')
   expect(manifest.dependencies?.['@pnpm.e2e/foo']).toBe('1.0.0')
 })
+
+test('should update override that references overridden dependency', async () => {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/parent-of-pkg-with-1-dep': '^1.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
+      react: '^17.0.0',
+      'react-dom': '^17.0.0',
+    },
+    devDependencies: {
+      '@types/react': '^17.0.0',
+      '@types/react-dom': '^17.0.0',
+    },
+    pnpm: {
+      overrides: {
+        '@pnpm.e2e/pkg-with-1-dep': '$@pnpm.e2e/pkg-with-1-dep',
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '$@pnpm.e2e/dep-of-pkg-with-1-dep',
+        '@types/react': '$@types/react',
+      },
+    },
+  })
+
+  await Promise.all([
+    addDistTag({ package: 'react', version: '18.3.0', distTag: 'latest' }),
+    addDistTag({ package: 'react-dom', version: '18.3.0', distTag: 'latest' }),
+    addDistTag({ package: '@types/react', version: '18.3.0', distTag: 'latest' }),
+    addDistTag({ package: '@types/react-dom', version: '18.3.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/parent-of-pkg-with-1-dep', version: '1.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' }),
+  ])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  expect(project.readLockfile().overrides).toStrictEqual({
+    '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
+    '@types/react': '^17.0.0',
+  })
+  expect(loadJsonFile.sync<ProjectManifest>('package.json').dependencies).toStrictEqual({
+    '@pnpm.e2e/parent-of-pkg-with-1-dep': '^1.0.0',
+    '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.0.0',
+    react: '^17.0.0',
+    'react-dom': '^17.0.0',
+  })
+  expect(loadJsonFile.sync<ProjectManifest>('package.json').devDependencies).toStrictEqual({
+    '@types/react': '^17.0.0',
+    '@types/react-dom': '^17.0.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+  })
+
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' }),
+  ])
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+  })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.overrides).toStrictEqual({
+    '@pnpm.e2e/pkg-with-1-dep': '^100.1.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '^101.0.0',
+    '@types/react': '^18.3.0',
+  })
+  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeFalsy()
+  expect(loadJsonFile.sync<ProjectManifest>('package.json').dependencies).toStrictEqual({
+    '@pnpm.e2e/parent-of-pkg-with-1-dep': '^1.0.0',
+    '@pnpm.e2e/pkg-with-1-dep': '^100.1.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': '^101.0.0',
+    react: '^18.3.0',
+    'react-dom': '^18.3.0',
+  })
+  expect(loadJsonFile.sync<ProjectManifest>('package.json').devDependencies).toStrictEqual({
+    '@types/react': '^18.3.0',
+    '@types/react-dom': '^18.3.0',
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+  })
+})
