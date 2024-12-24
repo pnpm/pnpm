@@ -95,6 +95,72 @@ test('pack when there is bundledDependencies but without node-linker=hoisted', a
   })
 })
 
+describe('pack: package with custom tarball path', () => {
+  beforeAll(() => {
+    prepare({
+      name: 'test-publish-package',
+      version: '0.0.0',
+    })
+  })
+
+  test.each([
+    {
+      out: 'custom-name.tgz',
+      expected: 'custom-name.tgz',
+    },
+    {
+      out: '%s.tgz',
+      expected: 'test-publish-package.tgz',
+    },
+    {
+      out: 'custom-name-%v.tgz',
+      expected: 'custom-name-0.0.0.tgz',
+    },
+    {
+      out: '%s-%v.tgz',
+      expected: 'test-publish-package-0.0.0.tgz',
+    },
+    {
+      out: './foo/%s-%v.tgz',
+      expected: './foo/test-publish-package-0.0.0.tgz',
+    },
+    {
+      out: './%s/out/%v.tgz',
+      expected: './test-publish-package/out/0.0.0.tgz',
+    },
+    {
+      out: './%s/%s-%v.tgz',
+      expected: './test-publish-package/test-publish-package-0.0.0.tgz',
+    },
+  ])('should pack $actual as $expected', async ({ out, expected }) => {
+    await pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: process.cwd(),
+      extraBinPaths: [],
+      out,
+    })
+
+    expect(fs.existsSync(expected)).toBeTruthy()
+  })
+})
+
+test('pack: cannot use --pack-destination with --out', async () => {
+  prepare({
+    name: 'test-publish-package',
+    version: '0.0.0',
+  })
+
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    out: 'foo.tgz',
+    packDestination: 'bar',
+  })).rejects.toThrow('Cannot use --pack-destination and --out together')
+})
+
 test('pack a package without package name', async () => {
   prepare({
     name: undefined,
