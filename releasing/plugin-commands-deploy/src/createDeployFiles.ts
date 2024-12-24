@@ -43,6 +43,7 @@ export interface CreateDeployFilesOptions {
   lockfileDir: string
   manifest: DeployManifest
   projectId: ProjectId
+  rootProjectManifestDir: string
 }
 
 export interface DeployFiles {
@@ -57,6 +58,7 @@ export function createDeployFiles ({
   lockfileDir,
   manifest,
   projectId,
+  rootProjectManifestDir,
 }: CreateDeployFilesOptions): DeployFiles {
   const deployedProjectRealPath = path.resolve(lockfileDir, projectId) as ProjectRootDirRealPath
   const inputSnapshot = lockfile.importers[projectId]
@@ -77,7 +79,7 @@ export function createDeployFiles ({
       allProjects,
       deployedProjectRealPath,
       lockfileDir,
-      projectRootDirRealPath: lockfileDir as ProjectRootDirRealPath,
+      projectRootDirRealPath: rootProjectManifestDir as ProjectRootDirRealPath,
     })
   }
 
@@ -156,7 +158,7 @@ export function createDeployFiles ({
 
     for (const name in lockfile.patchedDependencies) {
       const patchInfo = lockfile.patchedDependencies[name]
-      const resolvedPath = path.resolve(lockfileDir, patchInfo.path)
+      const resolvedPath = path.resolve(rootProjectManifestDir, patchInfo.path)
       result.manifest.pnpm!.patchedDependencies[name] = resolvedPath
       result.lockfile.patchedDependencies[name] = {
         hash: patchInfo.hash,
