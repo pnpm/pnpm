@@ -41,7 +41,6 @@ export interface CreateDeployFilesOptions {
   lockfileDir: string
   manifest: DeployManifest
   projectId: ProjectId
-  rootProjectManifest?: Pick<ProjectManifest, 'pnpm'>
 }
 
 export interface DeployFiles {
@@ -55,7 +54,6 @@ export function createDeployFiles ({
   lockfileDir,
   manifest,
   projectId,
-  rootProjectManifest,
 }: CreateDeployFilesOptions): DeployFiles {
   const deployedProjectRealPath = path.resolve(lockfileDir, projectId) as ProjectRootDirRealPath
   const inputSnapshot = lockfile.importers[projectId]
@@ -68,8 +66,16 @@ export function createDeployFiles ({
     optionalDependencies: {},
   }
 
-  const targetPackageSnapshots: PackageSnapshots = {
-    ...lockfile.packages,
+  const targetPackageSnapshots: PackageSnapshots = {}
+  for (const name in lockfile.packages) {
+    const depPath = name as DepPath
+    const inputSnapshot = lockfile.packages[depPath]
+    targetPackageSnapshots[depPath] = convertPackageSnapshot(inputSnapshot, {
+      allProjects,
+      deployedProjectRealPath,
+      lockfileDir,
+      projectRootDirRealPath: lockfileDir as ProjectRootDirRealPath,
+    })
   }
 
   for (const importerPath in lockfile.importers) {
@@ -113,10 +119,6 @@ export function createDeployFiles ({
     lockfileDir,
     projectRootDirRealPath: path.resolve(lockfileDir) as ProjectRootDirRealPath,
   })
-
-  // TODO:
-  //   If packageExtensions is defined, there is a possibility that it contains `link:`, `file:`, `workspace:`.
-  //   The package snapshots should be processed.
 
   const result: DeployFiles = {
     lockfile: {
@@ -167,6 +169,16 @@ interface ConvertOptions {
   deployedProjectRealPath: ProjectRootDirRealPath
   projectRootDirRealPath: ProjectRootDirRealPath
   lockfileDir: string
+}
+
+function convertPackageSnapshot (inputSnapshot: PackageSnapshot, opts: ConvertOptions): PackageSnapshot {
+  const dependencies = convertResolvedDependencies(inputSnapshot.dependencies, opts)
+  const optionalDependencies = convertResolvedDependencies(inputSnapshot.optionalDependencies, opts)
+  return {
+    ...inputSnapshot,
+    dependencies,
+    optionalDependencies,
+  }
 }
 
 function convertProjectSnapshotToPackageSnapshot (projectSnapshot: ProjectSnapshot, opts: ConvertOptions): PackageSnapshot {
