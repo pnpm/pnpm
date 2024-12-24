@@ -88,6 +88,7 @@ export interface Importer<WantedDepExtraProps> {
 export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<WantedDepExtraProps> {
   updatePackageManifest: boolean
   updateMatching?: (pkgName: string) => boolean
+  updateToLatest?: boolean
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
   wantedDependencies: Array<WantedDepExtraProps & WantedDependency & { updateDepth: number }>
@@ -127,7 +128,6 @@ export interface ResolveDependenciesOptions {
   wantedLockfile: LockfileObject
   workspacePackages: WorkspacePackages
   supportedArchitectures?: SupportedArchitectures
-  updateToLatest?: boolean
   peersSuffixMaxLength: number
 }
 
@@ -214,9 +214,9 @@ export async function resolveDependencyTree<T> (
       },
       updateDepth: -1,
       updateMatching: importer.updateMatching,
+      updateToLatest: importer.updateToLatest,
       prefix: importer.rootDir,
       supportedArchitectures: opts.supportedArchitectures,
-      updateToLatest: opts.updateToLatest,
     }
     return {
       updatePackageManifest: importer.updatePackageManifest,

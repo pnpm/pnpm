@@ -104,6 +104,7 @@ const DEV_PREINSTALL = 'pnpm:devPreinstall'
 
 interface InstallMutationOptions {
   update?: boolean
+  updateToLatest?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest?: boolean
 }
@@ -150,6 +151,7 @@ export async function install (
         rootDir,
         update: opts.update,
         updateMatching: opts.updateMatching,
+        updateToLatest: opts.updateToLatest,
         updatePackageManifest: opts.updatePackageManifest,
       },
     ],
@@ -197,6 +199,7 @@ export async function mutateModulesInSingleProject (
       {
         ...project,
         update: maybeOpts.update,
+        updateToLatest: maybeOpts.updateToLatest,
         updateMatching: maybeOpts.updateMatching,
         updatePackageManifest: maybeOpts.updatePackageManifest,
       } as MutatedProject,
@@ -772,6 +775,7 @@ export async function addDependenciesToPackage (
         update: opts.update,
         updateMatching: opts.updateMatching,
         updatePackageManifest: opts.updatePackageManifest,
+        updateToLatest: opts.updateToLatest,
       },
     ],
     {
@@ -963,7 +967,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
       tag: opts.tag,
-      updateToLatest: opts.updateToLatest,
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
       wantedLockfile: ctx.wantedLockfile,

@@ -125,8 +125,8 @@ export async function resolveDependencies (
     preferredVersions: opts.preferredVersions,
     virtualStoreDir: opts.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
-    updateToLatest: opts.updateToLatest,
     noDependencySelectors: importers.every(({ wantedDependencies }) => wantedDependencies.length === 0),
+    // @ts-expect-error -- this fails for now
     injectWorkspacePackages: opts.injectWorkspacePackages,
   })
   const projectsToResolve = await Promise.all(importers.map(async (project) => _toResolveImporter(project)))
