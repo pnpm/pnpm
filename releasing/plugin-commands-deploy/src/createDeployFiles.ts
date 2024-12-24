@@ -119,17 +119,10 @@ export function createDeployFiles ({
     }
   }
 
-  const overrides = convertResolvedDependencies(lockfile.overrides, {
-    allProjects,
-    deployedProjectRealPath,
-    lockfileDir,
-    projectRootDirRealPath: path.resolve(lockfileDir) as ProjectRootDirRealPath,
-  })
-
   const result: DeployFiles = {
     lockfile: {
       ...lockfile,
-      overrides,
+      overrides: undefined, // the result of package overrides should already be part of the package snapshots
       patchedDependencies: undefined,
       packageExtensionsChecksum: undefined, // the result of the package extensions should already be part of the package snapshots
       pnpmfileChecksum: undefined, // the result of the pnpmfile should already be part of the package snapshots
@@ -145,7 +138,7 @@ export function createDeployFiles ({
       optionalDependencies: targetSnapshot.optionalDependencies,
       pnpm: {
         ...manifest.pnpm,
-        overrides,
+        overrides: undefined, // the result of package overrides should already be part of the package snapshots
         patchedDependencies: undefined,
         packageExtensions: undefined, // the result of the package extensions should already be part of the package snapshots
       },
