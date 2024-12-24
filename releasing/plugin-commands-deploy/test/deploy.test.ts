@@ -174,11 +174,11 @@ test('deploy with a shared lockfile after full install', async () => {
     name: 'project-1',
     version: '1.0.0',
     dependencies: {
-      'project-2': expect.stringContaining('file:'),
+      'project-2': expect.stringMatching(/^project-2@file:/),
       'is-positive': '1.0.0',
     },
     devDependencies: {
-      'project-3': expect.stringContaining('file:'),
+      'project-3': expect.stringMatching(/^project-3@file:/),
       'is-negative': '1.0.0',
     },
     optionalDependencies: {},
@@ -406,14 +406,14 @@ test('deploy with a shared lockfile and --prod filter should not fail even if de
     '.': {
       dependencies: {
         'prod-1': {
-          version: expect.stringContaining('prod-1'),
-          specifier: expect.stringContaining('file:'),
+          version: expect.stringMatching(/^prod-1@file:/),
+          specifier: expect.stringMatching(/^prod-1@file:/),
         },
       },
       devDependencies: {
         'dev-0': {
-          version: expect.stringContaining('dev-0'),
-          specifier: expect.stringContaining('file:'),
+          version: expect.stringMatching(/^dev-0@file:/),
+          specifier: expect.stringMatching(/^dev-0@file:/),
         },
         'is-negative': {
           version: '1.0.0',
@@ -429,10 +429,10 @@ test('deploy with a shared lockfile and --prod filter should not fail even if de
     version: '0.0.0',
     private: true,
     dependencies: {
-      'prod-1': expect.stringContaining('prod-1'),
+      'prod-1': expect.stringMatching(/^prod-1@file:/),
     },
     devDependencies: {
-      'dev-0': expect.stringContaining('dev-0'),
+      'dev-0': expect.stringMatching(/^dev-0@file:/),
       'is-negative': '1.0.0',
     },
     optionalDependencies: {},
@@ -502,8 +502,8 @@ test('deploy with a shared lockfile should correctly handle workspace dependenci
     '.': {
       dependencies: {
         'project-1': {
-          version: expect.stringContaining('project-1'),
-          specifier: expect.stringContaining('file:'),
+          version: expect.stringMatching(/^project-1@file:/),
+          specifier: expect.stringMatching(/^project-1@file:/),
         },
       },
     },
@@ -515,7 +515,7 @@ test('deploy with a shared lockfile should correctly handle workspace dependenci
     version: '0.0.0',
     private: true,
     dependencies: {
-      'project-1': expect.stringContaining('project-1'),
+      'project-1': expect.stringMatching(/^project-1@file:/),
     },
     devDependencies: {},
     optionalDependencies: {},
