@@ -44,3 +44,10 @@ test.each([
   const parsed = await parsePref(input)
   expect(parsed?.path).toBe(output)
 })
+
+test.each([
+  ['git+https://github.com/pnpm/pnpm.git', 'https://github.com/pnpm/pnpm.git'],
+])('the fetchSpec of %s should be %s', async (input, output) => {
+  const parsed = await parsePref(input)
+  expect(parsed?.fetchSpec).toBe(output)
+})

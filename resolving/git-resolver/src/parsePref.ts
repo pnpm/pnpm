@@ -79,7 +79,7 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
   if (!fetchSpec) {
     const httpsUrl: string | null = hosted.https({ noGitPlus: true, noCommittish: true })
     if (httpsUrl) {
-      if (hosted.auth && await accessRepository(httpsUrl)) {
+      if ((hosted.auth || !await isRepoPublic(httpsUrl)) && await accessRepository(httpsUrl)) {
         return {
           fetchSpec: httpsUrl,
           hosted: {
@@ -94,7 +94,7 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
         try {
           // when git ls-remote private repo, it asks for login credentials.
           // use HTTP HEAD request to test whether this is a private repo, to avoid login prompt.
-          // this is very similar to yarn's behavior.
+          // this is very similar to yarn classic's behavior.
           // npm instead tries git ls-remote directly which prompts user for login credentials.
 
           // HTTP HEAD on https://domain/user/repo, strip out ".git"
