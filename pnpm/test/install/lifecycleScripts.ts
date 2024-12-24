@@ -103,7 +103,12 @@ test('prepare is executed after argumentless installation', () => {
 })
 
 test('dependency should not be added to package.json and lockfile if it was not built successfully', async () => {
-  const project = prepare({ name: 'foo', version: '1.0.0' })
+  const initialPkg = {
+    name: 'foo',
+    version: '1.0.0',
+    pnpm: { neverBuiltDependencies: [] },
+  }
+  const project = prepare(initialPkg)
 
   const result = execPnpmSync(['install', 'package-that-cannot-be-installed@0.0.0'])
 
@@ -114,7 +119,7 @@ test('dependency should not be added to package.json and lockfile if it was not 
   expect(project.readLockfile()).toBeFalsy()
 
   const { default: pkg } = await import(path.resolve('package.json'))
-  expect(pkg).toStrictEqual({ name: 'foo', version: '1.0.0' })
+  expect(pkg).toStrictEqual(initialPkg)
 })
 
 test('node-gyp is in the PATH', async () => {
@@ -236,6 +241,9 @@ test('ignores pnpm.executionEnv specified by dependencies', async () => {
     dependencies: {
       // this package's package.json has pnpm.executionEnv.nodeVersion = '20.0.0'
       '@pnpm.e2e/has-execution-env': '1.0.0',
+    },
+    pnpm: {
+      neverBuiltDependencies: [],
     },
   })
 
