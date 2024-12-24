@@ -151,10 +151,11 @@ export function createDeployFiles ({
     for (const name in lockfile.patchedDependencies) {
       const patchInfo = lockfile.patchedDependencies[name]
       const resolvedPath = path.resolve(rootProjectManifestDir, patchInfo.path)
-      result.manifest.pnpm!.patchedDependencies[name] = resolvedPath
+      const relativePath = normalizePath(path.relative(deployDir, resolvedPath))
+      result.manifest.pnpm!.patchedDependencies[name] = relativePath
       result.lockfile.patchedDependencies[name] = {
         hash: patchInfo.hash,
-        path: resolvedPath,
+        path: relativePath,
       }
     }
   }
