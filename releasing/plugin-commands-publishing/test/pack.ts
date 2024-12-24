@@ -105,40 +105,40 @@ describe('pack: package with custom tarball path', () => {
 
   test.each([
     {
-      actual: 'custom-name.tgz',
+      out: 'custom-name.tgz',
       expected: 'custom-name.tgz',
     },
     {
-      actual: '%s.tgz',
+      out: '%s.tgz',
       expected: 'test-publish-package.tgz',
     },
     {
-      actual: 'custom-name-%v.tgz',
+      out: 'custom-name-%v.tgz',
       expected: 'custom-name-0.0.0.tgz',
     },
     {
-      actual: '%s-%v.tgz',
+      out: '%s-%v.tgz',
       expected: 'test-publish-package-0.0.0.tgz',
     },
     {
-      actual: './foo/%s-%v.tgz',
+      out: './foo/%s-%v.tgz',
       expected: './foo/test-publish-package-0.0.0.tgz',
     },
     {
-      actual: './%s/out/%v.tgz',
+      out: './%s/out/%v.tgz',
       expected: './test-publish-package/out/0.0.0.tgz',
     },
     {
-      actual: './%s/%s-%v.tgz',
+      out: './%s/%s-%v.tgz',
       expected: './test-publish-package/test-publish-package-0.0.0.tgz',
     },
-  ])('should pack $actual as $expected', async ({ actual, expected }) => {
+  ])('should pack $actual as $expected', async ({ out, expected }) => {
     await pack.handler({
       ...DEFAULT_OPTS,
       argv: { original: [] },
       dir: process.cwd(),
       extraBinPaths: [],
-      out: actual,
+      out,
     })
 
     expect(fs.existsSync(expected)).toBeTruthy()
