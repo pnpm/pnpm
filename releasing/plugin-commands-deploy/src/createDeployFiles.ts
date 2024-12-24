@@ -16,7 +16,6 @@ import {
   type Project,
   type ProjectId,
   type ProjectManifest,
-  type ProjectRootDirRealPath,
 } from '@pnpm/types'
 
 const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependencies'] as const satisfies DependenciesField[]
@@ -60,7 +59,7 @@ export function createDeployFiles ({
   projectId,
   rootProjectManifestDir,
 }: CreateDeployFilesOptions): DeployFiles {
-  const deployedProjectRealPath = path.resolve(lockfileDir, projectId) as ProjectRootDirRealPath
+  const deployedProjectRealPath = path.resolve(lockfileDir, projectId)
   const inputSnapshot = lockfile.importers[projectId]
 
   const targetSnapshot: ProjectSnapshot = {
@@ -79,14 +78,14 @@ export function createDeployFiles ({
       allProjects,
       deployedProjectRealPath,
       lockfileDir,
-      projectRootDirRealPath: rootProjectManifestDir as ProjectRootDirRealPath,
+      projectRootDirRealPath: rootProjectManifestDir,
     })
   }
 
   for (const importerPath in lockfile.importers) {
     if (importerPath === projectId) continue
     const projectSnapshot = lockfile.importers[importerPath as ProjectId]
-    const projectRootDirRealPath = path.resolve(lockfileDir, importerPath) as ProjectRootDirRealPath
+    const projectRootDirRealPath = path.resolve(lockfileDir, importerPath)
     const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, {
       allProjects,
       deployDir,
@@ -106,7 +105,7 @@ export function createDeployFiles ({
       const spec = inputDependencies[name]
       const targetRealPath = resolveLinkOrFile(spec, {
         lockfileDir,
-        projectRootDirRealPath: path.resolve(lockfileDir, projectId) as ProjectRootDirRealPath,
+        projectRootDirRealPath: path.resolve(lockfileDir, projectId),
       })
 
       if (!targetRealPath) {
@@ -115,7 +114,7 @@ export function createDeployFiles ({
       }
 
       targetSpecifiers[name] = targetDependencies[name] =
-        targetRealPath === deployedProjectRealPath ? 'link:.' : createFileUrlDepPath(targetRealPath as ProjectRootDirRealPath, allProjects)
+        targetRealPath === deployedProjectRealPath ? 'link:.' : createFileUrlDepPath(targetRealPath, allProjects)
     }
   }
 
@@ -165,8 +164,8 @@ export function createDeployFiles ({
 
 interface ConvertOptions {
   allProjects: CreateDeployFilesOptions['allProjects']
-  deployedProjectRealPath: ProjectRootDirRealPath
-  projectRootDirRealPath: ProjectRootDirRealPath
+  deployedProjectRealPath: string
+  projectRootDirRealPath: string
   lockfileDir: string
 }
 
@@ -214,7 +213,7 @@ function convertResolvedDependencies (input: ResolvedDependencies | undefined, o
       continue
     }
 
-    output[key] = createFileUrlDepPath(depRealPath as ProjectRootDirRealPath, opts.allProjects)
+    output[key] = createFileUrlDepPath(depRealPath, opts.allProjects)
   }
 
   return output
@@ -241,7 +240,7 @@ function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDi
 }
 
 function createFileUrlDepPath (
-  depRealPath: ProjectRootDirRealPath,
+  depRealPath: string,
   allProjects: CreateDeployFilesOptions['allProjects']
 ): DepPath {
   const depFileUrl = url.pathToFileURL(depRealPath).toString()
