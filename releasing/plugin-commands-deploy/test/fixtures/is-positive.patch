@@ -1,0 +1,19 @@
+diff --git a/PATCH.txt b/PATCH.txt
+new file mode 100644
+index 0000000000000000000000000000000000000000..e6d52b1e6644678337868f7b5d6cc6dc0d040891
+--- /dev/null
++++ b/PATCH.txt
+@@ -0,0 +1 @@
++added by pnpm patch-commit
+diff --git a/package.json b/package.json
+index 5feb15ba194c74ad48a2ee15abec9887ec1f9e83..27e24feff1bbfc20b3735c23b332bfdc16803362 100644
+--- a/package.json
++++ b/package.json
+@@ -16,6 +16,7 @@
+     "test": "xo && ava"
+   },
+   "files": [
++    "PATCH.txt",
+     "index.js"
+   ],
+   "keywords": [

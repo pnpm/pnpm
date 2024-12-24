@@ -35,25 +35,32 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-deploy#readme",
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
-    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-deploy": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
-    "@pnpm/workspace.filter-packages-from-dir": "workspace:*"
+    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
+    "@types/ramda": "catalog:"
   },
   "dependencies": {
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/config": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
     "@pnpm/fs.is-empty-dir-or-nothing": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@types/normalize-path": "catalog:",
     "@zkochan/rimraf": "catalog:",
+    "normalize-path": "catalog:",
+    "ramda": "catalog:",
     "render-help": "catalog:"
   },
   "peerDependencies": {
