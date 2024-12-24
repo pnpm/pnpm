@@ -315,3 +315,18 @@ test('peerDependencies should be installed when autoInstallPeers is set to true 
 
   expect(fs.existsSync('node_modules/react')).toBeTruthy()
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/8854
+test('installing with hoisted node-linker a package that is a peer dependency of itself', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/peer-of-itself@1.0.0'],
+    testDefaults({ nodeLinker: 'hoisted', save: true })
+  )
+
+  project.has('@pnpm.e2e/peer-of-itself')
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/peer-of-itself@1.0.0'].peerDependencies).toBeFalsy()
+})

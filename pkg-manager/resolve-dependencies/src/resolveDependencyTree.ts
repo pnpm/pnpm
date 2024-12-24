@@ -96,7 +96,6 @@ export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<
 export interface ResolveDependenciesOptions {
   autoInstallPeers?: boolean
   autoInstallPeersFromHighestMatch?: boolean
-  allowBuild?: (pkgName: string) => boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allowNonAppliedPatches: boolean
   catalogs?: Catalogs
@@ -154,7 +153,6 @@ export async function resolveDependencyTree<T> (
   const ctx: ResolutionContext = {
     autoInstallPeers,
     autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch === true,
-    allowBuild: opts.allowBuild,
     allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
     catalogResolver: resolveFromCatalog.bind(null, opts.catalogs ?? {}),
     childrenByParentId: {} as ChildrenByParentId,

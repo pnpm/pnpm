@@ -136,7 +136,6 @@ export interface ResolutionContext {
   allPeerDepNames: Set<string>
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
-  allowBuild?: (pkgName: string) => boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allPreferredVersions?: PreferredVersions
   appliedPatches: Set<string>
@@ -1468,7 +1467,6 @@ async function resolveDependency (
     // WARN: It is very important to keep this sync
     // Otherwise, deprecation messages for the same package might get written several times
     ctx.resolvedPkgsById[pkgResponse.body.id] = getResolvedPackage({
-      allowBuild: ctx.allowBuild,
       dependencyLockfile: currentPkg.dependencyLockfile,
       pkgIdWithPatchHash,
       force: ctx.force,
@@ -1586,7 +1584,6 @@ function pkgIsLeaf (pkg: PackageManifest): boolean {
 
 function getResolvedPackage (
   options: {
-    allowBuild?: (pkgName: string) => boolean
     dependencyLockfile?: PackageSnapshot
     pkgIdWithPatchHash: PkgIdWithPatchHash
     force: boolean
@@ -1635,6 +1632,7 @@ function getResolvedPackage (
 function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {
   if ((pkg.peerDependencies == null) && (pkg.peerDependenciesMeta == null)) return {}
   const ownDeps = new Set([
+    pkg.name,
     ...Object.keys(pkg.dependencies ?? {}),
     ...Object.keys(pkg.optionalDependencies ?? {}),
   ])

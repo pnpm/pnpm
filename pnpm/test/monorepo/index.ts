@@ -1231,6 +1231,14 @@ auto-install-peers=false`, 'utf8')
 test('dependencies of workspace projects are built during headless installation', async () => {
   const projects = preparePackages([
     {
+      location: '.',
+      package: {
+        pnpm: {
+          neverBuiltDependencies: [],
+        },
+      },
+    },
+    {
       name: 'project-1',
       version: '1.0.0',
 
