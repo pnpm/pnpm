@@ -129,6 +129,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     throw new PnpmError('PACKAGE_VERSION_NOT_FOUND', `Package version is not defined in the ${manifestFileName}.`)
   }
   let tarballName: string
+  let packDestination: string | undefined
   const normalizedName = manifest.name.replace('@', '').replace('/', '-')
   if (opts.out) {
     if (opts.packDestination) {
@@ -136,12 +137,11 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     }
     const preparedOut = opts.out.replaceAll('%s', normalizedName).replaceAll('%v', manifest.version)
     const parsedOut = path.parse(preparedOut)
-    if (parsedOut.dir) {
-      opts.packDestination = parsedOut.dir
-    }
+    packDestination = parsedOut.dir ? parsedOut.dir : opts.packDestination
     tarballName = parsedOut.base
   } else {
     tarballName = `${normalizedName}-${manifest.version}.tgz`
+    packDestination = opts.packDestination
   }
   const publishManifest = await createPublishManifest({
     projectDir: dir,
@@ -163,8 +163,8 @@ export async function api (opts: PackOptions): Promise<PackResult> {
       filesMap[`package/${license}`] = path.join(opts.workspaceDir, license)
     }
   }
-  const destDir = opts.packDestination
-    ? (path.isAbsolute(opts.packDestination) ? opts.packDestination : path.join(dir, opts.packDestination ?? '.'))
+  const destDir = packDestination
+    ? (path.isAbsolute(packDestination) ? packDestination : path.join(dir, packDestination ?? '.'))
     : dir
   await fs.promises.mkdir(destDir, { recursive: true })
   await packPkg({
