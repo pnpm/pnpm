@@ -4,11 +4,14 @@ import { deploy } from '@pnpm/plugin-commands-deploy'
 import { install } from '@pnpm/plugin-commands-installation'
 import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
-import { type LockfileFile, type LockfilePackageSnapshot } from '@pnpm/lockfile.types'
+import { type PatchFile, type LockfileFile, type LockfilePackageSnapshot } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { fixtures } from '@pnpm/test-fixtures'
 import { type ProjectManifest } from '@pnpm/types'
 import { DEFAULT_OPTS } from './utils'
+
+const f = fixtures(__dirname)
 
 beforeEach(async () => {
   const logger = await import('@pnpm/logger')
@@ -661,4 +664,112 @@ test('deploy with a shared lockfile should correctly handle packageExtensions', 
   expect(readPackageJson('deploy/node_modules/.pnpm/is-positive@1.0.0/node_modules/link-to-project-1')).toStrictEqual(preparedManifests['project-1'])
   expect(readPackageJson('deploy/node_modules/.pnpm/is-positive@1.0.0/node_modules/project-0')).toStrictEqual(manifest)
   expect(readPackageJson('deploy/node_modules/.pnpm/is-positive@1.0.0/node_modules/project-1')).toStrictEqual(preparedManifests['project-1'])
+})
+
+test('deploy with a shared lockfile should correctly handle patchedDependencies', async () => {
+  const preparedManifests: Record<string, ProjectManifest> = {
+    root: {
+      name: 'root',
+      version: '0.0.0',
+      private: true,
+      pnpm: {
+        patchedDependencies: {
+          'is-positive': '__patches__/is-positive.patch',
+        },
+      },
+    },
+    'project-0': {
+      name: 'project-0',
+      version: '0.0.0',
+      dependencies: {
+        'project-1': 'workspace:*',
+      },
+    },
+    'project-1': {
+      name: 'project-1',
+      version: '0.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  }
+
+  preparePackages([
+    {
+      location: '.',
+      package: preparedManifests.root,
+    },
+    preparedManifests['project-0'],
+    preparedManifests['project-1'],
+  ])
+
+  f.copy('is-positive.patch', '__patches__/is-positive.patch')
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-0' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const project = assertProject(path.resolve('deploy'))
+  project.has('project-1')
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.patchedDependencies).toStrictEqual({
+    'is-positive': {
+      hash: expect.any(String),
+      path: '../__patches__/is-positive.patch',
+    },
+  } as Record<string, PatchFile>)
+
+  const patchFile = lockfile.patchedDependencies['is-positive']
+
+  const manifest = readPackageJson('deploy') as ProjectManifest
+  expect(manifest).toStrictEqual({
+    name: 'project-0',
+    version: '0.0.0',
+    dependencies: {
+      'project-1': expect.stringMatching(/^project-1@file:/),
+    },
+    devDependencies: {},
+    optionalDependencies: {},
+    pnpm: {
+      patchedDependencies: {
+        'is-positive': '../__patches__/is-positive.patch',
+      },
+    },
+  } as ProjectManifest)
+
+  const project1Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.includes('project-1@'))
+  expect(project1Name).toBeDefined()
+  expect(fs.realpathSync(`deploy/node_modules/.pnpm/${project1Name}/node_modules/is-positive`)).toBe(
+    path.resolve(`deploy/node_modules/.pnpm/is-positive@1.0.0_patch_hash=${patchFile.hash}/node_modules/is-positive`)
+  )
+  expect(
+    fs.readFileSync(`deploy/node_modules/.pnpm/${project1Name}/node_modules/is-positive/PATCH.txt`, 'utf-8')
+      .trim()
+  ).toBe('added by pnpm patch-commit')
 })

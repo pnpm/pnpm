@@ -16,6 +16,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
       "path": "../../catalogs/resolver"
     },
     {
