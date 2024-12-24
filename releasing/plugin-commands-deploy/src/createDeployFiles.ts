@@ -1,5 +1,6 @@
 import path from 'path'
 import url from 'url'
+import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
 import {
   type DirectoryResolution,
@@ -37,6 +38,7 @@ export type DeployManifest = Pick<ProjectManifest, typeof INHERITED_MANIFEST_KEY
 
 export interface CreateDeployFilesOptions {
   allProjects: Array<Pick<Project, 'manifest' | 'rootDirRealPath'>>
+  deployDir: string
   lockfile: LockfileObject
   lockfileDir: string
   manifest: DeployManifest
@@ -50,6 +52,7 @@ export interface DeployFiles {
 
 export function createDeployFiles ({
   allProjects,
+  deployDir,
   lockfile,
   lockfileDir,
   manifest,
@@ -84,6 +87,7 @@ export function createDeployFiles ({
     const projectRootDirRealPath = path.resolve(lockfileDir, importerPath) as ProjectRootDirRealPath
     const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, {
       allProjects,
+      deployDir,
       lockfileDir,
       deployedProjectRealPath,
       projectRootDirRealPath,
@@ -181,10 +185,13 @@ function convertPackageSnapshot (inputSnapshot: PackageSnapshot, opts: ConvertOp
   }
 }
 
-function convertProjectSnapshotToPackageSnapshot (projectSnapshot: ProjectSnapshot, opts: ConvertOptions): PackageSnapshot {
+function convertProjectSnapshotToPackageSnapshot (
+  projectSnapshot: ProjectSnapshot,
+  opts: ConvertOptions & { deployDir: string }
+): PackageSnapshot {
   const resolution: DirectoryResolution = {
     type: 'directory',
-    directory: '.',
+    directory: normalizePath(path.relative(opts.deployDir, opts.projectRootDirRealPath)),
   }
   const dependencies = convertResolvedDependencies(projectSnapshot.dependencies, opts)
   const optionalDependencies = convertResolvedDependencies(projectSnapshot.optionalDependencies, opts)

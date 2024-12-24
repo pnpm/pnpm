@@ -98,8 +98,10 @@ test('deploy without existing lockfile', async () => {
 })
 
 test('deploy with a shared lockfile after full install', async () => {
-  preparePackages([
-    {
+  const projectNames = ['project-1', 'project-2', 'project-3', 'project-4', 'project-5'] as const
+
+  const preparedManifests: Record<typeof projectNames[number], ProjectManifest> = {
+    'project-1': {
       name: 'project-1',
       version: '1.0.0',
       files: ['index.js'],
@@ -112,7 +114,7 @@ test('deploy with a shared lockfile after full install', async () => {
         'is-negative': '1.0.0',
       },
     },
-    {
+    'project-2': {
       name: 'project-2',
       version: '2.0.0',
       files: ['index.js'],
@@ -123,7 +125,7 @@ test('deploy with a shared lockfile after full install', async () => {
         'is-odd': '1.0.0',
       },
     },
-    {
+    'project-3': {
       name: 'project-3',
       version: '2.0.0',
       files: ['index.js'],
@@ -133,17 +135,19 @@ test('deploy with a shared lockfile after full install', async () => {
         'is-odd': '1.0.0',
       },
     },
-    {
+    'project-4': {
       name: 'project-4',
       version: '0.0.0',
     },
-    {
+    'project-5': {
       name: 'project-5',
       version: '0.0.0',
     },
-  ])
+  }
 
-  for (const name of ['project-1', 'project-2', 'project-3', 'project-4', 'project-5']) {
+  preparePackages(projectNames.map(name => preparedManifests[name]))
+
+  for (const name of projectNames) {
     fs.writeFileSync(`${name}/test.js`, '', 'utf8')
     fs.writeFileSync(`${name}/index.js`, '', 'utf8')
   }
@@ -221,6 +225,7 @@ test('deploy with a shared lockfile after full install', async () => {
       'project-4',
       'renamed-project-2',
     ])
+    expect(readPackageJson(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2`)).toStrictEqual(preparedManifests['project-2'])
     expect(fs.realpathSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/renamed-project-2`)).toBe(
       path.resolve(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-2`)
     )
@@ -234,16 +239,19 @@ test('deploy with a shared lockfile after full install', async () => {
       'project-3',
       'project-5',
     ])
+    expect(readPackageJson(`deploy/node_modules/.pnpm/${project3Name}/node_modules/project-3`)).toStrictEqual(preparedManifests['project-3'])
     const project4Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.startsWith('project-4@'))
     expect(project4Name).toBeDefined()
     expect(fs.realpathSync(`deploy/node_modules/.pnpm/${project2Name}/node_modules/project-4`)).toBe(
       path.resolve(`deploy/node_modules/.pnpm/${project4Name}/node_modules/project-4`)
     )
+    expect(readPackageJson(`deploy/node_modules/.pnpm/${project4Name}/node_modules/project-4`)).toStrictEqual(preparedManifests['project-4'])
     const project5Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.startsWith('project-5@'))
     expect(project5Name).toBeDefined()
     expect(fs.realpathSync(`deploy/node_modules/.pnpm/${project3Name}/node_modules/project-5`)).toBe(
       path.resolve(`deploy/node_modules/.pnpm/${project5Name}/node_modules/project-5`)
     )
+    expect(readPackageJson(`deploy/node_modules/.pnpm/${project5Name}/node_modules/project-5`)).toStrictEqual(preparedManifests['project-5'])
     expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('Falling back to installing without a lockfile'))
   }
 

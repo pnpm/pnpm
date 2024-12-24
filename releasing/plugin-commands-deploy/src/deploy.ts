@@ -198,6 +198,7 @@ async function deployFromSharedLockfile (
 
   const deployFiles = createDeployFiles({
     allProjects,
+    deployDir,
     lockfile,
     lockfileDir,
     manifest: selectedProject.manifest,
