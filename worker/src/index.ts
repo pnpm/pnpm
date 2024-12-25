@@ -208,21 +208,6 @@ export async function importPackage (
   })
 }
 
-// In Windows system exFAT drive, symlink will result in error.
-function currentDriveIsExFAT (dir: string): boolean {
-  const currentDrive = `${dir.split(':')[0]}:`
-  const output = execSync(`wmic logicaldisk where "DeviceID='${currentDrive}'" get FileSystem`).toString()
-  const lines = output.trim().split('\n')
-  const name = lines.length > 1 ? lines[1].trim() : ''
-  return name === 'exFAT'
-}
-
-function extendMessage (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-  if (isWindows() && currentDriveIsExFAT(process.cwd())) {
-    err.message += '\n\nThe current drive is exFAT, which does not support symlinks. This will cause installation to fail. You can set the node-linker to "hoisted" to avoid this issue.'
-  }
-}
-
 export async function symlinkAllModules (
   opts: Omit<SymlinkAllModulesMessage, 'type'>
 ): Promise<{ isBuilt: boolean, importMethod: string | undefined }> {
@@ -234,8 +219,8 @@ export async function symlinkAllModules (
     localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        extendMessage(error)
-        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', error.message as string))
+        const hint = createErrorHint(error, opts.deps[0].modules)
+        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', error.message as string, { hint }))
         return
       }
       resolve(value)
@@ -245,6 +230,22 @@ export async function symlinkAllModules (
       ...opts,
     } as SymlinkAllModulesMessage)
   })
+}
+
+function createErrorHint (err: any, checkedDir: string) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (err.code === 'EISDIR' && isWindows() && currentDriveIsExFAT(checkedDir)) {
+    return 'The current drive is exFAT, which does not support symlinks. This will cause installation to fail. You can set the node-linker to "hoisted" to avoid this issue.'
+  }
+  return undefined
+}
+
+// In Windows system exFAT drive, symlink will result in error.
+function currentDriveIsExFAT (dir: string): boolean {
+  const currentDrive = `${dir.split(':')[0]}:`
+  const output = execSync(`wmic logicaldisk where "DeviceID='${currentDrive}'" get FileSystem`).toString()
+  const lines = output.trim().split('\n')
+  const name = lines.length > 1 ? lines[1].trim() : ''
+  return name === 'exFAT'
 }
 
 export async function hardLinkDir (src: string, destDirs: string[]): Promise<void> {
