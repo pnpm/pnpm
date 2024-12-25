@@ -225,8 +225,10 @@ function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDi
   const hasPeers = /^(?<spec>[^()]+)(?<peers>\(.+\))$/.exec(spec)
   if (hasPeers) {
     // Omitting peers means that there are rare cases where dependencies mismatch may happen,
-    // but adding them means that we may have to resolve their specs too, which could drastically increase the code's complexity.
-    // So what would be the best way to ensure the peers are unique?
+    // but adding them could drastically increase the code's complexity:
+    // - we may have to resolve the specs in the peer segments.
+    // - we would have to reconstruct the peer suffixes when we convert project snapshots into package snapshots.
+    // So, what would be the best way to ensure the peers are unique?
     return resolveLinkOrFile(hasPeers.groups!.spec, opts)
   }
 
