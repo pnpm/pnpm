@@ -6,6 +6,8 @@ import { selfUpdate } from '@pnpm/tools.plugin-commands-self-updater'
 import spawn from 'cross-spawn'
 import nock from 'nock'
 
+const pnpmTarballPath = require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-9.1.0.tgz')
+
 jest.mock('@pnpm/cli-meta', () => {
   const actualModule = jest.requireActual('@pnpm/cli-meta')
 
@@ -89,7 +91,7 @@ test('self-update', async () => {
     .reply(200, createMetadata('9.1.0', opts.registries.default))
   nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
-    .replyWithFile(200, path.join(__dirname, 'pnpm-9.1.0.tgz'))
+    .replyWithFile(200, pnpmTarballPath)
 
   await selfUpdate.handler(opts, [])
 
@@ -114,7 +116,7 @@ test('self-update by exact version', async () => {
     .reply(200, createMetadata('9.2.0', opts.registries.default, ['9.1.0']))
   nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
-    .replyWithFile(200, path.join(__dirname, 'pnpm-9.1.0.tgz'))
+    .replyWithFile(200, pnpmTarballPath)
 
   await selfUpdate.handler(opts, ['9.1.0'])
 
@@ -186,7 +188,7 @@ test('self-update updates the packageManager field in package.json', async () =>
     .reply(200, createMetadata('9.1.0', opts.registries.default))
   nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
-    .replyWithFile(200, path.join(__dirname, 'pnpm-9.1.0.tgz'))
+    .replyWithFile(200, pnpmTarballPath)
 
   const output = await selfUpdate.handler(opts, [])
 

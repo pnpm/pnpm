@@ -60,9 +60,14 @@ async function writeLockfile (
   const lockfilePath = path.join(pkgPath, lockfileFilename)
 
   const lockfileToStringify = convertToLockfileFile(wantedLockfile)
+  return writeLockfileFile(lockfilePath, lockfileToStringify)
+}
 
-  const yamlDoc = yamlStringify(lockfileToStringify)
-
+export function writeLockfileFile (
+  lockfilePath: string,
+  wantedLockfile: LockfileFile
+): Promise<void> {
+  const yamlDoc = yamlStringify(wantedLockfile)
   return writeFileAtomic(lockfilePath, yamlDoc)
 }
 

@@ -2,7 +2,7 @@ import assert from 'assert'
 import path from 'path'
 import util from 'util'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
-import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
+import { skippedOptionalDependencyLogger, ignoredScriptsLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
@@ -44,7 +44,7 @@ export async function buildModules<T extends string> (
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
   }
-): Promise<void> {
+): Promise<{ ignoredBuilds: string[] }> {
   const warn = (message: string) => {
     logger.warn({ message, prefix: opts.lockfileDir })
   }
@@ -83,12 +83,9 @@ export async function buildModules<T extends string> (
     )
   })
   await runGroups(opts.childConcurrency ?? 4, groups)
-  if (ignoredPkgs.size > 0) {
-    logger.info({
-      message: `The following dependencies have build scripts that were ignored: ${Array.from(ignoredPkgs).sort().join(', ')}`,
-      prefix: opts.lockfileDir,
-    })
-  }
+  const packageNames = Array.from(ignoredPkgs)
+  ignoredScriptsLogger.debug({ packageNames })
+  return { ignoredBuilds: packageNames }
 }
 
 async function buildDependency<T extends string> (

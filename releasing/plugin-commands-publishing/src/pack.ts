@@ -32,6 +32,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     'pack-destination': String,
+    out: String,
     ...pick([
       'pack-gzip-level',
       'json',
@@ -58,6 +59,10 @@ export function help (): string {
             description: 'Prints the packed tarball and contents in the json format.',
             name: '--json',
           },
+          {
+            description: 'Customizes the output path for the tarball. Use `%s` and `%v` to include the package name and version, e.g., `%s.tgz` or `some-dir/%s-%v.tgz`. By default, the tarball is saved in the current working directory with the name `<package-name>-<version>.tgz`.',
+            name: '--out <path>',
+          },
         ],
       },
     ],
@@ -70,6 +75,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
   }
   engineStrict?: boolean
   packDestination?: string
+  out?: string
   workspaceDir?: string
   json?: boolean
 }
@@ -122,7 +128,21 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   if (!manifest.version) {
     throw new PnpmError('PACKAGE_VERSION_NOT_FOUND', `Package version is not defined in the ${manifestFileName}.`)
   }
-  const tarballName = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
+  let tarballName: string
+  let packDestination: string | undefined
+  const normalizedName = manifest.name.replace('@', '').replace('/', '-')
+  if (opts.out) {
+    if (opts.packDestination) {
+      throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
+    }
+    const preparedOut = opts.out.replaceAll('%s', normalizedName).replaceAll('%v', manifest.version)
+    const parsedOut = path.parse(preparedOut)
+    packDestination = parsedOut.dir ? parsedOut.dir : opts.packDestination
+    tarballName = parsedOut.base
+  } else {
+    tarballName = `${normalizedName}-${manifest.version}.tgz`
+    packDestination = opts.packDestination
+  }
   const publishManifest = await createPublishManifest({
     projectDir: dir,
     modulesDir: path.join(opts.dir, 'node_modules'),
@@ -143,8 +163,8 @@ export async function api (opts: PackOptions): Promise<PackResult> {
       filesMap[`package/${license}`] = path.join(opts.workspaceDir, license)
     }
   }
-  const destDir = opts.packDestination
-    ? (path.isAbsolute(opts.packDestination) ? opts.packDestination : path.join(dir, opts.packDestination ?? '.'))
+  const destDir = packDestination
+    ? (path.isAbsolute(packDestination) ? packDestination : path.join(dir, packDestination ?? '.'))
     : dir
   await fs.promises.mkdir(destDir, { recursive: true })
   await packPkg({

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-patching",
-  "version": "1000.0.1",
+  "version": "1000.0.2",
   "description": "Commands for creating patches",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -37,6 +37,7 @@
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
+    "@types/is-windows": "catalog:",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
@@ -64,6 +65,7 @@
     "enquirer": "catalog:",
     "escape-string-regexp": "catalog:",
     "fast-glob": "catalog:",
+    "is-windows": "catalog:",
     "make-empty-dir": "catalog:",
     "normalize-path": "catalog:",
     "ramda": "catalog:",

@@ -1,5 +1,6 @@
 import path from 'path'
 import {
+  type IgnoredScriptsLog,
   type DeprecationLog,
   type PackageManifestLog,
   type RootLog,
@@ -37,6 +38,7 @@ export function reportSummary (
     summary: Rx.Observable<SummaryLog>
     root: Rx.Observable<RootLog>
     packageManifest: Rx.Observable<PackageManifestLog>
+    ignoredScripts: Rx.Observable<IgnoredScriptsLog>
   },
   opts: {
     cmd: string
@@ -53,11 +55,12 @@ export function reportSummary (
 
   return Rx.combineLatest(
     pkgsDiff$,
+    log$.ignoredScripts.pipe(Rx.startWith({ packageNames: undefined })),
     summaryLog$
   )
     .pipe(
       take(1),
-      map(([pkgsDiff]) => {
+      map(([pkgsDiff, ignoredScripts]) => {
         let msg = ''
         for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly'] as const) {
           let diffs: PackageDiff[] = Object.values(pkgsDiff[depType as keyof typeof pkgsDiff])
@@ -81,6 +84,13 @@ export function reportSummary (
             msg += `${chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)} skipped`
             msg += EOL
           }
+        }
+        if (ignoredScripts.packageNames && ignoredScripts.packageNames.length > 0) {
+          msg += EOL
+          msg += `The following dependencies have build scripts that were ignored: ${Array.from(ignoredScripts.packageNames).sort().join(', ')}`
+          msg += EOL
+          msg += 'To allow the execution of build scripts for these packages, add their names to "pnpm.onlyBuiltDependencies" in your "package.json", then run "pnpm rebuild"'
+          msg += EOL
         }
         return Rx.of({ msg })
       })

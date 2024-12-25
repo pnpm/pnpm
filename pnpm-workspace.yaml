@@ -51,11 +51,11 @@ catalog:
   "@pnpm/network.agent": ^2.0.0
   "@pnpm/nopt": ^0.2.1
   "@pnpm/npm-conf": 2.3.1
-  "@pnpm/npm-lifecycle": ^1000.0.0
+  "@pnpm/npm-lifecycle": ^1000.0.1
   "@pnpm/npm-package-arg": ^1.0.0
   "@pnpm/os.env.path-extender": ^2.0.0
   "@pnpm/patch-package": 0.0.0
-  "@pnpm/registry-mock": 3.43.0
+  "@pnpm/registry-mock": 3.46.0
   "@pnpm/semver-diff": ^1.1.0
   "@pnpm/tabtab": ^0.5.4
   "@pnpm/util.lex-comparator": 3.0.0
@@ -176,7 +176,7 @@ catalog:
   nerf-dart: 1.0.0
   nock: 13.3.4
   node-fetch: npm:@pnpm/node-fetch@1.0.0
-  node-gyp: ^10.1.0
+  node-gyp: ^11.0.0
   normalize-newline: 3.0.0
   normalize-package-data: ^5.0.0
   normalize-path: ^3.0.0
@@ -236,7 +236,7 @@ catalog:
   strip-ansi: ^6.0.1
   strip-bom: ^4.0.0
   strip-comments-strings: 1.2.0
-  symlink-dir: ^6.0.3
+  symlink-dir: ^6.0.4
   tar-stream: ^2.2.0
   tar: ^6.2.1
   tempy: ^1.0.1

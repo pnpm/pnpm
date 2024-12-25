@@ -1,5 +1,11 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1001.0.1
+
 ## 1000.0.1
 
 ### Patch Changes

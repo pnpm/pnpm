@@ -164,7 +164,7 @@ test('local file with symlinked node_modules', async () => {
 
 test('package with a broken symlink', async () => {
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, [f.find('has-broken-symlink/has-broken-symlink.tar.gz')], testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, [f.find('has-broken-symlink.tar.gz')], testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('has-broken-symlink')
 
@@ -173,20 +173,20 @@ test('package with a broken symlink', async () => {
 
 test('tarball local package', async () => {
   const project = prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, [f.find('tar-pkg/tar-pkg-1.0.0.tgz')], testDefaults({ fastUnpack: false }))
+  const manifest = await addDependenciesToPackage({}, [f.find('tar-pkg-1.0.0.tgz')], testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('tar-pkg')
 
   expect(m()).toBe('tar-pkg')
 
-  const pkgSpec = `file:${normalizePath(f.find('tar-pkg/tar-pkg-1.0.0.tgz'))}`
+  const pkgSpec = `file:${normalizePath(f.find('tar-pkg-1.0.0.tgz'))}`
   expect(manifest.dependencies).toStrictEqual({ 'tar-pkg': pkgSpec })
 
   const lockfile = project.readLockfile()
   expect(lockfile.packages[`tar-pkg@${lockfile.importers['.'].dependencies!['tar-pkg'].version}`]).toStrictEqual({
     resolution: {
       integrity: 'sha512-HP/5Rgt3pVFLzjmN9qJJ6vZMgCwoCIl/m2bPndYT283CUqnmFiMx0GeeIJ7SyK6TYoJM78SEvFEOQie++caHqw==',
-      tarball: `file:${normalizePath(path.relative(process.cwd(), f.find('tar-pkg/tar-pkg-1.0.0.tgz')))}`,
+      tarball: `file:${normalizePath(path.relative(process.cwd(), f.find('tar-pkg-1.0.0.tgz')))}`,
     },
     version: '1.0.0',
   })
@@ -195,7 +195,7 @@ test('tarball local package', async () => {
 test('tarball local package from project directory', async () => {
   const project = prepareEmpty()
 
-  f.copy('tar-pkg/tar-pkg-1.0.0.tgz', path.resolve('tar-pkg-1.0.0.tgz'))
+  f.copy('tar-pkg-1.0.0.tgz', path.resolve('tar-pkg-1.0.0.tgz'))
 
   const manifest = await install({
     dependencies: {

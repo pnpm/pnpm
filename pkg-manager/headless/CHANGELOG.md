@@ -1,5 +1,15 @@
 # @pnpm/headless
 
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [3f0e4f0]
+  - @pnpm/lockfile.fs@1001.1.0
+  - @pnpm/deps.graph-builder@1001.0.1
+  - @pnpm/lockfile-to-pnp@1001.0.1
+  - @pnpm/real-hoist@1001.0.0
+
 ## 1001.0.0
 
 ### Major Changes

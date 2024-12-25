@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-outdated
 
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [3f0e4f0]
+  - @pnpm/lockfile.fs@1001.1.0
+  - @pnpm/outdated@1001.0.1
+
 ## 1000.0.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 1001.1.0
+
+### Minor Changes
+
+- 3f0e4f0: Export `writeLockfileFile` and `convertToLockfileFile`.
+
 ## 1001.0.0
 
 ### Major Changes

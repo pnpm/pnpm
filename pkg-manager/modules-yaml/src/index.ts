@@ -22,6 +22,7 @@ export interface Modules {
   nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   packageManager: string
   pendingBuilds: string[]
+  ignoredBuilds?: string[]
   prunedAt: string
   registries?: Registries // nullable for backward compatibility
   shamefullyHoist?: boolean // for backward compatibility

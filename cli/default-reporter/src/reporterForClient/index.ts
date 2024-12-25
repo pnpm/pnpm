@@ -33,6 +33,7 @@ export function reporterForClient (
     context: Rx.Observable<logs.ContextLog>
     fetchingProgress: Rx.Observable<logs.FetchingProgressLog>
     executionTime: Rx.Observable<logs.ExecutionTimeLog>
+    ignoredScripts: Rx.Observable<logs.IgnoredScriptsLog>
     progress: Rx.Observable<logs.ProgressLog>
     stage: Rx.Observable<logs.StageLog>
     deprecation: Rx.Observable<logs.DeprecationLog>

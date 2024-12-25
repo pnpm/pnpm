@@ -139,7 +139,7 @@ async function accessRepository (repository: string): Promise<boolean> {
   try {
     await git(['ls-remote', '--exit-code', repository, 'HEAD'], { retries: 0 })
     return true
-  } catch { // eslint-disable-line
+  } catch {
     return false
   }
 }
