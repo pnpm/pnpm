@@ -43,13 +43,15 @@
     "@pnpm/symlink-dependency": "workspace:*",
     "@rushstack/worker-pool": "catalog:",
     "is-windows": "catalog:",
-    "load-json-file": "catalog:"
+    "load-json-file": "catalog:",
+    "shell-quote": "catalog:"
   },
   "devDependencies": {
     "@pnpm/logger": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/worker": "workspace:*",
-    "@types/is-windows": "catalog:"
+    "@types/is-windows": "catalog:",
+    "@types/shell-quote": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

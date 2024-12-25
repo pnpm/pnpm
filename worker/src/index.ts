@@ -7,6 +7,7 @@ import { execSync } from 'child_process'
 import isWindows from 'is-windows'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'
+import { quote as shellQuote } from 'shell-quote'
 import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,
@@ -233,16 +234,18 @@ export async function symlinkAllModules (
 }
 
 function createErrorHint (err: any, checkedDir: string) { // eslint-disable-line @typescript-eslint/no-explicit-any
-  if (err.code === 'EISDIR' && isWindows() && currentDriveIsExFAT(checkedDir)) {
-    return 'The current drive is exFAT, which does not support symlinks. This will cause installation to fail. You can set the node-linker to "hoisted" to avoid this issue.'
+  if (err.code === 'EISDIR' && isWindows()) {
+    const checkedDrive = `${checkedDir.split(':')[0]}:`
+    if (isDriveExFat(checkedDrive)) {
+      return `The "${checkedDrive}" drive is exFAT, which does not support symlinks. This will cause installation to fail. You can set the node-linker to "hoisted" to avoid this issue.`
+    }
   }
   return undefined
 }
 
 // In Windows system exFAT drive, symlink will result in error.
-function currentDriveIsExFAT (dir: string): boolean {
-  const currentDrive = `${dir.split(':')[0]}:`
-  const output = execSync(`wmic logicaldisk where "DeviceID='${currentDrive}'" get FileSystem`).toString()
+function isDriveExFat (drive: string): boolean {
+  const output = execSync(`wmic logicaldisk where ${shellQuote([`DeviceID='${drive}'`])} get FileSystem`).toString()
   const lines = output.trim().split('\n')
   const name = lines.length > 1 ? lines[1].trim() : ''
   return name === 'exFAT'
