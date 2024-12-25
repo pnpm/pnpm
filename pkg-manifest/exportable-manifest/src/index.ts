@@ -102,7 +102,7 @@ async function makePublishDependencies (
 }
 
 async function resolveManifest (depName: string, modulesDir: string): Promise<ProjectManifest> {
-  const { manifest } = await tryReadProjectManifest(path.join(modulesDir, depName))
+  const { manifest } = await tryReadProjectManifest(modulesDir)
   if (!manifest?.name || !manifest?.version) {
     throw new PnpmError(
       'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
@@ -133,7 +133,7 @@ async function replaceWorkspaceProtocol (depName: string, depSpec: string, dir: 
   const versionAliasSpecParts = /^workspace:(.*?)@?([\^~*])$/.exec(depSpec)
   if (versionAliasSpecParts != null) {
     modulesDir = modulesDir ?? path.join(dir, 'node_modules')
-    const manifest = await resolveManifest(depName, modulesDir)
+    const manifest = await resolveManifest(depName, path.join(modulesDir, depName))
 
     const semverRangeToken = versionAliasSpecParts[2] !== '*' ? versionAliasSpecParts[2] : ''
     if (depName !== manifest.name) {
@@ -171,7 +171,7 @@ async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec:
     }
 
     modulesDir = modulesDir ?? path.join(dir, 'node_modules')
-    const manifest = await resolveManifest(depName, modulesDir)
+    const manifest = await resolveManifest(depName, path.join(modulesDir, depName))
     const semverRangeToken = semverRangGroup !== '*' ? semverRangGroup : ''
 
     return depSpec.replace(workspaceSemverRegex, `${semverRangeToken}${manifest.version}`)
