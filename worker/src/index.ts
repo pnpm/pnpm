@@ -220,7 +220,7 @@ export async function symlinkAllModules (
     localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        const hint = createErrorHint(error, opts.deps[0].modules)
+        const hint = opts.deps?.[0]?.modules != null ? createErrorHint(error, opts.deps[0].modules) : undefined
         reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', error.message as string, { hint }))
         return
       }
@@ -233,8 +233,8 @@ export async function symlinkAllModules (
   })
 }
 
-function createErrorHint (err: any, checkedDir: string) { // eslint-disable-line @typescript-eslint/no-explicit-any
-  if (err.code === 'EISDIR' && isWindows()) {
+function createErrorHint (err: Error, checkedDir: string): string | undefined {
+  if ('code' in err && err.code === 'EISDIR' && isWindows()) {
     const checkedDrive = `${checkedDir.split(':')[0]}:`
     if (isDriveExFat(checkedDrive)) {
       return `The "${checkedDrive}" drive is exFAT, which does not support symlinks. This will cause installation to fail. You can set the node-linker to "hoisted" to avoid this issue.`
