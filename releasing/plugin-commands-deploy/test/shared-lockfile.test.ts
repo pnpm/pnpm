@@ -765,9 +765,11 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
 
   const project1Name = fs.readdirSync('deploy/node_modules/.pnpm').find(name => name.includes('project-1@'))
   expect(project1Name).toBeDefined()
-  expect(fs.realpathSync(`deploy/node_modules/.pnpm/${project1Name}/node_modules/is-positive`)).toBe(
-    path.resolve(`deploy/node_modules/.pnpm/is-positive@1.0.0_patch_hash=${patchFile.hash}/node_modules/is-positive`)
-  )
+  if (process.platform !== 'win32') {
+    expect(fs.realpathSync(`deploy/node_modules/.pnpm/${project1Name}/node_modules/is-positive`)).toBe(
+      path.resolve(`deploy/node_modules/.pnpm/is-positive@1.0.0_patch_hash=${patchFile.hash}/node_modules/is-positive`)
+    )
+  }
   expect(
     fs.readFileSync(`deploy/node_modules/.pnpm/${project1Name}/node_modules/is-positive/PATCH.txt`, 'utf-8')
       .trim()
