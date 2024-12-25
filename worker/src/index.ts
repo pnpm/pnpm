@@ -245,10 +245,14 @@ function createErrorHint (err: Error, checkedDir: string): string | undefined {
 
 // In Windows system exFAT drive, symlink will result in error.
 function isDriveExFat (drive: string): boolean {
-  const output = execSync(`wmic logicaldisk where ${shellQuote([`DeviceID='${drive}'`])} get FileSystem`).toString()
-  const lines = output.trim().split('\n')
-  const name = lines.length > 1 ? lines[1].trim() : ''
-  return name === 'exFAT'
+  try {
+    const output = execSync(`wmic logicaldisk where ${shellQuote([`DeviceID='${drive}'`])} get FileSystem`).toString()
+    const lines = output.trim().split('\n')
+    const name = lines.length > 1 ? lines[1].trim() : ''
+    return name === 'exFAT'
+  } catch {
+    return false
+  }
 }
 
 export async function hardLinkDir (src: string, destDirs: string[]): Promise<void> {
