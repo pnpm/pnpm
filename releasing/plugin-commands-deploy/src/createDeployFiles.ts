@@ -121,10 +121,10 @@ export function createDeployFiles ({
   const result: DeployFiles = {
     lockfile: {
       ...lockfile,
-      overrides: undefined, // the result of package overrides should already be part of the package snapshots
+      overrides: undefined, // the effects of package overrides should already be part of the package snapshots
       patchedDependencies: undefined,
-      packageExtensionsChecksum: undefined, // the result of the package extensions should already be part of the package snapshots
-      pnpmfileChecksum: undefined, // the result of the pnpmfile should already be part of the package snapshots
+      packageExtensionsChecksum: undefined, // the effects of the package extensions should already be part of the package snapshots
+      pnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
       importers: {
         ['.' as ProjectId]: targetSnapshot,
       },
@@ -137,9 +137,9 @@ export function createDeployFiles ({
       optionalDependencies: targetSnapshot.optionalDependencies,
       pnpm: {
         ...manifest.pnpm,
-        overrides: undefined, // the result of package overrides should already be part of the package snapshots
+        overrides: undefined, // the effects of package overrides should already be part of the package snapshots
         patchedDependencies: undefined,
-        packageExtensions: undefined, // the result of the package extensions should already be part of the package snapshots
+        packageExtensions: undefined, // the effects of the package extensions should already be part of the package snapshots
       },
     },
   }

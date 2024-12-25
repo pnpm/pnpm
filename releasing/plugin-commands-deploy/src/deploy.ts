@@ -237,7 +237,7 @@ async function deployFromSharedLockfile (
           deployHook,
           deployCatalogHook.bind(null, opts.catalogs ?? {}),
         ],
-        calculatePnpmfileChecksum: undefined, // the result of the pnpmfile should already be part of the package snapshots
+        calculatePnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
       },
       rawLocalConfig: {
         ...opts.rawLocalConfig,
