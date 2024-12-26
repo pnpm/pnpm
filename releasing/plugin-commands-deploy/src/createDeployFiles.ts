@@ -205,14 +205,11 @@ function convertPackageSnapshot (inputSnapshot: PackageSnapshot, opts: ConvertOp
     throw new Error(`Unknown resolution type: ${JSON.stringify(resolution)}`)
   }
 
-  const dependencies = convertResolvedDependencies(inputSnapshot.dependencies, opts)
-  const optionalDependencies = convertResolvedDependencies(inputSnapshot.optionalDependencies, opts)
-
   return {
     ...inputSnapshot,
     resolution: outputResolution,
-    dependencies,
-    optionalDependencies,
+    dependencies: convertResolvedDependencies(inputSnapshot.dependencies, opts),
+    optionalDependencies: convertResolvedDependencies(inputSnapshot.optionalDependencies, opts),
   }
 }
 
