@@ -246,6 +246,7 @@ function createErrorHint (err: Error, checkedDir: string): string | undefined {
 // In Windows system exFAT drive, symlink will result in error.
 function isDriveExFat (drive: string): boolean {
   try {
+    // cspell:disable-next-line
     const output = execSync(`wmic logicaldisk where ${shellQuote([`DeviceID='${drive}'`])} get FileSystem`).toString()
     const lines = output.trim().split('\n')
     const name = lines.length > 1 ? lines[1].trim() : ''
