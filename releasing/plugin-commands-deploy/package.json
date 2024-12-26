@@ -49,6 +49,7 @@
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",

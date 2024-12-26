@@ -49,6 +49,9 @@
       "path": "../../lockfile/types"
     },
     {
+      "path": "../../packages/dependency-path"
+    },
+    {
       "path": "../../packages/error"
     },
     {
