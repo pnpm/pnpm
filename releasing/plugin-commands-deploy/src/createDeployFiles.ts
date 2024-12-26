@@ -2,6 +2,7 @@ import path from 'path'
 import url from 'url'
 import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
+import * as dp from '@pnpm/dependency-path'
 import {
   type DirectoryResolution,
   type LockfileObject,
@@ -256,26 +257,10 @@ function convertResolvedDependencies (
 interface ResolveLinkOrFileResult {
   scheme: 'link:' | 'file:'
   resolvedPath: string
-  suffix?: `(${string})`
+  suffix?: string
 }
 
 function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveLinkOrFileResult | undefined {
-  // try parsing `spec` as `spec(peers)`
-  const hasPeers = /^(?<spec>[^()]+)(?<peers>\(.+\))$/.exec(spec)
-  if (hasPeers) {
-    const result = resolveLinkOrFile(hasPeers.groups!.spec, opts)
-    if (!result) return undefined
-    if (result.suffix) {
-      throw new Error(`Something goes wrong, suffix is not undefined: ${result.suffix}`)
-    }
-    result.suffix = hasPeers.groups!.peers as `(${string})`
-    return result
-  }
-
-  // try parsing `spec` as either @scope/name@pref or name@pref
-  const renamed = /^@(?<scope>[^@]+)\/(?<name>[^@]+)@(?<pref>.+)$/.exec(spec) ?? /^(?<name>[^@]+)@(?<pref>.+)$/.exec(spec)
-  if (renamed) return resolveLinkOrFile(renamed.groups!.pref, opts)
-
   const { lockfileDir, projectRootDirRealPath } = opts
 
   if (spec.startsWith('link:')) {
@@ -294,7 +279,25 @@ function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDi
     }
   }
 
-  return undefined
+  const { nonSemverVersion, patchHash, peersSuffix, version } = dp.parse(spec)
+  if (!nonSemverVersion) return undefined
+
+  if (version) {
+    throw new Error(`Something goes wrong, version should be undefined but isn't: ${version}`)
+  }
+
+  const parseResult = resolveLinkOrFile(nonSemverVersion, opts)
+  if (!parseResult) return undefined
+
+  if (parseResult.suffix) {
+    throw new Error(`Something goes wrong, suffix should be undefined but isn't: ${parseResult.suffix}`)
+  }
+
+  if (patchHash || peersSuffix) {
+    parseResult.suffix = `${patchHash ?? ''}${peersSuffix ?? ''}`
+  }
+
+  return parseResult
 }
 
 function createFileUrlDepPath (
