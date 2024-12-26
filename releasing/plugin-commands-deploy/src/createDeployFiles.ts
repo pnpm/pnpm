@@ -5,6 +5,7 @@ import pick from 'ramda/src/pick'
 import {
   type DirectoryResolution,
   type LockfileObject,
+  type LockfileResolution,
   type PackageSnapshot,
   type PackageSnapshots,
   type ProjectSnapshot,
@@ -72,10 +73,18 @@ export function createDeployFiles ({
 
   const targetPackageSnapshots: PackageSnapshots = {}
   for (const name in lockfile.packages) {
-    const depPath = name as DepPath
-    const inputSnapshot = lockfile.packages[depPath]
-    targetPackageSnapshots[depPath] = convertPackageSnapshot(inputSnapshot, {
+    const inputDepPath = name as DepPath
+    const inputSnapshot = lockfile.packages[inputDepPath]
+    const resolveResult = resolveLinkOrFile(inputDepPath, {
+      lockfileDir,
+      projectRootDirRealPath: rootProjectManifestDir,
+    })
+    const outputDepPath = resolveResult
+      ? createFileUrlDepPath(resolveResult, allProjects)
+      : inputDepPath
+    targetPackageSnapshots[outputDepPath] = convertPackageSnapshot(inputSnapshot, {
       allProjects,
+      deployDir,
       deployedProjectRealPath,
       lockfileDir,
       projectRootDirRealPath: rootProjectManifestDir,
@@ -93,7 +102,7 @@ export function createDeployFiles ({
       deployedProjectRealPath,
       projectRootDirRealPath,
     })
-    const depPath = createFileUrlDepPath(projectRootDirRealPath, allProjects)
+    const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, allProjects)
     targetPackageSnapshots[depPath] = packageSnapshot
   }
 
@@ -103,18 +112,18 @@ export function createDeployFiles ({
     const inputDependencies = inputSnapshot[field] ?? {}
     for (const name in inputDependencies) {
       const spec = inputDependencies[name]
-      const targetRealPath = resolveLinkOrFile(spec, {
+      const resolveResult = resolveLinkOrFile(spec, {
         lockfileDir,
         projectRootDirRealPath: path.resolve(lockfileDir, projectId),
       })
 
-      if (!targetRealPath) {
+      if (!resolveResult) {
         targetSpecifiers[name] = targetDependencies[name] = spec
         continue
       }
 
       targetSpecifiers[name] = targetDependencies[name] =
-        targetRealPath === deployedProjectRealPath ? 'link:.' : createFileUrlDepPath(targetRealPath, allProjects)
+        resolveResult.resolvedPath === deployedProjectRealPath ? 'link:.' : createFileUrlDepPath(resolveResult, allProjects)
     }
   }
 
@@ -165,6 +174,7 @@ export function createDeployFiles ({
 
 interface ConvertOptions {
   allProjects: CreateDeployFilesOptions['allProjects']
+  deployDir: string
   deployedProjectRealPath: string
   projectRootDirRealPath: string
   lockfileDir: string
@@ -173,17 +183,38 @@ interface ConvertOptions {
 function convertPackageSnapshot (inputSnapshot: PackageSnapshot, opts: ConvertOptions): PackageSnapshot {
   const dependencies = convertResolvedDependencies(inputSnapshot.dependencies, opts)
   const optionalDependencies = convertResolvedDependencies(inputSnapshot.optionalDependencies, opts)
+  const inputResolution = inputSnapshot.resolution
+  let outputResolution: LockfileResolution
+  if ('integrity' in inputResolution) {
+    outputResolution = inputResolution
+  } else if ('tarball' in inputResolution) {
+    outputResolution = { ...inputResolution }
+    if (inputResolution.tarball.startsWith('file:')) {
+      const inputPath = inputResolution.tarball.slice('file:'.length)
+      const resolvedPath = path.resolve(opts.lockfileDir, inputPath)
+      const outputPath = normalizePath(path.relative(opts.deployDir, resolvedPath))
+      outputResolution.tarball = `file:${outputPath}`
+      if (inputResolution.path) outputResolution.path = outputPath
+    }
+  } else if (inputResolution.type === 'directory') {
+    const resolvedPath = path.resolve(opts.lockfileDir, inputResolution.directory)
+    const directory = normalizePath(path.relative(opts.deployDir, resolvedPath))
+    outputResolution = { ...inputResolution, directory }
+  } else if (inputResolution.type === 'git') {
+    outputResolution = inputResolution
+  } else {
+    const resolution: never = inputResolution // `never` is the type guard to force fixing this code when adding new type of resolution
+    throw new Error(`Unknown resolution type: ${JSON.stringify(resolution)}`)
+  }
   return {
     ...inputSnapshot,
+    resolution: outputResolution,
     dependencies,
     optionalDependencies,
   }
 }
 
-function convertProjectSnapshotToPackageSnapshot (
-  projectSnapshot: ProjectSnapshot,
-  opts: ConvertOptions & { deployDir: string }
-): PackageSnapshot {
+function convertProjectSnapshotToPackageSnapshot (projectSnapshot: ProjectSnapshot, opts: ConvertOptions): PackageSnapshot {
   const resolution: DirectoryResolution = {
     type: 'directory',
     directory: normalizePath(path.relative(opts.deployDir, opts.projectRootDirRealPath)),
@@ -197,39 +228,49 @@ function convertProjectSnapshotToPackageSnapshot (
   }
 }
 
-function convertResolvedDependencies (input: ResolvedDependencies | undefined, opts: ConvertOptions): ResolvedDependencies | undefined {
+function convertResolvedDependencies (
+  input: ResolvedDependencies | undefined,
+  opts: Pick<ConvertOptions, 'allProjects' | 'deployedProjectRealPath' | 'lockfileDir' | 'projectRootDirRealPath'>
+): ResolvedDependencies | undefined {
   if (!input) return undefined
   const output: ResolvedDependencies = {}
 
   for (const key in input) {
     const spec = input[key]
-    const depRealPath = resolveLinkOrFile(spec, opts)
-    if (!depRealPath) {
+    const resolveResult = resolveLinkOrFile(spec, opts)
+    if (!resolveResult) {
       output[key] = spec
       continue
     }
 
-    if (depRealPath === opts.deployedProjectRealPath) {
+    if (resolveResult.resolvedPath === opts.deployedProjectRealPath) {
       output[key] = 'link:.' // the path is relative to the lockfile dir, which means '.' would reference the deploy dir
       continue
     }
 
-    output[key] = createFileUrlDepPath(depRealPath, opts.allProjects)
+    output[key] = createFileUrlDepPath(resolveResult, opts.allProjects)
   }
 
   return output
 }
 
-function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): string | undefined {
+interface ResolveLinkOrFileResult {
+  scheme: 'link:' | 'file:'
+  resolvedPath: string
+  suffix?: `(${string})`
+}
+
+function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveLinkOrFileResult | undefined {
   // try parsing `spec` as `spec(peers)`
   const hasPeers = /^(?<spec>[^()]+)(?<peers>\(.+\))$/.exec(spec)
   if (hasPeers) {
-    // Omitting peers means that there are rare cases where dependencies mismatch may happen,
-    // but adding them could drastically increase the code's complexity:
-    // - we may have to resolve the specs in the peer segments.
-    // - we would have to reconstruct the peer suffixes when we convert project snapshots into package snapshots.
-    // So, what would be the best way to ensure the peers are unique?
-    return resolveLinkOrFile(hasPeers.groups!.spec, opts)
+    const result = resolveLinkOrFile(hasPeers.groups!.spec, opts)
+    if (!result) return undefined
+    if (result.suffix) {
+      throw new Error(`Something goes wrong, suffix is not undefined: ${result.suffix}`)
+    }
+    result.suffix = hasPeers.groups!.peers as `(${string})`
+    return result
   }
 
   // try parsing `spec` as either @scope/name@pref or name@pref
@@ -240,23 +281,29 @@ function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDi
 
   if (spec.startsWith('link:')) {
     const targetPath = spec.slice('link:'.length)
-    return path.resolve(projectRootDirRealPath, targetPath)
+    return {
+      scheme: 'link:',
+      resolvedPath: path.resolve(projectRootDirRealPath, targetPath),
+    }
   }
 
   if (spec.startsWith('file:')) {
     const targetPath = spec.slice('file:'.length)
-    return path.resolve(lockfileDir, targetPath)
+    return {
+      scheme: 'file:',
+      resolvedPath: path.resolve(lockfileDir, targetPath),
+    }
   }
 
   return undefined
 }
 
 function createFileUrlDepPath (
-  depRealPath: string,
+  { resolvedPath, suffix }: Pick<ResolveLinkOrFileResult, 'resolvedPath' | 'suffix'>,
   allProjects: CreateDeployFilesOptions['allProjects']
 ): DepPath {
-  const depFileUrl = url.pathToFileURL(depRealPath).toString()
-  const project = allProjects.find(project => project.rootDirRealPath === depRealPath)
-  const name = project?.manifest.name ?? path.basename(depRealPath)
-  return `${name}@${depFileUrl}` as DepPath
+  const depFileUrl = url.pathToFileURL(resolvedPath).toString()
+  const project = allProjects.find(project => project.rootDirRealPath === resolvedPath)
+  const name = project?.manifest.name ?? path.basename(resolvedPath)
+  return `${name}@${depFileUrl}${suffix ?? ''}` as DepPath
 }
