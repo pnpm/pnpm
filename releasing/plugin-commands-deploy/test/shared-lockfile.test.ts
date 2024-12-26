@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import url from 'url'
 import { deploy } from '@pnpm/plugin-commands-deploy'
 import { install } from '@pnpm/plugin-commands-installation'
 import { assertProject } from '@pnpm/assert-project'
@@ -12,6 +13,8 @@ import { type ProjectManifest } from '@pnpm/types'
 import { DEFAULT_OPTS } from './utils'
 
 const f = fixtures(__dirname)
+
+const resolvePathAsUrl = (...paths: string[]): string => url.pathToFileURL(path.resolve(...paths)).toString()
 
 beforeEach(async () => {
   const logger = await import('@pnpm/logger')
@@ -774,4 +777,186 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
     fs.readFileSync(`deploy/node_modules/.pnpm/${project1Name}/node_modules/is-positive/PATCH.txt`, 'utf-8')
       .trim()
   ).toBe('added by pnpm patch-commit')
+})
+
+test('deploy with a shared lockfile that has peer dependencies suffix in workspace package dependency paths', async () => {
+  const preparedManifests: Record<string, ProjectManifest> = {
+    'project-0': {
+      name: 'project-0',
+      version: '0.0.0',
+      dependencies: {
+        'project-1': 'workspace:*',
+      },
+      peerDependencies: {
+        'project-1': '*',
+        'project-2': '*',
+      },
+    },
+    'project-1': {
+      name: 'project-1',
+      version: '0.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+        'project-2': 'workspace:*',
+      },
+      peerDependencies: {
+        'is-negative': '>=1.0.0',
+        'project-2': '*',
+      },
+    },
+    'project-2': {
+      name: 'project-2',
+      version: '0.0.0',
+      peerDependencies: {
+        'is-positive': '>=1.0.0',
+      },
+    },
+  }
+
+  preparePackages(['project-0', 'project-1', 'project-2'].map(name => ({
+    location: `packages/${name}`,
+    package: preparedManifests[name],
+  })))
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-0' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dedupeInjectedDeps: false,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+  expect(assertProject('.').readLockfile()).toMatchObject({
+    importers: {
+      'packages/project-0': {
+        dependencies: {
+          'project-1': {
+            version: 'file:packages/project-1(is-negative@1.0.0)(project-2@file:packages/project-2(is-positive@1.0.0))',
+          },
+          'project-2': {
+            version: 'file:packages/project-2(is-positive@1.0.0)',
+          },
+        },
+      },
+      'packages/project-1': {
+        dependencies: {
+          'project-2': {
+            version: 'file:packages/project-2(is-positive@1.0.0)',
+          },
+        },
+      },
+    },
+    packages: {
+      'project-1@file:packages/project-1': {
+        resolution: {
+          type: 'directory',
+          directory: 'packages/project-1',
+        },
+      },
+      'project-2@file:packages/project-2': {
+        resolution: {
+          type: 'directory',
+          directory: 'packages/project-2',
+        },
+      },
+    },
+    snapshots: {
+      'project-1@file:packages/project-1(is-negative@1.0.0)(project-2@file:packages/project-2(is-positive@1.0.0))': {
+        dependencies: {
+          'project-2': 'file:packages/project-2(is-positive@1.0.0)',
+        },
+      },
+      'project-2@file:packages/project-2(is-positive@1.0.0)': {},
+    },
+  })
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const project = assertProject(path.resolve('deploy'))
+  project.has('project-1')
+  project.has('project-2')
+
+  expect(project.readLockfile()).toMatchObject({
+    importers: {
+      '.': {
+        dependencies: {
+          'project-1': {
+            specifier: `project-1@${resolvePathAsUrl('packages/project-1')}(is-negative@1.0.0)(project-2@file:packages/project-2(is-positive@1.0.0))`,
+            version: `project-1@${resolvePathAsUrl('packages/project-1')}(is-negative@1.0.0)(project-2@file:packages/project-2(is-positive@1.0.0))`,
+          },
+          'project-2': {
+            specifier: `project-2@${resolvePathAsUrl('packages/project-2')}(is-positive@1.0.0)`,
+            version: `project-2@${resolvePathAsUrl('packages/project-2')}(is-positive@1.0.0)`,
+          },
+        },
+      },
+    },
+    packages: {
+      [`project-1@${resolvePathAsUrl('packages/project-1')}`]: {
+        resolution: {
+          type: 'directory',
+          directory: '../packages/project-1',
+        },
+      },
+      [`project-2@${resolvePathAsUrl('packages/project-2')}`]: {
+        resolution: {
+          type: 'directory',
+          directory: '../packages/project-2',
+        },
+      },
+    },
+    snapshots: {
+      [`project-1@${resolvePathAsUrl('packages/project-1')}(is-negative@1.0.0)(project-2@file:packages/project-2(is-positive@1.0.0))`]: {
+        dependencies: {
+          'project-2': `project-2@${resolvePathAsUrl('packages/project-2')}(is-positive@1.0.0)`,
+        },
+      },
+      [`project-2@${resolvePathAsUrl('packages/project-2')}(is-positive@1.0.0)`]: {},
+    },
+  })
+
+  expect(readPackageJson('deploy')).toStrictEqual({
+    name: 'project-0',
+    version: '0.0.0',
+    dependencies: {
+      'project-1': `project-1@${resolvePathAsUrl('packages/project-1')}(is-negative@1.0.0)(project-2@file:packages/project-2(is-positive@1.0.0))`,
+      'project-2': `project-2@${resolvePathAsUrl('packages/project-2')}(is-positive@1.0.0)`,
+    },
+    devDependencies: {},
+    optionalDependencies: {},
+    pnpm: {},
+  } as ProjectManifest)
+
+  expect(readPackageJson('deploy/node_modules/project-1')).toStrictEqual(preparedManifests['project-1'])
+  expect(readPackageJson('deploy/node_modules/project-2')).toStrictEqual(preparedManifests['project-2'])
+
+  const project1Names = fs.readdirSync('deploy/node_modules/.pnpm').filter(name => name.includes('project-1@'))
+  expect(project1Names).not.toStrictEqual([])
+  for (const name of project1Names) {
+    expect(readPackageJson(`deploy/node_modules/.pnpm/${name}/node_modules/project-1`)).toStrictEqual(preparedManifests['project-1'])
+  }
+
+  const project2Names = fs.readdirSync('deploy/node_modules/.pnpm').filter(name => name.includes('project-2@'))
+  expect(project2Names).not.toStrictEqual([])
+  for (const name of project2Names) {
+    expect(readPackageJson(`deploy/node_modules/.pnpm/${name}/node_modules/project-2`)).toStrictEqual(preparedManifests['project-2'])
+  }
 })
