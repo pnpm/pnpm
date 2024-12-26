@@ -103,7 +103,7 @@ export function createDeployFiles ({
       deployedProjectRealPath,
       projectRootDirRealPath,
     })
-    const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, allProjects)
+    const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath, suffix: '' }, allProjects)
     targetPackageSnapshots[depPath] = packageSnapshot
   }
 
@@ -257,47 +257,32 @@ function convertResolvedDependencies (
 interface ResolveLinkOrFileResult {
   scheme: 'link:' | 'file:'
   resolvedPath: string
-  suffix?: string
+  suffix: string
 }
 
 function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveLinkOrFileResult | undefined {
+  const { id, peersSuffix: suffix } = dp.parseDepPath(spec)
   const { lockfileDir, projectRootDirRealPath } = opts
 
-  if (spec.startsWith('link:')) {
-    const targetPath = spec.slice('link:'.length)
+  if (id.startsWith('link:')) {
+    const targetPath = id.slice('link:'.length)
     return {
       scheme: 'link:',
       resolvedPath: path.resolve(projectRootDirRealPath, targetPath),
+      suffix,
     }
   }
 
-  if (spec.startsWith('file:')) {
-    const targetPath = spec.slice('file:'.length)
+  if (id.startsWith('file:')) {
+    const targetPath = id.slice('file:'.length)
     return {
       scheme: 'file:',
       resolvedPath: path.resolve(lockfileDir, targetPath),
+      suffix,
     }
   }
 
-  const { nonSemverVersion, patchHash, peersSuffix, version } = dp.parse(spec)
-  if (!nonSemverVersion) return undefined
-
-  if (version) {
-    throw new Error(`Something goes wrong, version should be undefined but isn't: ${version}`)
-  }
-
-  const parseResult = resolveLinkOrFile(nonSemverVersion, opts)
-  if (!parseResult) return undefined
-
-  if (parseResult.suffix) {
-    throw new Error(`Something goes wrong, suffix should be undefined but isn't: ${parseResult.suffix}`)
-  }
-
-  if (patchHash || peersSuffix) {
-    parseResult.suffix = `${patchHash ?? ''}${peersSuffix ?? ''}`
-  }
-
-  return parseResult
+  return undefined
 }
 
 function createFileUrlDepPath (
