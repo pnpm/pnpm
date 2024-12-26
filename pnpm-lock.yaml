@@ -144,6 +144,9 @@ catalogs:
     '@types/semver':
       specifier: 7.5.3
       version: 7.5.3
+    '@types/shell-quote':
+      specifier: ^1.7.5
+      version: 1.7.5
     '@types/signal-exit':
       specifier: ^3.0.4
       version: 3.0.4
@@ -561,6 +564,9 @@ catalogs:
     semver-utils:
       specifier: ^1.1.4
       version: 1.1.4
+    shell-quote:
+      specifier: ^1.8.2
+      version: 1.8.2
     signal-exit:
       specifier: ^3.0.7
       version: 3.0.7
@@ -7728,9 +7734,15 @@ importers:
       '@rushstack/worker-pool':
         specifier: 'catalog:'
         version: 0.4.9(@types/node@22.5.3)
+      is-windows:
+        specifier: 'catalog:'
+        version: 1.0.2
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
+      shell-quote:
+        specifier: 'catalog:'
+        version: 1.8.2
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -7741,6 +7753,12 @@ importers:
       '@pnpm/worker':
         specifier: workspace:*
         version: 'link:'
+      '@types/is-windows':
+        specifier: 'catalog:'
+        version: 1.0.2
+      '@types/shell-quote':
+        specifier: 'catalog:'
+        version: 1.7.5
 
   workspace/filter-packages-from-dir:
     dependencies:
@@ -9386,6 +9404,9 @@ packages:
 
   '@types/semver@7.5.8':
     resolution: {integrity: sha512-I8EUhyrgfLrcTkzV3TSsGyl1tSuPrEDzr0yd5m90UgNxQkyDXULk3b6MlQqTCpZpNtWe1K0hzclnZkTcLBe2UQ==}
+
+  '@types/shell-quote@1.7.5':
+    resolution: {integrity: sha512-+UE8GAGRPbJVQDdxi16dgadcBfQ+KG2vgZhV1+3A1XmHbmwcdwhCUwIdy+d3pAGrbvgRoVSjeI9vOWyq376Yzw==}
 
   '@types/signal-exit@3.0.4':
     resolution: {integrity: sha512-e7EUPfU9afHyWc5CXtlqbvVHEshrb05uPlDCenWIbMgtWoFrTuTDVYNLKk6o4X2/4oHTfNqrJX/vaJ3uBhtXTg==}
@@ -13511,6 +13532,10 @@ packages:
   shell-quote@1.8.1:
     resolution: {integrity: sha512-6j1W9l1iAs/4xYBI1SYOVZyFcCis9b4KCLQ8fgAGG07QvzaRLVVRQvAy85yNmmZSjYjg4MWh4gNvlPujU/5LpA==}
 
+  shell-quote@1.8.2:
+    resolution: {integrity: sha512-AzqKpGKjrj7EM6rKVQEPpB288oCfnrEIuyoT9cyF4nmGa7V8Zk6f7RRqYisX8X9m+Q7bd632aZW4ky7EhbQztA==}
+    engines: {node: '>= 0.4'}
+
   shelljs@0.8.5:
     resolution: {integrity: sha512-TiwcRcrkhHvbrZbnRcFYMLl30Dfov3HKqzp5tO5b4pt6G/SezKcYhmDg15zXVBswHmctSAQKznqNW2LO5tTDow==}
     engines: {node: '>=4'}
@@ -16407,6 +16432,8 @@ snapshots:
   '@types/semver@7.5.3': {}
 
   '@types/semver@7.5.8': {}
+
+  '@types/shell-quote@1.7.5': {}
 
   '@types/signal-exit@3.0.4': {}
 
@@ -21247,6 +21274,8 @@ snapshots:
   shebang-regex@3.0.0: {}
 
   shell-quote@1.8.1: {}
+
+  shell-quote@1.8.2: {}
 
   shelljs@0.8.5:
     dependencies:

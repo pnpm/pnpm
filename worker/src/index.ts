@@ -3,8 +3,11 @@ import path from 'path'
 import os from 'os'
 import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
 import { PnpmError } from '@pnpm/error'
+import { execSync } from 'child_process'
+import isWindows from 'is-windows'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'
+import { quote as shellQuote } from 'shell-quote'
 import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,
@@ -217,7 +220,8 @@ export async function symlinkAllModules (
     localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', error.message as string))
+        const hint = opts.deps?.[0]?.modules != null ? createErrorHint(error, opts.deps[0].modules) : undefined
+        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', error.message as string, { hint }))
         return
       }
       resolve(value)
@@ -227,6 +231,28 @@ export async function symlinkAllModules (
       ...opts,
     } as SymlinkAllModulesMessage)
   })
+}
+
+function createErrorHint (err: Error, checkedDir: string): string | undefined {
+  if ('code' in err && err.code === 'EISDIR' && isWindows()) {
+    const checkedDrive = `${checkedDir.split(':')[0]}:`
+    if (isDriveExFat(checkedDrive)) {
+      return `The "${checkedDrive}" drive is exFAT, which does not support symlinks. This will cause installation to fail. You can set the node-linker to "hoisted" to avoid this issue.`
+    }
+  }
+  return undefined
+}
+
+// In Windows system exFAT drive, symlink will result in error.
+function isDriveExFat (drive: string): boolean {
+  try {
+    const output = execSync(`wmic logicaldisk where ${shellQuote([`DeviceID='${drive}'`])} get FileSystem`).toString()
+    const lines = output.trim().split('\n')
+    const name = lines.length > 1 ? lines[1].trim() : ''
+    return name === 'exFAT'
+  } catch {
+    return false
+  }
 }
 
 export async function hardLinkDir (src: string, destDirs: string[]): Promise<void> {
