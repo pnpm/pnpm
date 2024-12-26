@@ -181,8 +181,6 @@ interface ConvertOptions {
 }
 
 function convertPackageSnapshot (inputSnapshot: PackageSnapshot, opts: ConvertOptions): PackageSnapshot {
-  const dependencies = convertResolvedDependencies(inputSnapshot.dependencies, opts)
-  const optionalDependencies = convertResolvedDependencies(inputSnapshot.optionalDependencies, opts)
   const inputResolution = inputSnapshot.resolution
   let outputResolution: LockfileResolution
   if ('integrity' in inputResolution) {
@@ -206,6 +204,10 @@ function convertPackageSnapshot (inputSnapshot: PackageSnapshot, opts: ConvertOp
     const resolution: never = inputResolution // `never` is the type guard to force fixing this code when adding new type of resolution
     throw new Error(`Unknown resolution type: ${JSON.stringify(resolution)}`)
   }
+
+  const dependencies = convertResolvedDependencies(inputSnapshot.dependencies, opts)
+  const optionalDependencies = convertResolvedDependencies(inputSnapshot.optionalDependencies, opts)
+
   return {
     ...inputSnapshot,
     resolution: outputResolution,
