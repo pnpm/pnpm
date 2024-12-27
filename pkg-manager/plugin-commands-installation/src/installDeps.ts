@@ -38,6 +38,7 @@ import {
   recursive,
 } from './recursive'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
+import { installConfigDeps } from './installConfigDeps'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -136,6 +137,9 @@ export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<void> {
+  if (opts.rootProjectManifest?.pnpm?.configDependencies) {
+    await installConfigDeps(opts.rootProjectManifest.pnpm.configDependencies, opts)
+  }
   if (!opts.update && !opts.dedupe && params.length === 0) {
     const { upToDate } = await checkDepsStatus({
       ...opts,

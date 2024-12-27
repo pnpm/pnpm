@@ -3611,10 +3611,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-    optionalDependencies:
-      fuse-native:
-        specifier: 'catalog:'
-        version: 2.2.6
     devDependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -3628,6 +3624,10 @@ importers:
       rimraf:
         specifier: 'catalog:'
         version: 3.0.2
+    optionalDependencies:
+      fuse-native:
+        specifier: 'catalog:'
+        version: 2.2.6
 
   network/auth-header:
     dependencies:
@@ -5119,6 +5119,9 @@ importers:
       '@pnpm/core':
         specifier: workspace:*
         version: link:../core
+      '@pnpm/create-cafs-store':
+        specifier: workspace:*
+        version: link:../../store/create-cafs-store
       '@pnpm/dedupe.check':
         specifier: workspace:*
         version: link:../../dedupe/check
@@ -5128,6 +5131,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
@@ -5149,6 +5155,9 @@ importers:
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../network/auth-header
       '@pnpm/outdated':
         specifier: workspace:*
         version: link:../../reviewing/outdated
@@ -5158,6 +5167,9 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
+      '@pnpm/pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
       '@pnpm/plugin-commands-env':
         specifier: workspace:*
         version: link:../../env/plugin-commands-env
@@ -5182,6 +5194,12 @@ importers:
       '@pnpm/store-connection-manager':
         specifier: workspace:*
         version: link:../../store/store-connection-manager
+      '@pnpm/store-path':
+        specifier: workspace:*
+        version: link:../../store/store-path
+      '@pnpm/tarball-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/tarball-fetcher
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5221,6 +5239,9 @@ importers:
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
+      get-npm-tarball-url:
+        specifier: 'catalog:'
+        version: 2.1.0
       is-subdir:
         specifier: 'catalog:'
         version: 1.2.0
@@ -5729,10 +5750,6 @@ importers:
       v8-compile-cache:
         specifier: 2.4.0
         version: 2.4.0
-    optionalDependencies:
-      node-gyp:
-        specifier: ^11.0.0
-        version: 11.0.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -6025,8 +6042,22 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
+    optionalDependencies:
+      node-gyp:
+        specifier: ^11.0.0
+        version: 11.0.0
 
   pnpm/artifacts/exe:
+    devDependencies:
+      '@pnpm/exe':
+        specifier: workspace:*
+        version: 'link:'
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.1.2
+      pkg:
+        specifier: 'catalog:'
+        version: '@yao-pkg/pkg@5.12.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
     optionalDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
@@ -6046,16 +6077,6 @@ importers:
       '@pnpm/win-x64':
         specifier: workspace:*
         version: link:../win-x64
-    devDependencies:
-      '@pnpm/exe':
-        specifier: workspace:*
-        version: 'link:'
-      execa:
-        specifier: 'catalog:'
-        version: safe-execa@0.1.2
-      pkg:
-        specifier: 'catalog:'
-        version: '@yao-pkg/pkg@5.12.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
 
   pnpm/artifacts/linux-arm64:
     devDependencies:
