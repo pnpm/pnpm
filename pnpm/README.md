@@ -121,6 +121,22 @@ To quote the [Rush](https://rushjs.io/) team:
           <img src="https://pnpm.io/img/users/route4me.svg" width="220" alt="Route4Me" />
         </a>
       </td>
+      <td align="center" valign="middle">
+        <a href="https://workleap.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/workleap.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/workleap_light.svg" />
+            <img src="https://pnpm.io/img/users/workleap.svg" width="190" alt="Workleap" />
+          </picture>
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://canva.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://pnpm.io/img/users/canva.svg" width="120" alt="Canva" />
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
