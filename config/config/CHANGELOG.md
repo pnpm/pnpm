@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 900.0.2
+
+### Patch Changes
+
+- @pnpm/pnpmfile@900.0.2
+
 ## 900.0.1
 
 ### Patch Changes

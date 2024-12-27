@@ -1,5 +1,14 @@
 # @pnpm/package-requester
 
+## 900.0.2
+
+### Patch Changes
+
+- Updated dependencies [62697ee]
+  - @pnpm/core-loggers@900.1.0
+  - @pnpm/package-is-installable@900.0.2
+  - @pnpm/worker@900.0.2
+
 ## 900.0.1
 
 ### Patch Changes

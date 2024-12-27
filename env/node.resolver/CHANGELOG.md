@@ -1,5 +1,11 @@
 # @pnpm/node.resolver
 
+## 900.0.2
+
+### Patch Changes
+
+- @pnpm/node.fetcher@900.0.2
+
 ## 900.0.1
 
 ### Patch Changes

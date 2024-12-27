@@ -1,5 +1,12 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 900.0.1
+
+### Patch Changes
+
+- Updated dependencies [62697ee]
+  - @pnpm/core-loggers@900.1.0
+
 ## 6.0.9
 
 ### Patch Changes

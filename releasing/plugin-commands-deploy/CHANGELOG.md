@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-deploy
 
+## 900.0.4
+
+### Patch Changes
+
+- @pnpm/fs.indexed-pkg-importer@900.0.1
+- @pnpm/cli-utils@900.0.2
+- @pnpm/plugin-commands-installation@900.0.4
+
 ## 900.0.3
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "900.0.1",
+  "version": "900.1.0",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

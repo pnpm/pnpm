@@ -1,5 +1,14 @@
 # @pnpm/client
 
+## 900.0.3
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@900.0.2
+- @pnpm/fetch@900.0.1
+- @pnpm/default-resolver@900.0.3
+- @pnpm/git-fetcher@900.0.2
+
 ## 900.0.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-store-inspecting
 
+## 900.0.3
+
+### Patch Changes
+
+- @pnpm/client@900.0.3
+- @pnpm/config@900.0.2
+
 ## 900.0.2
 
 ### Patch Changes

@@ -1,5 +1,32 @@
 # @pnpm/core
 
+## 900.0.4
+
+### Patch Changes
+
+- Updated dependencies [62697ee]
+- Updated dependencies [62697ee]
+  - @pnpm/core-loggers@900.1.0
+  - @pnpm/build-modules@900.1.0
+  - @pnpm/lifecycle@900.0.2
+  - @pnpm/symlink-dependency@900.0.1
+  - @pnpm/pkg-manager.direct-dep-linker@900.0.1
+  - @pnpm/get-context@900.0.2
+  - @pnpm/headless@900.0.2
+  - @pnpm/hoist@900.0.2
+  - @pnpm/modules-cleaner@900.0.2
+  - @pnpm/package-requester@900.0.2
+  - @pnpm/remove-bins@900.0.2
+  - @pnpm/resolve-dependencies@900.0.4
+  - @pnpm/manifest-utils@900.0.2
+  - @pnpm/lockfile.fs@900.0.2
+  - @pnpm/lockfile.filtering@900.0.2
+  - @pnpm/worker@900.0.2
+  - @pnpm/lockfile.verification@900.0.2
+  - @pnpm/lockfile.preferred-versions@900.0.2
+  - @pnpm/link-bins@900.0.2
+  - @pnpm/lockfile-to-pnp@900.0.2
+
 ## 900.0.3
 
 ### Patch Changes

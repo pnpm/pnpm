@@ -1,5 +1,13 @@
 # @pnpm/default-resolver
 
+## 900.0.3
+
+### Patch Changes
+
+- Updated dependencies [2aaf205]
+  - @pnpm/git-resolver@900.0.1
+  - @pnpm/npm-resolver@900.0.3
+
 ## 900.0.2
 
 ### Patch Changes

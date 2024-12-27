@@ -1,5 +1,12 @@
 # @pnpm/license-scanner
 
+## 900.0.2
+
+### Patch Changes
+
+- @pnpm/package-is-installable@900.0.2
+- @pnpm/lockfile.fs@900.0.2
+
 ## 900.0.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/server
 
+## 900.0.1
+
+### Patch Changes
+
+- @pnpm/fetch@900.0.1
+
 ## 18.2.6
 
 ### Patch Changes

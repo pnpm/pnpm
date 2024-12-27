@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-publishing
 
+## 900.0.3
+
+### Patch Changes
+
+- Updated dependencies [a072699]
+  - @pnpm/exportable-manifest@900.0.2
+  - @pnpm/lifecycle@900.0.2
+  - @pnpm/cli-utils@900.0.2
+  - @pnpm/client@900.0.3
+  - @pnpm/config@900.0.2
+  - @pnpm/plugin-commands-env@900.0.2
+
 ## 900.0.2
 
 ### Patch Changes

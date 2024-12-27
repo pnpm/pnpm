@@ -1,5 +1,12 @@
 # @pnpm/mount-modules
 
+## 900.0.2
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@900.0.2
+- @pnpm/config@900.0.2
+
 ## 900.0.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 900.0.2
+
+### Patch Changes
+
+- @pnpm/fetch@900.0.1
+- @pnpm/list@900.0.2
+
 ## 900.0.1
 
 ### Patch Changes

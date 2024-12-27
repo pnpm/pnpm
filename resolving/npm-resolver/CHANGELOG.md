@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 900.0.3
+
+### Patch Changes
+
+- Updated dependencies [62697ee]
+  - @pnpm/core-loggers@900.1.0
+
 ## 900.0.2
 
 ### Patch Changes

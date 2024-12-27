@@ -1,5 +1,15 @@
 # @pnpm/resolve-dependencies
 
+## 900.0.4
+
+### Patch Changes
+
+- Updated dependencies [62697ee]
+  - @pnpm/core-loggers@900.1.0
+  - @pnpm/manifest-utils@900.0.2
+  - @pnpm/npm-resolver@900.0.3
+  - @pnpm/lockfile.preferred-versions@900.0.2
+
 ## 900.0.3
 
 ### Patch Changes

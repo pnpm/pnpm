@@ -1,5 +1,12 @@
 # @pnpm/worker
 
+## 900.0.2
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@900.0.1
+- @pnpm/create-cafs-store@900.0.1
+
 ## 900.0.1
 
 ### Patch Changes

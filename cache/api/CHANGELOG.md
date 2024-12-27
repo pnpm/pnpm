@@ -1,5 +1,12 @@
 # @pnpm/cache.api
 
+## 900.0.3
+
+### Patch Changes
+
+- @pnpm/npm-resolver@900.0.3
+- @pnpm/config@900.0.2
+
 ## 900.0.2
 
 ### Patch Changes

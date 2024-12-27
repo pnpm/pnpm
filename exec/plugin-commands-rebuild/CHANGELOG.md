@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-rebuild
 
+## 900.0.3
+
+### Patch Changes
+
+- Updated dependencies [62697ee]
+  - @pnpm/core-loggers@900.1.0
+  - @pnpm/lifecycle@900.0.2
+  - @pnpm/get-context@900.0.2
+  - @pnpm/cli-utils@900.0.2
+  - @pnpm/worker@900.0.2
+  - @pnpm/config@900.0.2
+  - @pnpm/link-bins@900.0.2
+  - @pnpm/workspace.find-packages@900.0.2
+  - @pnpm/store-connection-manager@900.0.3
+
 ## 900.0.2
 
 ### Patch Changes

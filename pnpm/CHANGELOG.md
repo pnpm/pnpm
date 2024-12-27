@@ -1,5 +1,14 @@
 # pnpm
 
+## 9.15.2
+
+### Patch Changes
+
+- Fixed `publish`/`pack` error with workspace dependencies with relative paths [#8904](https://github.com/pnpm/pnpm/pull/8904). It was broken in `v9.4.0` ([398472c](https://github.com/pnpm/pnpm/commit/398472c)).
+- Use double quotes in the command suggestion by `pnpm patch` on Windows [#7546](https://github.com/pnpm/pnpm/issues/7546).
+- Do not fall back to SSH, when resolving a git-hosted package if `git ls-remote` works via HTTPS [#8906](https://github.com/pnpm/pnpm/pull/8906).
+- Improve how packages with blocked lifecycle scripts are reported during installation. Always print the list of ignored scripts at the end of the output. Include a hint about how to allow the execution of those packages.
+
 ## 9.15.1
 
 ### Patch Changes

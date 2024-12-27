@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-licenses
 
+## 900.0.2
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@900.0.2
+- @pnpm/cli-utils@900.0.2
+- @pnpm/license-scanner@900.0.2
+- @pnpm/config@900.0.2
+
 ## 900.0.1
 
 ### Patch Changes

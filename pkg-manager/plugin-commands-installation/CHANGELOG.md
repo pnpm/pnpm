@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-installation
 
+## 900.0.4
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@900.0.3
+- @pnpm/pnpmfile@900.0.2
+- @pnpm/core@900.0.4
+- @pnpm/get-context@900.0.2
+- @pnpm/manifest-utils@900.0.2
+- @pnpm/cli-utils@900.0.2
+- @pnpm/config@900.0.2
+- @pnpm/plugin-commands-env@900.0.2
+- @pnpm/package-store@900.0.2
+- @pnpm/outdated@900.0.3
+- @pnpm/workspace.pkgs-graph@900.0.3
+- @pnpm/workspace.find-packages@900.0.2
+- @pnpm/store-connection-manager@900.0.3
+- @pnpm/filter-workspace-packages@900.0.3
+
 ## 900.0.3
 
 ### Patch Changes

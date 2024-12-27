@@ -1,5 +1,14 @@
 # @pnpm/outdated
 
+## 900.0.3
+
+### Patch Changes
+
+- @pnpm/manifest-utils@900.0.2
+- @pnpm/npm-resolver@900.0.3
+- @pnpm/lockfile.fs@900.0.2
+- @pnpm/client@900.0.3
+
 ## 900.0.2
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-outdated
 
+## 900.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@900.0.2
+- @pnpm/default-resolver@900.0.3
+- @pnpm/cli-utils@900.0.2
+- @pnpm/config@900.0.2
+- @pnpm/outdated@900.0.3
+
 ## 900.0.2
 
 ### Patch Changes

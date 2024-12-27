@@ -1,5 +1,19 @@
 # @pnpm/build-modules
 
+## 900.1.0
+
+### Minor Changes
+
+- 62697ee: Improve how packages with blocked lifecycle scripts are reported during installation. Always print the list of ignored scripts at the end of the output. Include a hint about how to allow the execution of those packages.
+
+### Patch Changes
+
+- Updated dependencies [62697ee]
+  - @pnpm/core-loggers@900.1.0
+  - @pnpm/lifecycle@900.0.2
+  - @pnpm/worker@900.0.2
+  - @pnpm/link-bins@900.0.2
+
 ## 900.0.1
 
 ### Patch Changes

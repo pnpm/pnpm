@@ -1,5 +1,11 @@
 # @pnpm/filter-lockfile
 
+## 900.0.2
+
+### Patch Changes
+
+- @pnpm/package-is-installable@900.0.2
+
 ## 900.0.1
 
 ### Patch Changes
