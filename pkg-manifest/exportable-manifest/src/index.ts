@@ -101,8 +101,8 @@ async function makePublishDependencies (
   return publishDependencies
 }
 
-async function resolveManifest (depName: string, modulesDir: string): Promise<ProjectManifest> {
-  const { manifest } = await tryReadProjectManifest(path.join(modulesDir, depName))
+async function readAndCheckManifest (depName: string, dependencyDir: string): Promise<ProjectManifest> {
+  const { manifest } = await tryReadProjectManifest(dependencyDir)
   if (!manifest?.name || !manifest?.version) {
     throw new PnpmError(
       'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
@@ -110,7 +110,6 @@ async function resolveManifest (depName: string, modulesDir: string): Promise<Pr
         'because this dependency is not installed. Try running "pnpm install".'
     )
   }
-
   return manifest
 }
 
@@ -133,7 +132,7 @@ async function replaceWorkspaceProtocol (depName: string, depSpec: string, dir: 
   const versionAliasSpecParts = /^workspace:(.*?)@?([\^~*])$/.exec(depSpec)
   if (versionAliasSpecParts != null) {
     modulesDir = modulesDir ?? path.join(dir, 'node_modules')
-    const manifest = await resolveManifest(depName, modulesDir)
+    const manifest = await readAndCheckManifest(depName, path.join(modulesDir, depName))
 
     const semverRangeToken = versionAliasSpecParts[2] !== '*' ? versionAliasSpecParts[2] : ''
     if (depName !== manifest.name) {
@@ -142,7 +141,7 @@ async function replaceWorkspaceProtocol (depName: string, depSpec: string, dir: 
     return `${semverRangeToken}${manifest.version}`
   }
   if (depSpec.startsWith('workspace:./') || depSpec.startsWith('workspace:../')) {
-    const manifest = await resolveManifest(depName, path.join(dir, depSpec.slice(10)))
+    const manifest = await readAndCheckManifest(depName, path.join(dir, depSpec.slice(10)))
 
     if (manifest.name === depName) return `${manifest.version}`
     return `npm:${manifest.name}@${manifest.version}`
@@ -171,7 +170,7 @@ async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec:
     }
 
     modulesDir = modulesDir ?? path.join(dir, 'node_modules')
-    const manifest = await resolveManifest(depName, modulesDir)
+    const manifest = await readAndCheckManifest(depName, path.join(modulesDir, depName))
     const semverRangeToken = semverRangGroup !== '*' ? semverRangGroup : ''
 
     return depSpec.replace(workspaceSemverRegex, `${semverRangeToken}${manifest.version}`)
