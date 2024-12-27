@@ -6126,6 +6126,9 @@ importers:
       '@pnpm/common-cli-options-help':
         specifier: workspace:*
         version: link:../../cli/common-cli-options-help
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
       '@pnpm/directory-fetcher':
         specifier: workspace:*
         version: link:../../fetching/directory-fetcher
@@ -6138,15 +6141,30 @@ importers:
       '@pnpm/fs.is-empty-dir-or-nothing':
         specifier: workspace:*
         version: link:../../fs/is-empty-dir-or-nothing
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../../pkg-manager/plugin-commands-installation
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@types/normalize-path':
+        specifier: 'catalog:'
+        version: 3.0.2
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
+      normalize-path:
+        specifier: 'catalog:'
+        version: 3.0.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
@@ -6154,9 +6172,6 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
-      '@pnpm/lockfile.types':
-        specifier: workspace:*
-        version: link:../../lockfile/types
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -6169,9 +6184,15 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
 
   releasing/plugin-commands-publishing:
     dependencies:
@@ -8715,7 +8736,6 @@ packages:
   '@humanwhocodes/config-array@0.11.14':
     resolution: {integrity: sha512-3T8LkOmg45BV5FICb15QQMsyUSWrQ8AygVfC7ZG32zOalnqrilm018ZVCw0eapXux8FtA33q8PSRSstjee3jSg==}
     engines: {node: '>=10.10.0'}
-    deprecated: Use @eslint/config-array instead
 
   '@humanwhocodes/module-importer@1.0.1':
     resolution: {integrity: sha512-bxveV4V8v5Yb4ncFTT3rPSgZBOpCkjfK0y4oVVVJwIuDVBRMDXrPyXRL988i5ap9m9bnyEEjWfm5WkBmtffLfA==}
@@ -8723,7 +8743,6 @@ packages:
 
   '@humanwhocodes/object-schema@2.0.3':
     resolution: {integrity: sha512-93zYdMES/c1D69yZiKDBj0V24vqNzB/koF26KPaagAfd3P/4gUlh3Dys5ogAK+Exi9QyzlD8x/08Zt7wIKcDcA==}
-    deprecated: Use @eslint/object-schema instead
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -9584,10 +9603,6 @@ packages:
     peerDependencies:
       '@yarnpkg/core': ^4.0.5
 
-  '@yarnpkg/fslib@3.1.0':
-    resolution: {integrity: sha512-wsj7/sUVSdXOIX/qwaON/Ky5GsP5gs9ry9DKwgLbWT7k3qw4/EcHAtfTtPhBYu33UibzBFI+fgB4wBRVH2XVaw==}
-    engines: {node: '>=18.12.0'}
-
   '@yarnpkg/fslib@3.1.1':
     resolution: {integrity: sha512-NpeecISQEuDnmipElGa0cOC7DnlPf3+FXnuwwJTciJgt+S/BDb8VFBvXSE5UirGmsFWlf4mfZuuAC7e8Pmhh4g==}
     engines: {node: '>=18.12.0'}
@@ -9623,11 +9638,6 @@ packages:
 
   '@yarnpkg/shell@4.0.0':
     resolution: {integrity: sha512-Yk2gyiQvsoee/jXP9q0jMl412Nx27LYu+P1O4DHuxeutL9qtd6t3Ktuv+zZmOzFc6gMQ7+/6mQFPo3/LlXZM3w==}
-    engines: {node: '>=18.12.0'}
-    hasBin: true
-
-  '@yarnpkg/shell@4.0.2':
-    resolution: {integrity: sha512-DLZSx06OoEbPY1uePt7pKEgpWDk96PldrCdWBPqI5Np5/YAEo6+toVcjz+6fORMOE8PS3Bsep1Nfm2mUrY1Oxg==}
     engines: {node: '>=18.12.0'}
     hasBin: true
 
@@ -10794,7 +10804,6 @@ packages:
 
   eslint-config-standard-with-typescript@39.1.1:
     resolution: {integrity: sha512-t6B5Ep8E4I18uuoYeYxINyqcXb2UbC0SOOTxRtBSt2JUs+EzeXbfe2oaiPs71AIdnoWhXDO2fYOHz8df3kV84A==}
-    deprecated: Please use eslint-config-love, instead.
     peerDependencies:
       '@typescript-eslint/eslint-plugin': ^6.4.0
       eslint: ^8.0.1
@@ -10899,7 +10908,6 @@ packages:
   eslint@8.57.0:
     resolution: {integrity: sha512-dZ6+mexnaTIbSBZWgou51U6OmzIhYM2VcNdtiTtI7qPNZm35Akpr0f6vtw3w1Kmn5PYo+tZVfh13WrhpS6oLqQ==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
-    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
 
   esm@3.2.25:
@@ -11316,7 +11324,6 @@ packages:
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Glob versions prior to v9 are no longer supported
 
   glob@8.1.0:
     resolution: {integrity: sha512-r8hpEjiQEYlF2QU0df3dS+nxxSIreXQS1qRhMJM0Q5NDdR386C7jb7Hwwod8Fgiuex+k0GFjgft18yvxm5XoCQ==}
@@ -11582,7 +11589,6 @@ packages:
 
   inflight@1.0.6:
     resolution: {integrity: sha512-k92I/b08q4wvFscXCLvqfsHCrjrF7yiXsQuIVvVE7N82W3+aqpzuUdBbfhWcy/FZR3/4IgflMgKLOsvPDrGCJA==}
-    deprecated: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
 
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
@@ -16687,10 +16693,10 @@ snapshots:
       '@arcanis/slice-ansi': 1.1.1
       '@types/semver': 7.5.8
       '@types/treeify': 1.0.3
-      '@yarnpkg/fslib': 3.1.0
-      '@yarnpkg/libzip': 3.1.0(@yarnpkg/fslib@3.1.0)
+      '@yarnpkg/fslib': 3.1.1
+      '@yarnpkg/libzip': 3.1.0(@yarnpkg/fslib@3.1.1)
       '@yarnpkg/parsers': 3.0.2
-      '@yarnpkg/shell': 4.0.2(typanion@3.14.0)
+      '@yarnpkg/shell': 4.1.1(typanion@3.14.0)
       camelcase: 5.3.1
       chalk: 3.0.0
       ci-info: 3.9.0
@@ -16748,18 +16754,8 @@ snapshots:
     dependencies:
       '@yarnpkg/core': 4.0.5(typanion@3.14.0)
 
-  '@yarnpkg/fslib@3.1.0':
-    dependencies:
-      tslib: 2.7.0
-
   '@yarnpkg/fslib@3.1.1':
     dependencies:
-      tslib: 2.7.0
-
-  '@yarnpkg/libzip@3.1.0(@yarnpkg/fslib@3.1.0)':
-    dependencies:
-      '@types/emscripten': 1.39.13
-      '@yarnpkg/fslib': 3.1.0
       tslib: 2.7.0
 
   '@yarnpkg/libzip@3.1.0(@yarnpkg/fslib@3.1.1)':
@@ -16791,7 +16787,7 @@ snapshots:
   '@yarnpkg/pnp@4.0.6':
     dependencies:
       '@types/node': 18.19.49
-      '@yarnpkg/fslib': 3.1.0
+      '@yarnpkg/fslib': 3.1.1
 
   '@yarnpkg/pnp@4.0.7':
     dependencies:
@@ -16801,19 +16797,6 @@ snapshots:
   '@yarnpkg/shell@4.0.0(typanion@3.14.0)':
     dependencies:
       '@yarnpkg/fslib': 3.1.1
-      '@yarnpkg/parsers': 3.0.2
-      chalk: 3.0.0
-      clipanion: 3.2.0-rc.6(typanion@3.14.0)
-      cross-spawn: 7.0.5
-      fast-glob: 3.3.2
-      micromatch: 4.0.8
-      tslib: 2.7.0
-    transitivePeerDependencies:
-      - typanion
-
-  '@yarnpkg/shell@4.0.2(typanion@3.14.0)':
-    dependencies:
-      '@yarnpkg/fslib': 3.1.0
       '@yarnpkg/parsers': 3.0.2
       chalk: 3.0.0
       clipanion: 3.2.0-rc.6(typanion@3.14.0)

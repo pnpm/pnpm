@@ -102,6 +102,7 @@ export interface Config {
   failedToLoadBuiltInConfig: boolean
   resolvePeersFromWorkspaceRoot?: boolean
   deployAllFiles?: boolean
+  forceLegacyDeploy?: boolean
   reporterHidePrefix?: boolean
 
   // proxy

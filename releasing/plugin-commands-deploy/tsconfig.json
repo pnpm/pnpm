@@ -16,6 +16,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
       "path": "../../catalogs/resolver"
     },
     {
@@ -28,6 +31,9 @@
       "path": "../../cli/common-cli-options-help"
     },
     {
+      "path": "../../config/config"
+    },
+    {
       "path": "../../fetching/directory-fetcher"
     },
     {
@@ -35,6 +41,9 @@
     },
     {
       "path": "../../fs/is-empty-dir-or-nothing"
+    },
+    {
+      "path": "../../lockfile/fs"
     },
     {
       "path": "../../lockfile/types"

@@ -24,6 +24,7 @@ export const types = Object.assign({
   'fetching-concurrency': Number,
   filter: [String, Array],
   'filter-prod': [String, Array],
+  'force-legacy-deploy': Boolean,
   'frozen-lockfile': Boolean,
   'git-checks': Boolean,
   'git-shallow-hosts': Array,
