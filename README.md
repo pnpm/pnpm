@@ -131,6 +131,13 @@ To quote the [Rush](https://rushjs.io/) team:
         </a>
       </td>
     </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://canva.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://pnpm.io/img/users/canva.svg" width="120" alt="Canva" />
+        </a>
+      </td>
+    </tr>
   </tbody>
 </table>
 
@@ -262,18 +269,6 @@ pnpm is up to 2x faster than npm and Yarn classic. See all benchmarks [here](htt
 Benchmarks on an app with lots of dependencies:
 
 ![](https://pnpm.io/img/benchmarks/alotta-files.svg)
-
-## Backers
-
-Thank you to all our backers! [Become a backer](https://opencollective.com/pnpm#backer)
-
-<a href="https://opencollective.com/pnpm#backers" target="_blank"><img src="https://opencollective.com/pnpm/backers.svg?width=890" alt="Open Collective"></a>
-
-## Contributors
-
-This project exists thanks to all the people who contribute. [Contribute](../../blob/main/CONTRIBUTING.md).
-
-<a href="../../graphs/contributors"><img src="https://opencollective.com/pnpm/contributors.svg?width=890&button=false" alt="Contributors"></a>
 
 ## License
 

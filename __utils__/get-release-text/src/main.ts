@@ -175,6 +175,13 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
         </a>
       </td>
     </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://canva.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <img src="https://pnpm.io/img/users/canva.svg" width="120" alt="Canva" />
+        </a>
+      </td>
+    </tr>
   </tbody>
 </table>
 `,
