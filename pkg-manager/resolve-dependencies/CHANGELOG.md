@@ -1,5 +1,20 @@
 # @pnpm/resolve-dependencies
 
+## 1002.0.0
+
+### Major Changes
+
+- 512465c: Remove `allowBuild` from options.
+
+### Patch Changes
+
+- 3bc9d5c: Installation with hoisted node_modules should not fail, when a dependency has itself in its own peer dependencies [#8854](https://github.com/pnpm/pnpm/issues/8854).
+- Updated dependencies [516c4b3]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/manifest-utils@1000.0.2
+  - @pnpm/npm-resolver@1000.1.1
+  - @pnpm/lockfile.preferred-versions@1000.0.2
+
 ## 1001.0.0
 
 ### Major Changes

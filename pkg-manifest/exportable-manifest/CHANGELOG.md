@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 1000.0.2
+
+### Patch Changes
+
+- 738d9e4: Fixed `publish`/`pack` error with workspace dependencies with relative paths [#8904](https://github.com/pnpm/pnpm/pull/8904). It was broken in `v9.4.0` ([398472c](https://github.com/pnpm/pnpm/commit/398472c)).
+
 ## 1000.0.1
 
 ### Patch Changes

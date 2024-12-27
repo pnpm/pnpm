@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-config
 
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [878ea8c]
+  - @pnpm/config@1002.0.0
+  - @pnpm/cli-utils@1000.0.2
+
 ## 1000.0.1
 
 ### Patch Changes

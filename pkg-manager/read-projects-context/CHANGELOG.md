@@ -1,5 +1,12 @@
 # @pnpm/read-projects-context
 
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [4771813]
+  - @pnpm/modules-yaml@1000.1.0
+
 ## 1000.0.2
 
 ### Patch Changes

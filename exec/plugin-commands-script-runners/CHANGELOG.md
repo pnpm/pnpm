@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+- Updated dependencies [f685565]
+- Updated dependencies [878ea8c]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/plugin-commands-installation@1001.0.2
+  - @pnpm/config@1002.0.0
+  - @pnpm/lifecycle@1001.0.1
+  - @pnpm/cli-utils@1000.0.2
+  - @pnpm/deps.status@1001.0.2
+  - @pnpm/plugin-commands-env@1000.0.2
+  - @pnpm/client@1000.0.2
+  - @pnpm/crypto.hash@1000.0.0
+
 ## 1000.0.2
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/deps.status
 
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [878ea8c]
+  - @pnpm/config@1002.0.0
+  - @pnpm/pnpmfile@1001.0.1
+  - @pnpm/get-context@1001.0.2
+  - @pnpm/workspace.state@1001.0.1
+  - @pnpm/lockfile.verification@1001.0.2
+  - @pnpm/workspace.find-packages@1000.0.2
+  - @pnpm/lockfile.settings-checker@1001.0.0
+
 ## 1001.0.1
 
 ### Patch Changes

@@ -1,5 +1,41 @@
 # @pnpm/core
 
+## 1001.1.0
+
+### Minor Changes
+
+- 4771813: Store the list of ignored builds in `node_modules/.modules.yaml`.
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+- Updated dependencies [512465c]
+- Updated dependencies [7272992]
+- Updated dependencies [3bc9d5c]
+- Updated dependencies [516c4b3]
+- Updated dependencies [4771813]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/resolve-dependencies@1002.0.0
+  - @pnpm/worker@1000.0.2
+  - @pnpm/build-modules@1000.1.0
+  - @pnpm/modules-yaml@1000.1.0
+  - @pnpm/headless@1001.1.0
+  - @pnpm/lifecycle@1001.0.1
+  - @pnpm/symlink-dependency@1000.0.1
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.1
+  - @pnpm/get-context@1001.0.2
+  - @pnpm/hoist@1001.0.1
+  - @pnpm/modules-cleaner@1001.0.1
+  - @pnpm/package-requester@1000.1.1
+  - @pnpm/remove-bins@1000.0.2
+  - @pnpm/manifest-utils@1000.0.2
+  - @pnpm/lockfile.filtering@1001.0.1
+  - @pnpm/lockfile.verification@1001.0.2
+  - @pnpm/lockfile.preferred-versions@1000.0.2
+  - @pnpm/link-bins@1000.0.2
+  - @pnpm/crypto.hash@1000.0.0
+  - @pnpm/lockfile.settings-checker@1001.0.0
+
 ## 1001.0.1
 
 ### Patch Changes

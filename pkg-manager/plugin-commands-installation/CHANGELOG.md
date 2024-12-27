@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-installation
 
+## 1001.0.2
+
+### Patch Changes
+
+- f685565: `pnpm remove` should not link dependencies from the workspace, when `link-workspace-packages` is set to `false` [#7674](https://github.com/pnpm/pnpm/issues/7674).
+- Updated dependencies [4771813]
+- Updated dependencies [878ea8c]
+  - @pnpm/plugin-commands-rebuild@1001.1.0
+  - @pnpm/core@1001.1.0
+  - @pnpm/config@1002.0.0
+  - @pnpm/pnpmfile@1001.0.1
+  - @pnpm/get-context@1001.0.2
+  - @pnpm/manifest-utils@1000.0.2
+  - @pnpm/package-store@1000.0.2
+  - @pnpm/cli-utils@1000.0.2
+  - @pnpm/outdated@1001.0.2
+  - @pnpm/deps.status@1001.0.2
+  - @pnpm/plugin-commands-env@1000.0.2
+  - @pnpm/store-connection-manager@1000.0.2
+  - @pnpm/workspace.state@1001.0.1
+  - @pnpm/workspace.pkgs-graph@1000.0.2
+  - @pnpm/workspace.find-packages@1000.0.2
+  - @pnpm/filter-workspace-packages@1000.0.2
+
 ## 1001.0.1
 
 ### Patch Changes

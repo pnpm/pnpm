@@ -1,8 +1,18 @@
 # pnpm
 
-## 10.0.0-rc.0
+## 10.0.0-rc.1
 
 ### Major Changes
+
+- Lifecycle scripts of dependencies are not executed during installation by default! This is a breaking change aimed at increasing security. In order to allow lifecycle scripts of specific dependencies, they should be listed in the `pnpm.onlyBuiltDependencies` field of `package.json` [#8897](https://github.com/pnpm/pnpm/pull/8897). For example:
+
+  ```json
+  {
+    "pnpm": {
+      "onlyBuiltDependencies": ["fsevents"]
+    }
+  }
+  ```
 
 - `pnpm link` behavior updated:
 
@@ -23,63 +33,66 @@
   - The pnpmfile checksum in the lockfile now uses SHA256 ([#8530](https://github.com/pnpm/pnpm/pull/8530)).
 
 - Configuration updates:
-    - `manage-package-manager-versions`: enabled by default. pnpm now manages its own version based on the `packageManager` field in `package.json` by default.
 
-    - `public-hoist-pattern`: nothing is hoisted by default. Packages containing `eslint` or `prettier` in their name are no longer hoisted to the root of `node_modules`. Related Issue: [#8378](https://github.com/pnpm/pnpm/issues/8378)
+  - `manage-package-manager-versions`: enabled by default. pnpm now manages its own version based on the `packageManager` field in `package.json` by default.
 
-    - Upgraded `@yarnpkg/extensions` to v2.0.3. This may alter your lockfile.
-    - `virtual-store-dir-max-length`: the default value on Windows has been reduced to 60 characters.
+  - `public-hoist-pattern`: nothing is hoisted by default. Packages containing `eslint` or `prettier` in their name are no longer hoisted to the root of `node_modules`. Related Issue: [#8378](https://github.com/pnpm/pnpm/issues/8378)
 
-    - Reduced environment variables for scripts:
-      During script execution, fewer `npm_package_*` environment variables are set. Only `name`, `version`, `bin`, `engines`, and `config` remain.
-      Related Issue: [#8552](https://github.com/pnpm/pnpm/issues/8552)
+  - Upgraded `@yarnpkg/extensions` to v2.0.3. This may alter your lockfile.
+  - `virtual-store-dir-max-length`: the default value on Windows has been reduced to 60 characters.
 
-    - All dependencies are now installed even if `NODE_ENV=production`. Related Issue: [#8827](https://github.com/pnpm/pnpm/issues/8827)
+  - Reduced environment variables for scripts:
+    During script execution, fewer `npm_package_*` environment variables are set. Only `name`, `version`, `bin`, `engines`, and `config` remain.
+    Related Issue: [#8552](https://github.com/pnpm/pnpm/issues/8552)
+
+  - All dependencies are now installed even if `NODE_ENV=production`. Related Issue: [#8827](https://github.com/pnpm/pnpm/issues/8827)
 
 - Changes to the global store:
 
-    - Store version bumped to v10.
+  - Store version bumped to v10.
 
-    - Some registries allow identical content to be published under different package names or versions. To accommodate this, index files in the store are now stored using both the content hash and package identifier.
+  - Some registries allow identical content to be published under different package names or versions. To accommodate this, index files in the store are now stored using both the content hash and package identifier.
 
-        This approach ensures that we can:
+    This approach ensures that we can:
 
-        1. Validate that the integrity in the lockfile corresponds to the correct package, which might not be the case after a poorly resolved Git conflict.
-        1. Allow the same content to be referenced by different packages or different versions of the same package.
-     Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
-     Related Issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
+    1. Validate that the integrity in the lockfile corresponds to the correct package, which might not be the case after a poorly resolved Git conflict.
+    1. Allow the same content to be referenced by different packages or different versions of the same package.
+       Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
+       Related Issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
 
-    - More efficient side effects indexing. The structure of index files in the store has changed. Side effects are now tracked more efficiently by listing only file differences rather than all files.
-      Related PR: [#8636](https://github.com/pnpm/pnpm/pull/8636)
+  - More efficient side effects indexing. The structure of index files in the store has changed. Side effects are now tracked more efficiently by listing only file differences rather than all files.
+    Related PR: [#8636](https://github.com/pnpm/pnpm/pull/8636)
 
-    - A new `index` directory stores package content mappings. Previously, these files were in `files`.
+  - A new `index` directory stores package content mappings. Previously, these files were in `files`.
 
 - Other breaking changes:
-    - The `#` character is now escaped in directory names within `node_modules/.pnpm`.
-      Related PR: [#8557](https://github.com/pnpm/pnpm/pull/8557)
-    - Running `pnpm add --global pnpm` or `pnpm add --global @pnpm/exe` now fails with an error message, directing you to use `pnpm self-update` instead.
-      Related PR: [#8728](https://github.com/pnpm/pnpm/pull/8728)
-    - Dependencies added via a URL now record the final resolved URL in the lockfile, ensuring that any redirects are fully captured.
-      Related Issue: [#8833](https://github.com/pnpm/pnpm/issues/8833)
-    - The `pnpm deploy` command now only works in workspaces that have `inject-workspace-packages=true`. This limitation is introduced to allow us to create a proper lockfile for the deployed project using the workspace lockfile.
-    - Removed conversion from lockfile v6 to v9. If you need v6-to-v9 conversion, use pnpm CLI v9.
-    - `pnpm test` now passes all parameters after the `test` keyword directly to the underlying script. This matches the behavior of `pnpm run test`. Previously you needed to use the `--` prefix.
-      Related PR: [#8619](https://github.com/pnpm/pnpm/pull/8619)
+  - The `#` character is now escaped in directory names within `node_modules/.pnpm`.
+    Related PR: [#8557](https://github.com/pnpm/pnpm/pull/8557)
+  - Running `pnpm add --global pnpm` or `pnpm add --global @pnpm/exe` now fails with an error message, directing you to use `pnpm self-update` instead.
+    Related PR: [#8728](https://github.com/pnpm/pnpm/pull/8728)
+  - Dependencies added via a URL now record the final resolved URL in the lockfile, ensuring that any redirects are fully captured.
+    Related Issue: [#8833](https://github.com/pnpm/pnpm/issues/8833)
+  - The `pnpm deploy` command now only works in workspaces that have `inject-workspace-packages=true`. This limitation is introduced to allow us to create a proper lockfile for the deployed project using the workspace lockfile.
+  - Removed conversion from lockfile v6 to v9. If you need v6-to-v9 conversion, use pnpm CLI v9.
+  - `pnpm test` now passes all parameters after the `test` keyword directly to the underlying script. This matches the behavior of `pnpm run test`. Previously you needed to use the `--` prefix.
+    Related PR: [#8619](https://github.com/pnpm/pnpm/pull/8619)
+- `node-gyp` updated to version 11.
 
 ### Minor Changes
 
 - New settings:
-    - New `verify-deps-before-run` setting. This setting controls how `pnpm` checks `node_modules` before running scripts:
 
-      - `install`: Automatically run `pnpm install` if `node_modules` is outdated.
-      - `warn`: Print a warning if `node_modules` is outdated.
-      - `prompt`: Prompt the user to confirm running `pnpm install` if `node_modules` is outdated.
-      - `error`: Throw an error if `node_modules` is outdated.
-      - `false`: Disable dependency checks.
-        Related Issue: [#8585](https://github.com/pnpm/pnpm/issues/8585)
+  - New `verify-deps-before-run` setting. This setting controls how `pnpm` checks `node_modules` before running scripts:
 
-    - New `inject-workspace-packages` setting enables hard-linking all local workspace dependencies instead of symlinking them. Previously, this could be achieved using [`dependenciesMeta[].injected`](https://pnpm.io/package_json#dependenciesmetainjected), which remains supported.
-      Related PR: [#8836](https://github.com/pnpm/pnpm/pull/8836)
+    - `install`: Automatically run `pnpm install` if `node_modules` is outdated.
+    - `warn`: Print a warning if `node_modules` is outdated.
+    - `prompt`: Prompt the user to confirm running `pnpm install` if `node_modules` is outdated.
+    - `error`: Throw an error if `node_modules` is outdated.
+    - `false`: Disable dependency checks.
+      Related Issue: [#8585](https://github.com/pnpm/pnpm/issues/8585)
+
+  - New `inject-workspace-packages` setting enables hard-linking all local workspace dependencies instead of symlinking them. Previously, this could be achieved using [`dependenciesMeta[].injected`](https://pnpm.io/package_json#dependenciesmetainjected), which remains supported.
+    Related PR: [#8836](https://github.com/pnpm/pnpm/pull/8836)
 
 - Faster repeat installs:
 

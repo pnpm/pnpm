@@ -1,5 +1,18 @@
 # @pnpm/default-reporter
 
+## 1001.1.0
+
+### Minor Changes
+
+- 516c4b3: Improve how packages with blocked lifecycle scripts are reported during installation. Always print the list of ignored scripts at the end of the output. Include a hint about how to allow the execution of those packages.
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+- Updated dependencies [878ea8c]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/config@1002.0.0
+
 ## 1001.0.0
 
 ### Major Changes

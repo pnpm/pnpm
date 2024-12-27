@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.1.0
+
+### Minor Changes
+
+- 3a3cc49: Add support for specifying a custom output path in the pack command using a new `--out` flag [#8900](https://github.com/pnpm/pnpm/pull/8900).
+
+### Patch Changes
+
+- Updated dependencies [738d9e4]
+- Updated dependencies [878ea8c]
+  - @pnpm/exportable-manifest@1000.0.2
+  - @pnpm/config@1002.0.0
+  - @pnpm/lifecycle@1001.0.1
+  - @pnpm/cli-utils@1000.0.2
+  - @pnpm/plugin-commands-env@1000.0.2
+  - @pnpm/client@1000.0.2
+
 ## 1000.0.1
 
 ### Patch Changes
