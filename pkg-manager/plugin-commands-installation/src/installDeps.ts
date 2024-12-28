@@ -137,9 +137,6 @@ export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<void> {
-  if (opts.rootProjectManifest?.pnpm?.configDependencies) {
-    await installConfigDeps(opts.rootProjectManifest.pnpm.configDependencies, opts)
-  }
   if (!opts.update && !opts.dedupe && params.length === 0) {
     const { upToDate } = await checkDepsStatus({
       ...opts,
@@ -149,6 +146,9 @@ export async function installDeps (
       globalInfo('Already up to date')
       return
     }
+  }
+  if (opts.rootProjectManifest?.pnpm?.configDependencies) {
+    await installConfigDeps(opts.rootProjectManifest.pnpm.configDependencies, opts)
   }
   if (opts.workspace) {
     if (opts.latest) {

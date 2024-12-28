@@ -46,6 +46,9 @@
       "path": "../../pkg-manager/get-context"
     },
     {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
       "path": "../../pkg-manifest/write-project-manifest"
     },
     {
