@@ -1341,7 +1341,7 @@ async function resolveDependency (
     if (ctx.autoInstallPeers) {
       pkg = {
         ...pkg,
-        dependencies: omit(Object.keys(pkg.peerDependencies), pkg.dependencies),
+        dependencies: omit(Object.keys(pkg.peerDependencies).filter((peerDep) => !pkg.peerDependenciesMeta?.[peerDep].optional), pkg.dependencies),
       }
     } else {
       pkg = {
