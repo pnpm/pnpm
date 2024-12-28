@@ -169,7 +169,11 @@ when running add/update with the --workspace option')
   }
   const store = await createOrConnectStoreController(opts)
   if (opts.rootProjectManifest?.pnpm?.configDependencies) {
-    await installConfigDeps(opts.rootProjectManifest.pnpm.configDependencies, { ...opts, store })
+    await installConfigDeps(opts.rootProjectManifest.pnpm.configDependencies, {
+      registries: opts.registries,
+      rootDir: opts.lockfileDir ?? opts.rootProjectManifestDir,
+      store: store.ctrl,
+    })
   }
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,

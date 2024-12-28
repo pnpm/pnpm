@@ -5,15 +5,14 @@ import { readModulesDir } from '@pnpm/read-modules-dir'
 import rimraf from '@zkochan/rimraf'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type StoreController } from '@pnpm/package-store'
-import { type InstallDepsOptions } from './installDeps'
+import { type Registries } from '@pnpm/types'
 
-export async function installConfigDeps (configDeps: Record<string, string>, opts: InstallDepsOptions & {
-  store: {
-    ctrl: StoreController
-    dir: string
-  }
+export async function installConfigDeps (configDeps: Record<string, string>, opts: {
+  registries: Registries
+  rootDir: string
+  store: StoreController
 }): Promise<void> {
-  const configModulesDir = path.join(opts.workspaceDir ?? opts.rootProjectManifestDir, 'node_modules/.pnpm-config')
+  const configModulesDir = path.join(opts.rootDir, 'node_modules/.pnpm-config')
   const existingConfigDeps: string[] = await readModulesDir(configModulesDir) ?? []
   await Promise.all(existingConfigDeps.map(async (existingConfigDep) => {
     if (!configDeps[existingConfigDep]) {
@@ -32,9 +31,9 @@ export async function installConfigDeps (configDeps: Record<string, string>, opt
       }
     }
     const registry = pickRegistryForPackage(opts.registries, pkgName)
-    const fetchResult = await opts.store.ctrl.fetchPackage({
+    const fetchResult = await opts.store.fetchPackage({
       force: true,
-      lockfileDir: opts.lockfileDir ?? opts.dir,
+      lockfileDir: opts.rootDir,
       pkg: {
         id: `${pkgName}@${version}`,
         resolution: {
@@ -43,7 +42,7 @@ export async function installConfigDeps (configDeps: Record<string, string>, opt
         },
       },
     })
-    await opts.store.ctrl.importPackage(configDepPath, {
+    await opts.store.importPackage(configDepPath, {
       force: true,
       requiresBuild: false,
       filesResponse: (await fetchResult.fetching()).files,
