@@ -52,9 +52,6 @@
       "path": "../../exec/plugin-commands-rebuild"
     },
     {
-      "path": "../../fetching/tarball-fetcher"
-    },
-    {
       "path": "../../fs/graceful-fs"
     },
     {
@@ -65,12 +62,6 @@
     },
     {
       "path": "../../lockfile/types"
-    },
-    {
-      "path": "../../network/auth-header"
-    },
-    {
-      "path": "../../network/fetch"
     },
     {
       "path": "../../packages/constants"
@@ -106,16 +97,10 @@
       "path": "../../reviewing/outdated"
     },
     {
-      "path": "../../store/create-cafs-store"
-    },
-    {
       "path": "../../store/package-store"
     },
     {
       "path": "../../store/store-connection-manager"
-    },
-    {
-      "path": "../../store/store-path"
     },
     {
       "path": "../../workspace/filter-packages-from-dir"

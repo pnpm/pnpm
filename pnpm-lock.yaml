@@ -5122,9 +5122,6 @@ importers:
       '@pnpm/core':
         specifier: workspace:*
         version: link:../core
-      '@pnpm/create-cafs-store':
-        specifier: workspace:*
-        version: link:../../store/create-cafs-store
       '@pnpm/dedupe.check':
         specifier: workspace:*
         version: link:../../dedupe/check
@@ -5134,9 +5131,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fetch':
-        specifier: workspace:*
-        version: link:../../network/fetch
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
@@ -5158,9 +5152,6 @@ importers:
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
-      '@pnpm/network.auth-header':
-        specifier: workspace:*
-        version: link:../../network/auth-header
       '@pnpm/outdated':
         specifier: workspace:*
         version: link:../../reviewing/outdated
@@ -5203,12 +5194,6 @@ importers:
       '@pnpm/store-connection-manager':
         specifier: workspace:*
         version: link:../../store/store-connection-manager
-      '@pnpm/store-path':
-        specifier: workspace:*
-        version: link:../../store/store-path
-      '@pnpm/tarball-fetcher':
-        specifier: workspace:*
-        version: link:../../fetching/tarball-fetcher
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types

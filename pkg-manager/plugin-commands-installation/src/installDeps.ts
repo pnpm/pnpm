@@ -147,9 +147,6 @@ export async function installDeps (
       return
     }
   }
-  if (opts.rootProjectManifest?.pnpm?.configDependencies) {
-    await installConfigDeps(opts.rootProjectManifest.pnpm.configDependencies, opts)
-  }
   if (opts.workspace) {
     if (opts.latest) {
       throw new PnpmError('BAD_OPTIONS', 'Cannot use --latest with --workspace simultaneously')
@@ -169,6 +166,10 @@ when running add/update with the --workspace option')
     }
     // @ts-expect-error
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
+  }
+  const store = await createOrConnectStoreController(opts)
+  if (opts.rootProjectManifest?.pnpm?.configDependencies) {
+    await installConfigDeps(opts.rootProjectManifest.pnpm.configDependencies, { ...opts, store })
   }
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,
@@ -227,6 +228,7 @@ when running add/update with the --workspace option')
           forcePublicHoistPattern,
           allProjectsGraph,
           selectedProjectsGraph,
+          storeControllerAndDir: store,
           workspaceDir: opts.workspaceDir,
         },
         opts.update ? 'update' : (params.length === 0 ? 'install' : 'add')
@@ -252,7 +254,6 @@ when running add/update with the --workspace option')
     manifest = {}
   }
 
-  const store = await createOrConnectStoreController(opts)
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
     ...getOptionsFromRootManifest(opts.dir, manifest),
