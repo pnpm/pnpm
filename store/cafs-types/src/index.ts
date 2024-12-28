@@ -23,7 +23,7 @@ export type PackageFilesResponse = {
   resolvedFrom: ResolvedFrom
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   sideEffects?: SideEffects
-  requiresBuild: boolean // why is this field present both here and in ImportPackageOpts?
+  requiresBuild: boolean
 } & ({
   unprocessed?: false
   filesIndex: Record<string, string>
