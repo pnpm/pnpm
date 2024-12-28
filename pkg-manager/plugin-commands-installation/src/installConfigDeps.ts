@@ -6,6 +6,8 @@ import { createTarballFetcher } from '@pnpm/tarball-fetcher'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { getStorePath } from '@pnpm/store-path'
+import { readModulesDir } from '@pnpm/read-modules-dir'
+import rimraf from '@zkochan/rimraf'
 import { type InstallDepsOptions } from './installDeps'
 
 export async function installConfigDeps (configDeps: Record<string, string>, opts: InstallDepsOptions): Promise<void> {
@@ -21,6 +23,12 @@ export async function installConfigDeps (configDeps: Record<string, string>, opt
     packageImportMethod: opts.packageImportMethod,
   })
   const configModulesDir = path.join(opts.workspaceDir ?? opts.dir, 'node_modules/.pnpm-config')
+  const existingConfigDeps: string[] = await readModulesDir(configModulesDir) ?? []
+  await Promise.all(existingConfigDeps.map(async (existingConfigDep) => {
+    if (!configDeps[existingConfigDep]) {
+      await rimraf(path.join(configModulesDir, existingConfigDep))
+    }
+  }))
   await Promise.all(Object.entries(configDeps).map(async ([pkgName, pkgSpec]) => {
     const sepIndex = pkgSpec.indexOf('+')
     const version = pkgSpec.substring(0, sepIndex)
