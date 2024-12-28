@@ -31,7 +31,7 @@ export async function installConfigDeps (configDeps: Record<string, string>, opt
       }
     }
     const registry = pickRegistryForPackage(opts.registries, pkgName)
-    const fetchResult = await opts.store.fetchPackage({
+    const { fetching } = await opts.store.fetchPackage({
       force: true,
       lockfileDir: opts.rootDir,
       pkg: {
@@ -42,10 +42,11 @@ export async function installConfigDeps (configDeps: Record<string, string>, opt
         },
       },
     })
+    const { files: filesResponse } = await fetching()
     await opts.store.importPackage(configDepPath, {
       force: true,
       requiresBuild: false,
-      filesResponse: (await fetchResult.fetching()).files,
+      filesResponse,
     })
   }))
 }
