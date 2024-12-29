@@ -337,6 +337,7 @@ when running add/update with the --workspace option')
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
+        configDependencies: opts.rootProjectManifest?.pnpm?.configDependencies,
       })
     }
     return
@@ -390,6 +391,7 @@ when running add/update with the --workspace option')
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
+        configDependencies: opts.rootProjectManifest?.pnpm?.configDependencies,
       })
     }
   }
@@ -415,6 +417,7 @@ async function recursiveInstallThenUpdateWorkspaceState (
       workspaceDir: opts.workspaceDir,
       pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
       filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
+      configDependencies: opts.rootProjectManifest?.pnpm?.configDependencies,
     })
   }
   return recursiveResult

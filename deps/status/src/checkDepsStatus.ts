@@ -29,7 +29,6 @@ import {
 import { globalWarn, logger } from '@pnpm/logger'
 import { parseOverrides } from '@pnpm/parse-overrides'
 import { getPnpmfilePath } from '@pnpm/pnpmfile'
-import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type WorkspacePackages } from '@pnpm/resolver-base'
 import {
   type DependencyManifest,
@@ -125,22 +124,10 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
       }
     }
   }
-  if (rootProjectManifest?.pnpm?.configDependencies) {
-    try {
-      const configModulesDir = path.join(opts.workspaceDir ?? rootProjectManifestDir, 'node_modules/.pnpm-config')
-      await Promise.all(Object.entries(rootProjectManifest.pnpm.configDependencies).map(async ([pkgName, pkgSpec]) => {
-        const version = pkgSpec.substring(0, pkgSpec.indexOf('+'))
-        const configDepPath = path.join(configModulesDir, pkgName)
-        const configDepPkgJson = await safeReadPackageJsonFromDir(configDepPath)
-        if (configDepPkgJson == null || configDepPkgJson.name !== pkgName || configDepPkgJson.version !== version) {
-          throw new Error(`Configuration dependency at ${configDepPath} is not up to date`)
-        }
-      }))
-    } catch {
-      return {
-        upToDate: false,
-        issue: 'Configuration dependencies are not up to date',
-      }
+  if ((rootProjectManifest?.pnpm?.configDependencies != null || workspaceState.configDependencies != null) && !equals(rootProjectManifest?.pnpm?.configDependencies ?? {}, workspaceState.configDependencies ?? {})) {
+    return {
+      upToDate: false,
+      issue: 'Configuration dependencies are not up to date',
     }
   }
 

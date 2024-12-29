@@ -1855,9 +1855,6 @@ importers:
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
-      '@pnpm/read-package-json':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-package-json
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
