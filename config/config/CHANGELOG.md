@@ -1,5 +1,15 @@
 # @pnpm/config
 
+## 1002.1.0
+
+### Minor Changes
+
+- f891288: `pnpm deploy` now tries creating a dedicated lockfile from a shared lockfile for deployment. It will fallback to deployment without a lockfile if there is no shared lockfile or `force-legacy-deploy` is set to `true`.
+
+### Patch Changes
+
+- f90a94b: Fix reading options from pnpm.onlyBuiltDependencies [#8920](https://github.com/pnpm/pnpm/issues/8920).
+
 ## 1002.0.0
 
 ### Major Changes

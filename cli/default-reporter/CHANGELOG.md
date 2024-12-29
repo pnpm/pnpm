@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 1001.1.1
+
+### Patch Changes
+
+- Updated dependencies [f90a94b]
+- Updated dependencies [f891288]
+  - @pnpm/config@1002.1.0
+
 ## 1001.1.0
 
 ### Minor Changes

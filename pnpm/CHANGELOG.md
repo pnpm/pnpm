@@ -1,6 +1,6 @@
 # pnpm
 
-## 10.0.0-rc.1
+## 10.0.0-rc.2
 
 ### Major Changes
 
@@ -77,6 +77,7 @@
   - `pnpm test` now passes all parameters after the `test` keyword directly to the underlying script. This matches the behavior of `pnpm run test`. Previously you needed to use the `--` prefix.
     Related PR: [#8619](https://github.com/pnpm/pnpm/pull/8619)
 - `node-gyp` updated to version 11.
+- `pnpm deploy` now tries creating a dedicated lockfile from a shared lockfile for deployment. It will fallback to deployment without a lockfile if there is no shared lockfile or `force-legacy-deploy` is set to `true`.
 
 ### Minor Changes
 
@@ -121,6 +122,7 @@
 - All commands should read settings from the `package.json` at the root of the workspace [#8667](https://github.com/pnpm/pnpm/issues/8667).
 - When `manage-package-manager-versions` is set to `true`, errors spawning a self-managed version of `pnpm` will now be shown (instead of being silent).
 - Pass the find command to npm, it is an alias for npm search
+- Fixed an issue in which `pnpm deploy --prod` fails due to missing `devDependencies` [#8778](https://github.com/pnpm/pnpm/issues/8778).
 
 ## 9.12.2
 

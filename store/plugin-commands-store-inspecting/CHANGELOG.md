@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-store-inspecting
 
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [f90a94b]
+- Updated dependencies [f891288]
+  - @pnpm/config@1002.1.0
+
 ## 1000.0.2
 
 ### Patch Changes

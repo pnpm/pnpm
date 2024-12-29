@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-installation
 
+## 1001.1.0
+
+### Minor Changes
+
+- f891288: Add `dedupeInjectedDeps` to `InstallCommandOptions`.
+
+### Patch Changes
+
+- Updated dependencies [f90a94b]
+- Updated dependencies [f891288]
+  - @pnpm/config@1002.1.0
+  - @pnpm/cli-utils@1000.0.3
+  - @pnpm/deps.status@1001.0.3
+  - @pnpm/plugin-commands-env@1000.0.3
+  - @pnpm/plugin-commands-rebuild@1001.1.1
+  - @pnpm/store-connection-manager@1000.0.3
+  - @pnpm/workspace.state@1001.0.2
+  - @pnpm/workspace.find-packages@1000.0.3
+  - @pnpm/filter-workspace-packages@1000.0.3
+
 ## 1001.0.2
 
 ### Patch Changes

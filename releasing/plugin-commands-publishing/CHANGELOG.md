@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.1.1
+
+### Patch Changes
+
+- Updated dependencies [f90a94b]
+- Updated dependencies [f891288]
+  - @pnpm/config@1002.1.0
+  - @pnpm/cli-utils@1000.0.3
+  - @pnpm/plugin-commands-env@1000.0.3
+
 ## 1000.1.0
 
 ### Minor Changes
