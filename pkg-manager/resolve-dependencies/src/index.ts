@@ -125,7 +125,6 @@ export async function resolveDependencies (
     preferredVersions: opts.preferredVersions,
     virtualStoreDir: opts.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
-    updateToLatest: opts.updateToLatest,
     noDependencySelectors: importers.every(({ wantedDependencies }) => wantedDependencies.length === 0),
   })
   const projectsToResolve = await Promise.all(importers.map(async (project) => _toResolveImporter(project)))
