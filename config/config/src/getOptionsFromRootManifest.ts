@@ -37,7 +37,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
   const neverBuiltDependencies = manifest.pnpm?.neverBuiltDependencies
   let onlyBuiltDependencies = manifest.pnpm?.onlyBuiltDependencies
   const onlyBuiltDependenciesFile = manifest.pnpm?.onlyBuiltDependenciesFile
-  if (onlyBuiltDependenciesFile == null && neverBuiltDependencies == null) {
+  if (onlyBuiltDependenciesFile == null && neverBuiltDependencies == null && onlyBuiltDependencies == null) {
     onlyBuiltDependencies = []
   }
   const packageExtensions = manifest.pnpm?.packageExtensions
