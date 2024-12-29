@@ -233,6 +233,7 @@ export async function recursive (
           update: opts.update,
           updateMatching: opts.updateMatching,
           updatePackageManifest: opts.updatePackageManifest,
+          updateToLatest: opts.latest,
         } as MutatedProject)
         return
       case 'install':
@@ -244,6 +245,7 @@ export async function recursive (
           update: opts.update,
           updateMatching: opts.updateMatching,
           updatePackageManifest: opts.updatePackageManifest,
+          updateToLatest: opts.latest,
         } as MutatedProject)
       }
     }))
