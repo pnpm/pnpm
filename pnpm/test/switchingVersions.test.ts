@@ -56,4 +56,3 @@ test('do not switch to pnpm version when a range is specified', async () => {
 
   expect(stdout.toString()).toContain('Cannot switch to pnpm@^9.3.0')
 })
-
