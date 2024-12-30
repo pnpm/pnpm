@@ -264,18 +264,20 @@ function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDi
   const { lockfileDir, projectRootDirRealPath } = opts
 
   if (spec.startsWith('link:')) {
-    const targetPath = spec.slice('link:'.length)
+    const { id, peersSuffix } = dp.parseDepPath(spec.slice('link:'.length))
     return {
       scheme: 'link:',
-      resolvedPath: path.resolve(projectRootDirRealPath, targetPath),
+      resolvedPath: path.resolve(projectRootDirRealPath, id),
+      suffix: peersSuffix,
     }
   }
 
   if (spec.startsWith('file:')) {
-    const targetPath = spec.slice('file:'.length)
+    const { id, peersSuffix } = dp.parseDepPath(spec.slice('file:'.length))
     return {
       scheme: 'file:',
-      resolvedPath: path.resolve(lockfileDir, targetPath),
+      resolvedPath: path.resolve(lockfileDir, id),
+      suffix: peersSuffix,
     }
   }
 
@@ -293,7 +295,7 @@ function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDi
     throw new Error(`Something goes wrong, suffix should be undefined but isn't: ${parseResult.suffix}`)
   }
 
-  if (patchHash || peersSuffix) {
+  if (Boolean(patchHash) || Boolean(peersSuffix)) {
     parseResult.suffix = `${patchHash ?? ''}${peersSuffix ?? ''}`
   }
 
