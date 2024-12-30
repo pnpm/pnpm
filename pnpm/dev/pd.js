@@ -88,7 +88,10 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
 
   // Invoke the script just built by esbuild, with Node's sourcemaps enabled
   const { status } = childProcess.spawnSync(nodeBin, ['--enable-source-maps', pathLib.resolve(__dirname, 'dist/pnpm.cjs'), ...process.argv.slice(2)], {
-    stdio: 'inherit'
+    stdio: 'inherit',
+    env: {
+      npm_config_manage_package_manager_versions: false,
+    },
   })
   process.exit(status)
 })()
