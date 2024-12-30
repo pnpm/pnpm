@@ -295,9 +295,7 @@ function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDi
     throw new Error(`Something goes wrong, suffix should be undefined but isn't: ${parseResult.suffix}`)
   }
 
-  if (Boolean(patchHash) || Boolean(peersSuffix)) {
-    parseResult.suffix = `${patchHash ?? ''}${peersSuffix ?? ''}`
-  }
+  parseResult.suffix = `${patchHash ?? ''}${peersSuffix ?? ''}`
 
   return parseResult
 }
