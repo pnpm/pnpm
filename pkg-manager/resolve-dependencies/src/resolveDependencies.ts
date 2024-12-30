@@ -1341,12 +1341,7 @@ async function resolveDependency (
     if (ctx.autoInstallPeers) {
       pkg = {
         ...pkg,
-        dependencies: omit(Object.keys(pkg.peerDependencies).filter((peerDep) => {
-          if (pkg.peerDependenciesMeta?.[peerDep]) {
-            return !pkg.peerDependenciesMeta[peerDep].optional
-          }
-          return true
-        }), pkg.dependencies),
+        dependencies: omit(Object.keys(pkg.peerDependencies), pkg.dependencies),
       }
     } else {
       pkg = {
@@ -1355,6 +1350,13 @@ async function resolveDependency (
           Object.keys(pkg.peerDependencies).filter((peerDep) => options.parentPkgAliases[peerDep]),
           pkg.dependencies
         ),
+      }
+    }
+    if (pkg.peerDependenciesMeta != null) {
+      for (const [peerName, peerOpts] of Object.entries(pkg.peerDependenciesMeta)) {
+        if (peerOpts.optional && (pkg.dependencies?.[peerName] != null || pkg.optionalDependencies?.[peerName] != null)) {
+          peerOpts.optional = false
+        }
       }
     }
   }
