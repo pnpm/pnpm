@@ -263,23 +263,15 @@ interface ResolveLinkOrFileResult {
 function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveLinkOrFileResult | undefined {
   const { lockfileDir, projectRootDirRealPath } = opts
 
-  if (spec.startsWith('link:')) {
-    const { id, peersSuffix } = dp.parseDepPath(spec.slice('link:'.length))
-    return {
-      scheme: 'link:',
-      resolvedPath: path.resolve(projectRootDirRealPath, id),
-      suffix: peersSuffix,
-    }
+  function resolveScheme (scheme: ResolveLinkOrFileResult['scheme'], base: string): ResolveLinkOrFileResult | undefined {
+    if (!spec.startsWith(scheme)) return undefined
+    const { id, peersSuffix: suffix } = dp.parseDepPath(spec.slice(scheme.length))
+    const resolvedPath = path.resolve(base, id)
+    return { scheme, resolvedPath, suffix }
   }
 
-  if (spec.startsWith('file:')) {
-    const { id, peersSuffix } = dp.parseDepPath(spec.slice('file:'.length))
-    return {
-      scheme: 'file:',
-      resolvedPath: path.resolve(lockfileDir, id),
-      suffix: peersSuffix,
-    }
-  }
+  const resolveSchemeResult = resolveScheme('file:', lockfileDir) ?? resolveScheme('link:', projectRootDirRealPath)
+  if (resolveSchemeResult) return resolveSchemeResult
 
   const { nonSemverVersion, patchHash, peersSuffix, version } = dp.parse(spec)
   if (!nonSemverVersion) return undefined
