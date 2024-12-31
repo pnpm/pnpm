@@ -43,12 +43,14 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
         try {
           // this will be retried
           const res = await nodeFetch(url as any, opts) // eslint-disable-line
-          opts.abort?.()
           // A retry on 409 sometimes helps when making requests to the Bit registry.
           if ((res.status >= 500 && res.status < 600) || [408, 409, 420, 429].includes(res.status)) {
             throw new ResponseError(res)
           } else {
             resolve(res)
+            if (res.status === 200) {
+              opts.abort?.()
+            }
           }
         } catch (error: unknown) {
           assert(util.types.isNativeError(error))
