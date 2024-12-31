@@ -15,6 +15,7 @@ export type FetchFromRegistry = (
     compress?: boolean
     retry?: RetryTimeoutOptions
     timeout?: number
+    abort?: () => void
   }
 ) => Promise<Response>
 

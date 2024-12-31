@@ -22,6 +22,7 @@ export type RequestInfo = string | URLLike | Request
 export interface RequestInit extends NodeRequestInit {
   retry?: RetryTimeoutOptions
   timeout?: number
+  abort?: () => void
 }
 
 export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<Response> {
@@ -42,6 +43,7 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
         try {
           // this will be retried
           const res = await nodeFetch(url as any, opts) // eslint-disable-line
+          opts.abort?.()
           // A retry on 409 sometimes helps when making requests to the Bit registry.
           if ((res.status >= 500 && res.status < 600) || [408, 409, 420, 429].includes(res.status)) {
             throw new ResponseError(res)

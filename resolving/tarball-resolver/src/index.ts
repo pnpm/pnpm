@@ -12,7 +12,9 @@ export async function resolveFromTarball (
   if (isRepository(wantedDependency.pref)) return null
 
   // If there are redirects, we want to get the final URL address
-  const { url: resolvedUrl } = await fetchFromRegistry(wantedDependency.pref, { method: 'GET' })
+  const controller = new AbortController()
+  const abort = controller.abort.bind(controller) // pkg.pr.new don't support HEAD requests
+  const { url: resolvedUrl } = await fetchFromRegistry(wantedDependency.pref, { method: 'GET', abort, signal: controller.signal })
 
   return {
     id: resolvedUrl as PkgResolutionId,

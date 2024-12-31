@@ -72,6 +72,8 @@ export function createFetchFromRegistry (
         redirect: 'manual',
         retry: opts?.retry,
         timeout: opts?.timeout ?? 60000,
+        signal: opts?.signal,
+        abort: opts?.abort,
       })
       if (!isRedirect(response.status) || redirects >= MAX_FOLLOWED_REDIRECTS) {
         return response
