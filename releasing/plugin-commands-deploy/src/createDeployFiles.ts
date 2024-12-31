@@ -112,14 +112,14 @@ export function createDeployFiles ({
     const targetSpecifiers = targetSnapshot.specifiers
     const inputDependencies = inputSnapshot[field] ?? {}
     for (const name in inputDependencies) {
-      const spec = inputDependencies[name]
-      const resolveResult = resolveLinkOrFile(spec, {
+      const version = inputDependencies[name]
+      const resolveResult = resolveLinkOrFile(version, {
         lockfileDir,
         projectRootDirRealPath: path.resolve(lockfileDir, projectId),
       })
 
       if (!resolveResult) {
-        targetSpecifiers[name] = targetDependencies[name] = spec
+        targetSpecifiers[name] = targetDependencies[name] = version
         continue
       }
 
@@ -236,10 +236,10 @@ function convertResolvedDependencies (
   const output: ResolvedDependencies = {}
 
   for (const key in input) {
-    const spec = input[key]
-    const resolveResult = resolveLinkOrFile(spec, opts)
+    const version = input[key]
+    const resolveResult = resolveLinkOrFile(version, opts)
     if (!resolveResult) {
-      output[key] = spec
+      output[key] = version
       continue
     }
 
@@ -260,12 +260,12 @@ interface ResolveLinkOrFileResult {
   suffix?: string
 }
 
-function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveLinkOrFileResult | undefined {
+function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveLinkOrFileResult | undefined {
   const { lockfileDir, projectRootDirRealPath } = opts
 
   function resolveScheme (scheme: ResolveLinkOrFileResult['scheme'], base: string): ResolveLinkOrFileResult | undefined {
-    if (!spec.startsWith(scheme)) return undefined
-    const { id, peersSuffix: suffix } = dp.parseDepPath(spec.slice(scheme.length))
+    if (!pkgVer.startsWith(scheme)) return undefined
+    const { id, peersSuffix: suffix } = dp.parseDepPath(pkgVer.slice(scheme.length))
     const resolvedPath = path.resolve(base, id)
     return { scheme, resolvedPath, suffix }
   }
@@ -273,7 +273,7 @@ function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDi
   const resolveSchemeResult = resolveScheme('file:', lockfileDir) ?? resolveScheme('link:', projectRootDirRealPath)
   if (resolveSchemeResult) return resolveSchemeResult
 
-  const { nonSemverVersion, patchHash, peersSuffix, version } = dp.parse(spec)
+  const { nonSemverVersion, patchHash, peersSuffix, version } = dp.parse(pkgVer)
   if (!nonSemverVersion) return undefined
 
   if (version) {
