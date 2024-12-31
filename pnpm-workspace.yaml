@@ -50,7 +50,7 @@ catalog:
   "@pnpm/meta-updater": 2.0.3
   "@pnpm/network.agent": ^2.0.0
   "@pnpm/nopt": ^0.2.1
-  "@pnpm/npm-conf": 2.3.1
+  "@pnpm/npm-conf": 3.0.0
   "@pnpm/npm-lifecycle": ^1000.0.1
   "@pnpm/npm-package-arg": ^1.0.0
   "@pnpm/os.env.path-extender": ^2.0.0
