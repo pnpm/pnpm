@@ -828,7 +828,7 @@ async function resolveDependenciesOfDependency (
     updateDepth,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
-    updateToLatest: update && options.updateToLatest,
+    updateToLatest: options.updateToLatest,
     parentIds: options.parentIds,
   }
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
@@ -1260,7 +1260,7 @@ async function resolveDependency (
         err.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
         return err
       },
-      updateToLatest: options.updateToLatest,
+      updateToLatest: options.update && options.updateToLatest,
       injectWorkspacePackages: ctx.injectWorkspacePackages,
     })
   } catch (err: any) { // eslint-disable-line
