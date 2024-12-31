@@ -92,7 +92,7 @@ auto-install-peers=false`, 'utf8')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/8877
-test.only('partial update --latest in a workspace should not affect other packages when dedupe-peer-dependents is true', async () => {
+test('partial update --latest in a workspace should not affect other packages when dedupe-peer-dependents is true', async () => {
   await addDistTag({ package: '@pnpm.e2e/foo', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
 
@@ -129,7 +129,8 @@ auto-install-peers=false`, 'utf8')
   await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
 
-  await execPnpm(['update', '--filter', 'project-2', '--latest'])
+  // update foo only for project-2
+  await execPnpm(['update', '--filter', 'project-2', '--latest', '@pnpm.e2e/foo'])
 
   // project 1's manifest is unaffected, while project 2 has only foo updated
   expect(loadJsonFile<any>('project-1/package.json').dependencies['@pnpm.e2e/foo']).toBe('1.0.0') // eslint-disable-line
