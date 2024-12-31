@@ -40,8 +40,8 @@ catalogs:
       specifier: ^0.2.1
       version: 0.2.1
     '@pnpm/npm-conf':
-      specifier: 2.3.1
-      version: 2.3.1
+      specifier: 3.0.0
+      version: 3.0.0
     '@pnpm/npm-lifecycle':
       specifier: ^1000.0.1
       version: 1000.0.1
@@ -1461,7 +1461,7 @@ importers:
         version: link:../matcher
       '@pnpm/npm-conf':
         specifier: 'catalog:'
-        version: 2.3.1
+        version: 3.0.0
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
@@ -3611,10 +3611,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-    optionalDependencies:
-      fuse-native:
-        specifier: 'catalog:'
-        version: 2.2.6
     devDependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -3628,6 +3624,10 @@ importers:
       rimraf:
         specifier: 'catalog:'
         version: 3.0.2
+    optionalDependencies:
+      fuse-native:
+        specifier: 'catalog:'
+        version: 2.2.6
 
   network/auth-header:
     dependencies:
@@ -5729,10 +5729,6 @@ importers:
       v8-compile-cache:
         specifier: 2.4.0
         version: 2.4.0
-    optionalDependencies:
-      node-gyp:
-        specifier: ^11.0.0
-        version: 11.0.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -6025,8 +6021,22 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
+    optionalDependencies:
+      node-gyp:
+        specifier: ^11.0.0
+        version: 11.0.0
 
   pnpm/artifacts/exe:
+    devDependencies:
+      '@pnpm/exe':
+        specifier: workspace:*
+        version: 'link:'
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.1.2
+      pkg:
+        specifier: 'catalog:'
+        version: '@yao-pkg/pkg@5.12.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
     optionalDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
@@ -6046,16 +6056,6 @@ importers:
       '@pnpm/win-x64':
         specifier: workspace:*
         version: link:../win-x64
-    devDependencies:
-      '@pnpm/exe':
-        specifier: workspace:*
-        version: 'link:'
-      execa:
-        specifier: 'catalog:'
-        version: safe-execa@0.1.2
-      pkg:
-        specifier: 'catalog:'
-        version: '@yao-pkg/pkg@5.12.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
 
   pnpm/artifacts/linux-arm64:
     devDependencies:
@@ -9053,8 +9053,8 @@ packages:
     resolution: {integrity: sha512-DqrO+oXGR7HCuicNy6quk6ALJSDDPKI7RZz1bP5im8mSL8J2e+9w26LdkjuAfpAjOutYUJVbnXnx4IbTQeIgfw==}
     engines: {node: '>=12'}
 
-  '@pnpm/npm-conf@2.3.1':
-    resolution: {integrity: sha512-c83qWb22rNRuB0UaVCI0uRPNRr8Z0FWnEIvT47jiHAmOIUHbBOg5XvV7pM5x+rKn9HRpjxquDbXYSXr3fAKFcw==}
+  '@pnpm/npm-conf@3.0.0':
+    resolution: {integrity: sha512-LdFkv/+4ONkQ9ZyE8ihC2L2RcPjvNcOTQq6pvvvZp8KeDYATCJeJX7gpHZF3Bx1XvUSU35dyF9Q9dS+JShtOFA==}
     engines: {node: '>=12'}
 
   '@pnpm/npm-lifecycle@1000.0.1':
@@ -15963,7 +15963,7 @@ snapshots:
       '@pnpm/network.ca-file': 1.0.2
       config-chain: 1.1.13
 
-  '@pnpm/npm-conf@2.3.1':
+  '@pnpm/npm-conf@3.0.0':
     dependencies:
       '@pnpm/config.env-replace': 1.1.0
       '@pnpm/network.ca-file': 1.0.2
