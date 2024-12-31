@@ -553,6 +553,37 @@ describe('patch and commit', () => {
     expect(fs.existsSync('patches/is-positive@1.0.0.patch')).toBe(false)
     expect(fs.existsSync('patches')).toBe(false)
   })
+
+  test('should exclude .DS_Store files from the patch', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+    fs.appendFileSync(path.join(patchDir, '.DS_Store'), '// dummy content', 'utf8') // The diff is added in the middle of the patch file.
+    fs.mkdirSync(path.join(patchDir, 'subdir'))
+    fs.appendFileSync(path.join(patchDir, 'subdir', '.DS_Store'), '// dummy content', 'utf8') // The diff is added to the end of the patch file
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, [patchDir])
+
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+    })
+    const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
+    expect(patchContent).toContain('diff --git a/index.js b/index.js')
+    expect(patchContent).toContain('// test patching')
+    expect(patchContent).not.toContain('diff --git a/.DS_Store b/.DS_Store')
+    expect(patchContent).not.toContain('diff --git a/subdir/.DS_Store b/subdir/.DS_Store')
+    expect(patchContent).not.toContain('// dummy content')
+  })
 })
 
 describe('multiple versions', () => {
