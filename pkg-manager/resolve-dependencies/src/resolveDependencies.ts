@@ -828,7 +828,7 @@ async function resolveDependenciesOfDependency (
     updateDepth,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
-    updateToLatest: options.updateToLatest,
+    updateToLatest: update && options.updateToLatest,
     parentIds: options.parentIds,
   }
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
