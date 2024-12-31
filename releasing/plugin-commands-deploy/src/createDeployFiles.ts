@@ -76,7 +76,7 @@ export function createDeployFiles ({
   for (const name in lockfile.packages) {
     const inputDepPath = name as DepPath
     const inputSnapshot = lockfile.packages[inputDepPath]
-    const resolveResult = resolveLinkOrFile(inputDepPath, {
+    const resolveResult = resolveDepPath(inputDepPath, {
       lockfileDir,
       projectRootDirRealPath: rootProjectManifestDir,
     })
@@ -113,7 +113,7 @@ export function createDeployFiles ({
     const inputDependencies = inputSnapshot[field] ?? {}
     for (const name in inputDependencies) {
       const spec = inputDependencies[name]
-      const resolveResult = resolveLinkOrFile(spec, {
+      const resolveResult = resolveSpec(spec, {
         lockfileDir,
         projectRootDirRealPath: path.resolve(lockfileDir, projectId),
       })
@@ -237,7 +237,7 @@ function convertResolvedDependencies (
 
   for (const key in input) {
     const spec = input[key]
-    const resolveResult = resolveLinkOrFile(spec, opts)
+    const resolveResult = resolveSpec(spec, opts)
     if (!resolveResult) {
       output[key] = spec
       continue
@@ -254,46 +254,39 @@ function convertResolvedDependencies (
   return output
 }
 
-interface ResolveLinkOrFileResult {
-  scheme: 'link:' | 'file:'
+type LocalScheme = 'link:' | 'file:'
+
+interface ResolveSpecResult {
+  scheme: LocalScheme
   resolvedPath: string
+}
+
+function resolveSpecScheme (scheme: LocalScheme, base: string, spec: string): ResolveSpecResult | undefined {
+  if (!spec.startsWith(scheme)) return undefined
+  const relativePath = spec.slice(scheme.length)
+  const resolvedPath = path.resolve(base, relativePath)
+  return { scheme, resolvedPath }
+}
+
+function resolveSpec (spec: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveSpecResult | undefined {
+  const { lockfileDir, projectRootDirRealPath } = opts
+  return resolveSpecScheme('file:', lockfileDir, spec) ?? resolveSpecScheme('link:', projectRootDirRealPath, spec)
+}
+
+interface ResolveDepPathResult extends ResolveSpecResult {
   suffix?: string
 }
 
-function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveLinkOrFileResult | undefined {
-  const { lockfileDir, projectRootDirRealPath } = opts
-
-  if (spec.startsWith('link:')) {
-    const { id, peersSuffix } = dp.parseDepPath(spec.slice('link:'.length))
-    return {
-      scheme: 'link:',
-      resolvedPath: path.resolve(projectRootDirRealPath, id),
-      suffix: peersSuffix,
-    }
-  }
-
-  if (spec.startsWith('file:')) {
-    const { id, peersSuffix } = dp.parseDepPath(spec.slice('file:'.length))
-    return {
-      scheme: 'file:',
-      resolvedPath: path.resolve(lockfileDir, id),
-      suffix: peersSuffix,
-    }
-  }
-
-  const { nonSemverVersion, patchHash, peersSuffix, version } = dp.parse(spec)
+function resolveDepPath (depPath: DepPath, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveDepPathResult | undefined {
+  const { nonSemverVersion, patchHash, peersSuffix, version } = dp.parse(depPath)
   if (!nonSemverVersion) return undefined
 
   if (version) {
     throw new Error(`Something goes wrong, version should be undefined but isn't: ${version}`)
   }
 
-  const parseResult = resolveLinkOrFile(nonSemverVersion, opts)
+  const parseResult: ResolveDepPathResult | undefined = resolveSpec(nonSemverVersion, opts)
   if (!parseResult) return undefined
-
-  if (parseResult.suffix) {
-    throw new Error(`Something goes wrong, suffix should be undefined but isn't: ${parseResult.suffix}`)
-  }
 
   parseResult.suffix = `${patchHash ?? ''}${peersSuffix ?? ''}`
 
@@ -301,7 +294,7 @@ function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDi
 }
 
 function createFileUrlDepPath (
-  { resolvedPath, suffix }: Pick<ResolveLinkOrFileResult, 'resolvedPath' | 'suffix'>,
+  { resolvedPath, suffix }: Pick<ResolveDepPathResult, 'resolvedPath' | 'suffix'>,
   allProjects: CreateDeployFilesOptions['allProjects']
 ): DepPath {
   const depFileUrl = url.pathToFileURL(resolvedPath).toString()
