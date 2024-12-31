@@ -60,7 +60,7 @@ export function createFetchFromRegistry (
 
       // We should pass a URL object to node-fetch till this is not resolved:
       // https://github.com/bitinn/node-fetch/issues/245
-      const response = await fetchWithAgent(urlObject, {
+      const _opts: FetchWithAgentOptions = {
         agentOptions: {
           ...agentOptions,
           clientCertificates: defaultOpts.sslConfigs,
@@ -72,9 +72,12 @@ export function createFetchFromRegistry (
         redirect: 'manual',
         retry: opts?.retry,
         timeout: opts?.timeout ?? 60000,
-        signal: opts?.signal,
-        abort: opts?.abort,
-      })
+      }
+      if (opts?.signal) {
+        _opts.signal = opts.signal
+        _opts.abort = opts.abort
+      }
+      const response = await fetchWithAgent(urlObject, _opts)
       if (!isRedirect(response.status) || redirects >= MAX_FOLLOWED_REDIRECTS) {
         return response
       }
