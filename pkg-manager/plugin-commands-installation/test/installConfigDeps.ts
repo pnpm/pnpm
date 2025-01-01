@@ -1,5 +1,5 @@
 import fs from 'fs'
-import { install } from '@pnpm/plugin-commands-installation'
+import { add, install } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
@@ -56,4 +56,27 @@ test('configuration dependency is installed', async () => {
   })
 
   expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')).toBeFalsy()
+})
+
+test('patch from configuration dependency is applied', async () => {
+  const rootProjectManifest = {
+    pnpm: {
+      configDependencies: {
+        '@pnpm.e2e/has-patch-for-foo': `1.0.0+${getIntegrity('@pnpm.e2e/has-patch-for-foo', '1.0.0')}`,
+      },
+      patchedDependencies: {
+        '@pnpm.e2e/foo@100.0.0': 'node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo/@pnpm.e2e__foo@100.0.0.patch',
+      },
+    },
+  }
+  prepare(rootProjectManifest)
+
+  await add.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    rootProjectManifest,
+    rootProjectManifestDir: process.cwd(),
+  }, ['@pnpm.e2e/foo@100.0.0'])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/foo/index.js')).toBeTruthy()
 })
