@@ -176,7 +176,7 @@ when running add/update with the --workspace option')
       store: store.ctrl,
     })
   }
-  if (!opts.ignorePnpmfile) {
+  if (!opts.ignorePnpmfile && !opts.hooks) {
     opts.hooks = requireHooks(opts.lockfileDir ?? opts.dir, opts)
     if (opts.hooks.fetchers != null || opts.hooks.importPackage != null) {
       store = await createOrConnectStoreController(opts)
