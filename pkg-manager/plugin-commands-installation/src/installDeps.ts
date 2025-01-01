@@ -168,7 +168,7 @@ when running add/update with the --workspace option')
     // @ts-expect-error
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
-  const store = await createOrConnectStoreController(opts)
+  let store = await createOrConnectStoreController(opts)
   if (opts.rootProjectManifest?.pnpm?.configDependencies) {
     await installConfigDeps(opts.rootProjectManifest.pnpm.configDependencies, {
       registries: opts.registries,
@@ -178,6 +178,9 @@ when running add/update with the --workspace option')
   }
   if (!opts.ignorePnpmfile) {
     opts.hooks = requireHooks(opts.lockfileDir ?? opts.dir, opts)
+    if (opts.hooks.fetchers != null || opts.hooks.importPackage != null) {
+      store = await createOrConnectStoreController(opts)
+    }
   }
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,

@@ -163,7 +163,7 @@ export async function handler (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  const store = await createOrConnectStoreController(opts)
+  let store = await createOrConnectStoreController(opts)
   if (opts.rootProjectManifest?.pnpm?.configDependencies) {
     await installConfigDeps(opts.rootProjectManifest.pnpm.configDependencies, {
       registries: opts.registries,
@@ -173,6 +173,9 @@ export async function handler (
   }
   if (!opts.ignorePnpmfile) {
     opts.hooks = requireHooks(opts.lockfileDir ?? opts.dir, opts)
+    if (opts.hooks.fetchers != null || opts.hooks.importPackage != null) {
+      store = await createOrConnectStoreController(opts)
+    }
   }
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
     await recursive(opts.allProjects, params, {
