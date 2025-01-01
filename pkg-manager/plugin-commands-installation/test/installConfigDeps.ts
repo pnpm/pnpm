@@ -80,3 +80,39 @@ test('patch from configuration dependency is applied', async () => {
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/foo/index.js')).toBeTruthy()
 })
+
+test('installation fails if the checksum of the config dependency is invalid', async () => {
+  const rootProjectManifest: ProjectManifest = {
+    pnpm: {
+      configDependencies: {
+        '@pnpm.e2e/foo': '100.0.0+sha512-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000==',
+      },
+    },
+  }
+  prepare(rootProjectManifest)
+
+  await expect(install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    rootProjectManifest,
+    rootProjectManifestDir: process.cwd(),
+  })).rejects.toThrow('Got unexpected checksum for')
+})
+
+test('installation fails if the config dependency does not have a checksum', async () => {
+  const rootProjectManifest: ProjectManifest = {
+    pnpm: {
+      configDependencies: {
+        '@pnpm.e2e/foo': '100.0.0',
+      },
+    },
+  }
+  prepare(rootProjectManifest)
+
+  await expect(install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    rootProjectManifest,
+    rootProjectManifestDir: process.cwd(),
+  })).rejects.toThrow("doesn't have an integrity checksum")
+})

@@ -1,5 +1,6 @@
 import path from 'path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
+import { PnpmError } from '@pnpm/error'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import rimraf from '@zkochan/rimraf'
@@ -22,6 +23,19 @@ export async function installConfigDeps (configDeps: Record<string, string>, opt
   await Promise.all(Object.entries(configDeps).map(async ([pkgName, pkgSpec]) => {
     const configDepPath = path.join(configModulesDir, pkgName)
     const sepIndex = pkgSpec.indexOf('+')
+    if (sepIndex === -1) {
+      throw new PnpmError('CONFIG_DEP_NO_INTEGRITY', `Your config dependency called "${pkgName}" at "pnpm.configDependencies" doesn't have an integrity checksum`, {
+        hint: `All config dependencies should have their integrity checksum inlined in the version specifier. For example:
+
+{
+  "pnpm": {
+    "configDependencies": {
+      "my-config": "1.0.0+sha512-Xg0tn4HcfTijTwfDwYlvVCl43V6h4KyVVX2aEm4qdO/PC6L2YvzLHFdmxhoeSA3eslcE6+ZVXHgWwopXYLNq4Q=="
+    },
+  }
+}`,
+      })
+    }
     const version = pkgSpec.substring(0, sepIndex)
     const integrity = pkgSpec.substring(sepIndex + 1)
     if (existingConfigDeps.includes(pkgName)) {
