@@ -302,9 +302,9 @@ test('fails when .pnpmfile.cjs requires a non-existed module', async () => {
 
   fs.writeFileSync('.pnpmfile.cjs', 'module.exports = require("./this-does-node-exist")', 'utf8')
 
-  const proc = execPnpmSync(['install', '@pnpm.e2e/pkg-with-1-dep'])
+  const proc = execPnpmSync(['add', '@pnpm.e2e/pkg-with-1-dep'])
 
-  expect(proc.stderr.toString()).toContain('Error during pnpmfile execution')
+  expect(proc.stdout.toString()).toContain('Error during pnpmfile execution')
   expect(proc.status).toBe(1)
 })
 

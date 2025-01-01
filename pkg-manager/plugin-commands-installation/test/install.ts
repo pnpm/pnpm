@@ -5,6 +5,7 @@ import { STORE_VERSION } from '@pnpm/constants'
 import { add, install } from '@pnpm/plugin-commands-installation'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { sync as rimraf } from '@zkochan/rimraf'
+import { sync as loadJsonFile } from 'load-json-file'
 import { DEFAULT_OPTS } from './utils'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
@@ -26,7 +27,7 @@ test('install does not fail when a new package is added', async () => {
     dir: process.cwd(),
   }, ['is-positive@1.0.0'])
 
-  const pkg = await import(path.resolve('package.json'))
+  const pkg = loadJsonFile<{ dependencies: Record<string, string> }>(path.resolve('package.json'))
 
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
 })

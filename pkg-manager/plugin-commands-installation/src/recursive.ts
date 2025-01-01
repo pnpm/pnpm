@@ -11,6 +11,7 @@ import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { createMatcherWithIndex } from '@pnpm/matcher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
+import { type StoreController } from '@pnpm/package-store'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { sortPackages } from '@pnpm/sort-packages'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
@@ -89,6 +90,10 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   selectedProjectsGraph: ProjectsGraph
   preferredVersions?: PreferredVersions
   pruneDirectDependencies?: boolean
+  storeControllerAndDir?: {
+    ctrl: StoreController
+    dir: string
+  }
 } & Partial<
 Pick<Config,
 | 'sort'
@@ -120,7 +125,7 @@ export async function recursive (
 
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmdFullName}`)
 
-  const store = await createOrConnectStoreController(opts)
+  const store = opts.storeControllerAndDir ?? await createOrConnectStoreController(opts)
 
   const workspacePackages: WorkspacePackages = arrayOfWorkspacePackagesToMap(allProjects) as WorkspacePackages
   const targetDependenciesField = getSaveType(opts)

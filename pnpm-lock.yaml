@@ -55,8 +55,8 @@ catalogs:
       specifier: 0.0.0
       version: 0.0.0
     '@pnpm/registry-mock':
-      specifier: 3.46.0
-      version: 3.46.0
+      specifier: 3.48.0
+      version: 3.48.0
     '@pnpm/semver-diff':
       specifier: ^1.1.0
       version: 1.1.0
@@ -855,7 +855,7 @@ importers:
         version: link:../../pkg-manager/modules-yaml
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -889,7 +889,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -964,7 +964,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
@@ -1147,7 +1147,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -2341,7 +2341,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -2486,7 +2486,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -4138,7 +4138,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -4428,7 +4428,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -4704,7 +4704,7 @@ importers:
         version: link:../read-projects-context
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -5064,7 +5064,7 @@ importers:
         version: 'link:'
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5158,6 +5158,9 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
+      '@pnpm/pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
       '@pnpm/plugin-commands-env':
         specifier: workspace:*
         version: link:../../env/plugin-commands-env
@@ -5167,6 +5170,12 @@ importers:
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
+      '@pnpm/read-modules-dir':
+        specifier: workspace:*
+        version: link:../../fs/read-modules-dir
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -5221,6 +5230,9 @@ importers:
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
+      get-npm-tarball-url:
+        specifier: 'catalog:'
+        version: 2.1.0
       is-subdir:
         specifier: 'catalog:'
         version: 1.2.0
@@ -5266,7 +5278,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5870,7 +5882,7 @@ importers:
         version: link:../pkg-manifest/read-project-manifest
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../exec/run-npm
@@ -6186,7 +6198,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -6304,7 +6316,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -6897,7 +6909,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -6964,7 +6976,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
@@ -7055,7 +7067,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -7399,7 +7411,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@types/archy':
         specifier: 'catalog:'
         version: 0.0.33
@@ -8739,6 +8751,7 @@ packages:
   '@humanwhocodes/config-array@0.11.14':
     resolution: {integrity: sha512-3T8LkOmg45BV5FICb15QQMsyUSWrQ8AygVfC7ZG32zOalnqrilm018ZVCw0eapXux8FtA33q8PSRSstjee3jSg==}
     engines: {node: '>=10.10.0'}
+    deprecated: Use @eslint/config-array instead
 
   '@humanwhocodes/module-importer@1.0.1':
     resolution: {integrity: sha512-bxveV4V8v5Yb4ncFTT3rPSgZBOpCkjfK0y4oVVVJwIuDVBRMDXrPyXRL988i5ap9m9bnyEEjWfm5WkBmtffLfA==}
@@ -8746,6 +8759,7 @@ packages:
 
   '@humanwhocodes/object-schema@2.0.3':
     resolution: {integrity: sha512-93zYdMES/c1D69yZiKDBj0V24vqNzB/koF26KPaagAfd3P/4gUlh3Dys5ogAK+Exi9QyzlD8x/08Zt7wIKcDcA==}
+    deprecated: Use @eslint/object-schema instead
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -9116,8 +9130,8 @@ packages:
     resolution: {integrity: sha512-LFTWzfJbu6+l86bw/uUAsPU05n1oTqg6jzqyTXYDJPfVclqTfPnHiZoC1nvVvQlE7iVg3bhJ7SXg9IyzK7RWDQ==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/registry-mock@3.46.0':
-    resolution: {integrity: sha512-MS8idSUQu9Ag3f/s33dnEQp0zJ+z4aU01VznAIn8FT/6NBvOulVCV+CqGZbOohemNNPth7LfIS13l2fZD12rOA==}
+  '@pnpm/registry-mock@3.48.0':
+    resolution: {integrity: sha512-5d5GFyz+DlGe50SLJjMWcEKkzr7EvbKQq71hwcjOUAr3+mPEz7+Ul+wFkw0gJ/3mYjk4pmFZerP8qLdd8SBZPQ==}
     engines: {node: '>=10.13'}
     hasBin: true
 
@@ -10807,6 +10821,7 @@ packages:
 
   eslint-config-standard-with-typescript@39.1.1:
     resolution: {integrity: sha512-t6B5Ep8E4I18uuoYeYxINyqcXb2UbC0SOOTxRtBSt2JUs+EzeXbfe2oaiPs71AIdnoWhXDO2fYOHz8df3kV84A==}
+    deprecated: Please use eslint-config-love, instead.
     peerDependencies:
       '@typescript-eslint/eslint-plugin': ^6.4.0
       eslint: ^8.0.1
@@ -10911,6 +10926,7 @@ packages:
   eslint@8.57.0:
     resolution: {integrity: sha512-dZ6+mexnaTIbSBZWgou51U6OmzIhYM2VcNdtiTtI7qPNZm35Akpr0f6vtw3w1Kmn5PYo+tZVfh13WrhpS6oLqQ==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
 
   esm@3.2.25:
@@ -11327,6 +11343,7 @@ packages:
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
+    deprecated: Glob versions prior to v9 are no longer supported
 
   glob@8.1.0:
     resolution: {integrity: sha512-r8hpEjiQEYlF2QU0df3dS+nxxSIreXQS1qRhMJM0Q5NDdR386C7jb7Hwwod8Fgiuex+k0GFjgft18yvxm5XoCQ==}
@@ -11592,6 +11609,7 @@ packages:
 
   inflight@1.0.6:
     resolution: {integrity: sha512-k92I/b08q4wvFscXCLvqfsHCrjrF7yiXsQuIVvVE7N82W3+aqpzuUdBbfhWcy/FZR3/4IgflMgKLOsvPDrGCJA==}
+    deprecated: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
 
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
@@ -12389,10 +12407,6 @@ packages:
     resolution: {integrity: sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg==}
     engines: {node: '>= 0.6'}
 
-  mime-db@1.53.0:
-    resolution: {integrity: sha512-oHlN/w+3MQ3rba9rqFr6V/ypF10LSkdwUysQL7GkXoTgIWeV+tcXGA852TBxH+gsh8UWoyhR1hKcoMJTuWflpg==}
-    engines: {node: '>= 0.6'}
-
   mime-types@2.1.35:
     resolution: {integrity: sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==}
     engines: {node: '>= 0.6'}
@@ -13135,9 +13149,6 @@ packages:
     resolution: {integrity: sha512-v4Bl6I3f2kJfr5o80ShABNHAokIgY+wFDTQfE+X3zWYgSGQOCBeYptLZUpoOALBqO5EawmDN/tjTldJesd0ujQ==}
     engines: {node: '>=10'}
 
-  psl@1.9.0:
-    resolution: {integrity: sha512-E/ZsdU4HLs/68gYzgGTkMicWTLPdAftJLfJFlLUAAKZGkStNU72sZjT66SnMDVOfOWY/YAoiD7Jxa9iHvngcag==}
-
   publish-packed@4.1.2:
     resolution: {integrity: sha512-jfgaVcWMSIY8Bw2iVVcSo25SFI72x9LwuWsAxrBcm7ZrdbLz2Y8gErhlEX7VZxJZeiCihcR7XAOyjU95MywFVw==}
     engines: {node: '>=12.10'}
@@ -13170,9 +13181,6 @@ packages:
   qs@6.5.3:
     resolution: {integrity: sha512-qxXIEh4pCGfHICj1mAJQ2/2XVZkjCDTcEgfoSQxc/fYivUZxTkk7L3bDBJSoNrEzXI17oUO5Dp07ktqE5KzczA==}
     engines: {node: '>=0.6'}
-
-  querystringify@2.2.0:
-    resolution: {integrity: sha512-FIqgj2EUvTa7R50u0rGsyTftzjYmv/a3hO345bZNrqabNqjtgiDMgmo4mkUjd+nzU5oF3dClKqFIPUKybUyqoQ==}
 
   queue-microtask@1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
@@ -13900,6 +13908,13 @@ packages:
   tinylogic@2.0.0:
     resolution: {integrity: sha512-dljTkiLLITtsjqBvTA1MRZQK/sGP4kI3UJKc3yA9fMzYbMF2RhcN04SeROVqJBIYYOoJMM8u0WDnhFwMSFQotw==}
 
+  tldts-core@6.1.70:
+    resolution: {integrity: sha512-RNnIXDB1FD4T9cpQRErEqw6ZpjLlGdMOitdV+0xtbsnwr4YFka1zpc7D4KD+aAn8oSG5JyFrdasZTE04qDE9Yg==}
+
+  tldts@6.1.70:
+    resolution: {integrity: sha512-/W1YVgYVJd9ZDjey5NXadNh0mJXkiUMUue9Zebd0vpdo1sU+H4zFFTaJ1RKD4N6KFoHfcXy6l+Vu7bh+bdWCzA==}
+    hasBin: true
+
   tmp@0.0.33:
     resolution: {integrity: sha512-jRCJlojKnZ3addtTOjdIqoRuPEKBvNXcGYqzO6zWZX8KfKEpnGY5jfggJQ3EjKuu8D4bJRr0y+cYJFmYbImXGw==}
     engines: {node: '>=0.6.0'}
@@ -13934,9 +13949,9 @@ packages:
     resolution: {integrity: sha512-WBx8Uy5TLtOSRtIq+M03/sKDrXCLHxwDcquSP2c43Le03/9serjQBIztjRz6FkJez9D/hleyAXTBGLwwZUw9lA==}
     hasBin: true
 
-  tough-cookie@4.1.4:
-    resolution: {integrity: sha512-Loo5UUvLD9ScZ6jh8beX1T6sO1w2/MpCRpEP7V280GKMVUQ0Jzar2U3UJPsrdbziLEMMhu3Ujnq//rhiFuIeag==}
-    engines: {node: '>=6'}
+  tough-cookie@5.0.0:
+    resolution: {integrity: sha512-FRKsF7cz96xIIeMZ82ehjC3xW2E+O2+v11udrDYewUbszngYhsGa8z6YUMMzO9QJZzzyd0nGGXnML/TReX6W8Q==}
+    engines: {node: '>=16'}
 
   tr46@0.0.3:
     resolution: {integrity: sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==}
@@ -14180,10 +14195,6 @@ packages:
     resolution: {integrity: sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==}
     engines: {node: '>= 4.0.0'}
 
-  universalify@0.2.0:
-    resolution: {integrity: sha512-CJ1QgKmNg3CwvAv/kOFmtnEN05f0D/cn9QntgNOQlQF9dgvVTHj3t+8JPdjqawCHk7V/KA+fbUqzZ9XWhcqPUg==}
-    engines: {node: '>= 4.0.0'}
-
   universalify@2.0.1:
     resolution: {integrity: sha512-gptHNQghINnc/vTGIk0SOFGFNXw7JVrlRUtConJRlvaw6DuX0wO5Jeko9sWrMBhh+PsYAZ7oXAiOnf/UKogyiw==}
     engines: {node: '>= 10.0.0'}
@@ -14207,9 +14218,6 @@ packages:
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
-
-  url-parse@1.5.10:
-    resolution: {integrity: sha512-WypcfiRhfeUP9vvF0j6rw0J3hrWrw6iZv3+22h6iRMJ/8z1Tj6XfLP4DsUix5MhMPnXpiHDoKyoZ/bdCkwBCiQ==}
 
   utf8-byte-length@1.0.5:
     resolution: {integrity: sha512-Xn0w3MtiQ6zoz2vFyUVruaCL53O/DwUvkEeOvj+uulMm0BkUGYWmBYVyElqZaSLhY6ZD0ulfU3aBra2aVT4xfA==}
@@ -16107,7 +16115,7 @@ snapshots:
       sort-keys: 4.2.0
       strip-bom: 4.0.0
 
-  '@pnpm/registry-mock@3.46.0(encoding@0.1.13)(typanion@3.14.0)':
+  '@pnpm/registry-mock@3.48.0(encoding@0.1.13)(typanion@3.14.0)':
     dependencies:
       anonymous-npm-registry-client: 0.2.0
       execa: 5.1.1
@@ -17537,7 +17545,7 @@ snapshots:
 
   compressible@2.0.18:
     dependencies:
-      mime-db: 1.53.0
+      mime-db: 1.52.0
 
   compression@1.7.4:
     dependencies:
@@ -20093,8 +20101,6 @@ snapshots:
 
   mime-db@1.52.0: {}
 
-  mime-db@1.53.0: {}
-
   mime-types@2.1.35:
     dependencies:
       mime-db: 1.52.0
@@ -20790,8 +20796,6 @@ snapshots:
 
   ps-list@7.2.0: {}
 
-  psl@1.9.0: {}
-
   publish-packed@4.1.2:
     dependencies:
       all-module-paths: 0.10.7
@@ -20833,8 +20837,6 @@ snapshots:
       side-channel: 1.0.6
 
   qs@6.5.3: {}
-
-  querystringify@2.2.0: {}
 
   queue-microtask@1.2.3: {}
 
@@ -21016,7 +21018,7 @@ snapshots:
       performance-now: 2.1.0
       qs: 6.5.3
       safe-buffer: 5.2.1
-      tough-cookie: 4.1.4
+      tough-cookie: 5.0.0
       tunnel-agent: 0.6.0
       uuid: 3.4.0
 
@@ -21039,7 +21041,7 @@ snapshots:
       performance-now: 2.1.0
       qs: 6.5.3
       safe-buffer: 5.2.1
-      tough-cookie: 4.1.4
+      tough-cookie: 5.0.0
       tunnel-agent: 0.6.0
       uuid: 3.4.0
 
@@ -21684,6 +21686,12 @@ snapshots:
 
   tinylogic@2.0.0: {}
 
+  tldts-core@6.1.70: {}
+
+  tldts@6.1.70:
+    dependencies:
+      tldts-core: 6.1.70
+
   tmp@0.0.33:
     dependencies:
       os-tmpdir: 1.0.2
@@ -21713,12 +21721,9 @@ snapshots:
     dependencies:
       nopt: 1.0.10
 
-  tough-cookie@4.1.4:
+  tough-cookie@5.0.0:
     dependencies:
-      psl: 1.9.0
-      punycode: 2.3.1
-      universalify: 0.2.0
-      url-parse: 1.5.10
+      tldts: 6.1.70
 
   tr46@0.0.3: {}
 
@@ -21958,8 +21963,6 @@ snapshots:
 
   universalify@0.1.2: {}
 
-  universalify@0.2.0: {}
-
   universalify@2.0.1: {}
 
   unix-crypt-td-js@1.1.4: {}
@@ -21977,11 +21980,6 @@ snapshots:
   uri-js@4.4.1:
     dependencies:
       punycode: 2.3.1
-
-  url-parse@1.5.10:
-    dependencies:
-      querystringify: 2.2.0
-      requires-port: 1.0.0
 
   utf8-byte-length@1.0.5: {}
 

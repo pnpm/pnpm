@@ -13,11 +13,13 @@ import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type DependenciesField, type ProjectRootDir } from '@pnpm/types'
 import { mutateModulesInSingleProject } from '@pnpm/core'
+import { requireHooks } from '@pnpm/pnpmfile'
 import pick from 'ramda/src/pick'
 import without from 'ramda/src/without'
 import renderHelp from 'render-help'
 import { getSaveType } from './getSaveType'
 import { recursive } from './recursive'
+import { installConfigDeps } from './installConfigDeps'
 
 class RemoveMissingDepsError extends PnpmError {
   constructor (
@@ -161,17 +163,31 @@ export async function handler (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
+  let store = await createOrConnectStoreController(opts)
+  if (opts.rootProjectManifest?.pnpm?.configDependencies) {
+    await installConfigDeps(opts.rootProjectManifest.pnpm.configDependencies, {
+      registries: opts.registries,
+      rootDir: opts.lockfileDir ?? opts.rootProjectManifestDir,
+      store: store.ctrl,
+    })
+  }
+  if (!opts.ignorePnpmfile) {
+    opts.hooks = requireHooks(opts.lockfileDir ?? opts.dir, opts)
+    if (opts.hooks.fetchers != null || opts.hooks.importPackage != null) {
+      store = await createOrConnectStoreController(opts)
+    }
+  }
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
     await recursive(opts.allProjects, params, {
       ...opts,
       allProjectsGraph: opts.allProjectsGraph!,
       include,
       selectedProjectsGraph: opts.selectedProjectsGraph,
+      storeControllerAndDir: store,
       workspaceDir: opts.workspaceDir,
     }, 'remove')
     return
   }
-  const store = await createOrConnectStoreController(opts)
   const removeOpts = Object.assign(opts, {
     ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,

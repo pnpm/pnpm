@@ -130,6 +130,7 @@ export interface ProjectManifest extends BaseManifest {
   packageManager?: string
   workspaces?: string[]
   pnpm?: {
+    configDependencies?: Record<string, string>
     neverBuiltDependencies?: string[]
     onlyBuiltDependencies?: string[]
     onlyBuiltDependenciesFile?: string

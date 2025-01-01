@@ -774,6 +774,18 @@ test('pass readPackage with shared lockfile', async () => {
       },
     },
   ])
+  fs.writeFileSync('.pnpmfile.cjs', `
+module.exports = {
+  hooks: {
+    readPackage: (pkg) => ({
+      ...pkg,
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    }),
+  },
+}
+`, 'utf8')
 
   await install.handler({
     ...DEFAULT_OPTS,
@@ -781,16 +793,6 @@ test('pass readPackage with shared lockfile', async () => {
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
-    hooks: {
-      readPackage: [
-        (pkg) => ({
-          ...pkg,
-          dependencies: {
-            'is-positive': '1.0.0',
-          },
-        }),
-      ],
-    },
   })
 
   projects['project-1'].has('is-positive')

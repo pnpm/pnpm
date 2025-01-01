@@ -6,6 +6,7 @@ export interface CreateWorkspaceStateOptions {
   pnpmfileExists: boolean
   filteredInstall: boolean
   settings: WorkspaceStateSettings
+  configDependencies?: Record<string, string>
 }
 
 export const createWorkspaceState = (opts: CreateWorkspaceStateOptions): WorkspaceState => ({
@@ -38,4 +39,5 @@ export const createWorkspaceState = (opts: CreateWorkspaceStateOptions): Workspa
     'workspacePackagePatterns',
   ], opts.settings),
   filteredInstall: opts.filteredInstall,
+  configDependencies: opts.configDependencies,
 })
