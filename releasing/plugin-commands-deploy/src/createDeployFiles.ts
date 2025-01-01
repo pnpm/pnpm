@@ -2,6 +2,7 @@ import path from 'path'
 import url from 'url'
 import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
+import * as dp from '@pnpm/dependency-path'
 import {
   type DirectoryResolution,
   type LockfileObject,
@@ -111,14 +112,14 @@ export function createDeployFiles ({
     const targetSpecifiers = targetSnapshot.specifiers
     const inputDependencies = inputSnapshot[field] ?? {}
     for (const name in inputDependencies) {
-      const spec = inputDependencies[name]
-      const resolveResult = resolveLinkOrFile(spec, {
+      const version = inputDependencies[name]
+      const resolveResult = resolveLinkOrFile(version, {
         lockfileDir,
         projectRootDirRealPath: path.resolve(lockfileDir, projectId),
       })
 
       if (!resolveResult) {
-        targetSpecifiers[name] = targetDependencies[name] = spec
+        targetSpecifiers[name] = targetDependencies[name] = version
         continue
       }
 
@@ -235,10 +236,10 @@ function convertResolvedDependencies (
   const output: ResolvedDependencies = {}
 
   for (const key in input) {
-    const spec = input[key]
-    const resolveResult = resolveLinkOrFile(spec, opts)
+    const version = input[key]
+    const resolveResult = resolveLinkOrFile(version, opts)
     if (!resolveResult) {
-      output[key] = spec
+      output[key] = version
       continue
     }
 
@@ -256,45 +257,39 @@ function convertResolvedDependencies (
 interface ResolveLinkOrFileResult {
   scheme: 'link:' | 'file:'
   resolvedPath: string
-  suffix?: `(${string})`
+  suffix?: string
 }
 
-function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveLinkOrFileResult | undefined {
-  // try parsing `spec` as `spec(peers)`
-  const hasPeers = /^(?<spec>[^()]+)(?<peers>\(.+\))$/.exec(spec)
-  if (hasPeers) {
-    const result = resolveLinkOrFile(hasPeers.groups!.spec, opts)
-    if (!result) return undefined
-    if (result.suffix) {
-      throw new Error(`Something goes wrong, suffix is not undefined: ${result.suffix}`)
-    }
-    result.suffix = hasPeers.groups!.peers as `(${string})`
-    return result
-  }
-
-  // try parsing `spec` as either @scope/name@pref or name@pref
-  const renamed = /^@(?<scope>[^@]+)\/(?<name>[^@]+)@(?<pref>.+)$/.exec(spec) ?? /^(?<name>[^@]+)@(?<pref>.+)$/.exec(spec)
-  if (renamed) return resolveLinkOrFile(renamed.groups!.pref, opts)
-
+function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveLinkOrFileResult | undefined {
   const { lockfileDir, projectRootDirRealPath } = opts
 
-  if (spec.startsWith('link:')) {
-    const targetPath = spec.slice('link:'.length)
-    return {
-      scheme: 'link:',
-      resolvedPath: path.resolve(projectRootDirRealPath, targetPath),
-    }
+  function resolveScheme (scheme: ResolveLinkOrFileResult['scheme'], base: string): ResolveLinkOrFileResult | undefined {
+    if (!pkgVer.startsWith(scheme)) return undefined
+    const { id, peersSuffix: suffix } = dp.parseDepPath(pkgVer.slice(scheme.length))
+    const resolvedPath = path.resolve(base, id)
+    return { scheme, resolvedPath, suffix }
   }
 
-  if (spec.startsWith('file:')) {
-    const targetPath = spec.slice('file:'.length)
-    return {
-      scheme: 'file:',
-      resolvedPath: path.resolve(lockfileDir, targetPath),
-    }
+  const resolveSchemeResult = resolveScheme('file:', lockfileDir) ?? resolveScheme('link:', projectRootDirRealPath)
+  if (resolveSchemeResult) return resolveSchemeResult
+
+  const { nonSemverVersion, patchHash, peersSuffix, version } = dp.parse(pkgVer)
+  if (!nonSemverVersion) return undefined
+
+  if (version) {
+    throw new Error(`Something goes wrong, version should be undefined but isn't: ${version}`)
   }
 
-  return undefined
+  const parseResult = resolveLinkOrFile(nonSemverVersion, opts)
+  if (!parseResult) return undefined
+
+  if (parseResult.suffix) {
+    throw new Error(`Something goes wrong, suffix should be undefined but isn't: ${parseResult.suffix}`)
+  }
+
+  parseResult.suffix = `${patchHash ?? ''}${peersSuffix ?? ''}`
+
+  return parseResult
 }
 
 function createFileUrlDepPath (

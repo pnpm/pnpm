@@ -6129,6 +6129,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
       '@pnpm/directory-fetcher':
         specifier: workspace:*
         version: link:../../fetching/directory-fetcher
