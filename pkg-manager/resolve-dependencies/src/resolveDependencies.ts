@@ -1260,7 +1260,7 @@ async function resolveDependency (
         err.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
         return err
       },
-      updateToLatest: options.updateToLatest,
+      updateToLatest: options.update && options.updateToLatest,
       injectWorkspacePackages: ctx.injectWorkspacePackages,
     })
   } catch (err: any) { // eslint-disable-line
