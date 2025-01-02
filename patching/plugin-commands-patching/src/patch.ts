@@ -12,10 +12,9 @@ import renderHelp from 'render-help'
 import chalk from 'chalk'
 import terminalLink from 'terminal-link'
 import { PnpmError } from '@pnpm/error'
-import { type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { writePackage } from './writePackage'
 import { getEditDirPath } from './getEditDirPath'
-import { getPatchedDependency } from './getPatchedDependency'
+import { type GetPatchedDependencyResult, getPatchedDependency } from './getPatchedDependency'
 import { writeEditDirState } from './stateFile'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import isWindows from 'is-windows'
@@ -140,22 +139,26 @@ To commit your changes, run:
 function tryPatchWithExistingPatchFile (
   {
     allowFailure,
-    patchedDep,
+    patchedDep: { applyToAll, alias, pref },
     patchedDir,
     patchedDependencies,
     lockfileDir,
   }: {
     allowFailure: boolean
-    patchedDep: ParseWantedDependencyResult
+    patchedDep: GetPatchedDependencyResult
     patchedDir: string
     patchedDependencies: Record<string, string>
     lockfileDir: string
   }
 ): void {
-  if (!patchedDep.alias || !patchedDep.pref) {
-    return
+  if (!alias) return
+  let existingPatchFile: string | undefined
+  if (pref) {
+    existingPatchFile = patchedDependencies[`${alias}@${pref}`]
   }
-  const existingPatchFile = patchedDependencies[`${patchedDep.alias}@${patchedDep.pref}`]
+  if (!existingPatchFile && applyToAll) {
+    existingPatchFile = patchedDependencies[alias]
+  }
   if (!existingPatchFile) {
     return
   }
