@@ -371,8 +371,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
 
   let newHoistedDependencies!: HoistedDependencies
   let linkedToRoot = 0
+  const allowBuild = createAllowBuildFunction(opts)
   if (opts.nodeLinker === 'hoisted' && hierarchy && prevGraph) {
     await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
+      allowBuild,
       depsStateCache,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       force: opts.force,
@@ -404,6 +406,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           optional: opts.include.optionalDependencies,
         }),
       linkAllPkgs(opts.storeController, depNodes, {
+        allowBuild,
         force: opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         depGraph: graph,
@@ -521,7 +524,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       }
     }
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
-      allowBuild: createAllowBuildFunction(opts),
+      allowBuild,
       childConcurrency: opts.childConcurrency,
       extraBinPaths,
       extraEnv,
@@ -826,6 +829,7 @@ async function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
+    allowBuild?: (pkgName: string) => boolean
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
@@ -849,10 +853,12 @@ async function linkAllPkgs (
       depNode.requiresBuild = filesResponse.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
-          isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
-          patchFileHash: depNode.patch?.file.hash,
-        })
+        if (opts?.allowBuild?.(depNode.name) !== false) {
+          sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
+            isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
+            patchFileHash: depNode.patch?.file.hash,
+          })
+        }
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
