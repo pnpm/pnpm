@@ -429,7 +429,7 @@ describe('patch and commit', () => {
     expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
   })
 
-  test('should reuse existing patch file by default', async () => {
+  test('should reuse existing patch file by default (with version suffix)', async () => {
     let output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     let patchDir = getPatchDirFromPatchOutput(output)
 
@@ -455,6 +455,39 @@ describe('patch and commit', () => {
     // re-patch
     fs.rmSync(patchDir, { recursive: true })
     output = await patch.handler({ ...defaultPatchOption, rootProjectManifest: manifest }, ['is-positive@1.0.0'])
+    patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(fs.existsSync(patchDir)).toBe(true)
+    expect(fs.existsSync(path.join(patchDir, 'license'))).toBe(false)
+    expect(fs.readFileSync(path.join(patchDir, 'index.js'), 'utf8')).toContain('// test patching')
+  })
+
+  test('should reuse existing patch file by default (without version suffix)', async () => {
+    let output = await patch.handler(defaultPatchOption, ['is-positive'])
+    let patchDir = getPatchDirFromPatchOutput(output)
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+    fs.unlinkSync(path.join(patchDir, 'license'))
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, [patchDir])
+
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      'is-positive': 'patches/is-positive.patch',
+    })
+    expect(fs.existsSync('patches/is-positive.patch')).toBe(true)
+
+    // re-patch
+    fs.rmSync(patchDir, { recursive: true })
+    output = await patch.handler({ ...defaultPatchOption, rootProjectManifest: manifest }, ['is-positive'])
     patchDir = getPatchDirFromPatchOutput(output)
 
     expect(fs.existsSync(patchDir)).toBe(true)
