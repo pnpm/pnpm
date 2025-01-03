@@ -241,7 +241,7 @@ async function packPkg (opts: {
   await Promise.all(Object.entries(filesMap).map(async ([name, source]) => {
     const isExecutable = bins.some((bin) => path.relative(bin, source) === '')
     const mode = isExecutable ? 0o755 : 0o644
-    if (/^package\/package\.(json|json5|yaml)/.test(name)) {
+    if (/^package\/package\.(json|json5|yaml)$/.test(name)) {
       pack.entry({ mode, mtime, name: 'package/package.json' }, JSON.stringify(manifest, null, 2))
       return
     }
