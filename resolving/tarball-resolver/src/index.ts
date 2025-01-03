@@ -15,7 +15,8 @@ export async function resolveFromTarball (
   const opts: FetchFromRegistryOptions = {
     method: 'HEAD',
   }
-  if (wantedDependency.pref.startsWith('https://pkg.pr.new')) {
+  const _url = new URL(wantedDependency.pref)
+  if (_url.hostname === 'pkg.pr.new') {
     const controller = new AbortController()
     opts.method = 'GET' // pkg.pr.new don't support HEAD requests
     opts.abort = controller.abort.bind(controller)
