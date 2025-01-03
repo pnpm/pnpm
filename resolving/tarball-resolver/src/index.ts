@@ -1,5 +1,5 @@
 import { type PkgResolutionId, type ResolveResult } from '@pnpm/resolver-base'
-import { type FetchFromRegistry } from '@pnpm/fetching-types'
+import { type FetchFromRegistry, type FetchFromRegistryOptions } from '@pnpm/fetching-types'
 
 export async function resolveFromTarball (
   fetchFromRegistry: FetchFromRegistry,
@@ -12,9 +12,16 @@ export async function resolveFromTarball (
   if (isRepository(wantedDependency.pref)) return null
 
   // If there are redirects, we want to get the final URL address
-  const controller = new AbortController()
-  const abort = controller.abort.bind(controller) // pkg.pr.new don't support HEAD requests
-  const { url: resolvedUrl } = await fetchFromRegistry(wantedDependency.pref, { method: 'GET', abort, signal: controller.signal })
+  const opts: FetchFromRegistryOptions = {
+    method: 'HEAD',
+  }
+  if (wantedDependency.pref.startsWith('https://pkg.pr.new')) {
+    const controller = new AbortController()
+    opts.method = 'GET' // pkg.pr.new don't support HEAD requests
+    opts.abort = controller.abort.bind(controller)
+    opts.signal = controller.signal
+  }
+  const { url: resolvedUrl } = await fetchFromRegistry(wantedDependency.pref, opts)
 
   return {
     id: resolvedUrl as PkgResolutionId,

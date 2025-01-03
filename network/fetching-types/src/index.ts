@@ -8,15 +8,17 @@ export interface RequestInit extends NodeRequestInit {
   timeout?: number
 }
 
+export type FetchFromRegistryOptions = RequestInit & {
+  authHeaderValue?: string
+  compress?: boolean
+  retry?: RetryTimeoutOptions
+  timeout?: number
+  abort?: () => void
+}
+
 export type FetchFromRegistry = (
   url: string,
-  opts?: RequestInit & {
-    authHeaderValue?: string
-    compress?: boolean
-    retry?: RetryTimeoutOptions
-    timeout?: number
-    abort?: () => void
-  }
+  opts?: FetchFromRegistryOptions
 ) => Promise<Response>
 
 export type GetAuthHeader = (uri: string) => string | undefined
