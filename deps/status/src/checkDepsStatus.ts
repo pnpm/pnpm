@@ -124,6 +124,12 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
       }
     }
   }
+  if ((rootProjectManifest?.pnpm?.configDependencies != null || workspaceState.configDependencies != null) && !equals(rootProjectManifest?.pnpm?.configDependencies ?? {}, workspaceState.configDependencies ?? {})) {
+    return {
+      upToDate: false,
+      issue: 'Configuration dependencies are not up to date',
+    }
+  }
 
   if (allProjects && workspaceDir) {
     if (!equals(

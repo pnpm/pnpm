@@ -12,6 +12,7 @@ import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
+import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir, type PrepareExecutionEnv } from '@pnpm/types'
 import {
@@ -38,6 +39,7 @@ import {
   recursive,
 } from './recursive'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
+import { installConfigDeps } from './installConfigDeps'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -166,6 +168,20 @@ when running add/update with the --workspace option')
     // @ts-expect-error
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
+  let store = await createOrConnectStoreController(opts)
+  if (opts.rootProjectManifest?.pnpm?.configDependencies) {
+    await installConfigDeps(opts.rootProjectManifest.pnpm.configDependencies, {
+      registries: opts.registries,
+      rootDir: opts.lockfileDir ?? opts.rootProjectManifestDir,
+      store: store.ctrl,
+    })
+  }
+  if (!opts.ignorePnpmfile && !opts.hooks) {
+    opts.hooks = requireHooks(opts.lockfileDir ?? opts.dir, opts)
+    if (opts.hooks.fetchers != null || opts.hooks.importPackage != null) {
+      store = await createOrConnectStoreController(opts)
+    }
+  }
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,
     devDependencies: true,
@@ -223,6 +239,7 @@ when running add/update with the --workspace option')
           forcePublicHoistPattern,
           allProjectsGraph,
           selectedProjectsGraph,
+          storeControllerAndDir: store,
           workspaceDir: opts.workspaceDir,
         },
         opts.update ? 'update' : (params.length === 0 ? 'install' : 'add')
@@ -248,7 +265,6 @@ when running add/update with the --workspace option')
     manifest = {}
   }
 
-  const store = await createOrConnectStoreController(opts)
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
     ...getOptionsFromRootManifest(opts.dir, manifest),
@@ -328,6 +344,7 @@ when running add/update with the --workspace option')
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
+        configDependencies: opts.rootProjectManifest?.pnpm?.configDependencies,
       })
     }
     return
@@ -381,6 +398,7 @@ when running add/update with the --workspace option')
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
+        configDependencies: opts.rootProjectManifest?.pnpm?.configDependencies,
       })
     }
   }
@@ -406,6 +424,7 @@ async function recursiveInstallThenUpdateWorkspaceState (
       workspaceDir: opts.workspaceDir,
       pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
       filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
+      configDependencies: opts.rootProjectManifest?.pnpm?.configDependencies,
     })
   }
   return recursiveResult

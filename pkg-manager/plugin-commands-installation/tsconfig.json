@@ -37,6 +37,9 @@
       "path": "../../config/matcher"
     },
     {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
       "path": "../../dedupe/check"
     },
     {
@@ -50,6 +53,9 @@
     },
     {
       "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../fs/read-modules-dir"
     },
     {
       "path": "../../hooks/pnpmfile"
@@ -74,6 +80,9 @@
     },
     {
       "path": "../../pkg-manifest/manifest-utils"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"

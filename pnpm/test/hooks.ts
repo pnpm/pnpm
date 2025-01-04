@@ -3,7 +3,7 @@ import path from 'path'
 import { createHash } from '@pnpm/crypto.hash'
 import { type PackageManifest } from '@pnpm/types'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT, getIntegrity } from '@pnpm/registry-mock'
 import loadJsonFile from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from './utils'
@@ -295,4 +295,21 @@ test('adding or changing pnpmfile should change pnpmfileChecksum and module stru
 
   const lockfile3 = project.readLockfile()
   expect(lockfile3).toStrictEqual(lockfile0)
+})
+
+test('loading a pnpmfile from a config dependency', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm/x': '1.0.0',
+    },
+    pnpm: {
+      configDependencies: {
+        '@pnpm.e2e/exports-pnpmfile': `1.0.0+${getIntegrity('@pnpm.e2e/exports-pnpmfile', '1.0.0')}`,
+      },
+    },
+  })
+
+  await execPnpm(['install', '--config.pnpmfile=node_modules/.pnpm-config/@pnpm.e2e/exports-pnpmfile/pnpmfile.cjs'])
+
+  expect(fs.readdirSync('node_modules/.pnpm')).toContain('@pnpm+y@1.0.0')
 })
