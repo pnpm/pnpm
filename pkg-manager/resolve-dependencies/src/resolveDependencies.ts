@@ -1190,6 +1190,7 @@ async function resolveDependency (
   options: ResolveDependencyOptions
 ): Promise<ResolveDependencyResult> {
   const currentPkg = options.currentPkg ?? {}
+  const updateToLatest = options.update && options.updateToLatest
 
   const currentLockfileContainsTheDep = currentPkg.depPath
     ? Boolean(ctx.currentLockfile.packages?.[currentPkg.depPath])
@@ -1260,7 +1261,7 @@ async function resolveDependency (
         err.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
         return err
       },
-      updateToLatest: options.update && options.updateToLatest,
+      updateToLatest,
       injectWorkspacePackages: ctx.injectWorkspacePackages,
     })
   } catch (err: any) { // eslint-disable-line
