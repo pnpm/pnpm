@@ -1,5 +1,14 @@
 # pnpm
 
+## 9.15.3
+
+### Patch Changes
+
+- Fixed the Regex used to find the package manifest during packing [#8938](https://github.com/pnpm/pnpm/pull/8938).
+- `pnpm update --filter <pattern> --latest <pkg>` should only change the specified package for the specified workspace, when `dedupe-peer-dependents` is set to `true` [#8877](https://github.com/pnpm/pnpm/issues/8877).
+- Exclude `.DS_Store` file at `patch-commit` [#8922](https://github.com/pnpm/pnpm/issues/8922).
+- Fix a bug in which `pnpm patch` is unable to bring back old patch without specifying `@version` suffix [#8919](https://github.com/pnpm/pnpm/issues/8919).
+
 ## 9.15.2
 
 ### Patch Changes

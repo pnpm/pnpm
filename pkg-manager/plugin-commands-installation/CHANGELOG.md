@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-installation
 
+## 900.0.5
+
+### Patch Changes
+
+- dec8a47: `pnpm update --filter <pattern> --latest <pkg>` should only change the specified package for the specified workspace, when `dedupe-peer-dependents` is set to `true` [#8877](https://github.com/pnpm/pnpm/issues/8877).
+- Updated dependencies [dec8a47]
+  - @pnpm/core@901.0.0
+
 ## 900.0.4
 
 ### Patch Changes

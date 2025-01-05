@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "900.0.4",
+  "version": "901.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -12,7 +12,7 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": ">=5.1.0 <901.0.0",
+    "@pnpm/logger": ">=5.1.0 <902.0.0",
     "@pnpm/worker": "workspace:^"
   },
   "dependencies": {

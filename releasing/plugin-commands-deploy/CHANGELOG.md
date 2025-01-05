@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-deploy
 
+## 900.0.5
+
+### Patch Changes
+
+- Updated dependencies [dec8a47]
+  - @pnpm/plugin-commands-installation@900.0.5
+
 ## 900.0.4
 
 ### Patch Changes

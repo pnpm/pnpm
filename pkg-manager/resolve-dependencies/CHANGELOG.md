@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 901.0.0
+
+### Major Changes
+
+- dec8a47: The `updateToLatest` option is now part of projects/importers, instead of an option of the resolution/installation.
+
 ## 900.0.4
 
 ### Patch Changes

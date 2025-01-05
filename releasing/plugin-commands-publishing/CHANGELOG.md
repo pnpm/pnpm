@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 900.0.4
+
+### Patch Changes
+
+- da90b38: Fixed the Regex used to find the package manifest during packing [#8938](https://github.com/pnpm/pnpm/pull/8938).
+
 ## 900.0.3
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-patching
 
+## 900.0.5
+
+### Patch Changes
+
+- 9dd0ebe: Exclude `.DS_Store` file at `patch-commit` [#8922](https://github.com/pnpm/pnpm/issues/8922).
+- 0ab4655: Fix a bug in which `pnpm patch` is unable to bring back old patch without specifying `@version` suffix [#8919](https://github.com/pnpm/pnpm/issues/8919).
+- Updated dependencies [dec8a47]
+  - @pnpm/plugin-commands-installation@900.0.5
+
 ## 900.0.4
 
 ### Patch Changes
