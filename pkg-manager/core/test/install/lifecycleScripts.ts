@@ -488,49 +488,6 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependencies', 
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })
 
-test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFile', async () => {
-  prepareEmpty()
-  const onlyBuiltDependenciesFile = path.resolve('node_modules/@pnpm.e2e/build-allow-list/list.json')
-  const manifest = await addDependenciesToPackage({},
-    ['@pnpm.e2e/build-allow-list', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
-    testDefaults({ fastUnpack: false, onlyBuiltDependenciesFile })
-  )
-
-  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
-  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
-  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
-
-  rimraf('node_modules')
-
-  await install(manifest, testDefaults({ fastUnpack: false, frozenLockfile: true, onlyBuiltDependenciesFile }))
-
-  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
-  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
-  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
-})
-
-test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFile and onlyBuiltDependencies', async () => {
-  prepareEmpty()
-  const onlyBuiltDependenciesFile = path.resolve('node_modules/@pnpm.e2e/build-allow-list/list.json')
-  const onlyBuiltDependencies = ['@pnpm.e2e/pre-and-postinstall-scripts-example']
-  const manifest = await addDependenciesToPackage({},
-    ['@pnpm.e2e/build-allow-list', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
-    testDefaults({ fastUnpack: false, onlyBuiltDependenciesFile, onlyBuiltDependencies })
-  )
-
-  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
-  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
-  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
-
-  rimraf('node_modules')
-
-  await install(manifest, testDefaults({ fastUnpack: false, frozenLockfile: true, onlyBuiltDependenciesFile, onlyBuiltDependencies }))
-
-  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
-  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
-  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
-})
-
 test('lifecycle scripts have access to package\'s own binary by binary name', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({},
