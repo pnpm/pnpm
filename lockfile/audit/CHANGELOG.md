@@ -1,5 +1,19 @@
 # @pnpm/audit
 
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lockfile.detect-dep-types@1001.0.1
+  - @pnpm/lockfile.types@1001.0.1
+  - @pnpm/lockfile.utils@1001.0.1
+  - @pnpm/lockfile.walker@1001.0.1
+  - @pnpm/fetch@1000.1.2
+  - @pnpm/read-project-manifest@1000.0.2
+  - @pnpm/list@1000.0.4
+
 ## 1001.0.2
 
 ### Patch Changes

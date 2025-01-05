@@ -1,5 +1,14 @@
 # @pnpm/cache.api
 
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [1f5169f]
+  - @pnpm/config@1002.1.1
+  - @pnpm/npm-resolver@1000.1.2
+  - @pnpm/store.cafs@1000.0.2
+
 ## 1000.0.3
 
 ### Patch Changes

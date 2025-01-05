@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.merger",
-  "version": "1001.0.0",
+  "version": "1001.0.1",
   "description": "Merges lockfiles. Can automatically fix merge conflicts",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

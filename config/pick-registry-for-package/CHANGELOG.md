@@ -1,5 +1,12 @@
 # @pnpm/pick-registry-for-package
 
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+
 ## 6.0.7
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/dedupe.check",
-  "version": "1001.0.0",
+  "version": "1001.0.1",
   "description": "Visualize pnpm dedupe --check issues.",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

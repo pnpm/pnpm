@@ -1,5 +1,17 @@
 # @pnpm/get-context
 
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/modules-yaml@1000.1.1
+  - @pnpm/read-projects-context@1000.0.4
+  - @pnpm/resolver-base@1000.1.1
+
 ## 1001.0.2
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/npm-resolver
 
+## 1000.1.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/resolver-base@1000.1.1
+  - @pnpm/crypto.hash@1000.0.0
+
 ## 1000.1.1
 
 ### Patch Changes

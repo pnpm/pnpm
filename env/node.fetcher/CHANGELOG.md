@@ -1,5 +1,14 @@
 # @pnpm/node.fetcher
 
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.2
+- @pnpm/tarball-fetcher@1000.0.3
+- @pnpm/create-cafs-store@1000.0.3
+- @pnpm/pick-fetcher@1000.0.0
+
 ## 1000.0.2
 
 ### Patch Changes

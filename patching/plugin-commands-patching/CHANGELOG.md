@@ -1,5 +1,28 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.0.5
+
+### Patch Changes
+
+- 046388c: Exclude `.DS_Store` file at `patch-commit` [#8922](https://github.com/pnpm/pnpm/issues/8922).
+- 0f35416: Fix a bug in which `pnpm patch` is unable to bring back old patch without specifying `@version` suffix [#8919](https://github.com/pnpm/pnpm/issues/8919).
+- Updated dependencies [c7eefdd]
+- Updated dependencies [9591a18]
+- Updated dependencies [1f5169f]
+  - @pnpm/plugin-commands-installation@1001.2.0
+  - @pnpm/types@1000.1.0
+  - @pnpm/config@1002.1.1
+  - @pnpm/cli-utils@1000.0.4
+  - @pnpm/pick-registry-for-package@1000.0.1
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/lockfile.utils@1001.0.1
+  - @pnpm/modules-yaml@1000.1.1
+  - @pnpm/read-package-json@1000.0.2
+  - @pnpm/read-project-manifest@1000.0.2
+  - @pnpm/store-connection-manager@1000.0.4
+  - @pnpm/patching.apply-patch@1000.0.1
+  - @pnpm/pick-fetcher@1000.0.0
+
 ## 1000.0.4
 
 ### Patch Changes

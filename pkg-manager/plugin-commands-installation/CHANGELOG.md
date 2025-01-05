@@ -1,5 +1,58 @@
 # @pnpm/plugin-commands-installation
 
+## 1001.2.0
+
+### Minor Changes
+
+- 9591a18: Added support for a new type of dependencies called "configurational dependencies". These dependencies are installed before all the other types of dependencies (before "dependencies", "devDependencies", "optionalDependencies").
+
+  Configurational dependencies cannot have dependencies of their own or lifecycle scripts. They should be added using exact version and the integrity checksum. Example:
+
+  ```json
+  {
+    "pnpm": {
+      "configDependencies": {
+        "my-configs": "1.0.0+sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw=="
+      }
+    }
+  }
+  ```
+
+  Related RFC: [#8](https://github.com/pnpm/rfcs/pull/8).
+  Related PR: [#8915](https://github.com/pnpm/pnpm/pull/8915).
+
+### Patch Changes
+
+- c7eefdd: `pnpm update --filter <pattern> --latest <pkg>` should only change the specified package for the specified workspace, when `dedupe-peer-dependents` is set to `true` [#8877](https://github.com/pnpm/pnpm/issues/8877).
+- Updated dependencies [9591a18]
+- Updated dependencies [c7eefdd]
+- Updated dependencies [1f5169f]
+  - @pnpm/workspace.state@1001.1.0
+  - @pnpm/types@1000.1.0
+  - @pnpm/deps.status@1001.1.0
+  - @pnpm/core@1002.0.0
+  - @pnpm/config@1002.1.1
+  - @pnpm/cli-utils@1000.0.4
+  - @pnpm/pick-registry-for-package@1000.0.1
+  - @pnpm/dedupe.check@1001.0.1
+  - @pnpm/plugin-commands-env@1000.0.4
+  - @pnpm/plugin-commands-rebuild@1001.1.2
+  - @pnpm/pnpmfile@1001.0.2
+  - @pnpm/lockfile.types@1001.0.1
+  - @pnpm/get-context@1001.0.3
+  - @pnpm/manifest-utils@1000.0.3
+  - @pnpm/read-package-json@1000.0.2
+  - @pnpm/read-project-manifest@1000.0.2
+  - @pnpm/write-project-manifest@1000.0.1
+  - @pnpm/resolver-base@1000.1.1
+  - @pnpm/outdated@1001.0.3
+  - @pnpm/package-store@1000.0.3
+  - @pnpm/filter-workspace-packages@1000.0.4
+  - @pnpm/workspace.find-packages@1000.0.4
+  - @pnpm/workspace.pkgs-graph@1000.0.3
+  - @pnpm/sort-packages@1000.0.1
+  - @pnpm/store-connection-manager@1000.0.4
+
 ## 1001.1.0
 
 ### Minor Changes

@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.1.2
+
+### Patch Changes
+
+- b28a533: Fixed the Regex used to find the package manifest during packing [#8938](https://github.com/pnpm/pnpm/pull/8938).
+- Updated dependencies [9591a18]
+- Updated dependencies [1f5169f]
+  - @pnpm/types@1000.1.0
+  - @pnpm/config@1002.1.1
+  - @pnpm/cli-utils@1000.0.4
+  - @pnpm/pick-registry-for-package@1000.0.1
+  - @pnpm/plugin-commands-env@1000.0.4
+  - @pnpm/lifecycle@1001.0.2
+  - @pnpm/client@1000.0.3
+  - @pnpm/package-bins@1000.0.1
+  - @pnpm/exportable-manifest@1000.0.3
+  - @pnpm/resolver-base@1000.1.1
+  - @pnpm/sort-packages@1000.0.1
+
 ## 1000.1.1
 
 ### Patch Changes

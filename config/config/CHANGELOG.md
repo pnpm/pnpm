@@ -1,5 +1,15 @@
 # @pnpm/config
 
+## 1002.1.1
+
+### Patch Changes
+
+- 1f5169f: Update `@pnpm/npm-conf` to v3.
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/pnpmfile@1001.0.2
+  - @pnpm/read-project-manifest@1000.0.2
+
 ## 1002.1.0
 
 ### Minor Changes

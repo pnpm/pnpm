@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.status",
-  "version": "1001.0.3",
+  "version": "1001.1.0",
   "description": "Check dependencies status",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

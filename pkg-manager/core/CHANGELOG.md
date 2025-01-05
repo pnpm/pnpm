@@ -1,5 +1,51 @@
 # @pnpm/core
 
+## 1002.0.0
+
+### Major Changes
+
+- c7eefdd: The `updateToLatest` option is now part of projects/importers, instead of an option of the resolution/installation.
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+- Updated dependencies [c7eefdd]
+  - @pnpm/types@1000.1.0
+  - @pnpm/resolve-dependencies@1003.0.0
+  - @pnpm/normalize-registries@1000.0.1
+  - @pnpm/build-modules@1000.1.1
+  - @pnpm/lifecycle@1001.0.2
+  - @pnpm/symlink-dependency@1000.0.2
+  - @pnpm/hooks.read-package-hook@1000.0.2
+  - @pnpm/hooks.types@1001.0.1
+  - @pnpm/lockfile.filtering@1001.0.2
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/lockfile-to-pnp@1001.0.2
+  - @pnpm/lockfile.preferred-versions@1000.0.3
+  - @pnpm/lockfile.pruner@1001.0.1
+  - @pnpm/lockfile.utils@1001.0.1
+  - @pnpm/lockfile.verification@1001.0.3
+  - @pnpm/lockfile.walker@1001.0.1
+  - @pnpm/calc-dep-state@1001.0.1
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/dependency-path@1000.0.1
+  - @pnpm/get-context@1001.0.3
+  - @pnpm/headless@1001.1.1
+  - @pnpm/hoist@1001.0.2
+  - @pnpm/link-bins@1000.0.3
+  - @pnpm/modules-cleaner@1001.0.2
+  - @pnpm/modules-yaml@1000.1.1
+  - @pnpm/package-requester@1000.1.2
+  - @pnpm/remove-bins@1000.0.3
+  - @pnpm/manifest-utils@1000.0.3
+  - @pnpm/read-project-manifest@1000.0.2
+  - @pnpm/resolver-base@1000.1.1
+  - @pnpm/store-controller-types@1000.1.1
+  - @pnpm/worker@1000.0.3
+  - @pnpm/crypto.hash@1000.0.0
+  - @pnpm/lockfile.settings-checker@1001.0.1
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.2
+
 ## 1001.1.0
 
 ### Minor Changes

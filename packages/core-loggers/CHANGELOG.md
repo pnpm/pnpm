@@ -1,5 +1,12 @@
 # @pnpm/core-loggers
 
+## 1000.1.1
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+
 ## 1000.1.0
 
 ### Minor Changes
