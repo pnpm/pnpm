@@ -824,11 +824,10 @@ async function resolveDependenciesOfDependency (
     prefix: options.prefix,
     proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
     publishedBy: options.publishedBy,
-    update,
+    update: update ? options.updateToLatest ? 'latest' : 'in-range' : false,
     updateDepth,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
-    updateToLatest: options.updateToLatest,
     parentIds: options.parentIds,
   }
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
@@ -1175,11 +1174,10 @@ interface ResolveDependencyOptions {
   proceed: boolean
   publishedBy?: Date
   pickLowestVersion?: boolean
-  update: boolean
+  update: false | 'in-range' | 'latest'
   updateDepth: number
   updateMatching?: UpdateMatchingFunction
   supportedArchitectures?: SupportedArchitectures
-  updateToLatest?: boolean
 }
 
 type ResolveDependencyResult = PkgAddress | LinkedDependency | null
@@ -1190,7 +1188,6 @@ async function resolveDependency (
   options: ResolveDependencyOptions
 ): Promise<ResolveDependencyResult> {
   const currentPkg = options.currentPkg ?? {}
-  const updateToLatest = options.update && options.updateToLatest
 
   const currentLockfileContainsTheDep = currentPkg.depPath
     ? Boolean(ctx.currentLockfile.packages?.[currentPkg.depPath])
@@ -1253,7 +1250,8 @@ async function resolveDependency (
         : options.parentPkg.rootDir,
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.pref) || ctx.registries.default,
       skipFetch: ctx.dryRun,
-      update: options.update,
+      update: options.update === 'in-range',
+      updateToLatest: options.update === 'latest',
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,
       onFetchError: (err: any) => { // eslint-disable-line
@@ -1261,7 +1259,6 @@ async function resolveDependency (
         err.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
         return err
       },
-      updateToLatest,
       injectWorkspacePackages: ctx.injectWorkspacePackages,
     })
   } catch (err: any) { // eslint-disable-line
