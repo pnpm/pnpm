@@ -40,8 +40,8 @@ catalogs:
       specifier: ^0.2.1
       version: 0.2.1
     '@pnpm/npm-conf':
-      specifier: 2.3.1
-      version: 2.3.1
+      specifier: 3.0.0
+      version: 3.0.0
     '@pnpm/npm-lifecycle':
       specifier: ^1000.0.1
       version: 1000.0.1
@@ -55,8 +55,8 @@ catalogs:
       specifier: 0.0.0
       version: 0.0.0
     '@pnpm/registry-mock':
-      specifier: 3.46.0
-      version: 3.46.0
+      specifier: 3.48.0
+      version: 3.48.0
     '@pnpm/semver-diff':
       specifier: ^1.1.0
       version: 1.1.0
@@ -144,6 +144,9 @@ catalogs:
     '@types/semver':
       specifier: 7.5.3
       version: 7.5.3
+    '@types/shell-quote':
+      specifier: ^1.7.5
+      version: 1.7.5
     '@types/signal-exit':
       specifier: ^3.0.4
       version: 3.0.4
@@ -561,6 +564,9 @@ catalogs:
     semver-utils:
       specifier: ^1.1.4
       version: 1.1.4
+    shell-quote:
+      specifier: ^1.8.2
+      version: 1.8.2
     signal-exit:
       specifier: ^3.0.7
       version: 3.0.7
@@ -592,8 +598,8 @@ catalogs:
       specifier: 1.2.0
       version: 1.2.0
     symlink-dir:
-      specifier: ^6.0.3
-      version: 6.0.3
+      specifier: ^6.0.4
+      version: 6.0.4
     tar:
       specifier: ^6.2.1
       version: 6.2.1
@@ -849,7 +855,7 @@ importers:
         version: link:../../pkg-manager/modules-yaml
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -883,7 +889,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -958,7 +964,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
@@ -1141,7 +1147,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -1455,7 +1461,7 @@ importers:
         version: link:../matcher
       '@pnpm/npm-conf':
         specifier: 'catalog:'
-        version: 2.3.1
+        version: 3.0.0
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
@@ -1528,7 +1534,7 @@ importers:
         version: 2.0.2
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.4
 
   config/matcher:
     dependencies:
@@ -2020,7 +2026,7 @@ importers:
         version: 7.6.2
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.4
       write-json-file:
         specifier: 'catalog:'
         version: 4.3.0
@@ -2335,7 +2341,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -2458,7 +2464,7 @@ importers:
         version: 1.0.3
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.4
       which:
         specifier: 'catalog:'
         version: '@pnpm/which@3.0.1'
@@ -2480,7 +2486,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -2893,7 +2899,7 @@ importers:
         version: link:../../packages/types
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.4
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -3605,10 +3611,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-    optionalDependencies:
-      fuse-native:
-        specifier: 'catalog:'
-        version: 2.2.6
     devDependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -3622,6 +3624,10 @@ importers:
       rimraf:
         specifier: 'catalog:'
         version: 3.0.2
+    optionalDependencies:
+      fuse-native:
+        specifier: 'catalog:'
+        version: 2.2.6
 
   network/auth-header:
     dependencies:
@@ -3861,9 +3867,6 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
-      is-windows:
-        specifier: 'catalog:'
-        version: 1.0.2
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
@@ -3874,9 +3877,6 @@ importers:
       '@pnpm/plugin-commands-doctor':
         specifier: workspace:*
         version: 'link:'
-      '@types/is-windows':
-        specifier: 'catalog:'
-        version: 1.0.2
 
   packages/plugin-commands-init:
     dependencies:
@@ -4138,7 +4138,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -4428,7 +4428,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -4491,7 +4491,7 @@ importers:
         version: 16.1.3
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.4
       write-json-file:
         specifier: 'catalog:'
         version: 4.3.0
@@ -4704,7 +4704,7 @@ importers:
         version: link:../read-projects-context
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -4791,7 +4791,7 @@ importers:
         version: 2.0.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.4
     devDependencies:
       '@pnpm/hoist':
         specifier: workspace:*
@@ -4855,7 +4855,7 @@ importers:
         version: 7.6.2
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.4
     devDependencies:
       '@pnpm/link-bins':
         specifier: workspace:*
@@ -5064,7 +5064,7 @@ importers:
         version: 'link:'
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5158,6 +5158,9 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
+      '@pnpm/pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
       '@pnpm/plugin-commands-env':
         specifier: workspace:*
         version: link:../../env/plugin-commands-env
@@ -5167,6 +5170,12 @@ importers:
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
+      '@pnpm/read-modules-dir':
+        specifier: workspace:*
+        version: link:../../fs/read-modules-dir
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -5221,6 +5230,9 @@ importers:
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
+      get-npm-tarball-url:
+        specifier: 'catalog:'
+        version: 2.1.0
       is-subdir:
         specifier: 'catalog:'
         version: 1.2.0
@@ -5266,7 +5278,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5314,7 +5326,7 @@ importers:
         version: 16.1.3
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.4
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -5729,10 +5741,6 @@ importers:
       v8-compile-cache:
         specifier: 2.4.0
         version: 2.4.0
-    optionalDependencies:
-      node-gyp:
-        specifier: ^11.0.0
-        version: 11.0.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -5874,7 +5882,7 @@ importers:
         version: link:../pkg-manifest/read-project-manifest
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../exec/run-npm
@@ -6009,7 +6017,7 @@ importers:
         version: 6.0.1
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.4
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -6025,8 +6033,22 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
+    optionalDependencies:
+      node-gyp:
+        specifier: ^11.0.0
+        version: 11.0.0
 
   pnpm/artifacts/exe:
+    devDependencies:
+      '@pnpm/exe':
+        specifier: workspace:*
+        version: 'link:'
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.1.2
+      pkg:
+        specifier: 'catalog:'
+        version: '@yao-pkg/pkg@5.12.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
     optionalDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
@@ -6046,16 +6068,6 @@ importers:
       '@pnpm/win-x64':
         specifier: workspace:*
         version: link:../win-x64
-    devDependencies:
-      '@pnpm/exe':
-        specifier: workspace:*
-        version: 'link:'
-      execa:
-        specifier: 'catalog:'
-        version: safe-execa@0.1.2
-      pkg:
-        specifier: 'catalog:'
-        version: '@yao-pkg/pkg@5.12.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
 
   pnpm/artifacts/linux-arm64:
     devDependencies:
@@ -6126,6 +6138,12 @@ importers:
       '@pnpm/common-cli-options-help':
         specifier: workspace:*
         version: link:../../cli/common-cli-options-help
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
       '@pnpm/directory-fetcher':
         specifier: workspace:*
         version: link:../../fetching/directory-fetcher
@@ -6138,15 +6156,30 @@ importers:
       '@pnpm/fs.is-empty-dir-or-nothing':
         specifier: workspace:*
         version: link:../../fs/is-empty-dir-or-nothing
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../../pkg-manager/plugin-commands-installation
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@types/normalize-path':
+        specifier: 'catalog:'
+        version: 3.0.2
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
+      normalize-path:
+        specifier: 'catalog:'
+        version: 3.0.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
@@ -6154,9 +6187,6 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
-      '@pnpm/lockfile.types':
-        specifier: workspace:*
-        version: link:../../lockfile/types
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -6168,10 +6198,16 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
 
   releasing/plugin-commands-publishing:
     dependencies:
@@ -6280,7 +6316,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -6873,7 +6909,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -6940,7 +6976,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
@@ -7031,7 +7067,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -7098,7 +7134,7 @@ importers:
         version: 7.1.5
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.4
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -7375,7 +7411,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
       '@types/archy':
         specifier: 'catalog:'
         version: 0.0.33
@@ -7734,9 +7770,15 @@ importers:
       '@rushstack/worker-pool':
         specifier: 'catalog:'
         version: 0.4.9(@types/node@22.5.3)
+      is-windows:
+        specifier: 'catalog:'
+        version: 1.0.2
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
+      shell-quote:
+        specifier: 'catalog:'
+        version: 1.8.2
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -7747,6 +7789,12 @@ importers:
       '@pnpm/worker':
         specifier: workspace:*
         version: 'link:'
+      '@types/is-windows':
+        specifier: 'catalog:'
+        version: 1.0.2
+      '@types/shell-quote':
+        specifier: 'catalog:'
+        version: 1.7.5
 
   workspace/filter-packages-from-dir:
     dependencies:
@@ -9022,8 +9070,8 @@ packages:
     resolution: {integrity: sha512-DqrO+oXGR7HCuicNy6quk6ALJSDDPKI7RZz1bP5im8mSL8J2e+9w26LdkjuAfpAjOutYUJVbnXnx4IbTQeIgfw==}
     engines: {node: '>=12'}
 
-  '@pnpm/npm-conf@2.3.1':
-    resolution: {integrity: sha512-c83qWb22rNRuB0UaVCI0uRPNRr8Z0FWnEIvT47jiHAmOIUHbBOg5XvV7pM5x+rKn9HRpjxquDbXYSXr3fAKFcw==}
+  '@pnpm/npm-conf@3.0.0':
+    resolution: {integrity: sha512-LdFkv/+4ONkQ9ZyE8ihC2L2RcPjvNcOTQq6pvvvZp8KeDYATCJeJX7gpHZF3Bx1XvUSU35dyF9Q9dS+JShtOFA==}
     engines: {node: '>=12'}
 
   '@pnpm/npm-lifecycle@1000.0.1':
@@ -9082,8 +9130,8 @@ packages:
     resolution: {integrity: sha512-LFTWzfJbu6+l86bw/uUAsPU05n1oTqg6jzqyTXYDJPfVclqTfPnHiZoC1nvVvQlE7iVg3bhJ7SXg9IyzK7RWDQ==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/registry-mock@3.46.0':
-    resolution: {integrity: sha512-MS8idSUQu9Ag3f/s33dnEQp0zJ+z4aU01VznAIn8FT/6NBvOulVCV+CqGZbOohemNNPth7LfIS13l2fZD12rOA==}
+  '@pnpm/registry-mock@3.48.0':
+    resolution: {integrity: sha512-5d5GFyz+DlGe50SLJjMWcEKkzr7EvbKQq71hwcjOUAr3+mPEz7+Ul+wFkw0gJ/3mYjk4pmFZerP8qLdd8SBZPQ==}
     engines: {node: '>=10.13'}
     hasBin: true
 
@@ -9393,6 +9441,9 @@ packages:
   '@types/semver@7.5.8':
     resolution: {integrity: sha512-I8EUhyrgfLrcTkzV3TSsGyl1tSuPrEDzr0yd5m90UgNxQkyDXULk3b6MlQqTCpZpNtWe1K0hzclnZkTcLBe2UQ==}
 
+  '@types/shell-quote@1.7.5':
+    resolution: {integrity: sha512-+UE8GAGRPbJVQDdxi16dgadcBfQ+KG2vgZhV1+3A1XmHbmwcdwhCUwIdy+d3pAGrbvgRoVSjeI9vOWyq376Yzw==}
+
   '@types/signal-exit@3.0.4':
     resolution: {integrity: sha512-e7EUPfU9afHyWc5CXtlqbvVHEshrb05uPlDCenWIbMgtWoFrTuTDVYNLKk6o4X2/4oHTfNqrJX/vaJ3uBhtXTg==}
 
@@ -9569,10 +9620,6 @@ packages:
     peerDependencies:
       '@yarnpkg/core': ^4.0.5
 
-  '@yarnpkg/fslib@3.1.0':
-    resolution: {integrity: sha512-wsj7/sUVSdXOIX/qwaON/Ky5GsP5gs9ry9DKwgLbWT7k3qw4/EcHAtfTtPhBYu33UibzBFI+fgB4wBRVH2XVaw==}
-    engines: {node: '>=18.12.0'}
-
   '@yarnpkg/fslib@3.1.1':
     resolution: {integrity: sha512-NpeecISQEuDnmipElGa0cOC7DnlPf3+FXnuwwJTciJgt+S/BDb8VFBvXSE5UirGmsFWlf4mfZuuAC7e8Pmhh4g==}
     engines: {node: '>=18.12.0'}
@@ -9608,11 +9655,6 @@ packages:
 
   '@yarnpkg/shell@4.0.0':
     resolution: {integrity: sha512-Yk2gyiQvsoee/jXP9q0jMl412Nx27LYu+P1O4DHuxeutL9qtd6t3Ktuv+zZmOzFc6gMQ7+/6mQFPo3/LlXZM3w==}
-    engines: {node: '>=18.12.0'}
-    hasBin: true
-
-  '@yarnpkg/shell@4.0.2':
-    resolution: {integrity: sha512-DLZSx06OoEbPY1uePt7pKEgpWDk96PldrCdWBPqI5Np5/YAEo6+toVcjz+6fORMOE8PS3Bsep1Nfm2mUrY1Oxg==}
     engines: {node: '>=18.12.0'}
     hasBin: true
 
@@ -12365,10 +12407,6 @@ packages:
     resolution: {integrity: sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg==}
     engines: {node: '>= 0.6'}
 
-  mime-db@1.53.0:
-    resolution: {integrity: sha512-oHlN/w+3MQ3rba9rqFr6V/ypF10LSkdwUysQL7GkXoTgIWeV+tcXGA852TBxH+gsh8UWoyhR1hKcoMJTuWflpg==}
-    engines: {node: '>= 0.6'}
-
   mime-types@2.1.35:
     resolution: {integrity: sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==}
     engines: {node: '>= 0.6'}
@@ -13111,9 +13149,6 @@ packages:
     resolution: {integrity: sha512-v4Bl6I3f2kJfr5o80ShABNHAokIgY+wFDTQfE+X3zWYgSGQOCBeYptLZUpoOALBqO5EawmDN/tjTldJesd0ujQ==}
     engines: {node: '>=10'}
 
-  psl@1.9.0:
-    resolution: {integrity: sha512-E/ZsdU4HLs/68gYzgGTkMicWTLPdAftJLfJFlLUAAKZGkStNU72sZjT66SnMDVOfOWY/YAoiD7Jxa9iHvngcag==}
-
   publish-packed@4.1.2:
     resolution: {integrity: sha512-jfgaVcWMSIY8Bw2iVVcSo25SFI72x9LwuWsAxrBcm7ZrdbLz2Y8gErhlEX7VZxJZeiCihcR7XAOyjU95MywFVw==}
     engines: {node: '>=12.10'}
@@ -13146,9 +13181,6 @@ packages:
   qs@6.5.3:
     resolution: {integrity: sha512-qxXIEh4pCGfHICj1mAJQ2/2XVZkjCDTcEgfoSQxc/fYivUZxTkk7L3bDBJSoNrEzXI17oUO5Dp07ktqE5KzczA==}
     engines: {node: '>=0.6'}
-
-  querystringify@2.2.0:
-    resolution: {integrity: sha512-FIqgj2EUvTa7R50u0rGsyTftzjYmv/a3hO345bZNrqabNqjtgiDMgmo4mkUjd+nzU5oF3dClKqFIPUKybUyqoQ==}
 
   queue-microtask@1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
@@ -13517,6 +13549,10 @@ packages:
   shell-quote@1.8.1:
     resolution: {integrity: sha512-6j1W9l1iAs/4xYBI1SYOVZyFcCis9b4KCLQ8fgAGG07QvzaRLVVRQvAy85yNmmZSjYjg4MWh4gNvlPujU/5LpA==}
 
+  shell-quote@1.8.2:
+    resolution: {integrity: sha512-AzqKpGKjrj7EM6rKVQEPpB288oCfnrEIuyoT9cyF4nmGa7V8Zk6f7RRqYisX8X9m+Q7bd632aZW4ky7EhbQztA==}
+    engines: {node: '>= 0.4'}
+
   shelljs@0.8.5:
     resolution: {integrity: sha512-TiwcRcrkhHvbrZbnRcFYMLl30Dfov3HKqzp5tO5b4pt6G/SezKcYhmDg15zXVBswHmctSAQKznqNW2LO5tTDow==}
     engines: {node: '>=4'}
@@ -13806,8 +13842,8 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
-  symlink-dir@6.0.3:
-    resolution: {integrity: sha512-tBGda3rNe8+p/p52203vV4EObpDgQJpbYLfcQhQOCTDcaCvDr5QhyKdar+U6/Y+u+TrqMxBFJ5xhutAaOu4HDw==}
+  symlink-dir@6.0.4:
+    resolution: {integrity: sha512-hveMevZ4XcZY4I6tZx7v8JBuvIVo+H2pEp7pjrkjk4K9dSjbec/yxBeZqUwv7X+skXolFwEnZyiw4qOIQLjTQQ==}
     engines: {node: '>=18.12'}
     hasBin: true
 
@@ -13872,6 +13908,13 @@ packages:
   tinylogic@2.0.0:
     resolution: {integrity: sha512-dljTkiLLITtsjqBvTA1MRZQK/sGP4kI3UJKc3yA9fMzYbMF2RhcN04SeROVqJBIYYOoJMM8u0WDnhFwMSFQotw==}
 
+  tldts-core@6.1.70:
+    resolution: {integrity: sha512-RNnIXDB1FD4T9cpQRErEqw6ZpjLlGdMOitdV+0xtbsnwr4YFka1zpc7D4KD+aAn8oSG5JyFrdasZTE04qDE9Yg==}
+
+  tldts@6.1.70:
+    resolution: {integrity: sha512-/W1YVgYVJd9ZDjey5NXadNh0mJXkiUMUue9Zebd0vpdo1sU+H4zFFTaJ1RKD4N6KFoHfcXy6l+Vu7bh+bdWCzA==}
+    hasBin: true
+
   tmp@0.0.33:
     resolution: {integrity: sha512-jRCJlojKnZ3addtTOjdIqoRuPEKBvNXcGYqzO6zWZX8KfKEpnGY5jfggJQ3EjKuu8D4bJRr0y+cYJFmYbImXGw==}
     engines: {node: '>=0.6.0'}
@@ -13906,9 +13949,9 @@ packages:
     resolution: {integrity: sha512-WBx8Uy5TLtOSRtIq+M03/sKDrXCLHxwDcquSP2c43Le03/9serjQBIztjRz6FkJez9D/hleyAXTBGLwwZUw9lA==}
     hasBin: true
 
-  tough-cookie@4.1.4:
-    resolution: {integrity: sha512-Loo5UUvLD9ScZ6jh8beX1T6sO1w2/MpCRpEP7V280GKMVUQ0Jzar2U3UJPsrdbziLEMMhu3Ujnq//rhiFuIeag==}
-    engines: {node: '>=6'}
+  tough-cookie@5.0.0:
+    resolution: {integrity: sha512-FRKsF7cz96xIIeMZ82ehjC3xW2E+O2+v11udrDYewUbszngYhsGa8z6YUMMzO9QJZzzyd0nGGXnML/TReX6W8Q==}
+    engines: {node: '>=16'}
 
   tr46@0.0.3:
     resolution: {integrity: sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==}
@@ -14152,10 +14195,6 @@ packages:
     resolution: {integrity: sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==}
     engines: {node: '>= 4.0.0'}
 
-  universalify@0.2.0:
-    resolution: {integrity: sha512-CJ1QgKmNg3CwvAv/kOFmtnEN05f0D/cn9QntgNOQlQF9dgvVTHj3t+8JPdjqawCHk7V/KA+fbUqzZ9XWhcqPUg==}
-    engines: {node: '>= 4.0.0'}
-
   universalify@2.0.1:
     resolution: {integrity: sha512-gptHNQghINnc/vTGIk0SOFGFNXw7JVrlRUtConJRlvaw6DuX0wO5Jeko9sWrMBhh+PsYAZ7oXAiOnf/UKogyiw==}
     engines: {node: '>= 10.0.0'}
@@ -14179,9 +14218,6 @@ packages:
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
-
-  url-parse@1.5.10:
-    resolution: {integrity: sha512-WypcfiRhfeUP9vvF0j6rw0J3hrWrw6iZv3+22h6iRMJ/8z1Tj6XfLP4DsUix5MhMPnXpiHDoKyoZ/bdCkwBCiQ==}
 
   utf8-byte-length@1.0.5:
     resolution: {integrity: sha512-Xn0w3MtiQ6zoz2vFyUVruaCL53O/DwUvkEeOvj+uulMm0BkUGYWmBYVyElqZaSLhY6ZD0ulfU3aBra2aVT4xfA==}
@@ -15938,7 +15974,7 @@ snapshots:
       '@pnpm/network.ca-file': 1.0.2
       config-chain: 1.1.13
 
-  '@pnpm/npm-conf@2.3.1':
+  '@pnpm/npm-conf@3.0.0':
     dependencies:
       '@pnpm/config.env-replace': 1.1.0
       '@pnpm/network.ca-file': 1.0.2
@@ -16079,7 +16115,7 @@ snapshots:
       sort-keys: 4.2.0
       strip-bom: 4.0.0
 
-  '@pnpm/registry-mock@3.46.0(encoding@0.1.13)(typanion@3.14.0)':
+  '@pnpm/registry-mock@3.48.0(encoding@0.1.13)(typanion@3.14.0)':
     dependencies:
       anonymous-npm-registry-client: 0.2.0
       execa: 5.1.1
@@ -16414,6 +16450,8 @@ snapshots:
 
   '@types/semver@7.5.8': {}
 
+  '@types/shell-quote@1.7.5': {}
+
   '@types/signal-exit@3.0.4': {}
 
   '@types/sinon@10.0.20':
@@ -16666,10 +16704,10 @@ snapshots:
       '@arcanis/slice-ansi': 1.1.1
       '@types/semver': 7.5.8
       '@types/treeify': 1.0.3
-      '@yarnpkg/fslib': 3.1.0
-      '@yarnpkg/libzip': 3.1.0(@yarnpkg/fslib@3.1.0)
+      '@yarnpkg/fslib': 3.1.1
+      '@yarnpkg/libzip': 3.1.0(@yarnpkg/fslib@3.1.1)
       '@yarnpkg/parsers': 3.0.2
-      '@yarnpkg/shell': 4.0.2(typanion@3.14.0)
+      '@yarnpkg/shell': 4.1.1(typanion@3.14.0)
       camelcase: 5.3.1
       chalk: 3.0.0
       ci-info: 3.9.0
@@ -16727,18 +16765,8 @@ snapshots:
     dependencies:
       '@yarnpkg/core': 4.0.5(typanion@3.14.0)
 
-  '@yarnpkg/fslib@3.1.0':
-    dependencies:
-      tslib: 2.7.0
-
   '@yarnpkg/fslib@3.1.1':
     dependencies:
-      tslib: 2.7.0
-
-  '@yarnpkg/libzip@3.1.0(@yarnpkg/fslib@3.1.0)':
-    dependencies:
-      '@types/emscripten': 1.39.13
-      '@yarnpkg/fslib': 3.1.0
       tslib: 2.7.0
 
   '@yarnpkg/libzip@3.1.0(@yarnpkg/fslib@3.1.1)':
@@ -16770,7 +16798,7 @@ snapshots:
   '@yarnpkg/pnp@4.0.6':
     dependencies:
       '@types/node': 18.19.49
-      '@yarnpkg/fslib': 3.1.0
+      '@yarnpkg/fslib': 3.1.1
 
   '@yarnpkg/pnp@4.0.7':
     dependencies:
@@ -16780,19 +16808,6 @@ snapshots:
   '@yarnpkg/shell@4.0.0(typanion@3.14.0)':
     dependencies:
       '@yarnpkg/fslib': 3.1.1
-      '@yarnpkg/parsers': 3.0.2
-      chalk: 3.0.0
-      clipanion: 3.2.0-rc.6(typanion@3.14.0)
-      cross-spawn: 7.0.5
-      fast-glob: 3.3.2
-      micromatch: 4.0.8
-      tslib: 2.7.0
-    transitivePeerDependencies:
-      - typanion
-
-  '@yarnpkg/shell@4.0.2(typanion@3.14.0)':
-    dependencies:
-      '@yarnpkg/fslib': 3.1.0
       '@yarnpkg/parsers': 3.0.2
       chalk: 3.0.0
       clipanion: 3.2.0-rc.6(typanion@3.14.0)
@@ -17530,7 +17545,7 @@ snapshots:
 
   compressible@2.0.18:
     dependencies:
-      mime-db: 1.53.0
+      mime-db: 1.52.0
 
   compression@1.7.4:
     dependencies:
@@ -20086,8 +20101,6 @@ snapshots:
 
   mime-db@1.52.0: {}
 
-  mime-db@1.53.0: {}
-
   mime-types@2.1.35:
     dependencies:
       mime-db: 1.52.0
@@ -20783,8 +20796,6 @@ snapshots:
 
   ps-list@7.2.0: {}
 
-  psl@1.9.0: {}
-
   publish-packed@4.1.2:
     dependencies:
       all-module-paths: 0.10.7
@@ -20826,8 +20837,6 @@ snapshots:
       side-channel: 1.0.6
 
   qs@6.5.3: {}
-
-  querystringify@2.2.0: {}
 
   queue-microtask@1.2.3: {}
 
@@ -21009,7 +21018,7 @@ snapshots:
       performance-now: 2.1.0
       qs: 6.5.3
       safe-buffer: 5.2.1
-      tough-cookie: 4.1.4
+      tough-cookie: 5.0.0
       tunnel-agent: 0.6.0
       uuid: 3.4.0
 
@@ -21032,7 +21041,7 @@ snapshots:
       performance-now: 2.1.0
       qs: 6.5.3
       safe-buffer: 5.2.1
-      tough-cookie: 4.1.4
+      tough-cookie: 5.0.0
       tunnel-agent: 0.6.0
       uuid: 3.4.0
 
@@ -21253,6 +21262,8 @@ snapshots:
   shebang-regex@3.0.0: {}
 
   shell-quote@1.8.1: {}
+
+  shell-quote@1.8.2: {}
 
   shelljs@0.8.5:
     dependencies:
@@ -21584,7 +21595,7 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  symlink-dir@6.0.3:
+  symlink-dir@6.0.4:
     dependencies:
       better-path-resolve: 1.0.0
       rename-overwrite: 6.0.0
@@ -21675,6 +21686,12 @@ snapshots:
 
   tinylogic@2.0.0: {}
 
+  tldts-core@6.1.70: {}
+
+  tldts@6.1.70:
+    dependencies:
+      tldts-core: 6.1.70
+
   tmp@0.0.33:
     dependencies:
       os-tmpdir: 1.0.2
@@ -21704,12 +21721,9 @@ snapshots:
     dependencies:
       nopt: 1.0.10
 
-  tough-cookie@4.1.4:
+  tough-cookie@5.0.0:
     dependencies:
-      psl: 1.9.0
-      punycode: 2.3.1
-      universalify: 0.2.0
-      url-parse: 1.5.10
+      tldts: 6.1.70
 
   tr46@0.0.3: {}
 
@@ -21949,8 +21963,6 @@ snapshots:
 
   universalify@0.1.2: {}
 
-  universalify@0.2.0: {}
-
   universalify@2.0.1: {}
 
   unix-crypt-td-js@1.1.4: {}
@@ -21968,11 +21980,6 @@ snapshots:
   uri-js@4.4.1:
     dependencies:
       punycode: 2.3.1
-
-  url-parse@1.5.10:
-    dependencies:
-      querystringify: 2.2.0
-      requires-port: 1.0.0
 
   utf8-byte-length@1.0.5: {}
 

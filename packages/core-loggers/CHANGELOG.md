@@ -1,5 +1,11 @@
 # @pnpm/core-loggers
 
+## 1000.1.0
+
+### Minor Changes
+
+- 516c4b3: Add new logger for ignored scripts.
+
 ## 10.0.7
 
 ### Patch Changes

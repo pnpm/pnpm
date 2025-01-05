@@ -1,5 +1,15 @@
 # @pnpm/outdated
 
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [4771813]
+  - @pnpm/modules-yaml@1000.1.0
+  - @pnpm/manifest-utils@1000.0.2
+  - @pnpm/npm-resolver@1000.1.1
+  - @pnpm/client@1000.0.2
+
 ## 1001.0.1
 
 ### Patch Changes

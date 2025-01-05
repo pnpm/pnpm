@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [f90a94b]
+- Updated dependencies [f891288]
+- Updated dependencies [f891288]
+  - @pnpm/config@1002.1.0
+  - @pnpm/plugin-commands-installation@1001.1.0
+  - @pnpm/cli-utils@1000.0.3
+  - @pnpm/store-connection-manager@1000.0.3
+
+## 1000.0.3
+
+### Patch Changes
+
+- f74070d: Use double quotes in the command suggestion by `pnpm patch` on Windows [#7546](https://github.com/pnpm/pnpm/issues/7546).
+- Updated dependencies [f685565]
+- Updated dependencies [4771813]
+- Updated dependencies [878ea8c]
+  - @pnpm/plugin-commands-installation@1001.0.2
+  - @pnpm/modules-yaml@1000.1.0
+  - @pnpm/config@1002.0.0
+  - @pnpm/cli-utils@1000.0.2
+  - @pnpm/store-connection-manager@1000.0.2
+  - @pnpm/patching.apply-patch@1000.0.1
+
 ## 1000.0.2
 
 ### Patch Changes

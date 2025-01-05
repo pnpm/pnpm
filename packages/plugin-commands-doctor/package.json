@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-doctor",
-  "version": "1000.1.0",
+  "version": "1000.1.2",
   "description": "Commands for checks of known common issues ",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,7 +32,6 @@
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
-    "is-windows": "catalog:",
     "render-help": "catalog:"
   },
   "peerDependencies": {
@@ -40,8 +39,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "workspace:*",
-    "@pnpm/plugin-commands-doctor": "workspace:*",
-    "@types/is-windows": "catalog:"
+    "@pnpm/plugin-commands-doctor": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

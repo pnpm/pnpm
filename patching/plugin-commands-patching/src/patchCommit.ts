@@ -165,6 +165,8 @@ async function diffFolders (folderA: string, folderB: string): Promise<string> {
     .replace(new RegExp(escapeStringRegexp(`${folderAN}/`), 'g'), '')
     .replace(new RegExp(escapeStringRegexp(`${folderBN}/`), 'g'), '')
     .replace(/\n\\ No newline at end of file\n$/, '\n')
+    .replace(/^diff --git a\/.*\.DS_Store b\/.*\.DS_Store[\s\S]*?(?=^diff --git)/gm, '')
+    .replace(/^diff --git a\/.*\.DS_Store b\/.*\.DS_Store[\s\S]*$/gm, '')
 }
 
 function removeTrailingAndLeadingSlash (p: string): string {

@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/manifest-utils@1000.0.2
+
 ## 1000.0.1
 
 ### Patch Changes

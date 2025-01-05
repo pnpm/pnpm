@@ -1,5 +1,14 @@
 # @pnpm/package-store
 
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [7272992]
+  - @pnpm/worker@1000.0.2
+  - @pnpm/package-requester@1000.1.1
+  - @pnpm/create-cafs-store@1000.0.2
+
 ## 1000.0.1
 
 ### Patch Changes

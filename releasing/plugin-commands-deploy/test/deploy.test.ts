@@ -3,11 +3,20 @@ import path from 'path'
 import { deploy } from '@pnpm/plugin-commands-deploy'
 import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
-import { logger } from '@pnpm/logger'
+import { logger, globalWarn } from '@pnpm/logger'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { DEFAULT_OPTS } from './utils'
 
-test('deploy', async () => {
+beforeEach(async () => {
+  const logger = await import('@pnpm/logger')
+  jest.spyOn(logger, 'globalWarn')
+})
+
+afterEach(() => {
+  jest.restoreAllMocks()
+})
+
+test('deploy without existing lockfile', async () => {
   preparePackages([
     {
       name: 'project-1',
@@ -61,6 +70,8 @@ test('deploy', async () => {
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
   }, ['deploy'])
+
+  expect(globalWarn).toHaveBeenCalledWith('Shared lockfile not found. Falling back to installing without a lockfile.')
 
   const project = assertProject(path.resolve('deploy'))
   project.has('project-2')

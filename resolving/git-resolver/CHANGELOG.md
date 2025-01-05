@@ -1,5 +1,12 @@
 # @pnpm/git-resolver
 
+## 1000.0.2
+
+### Patch Changes
+
+- b100962: Do not fall back to SSH, when resolving a git-hosted package if `git ls-remote` works via HTTPS [#8906](https://github.com/pnpm/pnpm/pull/8906).
+  - @pnpm/fetch@1000.1.1
+
 ## 1000.0.1
 
 ### Patch Changes

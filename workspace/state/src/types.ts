@@ -11,6 +11,7 @@ export interface WorkspaceState {
   }>
   pnpmfileExists: boolean
   filteredInstall: boolean
+  configDependencies?: Record<string, string>
   settings: WorkspaceStateSettings
 }
 

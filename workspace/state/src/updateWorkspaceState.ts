@@ -11,6 +11,7 @@ export interface UpdateWorkspaceStateOptions {
   workspaceDir: string
   pnpmfileExists: boolean
   filteredInstall: boolean
+  configDependencies?: Record<string, string>
 }
 
 export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): Promise<void> {

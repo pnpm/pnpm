@@ -1,5 +1,23 @@
 # @pnpm/build-modules
 
+## 1000.1.0
+
+### Minor Changes
+
+- 516c4b3: Improve how packages with blocked lifecycle scripts are reported during installation. Always print the list of ignored scripts at the end of the output. Include a hint about how to allow the execution of those packages.
+- 4771813: Store the list of ignored builds in `node_modules/.modules.yaml`.
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+- Updated dependencies [7272992]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/worker@1000.0.2
+  - @pnpm/lifecycle@1001.0.1
+  - @pnpm/link-bins@1000.0.2
+  - @pnpm/fs.hard-link-dir@1000.0.0
+  - @pnpm/patching.apply-patch@1000.0.1
+
 ## 1000.0.1
 
 ### Patch Changes

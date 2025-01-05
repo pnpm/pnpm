@@ -1,5 +1,11 @@
 # @pnpm/modules-yaml
 
+## 1000.1.0
+
+### Minor Changes
+
+- 4771813: Store the list of ignored builds in `node_modules/.modules.yaml`.
+
 ## 13.1.7
 
 ### Patch Changes

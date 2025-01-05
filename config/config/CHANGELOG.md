@@ -1,5 +1,25 @@
 # @pnpm/config
 
+## 1002.1.0
+
+### Minor Changes
+
+- f891288: `pnpm deploy` now tries creating a dedicated lockfile from a shared lockfile for deployment. It will fallback to deployment without a lockfile if there is no shared lockfile or `force-legacy-deploy` is set to `true`.
+
+### Patch Changes
+
+- f90a94b: Fix reading options from pnpm.onlyBuiltDependencies [#8920](https://github.com/pnpm/pnpm/issues/8920).
+
+## 1002.0.0
+
+### Major Changes
+
+- 878ea8c: By default don't run lifecycle scripts of dependencies during installation. In order to allow lifecycle scripts of specific dependencies, they should be listed in the `pnpm.onlyBuiltDependencies` field of `package.json` [#8897](https://github.com/pnpm/pnpm/pull/8897).
+
+### Patch Changes
+
+- @pnpm/pnpmfile@1001.0.1
+
 ## 1001.0.0
 
 ### Major Changes

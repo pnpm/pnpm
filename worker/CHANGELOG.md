@@ -1,5 +1,14 @@
 # @pnpm/worker
 
+## 1000.0.2
+
+### Patch Changes
+
+- 7272992: Print a hint, when installation fails due to an exFAT drive.
+  - @pnpm/symlink-dependency@1000.0.1
+  - @pnpm/create-cafs-store@1000.0.2
+  - @pnpm/fs.hard-link-dir@1000.0.0
+
 ## 1000.0.1
 
 ### Patch Changes

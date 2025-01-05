@@ -1,5 +1,15 @@
 # @pnpm/package-requester
 
+## 1000.1.1
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+- Updated dependencies [7272992]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/worker@1000.0.2
+  - @pnpm/package-is-installable@1000.0.2
+
 ## 1000.1.0
 
 ### Minor Changes
