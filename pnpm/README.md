@@ -281,6 +281,7 @@ Benchmarks on an app with lots of dependencies:
 - [Frequently Asked Questions](https://pnpm.io/faq)
 - [Chat](https://r.pnpm.io/chat)
 - [X](https://x.com/pnpmjs)
+- [Bluesky](https://bsky.app/profile/pnpm.io)
 
 ## License
 
