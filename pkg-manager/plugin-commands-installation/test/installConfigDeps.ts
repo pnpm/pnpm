@@ -3,6 +3,7 @@ import { add, install } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
+import { sync as rimraf } from '@zkochan/rimraf'
 import { sync as loadJsonFile } from 'load-json-file'
 import { DEFAULT_OPTS } from './utils'
 
@@ -115,4 +116,79 @@ test('installation fails if the config dependency does not have a checksum', asy
     rootProjectManifest,
     rootProjectManifestDir: process.cwd(),
   })).rejects.toThrow("doesn't have an integrity checksum")
+})
+
+test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFile', async () => {
+  const rootProjectManifest = {
+    pnpm: {
+      configDependencies: {
+        '@pnpm.e2e/build-allow-list': `1.0.0+${getIntegrity('@pnpm.e2e/build-allow-list', '1.0.0')}`,
+      },
+      onlyBuiltDependenciesFile: 'node_modules/.pnpm-config/@pnpm.e2e/build-allow-list/list.json',
+    },
+  }
+  prepare(rootProjectManifest)
+
+  await add.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    rootProjectManifest,
+    rootProjectManifestDir: process.cwd(),
+  }, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+
+  rimraf('node_modules')
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+    rootProjectManifest,
+    rootProjectManifestDir: process.cwd(),
+  })
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+})
+
+test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFile and onlyBuiltDependencies', async () => {
+  const rootProjectManifest = {
+    pnpm: {
+      configDependencies: {
+        '@pnpm.e2e/build-allow-list': `1.0.0+${getIntegrity('@pnpm.e2e/build-allow-list', '1.0.0')}`,
+      },
+      onlyBuiltDependenciesFile: 'node_modules/.pnpm-config/@pnpm.e2e/build-allow-list/list.json',
+      onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+    },
+  }
+  prepare(rootProjectManifest)
+
+  await add.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    rootProjectManifest,
+    rootProjectManifestDir: process.cwd(),
+  }, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+
+  rimraf('node_modules')
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    frozenLockfile: true,
+    rootProjectManifest,
+    rootProjectManifestDir: process.cwd(),
+  })
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })

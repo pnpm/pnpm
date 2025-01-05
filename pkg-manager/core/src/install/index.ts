@@ -1030,11 +1030,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
   let stats: InstallationResultStats | undefined
+  const allowBuild = createAllowBuildFunction(opts)
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,
       dependenciesGraph,
       {
+        allowBuild,
         currentLockfile: ctx.currentLockfile,
         dedupeDirectDeps: opts.dedupeDirectDeps,
         dependenciesByProjectId,
@@ -1106,7 +1108,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           }
         }
         ignoredBuilds = (await buildModules(dependenciesGraph, rootNodes, {
-          allowBuild: createAllowBuildFunction(opts),
+          allowBuild,
           childConcurrency: opts.childConcurrency,
           depsStateCache,
           depsToBuild: new Set(result.newDepPaths),
