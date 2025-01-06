@@ -824,7 +824,7 @@ async function resolveDependenciesOfDependency (
     prefix: options.prefix,
     proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
     publishedBy: options.publishedBy,
-    update: update ? options.updateToLatest ? 'latest' : 'in-range' : false,
+    update: update ? options.updateToLatest ? 'latest' : 'compatible' : false,
     updateDepth,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
