@@ -126,12 +126,11 @@ export interface RequestPackageOptions {
   registry: string
   sideEffectsCache?: boolean
   skipFetch?: boolean
-  update?: boolean
+  update?: false | 'compatible' | 'latest'
   workspacePackages?: WorkspacePackages
   forceResolve?: boolean
   supportedArchitectures?: SupportedArchitectures
   onFetchError?: OnFetchError
-  updateToLatest?: boolean
   injectWorkspacePackages?: boolean
 }
 
