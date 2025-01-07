@@ -188,7 +188,7 @@ async function resolveAndFetch (
       projectDir: options.projectDir,
       registry: options.registry,
       workspacePackages: options.workspacePackages,
-      updateToLatest: options.updateToLatest,
+      updateToLatest: options.update === 'latest',
     }), { priority: options.downloadPriority })
 
     manifest = resolveResult.manifest
