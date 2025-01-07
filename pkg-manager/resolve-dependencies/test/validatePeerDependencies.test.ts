@@ -21,7 +21,7 @@ test('forbids aliases', () => {
         foo: 'bar@1.2.3',
       },
     },
-  })).toThrow('The peerDependencies field named foo of package /repo/packages/pkg has an invalid value: bar@1.2.3')
+  })).toThrow('The peerDependencies field named \'foo\' of package \'/repo/packages/pkg\' has an invalid value: \'bar@1.2.3\'')
   expect(validatePeerDependencies.bind(null, {
     rootDir: '/repo/packages/pkg',
     manifest: {
@@ -30,7 +30,7 @@ test('forbids aliases', () => {
         foo: 'bar@1.2.3',
       },
     },
-  })).toThrow('The peerDependencies field named foo of package my-pkg has an invalid value: bar@1.2.3')
+  })).toThrow('The peerDependencies field named \'foo\' of package \'my-pkg\' has an invalid value: \'bar@1.2.3\'')
 })
 
 test('forbids `file:` scheme', () => {
@@ -41,7 +41,7 @@ test('forbids `file:` scheme', () => {
         foo: 'file:../foo',
       },
     },
-  })).toThrow('The peerDependencies field named foo of package /repo/packages/pkg has an invalid value: file:../foo')
+  })).toThrow('The peerDependencies field named \'foo\' of package \'/repo/packages/pkg\' has an invalid value: \'file:../foo\'')
   expect(validatePeerDependencies.bind(null, {
     rootDir: '/repo/packages/pkg',
     manifest: {
@@ -50,7 +50,7 @@ test('forbids `file:` scheme', () => {
         foo: 'file:../foo',
       },
     },
-  })).toThrow('The peerDependencies field named foo of package my-pkg has an invalid value: file:../foo')
+  })).toThrow('The peerDependencies field named \'foo\' of package \'my-pkg\' has an invalid value: \'file:../foo\'')
 })
 
 test('forbids `link:` scheme', () => {
@@ -61,7 +61,7 @@ test('forbids `link:` scheme', () => {
         foo: 'link:../foo',
       },
     },
-  })).toThrow('The peerDependencies field named foo of package /repo/packages/pkg has an invalid value: link:../foo')
+  })).toThrow('The peerDependencies field named \'foo\' of package \'/repo/packages/pkg\' has an invalid value: \'link:../foo\'')
   expect(validatePeerDependencies.bind(null, {
     rootDir: '/repo/packages/pkg',
     manifest: {
@@ -70,5 +70,5 @@ test('forbids `link:` scheme', () => {
         foo: 'link:../foo',
       },
     },
-  })).toThrow('The peerDependencies field named foo of package my-pkg has an invalid value: link:../foo')
+  })).toThrow('The peerDependencies field named \'foo\' of package \'my-pkg\' has an invalid value: \'link:../foo\'')
 })
