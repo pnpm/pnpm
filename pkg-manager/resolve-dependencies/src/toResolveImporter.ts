@@ -10,6 +10,7 @@ import { type ImporterToResolve } from '.'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies'
 import { type ImporterToResolveGeneric } from './resolveDependencyTree'
 import { safeIsInnerLink } from './safeIsInnerLink'
+import { validatePeerDependencies } from './validatePeerDependencies'
 
 export interface ResolveImporter extends ImporterToResolve, ImporterToResolveGeneric<{ isNew?: boolean }> {
   wantedDependencies: Array<WantedDependency & {
@@ -30,6 +31,7 @@ export async function toResolveImporter (
   },
   project: ImporterToResolve
 ): Promise<ResolveImporter> {
+  validatePeerDependencies(project)
   const allDeps = getWantedDependencies(project.manifest)
   const nonLinkedDependencies = await partitionLinkedPackages(allDeps, {
     lockfileOnly: opts.lockfileOnly,
