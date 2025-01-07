@@ -15,7 +15,7 @@ import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import normalize from 'normalize-path'
 import tempy from 'tempy'
-import { type PkgResolutionId, type PkgRequestFetchResult } from '@pnpm/store-controller-types'
+import { type PkgResolutionId, type PkgRequestFetchResult, type RequestPackageOptions } from '@pnpm/store-controller-types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(__dirname)
@@ -182,7 +182,7 @@ test('refetch local tarball if its integrity has changed', async () => {
     registry,
     skipFetch: true,
     update: false,
-  }
+  } satisfies RequestPackageOptions
 
   {
     const requestPackage = createPackageRequester({
@@ -288,7 +288,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     projectDir,
     registry,
     update: false,
-  }
+  } satisfies RequestPackageOptions
 
   {
     const requestPackage = createPackageRequester({

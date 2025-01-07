@@ -824,11 +824,10 @@ async function resolveDependenciesOfDependency (
     prefix: options.prefix,
     proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
     publishedBy: options.publishedBy,
-    update,
+    update: update ? options.updateToLatest ? 'latest' : 'compatible' : false,
     updateDepth,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
-    updateToLatest: options.updateToLatest,
     parentIds: options.parentIds,
   }
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
@@ -1175,11 +1174,10 @@ interface ResolveDependencyOptions {
   proceed: boolean
   publishedBy?: Date
   pickLowestVersion?: boolean
-  update: boolean
+  update: false | 'compatible' | 'latest'
   updateDepth: number
   updateMatching?: UpdateMatchingFunction
   supportedArchitectures?: SupportedArchitectures
-  updateToLatest?: boolean
 }
 
 type ResolveDependencyResult = PkgAddress | LinkedDependency | null
@@ -1260,7 +1258,6 @@ async function resolveDependency (
         err.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
         return err
       },
-      updateToLatest: options.updateToLatest,
       injectWorkspacePackages: ctx.injectWorkspacePackages,
     })
   } catch (err: any) { // eslint-disable-line
