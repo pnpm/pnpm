@@ -13,25 +13,25 @@ test('accepts valid specifications that make sense for peerDependencies', () => 
 })
 
 test('forbids `file:` scheme', () => {
-  expect(() => validatePeerDependencies({
+  expect(validatePeerDependencies.bind(null, {
     foo: 'file:../foo',
   })).toThrow('The peer dependency named foo has unacceptable specification: file:../foo')
 })
 
 test('forbids aliased `file:` scheme', () => {
-  expect(() => validatePeerDependencies({
+  expect(validatePeerDependencies.bind(null, {
     foo: 'foo@file:../foo',
   })).toThrow('The peer dependency named foo has unacceptable specification: foo@file:../foo')
 })
 
 test('forbids `link:` scheme', () => {
-  expect(() => validatePeerDependencies({
+  expect(validatePeerDependencies.bind(null, {
     foo: 'link:../foo',
   })).toThrow('The peer dependency named foo has unacceptable specification: link:../foo')
 })
 
 test('forbids aliased `link:` scheme', () => {
-  expect(() => validatePeerDependencies({
+  expect(validatePeerDependencies.bind(null, {
     foo: 'foo@link:../foo',
   })).toThrow('The peer dependency named foo has unacceptable specification: foo@link:../foo')
 })
