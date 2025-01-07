@@ -10,7 +10,6 @@ import { DEPENDENCIES_FIELDS, type ProjectManifest, type Project } from '@pnpm/t
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import {
   type WorkspacePackages,
 } from '@pnpm/core'
@@ -18,6 +17,7 @@ import { logger } from '@pnpm/logger'
 import pick from 'ramda/src/pick'
 import partition from 'ramda/src/partition'
 import renderHelp from 'render-help'
+import { createProjectManifestWriter } from './createProjectManifestWriter'
 import { getSaveType } from './getSaveType'
 import * as install from './install'
 
@@ -128,6 +128,8 @@ export async function handler (
     })
   }
 
+  const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
+
   // pnpm link
   if ((params == null) || (params.length === 0)) {
     const cwd = process.cwd()
@@ -139,7 +141,7 @@ export async function handler (
 
     const newManifest = opts.rootProjectManifest ?? {}
     await addLinkToManifest(opts, newManifest, cwd, linkOpts.dir)
-    await writeProjectManifest(path.join(opts.rootProjectManifestDir, 'package.json'), newManifest)
+    await writeProjectManifest(newManifest)
     await install.handler({
       ...linkOpts,
       frozenLockfileIfExists: false,
@@ -160,7 +162,7 @@ export async function handler (
     })
   )
 
-  await writeProjectManifest(path.join(opts.rootProjectManifestDir, 'package.json'), newManifest)
+  await writeProjectManifest(newManifest)
   await install.handler({
     ...linkOpts,
     frozenLockfileIfExists: false,
