@@ -17,7 +17,7 @@ export function validatePeerDependencies (project: ProjectToValidate): void {
         'INVALID_PEER_DEPENDENCY_SPECIFICATION',
         `The peerDependencies field named ${depName} of package ${projectId} has an invalid value: ${version}`,
         {
-          hint: 'The values in peerDependencies should be either a valid semver range, `workspace:`, or `catalog:`',
+          hint: 'The values in peerDependencies should be either a valid semver range, a `workspace:` spec, or a `catalog:` spec',
         }
       )
     }
