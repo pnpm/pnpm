@@ -7,6 +7,7 @@ import {
 } from '@pnpm/types'
 import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
 import { WorkspaceSpec } from '@pnpm/workspace.spec-parser'
+import { validatePeerDependencies } from './validatePeerDependencies'
 
 export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
 
@@ -36,6 +37,7 @@ export function getWantedDependencies (
       devDependencies: true,
       optionalDependencies: true,
     })
+  validatePeerDependencies(pkg.peerDependencies)
   if (opts?.autoInstallPeers) {
     depsToInstall = {
       ...pkg.peerDependencies,
