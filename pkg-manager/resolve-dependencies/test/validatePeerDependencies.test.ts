@@ -5,9 +5,9 @@ test('accepts valid specifications that make sense for peerDependencies', () => 
     rootDir: '/repo/packages/pkg',
     manifest: {
       peerDependencies: {
-        'use-version-range': '>=1.2.3 || ^3.2.1',
-        'use-workspace': 'workspace:^',
-        'use-catalog': 'catalog:',
+        'semver-range': '>=1.2.3 || ^3.2.1',
+        'workspace-scheme': 'workspace:^',
+        'catalog-scheme': 'catalog:',
       },
     },
   })
