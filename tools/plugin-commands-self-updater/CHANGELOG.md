@@ -1,5 +1,18 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/plugin-commands-installation@1001.2.1
+  - @pnpm/cli-utils@1000.0.5
+  - @pnpm/config@1002.1.2
+  - @pnpm/link-bins@1000.0.4
+  - @pnpm/client@1000.0.4
+
 ## 1000.0.5
 
 ### Patch Changes

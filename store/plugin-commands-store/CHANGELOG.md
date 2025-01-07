@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-store
 
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/cli-utils@1000.0.5
+  - @pnpm/config@1002.1.2
+  - @pnpm/store.cafs@1000.0.3
+  - @pnpm/store-connection-manager@1000.0.5
+
 ## 1000.0.5
 
 ### Patch Changes

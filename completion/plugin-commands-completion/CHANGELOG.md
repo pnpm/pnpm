@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-completion
 
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.5
+- @pnpm/workspace.find-packages@1000.0.5
+
 ## 1000.0.4
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/audit
 
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/list@1000.0.5
+
 ## 1001.0.3
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/config
 
+## 1002.1.2
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/pnpmfile@1001.0.3
+
 ## 1002.1.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/default-resolver
 
+## 1001.0.3
+
+### Patch Changes
+
+- @pnpm/local-resolver@1000.0.3
+
 ## 1001.0.2
 
 ### Patch Changes

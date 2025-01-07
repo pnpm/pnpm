@@ -1,5 +1,13 @@
 # @pnpm/pnpmfile
 
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/crypto.hash@1000.0.0
+
 ## 1001.0.2
 
 ### Patch Changes

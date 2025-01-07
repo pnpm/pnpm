@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1001.1.3
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/cli-utils@1000.0.5
+  - @pnpm/config@1002.1.2
+  - @pnpm/link-bins@1000.0.4
+  - @pnpm/lifecycle@1001.0.3
+  - @pnpm/store.cafs@1000.0.3
+  - @pnpm/workspace.find-packages@1000.0.5
+  - @pnpm/store-connection-manager@1000.0.5
+  - @pnpm/worker@1000.0.4
+
 ## 1001.1.2
 
 ### Patch Changes

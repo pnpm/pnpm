@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-audit
 
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/cli-utils@1000.0.5
+  - @pnpm/config@1002.1.2
+  - @pnpm/audit@1001.0.4
+
 ## 1001.0.4
 
 ### Patch Changes

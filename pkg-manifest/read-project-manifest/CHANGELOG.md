@@ -1,5 +1,11 @@
 # @pnpm/read-project-manifest
 
+## 1000.0.3
+
+### Patch Changes
+
+- e050221: Export `WriteProjectManifest`.
+
 ## 1000.0.2
 
 ### Patch Changes

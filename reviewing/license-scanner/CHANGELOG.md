@@ -1,5 +1,12 @@
 # @pnpm/license-scanner
 
+## 1001.0.4
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@1000.0.3
+- @pnpm/store.cafs@1000.0.3
+
 ## 1001.0.3
 
 ### Patch Changes

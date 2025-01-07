@@ -1,5 +1,16 @@
 # @pnpm/package-store
 
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/package-requester@1001.0.0
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/store.cafs@1000.0.3
+  - @pnpm/create-cafs-store@1000.0.4
+  - @pnpm/worker@1000.0.4
+
 ## 1000.0.3
 
 ### Patch Changes

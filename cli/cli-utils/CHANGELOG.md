@@ -1,5 +1,14 @@
 # @pnpm/cli-utils
 
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/config@1002.1.2
+  - @pnpm/default-reporter@1001.1.3
+
 ## 1000.0.4
 
 ### Patch Changes

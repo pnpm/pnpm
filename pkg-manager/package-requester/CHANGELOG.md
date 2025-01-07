@@ -1,5 +1,20 @@
 # @pnpm/package-requester
 
+## 1001.0.0
+
+### Major Changes
+
+- dde650b: `RequestPackageOptions` now takes a union type for the `update` option, instead of a separate `updateToLatest` option.
+
+  This avoids pitfalls around specifying only `update` or, specifying `update: false`, but still providing `updateToLatest: true`.
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/store.cafs@1000.0.3
+  - @pnpm/worker@1000.0.4
+
 ## 1000.1.2
 
 ### Patch Changes

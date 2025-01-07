@@ -1,5 +1,16 @@
 # @pnpm/deps.status
 
+## 1001.1.1
+
+### Patch Changes
+
+- @pnpm/config@1002.1.2
+- @pnpm/pnpmfile@1001.0.3
+- @pnpm/workspace.find-packages@1000.0.5
+- @pnpm/workspace.state@1001.1.1
+- @pnpm/lockfile.settings-checker@1001.0.1
+- @pnpm/lockfile.verification@1001.0.3
+
 ## 1001.1.0
 
 ### Minor Changes

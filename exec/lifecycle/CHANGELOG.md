@@ -1,5 +1,14 @@
 # @pnpm/lifecycle
 
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/directory-fetcher@1000.0.3
+  - @pnpm/link-bins@1000.0.4
+
 ## 1001.0.2
 
 ### Patch Changes

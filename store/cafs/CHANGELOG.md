@@ -1,5 +1,12 @@
 # @pnpm/store.cafs
 
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+
 ## 1000.0.2
 
 ### Patch Changes

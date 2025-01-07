@@ -1,5 +1,17 @@
 # @pnpm/build-modules
 
+## 1000.1.2
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/link-bins@1000.0.4
+  - @pnpm/lifecycle@1001.0.3
+  - @pnpm/worker@1000.0.4
+  - @pnpm/fs.hard-link-dir@1000.0.0
+  - @pnpm/patching.apply-patch@1000.0.1
+
 ## 1000.1.1
 
 ### Patch Changes

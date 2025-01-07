@@ -1,5 +1,29 @@
 # @pnpm/core
 
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [26fe994]
+- Updated dependencies [dde650b]
+- Updated dependencies [e050221]
+- Updated dependencies [dde650b]
+  - @pnpm/resolve-dependencies@1004.0.0
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/package-requester@1001.0.0
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/headless@1001.1.2
+  - @pnpm/link-bins@1000.0.4
+  - @pnpm/build-modules@1000.1.2
+  - @pnpm/lifecycle@1001.0.3
+  - @pnpm/modules-cleaner@1001.0.3
+  - @pnpm/hoist@1001.0.3
+  - @pnpm/worker@1000.0.4
+  - @pnpm/crypto.hash@1000.0.0
+  - @pnpm/symlink-dependency@1000.0.2
+  - @pnpm/lockfile.settings-checker@1001.0.1
+  - @pnpm/lockfile.verification@1001.0.3
+
 ## 1002.0.0
 
 ### Major Changes

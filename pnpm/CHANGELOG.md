@@ -1,6 +1,6 @@
 # pnpm
 
-## 10.0.0-rc.3
+## 10.0.0
 
 ### Major Changes
 

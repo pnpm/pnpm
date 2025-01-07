@@ -1,5 +1,12 @@
 # @pnpm/list
 
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+
 ## 1000.0.4
 
 ### Patch Changes

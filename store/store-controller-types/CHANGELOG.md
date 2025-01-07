@@ -1,5 +1,13 @@
 # @pnpm/store-controller-types
 
+## 1001.0.0
+
+### Major Changes
+
+- dde650b: `RequestPackageOptions` now takes a union type for the `update` option, instead of a separate `updateToLatest` option.
+
+  This avoids pitfalls around specifying only `update` or, specifying `update: false`, but still providing `updateToLatest: true`.
+
 ## 1000.1.1
 
 ### Patch Changes

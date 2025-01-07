@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.2
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/plugin-commands-installation@1001.2.1
+  - @pnpm/cli-utils@1000.0.5
+  - @pnpm/config@1002.1.2
+  - @pnpm/directory-fetcher@1000.0.3
+  - @pnpm/fs.indexed-pkg-importer@1000.0.4
+
 ## 1001.1.1
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.state",
-  "version": "1001.1.0",
+  "version": "1001.1.1",
   "description": "Track the list of actual paths of workspace packages in a cache",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

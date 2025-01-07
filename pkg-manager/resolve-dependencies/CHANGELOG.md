@@ -1,5 +1,17 @@
 # @pnpm/resolve-dependencies
 
+## 1004.0.0
+
+### Major Changes
+
+- 26fe994: Refuse to install when `peerDependencies` has specifications that don't make sense.
+
+### Patch Changes
+
+- dde650b: Fix a case in `resolveDependencies`, whereby an importer that should not have been updated altogether, was being updated when `updateToLatest` was specified in the options.
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+
 ## 1003.0.0
 
 ### Major Changes

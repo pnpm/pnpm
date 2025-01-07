@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-installation
 
+## 1001.2.1
+
+### Patch Changes
+
+- e050221: `pnpm link` should keep the indentation in the `package.json` file that it updates.
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/core@1002.0.1
+  - @pnpm/cli-utils@1000.0.5
+  - @pnpm/config@1002.1.2
+  - @pnpm/package-store@1000.0.4
+  - @pnpm/plugin-commands-rebuild@1001.1.3
+  - @pnpm/pnpmfile@1001.0.3
+  - @pnpm/plugin-commands-env@1000.0.5
+  - @pnpm/workspace.find-packages@1000.0.5
+  - @pnpm/deps.status@1001.1.1
+  - @pnpm/store-connection-manager@1000.0.5
+  - @pnpm/workspace.state@1001.1.1
+  - @pnpm/filter-workspace-packages@1000.0.5
+  - @pnpm/outdated@1001.0.4
+
 ## 1001.2.0
 
 ### Minor Changes
