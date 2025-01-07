@@ -1,12 +1,25 @@
 import { PnpmError } from '@pnpm/error'
-import { type Dependencies } from '@pnpm/types'
+import { type ProjectManifest } from '@pnpm/types'
 import { validRange } from 'semver'
 
-export function validatePeerDependencies (peerDependencies: Dependencies | undefined): void {
-  for (const name in peerDependencies) {
-    const version = peerDependencies[name]
+export interface ProjectToValidate {
+  rootDir: string
+  manifest: Pick<ProjectManifest, 'name' | 'peerDependencies'>
+}
+
+export function validatePeerDependencies (project: ProjectToValidate): void {
+  const { name, peerDependencies } = project.manifest
+  const projectId = name ?? project.rootDir
+  for (const depName in peerDependencies) {
+    const version = peerDependencies[depName]
     if (!isValidPeerVersion(version)) {
-      throw new PnpmError('INVALID_PEER_DEPENDENCY_SPECIFICATION', `The peer dependency named ${name} has unacceptable specification: ${version}`)
+      throw new PnpmError(
+        'INVALID_PEER_DEPENDENCY_SPECIFICATION',
+        `The peerDependencies field named ${depName} of package ${projectId} has an invalid value: ${version}`,
+        {
+          hint: 'The values in peerDependencies should be either a valid semver range, `workspace:`, or `catalog:`',
+        }
+      )
     }
   }
 }

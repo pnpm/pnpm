@@ -31,7 +31,7 @@ export async function toResolveImporter (
   },
   project: ImporterToResolve
 ): Promise<ResolveImporter> {
-  validatePeerDependencies(project.manifest.peerDependencies)
+  validatePeerDependencies(project)
   const allDeps = getWantedDependencies(project.manifest)
   const nonLinkedDependencies = await partitionLinkedPackages(allDeps, {
     lockfileOnly: opts.lockfileOnly,
