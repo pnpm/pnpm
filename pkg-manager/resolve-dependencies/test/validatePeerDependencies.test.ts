@@ -8,6 +8,7 @@ test('accepts valid specifications that make sense for peerDependencies', () => 
         'semver-range': '>=1.2.3 || ^3.2.1',
         'workspace-scheme': 'workspace:^',
         'catalog-scheme': 'catalog:',
+        'combine-all': '>=1.2.3 || ^3.2.1 || workspace:^ || catalog:',
       },
     },
   })

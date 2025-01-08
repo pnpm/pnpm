@@ -25,5 +25,6 @@ export function validatePeerDependencies (project: ProjectToValidate): void {
 }
 
 function isValidPeerVersion (version: string): boolean {
-  return typeof validRange(version) === 'string' || version.startsWith('workspace:') || version.startsWith('catalog:')
+  // we use `includes` instead of `startsWith` because `workspace:*` and `catalog:*` could be a part of a wider version range expression
+  return typeof validRange(version) === 'string' || version.includes('workspace:') || version.includes('catalog:')
 }
