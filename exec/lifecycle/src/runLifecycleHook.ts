@@ -1,5 +1,6 @@
 import path from 'path'
 import { lifecycleLogger } from '@pnpm/core-loggers'
+import { DISABLE_DEPS_CHECK_ENV } from '@pnpm/deps.status'
 import { globalWarn } from '@pnpm/logger'
 import lifecycle from '@pnpm/npm-lifecycle'
 import { type DependencyManifest, type ProjectManifest, type PrepareExecutionEnv, type PackageScripts } from '@pnpm/types'
@@ -118,6 +119,7 @@ Please unset the script-shell option, or configure it to a .exe instead.
     extraBinPaths,
     extraEnv: {
       ...opts.extraEnv,
+      ...DISABLE_DEPS_CHECK_ENV,
       INIT_CWD: opts.initCwd ?? process.cwd(),
       PNPM_SCRIPT_SRC_DIR: opts.pkgRoot,
     },

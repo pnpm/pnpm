@@ -10,7 +10,7 @@ import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
+import { type CheckDepsStatusOptions, DISABLE_DEPS_CHECK_ENV, shouldRunCheck } from '@pnpm/deps.status'
 import {
   runLifecycleHook,
   makeNodeRequireOption,
@@ -24,7 +24,6 @@ import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifie
 import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
-import { DISABLE_DEPS_CHECK_ENV, shouldRunCheck } from './shouldRunCheck'
 import { runDepsStatusCheck } from './runDepsStatusCheck'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {

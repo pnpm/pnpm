@@ -3,7 +3,7 @@ import { docsUrl, type RecursiveSummary, throwOnCommandFail, readProjectManifest
 import { type LifecycleMessage, lifecycleLogger } from '@pnpm/core-loggers'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
-import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
+import { type CheckDepsStatusOptions, DISABLE_DEPS_CHECK_ENV, SKIP_ENV_KEY } from '@pnpm/deps.status'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
@@ -27,7 +27,6 @@ import { PnpmError } from '@pnpm/error'
 import which from 'which'
 import writeJsonFile from 'write-json-file'
 import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint'
-import { DISABLE_DEPS_CHECK_ENV, SKIP_ENV_KEY } from './shouldRunCheck'
 import { runDepsStatusCheck } from './runDepsStatusCheck'
 
 export const shorthands: Record<string, string | string[]> = {
