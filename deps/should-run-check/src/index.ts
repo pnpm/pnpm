@@ -5,9 +5,9 @@
 export const SKIP_ENV_KEY = 'pnpm_run_skip_deps_check'
 export const DISABLE_DEPS_CHECK_ENV = {
   [SKIP_ENV_KEY]: 'true',
-} as const satisfies ShouldRunCheckEnv
+} as const satisfies Env
 
-export interface ShouldRunCheckEnv extends NodeJS.ProcessEnv {
+export interface Env extends NodeJS.ProcessEnv {
   [SKIP_ENV_KEY]?: string
 }
 
@@ -20,4 +20,4 @@ const SCRIPTS_TO_SKIP = [
   'postuninstall',
 ]
 
-export const shouldRunCheck = (env: ShouldRunCheckEnv, scriptName: string): boolean => !env[SKIP_ENV_KEY] && !SCRIPTS_TO_SKIP.includes(scriptName)
+export const shouldRunCheck = (env: Env, scriptName: string): boolean => !env[SKIP_ENV_KEY] && !SCRIPTS_TO_SKIP.includes(scriptName)
