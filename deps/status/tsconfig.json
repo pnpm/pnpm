@@ -59,9 +59,6 @@
     },
     {
       "path": "../../workspace/state"
-    },
-    {
-      "path": "../should-run-check"
     }
   ]
 }

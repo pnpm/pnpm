@@ -1880,9 +1880,6 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
-      '@pnpm/deps.should-run-check':
-        specifier: workspace:*
-        version: link:../should-run-check
       '@pnpm/deps.status':
         specifier: workspace:*
         version: 'link:'
