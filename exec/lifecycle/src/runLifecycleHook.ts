@@ -1,5 +1,6 @@
 import path from 'path'
 import { lifecycleLogger } from '@pnpm/core-loggers'
+import { DISABLE_DEPS_CHECK_ENV } from '@pnpm/deps.should-run-check'
 import { globalWarn } from '@pnpm/logger'
 import lifecycle from '@pnpm/npm-lifecycle'
 import { type DependencyManifest, type ProjectManifest, type PrepareExecutionEnv, type PackageScripts } from '@pnpm/types'
@@ -109,9 +110,6 @@ Please unset the script-shell option, or configure it to a .exe instead.
     extraBinPaths: opts.extraBinPaths,
     executionEnv: (manifest as ProjectManifest).pnpm?.executionEnv,
   }))?.extraBinPaths ?? opts.extraBinPaths
-  // This module must be imported lazily otherwise node.test.ts from @pnpm/node.fetcher would fail with this error:
-  //   TypeError: (0 , detect_libc_1.familySync) is not a function
-  const { DISABLE_DEPS_CHECK_ENV } = await import('@pnpm/deps.status')
   await lifecycle(m, stage, opts.pkgRoot, {
     config: {
       ...opts.rawConfig,

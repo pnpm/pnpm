@@ -1,5 +1,5 @@
 ---
-"@pnpm/deps.status": minor
+"@pnpm/deps.should-run-check": major
 "@pnpm/plugin-commands-script-runners": patch
 "@pnpm/lifecycle": patch
 "pnpm": patch

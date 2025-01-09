@@ -19,7 +19,7 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../deps/status"
+      "path": "../../deps/should-run-check"
     },
     {
       "path": "../../fetching/directory-fetcher"

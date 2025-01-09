@@ -10,7 +10,8 @@ import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { type CheckDepsStatusOptions, DISABLE_DEPS_CHECK_ENV, shouldRunCheck } from '@pnpm/deps.status'
+import { DISABLE_DEPS_CHECK_ENV, shouldRunCheck } from '@pnpm/deps.should-run-check'
+import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import {
   runLifecycleHook,
   makeNodeRequireOption,

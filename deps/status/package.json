@@ -49,6 +49,7 @@
     "ramda": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/deps.should-run-check": "workspace:*",
     "@pnpm/deps.status": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",

@@ -1820,6 +1820,12 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  deps/should-run-check:
+    devDependencies:
+      '@pnpm/deps.should-run-check':
+        specifier: workspace:*
+        version: 'link:'
+
   deps/status:
     dependencies:
       '@pnpm/config':
@@ -1874,6 +1880,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@pnpm/deps.should-run-check':
+        specifier: workspace:*
+        version: link:../should-run-check
       '@pnpm/deps.status':
         specifier: workspace:*
         version: 'link:'
@@ -2153,9 +2162,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/deps.status':
+      '@pnpm/deps.should-run-check':
         specifier: workspace:*
-        version: link:../../deps/status
+        version: link:../../deps/should-run-check
       '@pnpm/directory-fetcher':
         specifier: workspace:*
         version: link:../../fetching/directory-fetcher
@@ -2396,6 +2405,9 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
+      '@pnpm/deps.should-run-check':
+        specifier: workspace:*
+        version: link:../../deps/should-run-check
       '@pnpm/deps.status':
         specifier: workspace:*
         version: link:../../deps/status
