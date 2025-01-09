@@ -268,7 +268,10 @@ export function extendOptions (
     }
   }
   if (opts.onlyBuiltDependencies && opts.neverBuiltDependencies) {
-    throw new PnpmError('CONFIG_CONFLICT_BUILT_DEPENDENCIES', 'Cannot have both neverBuiltDependencies and onlyBuiltDependencies')
+    if (opts.onlyBuiltDependencies.some((dep) => opts.neverBuiltDependencies!.includes(dep))) {
+      throw new PnpmError('CONFIG_CONFLICT_ONLY_BUILT_DEPENDENCIES_AND_NEVER_BUILT_DEPENDENCIES',
+        'The same dependencies cannot be both in onlyBuiltDependencies and neverBuiltDependencies')
+    }
   }
   const defaultOpts = defaults(opts)
   const extendedOpts: ProcessedInstallOptions = {
