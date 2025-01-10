@@ -19,8 +19,6 @@ jest.mock('enquirer', () => ({
   prompt: jest.fn(),
 }))
 
-delete process.env['pnpm_run_skip_deps_check']
-
 const rootProjectManifest = {
   name: 'root',
   private: true,
