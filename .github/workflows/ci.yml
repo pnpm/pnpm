@@ -40,7 +40,7 @@ jobs:
       with:
         standalone: true
     - name: Setup Node
-      run: pnpm env use -g ${{ matrix.node[0] }}.${{ matrix.node[1] }}.${{ matrix.node[2] }}
+      run: pnpm env use -g ${{ join(matrix.node, '.') }}
       timeout-minutes: 1
     - name: Install npm@8
       run: pnpm add --global npm@8
