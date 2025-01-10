@@ -9,7 +9,7 @@ import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
 
 test('single dependency', async () => {
-  const checkEnv = 'node --eval "assert.strictEqual(process.env.pnpm_run_skip_deps_check, \'true\')"'
+  const checkEnv = 'node --eval "assert.strictEqual(process.env.npm_config_verify_deps_before_run, \'false\')"'
 
   const manifests: Record<string, ProjectManifest> = {
     root: {
@@ -278,7 +278,7 @@ test('single dependency', async () => {
     expect(stdout.toString()).toContain('hello from root')
   }
 
-  // should set env.pnpm_run_skip_deps_check for all the scripts
+  // should set env.npm_config_verify_deps_before_run to false for all the scripts (to skip check in nested scripts)
   await execPnpm([...CONFIG, '--recursive', 'run', 'checkEnv'])
 })
 
@@ -738,11 +738,12 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
   // add to every manifest file a script named `start` which would inherit `config` and invoke `nestedScript`
   for (const name in projects) {
     manifests[name].scripts!.start =
-      `node mutate-manifest.js && node ${pnpmBinLocation} ${CONFIG.join(' ')} run nestedScript`
+      `node mutate-manifest.js && node ${pnpmBinLocation} run nestedScript`
     projects[name].writePackageJson(manifests[name])
   }
 
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('.npmrc', 'verify-deps-before-run=error')
 
   // attempting to execute a script without installing dependencies should fail
   {

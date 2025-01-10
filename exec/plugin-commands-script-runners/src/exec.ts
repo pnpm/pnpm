@@ -27,7 +27,6 @@ import { PnpmError } from '@pnpm/error'
 import which from 'which'
 import writeJsonFile from 'write-json-file'
 import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint'
-import { DISABLE_DEPS_CHECK_ENV, SKIP_ENV_KEY } from './shouldRunCheck'
 import { runDepsStatusCheck } from './runDepsStatusCheck'
 
 export const shorthands: Record<string, string | string[]> = {
@@ -177,7 +176,7 @@ export async function handler (
   }
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
-  if (opts.verifyDepsBeforeRun && !process.env[SKIP_ENV_KEY]) {
+  if (opts.verifyDepsBeforeRun) {
     await runDepsStatusCheck(opts)
   }
 
@@ -253,7 +252,6 @@ export async function handler (
               ...extraEnv,
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix]?.package.manifest.name,
               ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
-              ...opts.verifyDepsBeforeRun ? DISABLE_DEPS_CHECK_ENV : undefined,
             },
             prependPaths,
             userAgent: opts.userAgent,

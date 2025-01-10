@@ -6,7 +6,7 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import PATH from 'path-name'
 import loadJsonFile from 'load-json-file'
 import writeYamlFile from 'write-yaml-file'
-import { execPnpm, execPnpmSync } from '../utils'
+import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
 import { getIntegrity } from '@pnpm/registry-mock'
 
 const pkgRoot = path.join(__dirname, '..', '..')
@@ -262,4 +262,25 @@ test('ignores pnpm.executionEnv specified by dependencies', async () => {
     execPath: process.execPath,
     versions: process.versions,
   })
+})
+
+test('preinstall script does not trigger verify-deps-before-run (#8954)', async () => {
+  const pnpm = `${process.execPath} ${pnpmBinLocation}` // this would fail if either paths happen to contain spaces
+
+  prepare({
+    name: 'preinstall-script-does-not-trigger-verify-deps-before-run',
+    version: '1.0.0',
+    private: true,
+    scripts: {
+      sayHello: 'echo hello world',
+      preinstall: `${pnpm} run sayHello`,
+    },
+    dependencies: {
+      cowsay: '1.5.0', // to make the default state outdated, any dependency will do
+    },
+  })
+
+  const output = execPnpmSync(['--config.verify-deps-before-run=error', 'install'], { expectSuccess: true })
+  expect(output.status).toBe(0)
+  expect(output.stdout.toString()).toContain('hello world')
 })
