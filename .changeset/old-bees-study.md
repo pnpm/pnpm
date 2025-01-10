@@ -1,4 +1,5 @@
 ---
+"@pnpm/config": patch
 "@pnpm/plugin-commands-script-runners": patch
 "pnpm": patch
 ---
