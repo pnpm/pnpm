@@ -361,6 +361,9 @@ export async function getConfig (opts: {
     pnpmConfig.extraBinPaths = []
   }
 
+  pnpmConfig.extraEnv = {
+    npm_config_verify_deps_before_run: 'false',
+  }
   if (pnpmConfig.preferSymlinkedExecutables && !isWindows()) {
     const cwd = pnpmConfig.lockfileDir ?? pnpmConfig.dir
 
@@ -370,9 +373,7 @@ export async function getConfig (opts: {
         ? path.join(pnpmConfig.modulesDir, '.pnpm')
         : 'node_modules/.pnpm'
 
-    pnpmConfig.extraEnv = {
-      NODE_PATH: pathAbsolute(path.join(virtualStoreDir, 'node_modules'), cwd),
-    }
+    pnpmConfig.extraEnv['NODE_PATH'] = pathAbsolute(path.join(virtualStoreDir, 'node_modules'), cwd)
   }
 
   if (pnpmConfig.shamefullyFlatten) {

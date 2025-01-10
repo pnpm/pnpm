@@ -22,11 +22,9 @@ import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand } from './runRecursive'
 import { existsInDir } from './existsInDir'
-import { DISABLE_DEPS_CHECK_ENV } from './disableDepsCheckEnv'
 import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
 import { runDepsStatusCheck } from './runDepsStatusCheck'
-import { shouldRunCheck } from './shouldRunCheck'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,
@@ -198,20 +196,12 @@ export async function handler (
   }
   const [scriptName, ...passedThruArgs] = params
 
-  // verifyDepsBeforeRun is outside of shouldRunCheck because TypeScript's tagged union
-  // only works when the tag is directly placed in the condition.
-  if (opts.verifyDepsBeforeRun && shouldRunCheck(process.env)) {
+  if (opts.verifyDepsBeforeRun) {
     await runDepsStatusCheck(opts)
   }
 
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
-      if (opts.verifyDepsBeforeRun) {
-        opts.extraEnv = {
-          ...opts.extraEnv,
-          ...DISABLE_DEPS_CHECK_ENV,
-        }
-      }
       return runRecursive(params, opts) as Promise<undefined>
     }
     dir = Object.keys(opts.selectedProjectsGraph)[0]
@@ -269,7 +259,6 @@ so you may run "pnpm -w run ${scriptName}"`,
   const extraEnv = {
     ...opts.extraEnv,
     ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
-    ...opts.verifyDepsBeforeRun ? DISABLE_DEPS_CHECK_ENV : undefined,
   }
 
   const lifecycleOpts: RunLifecycleHookOptions = {
