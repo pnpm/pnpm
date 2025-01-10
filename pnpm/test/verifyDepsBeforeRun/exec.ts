@@ -91,8 +91,8 @@ test('single package workspace', async () => {
     expect(stdout.toString()).toContain('hello from exec')
   }
 
-  // should set env.pnpm_run_skip_deps_check for the script
-  await execPnpm([...CONFIG, 'exec', 'node', '--eval', 'assert.strictEqual(process.env.pnpm_run_skip_deps_check, "true")'])
+  // should set env.npm_config_verify_deps_before_run to false for the script (to skip check for nested script)
+  await execPnpm([...CONFIG, 'exec', 'node', '--eval', 'assert.strictEqual(process.env.npm_config_verify_deps_before_run, "false")'])
 })
 
 test('multi-project workspace', async () => {
@@ -339,6 +339,6 @@ test('multi-project workspace', async () => {
     expect(stdout.toString()).toContain(`hello from exec: ${process.cwd()}`)
   }
 
-  // should set env.pnpm_run_skip_deps_check for all the scripts
-  await execPnpm([...CONFIG, 'exec', 'node', '--eval', 'assert.strictEqual(process.env.pnpm_run_skip_deps_check, "true")'])
+  // should set env.npm_config_verify_deps_before_run to false for all the scripts (to skip check for nested script)
+  await execPnpm([...CONFIG, 'exec', 'node', '--eval', 'assert.strictEqual(process.env.npm_config_verify_deps_before_run, "false")'])
 })
