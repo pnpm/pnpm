@@ -3,6 +3,7 @@ const { promisify } = require('util')
 const kill = promisify(require('tree-kill'))
 
 module.exports = () => {
+  delete process.env.npm_lifecycle_event
   if (process.env.PNPM_REGISTRY_MOCK_PORT == null) return
   prepare()
   const server = start({
