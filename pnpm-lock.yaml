@@ -1820,12 +1820,6 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  deps/should-run-check:
-    devDependencies:
-      '@pnpm/deps.should-run-check':
-        specifier: workspace:*
-        version: 'link:'
-
   deps/status:
     dependencies:
       '@pnpm/config':
@@ -2399,9 +2393,6 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
-      '@pnpm/deps.should-run-check':
-        specifier: workspace:*
-        version: link:../../deps/should-run-check
       '@pnpm/deps.status':
         specifier: workspace:*
         version: link:../../deps/status
@@ -5793,9 +5784,6 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../packages/dependency-path
-      '@pnpm/deps.should-run-check':
-        specifier: workspace:*
-        version: link:../deps/should-run-check
       '@pnpm/env.path':
         specifier: workspace:*
         version: link:../env/path

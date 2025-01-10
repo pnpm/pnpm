@@ -52,7 +52,6 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
-    "@pnpm/deps.should-run-check": "workspace:*",
     "@pnpm/deps.status": "workspace:*",
     "@pnpm/env.path": "workspace:*",
     "@pnpm/error": "workspace:*",

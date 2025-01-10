@@ -1,6 +1,5 @@
 import fs from 'fs'
 import path from 'path'
-import { SKIP_ENV_KEY } from '@pnpm/deps.should-run-check'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { type PackageManifest } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
@@ -273,8 +272,8 @@ test('preinstall script does not trigger verify-deps-before-run (#8954)', async 
     version: '1.0.0',
     private: true,
     scripts: {
-      inspectSkipEnv: `${process.execPath} -p "'skip check: ' + process.env.${SKIP_ENV_KEY}"`,
-      preinstall: `${pnpm} run inspectSkipEnv`,
+      sayHello: 'echo hello world',
+      preinstall: `${pnpm} run sayHello`,
     },
     dependencies: {
       cowsay: '1.5.0', // to make the default state outdated, any dependency will do
@@ -283,5 +282,5 @@ test('preinstall script does not trigger verify-deps-before-run (#8954)', async 
 
   const output = execPnpmSync(['--config.verify-deps-before-run=error', 'install'], { expectSuccess: true })
   expect(output.status).toBe(0)
-  expect(output.stdout.toString()).toContain('skip check: true')
+  expect(output.stdout.toString()).toContain('hello world')
 })
