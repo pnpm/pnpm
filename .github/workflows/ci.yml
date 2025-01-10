@@ -22,7 +22,7 @@ jobs:
           - ubuntu-latest
           - windows-latest
 
-    name: '${{matrix.platform}} / Node.js ${{ matrix.node }}'
+    name: '${{matrix.platform}} / Node.js ${{ matrix.node.split('.')[0] }}'
     runs-on: ${{matrix.platform}}
 
     steps:
