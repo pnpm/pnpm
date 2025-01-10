@@ -1,11 +1,7 @@
-import { DISABLE_DEPS_CHECK_ENV, shouldRunCheck } from '../src/shouldRunCheck'
+import { shouldRunCheck } from '../src/shouldRunCheck'
 
-test('should return true if no special env is defined', () => {
+test('should return true if npm_lifecycle_event is not defined', () => {
   expect(shouldRunCheck({})).toBe(true)
-})
-
-test('should return false if skip env is defined', () => {
-  expect(shouldRunCheck({ ...DISABLE_DEPS_CHECK_ENV })).toBe(false)
 })
 
 describe('should return false if npm_lifecycle_event is an install hook', () => {

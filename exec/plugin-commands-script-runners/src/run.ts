@@ -22,10 +22,11 @@ import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand } from './runRecursive'
 import { existsInDir } from './existsInDir'
+import { DISABLE_DEPS_CHECK_ENV } from './disableDepsCheckEnv'
 import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
 import { runDepsStatusCheck } from './runDepsStatusCheck'
-import { DISABLE_DEPS_CHECK_ENV, shouldRunCheck } from './shouldRunCheck'
+import { shouldRunCheck } from './shouldRunCheck'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,

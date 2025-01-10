@@ -16,7 +16,7 @@ test('single dependency', async () => {
     },
     scripts: {
       start: 'echo hello from script',
-      checkEnv: 'node --eval "assert.strictEqual(process.env.pnpm_run_skip_deps_check, \'true\')"',
+      checkEnv: 'node --eval "assert.strictEqual(process.env.npm_config_verify_deps_before_run, \'false\')"',
     },
   }
 
@@ -98,7 +98,7 @@ test('single dependency', async () => {
     expect(stdout.toString()).toContain('hello from script')
   }
 
-  // should set env.pnpm_run_skip_deps_check for the script
+  // should set env.npm_config_verify_deps_before_run to false for the script (to skip check in nested script)
   await execPnpm([...CONFIG, 'run', 'checkEnv'])
 })
 
@@ -198,16 +198,13 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
     fs.writeFileSync(require.resolve('./package.json'), jsonText)
     console.log('manifest mutated')
   `)
+  fs.writeFileSync('.npmrc', 'verify-deps-before-run=error', 'utf8')
 
   const cacheDir = path.resolve('cache')
-  const config = [
-    CONFIG,
-    `--config.cache-dir=${cacheDir}`,
-  ]
 
   // add a script named `start` which would inherit `config` and invoke `nestedScript`
   manifest.scripts!.start =
-    `node mutate-manifest.js && node ${pnpmBinLocation} ${config.join(' ')} run nestedScript`
+    `node mutate-manifest.js && node ${pnpmBinLocation} --config.cache-dir=${cacheDir} run nestedScript`
   project.writePackageJson(manifest)
 
   // attempting to execute a script without installing dependencies should fail
