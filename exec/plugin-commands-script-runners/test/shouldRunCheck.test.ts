@@ -1,6 +1,6 @@
 import { DISABLE_DEPS_CHECK_ENV, shouldRunCheck } from '../src/shouldRunCheck'
 
-test('should return true if skip env is not defined and script name is not special', () => {
+test('should return true if no special env is defined', () => {
   expect(shouldRunCheck({})).toBe(true)
 })
 
