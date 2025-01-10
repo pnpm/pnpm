@@ -36,6 +36,7 @@
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/default-reporter": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/deps.should-run-check": "workspace:*",
     "@pnpm/env.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",

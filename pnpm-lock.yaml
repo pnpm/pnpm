@@ -5796,6 +5796,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../packages/dependency-path
+      '@pnpm/deps.should-run-check':
+        specifier: workspace:*
+        version: link:../deps/should-run-check
       '@pnpm/env.path':
         specifier: workspace:*
         version: link:../env/path

@@ -61,6 +61,9 @@
       "path": "../crypto/hash"
     },
     {
+      "path": "../deps/should-run-check"
+    },
+    {
       "path": "../env/path"
     },
     {
