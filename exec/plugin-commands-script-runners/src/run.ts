@@ -199,7 +199,7 @@ export async function handler (
 
   // verifyDepsBeforeRun is outside of shouldRunCheck because TypeScript's tagged union
   // only works when the tag is directly placed in the condition.
-  if (opts.verifyDepsBeforeRun && shouldRunCheck(process.env, scriptName)) {
+  if (opts.verifyDepsBeforeRun && shouldRunCheck(process.env)) {
     await runDepsStatusCheck(opts)
   }
 
@@ -208,7 +208,6 @@ export async function handler (
       if (opts.verifyDepsBeforeRun) {
         opts.extraEnv = {
           ...opts.extraEnv,
-          ...DISABLE_DEPS_CHECK_ENV,
         }
       }
       return runRecursive(params, opts) as Promise<undefined>

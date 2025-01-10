@@ -28,7 +28,7 @@ import which from 'which'
 import writeJsonFile from 'write-json-file'
 import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint'
 import { runDepsStatusCheck } from './runDepsStatusCheck'
-import { DISABLE_DEPS_CHECK_ENV, SKIP_ENV_KEY } from './shouldRunCheck'
+import { DISABLE_DEPS_CHECK_ENV, shouldRunCheck } from './shouldRunCheck'
 
 export const shorthands: Record<string, string | string[]> = {
   parallel: runShorthands.parallel,
@@ -177,7 +177,7 @@ export async function handler (
   }
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
-  if (opts.verifyDepsBeforeRun && !process.env[SKIP_ENV_KEY]) {
+  if (opts.verifyDepsBeforeRun && shouldRunCheck(process.env)) {
     await runDepsStatusCheck(opts)
   }
 

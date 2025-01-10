@@ -12,14 +12,4 @@ export interface Env extends NodeJS.ProcessEnv {
   npm_lifecycle_event?: string
 }
 
-const SCRIPTS_TO_SKIP = [
-  'preinstall',
-  'install',
-  'postinstall',
-  'preuninstall',
-  'uninstall',
-  'postuninstall',
-]
-
-export const shouldRunCheck = (env: Env, scriptName: string): boolean =>
-  !env[SKIP_ENV_KEY] && !SCRIPTS_TO_SKIP.includes(scriptName) && !SCRIPTS_TO_SKIP.includes(env.npm_lifecycle_event!)
+export const shouldRunCheck = (env: Env): boolean => !env[SKIP_ENV_KEY] && !env.npm_lifecycle_event
