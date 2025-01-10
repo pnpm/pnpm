@@ -118,7 +118,6 @@ Please unset the script-shell option, or configure it to a .exe instead.
     extraBinPaths,
     extraEnv: {
       ...opts.extraEnv,
-      // ...DISABLE_DEPS_CHECK_ENV, // prevent false negative of verify-deps-before-run
       INIT_CWD: opts.initCwd ?? process.cwd(),
       PNPM_SCRIPT_SRC_DIR: opts.pkgRoot,
     },
