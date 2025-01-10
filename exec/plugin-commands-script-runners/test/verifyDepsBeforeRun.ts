@@ -6,6 +6,7 @@ import { run } from '@pnpm/plugin-commands-script-runners'
 import { prepare } from '@pnpm/prepare'
 import { prompt } from 'enquirer'
 import { DEFAULT_OPTS } from './utils'
+import { SKIP_ENV_KEY } from '../lib/shouldRunCheck'
 
 jest.mock('@pnpm/logger', () => {
   const originalModule = jest.requireActual('@pnpm/logger')
@@ -19,7 +20,7 @@ jest.mock('enquirer', () => ({
   prompt: jest.fn(),
 }))
 
-delete process.env['pnpm_run_skip_deps_check']
+delete process.env[SKIP_ENV_KEY]
 
 const rootProjectManifest = {
   name: 'root',
