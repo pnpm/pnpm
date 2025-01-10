@@ -12,4 +12,13 @@ export interface Env extends NodeJS.ProcessEnv {
   npm_lifecycle_event?: string
 }
 
-export const shouldRunCheck = (env: Env): boolean => !env[SKIP_ENV_KEY] && !env.npm_lifecycle_event
+const EVENTS_TO_SKIP: Array<string | undefined> = [
+  'preinstall',
+  'install',
+  'postinstall',
+  'preuninstall',
+  'uninstall',
+  'postuninstall',
+]
+
+export const shouldRunCheck = (env: Env): boolean => !env[SKIP_ENV_KEY] && !EVENTS_TO_SKIP.includes(env.npm_lifecycle_event)
