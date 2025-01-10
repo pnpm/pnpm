@@ -2159,9 +2159,6 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/deps.should-run-check':
-        specifier: workspace:*
-        version: link:../../deps/should-run-check
       '@pnpm/directory-fetcher':
         specifier: workspace:*
         version: link:../../fetching/directory-fetcher

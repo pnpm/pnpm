@@ -9,6 +9,7 @@ export const DISABLE_DEPS_CHECK_ENV = {
 
 export interface Env extends NodeJS.ProcessEnv {
   [SKIP_ENV_KEY]?: string
+  npm_lifecycle_event?: string
 }
 
 const SCRIPTS_TO_SKIP = [
@@ -20,4 +21,5 @@ const SCRIPTS_TO_SKIP = [
   'postuninstall',
 ]
 
-export const shouldRunCheck = (env: Env, scriptName: string): boolean => !env[SKIP_ENV_KEY] && !SCRIPTS_TO_SKIP.includes(scriptName)
+export const shouldRunCheck = (env: Env, scriptName: string): boolean =>
+  !env[SKIP_ENV_KEY] && !SCRIPTS_TO_SKIP.includes(scriptName) && !SCRIPTS_TO_SKIP.includes(env.npm_lifecycle_event!)
