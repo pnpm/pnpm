@@ -27,8 +27,9 @@ import { PnpmError } from '@pnpm/error'
 import which from 'which'
 import writeJsonFile from 'write-json-file'
 import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint'
+import { DISABLE_DEPS_CHECK_ENV } from './disableDepsCheckEnv'
 import { runDepsStatusCheck } from './runDepsStatusCheck'
-import { DISABLE_DEPS_CHECK_ENV, shouldRunCheck } from './shouldRunCheck'
+import { shouldRunCheck } from './shouldRunCheck'
 
 export const shorthands: Record<string, string | string[]> = {
   parallel: runShorthands.parallel,

@@ -16,7 +16,7 @@ test('single dependency', async () => {
     },
     scripts: {
       start: 'echo hello from script',
-      checkEnv: 'node --eval "assert.strictEqual(process.env.pnpm_run_skip_deps_check, \'true\')"',
+      checkEnv: 'node --eval "assert.strictEqual(process.env.npm_config_verify_deps_before_run, \'false\')"',
     },
   }
 
@@ -98,7 +98,7 @@ test('single dependency', async () => {
     expect(stdout.toString()).toContain('hello from script')
   }
 
-  // should set env.pnpm_run_skip_deps_check for the script
+  // should set env.npm_config_verify_deps_before_run to false for the script (to skip check in nested script)
   await execPnpm([...CONFIG, 'run', 'checkEnv'])
 })
 
