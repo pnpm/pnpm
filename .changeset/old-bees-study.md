@@ -1,6 +1,5 @@
 ---
 "@pnpm/plugin-commands-script-runners": patch
-"@pnpm/lifecycle": patch
 "pnpm": patch
 ---
 
