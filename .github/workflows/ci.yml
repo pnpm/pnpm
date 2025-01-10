@@ -8,21 +8,21 @@ permissions:
 jobs:
   build:
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.platform }}-${{ matrix.node }}
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.platform }}-${{ matrix.node[0] }}
       cancel-in-progress: true
 
     strategy:
       fail-fast: false
       matrix:
         node:
-          - '18.12.1'
-          - '20.18.1'
-          - '22.12.0'
+          - [18, 12, 1]
+          - [20, 18, 1]
+          - [22, 12, 0]
         platform:
           - ubuntu-latest
           - windows-latest
 
-    name: '${{matrix.platform}} / Node.js ${{ matrix.node }}'
+    name: ${{matrix.platform}} / Node.js ${{ matrix.node[0] }}
     runs-on: ${{matrix.platform}}
 
     steps:
@@ -40,7 +40,7 @@ jobs:
       with:
         standalone: true
     - name: Setup Node
-      run: pnpm env use -g ${{ matrix.node }}
+      run: pnpm env use -g ${{ join(matrix.node, '.') }}
       timeout-minutes: 1
     - name: Install npm@8
       run: pnpm add --global npm@8
