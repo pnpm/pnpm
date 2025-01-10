@@ -208,6 +208,7 @@ export async function handler (
       if (opts.verifyDepsBeforeRun) {
         opts.extraEnv = {
           ...opts.extraEnv,
+          ...DISABLE_DEPS_CHECK_ENV,
         }
       }
       return runRecursive(params, opts) as Promise<undefined>
