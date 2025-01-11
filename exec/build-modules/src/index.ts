@@ -59,12 +59,6 @@ export async function buildModules<T extends string> (
   const chunks = buildSequence<T>(depGraph, rootDepPaths)
   const ignoredPkgs = new Set<string>()
   const allowBuild = opts.allowBuild ?? (() => true)
-  const neverShowIgnoredDependencies = (pkg: string) => {
-    if (!opts.neverBuiltDependencies) {
-      return false
-    }
-    return opts.neverBuiltDependencies.includes(pkg)
-  }
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
@@ -79,9 +73,7 @@ export async function buildModules<T extends string> (
         let ignoreScripts = Boolean(buildDepOpts.ignoreScripts)
         if (!ignoreScripts) {
           if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].name)) {
-            if (!neverShowIgnoredDependencies(depGraph[depPath].name)) {
-              ignoredPkgs.add(depGraph[depPath].name)
-            }
+            ignoredPkgs.add(depGraph[depPath].name)
             ignoreScripts = true
           }
         }
@@ -93,6 +85,11 @@ export async function buildModules<T extends string> (
     )
   })
   await runGroups(opts.childConcurrency ?? 4, groups)
+  if (opts.neverBuiltDependencies?.length) {
+    for (const neverBuiltPkgName of opts.neverBuiltDependencies) {
+      ignoredPkgs.delete(neverBuiltPkgName)
+    }
+  }
   const packageNames = Array.from(ignoredPkgs)
   ignoredScriptsLogger.debug({ packageNames })
   return { ignoredBuilds: packageNames }
