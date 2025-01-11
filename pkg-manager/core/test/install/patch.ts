@@ -3,16 +3,19 @@ import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { install } from '@pnpm/core'
+import { type IgnoredScriptsLog } from '@pnpm/core-loggers'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { sync as rimraf } from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
+import sinon from 'sinon'
 import { testDefaults } from '../utils'
 
 const f = fixtures(__dirname)
 
 test('patch package', async () => {
+  const reporter = sinon.spy()
   const project = prepareEmpty()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
@@ -20,16 +23,24 @@ test('patch package', async () => {
     'is-positive@1.0.0': patchPath,
   }
   const opts = testDefaults({
+    onlyBuiltDependencies: [],
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     patchedDependencies,
+    reporter,
   }, {}, {}, { packageImportMethod: 'hardlink' })
   await install({
     dependencies: {
       'is-positive': '1.0.0',
     },
   }, opts)
+
+  expect(reporter.calledWithMatch({
+    packageNames: [],
+    level: 'debug',
+    name: 'pnpm:ignored-scripts',
+  } as IgnoredScriptsLog)).toBeTruthy()
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
 
