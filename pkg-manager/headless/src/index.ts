@@ -850,6 +850,7 @@ async function linkAllPkgs (
         if (depNode.optional) return
         throw err
       }
+
       depNode.requiresBuild = filesResponse.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
