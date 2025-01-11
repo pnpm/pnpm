@@ -32,25 +32,27 @@ jobs:
         uses: pnpm/action-setup@v4.0.0
         with:
           standalone: true
+      - name: check node Version
+        run: node -v
       - name: pnpm install
         # We use --force because we want all artifacts of @reflink/reflink to be installed.
         run: pnpm install --force
-      - name: Publish Packages
-        continue-on-error: true
-        env:
-          # setting the "npm_config_//registry.npmjs.org/:_authToken" env variable directly doesn't work.
-          # probably "pnpm release" doesn't pass auth tokens to child processes
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          npm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}" # pnpm config set is broken
-          pnpm release
-      - name: Copy Artifacts
-        run: pnpm run copy-artifacts
-      - name: Generate release description
-        run: pnpm run make-release-description
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: true
-          files: dist/*
-          body_path: RELEASE.md
+      # - name: Publish Packages
+        # continue-on-error: true
+        # env:
+          # # setting the "npm_config_//registry.npmjs.org/:_authToken" env variable directly doesn't work.
+          # # probably "pnpm release" doesn't pass auth tokens to child processes
+          # NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # run: |
+          # npm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}" # pnpm config set is broken
+          # pnpm release
+      # - name: Copy Artifacts
+        # run: pnpm run copy-artifacts
+      # - name: Generate release description
+        # run: pnpm run make-release-description
+      # - name: Release
+        # uses: softprops/action-gh-release@v2
+        # with:
+          # draft: true
+          # files: dist/*
+          # body_path: RELEASE.md
