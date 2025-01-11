@@ -525,6 +525,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
       allowBuild,
+      neverBuiltDependencies: opts.neverBuiltDependencies,
       childConcurrency: opts.childConcurrency,
       extraBinPaths,
       extraEnv,
@@ -849,7 +850,6 @@ async function linkAllPkgs (
         if (depNode.optional) return
         throw err
       }
-
       depNode.requiresBuild = filesResponse.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
