@@ -134,6 +134,7 @@ export interface ProjectManifest extends BaseManifest {
     neverBuiltDependencies?: string[]
     onlyBuiltDependencies?: string[]
     onlyBuiltDependenciesFile?: string
+    ignoredBuiltDependencies?: string[]
     overrides?: Record<string, string>
     packageExtensions?: Record<string, PackageExtension>
     ignoredOptionalDependencies?: string[]

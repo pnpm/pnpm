@@ -65,6 +65,7 @@ export interface StrictInstallOptions {
   rawConfig: Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
   verifyStoreIntegrity: boolean
   engineStrict: boolean
+  ignoredBuiltDependencies?: string[]
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   onlyBuiltDependenciesFile?: string
@@ -268,10 +269,7 @@ export function extendOptions (
     }
   }
   if (opts.onlyBuiltDependencies && opts.neverBuiltDependencies) {
-    if (opts.onlyBuiltDependencies.some((dep) => opts.neverBuiltDependencies!.includes(dep))) {
-      throw new PnpmError('CONFIG_CONFLICT_ONLY_BUILT_DEPENDENCIES_AND_NEVER_BUILT_DEPENDENCIES',
-        'The same dependencies cannot be both in onlyBuiltDependencies and neverBuiltDependencies')
-    }
+    throw new PnpmError('CONFIG_CONFLICT_BUILT_DEPENDENCIES', 'Cannot have both neverBuiltDependencies and onlyBuiltDependencies')
   }
   const defaultOpts = defaults(opts)
   const extendedOpts: ProcessedInstallOptions = {

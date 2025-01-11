@@ -106,6 +106,7 @@ export interface Project {
 
 export interface HeadlessOptions {
   neverBuiltDependencies?: string[]
+  ignoredBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   onlyBuiltDependenciesFile?: string
   autoInstallPeers?: boolean
@@ -525,7 +526,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
       allowBuild,
-      neverBuiltDependencies: opts.neverBuiltDependencies,
+      ignoredBuiltDependencies: opts.ignoredBuiltDependencies,
       childConcurrency: opts.childConcurrency,
       extraBinPaths,
       extraEnv,

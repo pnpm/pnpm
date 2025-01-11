@@ -455,7 +455,7 @@ test('selectively ignore scripts in some dependencies by neverBuiltDependencies'
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })
 
-test('allow both neverBuiltDependencies and onlyBuiltDependencies are used', async () => {
+test('throw an exception when both neverBuiltDependencies and onlyBuiltDependencies are used', async () => {
   prepareEmpty()
 
   await expect(
@@ -464,19 +464,7 @@ test('allow both neverBuiltDependencies and onlyBuiltDependencies are used', asy
       ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'],
       testDefaults({ onlyBuiltDependencies: ['@pnpm.e2e/foo'], neverBuiltDependencies: ['@pnpm.e2e/bar'] })
     )
-  ).resolves.not.toThrow()
-})
-
-test('throw an exception when neverBuiltDependencies and onlyBuiltDependencies have dependencies with the same name', async () => {
-  prepareEmpty()
-
-  await expect(
-    addDependenciesToPackage(
-      {},
-      ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'],
-      testDefaults({ onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'], neverBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'] })
-    )
-  ).rejects.toThrow(/The same dependencies/)
+  ).rejects.toThrow(/Cannot have both/)
 })
 
 test('selectively allow scripts in some dependencies by onlyBuiltDependencies', async () => {

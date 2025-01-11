@@ -16,6 +16,7 @@ export interface OptionsFromRootManifest {
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   onlyBuiltDependenciesFile?: string
+  ignoredBuiltDependencies?: string[]
   packageExtensions?: Record<string, PackageExtension>
   ignoredOptionalDependencies?: string[]
   patchedDependencies?: Record<string, string>
@@ -70,6 +71,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
     peerDependencyRules,
     patchedDependencies,
     supportedArchitectures,
+    ignoredBuiltDependencies: manifest.pnpm?.ignoredBuiltDependencies,
   }
   if (onlyBuiltDependencies) {
     settings.onlyBuiltDependencies = onlyBuiltDependencies
