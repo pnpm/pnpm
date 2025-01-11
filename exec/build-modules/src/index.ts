@@ -57,13 +57,7 @@ export async function buildModules<T extends string> (
   }
   const chunks = buildSequence<T>(depGraph, rootDepPaths)
   const ignoredPkgs = new Set<string>()
-  const allowBuild = opts.allowBuild
-    ? (pkgName: string) => {
-      if (opts.allowBuild!(pkgName)) return true
-      ignoredPkgs.add(pkgName)
-      return false
-    }
-    : () => true
+  const allowBuild = opts.allowBuild ?? (() => true)
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
@@ -74,10 +68,19 @@ export async function buildModules<T extends string> (
     }
 
     return chunk.map((depPath) =>
-      () => buildDependency(depPath, depGraph, {
-        ...buildDepOpts,
-        ignoreScripts: Boolean(buildDepOpts.ignoreScripts) || !allowBuild(depGraph[depPath].name),
-      })
+      () => {
+        let ignoreScripts = Boolean(buildDepOpts.ignoreScripts)
+        if (!ignoreScripts) {
+          if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].name)) {
+            ignoredPkgs.add(depGraph[depPath].name)
+            ignoreScripts = true
+          }
+        }
+        return buildDependency(depPath, depGraph, {
+          ...buildDepOpts,
+          ignoreScripts,
+        })
+      }
     )
   })
   await runGroups(opts.childConcurrency ?? 4, groups)
