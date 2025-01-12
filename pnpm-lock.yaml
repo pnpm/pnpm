@@ -2101,6 +2101,9 @@ importers:
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
+      '@pnpm/prepare-temp-dir':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare-temp-dir
       render-help:
         specifier: 'catalog:'
         version: 1.0.3

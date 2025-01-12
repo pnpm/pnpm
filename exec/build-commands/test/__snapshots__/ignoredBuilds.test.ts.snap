@@ -1,0 +1,9 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`ignoredBuilds lists automatically ignored dependencies 1`] = `
+"Automatically ignored builds:
+  foo
+hint: To allow the execution of build scripts for a package, add its name to "pnpm.onlyBuiltDependencies" in your "package.json", then run "pnpm rebuild".
+hint: If you don't want to build a package, add it to the "pnpm.ignoredBuiltDependencies" list.
+"
+`;
