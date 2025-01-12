@@ -2090,6 +2090,25 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  exec/build-commands:
+    dependencies:
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/logger':
+        specifier: '>=5.1.0 <1001.0.0'
+        version: 5.1.0
+      '@pnpm/modules-yaml':
+        specifier: workspace:*
+        version: link:../../pkg-manager/modules-yaml
+      render-help:
+        specifier: 'catalog:'
+        version: 1.0.3
+    devDependencies:
+      '@pnpm/exec.build-commands':
+        specifier: workspace:*
+        version: 'link:'
+
   exec/build-modules:
     dependencies:
       '@pnpm/calc-dep-state':
@@ -5790,6 +5809,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../packages/error
+      '@pnpm/exec.build-commands':
+        specifier: workspace:*
+        version: link:../exec/build-commands
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../workspace/filter-workspace-packages
