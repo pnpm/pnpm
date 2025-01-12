@@ -24,7 +24,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 
 export async function handler (opts: IgnoredBuildsCommandOpts): Promise<string> {
   const automaticallyIgnoredBuilds = await getAutomaticallyIgnoredBuilds(opts)
-  let output = 'Automatically ignored builds:\n'
+  let output = 'Automatically ignored builds during installation:\n'
   if (automaticallyIgnoredBuilds == null) {
     output += '  Cannot identify as no node_modules found'
   } else if (automaticallyIgnoredBuilds.length === 0) {
