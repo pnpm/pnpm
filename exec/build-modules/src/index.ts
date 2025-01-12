@@ -23,6 +23,7 @@ export async function buildModules<T extends string> (
   rootDepPaths: T[],
   opts: {
     allowBuild?: (pkgName: string) => boolean
+    ignoredBuiltDependencies?: string[]
     childConcurrency?: number
     depsToBuild?: Set<string>
     depsStateCache: DepsStateCache
@@ -84,6 +85,13 @@ export async function buildModules<T extends string> (
     )
   })
   await runGroups(opts.childConcurrency ?? 4, groups)
+  if (opts.ignoredBuiltDependencies?.length) {
+    for (const ignoredBuild of opts.ignoredBuiltDependencies) {
+      // We already ignore the build of this dependency.
+      // No need to report it.
+      ignoredPkgs.delete(ignoredBuild)
+    }
+  }
   const packageNames = Array.from(ignoredPkgs)
   ignoredScriptsLogger.debug({ packageNames })
   return { ignoredBuilds: packageNames }

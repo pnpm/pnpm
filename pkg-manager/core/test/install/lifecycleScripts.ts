@@ -469,23 +469,41 @@ test('throw an exception when both neverBuiltDependencies and onlyBuiltDependenc
 
 test('selectively allow scripts in some dependencies by onlyBuiltDependencies', async () => {
   prepareEmpty()
+  const reporter = sinon.spy()
   const onlyBuiltDependencies = ['@pnpm.e2e/install-script-example']
   const manifest = await addDependenciesToPackage({},
     ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
-    testDefaults({ fastUnpack: false, onlyBuiltDependencies })
+    testDefaults({ fastUnpack: false, onlyBuiltDependencies, reporter })
   )
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
+  {
+    const ignoredPkgsLog = reporter.getCalls().find((call) => call.firstArg.name === 'pnpm:ignored-scripts')?.firstArg
+    expect(ignoredPkgsLog.packageNames).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+  }
+  reporter.resetHistory()
+
   rimraf('node_modules')
 
-  await install(manifest, testDefaults({ fastUnpack: false, frozenLockfile: true, onlyBuiltDependencies }))
+  await install(manifest, testDefaults({
+    fastUnpack: false,
+    frozenLockfile: true,
+    ignoredBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+    onlyBuiltDependencies,
+    reporter,
+  }))
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+
+  {
+    const ignoredPkgsLog = reporter.getCalls().find((call) => call.firstArg.name === 'pnpm:ignored-scripts')?.firstArg
+    expect(ignoredPkgsLog.packageNames).toStrictEqual([])
+  }
 })
 
 test('lifecycle scripts have access to package\'s own binary by binary name', async () => {

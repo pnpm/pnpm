@@ -65,6 +65,7 @@ export interface StrictInstallOptions {
   rawConfig: Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
   verifyStoreIntegrity: boolean
   engineStrict: boolean
+  ignoredBuiltDependencies?: string[]
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   onlyBuiltDependenciesFile?: string
