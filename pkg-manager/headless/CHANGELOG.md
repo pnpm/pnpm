@@ -1,5 +1,19 @@
 # @pnpm/headless
 
+## 900.0.3
+
+### Patch Changes
+
+- Updated dependencies [f713b4e]
+  - @pnpm/package-requester@901.0.0
+  - @pnpm/store-controller-types@901.0.0
+  - @pnpm/deps.graph-builder@900.0.3
+  - @pnpm/build-modules@900.1.1
+  - @pnpm/lifecycle@900.0.3
+  - @pnpm/modules-cleaner@900.0.3
+  - @pnpm/worker@900.0.3
+  - @pnpm/symlink-dependency@900.0.1
+
 ## 900.0.2
 
 ### Patch Changes

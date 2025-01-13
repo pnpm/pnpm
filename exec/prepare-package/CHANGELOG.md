@@ -1,5 +1,11 @@
 # @pnpm/prepare-package
 
+## 900.0.3
+
+### Patch Changes
+
+- @pnpm/lifecycle@900.0.3
+
 ## 900.0.2
 
 ### Patch Changes

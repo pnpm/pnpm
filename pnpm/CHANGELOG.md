@@ -1,5 +1,11 @@
 # pnpm
 
+## 9.15.4
+
+### Patch Changes
+
+- Ensure that recursive `pnpm update --latest <pkg>` updates only the specified package, with `dedupe-peer-dependents=true`.
+
 ## 9.15.3
 
 ### Patch Changes

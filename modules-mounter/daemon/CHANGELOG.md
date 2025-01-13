@@ -1,5 +1,12 @@
 # @pnpm/mount-modules
 
+## 900.0.3
+
+### Patch Changes
+
+- @pnpm/store.cafs@900.0.1
+- @pnpm/config@900.0.3
+
 ## 900.0.2
 
 ### Patch Changes

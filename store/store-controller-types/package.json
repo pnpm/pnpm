@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store-controller-types",
-  "version": "900.0.0",
+  "version": "901.0.0",
   "description": "Types for the store controller",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

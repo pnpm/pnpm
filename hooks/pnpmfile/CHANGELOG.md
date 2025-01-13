@@ -1,5 +1,13 @@
 # @pnpm/pnpmfile
 
+## 900.0.3
+
+### Patch Changes
+
+- Updated dependencies [f713b4e]
+  - @pnpm/store-controller-types@901.0.0
+  - @pnpm/crypto.base32-hash@900.0.0
+
 ## 900.0.2
 
 ### Patch Changes

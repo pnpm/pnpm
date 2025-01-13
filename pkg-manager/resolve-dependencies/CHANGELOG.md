@@ -1,5 +1,13 @@
 # @pnpm/resolve-dependencies
 
+## 901.0.1
+
+### Patch Changes
+
+- f713b4e: Fix a case in `resolveDependencies`, whereby an importer that should not have been updated altogether, was being updated when `updateToLatest` was specified in the options.
+- Updated dependencies [f713b4e]
+  - @pnpm/store-controller-types@901.0.0
+
 ## 901.0.0
 
 ### Major Changes

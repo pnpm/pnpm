@@ -1,5 +1,11 @@
 # @pnpm/license-scanner
 
+## 900.0.3
+
+### Patch Changes
+
+- @pnpm/store.cafs@900.0.1
+
 ## 900.0.2
 
 ### Patch Changes

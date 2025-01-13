@@ -1,5 +1,24 @@
 # @pnpm/core
 
+## 901.0.1
+
+### Patch Changes
+
+- Updated dependencies [f713b4e]
+- Updated dependencies [f713b4e]
+  - @pnpm/resolve-dependencies@901.0.1
+  - @pnpm/package-requester@901.0.0
+  - @pnpm/store-controller-types@901.0.0
+  - @pnpm/headless@900.0.3
+  - @pnpm/build-modules@900.1.1
+  - @pnpm/lifecycle@900.0.3
+  - @pnpm/modules-cleaner@900.0.3
+  - @pnpm/worker@900.0.3
+  - @pnpm/symlink-dependency@900.0.1
+  - @pnpm/lockfile.settings-checker@900.0.1
+  - @pnpm/lockfile.verification@900.0.2
+  - @pnpm/crypto.base32-hash@900.0.0
+
 ## 901.0.0
 
 ### Major Changes

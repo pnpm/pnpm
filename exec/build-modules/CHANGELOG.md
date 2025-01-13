@@ -1,5 +1,16 @@
 # @pnpm/build-modules
 
+## 900.1.1
+
+### Patch Changes
+
+- Updated dependencies [f713b4e]
+  - @pnpm/store-controller-types@901.0.0
+  - @pnpm/lifecycle@900.0.3
+  - @pnpm/worker@900.0.3
+  - @pnpm/fs.hard-link-dir@900.0.0
+  - @pnpm/patching.apply-patch@900.0.1
+
 ## 900.1.0
 
 ### Minor Changes

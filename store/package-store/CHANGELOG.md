@@ -1,5 +1,16 @@
 # @pnpm/package-store
 
+## 900.0.3
+
+### Patch Changes
+
+- Updated dependencies [f713b4e]
+  - @pnpm/package-requester@901.0.0
+  - @pnpm/store-controller-types@901.0.0
+  - @pnpm/store.cafs@900.0.1
+  - @pnpm/create-cafs-store@900.0.2
+  - @pnpm/worker@900.0.3
+
 ## 900.0.2
 
 ### Patch Changes

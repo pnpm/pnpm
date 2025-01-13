@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-licenses
 
+## 900.0.3
+
+### Patch Changes
+
+- @pnpm/config@900.0.3
+- @pnpm/license-scanner@900.0.3
+- @pnpm/cli-utils@900.0.3
+
 ## 900.0.2
 
 ### Patch Changes

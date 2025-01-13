@@ -1,5 +1,11 @@
 # @pnpm/outdated
 
+## 900.0.4
+
+### Patch Changes
+
+- @pnpm/client@900.0.4
+
 ## 900.0.3
 
 ### Patch Changes

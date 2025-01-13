@@ -1,5 +1,12 @@
 # @pnpm/server
 
+## 900.0.2
+
+### Patch Changes
+
+- Updated dependencies [f713b4e]
+  - @pnpm/store-controller-types@901.0.0
+
 ## 900.0.1
 
 ### Patch Changes

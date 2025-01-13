@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-script-runners
 
+## 900.0.6
+
+### Patch Changes
+
+- @pnpm/lifecycle@900.0.3
+- @pnpm/plugin-commands-installation@900.0.6
+- @pnpm/config@900.0.3
+- @pnpm/cli-utils@900.0.3
+- @pnpm/plugin-commands-env@900.0.3
+- @pnpm/crypto.base32-hash@900.0.0
+
 ## 900.0.5
 
 ### Patch Changes

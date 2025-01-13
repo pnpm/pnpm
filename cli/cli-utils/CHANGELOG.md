@@ -1,5 +1,12 @@
 # @pnpm/cli-utils
 
+## 900.0.3
+
+### Patch Changes
+
+- @pnpm/config@900.0.3
+- @pnpm/default-reporter@900.1.1
+
 ## 900.0.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-doctor
 
+## 900.0.3
+
+### Patch Changes
+
+- @pnpm/config@900.0.3
+- @pnpm/cli-utils@900.0.3
+
 ## 900.0.2
 
 ### Patch Changes

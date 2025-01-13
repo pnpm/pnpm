@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 900.1.1
+
+### Patch Changes
+
+- @pnpm/config@900.0.3
+
 ## 900.1.0
 
 ### Minor Changes

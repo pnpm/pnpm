@@ -1,5 +1,13 @@
 # @pnpm/cache.commands
 
+## 900.0.4
+
+### Patch Changes
+
+- @pnpm/config@900.0.3
+- @pnpm/cache.api@900.0.4
+- @pnpm/cli-utils@900.0.3
+
 ## 900.0.3
 
 ### Patch Changes

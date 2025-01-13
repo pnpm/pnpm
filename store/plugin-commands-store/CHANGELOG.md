@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-store
 
+## 900.0.4
+
+### Patch Changes
+
+- Updated dependencies [f713b4e]
+  - @pnpm/store-controller-types@901.0.0
+  - @pnpm/store.cafs@900.0.1
+  - @pnpm/store-connection-manager@900.0.4
+  - @pnpm/config@900.0.3
+  - @pnpm/cli-utils@900.0.3
+
 ## 900.0.3
 
 ### Patch Changes
