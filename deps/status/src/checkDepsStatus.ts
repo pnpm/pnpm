@@ -156,18 +156,30 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
     }
 
     const allManifestStats = await Promise.all(allProjects.map(async project => {
+      const modulesDirStatPromise = safeStat(path.join(project.rootDir, 'node_modules'))
       const manifestStats = await statManifestFile(project.rootDir)
       if (!manifestStats) {
         // this error should not happen
         throw new Error(`Cannot find one of ${MANIFEST_BASE_NAMES.join(', ')} in ${project.rootDir}`)
       }
-      return { project, manifestStats }
+      return {
+        project,
+        manifestStats,
+        modulesDirStats: await modulesDirStatPromise,
+      }
     }))
 
-    const modifiedProjects = allManifestStats.filter(
-      ({ manifestStats }) =>
-        manifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp
-    )
+    const modifiedProjects = allManifestStats.filter(({ project, manifestStats, modulesDirStats }) => {
+      if (manifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) return true
+
+      if (!modulesDirStats && !isEmpty({
+        ...project.manifest.dependencies,
+        ...project.manifest.optionalDependencies, // TODO: how to detect when to install optional?
+        ...project.manifest.devDependencies, // TODO: handle --prod properly
+      })) return true
+
+      return false
+    })
 
     if (modifiedProjects.length === 0) {
       logger.debug({ msg: 'No manifest files were modified since the last validation. Exiting check.' })
