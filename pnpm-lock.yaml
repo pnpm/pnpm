@@ -2104,6 +2104,15 @@ importers:
       '@pnpm/prepare-temp-dir':
         specifier: workspace:*
         version: link:../../__utils__/prepare-temp-dir
+      '@pnpm/read-project-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-project-manifest
+      chalk:
+        specifier: 'catalog:'
+        version: 4.1.2
+      enquirer:
+        specifier: 'catalog:'
+        version: 2.4.1
       render-help:
         specifier: 'catalog:'
         version: 1.0.3

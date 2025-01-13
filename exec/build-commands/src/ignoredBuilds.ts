@@ -1,7 +1,6 @@
-import path from 'path'
 import { type Config } from '@pnpm/config'
-import { readModulesManifest } from '@pnpm/modules-yaml'
 import renderHelp from 'render-help'
+import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds'
 
 export type IgnoredBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest'>
 
@@ -39,12 +38,4 @@ hint: If you don't want to build a package, add it to the "pnpm.ignoredBuiltDepe
     output += `\nExplicitly ignored package builds (via pnpm.ignoredBuiltDependencies):\n  ${opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.join('\n  ')}\n`
   }
   return output
-}
-
-async function getAutomaticallyIgnoredBuilds (opts: IgnoredBuildsCommandOpts) {
-  const modulesManifest = await readModulesManifest(opts.modulesDir ?? path.join(opts.dir, 'node_modules'))
-  if (modulesManifest == null) {
-    return null
-  }
-  return modulesManifest?.ignoredBuilds ?? []
 }

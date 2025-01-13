@@ -17,6 +17,9 @@
     },
     {
       "path": "../../pkg-manager/modules-yaml"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
     }
   ]
 }

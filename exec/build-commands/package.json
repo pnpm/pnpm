@@ -36,6 +36,9 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "chalk": "catalog:",
+    "enquirer": "catalog:",
     "render-help": "catalog:"
   },
   "peerDependencies": {

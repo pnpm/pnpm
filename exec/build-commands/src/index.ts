@@ -1,3 +1,4 @@
+import * as approveBuilds from './approveBuilds'
 import * as ignoredBuilds from './ignoredBuilds'
 
-export { ignoredBuilds }
+export { approveBuilds, ignoredBuilds }
