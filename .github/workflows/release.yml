@@ -33,7 +33,7 @@ jobs:
         with:
           standalone: true
       - name: Setup Node
-        run: pnpm env use -g 22.12.0
+        run: pnpm env use -g 20.18.1
         timeout-minutes: 1
       - name: pnpm install
         # We use --force because we want all artifacts of @reflink/reflink to be installed.
