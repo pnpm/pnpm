@@ -22,7 +22,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
 }
 
 export async function handler (opts: IgnoredBuildsCommandOpts): Promise<string> {
-  const automaticallyIgnoredBuilds = await getAutomaticallyIgnoredBuilds(opts)
+  const ignoredBuiltDependencies = opts.rootProjectManifest?.pnpm?.ignoredBuiltDependencies ?? []
+  const automaticallyIgnoredBuilds = (await getAutomaticallyIgnoredBuilds(opts))?.filter((automaticallyIgnoredBuild) => !ignoredBuiltDependencies.includes(automaticallyIgnoredBuild))
   let output = 'Automatically ignored builds during installation:\n'
   if (automaticallyIgnoredBuilds == null) {
     output += '  Cannot identify as no node_modules found'
@@ -34,8 +35,8 @@ hint: To allow the execution of build scripts for a package, add its name to "pn
 hint: If you don't want to build a package, add it to the "pnpm.ignoredBuiltDependencies" list.`
   }
   output += '\n'
-  if (opts.rootProjectManifest?.pnpm?.ignoredBuiltDependencies?.length) {
-    output += `\nExplicitly ignored package builds (via pnpm.ignoredBuiltDependencies):\n  ${opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.join('\n  ')}\n`
+  if (ignoredBuiltDependencies.length) {
+    output += `\nExplicitly ignored package builds (via pnpm.ignoredBuiltDependencies):\n  ${ignoredBuiltDependencies.join('\n  ')}\n`
   }
   return output
 }
