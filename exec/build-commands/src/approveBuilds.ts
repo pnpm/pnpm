@@ -3,6 +3,7 @@ import { readProjectManifest } from '@pnpm/read-project-manifest'
 import renderHelp from 'render-help'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
+import { rebuild, type RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds'
 
 export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir'>
@@ -24,7 +25,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
   return {}
 }
 
-export async function handler (opts: ApproveBuildsCommandOpts): Promise<void> {
+export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts): Promise<void> {
   if (opts.rootProjectManifest == null) return
   const automaticallyIgnoredBuilds = await getAutomaticallyIgnoredBuilds(opts)
   if (automaticallyIgnoredBuilds == null) return
@@ -88,4 +89,7 @@ export async function handler (opts: ApproveBuildsCommandOpts): Promise<void> {
   }
   const { writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
   await writeProjectManifest(opts.rootProjectManifest)
+  if (buildPackages.length) {
+    return rebuild.handler(opts, buildPackages)
+  }
 }

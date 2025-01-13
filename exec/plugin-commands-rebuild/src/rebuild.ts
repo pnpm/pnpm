@@ -71,35 +71,37 @@ For options that may be used with `-r`, see "pnpm help recursive"',
   })
 }
 
+export type RebuildCommandOpts = Pick<Config,
+| 'allProjects'
+| 'dir'
+| 'engineStrict'
+| 'hooks'
+| 'lockfileDir'
+| 'nodeLinker'
+| 'rawLocalConfig'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
+| 'registries'
+| 'scriptShell'
+| 'selectedProjectsGraph'
+| 'sideEffectsCache'
+| 'sideEffectsCacheReadonly'
+| 'scriptsPrependNodePath'
+| 'shellEmulator'
+| 'workspaceDir'
+> &
+CreateStoreControllerOptions &
+{
+  recursive?: boolean
+  reporter?: (logObj: LogBase) => void
+  pending: boolean
+  skipIfHasSideEffectsCache?: boolean
+  neverBuiltDependencies?: string[]
+  onlyBuiltDependencies?: string[]
+}
+
 export async function handler (
-  opts: Pick<Config,
-  | 'allProjects'
-  | 'dir'
-  | 'engineStrict'
-  | 'hooks'
-  | 'lockfileDir'
-  | 'nodeLinker'
-  | 'rawLocalConfig'
-  | 'rootProjectManifest'
-  | 'rootProjectManifestDir'
-  | 'registries'
-  | 'scriptShell'
-  | 'selectedProjectsGraph'
-  | 'sideEffectsCache'
-  | 'sideEffectsCacheReadonly'
-  | 'scriptsPrependNodePath'
-  | 'shellEmulator'
-  | 'workspaceDir'
-  > &
-  CreateStoreControllerOptions &
-  {
-    recursive?: boolean
-    reporter?: (logObj: LogBase) => void
-    pending: boolean
-    skipIfHasSideEffectsCache?: boolean
-    neverBuiltDependencies?: string[]
-    onlyBuiltDependencies?: string[]
-  },
+  opts: RebuildCommandOpts,
   params: string[]
 ): Promise<void> {
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {

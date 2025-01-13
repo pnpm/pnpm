@@ -20,6 +20,9 @@
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../plugin-commands-rebuild"
     }
   ]
 }
