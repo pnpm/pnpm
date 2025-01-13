@@ -87,6 +87,18 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
       opts.rootProjectManifest.pnpm.onlyBuiltDependencies.push(...buildPackages)
     }
   }
+  if (buildPackages.length) {
+    const confirmed = await prompt<{ build: boolean }>({
+      type: 'confirm',
+      name: 'build',
+      message: `The next packages will now be built: ${buildPackages.join(', ')}.
+Do you approve?`,
+      initial: false,
+    })
+    if (!confirmed.build) {
+      return
+    }
+  }
   const { writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
   await writeProjectManifest(opts.rootProjectManifest)
   if (buildPackages.length) {
