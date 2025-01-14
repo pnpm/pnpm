@@ -174,7 +174,6 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
       if (modulesDirStats) continue
       if (isEmpty({
         ...project.manifest.dependencies,
-        ...project.manifest.optionalDependencies,
         ...project.manifest.devDependencies,
       })) continue
       const id = project.manifest.name ?? project.rootDir
