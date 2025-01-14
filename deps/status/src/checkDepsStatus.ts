@@ -170,16 +170,18 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
       }
     }))
 
-    for (const { modulesDirStats, project } of allManifestStats) {
-      if (modulesDirStats) continue
-      if (isEmpty({
-        ...project.manifest.dependencies,
-        ...project.manifest.devDependencies,
-      })) continue
-      const id = project.manifest.name ?? project.rootDir
-      return {
-        upToDate: false,
-        issue: `Workspace package ${id} has dependencies but does not have a modules directory`,
+    if (!workspaceState.filteredInstall) {
+      for (const { modulesDirStats, project } of allManifestStats) {
+        if (modulesDirStats) continue
+        if (isEmpty({
+          ...project.manifest.dependencies,
+          ...project.manifest.devDependencies,
+        })) continue
+        const id = project.manifest.name ?? project.rootDir
+        return {
+          upToDate: false,
+          issue: `Workspace package ${id} has dependencies but does not have a modules directory`,
+        }
       }
     }
 
