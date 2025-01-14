@@ -40,7 +40,8 @@ import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { loadWorkspaceState, updateWorkspaceState } from '@pnpm/workspace.state'
 import { assertLockfilesEqual } from './assertLockfilesEqual'
-import { safeStat, safeStatSync, statManifestFile } from './statManifestFile'
+import { safeStat, safeStatSync } from './safeStat'
+import { statManifestFile } from './statManifestFile'
 import { type WorkspaceStateSettings } from '@pnpm/workspace.state/src/types'
 
 export type CheckDepsStatusOptions = Pick<Config,
@@ -217,7 +218,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
     } else {
       readWantedLockfileAndDir = async wantedLockfileDir => {
         const wantedLockfilePromise = readWantedLockfile(wantedLockfileDir, { ignoreIncompatible: false })
-        const wantedLockfileStats = await statIfExists(path.join(wantedLockfileDir, WANTED_LOCKFILE))
+        const wantedLockfileStats = await safeStat(path.join(wantedLockfileDir, WANTED_LOCKFILE))
 
         if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
         if (wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) {
@@ -308,8 +309,8 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
       wantedLockfileStats,
       manifestStats,
     ] = await Promise.all([
-      statIfExists(path.join(virtualStoreDir, 'lock.yaml')),
-      statIfExists(path.join(rootProjectManifestDir, WANTED_LOCKFILE)),
+      safeStat(path.join(virtualStoreDir, 'lock.yaml')),
+      safeStat(path.join(rootProjectManifestDir, WANTED_LOCKFILE)),
       statManifestFile(rootProjectManifestDir),
     ])
 
@@ -478,19 +479,6 @@ async function assertWantedLockfileUpToDate (
       hint: 'Run `pnpm install` to update the packages',
     })
   }
-}
-
-async function statIfExists (filePath: string): Promise<fs.Stats | undefined> {
-  let stats: fs.Stats
-  try {
-    stats = await fs.promises.stat(filePath)
-  } catch (error) {
-    if (util.types.isNativeError(error) && 'code' in error && error.code === 'ENOENT') {
-      return undefined
-    }
-    throw error
-  }
-  return stats
 }
 
 function throwLockfileNotFound (wantedLockfileDir: string): never {
