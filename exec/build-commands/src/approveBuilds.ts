@@ -12,7 +12,7 @@ export const commandNames = ['approve-builds']
 
 export function help (): string {
   return renderHelp({
-    description: '..',
+    description: 'Approve dependencies for running scripts during installation',
     usages: [],
   })
 }

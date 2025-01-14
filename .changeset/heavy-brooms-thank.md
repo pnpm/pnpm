@@ -1,6 +1,5 @@
 ---
 "@pnpm/exec.build-commands": major
-"pnpm/default-reporter": minor
 "pnpm": minor
 ---
 
