@@ -174,8 +174,8 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
 
       if (!modulesDirStats && !isEmpty({
         ...project.manifest.dependencies,
-        ...project.manifest.optionalDependencies, // TODO: how to detect when to install optional?
-        ...project.manifest.devDependencies, // TODO: handle --prod properly
+        ...project.manifest.optionalDependencies,
+        ...project.manifest.devDependencies,
       })) return true
 
       return false
