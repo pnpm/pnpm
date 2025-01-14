@@ -172,13 +172,11 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
     const modifiedProjects = allManifestStats.filter(({ project, manifestStats, modulesDirStats }) => {
       if (manifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) return true
 
-      if (!modulesDirStats && !isEmpty({
+      return !modulesDirStats && !isEmpty({
         ...project.manifest.dependencies,
         ...project.manifest.optionalDependencies,
         ...project.manifest.devDependencies,
-      })) return true
-
-      return false
+      })
     })
 
     if (modifiedProjects.length === 0) {
