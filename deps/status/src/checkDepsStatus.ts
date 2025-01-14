@@ -172,6 +172,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
     const modifiedProjects = allManifestStats.filter(({ project, manifestStats, modulesDirStats }) => {
       if (manifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) return true
 
+      // if `node_modules` doesn't exist, make sure that `package.json` doesn't have any dependencies
       return !modulesDirStats && !isEmpty({
         ...project.manifest.dependencies,
         ...project.manifest.optionalDependencies,
