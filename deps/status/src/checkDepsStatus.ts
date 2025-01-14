@@ -156,7 +156,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
     }
 
     const allManifestStats = await Promise.all(allProjects.map(async project => {
-      const modulesDirStatPromise = safeStat(path.join(project.rootDir, 'node_modules'))
+      const modulesDirStatsPromise = safeStat(path.join(project.rootDir, 'node_modules'))
       const manifestStats = await statManifestFile(project.rootDir)
       if (!manifestStats) {
         // this error should not happen
@@ -165,20 +165,28 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
       return {
         project,
         manifestStats,
-        modulesDirStats: await modulesDirStatPromise,
+        modulesDirStats: await modulesDirStatsPromise,
       }
     }))
 
-    const modifiedProjects = allManifestStats.filter(({ project, manifestStats, modulesDirStats }) => {
-      if (manifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) return true
-
-      // if `node_modules` doesn't exist, make sure that `package.json` doesn't have any dependencies
-      return !modulesDirStats && !isEmpty({
+    for (const { modulesDirStats, project } of allManifestStats) {
+      if (modulesDirStats) continue
+      if (isEmpty({
         ...project.manifest.dependencies,
         ...project.manifest.optionalDependencies,
         ...project.manifest.devDependencies,
-      })
-    })
+      })) continue
+      const id = project.manifest.name ?? project.rootDir
+      return {
+        upToDate: false,
+        issue: `Workspace package ${id} has dependencies but does not have a modules directory`,
+      }
+    }
+
+    const modifiedProjects = allManifestStats.filter(
+      ({ manifestStats }) =>
+        manifestStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp
+    )
 
     if (modifiedProjects.length === 0) {
       logger.debug({ msg: 'No manifest files were modified since the last validation. Exiting check.' })
