@@ -20,6 +20,7 @@ export const types = Object.assign({
   'enable-pre-post-scripts': Boolean,
   'exclude-links-from-lockfile': Boolean,
   'extend-node-path': Boolean,
+  'fast-reinstall': Boolean,
   'fetch-timeout': Number,
   'fetching-concurrency': Number,
   filter: [String, Array],

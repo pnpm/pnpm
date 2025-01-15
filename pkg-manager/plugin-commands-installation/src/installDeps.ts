@@ -59,6 +59,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'dev'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
+| 'fastReinstall'
 | 'global'
 | 'globalPnpmfile'
 | 'hooks'
@@ -138,7 +139,7 @@ export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<void> {
-  if (!opts.update && !opts.dedupe && params.length === 0) {
+  if (!opts.update && !opts.dedupe && params.length === 0 && opts.fastReinstall !== false) {
     const { upToDate } = await checkDepsStatus({
       ...opts,
       ignoreFilteredInstallCache: true,

@@ -126,6 +126,7 @@ export async function getConfig (opts: {
     'exclude-links-from-lockfile': false,
     'extend-node-path': true,
     'fail-if-no-match': false,
+    'fast-reinstall': true,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,
