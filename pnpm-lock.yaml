@@ -564,6 +564,9 @@ catalogs:
     semver-utils:
       specifier: ^1.1.4
       version: 1.1.4
+    shlex:
+      specifier: ^2.1.2
+      version: 2.1.2
     signal-exit:
       specifier: ^3.0.7
       version: 3.0.7
@@ -2091,6 +2094,9 @@ importers:
       run-groups:
         specifier: 'catalog:'
         version: 3.0.1
+      shlex:
+        specifier: 'catalog:'
+        version: 2.1.2
     devDependencies:
       '@pnpm/lifecycle':
         specifier: workspace:*
@@ -3507,10 +3513,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-    optionalDependencies:
-      fuse-native:
-        specifier: 'catalog:'
-        version: 2.2.6
     devDependencies:
       '@pnpm/mount-modules':
         specifier: workspace:*
@@ -3521,6 +3523,10 @@ importers:
       rimraf:
         specifier: 'catalog:'
         version: 3.0.2
+    optionalDependencies:
+      fuse-native:
+        specifier: 'catalog:'
+        version: 2.2.6
 
   network/auth-header:
     dependencies:
@@ -5644,10 +5650,6 @@ importers:
       v8-compile-cache:
         specifier: 2.4.0
         version: 2.4.0
-    optionalDependencies:
-      node-gyp:
-        specifier: ^10.2.0
-        version: 10.2.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -5943,8 +5945,22 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
+    optionalDependencies:
+      node-gyp:
+        specifier: ^10.2.0
+        version: 10.2.0
 
   pnpm/artifacts/exe:
+    devDependencies:
+      '@pnpm/exe':
+        specifier: workspace:*
+        version: 'link:'
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.1.2
+      pkg:
+        specifier: 'catalog:'
+        version: '@yao-pkg/pkg@5.12.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
     optionalDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
@@ -5964,16 +5980,6 @@ importers:
       '@pnpm/win-x64':
         specifier: workspace:*
         version: link:../win-x64
-    devDependencies:
-      '@pnpm/exe':
-        specifier: workspace:*
-        version: 'link:'
-      execa:
-        specifier: 'catalog:'
-        version: safe-execa@0.1.2
-      pkg:
-        specifier: 'catalog:'
-        version: '@yao-pkg/pkg@5.12.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
 
   pnpm/artifacts/linux-arm64:
     devDependencies:
@@ -13370,6 +13376,9 @@ packages:
     resolution: {integrity: sha512-TiwcRcrkhHvbrZbnRcFYMLl30Dfov3HKqzp5tO5b4pt6G/SezKcYhmDg15zXVBswHmctSAQKznqNW2LO5tTDow==}
     engines: {node: '>=4'}
     hasBin: true
+
+  shlex@2.1.2:
+    resolution: {integrity: sha512-Nz6gtibMVgYeMEhUjp2KuwAgqaJA1K155dU/HuDaEJUGgnmYfVtVZah+uerVWdH8UGnyahhDCgABbYTbs254+w==}
 
   short-tree@1.0.0:
     resolution: {integrity: sha512-SPhGxbdypMMjYlmdVL/dzBUCT/5FboztmleoS4WPgvCI7DqZXv8xrLSTuJqzmmuAtCTkgxkIKzfZ+jfJR6ODZg==}
@@ -21103,6 +21112,8 @@ snapshots:
       glob: 7.2.3
       interpret: 1.4.0
       rechoir: 0.6.2
+
+  shlex@2.1.2: {}
 
   short-tree@1.0.0:
     dependencies:

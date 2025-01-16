@@ -45,7 +45,8 @@
     "@pnpm/types": "workspace:*",
     "is-windows": "catalog:",
     "path-exists": "catalog:",
-    "run-groups": "catalog:"
+    "run-groups": "catalog:",
+    "shlex": "catalog:"
   },
   "devDependencies": {
     "@pnpm/lifecycle": "workspace:*",

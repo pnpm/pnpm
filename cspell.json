@@ -231,6 +231,7 @@
     "semistrict",
     "serverjs",
     "sheetjs",
+    "shlex",
     "sindresorhus",
     "sirv",
     "soporan",

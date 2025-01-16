@@ -6,6 +6,7 @@ import { type DependencyManifest, type ProjectManifest, type PrepareExecutionEnv
 import { PnpmError } from '@pnpm/error'
 import { existsSync } from 'fs'
 import isWindows from 'is-windows'
+import { join } from 'shlex'
 
 function noop () {} // eslint-disable-line:no-empty
 
@@ -87,8 +88,7 @@ Please unset the script-shell option, or configure it to a .exe instead.
     break
   }
   if (opts.args?.length && m.scripts?.[stage]) {
-    const escapedArgs = opts.args.map((arg) => JSON.stringify(arg))
-    m.scripts[stage] = `${m.scripts[stage]} ${escapedArgs.join(' ')}`
+    m.scripts[stage] = `${m.scripts[stage]} ${join(opts.args)}`
   }
   // This script is used to prevent the usage of npm or Yarn.
   // It does nothing, when pnpm is used, so we may skip its execution.
