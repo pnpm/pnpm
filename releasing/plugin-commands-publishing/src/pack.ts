@@ -16,6 +16,7 @@ import renderHelp from 'render-help'
 import tar from 'tar-stream'
 import { runScriptsIfPresent } from './publish'
 import chalk from 'chalk'
+import validateNpmPackageName from 'validate-npm-package-name'
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
 const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: { cwd: string }) => Promise<string[]>
@@ -125,7 +126,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   if (!manifest.name) {
     throw new PnpmError('PACKAGE_NAME_NOT_FOUND', `Package name is not defined in the ${manifestFileName}.`)
   }
-  if (!/^(?:@[a-z0-9-*~][a-z0-9-*._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/.test(manifest.name)) {
+  if (!validateNpmPackageName(manifest.name).validForOldPackages) {
     throw new PnpmError('INVALID_PACKAGE_NAME', `Invalid package name "${manifest.name}".`)
   }
   if (!manifest.version) {

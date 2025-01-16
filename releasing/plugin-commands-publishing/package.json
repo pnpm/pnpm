@@ -46,6 +46,7 @@
     "@types/sinon": "catalog:",
     "@types/tar": "catalog:",
     "@types/tar-stream": "catalog:",
+    "@types/validate-npm-package-name": "catalog:",
     "ci-info": "catalog:",
     "cross-spawn": "catalog:",
     "is-windows": "catalog:",
@@ -83,6 +84,7 @@
     "render-help": "catalog:",
     "tar-stream": "catalog:",
     "tempy": "catalog:",
+    "validate-npm-package-name": "catalog:",
     "write-json-file": "catalog:"
   },
   "peerDependencies": {
