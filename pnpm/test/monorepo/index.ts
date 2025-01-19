@@ -1960,12 +1960,7 @@ inject-workspace-packages=true
   }
   {
     process.chdir(deployOutputProjectDir)
-    try {
-      // ensure files created by lifecycle scripts are removed
-      fs.rmSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')
-    } catch {
-      // don't know why that file is missing currently - does "pnpm deploy" not copy it over??
-    }
+    fs.rmSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')
     expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
 
     const originalPackageJsonContent = JSON.parse(fs.readFileSync('package.json', 'utf-8'))
