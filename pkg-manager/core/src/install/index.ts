@@ -1266,7 +1266,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
         }
       }
-      console.log('Running preinstall, install, postinstall, preprepare and prepare scripts')
       const projectsToBeBuilt = projectsWithTargetDirs.filter(({ mutation }) => mutation === 'install') as ProjectToBeInstalled[]
       await runLifecycleHooksConcurrently(['preinstall', 'install', 'postinstall', 'preprepare', 'prepare'],
         projectsToBeBuilt,
