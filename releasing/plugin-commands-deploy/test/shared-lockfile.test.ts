@@ -10,6 +10,7 @@ import { globalWarn } from '@pnpm/logger'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type ProjectManifest } from '@pnpm/types'
+import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 
 const f = fixtures(__dirname)
@@ -959,4 +960,77 @@ test('deploy with a shared lockfile that has peer dependencies suffix in workspa
   for (const name of project2Names) {
     expect(readPackageJson(`deploy/node_modules/.pnpm/${name}/node_modules/project-2`)).toStrictEqual(preparedManifests['project-2'])
   }
+})
+
+test('deploy with a shared lockfile should keep files created by lifecycle scripts', async () => {
+  const preparedManifests: Record<string, ProjectManifest> = {
+    root: {
+      name: 'root',
+      version: '0.0.0',
+      private: true,
+      pnpm: {
+        neverBuiltDependencies: [],
+      },
+    },
+    'project-0': {
+      name: 'project-0',
+      version: '0.0.0',
+      dependencies: {
+        '@pnpm.e2e/install-script-example': '*',
+      },
+    },
+  }
+
+  preparePackages([
+    {
+      location: '.',
+      package: preparedManifests.root,
+    },
+    preparedManifests['project-0'],
+  ])
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-0', '!store/**'] })
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-0' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
+  expect(fs.existsSync('project-0/node_modules/@pnpm.e2e/install-script-example@1.0.0/generated-by-install.js')).toBeTruthy()
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const manifest = readPackageJson('deploy') as ProjectManifest
+  expect(manifest).toStrictEqual({
+    name: 'project-0',
+    version: '0.0.0',
+    dependencies: {
+      '@pnpm.e2e/install-script-example': '1.0.0',
+    },
+    devDependencies: {},
+    optionalDependencies: {},
+    pnpm: {},
+  } as ProjectManifest)
+
+  expect(fs.existsSync('deploy/node_modules/@pnpm.e2e/install-script-example@1.0.0/generated-by-install.js')).toBeTruthy()
 })
