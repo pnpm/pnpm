@@ -48,6 +48,7 @@
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
+    "@pnpm/constants": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",

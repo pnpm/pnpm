@@ -1,4 +1,5 @@
 import { packageIsInstallable } from '@pnpm/cli-utils'
+import { USEFUL_NON_ROOT_PNPM_FIELDS } from '@pnpm/constants'
 import { type ProjectManifest, type Project, type SupportedArchitectures } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { findPackages } from '@pnpm/fs.find-packages'
@@ -64,7 +65,7 @@ export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?
 const uselessNonRootManifestFields: Array<keyof ProjectManifest> = ['resolutions']
 
 type ProjectManifestPnpm = Required<ProjectManifest>['pnpm']
-const usefulNonRootPnpmFields: Array<keyof ProjectManifestPnpm> = ['executionEnv']
+const usefulNonRootPnpmFields: ReadonlyArray<keyof ProjectManifestPnpm> = USEFUL_NON_ROOT_PNPM_FIELDS
 
 function checkNonRootProjectManifest ({ manifest, rootDir }: Project): void {
   const warn = printNonRootFieldWarning.bind(null, rootDir)
