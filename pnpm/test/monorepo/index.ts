@@ -1945,18 +1945,15 @@ inject-workspace-packages=true
   const monorepoRoot = process.cwd()
   const deployOutputProjectDir = path.join(makeTempDir(false), './project-0-deployed')
 
-  {
-    const { status } = execPnpmSync(['install'])
-    expect(status).toBe(0)
-  }
+  execPnpmSync(['install'], { expectSuccess: true })
+
   {
     process.chdir('project-0')
     expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
   }
   {
     process.chdir(monorepoRoot)
-    const { status } = execPnpmSync(['deploy', '--filter', 'project-0', deployOutputProjectDir])
-    expect(status).toBe(0)
+    execPnpmSync(['deploy', '--filter', 'project-0', deployOutputProjectDir], { expectSuccess: true })
   }
   {
     process.chdir(deployOutputProjectDir)
