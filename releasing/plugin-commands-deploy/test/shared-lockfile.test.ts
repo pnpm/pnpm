@@ -298,7 +298,6 @@ test('the deploy manifest should inherit the pnpm object from the root manifest 
     preparedManifests['project-0'],
   ])
 
-
   const {
     allProjects,
     allProjectsGraph,
