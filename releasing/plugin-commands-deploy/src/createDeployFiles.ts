@@ -42,7 +42,7 @@ export interface CreateDeployFilesOptions {
   deployDir: string
   lockfile: LockfileObject
   lockfileDir: string
-  rootProjectManifest?: Pick<ProjectManifest, 'pnpm'>,
+  rootProjectManifest?: Pick<ProjectManifest, 'pnpm'>
   selectedProjectManifest: DeployManifest
   projectId: ProjectId
   rootProjectManifestDir: string
