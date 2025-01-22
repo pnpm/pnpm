@@ -72,6 +72,7 @@ export interface TypesVersions {
 export interface BaseManifest {
   name?: string
   version?: string
+  type?: string
   bin?: PackageBin
   description?: string
   directories?: {
