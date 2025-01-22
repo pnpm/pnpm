@@ -28,10 +28,13 @@ export async function toResolveImporter (
     workspacePackages: WorkspacePackages
     updateToLatest?: boolean
     noDependencySelectors: boolean
+    skipPeerValidation?: boolean
   },
   project: ImporterToResolve
 ): Promise<ResolveImporter> {
-  validatePeerDependencies(project)
+  if (!opts.skipPeerValidation) {
+    validatePeerDependencies(project)
+  }
   const allDeps = getWantedDependencies(project.manifest)
   const nonLinkedDependencies = await partitionLinkedPackages(allDeps, {
     lockfileOnly: opts.lockfileOnly,

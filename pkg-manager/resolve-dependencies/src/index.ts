@@ -117,6 +117,7 @@ export async function resolveDependencies (
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
     allowNonAppliedPatches?: boolean
+    skipPeerValidation?: boolean
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -126,6 +127,7 @@ export async function resolveDependencies (
     virtualStoreDir: opts.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
     noDependencySelectors: importers.every(({ wantedDependencies }) => wantedDependencies.length === 0),
+    skipPeerValidation: opts.skipPeerValidation,
   })
   const projectsToResolve = await Promise.all(importers.map(async (project) => _toResolveImporter(project)))
   const {
