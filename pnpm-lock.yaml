@@ -2090,6 +2090,61 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  exec/build-commands:
+    dependencies:
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/logger':
+        specifier: '>=5.1.0 <1001.0.0'
+        version: 5.1.0
+      '@pnpm/modules-yaml':
+        specifier: workspace:*
+        version: link:../../pkg-manager/modules-yaml
+      '@pnpm/plugin-commands-rebuild':
+        specifier: workspace:*
+        version: link:../plugin-commands-rebuild
+      '@pnpm/prepare-temp-dir':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare-temp-dir
+      '@pnpm/read-project-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-project-manifest
+      chalk:
+        specifier: 'catalog:'
+        version: 4.1.2
+      enquirer:
+        specifier: 'catalog:'
+        version: 2.4.1
+      render-help:
+        specifier: 'catalog:'
+        version: 1.0.3
+    devDependencies:
+      '@pnpm/exec.build-commands':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/plugin-commands-installation':
+        specifier: workspace:*
+        version: link:../../pkg-manager/plugin-commands-installation
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+      load-json-file:
+        specifier: 'catalog:'
+        version: 6.2.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+
   exec/build-modules:
     dependencies:
       '@pnpm/calc-dep-state':
@@ -5790,6 +5845,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../packages/error
+      '@pnpm/exec.build-commands':
+        specifier: workspace:*
+        version: link:../exec/build-commands
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../workspace/filter-workspace-packages

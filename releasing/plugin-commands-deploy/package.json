@@ -18,7 +18,7 @@
   "scripts": {
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7778 jest",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7779 jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
@@ -47,8 +47,8 @@
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
-    "@pnpm/config": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
+    "@pnpm/config": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
