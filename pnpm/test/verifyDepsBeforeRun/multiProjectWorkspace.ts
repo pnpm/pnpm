@@ -278,6 +278,23 @@ test('single dependency', async () => {
     expect(stdout.toString()).toContain('hello from root')
   }
 
+  fs.rmSync('foo/node_modules', { recursive: true })
+
+  // attempting to execute a script after the modules directory of a workspace package has been deleted should fail
+  {
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toContain('Workspace package foo has dependencies but does not have a modules directory')
+  }
+
+  await execPnpm([...CONFIG, 'install'])
+
+  // should be able to execute a script after dependencies have been updated
+  {
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from root')
+  }
+
   // should set env.npm_config_verify_deps_before_run to false for all the scripts (to skip check in nested scripts)
   await execPnpm([...CONFIG, '--recursive', 'run', 'checkEnv'])
 })
