@@ -3,7 +3,7 @@ import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { install } from '@pnpm/plugin-commands-installation'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { preparePackages } from '@pnpm/prepare'
-import { stripVTControlCharacters as stripAnsi} from 'util'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 import { DEFAULT_OPTS, DEFAULT_OUTDATED_OPTS } from './utils'
 
 test('pnpm recursive outdated', async () => {
