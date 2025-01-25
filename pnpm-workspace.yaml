@@ -235,7 +235,6 @@ catalog:
   ssri: 10.0.5
   stacktracey: ^2.1.8
   string-length: ^4.0.2
-  strip-ansi: ^6.0.1
   strip-bom: ^4.0.0
   strip-comments-strings: 1.2.0
   symlink-dir: ^6.0.4

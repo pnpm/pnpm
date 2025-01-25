@@ -58,8 +58,7 @@
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
     "ramda": "catalog:",
-    "render-help": "catalog:",
-    "strip-ansi": "catalog:"
+    "render-help": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
