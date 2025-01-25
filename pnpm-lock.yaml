@@ -6356,6 +6356,9 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
+      validate-npm-package-name:
+        specifier: 'catalog:'
+        version: 5.0.0
       write-json-file:
         specifier: 'catalog:'
         version: 4.3.0
@@ -6402,6 +6405,9 @@ importers:
       '@types/tar-stream':
         specifier: 'catalog:'
         version: 2.2.3
+      '@types/validate-npm-package-name':
+        specifier: 'catalog:'
+        version: 4.0.2
       ci-info:
         specifier: 'catalog:'
         version: 3.9.0
