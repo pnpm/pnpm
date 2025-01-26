@@ -6,7 +6,7 @@ import { list, why } from '@pnpm/plugin-commands-listing'
 import { prepare, preparePackages } from '@pnpm/prepare'
 
 import execa from 'execa'
-import stripAnsi from 'strip-ansi'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 import { sync as writeYamlFile } from 'write-yaml-file'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')

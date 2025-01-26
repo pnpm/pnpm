@@ -62,8 +62,7 @@
     "@types/semver": "catalog:",
     "ghooks": "catalog:",
     "load-json-file": "catalog:",
-    "normalize-newline": "catalog:",
-    "strip-ansi": "catalog:"
+    "normalize-newline": "catalog:"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/default-reporter#readme",
   "funding": "https://opencollective.com/pnpm",

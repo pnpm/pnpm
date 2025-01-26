@@ -39,7 +39,6 @@
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
     "@types/ramda": "catalog:",
     "execa": "catalog:",
-    "strip-ansi": "catalog:",
     "write-yaml-file": "catalog:"
   },
   "dependencies": {

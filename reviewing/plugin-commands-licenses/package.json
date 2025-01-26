@@ -40,8 +40,7 @@
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
-    "@types/zkochan__table": "catalog:",
-    "strip-ansi": "catalog:"
+    "@types/zkochan__table": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
