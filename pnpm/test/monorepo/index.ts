@@ -1957,16 +1957,6 @@ inject-workspace-packages=true
     fs.rmSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')
     expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
 
-    const originalPackageJsonContent = JSON.parse(fs.readFileSync('package.json', 'utf-8'))
-    const newPackageJsonContent = {
-      ...originalPackageJsonContent,
-      pnpm: {
-        ...originalPackageJsonContent?.pnpm,
-        neverBuiltDependencies: [],
-      },
-    }
-    fs.writeFileSync('package.json', JSON.stringify(newPackageJsonContent), 'utf8')
-
     execPnpmSync(['rebuild'], { expectSuccess: true })
     expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
   }
