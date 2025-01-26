@@ -1968,7 +1968,6 @@ inject-workspace-packages=true
     fs.writeFileSync('package.json', JSON.stringify(newPackageJsonContent), 'utf8')
 
     execPnpmSync(['rebuild'], { expectSuccess: true })
-    expect(status).toBe(0)
     expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
   }
 })
