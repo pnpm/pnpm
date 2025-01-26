@@ -1,5 +1,15 @@
 # @pnpm/render-peer-issues
 
+## 1000.0.3
+
+### Patch Changes
+
+- acdf26d: Replace `strip-ansi` with the built-in `util.stripVTControlCharacters` [#9009](https://github.com/pnpm/pnpm/pull/9009).
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/parse-overrides@1000.0.2
+
 ## 1000.0.2
 
 ### Patch Changes

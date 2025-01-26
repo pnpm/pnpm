@@ -1,5 +1,17 @@
 # @pnpm/calc-dep-state
 
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/dependency-path@1000.0.2
+
 ## 1001.0.1
 
 ### Patch Changes

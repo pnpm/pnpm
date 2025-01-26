@@ -1,5 +1,13 @@
 # @pnpm/fetch
 
+## 1000.1.3
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/core-loggers@1000.1.2
+
 ## 1000.1.2
 
 ### Patch Changes

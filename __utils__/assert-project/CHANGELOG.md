@@ -1,5 +1,17 @@
 # @pnpm/assert-project
 
+## 4.0.4
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/assert-store@2.0.4
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/modules-yaml@1000.1.2
+
 ## 4.0.3
 
 ### Patch Changes

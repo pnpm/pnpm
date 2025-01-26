@@ -1,5 +1,16 @@
 # @pnpm/lockfile-utils
 
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/pick-fetcher@1000.0.0
+
 ## 1001.0.1
 
 ### Patch Changes

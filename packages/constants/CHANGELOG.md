@@ -1,5 +1,11 @@
 # @pnpm/constants
 
+## 1001.1.0
+
+### Minor Changes
+
+- 9a44e6c: `pnpm deploy` should inherit the `pnpm` object from the root `package.json` [#8991](https://github.com/pnpm/pnpm/pull/8991).
+
 ## 1001.0.0
 
 ### Major Changes

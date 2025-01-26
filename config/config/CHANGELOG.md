@@ -1,5 +1,24 @@
 # @pnpm/config
 
+## 1002.2.0
+
+### Minor Changes
+
+- f3ffaed: Added a new setting called `optimistic-repeat-install`. When enabled, a fast check will be performed before proceeding to installation. This way a repeat install or an install on a project with everything up-to-date becomes a lot faster. But some edge cases might arise, so we keep it disabled by default for now [#8977](https://github.com/pnpm/pnpm/pull/8977).
+
+### Patch Changes
+
+- c96eb2b: Fix infinite loop caused by lifecycle scripts using `pnpm` to execute other scripts during `pnpm install` with `verify-deps-before-run=install` [#8954](https://github.com/pnpm/pnpm/issues/8954).
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/workspace.read-manifest@1000.0.2
+  - @pnpm/pnpmfile@1001.0.4
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/catalogs.config@1000.0.2
+
 ## 1002.1.2
 
 ### Patch Changes

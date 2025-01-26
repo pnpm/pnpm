@@ -1,5 +1,24 @@
 # @pnpm/cli-utils
 
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+- Updated dependencies [961dc5d]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [7a9473b]
+- Updated dependencies [c96eb2b]
+- Updated dependencies [acdf26d]
+  - @pnpm/types@1000.1.1
+  - @pnpm/default-reporter@1001.2.0
+  - @pnpm/config@1002.2.0
+  - @pnpm/error@1000.0.2
+  - @pnpm/cli-meta@1000.0.2
+  - @pnpm/package-is-installable@1000.0.4
+  - @pnpm/manifest-utils@1000.0.4
+  - @pnpm/read-project-manifest@1000.0.4
+
 ## 1000.0.5
 
 ### Patch Changes

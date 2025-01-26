@@ -1,5 +1,25 @@
 # pnpm
 
+## 10.1.0
+
+### Minor Changes
+
+- Added a new command for printing the list of dependencies with ignored build scripts: `pnpm ignored-builds` [#8963](https://github.com/pnpm/pnpm/pull/8963).
+- Added a new command for approving dependencies for running scripts during installation: `pnpm approve-builds` [#8963](https://github.com/pnpm/pnpm/pull/8963).
+- Added a new setting called `optimistic-repeat-install`. When enabled, a fast check will be performed before proceeding to installation. This way a repeat install or an install on a project with everything up-to-date becomes a lot faster. But some edge cases might arise, so we keep it disabled by default for now [#8977](https://github.com/pnpm/pnpm/pull/8977).
+- Added a new field "pnpm.ignoredBuiltDependencies" for explicitly listing packages that should not be built. When a package is in the list, pnpm will not print an info message about that package not being built [#8935](https://github.com/pnpm/pnpm/issues/8935).
+
+### Patch Changes
+
+- Verify that the package name is valid when executing the publish command.
+- When running `pnpm install`, the `preprepare` and `postprepare` scripts of the project should be executed [#8989](https://github.com/pnpm/pnpm/pull/8989).
+- Allow `workspace:` and `catalog:` to be part of wider version range in `peerDependencies`.
+- `pnpm deploy` should inherit the `pnpm` object from the root `package.json` [#8991](https://github.com/pnpm/pnpm/pull/8991).
+- Make sure that the deletion of a `node_modules` in a sub-project of a monorepo is detected as out-of-date [#8959](https://github.com/pnpm/pnpm/issues/8959).
+- Fix infinite loop caused by lifecycle scripts using `pnpm` to execute other scripts during `pnpm install` with `verify-deps-before-run=install` [#8954](https://github.com/pnpm/pnpm/issues/8954).
+- Replace `strip-ansi` with the built-in `util.stripVTControlCharacters` [#9009](https://github.com/pnpm/pnpm/pull/9009).
+- Do not print patched dependencies as ignored dependencies that require a build [#8952](https://github.com/pnpm/pnpm/issues/8952).
+
 ## 10.0.0
 
 ### Major Changes

@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.1.4
+
+### Patch Changes
+
+- b65303d: Verify that the package name is valid when executing the publish command.
+- Updated dependencies [b562deb]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/types@1000.1.1
+  - @pnpm/config@1002.2.0
+  - @pnpm/error@1000.0.2
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/pick-registry-for-package@1000.0.2
+  - @pnpm/plugin-commands-env@1000.0.6
+  - @pnpm/lifecycle@1001.0.4
+  - @pnpm/client@1000.0.5
+  - @pnpm/package-bins@1000.0.2
+  - @pnpm/exportable-manifest@1000.0.5
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/sort-packages@1000.0.2
+  - @pnpm/network.auth-header@1000.0.2
+
 ## 1000.1.3
 
 ### Patch Changes

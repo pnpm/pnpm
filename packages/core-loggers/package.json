@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core-loggers",
   "description": "Core loggers of pnpm",
-  "version": "1000.1.1",
+  "version": "1000.1.2",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

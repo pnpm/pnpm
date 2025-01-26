@@ -1,5 +1,18 @@
 # @pnpm/make-dedicated-lockfile
 
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/lockfile.pruner@1001.0.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/exportable-manifest@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/find-workspace-dir@1000.0.2
+
 ## 1000.0.5
 
 ### Patch Changes

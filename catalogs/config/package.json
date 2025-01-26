@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/catalogs.config",
-  "version": "1000.0.1",
+  "version": "1000.0.2",
   "description": "Create a normalized catalogs config from pnpm-workspace.yaml contents.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

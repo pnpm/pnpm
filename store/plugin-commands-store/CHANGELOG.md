@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-store
 
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/types@1000.1.1
+  - @pnpm/config@1002.2.0
+  - @pnpm/error@1000.0.2
+  - @pnpm/get-context@1001.0.4
+  - @pnpm/store-path@1000.0.2
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/normalize-registries@1000.0.2
+  - @pnpm/pick-registry-for-package@1000.0.2
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/store.cafs@1000.0.4
+  - @pnpm/store-controller-types@1001.0.1
+  - @pnpm/store-connection-manager@1000.0.6
+
 ## 1000.0.6
 
 ### Patch Changes

@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-audit
 
+## 1001.0.6
+
+### Patch Changes
+
+- acdf26d: Replace `strip-ansi` with the built-in `util.stripVTControlCharacters` [#9009](https://github.com/pnpm/pnpm/pull/9009).
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/config@1002.2.0
+  - @pnpm/audit@1001.0.5
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/network.auth-header@1000.0.2
+
 ## 1001.0.5
 
 ### Patch Changes

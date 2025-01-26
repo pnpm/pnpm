@@ -1,5 +1,12 @@
 # @pnpm/core-loggers
 
+## 1000.1.2
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+
 ## 1000.1.1
 
 ### Patch Changes

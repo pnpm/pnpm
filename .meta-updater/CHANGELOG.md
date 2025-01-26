@@ -1,5 +1,15 @@
 # @pnpm-private/updater
 
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/workspace.read-manifest@1000.0.2
+  - @pnpm/parse-overrides@1000.0.2
+
 ## 3.0.2
 
 ### Patch Changes

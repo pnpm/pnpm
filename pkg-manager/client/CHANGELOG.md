@@ -1,5 +1,19 @@
 # @pnpm/client
 
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/directory-fetcher@1000.0.4
+  - @pnpm/git-fetcher@1000.0.5
+  - @pnpm/tarball-fetcher@1000.0.5
+  - @pnpm/fetch@1000.1.3
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/network.auth-header@1000.0.2
+  - @pnpm/default-resolver@1001.0.4
+
 ## 1000.0.4
 
 ### Patch Changes

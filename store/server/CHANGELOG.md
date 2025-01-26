@@ -1,5 +1,14 @@
 # @pnpm/server
 
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/fetch@1000.1.3
+  - @pnpm/store-controller-types@1001.0.1
+
 ## 1000.0.4
 
 ### Patch Changes

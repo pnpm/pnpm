@@ -1,5 +1,14 @@
 # @pnpm/dedupe.check
 
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/lockfile.types@1001.0.2
+
 ## 1001.0.1
 
 ### Patch Changes

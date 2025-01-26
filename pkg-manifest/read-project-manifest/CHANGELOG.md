@@ -1,5 +1,14 @@
 # @pnpm/read-project-manifest
 
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/write-project-manifest@1000.0.2
+
 ## 1000.0.3
 
 ### Patch Changes

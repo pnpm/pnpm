@@ -1,5 +1,14 @@
 # @pnpm/store-controller-types
 
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/fetcher-base@1000.0.3
+  - @pnpm/resolver-base@1000.1.2
+
 ## 1001.0.0
 
 ### Major Changes

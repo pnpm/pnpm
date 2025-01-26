@@ -1,5 +1,17 @@
 # @pnpm/find-workspace-packages
 
+## 1000.0.6
+
+### Patch Changes
+
+- 9a44e6c: `pnpm deploy` should inherit the `pnpm` object from the root `package.json` [#8991](https://github.com/pnpm/pnpm/pull/8991).
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/fs.find-packages@1000.0.4
+
 ## 1000.0.5
 
 ### Patch Changes

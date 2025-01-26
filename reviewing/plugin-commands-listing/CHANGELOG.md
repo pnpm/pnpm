@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-listing
 
+## 1000.0.7
+
+### Patch Changes
+
+- acdf26d: Replace `strip-ansi` with the built-in `util.stripVTControlCharacters` [#9009](https://github.com/pnpm/pnpm/pull/9009).
+- Updated dependencies [b562deb]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/types@1000.1.1
+  - @pnpm/config@1002.2.0
+  - @pnpm/error@1000.0.2
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/list@1000.0.6
+
 ## 1000.0.6
 
 ### Patch Changes
