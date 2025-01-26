@@ -1,6 +1,6 @@
 ---
 "@pnpm/constants": minor
-"@pnpm/find-packages": patch
+"@pnpm/workspace.find-packages": patch
 "@pnpm/plugin-commands-deploy": patch
 "pnpm": patch
 ---
