@@ -112,10 +112,6 @@
       "allowedVersions": "^3.0.0"
     },
     {
-      "packageNames": ["strip-ansi"],
-      "allowedVersions": "^6.0.0"
-    },
-    {
       "packageNames": ["escape-string-regexp"],
       "allowedVersions": "^4.0.0"
     },

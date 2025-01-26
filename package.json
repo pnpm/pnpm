@@ -151,7 +151,6 @@
         "ps-list",
         "sort-keys",
         "string-length",
-        "strip-ansi",
         "strip-bom",
         "tempy",
         "unique-string",

@@ -181,6 +181,7 @@ async function deployFromSharedLockfile (
   const {
     allProjects,
     lockfileDir,
+    rootProjectManifest,
     rootProjectManifestDir,
     workspaceDir,
   } = opts
@@ -202,7 +203,8 @@ async function deployFromSharedLockfile (
     deployDir,
     lockfile,
     lockfileDir,
-    manifest: selectedProject.manifest,
+    rootProjectManifest,
+    selectedProjectManifest: selectedProject.manifest,
     projectId,
     rootProjectManifestDir,
   })

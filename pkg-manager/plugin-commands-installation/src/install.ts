@@ -29,6 +29,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'https-proxy',
     'ignore-pnpmfile',
     'ignore-scripts',
+    'optimistic-repeat-install',
     'link-workspace-packages',
     'lockfile-dir',
     'lockfile-directory',
@@ -113,6 +114,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: 'Only `devDependencies` are installed',
             name: '--dev',
             shortAlias: '-D',
+          },
+          {
+            description: 'Skip reinstall if the workspace state is up-to-date',
+            name: '--optimistic-repeat-install',
           },
           {
             description: '`optionalDependencies` are not installed',

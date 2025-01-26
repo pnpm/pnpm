@@ -4,7 +4,7 @@ import { audit } from '@pnpm/plugin-commands-audit'
 import { install } from '@pnpm/plugin-commands-installation'
 import { AuditEndpointNotExistsError } from '@pnpm/audit'
 import nock from 'nock'
-import stripAnsi from 'strip-ansi'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 import * as responses from './utils/responses'
 
 const f = fixtures(path.join(__dirname, 'fixtures'))

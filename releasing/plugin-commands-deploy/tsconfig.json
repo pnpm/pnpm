@@ -49,6 +49,9 @@
       "path": "../../lockfile/types"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/dependency-path"
     },
     {

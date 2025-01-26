@@ -34,7 +34,7 @@ jobs:
     environment: release
     needs: tag-in-registry
     steps:
-      - uses: vedantmgoyal2009/winget-releaser@v2
+      - uses: vedantmgoyal9/winget-releaser@main
         with:
           identifier: pnpm.pnpm
           version: ${{ github.event.inputs.version }}

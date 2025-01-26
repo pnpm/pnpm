@@ -175,6 +175,20 @@ test('pack a package without package name', async () => {
   })).rejects.toThrow('Package name is not defined in the package.json.')
 })
 
+test('pack a package with invalid package name', async () => {
+  prepare({
+    name: '@',
+    version: '0.0.0',
+  })
+
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })).rejects.toThrow('Invalid package name "@".')
+})
+
 test('pack a package without package version', async () => {
   prepare({
     name: 'test-publish-package-no-version',

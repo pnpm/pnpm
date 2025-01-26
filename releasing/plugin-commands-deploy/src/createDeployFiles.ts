@@ -2,6 +2,7 @@ import path from 'path'
 import url from 'url'
 import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
+import { USEFUL_NON_ROOT_PNPM_FIELDS } from '@pnpm/constants'
 import * as dp from '@pnpm/dependency-path'
 import {
   type DirectoryResolution,
@@ -42,7 +43,8 @@ export interface CreateDeployFilesOptions {
   deployDir: string
   lockfile: LockfileObject
   lockfileDir: string
-  manifest: DeployManifest
+  rootProjectManifest?: Pick<ProjectManifest, 'pnpm'>
+  selectedProjectManifest: DeployManifest
   projectId: ProjectId
   rootProjectManifestDir: string
 }
@@ -57,7 +59,8 @@ export function createDeployFiles ({
   deployDir,
   lockfile,
   lockfileDir,
-  manifest,
+  rootProjectManifest,
+  selectedProjectManifest,
   projectId,
   rootProjectManifestDir,
 }: CreateDeployFilesOptions): DeployFiles {
@@ -141,12 +144,13 @@ export function createDeployFiles ({
       packages: targetPackageSnapshots,
     },
     manifest: {
-      ...pick(INHERITED_MANIFEST_KEYS, manifest),
+      ...pick(INHERITED_MANIFEST_KEYS, selectedProjectManifest),
       dependencies: targetSnapshot.dependencies,
       devDependencies: targetSnapshot.devDependencies,
       optionalDependencies: targetSnapshot.optionalDependencies,
       pnpm: {
-        ...manifest.pnpm,
+        ...rootProjectManifest?.pnpm,
+        ...pick(USEFUL_NON_ROOT_PNPM_FIELDS, selectedProjectManifest.pnpm ?? {}),
         overrides: undefined, // the effects of package overrides should already be part of the package snapshots
         patchedDependencies: undefined,
         packageExtensions: undefined, // the effects of the package extensions should already be part of the package snapshots

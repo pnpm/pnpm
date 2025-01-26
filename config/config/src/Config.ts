@@ -45,6 +45,7 @@ export interface Config {
   ignoreScripts?: boolean
   ignoreCompatibilityDb?: boolean
   includeWorkspaceRoot?: boolean
+  optimisticRepeatInstall?: boolean
   save?: boolean
   saveProd?: boolean
   saveDev?: boolean
