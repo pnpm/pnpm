@@ -588,9 +588,6 @@ catalogs:
     string-length:
       specifier: ^4.0.2
       version: 4.0.2
-    strip-ansi:
-      specifier: ^6.0.1
-      version: 6.0.1
     strip-bom:
       specifier: ^4.0.0
       version: 4.0.0
@@ -1364,9 +1361,6 @@ importers:
       normalize-newline:
         specifier: 'catalog:'
         version: 3.0.0
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
 
   cli/parse-cli-args:
     dependencies:
@@ -1752,9 +1746,6 @@ importers:
       '@types/archy':
         specifier: 'catalog:'
         version: 0.0.33
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
 
   dedupe/types:
     devDependencies:
@@ -2089,6 +2080,61 @@ importers:
       '@pnpm/env.system-node-version':
         specifier: workspace:*
         version: 'link:'
+
+  exec/build-commands:
+    dependencies:
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/logger':
+        specifier: '>=5.1.0 <1001.0.0'
+        version: 5.1.0
+      '@pnpm/modules-yaml':
+        specifier: workspace:*
+        version: link:../../pkg-manager/modules-yaml
+      '@pnpm/plugin-commands-rebuild':
+        specifier: workspace:*
+        version: link:../plugin-commands-rebuild
+      '@pnpm/prepare-temp-dir':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare-temp-dir
+      '@pnpm/read-project-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-project-manifest
+      chalk:
+        specifier: 'catalog:'
+        version: 4.1.2
+      enquirer:
+        specifier: 'catalog:'
+        version: 2.4.1
+      render-help:
+        specifier: 'catalog:'
+        version: 1.0.3
+    devDependencies:
+      '@pnpm/exec.build-commands':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/plugin-commands-installation':
+        specifier: workspace:*
+        version: link:../../pkg-manager/plugin-commands-installation
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 3.48.0(encoding@0.1.13)(typanion@3.14.0)
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+      load-json-file:
+        specifier: 'catalog:'
+        version: 6.2.0
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
 
   exec/build-modules:
     dependencies:
@@ -3358,9 +3404,6 @@ importers:
       nock:
         specifier: 'catalog:'
         version: 13.3.4
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -3979,9 +4022,6 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.5.3
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
 
   packages/types:
     devDependencies:
@@ -5790,6 +5830,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../packages/error
+      '@pnpm/exec.build-commands':
+        specifier: workspace:*
+        version: link:../exec/build-commands
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../workspace/filter-workspace-packages
@@ -6012,9 +6055,6 @@ importers:
       split-cmd:
         specifier: 'catalog:'
         version: 1.1.0
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
       symlink-dir:
         specifier: 'catalog:'
         version: 6.0.4
@@ -6301,6 +6341,9 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
+      validate-npm-package-name:
+        specifier: 'catalog:'
+        version: 5.0.0
       write-json-file:
         specifier: 'catalog:'
         version: 4.3.0
@@ -6347,6 +6390,9 @@ importers:
       '@types/tar-stream':
         specifier: 'catalog:'
         version: 2.2.3
+      '@types/validate-npm-package-name':
+        specifier: 'catalog:'
+        version: 4.0.2
       ci-info:
         specifier: 'catalog:'
         version: 3.9.0
@@ -6928,9 +6974,6 @@ importers:
       '@types/zkochan__table':
         specifier: 'catalog:'
         version: '@types/table@6.0.0'
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
 
   reviewing/plugin-commands-listing:
     dependencies:
@@ -6989,9 +7032,6 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -7052,9 +7092,6 @@ importers:
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
     devDependencies:
       '@pnpm/constants':
         specifier: workspace:*

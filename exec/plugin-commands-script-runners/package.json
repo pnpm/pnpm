@@ -13,7 +13,7 @@
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7772 jest",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7773 jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "start": "tsc --watch",

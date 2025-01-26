@@ -237,6 +237,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/lockfile.types':
     scripts = { ...manifest.scripts }
     break
+  case '@pnpm/exec.build-commands':
   case '@pnpm/headless':
   case '@pnpm/outdated':
   case '@pnpm/package-requester':

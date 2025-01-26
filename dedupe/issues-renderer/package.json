@@ -35,8 +35,7 @@
   },
   "devDependencies": {
     "@pnpm/dedupe.issues-renderer": "workspace:*",
-    "@types/archy": "catalog:",
-    "strip-ansi": "catalog:"
+    "@types/archy": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

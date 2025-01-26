@@ -22,7 +22,7 @@ import chalk from 'chalk'
 import { isCI } from 'ci-info'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
-import stripAnsi from 'strip-ansi'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 import { checkForUpdates } from './checkForUpdates'
 import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd'
 import { formatUnknownOptionsError } from './formatError'
@@ -174,7 +174,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   }
 
   if (
-    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove') &&
+    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds') &&
     typeof workspaceDir === 'string'
   ) {
     cliOptions['recursive'] = true

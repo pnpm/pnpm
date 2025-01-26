@@ -123,13 +123,30 @@ export async function rebuildSelectedPkgs (
     ]
   }
 
-  await _rebuild(
+  const { ignoredPkgs } = await _rebuild(
     {
       pkgsToRebuild: new Set(pkgs),
       ...ctx,
     },
     opts
   )
+  await writeModulesManifest(ctx.rootModulesDir, {
+    prunedAt: new Date().toUTCString(),
+    ...ctx.modulesFile,
+    hoistedDependencies: ctx.hoistedDependencies,
+    hoistPattern: ctx.hoistPattern,
+    included: ctx.include,
+    ignoredBuilds: ignoredPkgs,
+    layoutVersion: LAYOUT_VERSION,
+    packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
+    pendingBuilds: ctx.pendingBuilds,
+    publicHoistPattern: ctx.publicHoistPattern,
+    registries: ctx.registries,
+    skipped: Array.from(ctx.skipped),
+    storeDir: ctx.storeDir,
+    virtualStoreDir: ctx.virtualStoreDir,
+    virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
+  })
 }
 
 export async function rebuildProjects (

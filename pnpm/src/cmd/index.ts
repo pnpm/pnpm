@@ -1,6 +1,7 @@
 import { cache } from '@pnpm/cache.commands'
 import { type CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
+import { approveBuilds, ignoredBuilds } from '@pnpm/exec.build-commands'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { generateCompletion, createCompletionServer } from '@pnpm/plugin-commands-completion'
 import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
@@ -109,6 +110,7 @@ export interface CommandDefinition {
 
 const commands: CommandDefinition[] = [
   add,
+  approveBuilds,
   audit,
   bin,
   cache,
@@ -125,6 +127,7 @@ const commands: CommandDefinition[] = [
   exec,
   fetch,
   generateCompletion,
+  ignoredBuilds,
   importCommand,
   selfUpdate,
   init,

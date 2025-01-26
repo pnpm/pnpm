@@ -6,7 +6,7 @@ import { licenses } from '@pnpm/plugin-commands-licenses'
 import { install } from '@pnpm/plugin-commands-installation'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import stripAnsi from 'strip-ansi'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 import { DEFAULT_OPTS } from './utils'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 

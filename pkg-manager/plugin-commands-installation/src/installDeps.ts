@@ -65,6 +65,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'ignoreCurrentPrefs'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
+| 'optimisticRepeatInstall'
 | 'linkWorkspacePackages'
 | 'lockfileDir'
 | 'lockfileOnly'
@@ -138,7 +139,7 @@ export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<void> {
-  if (!opts.update && !opts.dedupe && params.length === 0) {
+  if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall) {
     const { upToDate } = await checkDepsStatus({
       ...opts,
       ignoreFilteredInstallCache: true,
