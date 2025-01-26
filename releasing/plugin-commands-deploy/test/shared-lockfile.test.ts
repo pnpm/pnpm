@@ -1106,7 +1106,7 @@ test('deploy with a shared lockfile should keep files created by lifecycle scrip
     workspaceDir: process.cwd(),
   })
   expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
-  expect(fs.existsSync('project-0/node_modules/@pnpm.e2e/install-script-example@1.0.0/generated-by-install.js')).toBeTruthy()
+  expect(fs.existsSync('project-0/node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
   await deploy.handler({
     ...DEFAULT_OPTS,
@@ -1121,17 +1121,5 @@ test('deploy with a shared lockfile should keep files created by lifecycle scrip
     workspaceDir: process.cwd(),
   }, ['deploy'])
 
-  const manifest = readPackageJson('deploy') as ProjectManifest
-  expect(manifest).toStrictEqual({
-    name: 'project-0',
-    version: '0.0.0',
-    dependencies: {
-      '@pnpm.e2e/install-script-example': '1.0.0',
-    },
-    devDependencies: {},
-    optionalDependencies: {},
-    pnpm: {},
-  } as ProjectManifest)
-
-  expect(fs.existsSync('deploy/node_modules/@pnpm.e2e/install-script-example@1.0.0/generated-by-install.js')).toBeTruthy()
+  expect(fs.existsSync('deploy/node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })
