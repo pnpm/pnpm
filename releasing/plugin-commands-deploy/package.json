@@ -41,7 +41,8 @@
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
-    "@types/ramda": "catalog:"
+    "@types/ramda": "catalog:",
+    "write-yaml-file": "catalog:"
   },
   "dependencies": {
     "@pnpm/catalogs.resolver": "workspace:*",

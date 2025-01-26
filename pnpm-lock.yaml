@@ -6251,6 +6251,9 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 5.0.0
 
   releasing/plugin-commands-publishing:
     dependencies:
