@@ -29,6 +29,7 @@ const INHERITED_MANIFEST_KEYS = [
   'version',
   'private',
   'author',
+  'type',
   'bin',
   'scripts',
   'packageManager',
