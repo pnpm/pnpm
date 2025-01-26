@@ -1268,7 +1268,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         }
       }
       const projectsToBeBuilt = projectsWithTargetDirs.filter(({ mutation }) => mutation === 'install') as ProjectToBeInstalled[]
-      await runLifecycleHooksConcurrently(['preinstall', 'install', 'postinstall', 'prepare'],
+      await runLifecycleHooksConcurrently(['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
         projectsToBeBuilt,
         opts.childConcurrency,
         opts.scriptsOpts
