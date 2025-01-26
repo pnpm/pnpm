@@ -588,9 +588,6 @@ catalogs:
     string-length:
       specifier: ^4.0.2
       version: 4.0.2
-    strip-ansi:
-      specifier: ^6.0.1
-      version: 6.0.1
     strip-bom:
       specifier: ^4.0.0
       version: 4.0.0
@@ -1364,9 +1361,6 @@ importers:
       normalize-newline:
         specifier: 'catalog:'
         version: 3.0.0
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
 
   cli/parse-cli-args:
     dependencies:
@@ -1752,9 +1746,6 @@ importers:
       '@types/archy':
         specifier: 'catalog:'
         version: 0.0.33
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
 
   dedupe/types:
     devDependencies:
@@ -3413,9 +3404,6 @@ importers:
       nock:
         specifier: 'catalog:'
         version: 13.3.4
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -4034,9 +4022,6 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.5.3
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
 
   packages/types:
     devDependencies:
@@ -6070,9 +6055,6 @@ importers:
       split-cmd:
         specifier: 'catalog:'
         version: 1.1.0
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
       symlink-dir:
         specifier: 'catalog:'
         version: 6.0.4
@@ -6989,9 +6971,6 @@ importers:
       '@types/zkochan__table':
         specifier: 'catalog:'
         version: '@types/table@6.0.0'
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
 
   reviewing/plugin-commands-listing:
     dependencies:
@@ -7050,9 +7029,6 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -7113,9 +7089,6 @@ importers:
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
-      strip-ansi:
-        specifier: 'catalog:'
-        version: 6.0.1
     devDependencies:
       '@pnpm/constants':
         specifier: workspace:*

@@ -3,7 +3,7 @@ import { updateCheckLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
 import { take } from 'rxjs/operators'
-import stripAnsi from 'strip-ansi'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 
 test('does not print update if latest is less than current', (done) => {
   const output$ = toOutput$({

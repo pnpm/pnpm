@@ -113,7 +113,6 @@
     "render-help": "catalog:",
     "semver": "catalog:",
     "split-cmd": "catalog:",
-    "strip-ansi": "catalog:",
     "symlink-dir": "catalog:",
     "tempy": "catalog:",
     "tree-kill": "catalog:",

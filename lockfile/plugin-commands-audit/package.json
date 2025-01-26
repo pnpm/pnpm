@@ -38,7 +38,6 @@
     "@types/zkochan__table": "catalog:",
     "load-json-file": "catalog:",
     "nock": "catalog:",
-    "strip-ansi": "catalog:",
     "tempy": "catalog:"
   },
   "dependencies": {
