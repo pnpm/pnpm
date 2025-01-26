@@ -6181,6 +6181,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
@@ -7918,6 +7921,9 @@ importers:
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/fs.find-packages':
         specifier: workspace:*
         version: link:../../fs/find-packages

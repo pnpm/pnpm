@@ -30,6 +30,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/find-packages#readme",
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/constants": "workspace:*",
     "@pnpm/fs.find-packages": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:"
