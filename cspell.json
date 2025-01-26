@@ -177,6 +177,7 @@
     "postbuild",
     "postfoo",
     "postpack",
+    "postprepare",
     "postpublish",
     "postrestart",
     "postshrinkwrap",
