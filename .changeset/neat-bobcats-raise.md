@@ -4,4 +4,4 @@
 "pnpm": minor
 ---
 
-Add an option to disable fast reinstall
+Make optimistic repeat install configurable and opt-in.

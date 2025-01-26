@@ -15,7 +15,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'child-concurrency',
     'dev',
     'engine-strict',
-    'fast-reinstall',
     'fetch-retries',
     'fetch-retry-factor',
     'fetch-retry-maxtimeout',
@@ -30,6 +29,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'https-proxy',
     'ignore-pnpmfile',
     'ignore-scripts',
+    'optimistic-repeat-install',
     'link-workspace-packages',
     'lockfile-dir',
     'lockfile-directory',
@@ -81,7 +81,6 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
 export const shorthands: Record<string, string> = {
   D: '--dev',
   P: '--production',
-  refresh: '--no-fast-reinstall',
 }
 
 export const commandNames = ['install', 'i']
@@ -117,8 +116,8 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             shortAlias: '-D',
           },
           {
-            description: 'Ignore the workspace state, force reinstalling the dependencies',
-            name: '--no-fast-reinstall, --refresh',
+            description: 'Skip reinstall if the workspace state is up-to-date',
+            name: '--optimistic-repeat-install',
           },
           {
             description: '`optionalDependencies` are not installed',

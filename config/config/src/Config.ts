@@ -32,7 +32,6 @@ export interface Config {
   extraBinPaths: string[]
   extraEnv: Record<string, string>
   failIfNoMatch: boolean
-  fastReinstall?: boolean
   filter: string[]
   filterProd: string[]
   rawLocalConfig: Record<string, any>, // eslint-disable-line
@@ -46,6 +45,7 @@ export interface Config {
   ignoreScripts?: boolean
   ignoreCompatibilityDb?: boolean
   includeWorkspaceRoot?: boolean
+  optimisticRepeatInstall?: boolean
   save?: boolean
   saveProd?: boolean
   saveDev?: boolean
