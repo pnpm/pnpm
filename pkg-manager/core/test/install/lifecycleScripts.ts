@@ -135,11 +135,12 @@ test('run install scripts in the current project', async () => {
       postinstall: `node -e "console.log('postinstall-' + process.cwd())" | ${server.generateSendStdinScript()}`,
       preinstall: `node -e "console.log('preinstall-' + process.cwd())" | ${server.generateSendStdinScript()}`,
       preprepare: `node -e "console.log('preprepare-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      postprepare: `node -e "console.log('postprepare-' + process.cwd())" | ${server.generateSendStdinScript()}`,
     },
   }, [], testDefaults({ fastUnpack: false }))
   await install(manifest, testDefaults({ fastUnpack: false }))
 
-  expect(server.getLines()).toStrictEqual([`preinstall-${process.cwd()}`, `install-${process.cwd()}`, `postinstall-${process.cwd()}`, `preprepare-${process.cwd()}`])
+  expect(server.getLines()).toStrictEqual([`preinstall-${process.cwd()}`, `install-${process.cwd()}`, `postinstall-${process.cwd()}`, `preprepare-${process.cwd()}`, `postprepare-${process.cwd()}`])
   expect(serverForDevPreinstall.getLines()).toStrictEqual([
     // The pnpm:devPreinstall script runs twice in this test. Once for the
     // initial "addDependenciesToPackage" test setup stage and again for the

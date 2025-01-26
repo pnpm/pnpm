@@ -649,7 +649,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
 
   if (!opts.ignoreScripts && !opts.ignorePackageManifest) {
     await runLifecycleHooksConcurrently(
-      ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare'],
+      ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
       projectsToBeBuilt,
       opts.childConcurrency ?? 5,
       scriptsOpts
