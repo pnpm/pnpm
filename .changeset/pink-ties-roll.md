@@ -9,4 +9,4 @@
 "pnpm": patch
 ---
 
-remove strip-ansi
+Replace `strip-ansi` with the built-in `util.stripVTControlCharacters` [#9009](https://github.com/pnpm/pnpm/pull/9009).
