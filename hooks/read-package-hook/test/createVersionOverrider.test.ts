@@ -616,7 +616,7 @@ test('createVersionsOverrider() overrides peerDependencies of another dependency
   })
 })
 
-test('createVersionOverrider() removes dependencies', () => {
+test('createVersionsOverrider() removes dependencies', () => {
   const overrider = createVersionsOverrider([
     {
       targetPkg: {
