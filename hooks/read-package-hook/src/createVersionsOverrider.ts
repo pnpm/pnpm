@@ -3,6 +3,7 @@ import semver from 'semver'
 import partition from 'ramda/src/partition'
 import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@pnpm/types'
 import { type PackageSelector, type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
+import { isValidPeerVersion } from '@pnpm/validate-peer-dependencies'
 import normalizePath from 'normalize-path'
 import { isIntersectingRange } from './isIntersectingRange'
 
@@ -72,6 +73,23 @@ function overrideDepsOfPkg (
     if (deps) {
       overrideDeps(versionOverrides, genericVersionOverrides, deps, dir)
     }
+  }
+
+  // prevent overrides from adding invalid versions to peerDependencies by moving it to dependencies
+  for (const depName in peerDependencies) {
+    const version = peerDependencies[depName]
+
+    if (isValidPeerVersion(version)) continue
+
+    // if the peer dep with name `depName` isn't overridden, skip
+    if ([...versionOverrides, ...genericVersionOverrides].every(x => x.targetPkg.name !== depName)) {
+      continue
+    }
+
+    delete peerDependencies[depName]
+    if (!manifest.dependencies) manifest.dependencies = {}
+    if (depName in manifest.dependencies) continue
+    manifest.dependencies[depName] = version
   }
 }
 

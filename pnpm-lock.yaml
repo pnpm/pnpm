@@ -3014,6 +3014,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/validate-peer-dependencies':
+        specifier: workspace:*
+        version: link:../../packages/validate-peer-dependencies
       '@yarnpkg/extensions':
         specifier: 'catalog:'
         version: 2.0.3(@yarnpkg/core@4.0.5(typanion@3.14.0))

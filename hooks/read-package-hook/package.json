@@ -33,6 +33,7 @@
     "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/validate-peer-dependencies": "workspace:*",
     "@yarnpkg/extensions": "catalog:",
     "normalize-path": "catalog:",
     "ramda": "catalog:",

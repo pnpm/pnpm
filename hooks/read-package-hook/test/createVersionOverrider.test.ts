@@ -689,3 +689,72 @@ test('createVersionsOverrider() removes dependencies', () => {
     },
   })
 })
+
+test('createVersionsOverrider() moves invalid versions from peerDependencies to dependencies', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+      },
+      newPref: 'link:foo',
+    },
+    {
+      targetPkg: {
+        name: 'bar',
+      },
+      newPref: 'file:bar',
+    },
+    {
+      targetPkg: {
+        name: 'baz',
+      },
+      newPref: '7.7.7',
+    },
+  ], process.cwd())
+  expect(
+    overrider({
+      peerDependencies: {
+        foo: '^1.0.0 || ^2.0.0',
+        bar: '^1.0.0 || ^2.0.0',
+        baz: '^1.0.0 || ^2.0.0',
+        qux: '^1.0.0 || ^2.0.0',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      foo: expect.stringMatching(/^link:.*foo[/\\]?$/),
+      bar: expect.stringMatching(/^file:.*bar[/\\]?$/),
+    },
+    peerDependencies: {
+      baz: '7.7.7',
+      qux: '^1.0.0 || ^2.0.0',
+    },
+  })
+  expect(
+    overrider({
+      dependencies: {
+        foo: '^1.0.0',
+        bar: '^2.0.0',
+        baz: '^1.2.3',
+        qux: '^2.1.0',
+      },
+      peerDependencies: {
+        foo: '^1.0.0 || ^2.0.0',
+        bar: '^1.0.0 || ^2.0.0',
+        baz: '^1.0.0 || ^2.0.0',
+        qux: '^1.0.0 || ^2.0.0',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      foo: expect.stringMatching(/^link:.*foo[/\\]?$/),
+      bar: expect.stringMatching(/^file:.*bar[/\\]?$/),
+      baz: '7.7.7',
+      qux: '^2.1.0',
+    },
+    peerDependencies: {
+      baz: '7.7.7',
+      qux: '^1.0.0 || ^2.0.0',
+    },
+  })
+})

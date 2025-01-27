@@ -23,6 +23,9 @@
     },
     {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../../packages/validate-peer-dependencies"
     }
   ]
 }
