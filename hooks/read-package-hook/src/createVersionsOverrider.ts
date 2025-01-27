@@ -69,23 +69,24 @@ function overrideDepsOfPkg (
   genericVersionOverrides: VersionOverride[]
 ): void {
   const { dependencies, optionalDependencies, devDependencies, peerDependencies } = manifest
+  const _overrideDeps = overrideDeps.bind(null, versionOverrides, genericVersionOverrides, dir)
   for (const deps of [dependencies, optionalDependencies, devDependencies]) {
     if (deps) {
-      overrideDeps(versionOverrides, genericVersionOverrides, deps, undefined, dir)
+      _overrideDeps(deps, undefined)
     }
   }
   if (peerDependencies) {
     if (!manifest.dependencies) manifest.dependencies = {}
-    overrideDeps(versionOverrides, genericVersionOverrides, manifest.dependencies, peerDependencies, dir)
+    _overrideDeps(manifest.dependencies, peerDependencies)
   }
 }
 
 function overrideDeps (
   versionOverrides: VersionOverrideWithParent[],
   genericVersionOverrides: VersionOverride[],
+  dir: string | undefined,
   deps: Dependencies,
-  peerDeps: Dependencies | undefined,
-  dir: string | undefined
+  peerDeps: Dependencies | undefined
 ): void {
   for (const [name, pref] of Object.entries(peerDeps ?? deps)) {
     const versionOverride =
@@ -104,7 +105,11 @@ function overrideDeps (
     if (!versionOverride) continue
 
     if (versionOverride.newPref === '-') {
-      delete deps[versionOverride.targetPkg.name]
+      if (peerDeps) {
+        delete peerDeps[versionOverride.targetPkg.name]
+      } else {
+        delete deps[versionOverride.targetPkg.name]
+      }
       continue
     }
 
