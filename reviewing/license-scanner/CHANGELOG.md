@@ -1,5 +1,23 @@
 # @pnpm/license-scanner
 
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/package-is-installable@1000.0.4
+  - @pnpm/directory-fetcher@1000.0.4
+  - @pnpm/lockfile.detect-dep-types@1001.0.2
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/lockfile.walker@1001.0.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/store.cafs@1000.0.4
+
 ## 1001.0.4
 
 ### Patch Changes

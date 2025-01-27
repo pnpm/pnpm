@@ -1,5 +1,55 @@
 # @pnpm/core
 
+## 1002.0.2
+
+### Patch Changes
+
+- 2b49ee7: When running `pnpm install`, the `preprepare` and `postprepare` scripts of the project should be executed [#8989](https://github.com/pnpm/pnpm/pull/8989).
+- Updated dependencies [2b49ee7]
+- Updated dependencies [ea58bfd]
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+- Updated dependencies [7a9473b]
+- Updated dependencies [040e67b]
+  - @pnpm/headless@1001.1.3
+  - @pnpm/resolve-dependencies@1004.0.1
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/build-modules@1000.2.0
+  - @pnpm/lockfile.filtering@1001.0.3
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/lockfile.pruner@1001.0.2
+  - @pnpm/lockfile.verification@1001.0.4
+  - @pnpm/calc-dep-state@1001.0.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/get-context@1001.0.4
+  - @pnpm/hoist@1001.0.4
+  - @pnpm/normalize-registries@1000.0.2
+  - @pnpm/lifecycle@1001.0.4
+  - @pnpm/symlink-dependency@1000.0.3
+  - @pnpm/hooks.read-package-hook@1000.0.3
+  - @pnpm/hooks.types@1001.0.2
+  - @pnpm/lockfile-to-pnp@1001.0.3
+  - @pnpm/lockfile.preferred-versions@1000.0.4
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/lockfile.walker@1001.0.2
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/link-bins@1000.0.5
+  - @pnpm/modules-cleaner@1001.0.4
+  - @pnpm/modules-yaml@1000.1.2
+  - @pnpm/package-requester@1001.0.1
+  - @pnpm/remove-bins@1000.0.4
+  - @pnpm/manifest-utils@1000.0.4
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/store-controller-types@1001.0.1
+  - @pnpm/worker@1000.0.5
+  - @pnpm/parse-overrides@1000.0.2
+  - @pnpm/crypto.hash@1000.0.0
+  - @pnpm/lockfile.settings-checker@1001.0.2
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.3
+
 ## 1002.0.1
 
 ### Patch Changes

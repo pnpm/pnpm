@@ -1,5 +1,19 @@
 # @pnpm/package-store
 
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/fetcher-base@1000.0.3
+  - @pnpm/package-requester@1001.0.1
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/store.cafs@1000.0.4
+  - @pnpm/store-controller-types@1001.0.1
+  - @pnpm/worker@1000.0.5
+  - @pnpm/create-cafs-store@1000.0.5
+
 ## 1000.0.4
 
 ### Patch Changes

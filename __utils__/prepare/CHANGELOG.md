@@ -1,5 +1,13 @@
 # @pnpm/prepare
 
+## 0.0.111
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/assert-project@4.0.4
+
 ## 0.0.110
 
 ### Patch Changes

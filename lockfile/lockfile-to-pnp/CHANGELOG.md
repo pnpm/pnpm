@@ -1,5 +1,15 @@
 # @pnpm/lockfile-to-pnp
 
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/dependency-path@1000.0.2
+
 ## 1001.0.2
 
 ### Patch Changes

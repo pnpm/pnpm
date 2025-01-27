@@ -1,5 +1,48 @@
 # @pnpm/plugin-commands-installation
 
+## 1001.3.0
+
+### Minor Changes
+
+- f3ffaed: Added a new setting called `optimistic-repeat-install`. When enabled, a fast check will be performed before proceeding to installation. This way a repeat install or an install on a project with everything up-to-date becomes a lot faster. But some edge cases might arise, so we keep it disabled by default for now [#8977](https://github.com/pnpm/pnpm/pull/8977).
+
+### Patch Changes
+
+- Updated dependencies [2b49ee7]
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+- Updated dependencies [5c8654f]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/core@1002.0.2
+  - @pnpm/constants@1001.1.0
+  - @pnpm/workspace.find-packages@1000.0.6
+  - @pnpm/types@1000.1.1
+  - @pnpm/deps.status@1001.1.2
+  - @pnpm/config@1002.2.0
+  - @pnpm/plugin-commands-rebuild@1001.1.4
+  - @pnpm/error@1000.0.2
+  - @pnpm/get-context@1001.0.4
+  - @pnpm/outdated@1001.0.5
+  - @pnpm/filter-workspace-packages@1000.0.6
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/pick-registry-for-package@1000.0.2
+  - @pnpm/dedupe.check@1001.0.2
+  - @pnpm/plugin-commands-env@1000.0.6
+  - @pnpm/pnpmfile@1001.0.4
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/manifest-utils@1000.0.4
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/write-project-manifest@1000.0.2
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/package-store@1000.0.5
+  - @pnpm/workspace.pkgs-graph@1000.0.4
+  - @pnpm/sort-packages@1000.0.2
+  - @pnpm/workspace.state@1001.1.2
+  - @pnpm/store-connection-manager@1000.0.6
+  - @pnpm/find-workspace-dir@1000.0.2
+
 ## 1001.2.1
 
 ### Patch Changes

@@ -1855,3 +1855,109 @@ shared-workspace-lockfile=false
     'is-odd': '1.0.0',
   })
 })
+
+test('deploy should keep files created by lifecycle scripts', async () => {
+  const preparedManifests = {
+    root: {
+      name: 'root',
+      version: '0.0.0',
+      private: true,
+      pnpm: {
+        neverBuiltDependencies: [],
+      },
+    },
+    'project-0': {
+      name: 'project-0',
+      version: '0.0.0',
+      dependencies: {
+        '@pnpm.e2e/install-script-example': '1.0.0',
+      },
+    },
+  } satisfies Record<string, ProjectManifest>
+
+  preparePackages([
+    {
+      location: '.',
+      package: preparedManifests.root,
+    },
+    preparedManifests['project-0'],
+  ])
+
+  fs.writeFileSync('.npmrc', `
+inject-workspace-packages=true
+`, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  const monorepoRoot = process.cwd()
+  const deployOutputProjectDir = path.join(makeTempDir(false), './project-0-deployed')
+
+  execPnpmSync(['install'], { expectSuccess: true })
+
+  {
+    process.chdir('project-0')
+    expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+  }
+  {
+    process.chdir(monorepoRoot)
+    execPnpmSync(['deploy', '--filter', 'project-0', deployOutputProjectDir], { expectSuccess: true })
+  }
+  {
+    process.chdir(deployOutputProjectDir)
+    expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+  }
+})
+
+test('rebuild in a directory created with "pnpm deploy" and with "pnpm.neverBuiltDependencies" configured should run lifecycle scripts', async () => {
+  const preparedManifests = {
+    root: {
+      name: 'root',
+      version: '0.0.0',
+      private: true,
+      pnpm: {
+        neverBuiltDependencies: [],
+      },
+    },
+    'project-0': {
+      name: 'project-0',
+      version: '0.0.0',
+      dependencies: {
+        '@pnpm.e2e/install-script-example': '1.0.0',
+      },
+    },
+  } satisfies Record<string, ProjectManifest>
+
+  preparePackages([
+    {
+      location: '.',
+      package: preparedManifests.root,
+    },
+    preparedManifests['project-0'],
+  ])
+
+  fs.writeFileSync('.npmrc', `
+inject-workspace-packages=true
+`, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  const monorepoRoot = process.cwd()
+  const deployOutputProjectDir = path.join(makeTempDir(false), './project-0-deployed')
+
+  execPnpmSync(['install'], { expectSuccess: true })
+
+  {
+    process.chdir('project-0')
+    expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+  }
+  {
+    process.chdir(monorepoRoot)
+    execPnpmSync(['deploy', '--filter', 'project-0', deployOutputProjectDir], { expectSuccess: true })
+  }
+  {
+    process.chdir(deployOutputProjectDir)
+    fs.rmSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')
+    expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
+
+    execPnpmSync(['rebuild'], { expectSuccess: true })
+    expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+  }
+})

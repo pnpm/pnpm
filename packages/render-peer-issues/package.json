@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/render-peer-issues",
   "description": "Visualizes peer dependency issues",
-  "version": "1000.0.2",
+  "version": "1000.0.3",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -41,8 +41,7 @@
   "devDependencies": {
     "@pnpm/render-peer-issues": "workspace:*",
     "@types/archy": "catalog:",
-    "@types/semver": "catalog:",
-    "strip-ansi": "catalog:"
+    "@types/semver": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

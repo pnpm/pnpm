@@ -10,6 +10,7 @@ import { globalWarn } from '@pnpm/logger'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type ProjectManifest } from '@pnpm/types'
+import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 
 const f = fixtures(__dirname)
@@ -253,6 +254,103 @@ test('deploy with a shared lockfile after full install', async () => {
     )
     expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('Falling back to installing without a lockfile'))
   }
+})
+
+test('the deploy manifest should inherit the pnpm object from the root manifest and the manifest of the selected project', async () => {
+  const preparedManifests: Record<'root' | 'project-0', ProjectManifest> = {
+    root: {
+      name: 'root',
+      version: '0.0.0',
+      private: true,
+      pnpm: {
+        onlyBuiltDependencies: ['from-root'],
+        overrides: {
+          'is-positive': '2.0.0',
+        },
+        executionEnv: {
+          nodeVersion: '20.0.0',
+        },
+      },
+    },
+    'project-0': {
+      name: 'project-0',
+      version: '0.0.0',
+      private: true,
+      dependencies: {
+        'is-positive': '3.1.0',
+      },
+      pnpm: {
+        onlyBuiltDependencies: ['from-project-0'],
+        overrides: {
+          'is-positive': '=1.0.0',
+        },
+        executionEnv: {
+          nodeVersion: '18.0.0',
+        },
+      },
+    },
+  }
+
+  preparePackages([
+    {
+      location: '.',
+      package: preparedManifests.root,
+    },
+    preparedManifests['project-0'],
+  ])
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-0' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    rootProjectManifest: preparedManifests.root,
+    rootProjectManifestDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const project = assertProject(path.resolve('deploy'))
+  project.has('is-positive')
+
+  const manifest = readPackageJson('deploy') as ProjectManifest
+  expect(manifest.pnpm).toStrictEqual({
+    onlyBuiltDependencies: preparedManifests.root.pnpm!.onlyBuiltDependencies,
+    executionEnv: preparedManifests['project-0'].pnpm!.executionEnv,
+  } as ProjectManifest['pnpm'])
+  expect(manifest.pnpm?.overrides).toBeUndefined() // by design
+
+  expect(readPackageJson('deploy/node_modules/is-positive/')).toHaveProperty(['version'], preparedManifests.root.pnpm!.overrides!['is-positive'])
+  expect(project.readLockfile().importers).toStrictEqual({
+    '.': {
+      dependencies: {
+        'is-positive': {
+          specifier: preparedManifests.root.pnpm!.overrides!['is-positive'],
+          version: preparedManifests.root.pnpm!.overrides!['is-positive'],
+        },
+      },
+    },
+  } as LockfileFile['importers'])
 })
 
 test('deploy with a shared lockfile and --prod filter should not fail even if dev workspace package does not exist (#8778)', async () => {
@@ -959,4 +1057,69 @@ test('deploy with a shared lockfile that has peer dependencies suffix in workspa
   for (const name of project2Names) {
     expect(readPackageJson(`deploy/node_modules/.pnpm/${name}/node_modules/project-2`)).toStrictEqual(preparedManifests['project-2'])
   }
+})
+
+test('deploy with a shared lockfile should keep files created by lifecycle scripts', async () => {
+  const preparedManifests: Record<string, ProjectManifest> = {
+    root: {
+      name: 'root',
+      version: '0.0.0',
+      private: true,
+      pnpm: {
+        neverBuiltDependencies: [],
+      },
+    },
+    'project-0': {
+      name: 'project-0',
+      version: '0.0.0',
+      dependencies: {
+        '@pnpm.e2e/install-script-example': '*',
+      },
+    },
+  }
+
+  preparePackages([
+    {
+      location: '.',
+      package: preparedManifests.root,
+    },
+    preparedManifests['project-0'],
+  ])
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-0', '!store/**'] })
+
+  const {
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-0' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph: allProjectsGraph,
+    dir: process.cwd(),
+    rootProjectManifest: preparedManifests.root,
+    rootProjectManifestDir: process.cwd(),
+    recursive: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
+  expect(fs.existsSync('project-0/node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    rootProjectManifest: preparedManifests.root,
+    rootProjectManifestDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  expect(fs.existsSync('deploy/node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })

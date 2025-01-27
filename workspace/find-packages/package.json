@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.find-packages",
-  "version": "1000.0.5",
+  "version": "1000.0.6",
   "description": "Finds packages inside a workspace",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,6 +30,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/find-packages#readme",
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/constants": "workspace:*",
     "@pnpm/fs.find-packages": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:"

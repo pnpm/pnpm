@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "1001.1.3",
+  "version": "1001.2.0",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -62,8 +62,7 @@
     "@types/semver": "catalog:",
     "ghooks": "catalog:",
     "load-json-file": "catalog:",
-    "normalize-newline": "catalog:",
-    "strip-ansi": "catalog:"
+    "normalize-newline": "catalog:"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/default-reporter#readme",
   "funding": "https://opencollective.com/pnpm",

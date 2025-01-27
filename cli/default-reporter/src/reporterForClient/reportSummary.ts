@@ -87,11 +87,7 @@ export function reportSummary (
         }
         if (ignoredScripts.packageNames && ignoredScripts.packageNames.length > 0) {
           msg += EOL
-          msg += `The following dependencies have build scripts that were ignored: ${Array.from(ignoredScripts.packageNames).sort().join(', ')}.`
-          msg += EOL
-          msg += 'To allow the execution of build scripts for these packages, add their names to "pnpm.onlyBuiltDependencies" in your "package.json", then run "pnpm rebuild".'
-          msg += EOL
-          msg += 'If you don\'t want to build the package and see this message, add the package to the "pnpm.ignoredBuiltDependencies" list.'
+          msg += `Ignored build scripts: ${Array.from(ignoredScripts.packageNames).sort().join(', ')}. Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.`
           msg += EOL
         }
         return Rx.of({ msg })

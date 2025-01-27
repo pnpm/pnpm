@@ -1,5 +1,30 @@
 # @pnpm/resolve-dependencies
 
+## 1004.0.1
+
+### Patch Changes
+
+- ea58bfd: Allow `workspace:` and `catalog:` to be part of wider version range in `peerDependencies`.
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.pruner@1001.0.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/npm-resolver@1000.1.3
+  - @pnpm/pick-registry-for-package@1000.0.2
+  - @pnpm/lockfile.preferred-versions@1000.0.4
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/manifest-utils@1000.0.4
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/store-controller-types@1001.0.1
+  - @pnpm/catalogs.resolver@1000.0.2
+  - @pnpm/pick-fetcher@1000.0.0
+
 ## 1004.0.0
 
 ### Major Changes

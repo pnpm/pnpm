@@ -1,5 +1,13 @@
 # @pnpm/fs.find-packages
 
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/read-project-manifest@1000.0.4
+
 ## 1000.0.3
 
 ### Patch Changes

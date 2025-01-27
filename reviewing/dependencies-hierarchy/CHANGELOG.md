@@ -1,5 +1,19 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/normalize-registries@1000.0.2
+  - @pnpm/lockfile.detect-dep-types@1001.0.2
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/modules-yaml@1000.1.2
+  - @pnpm/read-package-json@1000.0.3
+
 ## 1001.0.3
 
 ### Patch Changes

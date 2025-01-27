@@ -1,5 +1,18 @@
 # @pnpm/lifecycle
 
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/directory-fetcher@1000.0.4
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/link-bins@1000.0.5
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/store-controller-types@1001.0.1
+
 ## 1001.0.3
 
 ### Patch Changes

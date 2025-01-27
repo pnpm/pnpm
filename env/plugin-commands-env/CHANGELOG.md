@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-env
 
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/types@1000.1.1
+  - @pnpm/config@1002.2.0
+  - @pnpm/error@1000.0.2
+  - @pnpm/store-path@1000.0.2
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/fetch@1000.1.3
+  - @pnpm/remove-bins@1000.0.4
+  - @pnpm/node.fetcher@1000.0.5
+  - @pnpm/env.system-node-version@1000.0.2
+  - @pnpm/node.resolver@1000.0.5
+
 ## 1000.0.5
 
 ### Patch Changes

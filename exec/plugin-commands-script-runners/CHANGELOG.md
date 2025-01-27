@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1000.0.7
+
+### Patch Changes
+
+- c96eb2b: Fix infinite loop caused by lifecycle scripts using `pnpm` to execute other scripts during `pnpm install` with `verify-deps-before-run=install` [#8954](https://github.com/pnpm/pnpm/issues/8954).
+- Updated dependencies [b562deb]
+- Updated dependencies [5c8654f]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/types@1000.1.1
+  - @pnpm/deps.status@1001.1.2
+  - @pnpm/plugin-commands-installation@1001.3.0
+  - @pnpm/config@1002.2.0
+  - @pnpm/error@1000.0.2
+  - @pnpm/store-path@1000.0.2
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/pick-registry-for-package@1000.0.2
+  - @pnpm/plugin-commands-env@1000.0.6
+  - @pnpm/lifecycle@1001.0.4
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/client@1000.0.5
+  - @pnpm/package-bins@1000.0.2
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/sort-packages@1000.0.2
+  - @pnpm/crypto.hash@1000.0.0
+
 ## 1000.0.6
 
 ### Patch Changes

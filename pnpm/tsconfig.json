@@ -67,6 +67,9 @@
       "path": "../env/plugin-commands-env"
     },
     {
+      "path": "../exec/build-commands"
+    },
+    {
       "path": "../exec/plugin-commands-rebuild"
     },
     {

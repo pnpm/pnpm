@@ -1,5 +1,29 @@
 # @pnpm/deps.status
 
+## 1001.1.2
+
+### Patch Changes
+
+- 5c8654f: Make sure that the deletion of a `node_modules` in a sub-project of a monorepo is detected as out-of-date [#8959](https://github.com/pnpm/pnpm/issues/8959).
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/workspace.find-packages@1000.0.6
+  - @pnpm/types@1000.1.1
+  - @pnpm/config@1002.2.0
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/lockfile.verification@1001.0.4
+  - @pnpm/error@1000.0.2
+  - @pnpm/get-context@1001.0.4
+  - @pnpm/workspace.read-manifest@1000.0.2
+  - @pnpm/pnpmfile@1001.0.4
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/workspace.state@1001.1.2
+  - @pnpm/parse-overrides@1000.0.2
+  - @pnpm/lockfile.settings-checker@1001.0.2
+
 ## 1001.1.1
 
 ### Patch Changes

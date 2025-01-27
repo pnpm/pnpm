@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 1000.1.1
+
+### Patch Changes
+
+- b562deb: Fix `pnpm deploy` creating a package.json without the `"type"` key [#8962](https://github.com/pnpm/pnpm/issues/8962).
+
 ## 1000.1.0
 
 ### Minor Changes

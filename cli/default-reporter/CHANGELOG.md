@@ -1,5 +1,27 @@
 # @pnpm/default-reporter
 
+## 1001.2.0
+
+### Minor Changes
+
+- 961dc5d: Added a new command for approving dependencies for running scripts during installation: `pnpm approve-builds` [#8963](https://github.com/pnpm/pnpm/pull/8963).
+- 7a9473b: Added a new field "pnpm.ignoredBuiltDependencies" for explicitly listing packages that should not be built. When a package is in the list, pnpm will not print an info message about that package not being built [#8935](https://github.com/pnpm/pnpm/issues/8935).
+
+### Patch Changes
+
+- acdf26d: Replace `strip-ansi` with the built-in `util.stripVTControlCharacters` [#9009](https://github.com/pnpm/pnpm/pull/9009).
+- Updated dependencies [b562deb]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+- Updated dependencies [acdf26d]
+  - @pnpm/types@1000.1.1
+  - @pnpm/config@1002.2.0
+  - @pnpm/render-peer-issues@1000.0.3
+  - @pnpm/dedupe.issues-renderer@1000.0.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/cli-meta@1000.0.2
+  - @pnpm/core-loggers@1000.1.2
+
 ## 1001.1.3
 
 ### Patch Changes

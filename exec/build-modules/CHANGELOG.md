@@ -1,5 +1,26 @@
 # @pnpm/build-modules
 
+## 1000.2.0
+
+### Minor Changes
+
+- 7a9473b: Added a new field "pnpm.ignoredBuiltDependencies" for explicitly listing packages that should not be built. When a package is in the list, pnpm will not print an info message about that package not being built [#8935](https://github.com/pnpm/pnpm/issues/8935).
+
+### Patch Changes
+
+- 040e67b: Do not print patched dependencies as ignored dependencies that require a build [#8952](https://github.com/pnpm/pnpm/issues/8952).
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/calc-dep-state@1001.0.2
+  - @pnpm/lifecycle@1001.0.4
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/link-bins@1000.0.5
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/store-controller-types@1001.0.1
+  - @pnpm/worker@1000.0.5
+  - @pnpm/patching.apply-patch@1000.0.2
+  - @pnpm/fs.hard-link-dir@1000.0.0
+
 ## 1000.1.2
 
 ### Patch Changes

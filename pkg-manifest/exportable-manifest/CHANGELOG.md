@@ -1,5 +1,15 @@
 # @pnpm/exportable-manifest
 
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/catalogs.resolver@1000.0.2
+
 ## 1000.0.4
 
 ### Patch Changes

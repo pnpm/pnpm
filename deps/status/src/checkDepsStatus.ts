@@ -157,13 +157,33 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
     }
 
     const allManifestStats = await Promise.all(allProjects.map(async project => {
+      const modulesDirStatsPromise = safeStat(path.join(project.rootDir, 'node_modules'))
       const manifestStats = await statManifestFile(project.rootDir)
       if (!manifestStats) {
         // this error should not happen
         throw new Error(`Cannot find one of ${MANIFEST_BASE_NAMES.join(', ')} in ${project.rootDir}`)
       }
-      return { project, manifestStats }
+      return {
+        project,
+        manifestStats,
+        modulesDirStats: await modulesDirStatsPromise,
+      }
     }))
+
+    if (!workspaceState.filteredInstall) {
+      for (const { modulesDirStats, project } of allManifestStats) {
+        if (modulesDirStats) continue
+        if (isEmpty({
+          ...project.manifest.dependencies,
+          ...project.manifest.devDependencies,
+        })) continue
+        const id = project.manifest.name ?? project.rootDir
+        return {
+          upToDate: false,
+          issue: `Workspace package ${id} has dependencies but does not have a modules directory`,
+        }
+      }
+    }
 
     const modifiedProjects = allManifestStats.filter(
       ({ manifestStats }) =>

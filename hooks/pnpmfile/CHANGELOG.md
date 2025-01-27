@@ -1,5 +1,18 @@
 # @pnpm/pnpmfile
 
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/hooks.types@1001.0.2
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/store-controller-types@1001.0.1
+  - @pnpm/crypto.hash@1000.0.0
+
 ## 1001.0.3
 
 ### Patch Changes

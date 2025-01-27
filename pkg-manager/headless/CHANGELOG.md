@@ -1,5 +1,41 @@
 # @pnpm/headless
 
+## 1001.1.3
+
+### Patch Changes
+
+- 2b49ee7: When running `pnpm install`, the `preprepare` and `postprepare` scripts of the project should be executed [#8989](https://github.com/pnpm/pnpm/pull/8989).
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+- Updated dependencies [7a9473b]
+- Updated dependencies [040e67b]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/build-modules@1000.2.0
+  - @pnpm/deps.graph-builder@1001.0.5
+  - @pnpm/lockfile.filtering@1001.0.3
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/calc-dep-state@1001.0.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/hoist@1001.0.4
+  - @pnpm/package-is-installable@1000.0.4
+  - @pnpm/lifecycle@1001.0.4
+  - @pnpm/symlink-dependency@1000.0.3
+  - @pnpm/lockfile-to-pnp@1001.0.3
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/link-bins@1000.0.5
+  - @pnpm/modules-cleaner@1001.0.4
+  - @pnpm/modules-yaml@1000.1.2
+  - @pnpm/package-requester@1001.0.1
+  - @pnpm/real-hoist@1001.0.2
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/store-controller-types@1001.0.1
+  - @pnpm/worker@1000.0.5
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.3
+
 ## 1001.1.2
 
 ### Patch Changes
