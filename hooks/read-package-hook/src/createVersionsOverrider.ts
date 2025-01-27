@@ -69,27 +69,14 @@ function overrideDepsOfPkg (
   genericVersionOverrides: VersionOverride[]
 ): void {
   const { dependencies, optionalDependencies, devDependencies, peerDependencies } = manifest
-  for (const deps of [dependencies, optionalDependencies, devDependencies, peerDependencies]) {
+  for (const deps of [dependencies, optionalDependencies, devDependencies]) {
     if (deps) {
-      overrideDeps(versionOverrides, genericVersionOverrides, deps, dir)
+      overrideDeps(versionOverrides, genericVersionOverrides, deps, undefined, dir)
     }
   }
-
-  // prevent overrides from adding invalid versions to peerDependencies by moving it to dependencies
-  for (const depName in peerDependencies) {
-    const version = peerDependencies[depName]
-
-    if (isValidPeerVersion(version)) continue
-
-    // if the peer dep with name `depName` isn't overridden, skip
-    if ([...versionOverrides, ...genericVersionOverrides].every(x => x.targetPkg.name !== depName)) {
-      continue
-    }
-
-    delete peerDependencies[depName]
+  if (peerDependencies) {
     if (!manifest.dependencies) manifest.dependencies = {}
-    if (depName in manifest.dependencies) continue
-    manifest.dependencies[depName] = version
+    overrideDeps(versionOverrides, genericVersionOverrides, manifest.dependencies, peerDependencies, dir)
   }
 }
 
@@ -97,9 +84,10 @@ function overrideDeps (
   versionOverrides: VersionOverrideWithParent[],
   genericVersionOverrides: VersionOverride[],
   deps: Dependencies,
+  peerDeps: Dependencies | undefined,
   dir: string | undefined
 ): void {
-  for (const [name, pref] of Object.entries(deps)) {
+  for (const [name, pref] of Object.entries(peerDeps ?? deps)) {
     const versionOverride =
     pickMostSpecificVersionOverride(
       versionOverrides.filter(
@@ -120,11 +108,14 @@ function overrideDeps (
       continue
     }
 
-    if (versionOverride.localTarget) {
-      deps[versionOverride.targetPkg.name] = `${versionOverride.localTarget.protocol}${resolveLocalOverride(versionOverride.localTarget, dir)}`
-      continue
+    const newPref = versionOverride.localTarget
+      ? `${versionOverride.localTarget.protocol}${resolveLocalOverride(versionOverride.localTarget, dir)}`
+      : versionOverride.newPref
+    if (peerDeps == null || !isValidPeerVersion(newPref)) {
+      deps[versionOverride.targetPkg.name] = newPref
+    } else if (isValidPeerVersion(newPref)) {
+      peerDeps[versionOverride.targetPkg.name] = newPref
     }
-    deps[versionOverride.targetPkg.name] = versionOverride.newPref
   }
 }
 

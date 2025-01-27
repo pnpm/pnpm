@@ -610,6 +610,7 @@ test('createVersionsOverrider() overrides peerDependencies of another dependency
   ).toStrictEqual({
     name: 'react-dom',
     version: '18.2.0',
+    dependencies: {},
     peerDependencies: {
       react: '18.1.0',
     },
@@ -726,7 +727,9 @@ test('createVersionsOverrider() moves invalid versions from peerDependencies to 
       bar: expect.stringMatching(/^file:.*bar[/\\]?$/),
     },
     peerDependencies: {
+      bar: '^1.0.0 || ^2.0.0',
       baz: '7.7.7',
+      foo: '^1.0.0 || ^2.0.0',
       qux: '^1.0.0 || ^2.0.0',
     },
   })
@@ -753,7 +756,9 @@ test('createVersionsOverrider() moves invalid versions from peerDependencies to 
       qux: '^2.1.0',
     },
     peerDependencies: {
+      bar: '^1.0.0 || ^2.0.0',
       baz: '7.7.7',
+      foo: '^1.0.0 || ^2.0.0',
       qux: '^1.0.0 || ^2.0.0',
     },
   })
