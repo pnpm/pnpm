@@ -5,12 +5,12 @@ import {
   type WorkspacePackages,
 } from '@pnpm/resolver-base'
 import { type Dependencies, type ProjectManifest } from '@pnpm/types'
+import { validatePeerDependencies } from '@pnpm/validate-peer-dependencies'
 import getVerSelType from 'version-selector-type'
 import { type ImporterToResolve } from '.'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies'
 import { type ImporterToResolveGeneric } from './resolveDependencyTree'
 import { safeIsInnerLink } from './safeIsInnerLink'
-import { validatePeerDependencies } from './validatePeerDependencies'
 
 export interface ResolveImporter extends ImporterToResolve, ImporterToResolveGeneric<{ isNew?: boolean }> {
   wantedDependencies: Array<WantedDependency & {

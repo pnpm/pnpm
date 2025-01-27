@@ -1,5 +1,6 @@
 ---
 "@pnpm/resolve-dependencies": minor
+"@pnpm/validate-peer-dependencies": major
 "@pnpm/core": patch
 "pnpm": patch
 ---

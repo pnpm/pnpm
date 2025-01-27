@@ -52,6 +52,9 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../packages/validate-peer-dependencies"
+    },
+    {
       "path": "../../packages/which-version-is-pinned"
     },
     {

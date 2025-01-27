@@ -4029,6 +4029,25 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  packages/validate-peer-dependencies:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../error
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../types
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
+      semver:
+        specifier: 'catalog:'
+        version: 7.6.2
+    devDependencies:
+      '@pnpm/validate-peer-dependencies':
+        specifier: workspace:*
+        version: 'link:'
+
   packages/which-version-is-pinned:
     dependencies:
       semver-utils:
@@ -5532,6 +5551,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/validate-peer-dependencies':
+        specifier: workspace:*
+        version: link:../../packages/validate-peer-dependencies
       '@pnpm/which-version-is-pinned':
         specifier: workspace:*
         version: link:../../packages/which-version-is-pinned
@@ -15693,7 +15715,7 @@ snapshots:
 
   '@npmcli/fs@4.0.0':
     dependencies:
-      semver: 7.6.2
+      semver: 7.6.3
 
   '@pkgjs/parseargs@0.11.0':
     optional: true

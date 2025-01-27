@@ -49,6 +49,7 @@
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/validate-peer-dependencies": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@yarnpkg/core": "catalog:",
