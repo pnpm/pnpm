@@ -6473,6 +6473,9 @@ importers:
       '@pnpm/git-resolver':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/network.agent':
+        specifier: 'catalog:'
+        version: 2.0.0
       '@types/hosted-git-info':
         specifier: 'catalog:'
         version: 3.0.5

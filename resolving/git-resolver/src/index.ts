@@ -3,6 +3,7 @@ import git from 'graceful-git'
 import semver from 'semver'
 import { parsePref, type HostedPackageSpec } from './parsePref'
 import { createGitHostedPkgId } from './createGitHostedPkgId'
+import { type AgentOptions } from '@pnpm/network.agent'
 
 export { createGitHostedPkgId }
 
@@ -13,10 +14,10 @@ export type GitResolver = (wantedDependency: {
 }) => Promise<ResolveResult | null>
 
 export function createGitResolver (
-  opts: unknown
+  opts: AgentOptions
 ): GitResolver {
   return async function resolveGit (wantedDependency): Promise<ResolveResult | null> {
-    const parsedSpec = await parsePref(wantedDependency.pref)
+    const parsedSpec = await parsePref(wantedDependency.pref, opts)
 
     if (parsedSpec == null) return null
 
