@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/semver.peer-range",
   "version": "1000.0.0-0",
-  "description": "Check for invalid peer dependency versions",
+  "description": "Validates peer ranges",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [

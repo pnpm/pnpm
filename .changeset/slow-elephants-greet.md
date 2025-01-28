@@ -1,6 +1,6 @@
 ---
 "@pnpm/hooks.read-package-hook": patch
-"@pnpm/validate-peer-dependencies": major
+"@pnpm/semver.peer-range": major
 "@pnpm/resolve-dependencies": patch
 "@pnpm/core": patch
 "pnpm": patch
