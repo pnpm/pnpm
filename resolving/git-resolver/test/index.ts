@@ -3,14 +3,14 @@ import path from 'path'
 import { createGitResolver } from '@pnpm/git-resolver'
 import git from 'graceful-git'
 import isWindows from 'is-windows'
-import { fetch } from '@pnpm/fetch'
+import { fetchWithAgent } from '@pnpm/fetch'
 
 const resolveFromGit = createGitResolver({})
 
 function mockFetchAsPrivate (): void {
-  type Fetch = typeof fetch
-  type MockedFetch = jest.MockedFunction<Fetch>
-  (fetch as MockedFetch).mockImplementation(async (_url, _opts) => {
+  type FetchWithAgent = typeof fetchWithAgent
+  type MockedFetchWithAgent = jest.MockedFunction<FetchWithAgent>
+  (fetchWithAgent as MockedFetchWithAgent).mockImplementation(async (_url, _opts) => {
     return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any
   })
 }

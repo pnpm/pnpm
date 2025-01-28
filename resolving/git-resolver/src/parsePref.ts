@@ -1,6 +1,7 @@
 // cspell:ignore sshurl
 import urlLib, { URL } from 'url'
-import { fetch } from '@pnpm/fetch'
+import { fetchWithAgent } from '@pnpm/fetch'
+import { type AgentOptions } from '@pnpm/network.agent'
 
 import git from 'graceful-git'
 import HostedGit from 'hosted-git-info'
@@ -31,10 +32,10 @@ const gitProtocols = new Set([
   'ssh',
 ])
 
-export async function parsePref (pref: string): Promise<HostedPackageSpec | null> {
+export async function parsePref (pref: string, opts: AgentOptions): Promise<HostedPackageSpec | null> {
   const hosted = HostedGit.fromUrl(pref)
   if (hosted != null) {
-    return fromHostedGit(hosted)
+    return fromHostedGit(hosted, opts)
   }
   const colonsPos = pref.indexOf(':')
   if (colonsPos === -1) return null
@@ -63,11 +64,11 @@ function urlToFetchSpec (url: URL): string {
   return fetchSpec
 }
 
-async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // eslint-disable-line
+async function fromHostedGit (hosted: any, agentOptions: AgentOptions): Promise<HostedPackageSpec> { // eslint-disable-line
   let fetchSpec: string | null = null
   // try git/https url before fallback to ssh url
   const gitHttpsUrl = hosted.https({ noCommittish: true, noGitPlus: true })
-  if (gitHttpsUrl && await isRepoPublic(gitHttpsUrl) && await accessRepository(gitHttpsUrl)) {
+  if (gitHttpsUrl && await isRepoPublic(gitHttpsUrl, agentOptions) && await accessRepository(gitHttpsUrl)) {
     fetchSpec = gitHttpsUrl
   } else {
     const gitSshUrl = hosted.ssh({ noCommittish: true })
@@ -79,7 +80,7 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
   if (!fetchSpec) {
     const httpsUrl: string | null = hosted.https({ noGitPlus: true, noCommittish: true })
     if (httpsUrl) {
-      if ((hosted.auth || !await isRepoPublic(httpsUrl)) && await accessRepository(httpsUrl)) {
+      if ((hosted.auth || !await isRepoPublic(httpsUrl, agentOptions)) && await accessRepository(httpsUrl)) {
         return {
           fetchSpec: httpsUrl,
           hosted: {
@@ -98,7 +99,7 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
           // npm instead tries git ls-remote directly which prompts user for login credentials.
 
           // HTTP HEAD on https://domain/user/repo, strip out ".git"
-          const response = await fetch(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
+          const response = await fetchWithAgent(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 }, agentOptions })
           if (response.ok) {
             fetchSpec = httpsUrl
           }
@@ -126,9 +127,9 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
   }
 }
 
-async function isRepoPublic (httpsUrl: string): Promise<boolean> {
+async function isRepoPublic (httpsUrl: string, agentOptions: AgentOptions): Promise<boolean> {
   try {
-    const response = await fetch(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
+    const response = await fetchWithAgent(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 }, agentOptions })
     return response.ok
   } catch {
     return false
