@@ -6,4 +6,4 @@
 "pnpm": patch
 ---
 
-Prevent `overrides` from adding invalid versions to `peerDependencies` by moving it to `dependencies` [#8978](https://github.com/pnpm/pnpm/issues/8978).
+Prevent `overrides` from adding invalid version ranges to `peerDependencies` by keeping the `peerDependencies` and overriding them with prod `dependencies` [#8978](https://github.com/pnpm/pnpm/issues/8978).

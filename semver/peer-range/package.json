@@ -21,7 +21,8 @@
   "keywords": [
     "pnpm10",
     "pnpm",
-    "doctor"
+    "semver",
+    "peer"
   ],
   "license": "MIT",
   "bugs": {

@@ -5,7 +5,7 @@ import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { preparePackages } from '@pnpm/prepare'
 import { testDefaults } from '../utils'
 
-test('throws an error when there peerDependencies have invalid specs', async () => {
+test('throws an error when the peerDependencies have unallowed specs', async () => {
   preparePackages([
     {
       name: 'foo',
@@ -29,7 +29,7 @@ test('throws an error when there peerDependencies have invalid specs', async () 
   await rejects.toHaveProperty(['message'], "The peerDependencies field named 'foo' of package 'root' has an invalid value: 'link:foo'")
 })
 
-test('does not prevent overrides from replacing peerDependencies with local links', async () => {
+test('overrides are not prevented from replacing peerDependencies with local links', async () => {
   preparePackages([
     {
       name: 'fake-is-positive',
@@ -72,7 +72,7 @@ test('does not prevent overrides from replacing peerDependencies with local link
   expect(fs.realpathSync('node_modules/is-positive')).toBe(path.resolve('fake-is-positive'))
 })
 
-test('empty overrides does not disable peer dependencies validation', async () => {
+test("empty overrides don't disable peer dependencies validation", async () => {
   preparePackages([
     {
       name: 'foo',

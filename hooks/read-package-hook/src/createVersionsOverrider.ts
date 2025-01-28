@@ -69,7 +69,7 @@ function overrideDepsOfPkg (
   genericVersionOverrides: VersionOverride[]
 ): void {
   const { dependencies, optionalDependencies, devDependencies, peerDependencies } = manifest
-  const _overrideDeps = overrideDeps.bind(null, versionOverrides, genericVersionOverrides, dir)
+  const _overrideDeps = overrideDeps.bind(null, { versionOverrides, genericVersionOverrides, dir })
   for (const deps of [dependencies, optionalDependencies, devDependencies]) {
     if (deps) {
       _overrideDeps(deps, undefined)
@@ -82,9 +82,11 @@ function overrideDepsOfPkg (
 }
 
 function overrideDeps (
-  versionOverrides: VersionOverrideWithParent[],
-  genericVersionOverrides: VersionOverride[],
-  dir: string | undefined,
+  { versionOverrides, genericVersionOverrides, dir }: {
+    versionOverrides: VersionOverrideWithParent[]
+    genericVersionOverrides: VersionOverride[]
+    dir: string | undefined
+  },
   deps: Dependencies,
   peerDeps: Dependencies | undefined
 ): void {
