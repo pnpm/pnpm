@@ -3011,12 +3011,12 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
+      '@pnpm/semver.peer-range':
+        specifier: workspace:*
+        version: link:../../semver/peer-range
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@pnpm/validate-peer-dependencies':
-        specifier: workspace:*
-        version: link:../../packages/validate-peer-dependencies
       '@yarnpkg/extensions':
         specifier: 'catalog:'
         version: 2.0.3(@yarnpkg/core@4.0.5(typanion@3.14.0))
@@ -4029,25 +4029,6 @@ importers:
   packages/types:
     devDependencies:
       '@pnpm/types':
-        specifier: workspace:*
-        version: 'link:'
-
-  packages/validate-peer-dependencies:
-    dependencies:
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../error
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.5.3
-      semver:
-        specifier: 'catalog:'
-        version: 7.6.2
-    devDependencies:
-      '@pnpm/validate-peer-dependencies':
         specifier: workspace:*
         version: 'link:'
 
@@ -5548,15 +5529,15 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
+      '@pnpm/semver.peer-range':
+        specifier: workspace:*
+        version: link:../../semver/peer-range
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@pnpm/validate-peer-dependencies':
-        specifier: workspace:*
-        version: link:../../packages/validate-peer-dependencies
       '@pnpm/which-version-is-pinned':
         specifier: workspace:*
         version: link:../../packages/which-version-is-pinned
@@ -7148,6 +7129,19 @@ importers:
       '@types/zkochan__table':
         specifier: 'catalog:'
         version: '@types/table@6.0.0'
+
+  semver/peer-range:
+    dependencies:
+      semver:
+        specifier: 'catalog:'
+        version: 7.6.2
+    devDependencies:
+      '@pnpm/semver.peer-range':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
 
   store/cafs:
     dependencies:

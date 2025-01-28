@@ -3,7 +3,7 @@ import semver from 'semver'
 import partition from 'ramda/src/partition'
 import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@pnpm/types'
 import { type PackageSelector, type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
-import { isValidPeerVersion } from '@pnpm/validate-peer-dependencies'
+import { isValidPeerRange } from '@pnpm/semver.peer-range'
 import normalizePath from 'normalize-path'
 import { isIntersectingRange } from './isIntersectingRange'
 
@@ -116,9 +116,9 @@ function overrideDeps (
     const newPref = versionOverride.localTarget
       ? `${versionOverride.localTarget.protocol}${resolveLocalOverride(versionOverride.localTarget, dir)}`
       : versionOverride.newPref
-    if (peerDeps == null || !isValidPeerVersion(newPref)) {
+    if (peerDeps == null || !isValidPeerRange(newPref)) {
       deps[versionOverride.targetPkg.name] = newPref
-    } else if (isValidPeerVersion(newPref)) {
+    } else if (isValidPeerRange(newPref)) {
       peerDeps[versionOverride.targetPkg.name] = newPref
     }
   }

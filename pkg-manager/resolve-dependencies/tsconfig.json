@@ -52,9 +52,6 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../packages/validate-peer-dependencies"
-    },
-    {
       "path": "../../packages/which-version-is-pinned"
     },
     {
@@ -74,6 +71,9 @@
     },
     {
       "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../semver/peer-range"
     },
     {
       "path": "../../store/store-controller-types"

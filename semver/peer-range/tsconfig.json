@@ -8,12 +8,5 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../types"
-    }
-  ]
+  "references": []
 }

@@ -25,7 +25,7 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../packages/validate-peer-dependencies"
+      "path": "../../semver/peer-range"
     }
   ]
 }

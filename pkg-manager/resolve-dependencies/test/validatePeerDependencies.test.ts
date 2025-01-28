@@ -1,4 +1,4 @@
-import { validatePeerDependencies } from '../src/index'
+import { validatePeerDependencies } from '../src/validatePeerDependencies'
 
 test('accepts valid specifications that make sense for peerDependencies', () => {
   validatePeerDependencies({
