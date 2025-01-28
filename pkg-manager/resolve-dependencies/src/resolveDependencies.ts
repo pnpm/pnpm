@@ -1349,6 +1349,13 @@ async function resolveDependency (
         ),
       }
     }
+    if (pkg.peerDependenciesMeta != null) {
+      for (const [peerName, peerOpts] of Object.entries(pkg.peerDependenciesMeta)) {
+        if (peerOpts.optional && (pkg.dependencies?.[peerName] != null || pkg.optionalDependencies?.[peerName] != null)) {
+          peerOpts.optional = false
+        }
+      }
+    }
   }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
