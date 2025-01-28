@@ -3011,6 +3011,9 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
+      '@pnpm/semver.peer-range':
+        specifier: workspace:*
+        version: link:../../semver/peer-range
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5526,6 +5529,9 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
+      '@pnpm/semver.peer-range':
+        specifier: workspace:*
+        version: link:../../semver/peer-range
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -7123,6 +7129,19 @@ importers:
       '@types/zkochan__table':
         specifier: 'catalog:'
         version: '@types/table@6.0.0'
+
+  semver/peer-range:
+    dependencies:
+      semver:
+        specifier: 'catalog:'
+        version: 7.6.2
+    devDependencies:
+      '@pnpm/semver.peer-range':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
 
   store/cafs:
     dependencies:
@@ -15693,7 +15712,7 @@ snapshots:
 
   '@npmcli/fs@4.0.0':
     dependencies:
-      semver: 7.6.2
+      semver: 7.6.3
 
   '@pkgjs/parseargs@0.11.0':
     optional: true

@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import { type ProjectManifest } from '@pnpm/types'
-import { validRange } from 'semver'
+import { isValidPeerRange } from '@pnpm/semver.peer-range'
 
 export interface ProjectToValidate {
   rootDir: string
@@ -12,7 +12,7 @@ export function validatePeerDependencies (project: ProjectToValidate): void {
   const projectId = name ?? project.rootDir
   for (const depName in peerDependencies) {
     const version = peerDependencies[depName]
-    if (!isValidPeerVersion(version)) {
+    if (!isValidPeerRange(version)) {
       throw new PnpmError(
         'INVALID_PEER_DEPENDENCY_SPECIFICATION',
         `The peerDependencies field named '${depName}' of package '${projectId}' has an invalid value: '${version}'`,
@@ -22,9 +22,4 @@ export function validatePeerDependencies (project: ProjectToValidate): void {
       )
     }
   }
-}
-
-function isValidPeerVersion (version: string): boolean {
-  // we use `includes` instead of `startsWith` because `workspace:*` and `catalog:*` could be a part of a wider version range expression
-  return typeof validRange(version) === 'string' || version.includes('workspace:') || version.includes('catalog:')
 }

@@ -3,6 +3,7 @@ import semver from 'semver'
 import partition from 'ramda/src/partition'
 import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@pnpm/types'
 import { type PackageSelector, type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
+import { isValidPeerRange } from '@pnpm/semver.peer-range'
 import normalizePath from 'normalize-path'
 import { isIntersectingRange } from './isIntersectingRange'
 
@@ -68,20 +69,28 @@ function overrideDepsOfPkg (
   genericVersionOverrides: VersionOverride[]
 ): void {
   const { dependencies, optionalDependencies, devDependencies, peerDependencies } = manifest
-  for (const deps of [dependencies, optionalDependencies, devDependencies, peerDependencies]) {
+  const _overrideDeps = overrideDeps.bind(null, { versionOverrides, genericVersionOverrides, dir })
+  for (const deps of [dependencies, optionalDependencies, devDependencies]) {
     if (deps) {
-      overrideDeps(versionOverrides, genericVersionOverrides, deps, dir)
+      _overrideDeps(deps, undefined)
     }
+  }
+  if (peerDependencies) {
+    if (!manifest.dependencies) manifest.dependencies = {}
+    _overrideDeps(manifest.dependencies, peerDependencies)
   }
 }
 
 function overrideDeps (
-  versionOverrides: VersionOverrideWithParent[],
-  genericVersionOverrides: VersionOverride[],
+  { versionOverrides, genericVersionOverrides, dir }: {
+    versionOverrides: VersionOverrideWithParent[]
+    genericVersionOverrides: VersionOverride[]
+    dir: string | undefined
+  },
   deps: Dependencies,
-  dir: string | undefined
+  peerDeps: Dependencies | undefined
 ): void {
-  for (const [name, pref] of Object.entries(deps)) {
+  for (const [name, pref] of Object.entries(peerDeps ?? deps)) {
     const versionOverride =
     pickMostSpecificVersionOverride(
       versionOverrides.filter(
@@ -98,15 +107,22 @@ function overrideDeps (
     if (!versionOverride) continue
 
     if (versionOverride.newPref === '-') {
-      delete deps[versionOverride.targetPkg.name]
+      if (peerDeps) {
+        delete peerDeps[versionOverride.targetPkg.name]
+      } else {
+        delete deps[versionOverride.targetPkg.name]
+      }
       continue
     }
 
-    if (versionOverride.localTarget) {
-      deps[versionOverride.targetPkg.name] = `${versionOverride.localTarget.protocol}${resolveLocalOverride(versionOverride.localTarget, dir)}`
-      continue
+    const newPref = versionOverride.localTarget
+      ? `${versionOverride.localTarget.protocol}${resolveLocalOverride(versionOverride.localTarget, dir)}`
+      : versionOverride.newPref
+    if (peerDeps == null || !isValidPeerRange(newPref)) {
+      deps[versionOverride.targetPkg.name] = newPref
+    } else if (isValidPeerRange(newPref)) {
+      peerDeps[versionOverride.targetPkg.name] = newPref
     }
-    deps[versionOverride.targetPkg.name] = versionOverride.newPref
   }
 }
 

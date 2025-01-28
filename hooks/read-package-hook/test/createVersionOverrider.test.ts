@@ -610,13 +610,14 @@ test('createVersionsOverrider() overrides peerDependencies of another dependency
   ).toStrictEqual({
     name: 'react-dom',
     version: '18.2.0',
+    dependencies: {},
     peerDependencies: {
       react: '18.1.0',
     },
   })
 })
 
-test('createVersionOverrider() removes dependencies', () => {
+test('createVersionsOverrider() removes dependencies', () => {
   const overrider = createVersionsOverrider([
     {
       targetPkg: {
@@ -686,6 +687,79 @@ test('createVersionOverrider() removes dependencies', () => {
       bar: '1.2.3',
       baz: '1.0.0',
       qux: '3.2.1',
+    },
+  })
+})
+
+test('createVersionsOverrider() moves invalid versions from peerDependencies to dependencies', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+      },
+      newPref: 'link:foo',
+    },
+    {
+      targetPkg: {
+        name: 'bar',
+      },
+      newPref: 'file:bar',
+    },
+    {
+      targetPkg: {
+        name: 'baz',
+      },
+      newPref: '7.7.7',
+    },
+  ], process.cwd())
+  expect(
+    overrider({
+      peerDependencies: {
+        foo: '^1.0.0 || ^2.0.0',
+        bar: '^1.0.0 || ^2.0.0',
+        baz: '^1.0.0 || ^2.0.0',
+        qux: '^1.0.0 || ^2.0.0',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      foo: expect.stringMatching(/^link:.*foo[/\\]?$/),
+      bar: expect.stringMatching(/^file:.*bar[/\\]?$/),
+    },
+    peerDependencies: {
+      bar: '^1.0.0 || ^2.0.0',
+      baz: '7.7.7',
+      foo: '^1.0.0 || ^2.0.0',
+      qux: '^1.0.0 || ^2.0.0',
+    },
+  })
+  expect(
+    overrider({
+      dependencies: {
+        foo: '^1.0.0',
+        bar: '^2.0.0',
+        baz: '^1.2.3',
+        qux: '^2.1.0',
+      },
+      peerDependencies: {
+        foo: '^1.0.0 || ^2.0.0',
+        bar: '^1.0.0 || ^2.0.0',
+        baz: '^1.0.0 || ^2.0.0',
+        qux: '^1.0.0 || ^2.0.0',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      foo: expect.stringMatching(/^link:.*foo[/\\]?$/),
+      bar: expect.stringMatching(/^file:.*bar[/\\]?$/),
+      baz: '7.7.7',
+      qux: '^2.1.0',
+    },
+    peerDependencies: {
+      bar: '^1.0.0 || ^2.0.0',
+      baz: '7.7.7',
+      foo: '^1.0.0 || ^2.0.0',
+      qux: '^1.0.0 || ^2.0.0',
     },
   })
 })

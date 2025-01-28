@@ -47,6 +47,7 @@
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/semver.peer-range": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",

@@ -73,6 +73,9 @@
       "path": "../../resolving/resolver-base"
     },
     {
+      "path": "../../semver/peer-range"
+    },
+    {
       "path": "../../store/store-controller-types"
     },
     {

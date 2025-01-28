@@ -33,6 +33,7 @@
     "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/semver.peer-range": "workspace:*",
     "@yarnpkg/extensions": "catalog:",
     "normalize-path": "catalog:",
     "ramda": "catalog:",

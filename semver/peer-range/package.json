@@ -1,0 +1,46 @@
+{
+  "name": "@pnpm/semver.peer-range",
+  "version": "1000.0.0-0",
+  "description": "Validates peer ranges",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=18.12"
+  },
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "pnpm run compile",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/semver/peer-range",
+  "keywords": [
+    "pnpm10",
+    "pnpm",
+    "semver",
+    "peer"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/semver/peer-range#readme",
+  "dependencies": {
+    "semver": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/semver.peer-range": "workspace:*",
+    "@types/semver": "catalog:"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}
