@@ -55,8 +55,8 @@ catalogs:
       specifier: 0.0.0
       version: 0.0.0
     '@pnpm/registry-mock':
-      specifier: 3.46.0
-      version: 3.46.0
+      specifier: 3.49.0
+      version: 3.49.0
     '@pnpm/semver-diff':
       specifier: ^1.1.0
       version: 1.1.0
@@ -855,7 +855,7 @@ importers:
         version: link:../../pkg-manager/modules-yaml
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -889,7 +889,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -964,7 +964,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
@@ -1147,7 +1147,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -2341,7 +2341,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -2486,7 +2486,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -3611,10 +3611,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-    optionalDependencies:
-      fuse-native:
-        specifier: 'catalog:'
-        version: 2.2.6
     devDependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -3628,6 +3624,10 @@ importers:
       rimraf:
         specifier: 'catalog:'
         version: 3.0.2
+    optionalDependencies:
+      fuse-native:
+        specifier: 'catalog:'
+        version: 2.2.6
 
   network/auth-header:
     dependencies:
@@ -4138,7 +4138,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -4428,7 +4428,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -4704,7 +4704,7 @@ importers:
         version: link:../read-projects-context
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -5064,7 +5064,7 @@ importers:
         version: 'link:'
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5266,7 +5266,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5729,10 +5729,6 @@ importers:
       v8-compile-cache:
         specifier: 2.4.0
         version: 2.4.0
-    optionalDependencies:
-      node-gyp:
-        specifier: ^11.0.0
-        version: 11.0.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -5874,7 +5870,7 @@ importers:
         version: link:../pkg-manifest/read-project-manifest
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../exec/run-npm
@@ -6025,8 +6021,22 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
+    optionalDependencies:
+      node-gyp:
+        specifier: ^11.0.0
+        version: 11.0.0
 
   pnpm/artifacts/exe:
+    devDependencies:
+      '@pnpm/exe':
+        specifier: workspace:*
+        version: 'link:'
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.1.2
+      pkg:
+        specifier: 'catalog:'
+        version: '@yao-pkg/pkg@5.12.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
     optionalDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
@@ -6046,16 +6056,6 @@ importers:
       '@pnpm/win-x64':
         specifier: workspace:*
         version: link:../win-x64
-    devDependencies:
-      '@pnpm/exe':
-        specifier: workspace:*
-        version: 'link:'
-      execa:
-        specifier: 'catalog:'
-        version: safe-execa@0.1.2
-      pkg:
-        specifier: 'catalog:'
-        version: '@yao-pkg/pkg@5.12.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
 
   pnpm/artifacts/linux-arm64:
     devDependencies:
@@ -6183,7 +6183,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -6301,7 +6301,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -6894,7 +6894,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -6961,7 +6961,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
@@ -7052,7 +7052,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -7396,7 +7396,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 3.46.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 3.49.0(encoding@0.1.13)(typanion@3.14.0)
       '@types/archy':
         specifier: 'catalog:'
         version: 0.0.33
@@ -9113,8 +9113,8 @@ packages:
     resolution: {integrity: sha512-LFTWzfJbu6+l86bw/uUAsPU05n1oTqg6jzqyTXYDJPfVclqTfPnHiZoC1nvVvQlE7iVg3bhJ7SXg9IyzK7RWDQ==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/registry-mock@3.46.0':
-    resolution: {integrity: sha512-MS8idSUQu9Ag3f/s33dnEQp0zJ+z4aU01VznAIn8FT/6NBvOulVCV+CqGZbOohemNNPth7LfIS13l2fZD12rOA==}
+  '@pnpm/registry-mock@3.49.0':
+    resolution: {integrity: sha512-2bD2dwudXQzBogD4waNLH5Bddh38BqSka8egieaLCHyg3WChNNUl1Duv3QhWiXgXoWhE1bd1IMtEi37zg3pxIA==}
     engines: {node: '>=10.13'}
     hasBin: true
 
@@ -14277,6 +14277,7 @@ packages:
   verdaccio@5.20.1:
     resolution: {integrity: sha512-zKQXYubQOfl2w09gO9BR7U9ZZkFPPby8tvV+na86/2vGZnY79kNSVnSbK8CM1bpJHTCQ80AGsmIGovg2FgXhdQ==}
     engines: {node: '>=12.18'}
+    deprecated: this version is deprecated, please migrate to 6.x versions
     hasBin: true
 
   verror@1.10.0:
@@ -16104,7 +16105,7 @@ snapshots:
       sort-keys: 4.2.0
       strip-bom: 4.0.0
 
-  '@pnpm/registry-mock@3.46.0(encoding@0.1.13)(typanion@3.14.0)':
+  '@pnpm/registry-mock@3.49.0(encoding@0.1.13)(typanion@3.14.0)':
     dependencies:
       anonymous-npm-registry-client: 0.2.0
       execa: 5.1.1

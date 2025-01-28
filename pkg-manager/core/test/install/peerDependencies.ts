@@ -1907,3 +1907,18 @@ test('detection of circular peer dependencies should not crash with aliased depe
 
   expect(fs.existsSync(path.resolve(WANTED_LOCKFILE))).toBeTruthy()
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/8912
+test('an optional peer that is also a prod dependency is treated as a regular peer dependency', async () => {
+  prepareEmpty()
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/has-optional-peer-as-dep': '1.0.0',
+    },
+  }, testDefaults({
+    autoInstallPeers: true,
+  }))
+
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+bravo-dep@1.0.0'))).toBeTruthy()
+})
