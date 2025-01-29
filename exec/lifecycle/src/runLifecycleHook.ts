@@ -6,6 +6,7 @@ import { type DependencyManifest, type ProjectManifest, type PrepareExecutionEnv
 import { PnpmError } from '@pnpm/error'
 import { existsSync } from 'fs'
 import isWindows from 'is-windows'
+import { quote as shellQuote } from 'shell-quote'
 
 function noop () {} // eslint-disable-line:no-empty
 
@@ -87,8 +88,11 @@ Please unset the script-shell option, or configure it to a .exe instead.
     break
   }
   if (opts.args?.length && m.scripts?.[stage]) {
-    const escapedArgs = opts.args.map((arg) => JSON.stringify(arg))
-    m.scripts[stage] = `${m.scripts[stage]} ${escapedArgs.join(' ')}`
+    // It is impossible to quote a command line argument that contains newline for Windows cmd.
+    const escapedArgs = isWindows()
+      ? opts.args.map((arg) => JSON.stringify(arg)).join(' ')
+      : shellQuote(opts.args)
+    m.scripts[stage] = `${m.scripts[stage]} ${escapedArgs}`
   }
   // This script is used to prevent the usage of npm or Yarn.
   // It does nothing, when pnpm is used, so we may skip its execution.

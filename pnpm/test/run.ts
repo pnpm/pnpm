@@ -96,7 +96,9 @@ test('test -r: pass the args to the command that is specified in the build scrip
 
   const result = execPnpmSync(['test', '-r', 'arg', '--', '--flag=true'])
 
-  expect((result.stdout as Buffer).toString('utf8')).toMatch(/ts-node test "arg" "--flag=true"/)
+  expect((result.stdout as Buffer).toString('utf8')).toMatch(
+    process.platform === 'win32' ? /ts-node test "arg" "--flag=true"/ : /ts-node test arg --flag\\=true/
+  )
 })
 
 test('start: run "node server.js" by default', async () => {

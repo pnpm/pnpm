@@ -144,6 +144,9 @@ catalogs:
     '@types/semver':
       specifier: 7.5.3
       version: 7.5.3
+    '@types/shell-quote':
+      specifier: ^1.7.5
+      version: 1.7.5
     '@types/signal-exit':
       specifier: ^3.0.4
       version: 3.0.4
@@ -564,6 +567,9 @@ catalogs:
     semver-utils:
       specifier: ^1.1.4
       version: 1.1.4
+    shell-quote:
+      specifier: ^1.8.2
+      version: 1.8.2
     signal-exit:
       specifier: ^3.0.7
       version: 3.0.7
@@ -2082,6 +2088,9 @@ importers:
       run-groups:
         specifier: 'catalog:'
         version: 3.0.1
+      shell-quote:
+        specifier: 'catalog:'
+        version: 1.8.2
     devDependencies:
       '@pnpm/lifecycle':
         specifier: workspace:*
@@ -2104,6 +2113,9 @@ importers:
       '@types/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
+      '@types/shell-quote':
+        specifier: 'catalog:'
+        version: 1.7.5
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -3495,10 +3507,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-    optionalDependencies:
-      fuse-native:
-        specifier: 'catalog:'
-        version: 2.2.6
     devDependencies:
       '@pnpm/mount-modules':
         specifier: workspace:*
@@ -3509,6 +3517,10 @@ importers:
       rimraf:
         specifier: 'catalog:'
         version: 3.0.2
+    optionalDependencies:
+      fuse-native:
+        specifier: 'catalog:'
+        version: 2.2.6
 
   network/auth-header:
     dependencies:
@@ -5629,10 +5641,6 @@ importers:
       v8-compile-cache:
         specifier: 2.4.0
         version: 2.4.0
-    optionalDependencies:
-      node-gyp:
-        specifier: ^10.2.0
-        version: 10.2.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -5925,8 +5933,22 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
+    optionalDependencies:
+      node-gyp:
+        specifier: ^10.2.0
+        version: 10.2.0
 
   pnpm/artifacts/exe:
+    devDependencies:
+      '@pnpm/exe':
+        specifier: workspace:*
+        version: 'link:'
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.1.2
+      pkg:
+        specifier: 'catalog:'
+        version: '@yao-pkg/pkg@5.12.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
     optionalDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
@@ -5946,16 +5968,6 @@ importers:
       '@pnpm/win-x64':
         specifier: workspace:*
         version: link:../win-x64
-    devDependencies:
-      '@pnpm/exe':
-        specifier: workspace:*
-        version: 'link:'
-      execa:
-        specifier: 'catalog:'
-        version: safe-execa@0.1.2
-      pkg:
-        specifier: 'catalog:'
-        version: '@yao-pkg/pkg@5.12.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
 
   pnpm/artifacts/linux-arm64:
     devDependencies:
@@ -9256,6 +9268,9 @@ packages:
   '@types/semver@7.5.8':
     resolution: {integrity: sha512-I8EUhyrgfLrcTkzV3TSsGyl1tSuPrEDzr0yd5m90UgNxQkyDXULk3b6MlQqTCpZpNtWe1K0hzclnZkTcLBe2UQ==}
 
+  '@types/shell-quote@1.7.5':
+    resolution: {integrity: sha512-+UE8GAGRPbJVQDdxi16dgadcBfQ+KG2vgZhV1+3A1XmHbmwcdwhCUwIdy+d3pAGrbvgRoVSjeI9vOWyq376Yzw==}
+
   '@types/signal-exit@3.0.4':
     resolution: {integrity: sha512-e7EUPfU9afHyWc5CXtlqbvVHEshrb05uPlDCenWIbMgtWoFrTuTDVYNLKk6o4X2/4oHTfNqrJX/vaJ3uBhtXTg==}
 
@@ -12030,6 +12045,7 @@ packages:
 
   lodash.get@4.4.2:
     resolution: {integrity: sha512-z+Uw/vLuy6gQe8cfaFWD7p0wVv8fJl3mbzXh33RS+0oW2wvUqiRXiQ69gLWSLpgB5/6sU+r6BlQR0MBILadqTQ==}
+    deprecated: This package is deprecated. Use the optional chaining (?.) operator instead.
 
   lodash.isfunction@3.0.9:
     resolution: {integrity: sha512-AirXNj15uRIMMPihnkInB4i3NHeb4iBtNg9WRWuK2o31S+ePwwNmDPaTL3o7dTJ+VXNZim7rFs4rxN4YU1oUJw==}
@@ -13345,8 +13361,9 @@ packages:
     resolution: {integrity: sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==}
     engines: {node: '>=8'}
 
-  shell-quote@1.8.1:
-    resolution: {integrity: sha512-6j1W9l1iAs/4xYBI1SYOVZyFcCis9b4KCLQ8fgAGG07QvzaRLVVRQvAy85yNmmZSjYjg4MWh4gNvlPujU/5LpA==}
+  shell-quote@1.8.2:
+    resolution: {integrity: sha512-AzqKpGKjrj7EM6rKVQEPpB288oCfnrEIuyoT9cyF4nmGa7V8Zk6f7RRqYisX8X9m+Q7bd632aZW4ky7EhbQztA==}
+    engines: {node: '>= 0.4'}
 
   shelljs@0.8.5:
     resolution: {integrity: sha512-TiwcRcrkhHvbrZbnRcFYMLl30Dfov3HKqzp5tO5b4pt6G/SezKcYhmDg15zXVBswHmctSAQKznqNW2LO5tTDow==}
@@ -16256,6 +16273,8 @@ snapshots:
 
   '@types/semver@7.5.8': {}
 
+  '@types/shell-quote@1.7.5': {}
+
   '@types/signal-exit@3.0.4': {}
 
   '@types/sinon@10.0.20':
@@ -17394,7 +17413,7 @@ snapshots:
       date-fns: 2.30.0
       lodash: 4.17.21
       rxjs: 7.8.1
-      shell-quote: 1.8.1
+      shell-quote: 1.8.2
       spawn-command: 0.0.2
       supports-color: 8.1.1
       tree-kill: 1.2.2
@@ -21078,7 +21097,7 @@ snapshots:
 
   shebang-regex@3.0.0: {}
 
-  shell-quote@1.8.1: {}
+  shell-quote@1.8.2: {}
 
   shelljs@0.8.5:
     dependencies:
@@ -22178,10 +22197,5 @@ snapshots:
 
 time:
   '@pnpm/hosted-git-info@1.0.0': '2024-02-05T14:40:06.830Z'
-  '@pnpm/node-fetch@1.0.0': '2023-04-19T11:13:43.487Z'
   '@pnpm/ramda@0.28.1': '2022-08-03T13:56:59.597Z'
-  '@pnpm/which@3.0.1': '2023-05-14T22:08:27.551Z'
-  '@types/byline@4.2.36': '2023-11-07T00:13:37.410Z'
-  '@types/table@6.0.0': '2020-09-17T17:56:44.787Z'
   '@yao-pkg/pkg@5.12.0': '2024-06-10T07:35:02.685Z'
-  '@zkochan/js-yaml@0.0.7': '2024-03-08T10:21:15.389Z'
