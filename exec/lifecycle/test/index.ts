@@ -50,7 +50,7 @@ test('runLifecycleHook() passes newline correctly', async () => {
   const pkgRoot = f.find('escape-newline')
   const pkg = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('echo', pkg, {
-    depPath: '/escape-newline/1.0.0',
+    depPath: 'escape-newline@1.0.0',
     pkgRoot,
     rawConfig: {},
     rootModulesDir,
