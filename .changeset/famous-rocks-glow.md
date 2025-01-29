@@ -1,5 +1,6 @@
 ---
 "@pnpm/lifecycle": patch
+pnpm: patch
 ---
 
-Properly quote args with shell-quote [#8980](https://github.com/pnpm/pnpm/issues/8980).
+Quote args for scripts with shell-quote to support new lines (on POSIX only) [#8980](https://github.com/pnpm/pnpm/issues/8980).
