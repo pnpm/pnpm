@@ -113,7 +113,11 @@
         }
       }
     },
-    "onlyBuiltDependencies": [],
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "fuse-native",
+      "ghooks"
+    ],
     "patchedDependencies": {
       "@yao-pkg/pkg": "__patches__/pkg.patch",
       "graceful-fs@4.2.11": "__patches__/graceful-fs@4.2.11.patch",
@@ -169,6 +173,9 @@
         "GHSA-9wv6-86v2-598j",
         "GHSA-pxg6-pf52-xh8x"
       ]
-    }
+    },
+    "ignoredBuiltDependencies": [
+      "core-js"
+    ]
   }
 }
