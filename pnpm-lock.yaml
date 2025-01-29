@@ -2229,6 +2229,9 @@ importers:
       run-groups:
         specifier: 'catalog:'
         version: 3.0.1
+      shell-quote:
+        specifier: 'catalog:'
+        version: 1.8.2
     devDependencies:
       '@pnpm/lifecycle':
         specifier: workspace:*
@@ -2251,6 +2254,9 @@ importers:
       '@types/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
+      '@types/shell-quote':
+        specifier: 'catalog:'
+        version: 1.7.5
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -13625,9 +13631,6 @@ packages:
     resolution: {integrity: sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==}
     engines: {node: '>=8'}
 
-  shell-quote@1.8.1:
-    resolution: {integrity: sha512-6j1W9l1iAs/4xYBI1SYOVZyFcCis9b4KCLQ8fgAGG07QvzaRLVVRQvAy85yNmmZSjYjg4MWh4gNvlPujU/5LpA==}
-
   shell-quote@1.8.2:
     resolution: {integrity: sha512-AzqKpGKjrj7EM6rKVQEPpB288oCfnrEIuyoT9cyF4nmGa7V8Zk6f7RRqYisX8X9m+Q7bd632aZW4ky7EhbQztA==}
     engines: {node: '>= 0.4'}
@@ -17658,7 +17661,7 @@ snapshots:
       date-fns: 2.30.0
       lodash: 4.17.21
       rxjs: 7.8.1
-      shell-quote: 1.8.1
+      shell-quote: 1.8.2
       spawn-command: 0.0.2
       supports-color: 8.1.1
       tree-kill: 1.2.2
@@ -21348,8 +21351,6 @@ snapshots:
       shebang-regex: 3.0.0
 
   shebang-regex@3.0.0: {}
-
-  shell-quote@1.8.1: {}
 
   shell-quote@1.8.2: {}
 
