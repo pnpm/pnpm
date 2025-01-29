@@ -30,7 +30,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   const automaticallyIgnoredBuilds = await getAutomaticallyIgnoredBuilds(opts)
   if (automaticallyIgnoredBuilds == null) return
   const { result } = await prompt({
-    choices: [...automaticallyIgnoredBuilds],
+    choices: sortStrings([...automaticallyIgnoredBuilds]),
     indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       return ` ${choice.enabled ? '●' : '○'}`
     },
@@ -71,20 +71,26 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     if (opts.rootProjectManifest.pnpm?.ignoredBuiltDependencies == null) {
       opts.rootProjectManifest.pnpm = {
         ...opts.rootProjectManifest.pnpm,
-        ignoredBuiltDependencies: ignoredPackages,
+        ignoredBuiltDependencies: sortStrings(ignoredPackages),
       }
     } else {
-      opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.push(...ignoredPackages)
+      opts.rootProjectManifest.pnpm.ignoredBuiltDependencies = sortStrings([
+        ...opts.rootProjectManifest.pnpm.ignoredBuiltDependencies,
+        ...ignoredPackages,
+      ])
     }
   }
   if (buildPackages.length) {
     if (opts.rootProjectManifest.pnpm?.onlyBuiltDependencies == null) {
       opts.rootProjectManifest.pnpm = {
         ...opts.rootProjectManifest.pnpm,
-        onlyBuiltDependencies: buildPackages,
+        onlyBuiltDependencies: sortStrings(buildPackages),
       }
     } else {
-      opts.rootProjectManifest.pnpm.onlyBuiltDependencies.push(...buildPackages)
+      opts.rootProjectManifest.pnpm.onlyBuiltDependencies = sortStrings([
+        ...opts.rootProjectManifest.pnpm.onlyBuiltDependencies,
+        ...buildPackages,
+      ])
     }
   }
   if (buildPackages.length) {
@@ -104,4 +110,8 @@ Do you approve?`,
   if (buildPackages.length) {
     return rebuild.handler(opts, buildPackages)
   }
+}
+
+function sortStrings (array: string[]): string[] {
+  return array.sort((a, b) => a.localeCompare(b))
 }
