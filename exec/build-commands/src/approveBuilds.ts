@@ -28,7 +28,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts): Promise<void> {
   if (opts.rootProjectManifest == null) return
   const automaticallyIgnoredBuilds = await getAutomaticallyIgnoredBuilds(opts)
-  if (automaticallyIgnoredBuilds == null) return
+  if (!automaticallyIgnoredBuilds?.length) return
   const { result } = await prompt({
     choices: sortStrings([...automaticallyIgnoredBuilds]),
     indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
