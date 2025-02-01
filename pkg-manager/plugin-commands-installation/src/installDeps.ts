@@ -268,7 +268,7 @@ when running add/update with the --workspace option')
 
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    ...getOptionsFromRootManifest(opts.dir, manifest),
+    ...getOptionsFromRootManifest(opts.dir, (opts.dir === opts.rootProjectManifestDir ? opts.rootProjectManifest ?? manifest : manifest)),
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository

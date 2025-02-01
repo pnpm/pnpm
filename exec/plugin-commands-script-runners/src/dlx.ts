@@ -39,6 +39,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   package: [String, Array],
+  allowedBuilds: [String, Array],
 })
 
 export function help (): string {
@@ -69,6 +70,7 @@ export function help (): string {
 export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
+  allowedBuilds?: string[]
 } & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' | 'symlink'> & add.AddCommandOptions
 
 export async function handler (
@@ -80,9 +82,11 @@ export async function handler (
     ...opts,
     authConfig: opts.rawConfig,
   })
+  const resolvedPkgAliases: string[] = []
   const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {
     const { alias, pref } = parseWantedDependency(pkg) || {}
     if (alias == null) return pkg
+    resolvedPkgAliases.push(alias)
     const resolved = await resolve({ alias, pref }, {
       lockfileDir: opts.lockfileDir ?? opts.dir,
       preferredVersions: {},
@@ -106,6 +110,11 @@ export async function handler (
       dir: cachedDir,
       lockfileDir: cachedDir,
       rootProjectManifestDir: cachedDir, // This property won't be used as rootProjectManifest will be undefined
+      rootProjectManifest: {
+        pnpm: {
+          onlyBuiltDependencies: [...resolvedPkgAliases, ...(opts.allowedBuilds ?? [])],
+        },
+      },
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!
       saveDev: false,
       saveOptional: false,
