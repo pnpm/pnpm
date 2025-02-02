@@ -20,7 +20,7 @@ function sanitizeDlxCacheComponent (cacheName: string): string {
   return '***********-*****'
 }
 
-const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, DEFAULT_OPTS.registries)
+const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, DEFAULT_OPTS.registries, [])
 
 function verifyDlxCache (cacheName: string): void {
   expect(
@@ -325,16 +325,17 @@ test('dlx builds the package that is executed', async () => {
 test('dlx builds the packages passed via --allow-build', async () => {
   prepareEmpty()
 
+  const allowBuild = ['@pnpm.e2e/install-script-example']
   await dlx.handler({
     ...DEFAULT_OPTS,
-    allowBuild: ['@pnpm.e2e/install-script-example'],
+    allowBuild,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     dlxCacheMaxAge: Infinity,
   }, ['@pnpm.e2e/has-bin-and-needs-build'])
 
-  const dlxCacheDir = path.resolve('cache', 'dlx', createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0'), 'pkg')
+  const dlxCacheDir = path.resolve('cache', 'dlx', dlx.createCacheKey(['@pnpm.e2e/has-bin-and-needs-build@1.0.0'], DEFAULT_OPTS.registries, allowBuild), 'pkg')
   const builtPkg1Path = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
   expect(fs.existsSync(path.join(builtPkg1Path, 'package.json'))).toBeTruthy()
   expect(fs.existsSync(path.join(builtPkg1Path, 'generated-by-preinstall.js'))).toBeFalsy()

@@ -103,6 +103,7 @@ export async function handler (
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
     registries: opts.registries,
+    allowBuild: opts.allowBuild ?? [],
   })
   if (!cacheExists) {
     fs.mkdirSync(cachedDir, { recursive: true })
@@ -205,6 +206,7 @@ function findCache (pkgs: string[], opts: {
   cacheDir: string
   dlxCacheMaxAge: number
   registries: Record<string, string>
+  allowBuild: string[]
 }): { cacheLink: string, cacheExists: boolean, cachedDir: string } {
   const dlxCommandCacheDir = createDlxCommandCacheDir(pkgs, opts)
   const cacheLink = path.join(dlxCommandCacheDir, 'pkg')
@@ -221,19 +223,24 @@ function createDlxCommandCacheDir (
   opts: {
     registries: Record<string, string>
     cacheDir: string
+    allowBuild: string[]
   }
 ): string {
   const dlxCacheDir = path.resolve(opts.cacheDir, 'dlx')
-  const cacheKey = createCacheKey(pkgs, opts.registries)
+  const cacheKey = createCacheKey(pkgs, opts.registries, opts.allowBuild)
   const cachePath = path.join(dlxCacheDir, cacheKey)
   fs.mkdirSync(cachePath, { recursive: true })
   return cachePath
 }
 
-export function createCacheKey (pkgs: string[], registries: Record<string, string>): string {
+export function createCacheKey (pkgs: string[], registries: Record<string, string>, allowBuild: string[]): string {
   const sortedPkgs = [...pkgs].sort((a, b) => a.localeCompare(b))
   const sortedRegistries = Object.entries(registries).sort(([k1], [k2]) => k1.localeCompare(k2))
-  const hashStr = JSON.stringify([sortedPkgs, sortedRegistries])
+  const args = [sortedPkgs, sortedRegistries]
+  if (allowBuild.length) {
+    args.push(allowBuild.sort(([k1], [k2]) => k1.localeCompare(k2)))
+  }
+  const hashStr = JSON.stringify(args)
   return createHexHash(hashStr)
 }
 
