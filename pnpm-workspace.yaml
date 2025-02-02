@@ -72,7 +72,6 @@ catalog:
   "@types/is-gzip": 2.0.0
   "@types/is-windows": ^1.0.2
   "@types/js-yaml": ^4.0.9
-  "@types/lodash.clonedeep": ^4.5.9
   "@types/lodash.throttle": 4.1.7
   "@types/micromatch": ^4.0.7
   "@types/node": ^18.19.34
@@ -167,7 +166,6 @@ catalog:
   jest-diff: ^29.7.0
   json5: ^2.2.3
   load-json-file: ^6.2.0
-  lodash.clonedeep: ^4.5.0
   lodash.throttle: 4.1.1
   loud-rejection: ^2.2.0
   lru-cache: ^10.2.2

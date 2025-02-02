@@ -38,7 +38,6 @@
     "fast-deep-equal": "catalog:",
     "is-windows": "catalog:",
     "json5": "catalog:",
-    "lodash.clonedeep": "catalog:",
     "parse-json": "catalog:",
     "read-yaml-file": "catalog:",
     "sort-keys": "catalog:",
@@ -47,7 +46,6 @@
   "devDependencies": {
     "@pnpm/read-project-manifest": "workspace:*",
     "@types/is-windows": "catalog:",
-    "@types/lodash.clonedeep": "catalog:",
     "@types/parse-json": "catalog:",
     "tempy": "catalog:"
   },
