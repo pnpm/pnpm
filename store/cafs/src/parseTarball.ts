@@ -22,11 +22,11 @@ const FILE_TYPE_PAX_HEADER: number = 'x'.charCodeAt(0)
 const FILE_TYPE_PAX_GLOBAL_HEADER: number = 'g'.charCodeAt(0)
 const FILE_TYPE_LONGLINK: number = 'L'.charCodeAt(0)
 
-const MODE_OFFSET: 100 = 100
-const FILE_SIZE_OFFSET: 124 = 124
-const CHECKSUM_OFFSET: 148 = 148
-const FILE_TYPE_OFFSET: 156 = 156
-const PREFIX_OFFSET: 345 = 345
+const MODE_OFFSET = 100
+const FILE_SIZE_OFFSET = 124
+const CHECKSUM_OFFSET = 148
+const FILE_TYPE_OFFSET = 156
+const PREFIX_OFFSET = 345
 
 // See TAR specification here: https://www.gnu.org/software/tar/manual/html_node/Standard.html
 export function parseTarball (buffer: Buffer): IParseResult {
