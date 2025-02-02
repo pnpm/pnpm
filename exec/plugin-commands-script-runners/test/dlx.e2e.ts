@@ -327,7 +327,7 @@ test('dlx builds the packages passed via allowed-builds', async () => {
 
   await dlx.handler({
     ...DEFAULT_OPTS,
-    allowedBuilds: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+    allowedBuilds: ['@pnpm.e2e/install-script-example'],
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
@@ -337,10 +337,10 @@ test('dlx builds the packages passed via allowed-builds', async () => {
   const dlxCacheDir = path.resolve('cache', 'dlx', createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0'), 'pkg')
   const builtPkg1Path = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
   expect(fs.existsSync(path.join(builtPkg1Path, 'package.json'))).toBeTruthy()
-  expect(fs.existsSync(path.join(builtPkg1Path, 'generated-by-preinstall.js'))).toBeTruthy()
-  expect(fs.existsSync(path.join(builtPkg1Path, 'generated-by-postinstall.js'))).toBeTruthy()
+  expect(fs.existsSync(path.join(builtPkg1Path, 'generated-by-preinstall.js'))).toBeFalsy()
+  expect(fs.existsSync(path.join(builtPkg1Path, 'generated-by-postinstall.js'))).toBeFalsy()
 
   const builtPkg2Path = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example')
   expect(fs.existsSync(path.join(builtPkg2Path, 'package.json'))).toBeTruthy()
-  expect(fs.existsSync(path.join(builtPkg2Path, 'generated-by-install.js'))).toBeFalsy()
+  expect(fs.existsSync(path.join(builtPkg2Path, 'generated-by-install.js'))).toBeTruthy()
 })
