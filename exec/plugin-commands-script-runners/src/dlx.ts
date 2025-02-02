@@ -39,7 +39,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   package: [String, Array],
-  allowedBuilds: [String, Array],
+  allowBuild: [String, Array],
 })
 
 export function help (): string {
@@ -52,6 +52,10 @@ export function help (): string {
           {
             description: 'The package to install before running the command',
             name: '--package',
+          },
+          {
+            description: 'A list of package names that are allowed to run postinstall scripts during installation',
+            name: '--allow-build',
           },
           {
             description: 'Runs the script inside of a shell. Uses /bin/sh on UNIX and \\cmd.exe on Windows.',
@@ -70,7 +74,7 @@ export function help (): string {
 export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
-  allowedBuilds?: string[]
+  allowBuild?: string[]
 } & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' | 'symlink'> & add.AddCommandOptions
 
 export async function handler (
@@ -112,7 +116,7 @@ export async function handler (
       rootProjectManifestDir: cachedDir, // This property won't be used as rootProjectManifest will be undefined
       rootProjectManifest: {
         pnpm: {
-          onlyBuiltDependencies: [...resolvedPkgAliases, ...(opts.allowedBuilds ?? [])],
+          onlyBuiltDependencies: [...resolvedPkgAliases, ...(opts.allowBuild ?? [])],
         },
       },
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!

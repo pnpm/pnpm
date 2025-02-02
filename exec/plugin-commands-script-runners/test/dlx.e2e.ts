@@ -322,12 +322,12 @@ test('dlx builds the package that is executed', async () => {
   expect(fs.existsSync(path.join(builtPkg2Path, 'generated-by-install.js'))).toBeFalsy()
 })
 
-test('dlx builds the packages passed via allowed-builds', async () => {
+test('dlx builds the packages passed via --allow-build', async () => {
   prepareEmpty()
 
   await dlx.handler({
     ...DEFAULT_OPTS,
-    allowedBuilds: ['@pnpm.e2e/install-script-example'],
+    allowBuild: ['@pnpm.e2e/install-script-example'],
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
