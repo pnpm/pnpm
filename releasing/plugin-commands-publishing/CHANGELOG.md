@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-publishing
 
+## 900.0.6
+
+### Patch Changes
+
+- 4523b75: Verify that the package name is valid when executing the publish command.
+- Updated dependencies [7eff24d]
+  - @pnpm/lifecycle@900.0.4
+  - @pnpm/cli-utils@900.0.4
+  - @pnpm/client@900.0.5
+  - @pnpm/plugin-commands-env@900.0.4
+
 ## 900.0.5
 
 ### Patch Changes

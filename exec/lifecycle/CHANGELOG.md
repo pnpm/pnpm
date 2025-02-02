@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 900.0.4
+
+### Patch Changes
+
+- 7eff24d: Quote args for scripts with shell-quote to support new lines (on POSIX only) [#8980](https://github.com/pnpm/pnpm/issues/8980).
+
 ## 900.0.3
 
 ### Patch Changes

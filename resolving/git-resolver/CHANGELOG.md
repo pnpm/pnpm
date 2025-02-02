@@ -1,5 +1,11 @@
 # @pnpm/git-resolver
 
+## 900.0.2
+
+### Patch Changes
+
+- 3d9a560: Proxy settings should be respected, when resolving Git-hosted dependencies [#6530](https://github.com/pnpm/pnpm/issues/6530).
+
 ## 900.0.1
 
 ### Patch Changes

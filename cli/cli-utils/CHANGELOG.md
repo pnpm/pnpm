@@ -1,5 +1,12 @@
 # @pnpm/cli-utils
 
+## 900.0.4
+
+### Patch Changes
+
+- Updated dependencies [8dc032e]
+  - @pnpm/default-reporter@900.1.2
+
 ## 900.0.3
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-server
 
+## 900.0.5
+
+### Patch Changes
+
+- @pnpm/cli-utils@900.0.4
+- @pnpm/server@900.0.2
+- @pnpm/store-connection-manager@900.0.5
+
 ## 900.0.4
 
 ### Patch Changes

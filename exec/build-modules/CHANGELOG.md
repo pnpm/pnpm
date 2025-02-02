@@ -1,5 +1,12 @@
 # @pnpm/build-modules
 
+## 900.1.2
+
+### Patch Changes
+
+- Updated dependencies [7eff24d]
+  - @pnpm/lifecycle@900.0.4
+
 ## 900.1.1
 
 ### Patch Changes

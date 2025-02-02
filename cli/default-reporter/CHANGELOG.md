@@ -1,5 +1,14 @@
 # @pnpm/default-reporter
 
+## 900.1.2
+
+### Patch Changes
+
+- 8dc032e: Replace `strip-ansi` with the built-in `util.stripVTControlCharacters` [#9009](https://github.com/pnpm/pnpm/pull/9009).
+- Updated dependencies [8dc032e]
+  - @pnpm/render-peer-issues@900.0.2
+  - @pnpm/dedupe.issues-renderer@900.0.1
+
 ## 900.1.1
 
 ### Patch Changes

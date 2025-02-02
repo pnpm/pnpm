@@ -1,5 +1,11 @@
 # @pnpm/lockfile.verification
 
+## 900.0.3
+
+### Patch Changes
+
+- @pnpm/get-context@900.0.3
+
 ## 900.0.2
 
 ### Patch Changes

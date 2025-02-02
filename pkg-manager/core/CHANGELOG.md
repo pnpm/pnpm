@@ -1,5 +1,21 @@
 # @pnpm/core
 
+## 901.0.2
+
+### Patch Changes
+
+- 75014fa: When running `pnpm install`, the `preprepare` and `postprepare` scripts of the project should be executed [#8989](https://github.com/pnpm/pnpm/pull/8989).
+- Updated dependencies [75014fa]
+- Updated dependencies [7eff24d]
+  - @pnpm/headless@900.0.4
+  - @pnpm/lifecycle@900.0.4
+  - @pnpm/build-modules@900.1.2
+  - @pnpm/lockfile.fs@900.0.3
+  - @pnpm/lockfile-to-pnp@900.0.3
+  - @pnpm/get-context@900.0.3
+  - @pnpm/lockfile.verification@900.0.3
+  - @pnpm/package-requester@901.0.0
+
 ## 901.0.1
 
 ### Patch Changes

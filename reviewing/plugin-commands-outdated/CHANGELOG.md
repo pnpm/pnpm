@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-outdated
 
+## 900.0.5
+
+### Patch Changes
+
+- 8dc032e: Replace `strip-ansi` with the built-in `util.stripVTControlCharacters` [#9009](https://github.com/pnpm/pnpm/pull/9009).
+  - @pnpm/lockfile.fs@900.0.3
+  - @pnpm/default-resolver@900.0.4
+  - @pnpm/cli-utils@900.0.4
+  - @pnpm/outdated@900.0.5
+
 ## 900.0.4
 
 ### Patch Changes

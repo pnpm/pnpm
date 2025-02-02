@@ -1,5 +1,12 @@
 # @pnpm/lockfile-file
 
+## 900.0.3
+
+### Patch Changes
+
+- Updated dependencies [3d9a560]
+  - @pnpm/git-resolver@900.0.2
+
 ## 900.0.2
 
 ### Patch Changes

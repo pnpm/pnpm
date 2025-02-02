@@ -1,5 +1,12 @@
 # @pnpm/outdated
 
+## 900.0.5
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@900.0.3
+- @pnpm/client@900.0.5
+
 ## 900.0.4
 
 ### Patch Changes

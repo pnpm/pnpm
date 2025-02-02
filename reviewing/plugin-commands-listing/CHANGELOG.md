@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-listing
 
+## 900.0.4
+
+### Patch Changes
+
+- 8dc032e: Replace `strip-ansi` with the built-in `util.stripVTControlCharacters` [#9009](https://github.com/pnpm/pnpm/pull/9009).
+  - @pnpm/cli-utils@900.0.4
+  - @pnpm/list@900.0.3
+
 ## 900.0.3
 
 ### Patch Changes

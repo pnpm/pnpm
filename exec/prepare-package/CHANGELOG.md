@@ -1,5 +1,12 @@
 # @pnpm/prepare-package
 
+## 900.0.4
+
+### Patch Changes
+
+- Updated dependencies [7eff24d]
+  - @pnpm/lifecycle@900.0.4
+
 ## 900.0.3
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-script-runners
 
+## 900.0.7
+
+### Patch Changes
+
+- Updated dependencies [7eff24d]
+  - @pnpm/lifecycle@900.0.4
+  - @pnpm/plugin-commands-installation@900.0.7
+  - @pnpm/cli-utils@900.0.4
+  - @pnpm/plugin-commands-env@900.0.4
+
 ## 900.0.6
 
 ### Patch Changes

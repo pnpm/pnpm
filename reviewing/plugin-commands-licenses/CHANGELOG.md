@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-licenses
 
+## 900.0.4
+
+### Patch Changes
+
+- 8dc032e: Replace `strip-ansi` with the built-in `util.stripVTControlCharacters` [#9009](https://github.com/pnpm/pnpm/pull/9009).
+  - @pnpm/lockfile.fs@900.0.3
+  - @pnpm/cli-utils@900.0.4
+  - @pnpm/license-scanner@900.0.4
+
 ## 900.0.3
 
 ### Patch Changes

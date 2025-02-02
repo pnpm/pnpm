@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-patching
 
+## 900.0.7
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@900.0.7
+- @pnpm/lockfile.fs@900.0.3
+- @pnpm/cli-utils@900.0.4
+- @pnpm/store-connection-manager@900.0.5
+
 ## 900.0.6
 
 ### Patch Changes

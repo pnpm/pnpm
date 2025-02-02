@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-rebuild
 
+## 900.0.5
+
+### Patch Changes
+
+- Updated dependencies [7eff24d]
+  - @pnpm/lifecycle@900.0.4
+  - @pnpm/cli-utils@900.0.4
+  - @pnpm/get-context@900.0.3
+  - @pnpm/workspace.find-packages@900.0.4
+  - @pnpm/store-connection-manager@900.0.5
+
 ## 900.0.4
 
 ### Patch Changes

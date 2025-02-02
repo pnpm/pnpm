@@ -1,5 +1,19 @@
 # @pnpm/headless
 
+## 900.0.4
+
+### Patch Changes
+
+- 75014fa: When running `pnpm install`, the `preprepare` and `postprepare` scripts of the project should be executed [#8989](https://github.com/pnpm/pnpm/pull/8989).
+- Updated dependencies [7eff24d]
+  - @pnpm/lifecycle@900.0.4
+  - @pnpm/build-modules@900.1.2
+  - @pnpm/lockfile.fs@900.0.3
+  - @pnpm/deps.graph-builder@900.0.4
+  - @pnpm/lockfile-to-pnp@900.0.3
+  - @pnpm/real-hoist@900.0.1
+  - @pnpm/package-requester@901.0.0
+
 ## 900.0.3
 
 ### Patch Changes
