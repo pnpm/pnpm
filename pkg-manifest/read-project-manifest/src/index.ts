@@ -8,7 +8,6 @@ import readYamlFile from 'read-yaml-file'
 import detectIndent from '@gwhitney/detect-indent'
 import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
-import cloneDeep from 'lodash.clonedeep'
 import {
   readJson5File,
   readJsonFile,
@@ -235,7 +234,7 @@ function normalize (manifest: ProjectManifest): ProjectManifest {
     if (Object.prototype.hasOwnProperty.call(manifest, key)) {
       const value = manifest[key as keyof ProjectManifest]
       if (typeof value !== 'object' || !dependencyKeys.has(key)) {
-        result[key] = cloneDeep(value)
+        result[key] = structuredClone(value)
       } else {
         const keys = Object.keys(value)
         if (keys.length !== 0) {

@@ -102,9 +102,6 @@ catalogs:
     '@types/js-yaml':
       specifier: ^4.0.9
       version: 4.0.9
-    '@types/lodash.clonedeep':
-      specifier: ^4.5.9
-      version: 4.5.9
     '@types/lodash.throttle':
       specifier: 4.1.7
       version: 4.1.7
@@ -387,9 +384,6 @@ catalogs:
     load-json-file:
       specifier: ^6.2.0
       version: 6.2.0
-    lodash.clonedeep:
-      specifier: ^4.5.0
-      version: 4.5.0
     lodash.throttle:
       specifier: 4.1.1
       version: 4.1.1
@@ -5728,9 +5722,6 @@ importers:
       json5:
         specifier: 'catalog:'
         version: 2.2.3
-      lodash.clonedeep:
-        specifier: 'catalog:'
-        version: 4.5.0
       parse-json:
         specifier: 'catalog:'
         version: 5.2.0
@@ -5750,9 +5741,6 @@ importers:
       '@types/is-windows':
         specifier: 'catalog:'
         version: 1.0.2
-      '@types/lodash.clonedeep':
-        specifier: 'catalog:'
-        version: 4.5.9
       '@types/parse-json':
         specifier: 'catalog:'
         version: 4.0.2
@@ -9434,9 +9422,6 @@ packages:
 
   '@types/keyv@3.1.4':
     resolution: {integrity: sha512-BQ5aZNSCpj7D6K2ksrRCTmKRLEpnPvWDiLPfoGyhZ++8YtiK9d/3DBKPJgry359X/P1PfruyYwvnvwFjuEiEIg==}
-
-  '@types/lodash.clonedeep@4.5.9':
-    resolution: {integrity: sha512-19429mWC+FyaAhOLzsS8kZUsI+/GmBAQ0HFiCPsKGU+7pBXOQWhyrY6xNNDwUSX8SMZMJvuFVMF9O5dQOlQK9Q==}
 
   '@types/lodash.throttle@4.1.7':
     resolution: {integrity: sha512-znwGDpjCHQ4FpLLx19w4OXDqq8+OvREa05H89obtSyXyOFKL3dDjCslsmfBz0T2FU8dmf5Wx1QvogbINiGIu9g==}
@@ -16384,10 +16369,6 @@ snapshots:
   '@types/keyv@3.1.4':
     dependencies:
       '@types/node': 22.13.0
-
-  '@types/lodash.clonedeep@4.5.9':
-    dependencies:
-      '@types/lodash': 4.17.15
 
   '@types/lodash.throttle@4.1.7':
     dependencies:
