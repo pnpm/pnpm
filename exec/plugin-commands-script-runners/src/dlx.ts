@@ -233,11 +233,11 @@ function createDlxCommandCacheDir (
   return cachePath
 }
 
-export function createCacheKey (pkgs: string[], registries: Record<string, string>, allowBuild: string[]): string {
+export function createCacheKey (pkgs: string[], registries: Record<string, string>, allowBuild?: string[]): string {
   const sortedPkgs = [...pkgs].sort((a, b) => a.localeCompare(b))
   const sortedRegistries = Object.entries(registries).sort(([k1], [k2]) => k1.localeCompare(k2))
   const args = [sortedPkgs, sortedRegistries]
-  if (allowBuild.length) {
+  if (allowBuild?.length) {
     args.push(allowBuild.sort(([k1], [k2]) => k1.localeCompare(k2)))
   }
   const hashStr = JSON.stringify(args)
