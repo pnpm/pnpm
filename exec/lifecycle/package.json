@@ -45,6 +45,7 @@
     "@pnpm/types": "workspace:*",
     "is-windows": "catalog:",
     "path-exists": "catalog:",
+    "shell-quote": "catalog:",
     "run-groups": "catalog:"
   },
   "devDependencies": {
@@ -55,6 +56,7 @@
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/rimraf": "catalog:",
+    "@types/shell-quote": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "load-json-file": "catalog:"
   },

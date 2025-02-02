@@ -2229,6 +2229,9 @@ importers:
       run-groups:
         specifier: 'catalog:'
         version: 3.0.1
+      shell-quote:
+        specifier: 'catalog:'
+        version: 1.8.2
     devDependencies:
       '@pnpm/lifecycle':
         specifier: workspace:*
@@ -2251,6 +2254,9 @@ importers:
       '@types/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
+      '@types/shell-quote':
+        specifier: 'catalog:'
+        version: 1.7.5
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
