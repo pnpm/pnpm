@@ -33,12 +33,24 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
+    'allow-build': [String, Array],
   }
 }
 
 export function help (): string {
   return renderHelp({
     description: 'Creates a project from a `create-*` starter kit.',
+    descriptionLists: [
+      {
+        title: 'Options',
+        list: [
+          {
+            description: 'A list of package names that are allowed to run postinstall scripts during installation',
+            name: '--allow-build',
+          },
+        ],
+      },
+    ],
     url: docsUrl('create'),
     usages: [
       'pnpm create <name>',

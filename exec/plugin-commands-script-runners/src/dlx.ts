@@ -39,7 +39,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   package: [String, Array],
-  allowBuild: [String, Array],
+  'allow-build': [String, Array],
 })
 
 export function help (): string {
