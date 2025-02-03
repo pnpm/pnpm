@@ -196,7 +196,7 @@ async function deployFromSharedLockfile (
     return 'Shared lockfile not found. Falling back to installing without a lockfile.'
   }
 
-  const projectId = normalizePath(path.relative(workspaceDir, selectedProject.rootDir)) as ProjectId
+  const projectId = (normalizePath(path.relative(workspaceDir, selectedProject.rootDir)) || '.') as ProjectId
 
   const deployFiles = createDeployFiles({
     allProjects,
