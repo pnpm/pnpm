@@ -238,7 +238,7 @@ export function createCacheKey (pkgs: string[], registries: Record<string, strin
   const sortedRegistries = Object.entries(registries).sort(([k1], [k2]) => k1.localeCompare(k2))
   const args: unknown[] = [sortedPkgs, sortedRegistries]
   if (allowBuild?.length) {
-    args.push({ allowBuild: allowBuild.sort(([k1], [k2]) => k1.localeCompare(k2)) })
+    args.push({ allowBuild: allowBuild.sort((pkg1, pkg2) => pkg1.localeCompare(pkg2)) })
   }
   const hashStr = JSON.stringify(args)
   return createHexHash(hashStr)
