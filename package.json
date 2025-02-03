@@ -1,7 +1,7 @@
 {
   "name": "monorepo-root",
   "private": true,
-  "packageManager": "pnpm@10.1.0",
+  "packageManager": "pnpm@10.2.0",
   "scripts": {
     "bump": "changeset version && pnpm update-manifests",
     "changeset": "changeset",
