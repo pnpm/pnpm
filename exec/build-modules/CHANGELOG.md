@@ -1,5 +1,13 @@
 # @pnpm/build-modules
 
+## 1000.2.1
+
+### Patch Changes
+
+- Updated dependencies [c0d1c01]
+  - @pnpm/lifecycle@1001.0.5
+  - @pnpm/link-bins@1000.0.6
+
 ## 1000.2.0
 
 ### Minor Changes

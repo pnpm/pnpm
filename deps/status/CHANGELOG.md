@@ -1,5 +1,13 @@
 # @pnpm/deps.status
 
+## 1001.1.3
+
+### Patch Changes
+
+- @pnpm/config@1002.2.1
+- @pnpm/workspace.find-packages@1000.0.7
+- @pnpm/workspace.state@1001.1.3
+
 ## 1001.1.2
 
 ### Patch Changes

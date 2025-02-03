@@ -1,5 +1,23 @@
 # @pnpm/core
 
+## 1002.0.3
+
+### Patch Changes
+
+- e8c2b17: Prevent `overrides` from adding invalid version ranges to `peerDependencies` by keeping the `peerDependencies` and overriding them with prod `dependencies` [#8978](https://github.com/pnpm/pnpm/issues/8978).
+- Updated dependencies [c0d1c01]
+- Updated dependencies [1e229d7]
+- Updated dependencies [e8c2b17]
+  - @pnpm/lifecycle@1001.0.5
+  - @pnpm/read-project-manifest@1000.0.5
+  - @pnpm/hooks.read-package-hook@1000.0.4
+  - @pnpm/resolve-dependencies@1004.0.2
+  - @pnpm/build-modules@1000.2.1
+  - @pnpm/headless@1001.1.4
+  - @pnpm/link-bins@1000.0.6
+  - @pnpm/hoist@1001.0.5
+  - @pnpm/package-requester@1001.0.1
+
 ## 1002.0.2
 
 ### Patch Changes

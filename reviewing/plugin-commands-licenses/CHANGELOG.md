@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-licenses
 
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.7
+- @pnpm/config@1002.2.1
+- @pnpm/license-scanner@1001.0.6
+
 ## 1000.0.7
 
 ### Patch Changes

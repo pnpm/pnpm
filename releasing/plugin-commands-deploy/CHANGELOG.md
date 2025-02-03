@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.4
+
+### Patch Changes
+
+- a08a5a9: Fix a bug in which `pnpm deploy` fails to read the correct `projectId` when the deploy source is the same as the workspace directory [#9001](https://github.com/pnpm/pnpm/issues/9001).
+  - @pnpm/cli-utils@1000.0.7
+  - @pnpm/config@1002.2.1
+  - @pnpm/directory-fetcher@1000.0.5
+  - @pnpm/plugin-commands-installation@1001.3.1
+
 ## 1001.1.3
 
 ### Patch Changes

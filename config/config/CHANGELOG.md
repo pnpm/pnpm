@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 1002.2.1
+
+### Patch Changes
+
+- Updated dependencies [1e229d7]
+  - @pnpm/read-project-manifest@1000.0.5
+
 ## 1002.2.0
 
 ### Minor Changes

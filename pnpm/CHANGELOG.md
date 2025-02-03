@@ -1,5 +1,27 @@
 # pnpm
 
+## 10.2.0
+
+### Minor Changes
+
+- Packages executed via `pnpm dlx` and `pnpm create` are allowed to be built (run postinstall scripts) by default.
+
+  If the packages executed by `dlx` or `create` have dependencies that have to be built, they should be listed via the `--allow-build` flag. For instance, if you want to run a package called `bundle` that has `esbuild` in dependencies and want to allow `esbuild` to run postinstall scripts, run:
+
+  ```
+  pnpm --allow-build=esbuild dlx bundle
+  ```
+
+  Related PR: [#9026](https://github.com/pnpm/pnpm/pull/9026).
+
+### Patch Changes
+
+- Quote args for scripts with shell-quote to support new lines (on POSIX only) [#8980](https://github.com/pnpm/pnpm/issues/8980).
+- Fix a bug in which `pnpm deploy` fails to read the correct `projectId` when the deploy source is the same as the workspace directory [#9001](https://github.com/pnpm/pnpm/issues/9001).
+- Proxy settings should be respected, when resolving Git-hosted dependencies [#6530](https://github.com/pnpm/pnpm/issues/6530).
+- Prevent `overrides` from adding invalid version ranges to `peerDependencies` by keeping the `peerDependencies` and overriding them with prod `dependencies` [#8978](https://github.com/pnpm/pnpm/issues/8978).
+- Sort the package names in the "pnpm.onlyBuiltDependencies" list saved by `pnpm approve-builds`.
+
 ## 10.1.0
 
 ### Minor Changes

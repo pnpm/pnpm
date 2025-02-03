@@ -1,5 +1,11 @@
 # @pnpm/cache.api
 
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/config@1002.2.1
+
 ## 1000.0.6
 
 ### Patch Changes

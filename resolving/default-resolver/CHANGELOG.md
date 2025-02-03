@@ -1,5 +1,13 @@
 # @pnpm/default-resolver
 
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [d6a4ff1]
+  - @pnpm/git-resolver@1000.0.5
+  - @pnpm/local-resolver@1000.0.5
+
 ## 1001.0.4
 
 ### Patch Changes

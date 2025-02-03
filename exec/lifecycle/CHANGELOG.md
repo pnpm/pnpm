@@ -1,5 +1,13 @@
 # @pnpm/lifecycle
 
+## 1001.0.5
+
+### Patch Changes
+
+- c0d1c01: Quote args for scripts with shell-quote to support new lines (on POSIX only) [#8980](https://github.com/pnpm/pnpm/issues/8980).
+  - @pnpm/directory-fetcher@1000.0.5
+  - @pnpm/link-bins@1000.0.6
+
 ## 1001.0.4
 
 ### Patch Changes

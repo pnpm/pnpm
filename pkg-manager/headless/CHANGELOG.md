@@ -1,5 +1,18 @@
 # @pnpm/headless
 
+## 1001.1.4
+
+### Patch Changes
+
+- Updated dependencies [c0d1c01]
+- Updated dependencies [1e229d7]
+  - @pnpm/lifecycle@1001.0.5
+  - @pnpm/read-project-manifest@1000.0.5
+  - @pnpm/build-modules@1000.2.1
+  - @pnpm/link-bins@1000.0.6
+  - @pnpm/hoist@1001.0.5
+  - @pnpm/package-requester@1001.0.1
+
 ## 1001.1.3
 
 ### Patch Changes

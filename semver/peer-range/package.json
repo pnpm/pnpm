@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/semver.peer-range",
-  "version": "1000.0.0-0",
+  "version": "1000.0.0",
   "description": "Validates peer ranges",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

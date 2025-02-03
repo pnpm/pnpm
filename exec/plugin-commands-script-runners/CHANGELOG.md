@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1000.1.0
+
+### Minor Changes
+
+- b5ba535: Packages executed via `pnpm dlx` and `pnpm create` are allowed to be built (run postinstall scripts) by default.
+
+  If the packages executed by `dlx` or `create` have dependencies that have to be built, they should be listed via the `--allow-build` flag. For instance, if you want to run a package called `bundle` that has `esbuild` in dependencies and want to allow `esbuild` to run postinstall scripts, run:
+
+  ```
+  pnpm --allow-build=esbuild dlx bundle
+  ```
+
+  Related PR: [#9026](https://github.com/pnpm/pnpm/pull/9026).
+
+### Patch Changes
+
+- Updated dependencies [c0d1c01]
+- Updated dependencies [1e229d7]
+  - @pnpm/lifecycle@1001.0.5
+  - @pnpm/read-project-manifest@1000.0.5
+  - @pnpm/cli-utils@1000.0.7
+  - @pnpm/config@1002.2.1
+  - @pnpm/plugin-commands-installation@1001.3.1
+  - @pnpm/plugin-commands-env@1000.0.7
+  - @pnpm/deps.status@1001.1.3
+  - @pnpm/client@1000.0.6
+
 ## 1000.0.7
 
 ### Patch Changes

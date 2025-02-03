@@ -1,5 +1,12 @@
 # @pnpm/local-resolver
 
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [1e229d7]
+  - @pnpm/read-project-manifest@1000.0.5
+
 ## 1000.0.4
 
 ### Patch Changes

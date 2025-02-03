@@ -1,5 +1,13 @@
 # @pnpm/outdated
 
+## 1001.0.6
+
+### Patch Changes
+
+- Updated dependencies [e8c2b17]
+  - @pnpm/hooks.read-package-hook@1000.0.4
+  - @pnpm/client@1000.0.6
+
 ## 1001.0.5
 
 ### Patch Changes

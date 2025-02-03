@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-doctor
 
+## 1000.1.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.7
+- @pnpm/config@1002.2.1
+
 ## 1000.1.5
 
 ### Patch Changes

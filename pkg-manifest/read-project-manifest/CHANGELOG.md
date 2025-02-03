@@ -1,5 +1,11 @@
 # @pnpm/read-project-manifest
 
+## 1000.0.5
+
+### Patch Changes
+
+- 1e229d7: Replaced `lodash.clonedeep` with the built-in `structuredClone`.
+
 ## 1000.0.4
 
 ### Patch Changes
