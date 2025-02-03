@@ -20,7 +20,7 @@ function sanitizeDlxCacheComponent (cacheName: string): string {
   return '***********-*****'
 }
 
-const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, DEFAULT_OPTS.registries, [])
+const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, DEFAULT_OPTS.registries)
 
 function verifyDlxCache (cacheName: string): void {
   expect(
