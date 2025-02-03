@@ -30,7 +30,7 @@ skipOnWindows('self-update stops the store server', async () => {
     XDG_DATA_HOME: path.resolve('data'),
   }
 
-  await execPnpm(['self-update', `--config.store-dir=${path.resolve('..', 'store')}`, '--reporter=append-only'], { env })
+  await execPnpm(['self-update', `--config.store-dir=${path.resolve('..', 'store')}`, '--reporter=append-only', '9.15.5'], { env })
 
   expect(fs.existsSync(serverJsonPath)).toBeFalsy()
   project.isExecutable('../pnpm')
