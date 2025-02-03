@@ -9,13 +9,12 @@ import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 import { install } from '@pnpm/plugin-commands-installation'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { PnpmError } from '@pnpm/error'
-import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
+import { getLockfileImporterId, readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
 import { deployHook } from './deployHook'
 import { logger, globalWarn } from '@pnpm/logger'
-import { type Project, type ProjectId } from '@pnpm/types'
-import normalizePath from 'normalize-path'
+import { type Project } from '@pnpm/types'
 import { createDeployFiles } from './createDeployFiles'
 import { deployCatalogHook } from './deployCatalogHook'
 
@@ -196,7 +195,7 @@ async function deployFromSharedLockfile (
     return 'Shared lockfile not found. Falling back to installing without a lockfile.'
   }
 
-  const projectId = normalizePath(path.relative(workspaceDir, selectedProject.rootDir)) as ProjectId
+  const projectId = getLockfileImporterId(lockfileDir, selectedProject.rootDir)
 
   const deployFiles = createDeployFiles({
     allProjects,
