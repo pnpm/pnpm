@@ -12,9 +12,10 @@ import { pnpmCmds } from './cmd'
 
 export async function switchCliVersion (config: Config): Promise<void> {
   const pm = config.wantedPackageManager
-  if (pm == null || pm.name !== 'pnpm' || pm.version == null || pm.version === packageManager.version) return
-  if (!semver.valid(pm.version)) {
-    globalWarn(`Cannot switch to pnpm@${pm.version}: "${pm.version}" is not a valid version`)
+  if (pm == null || pm.name !== 'pnpm' || pm.version == null || semver.eq(pm.version, packageManager.version)) return
+  const pmVersion = semver.valid(pm.version)
+  if (!pmVersion) {
+    globalWarn(`Cannot switch to pnpm@${pmVersion}: "${pmVersion}" is not a valid version`)
     return
   }
   const pkgName = getCurrentPackageName()
@@ -22,7 +23,7 @@ export async function switchCliVersion (config: Config): Promise<void> {
     pnpmHomeDir: config.pnpmHomeDir,
     tool: {
       name: pkgName,
-      version: pm.version,
+      version: pmVersion,
     },
   })
   if (!fs.existsSync(dir)) {
@@ -35,14 +36,14 @@ export async function switchCliVersion (config: Config): Promise<void> {
         lockfileDir: dir,
         bin: path.join(dir, 'bin'),
       },
-      [`${pkgName}@${pm.version}`]
+      [`${pkgName}@${pmVersion}`]
     )
   }
   const wantedPnpmBinDir = path.join(dir, 'bin')
   const pnpmEnv = prependDirsToPath([wantedPnpmBinDir])
   if (!pnpmEnv.updated) {
     // We throw this error to prevent an infinite recursive call of the same pnpm version.
-    throw new VersionSwitchFail(pm.version, wantedPnpmBinDir)
+    throw new VersionSwitchFail(pmVersion, wantedPnpmBinDir)
   }
 
   // Specify the exact pnpm file path that's expected to execute to spawn.sync()
@@ -65,7 +66,7 @@ export async function switchCliVersion (config: Config): Promise<void> {
   })
 
   if (error) {
-    throw new VersionSwitchFail(pm.version, wantedPnpmBinDir, error)
+    throw new VersionSwitchFail(pmVersion, wantedPnpmBinDir, error)
   }
 
   process.exit(status ?? 0)
