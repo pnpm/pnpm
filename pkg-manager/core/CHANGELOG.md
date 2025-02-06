@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 1002.0.4
+
+### Patch Changes
+
+- 9843aed: Don't read a package from side-effects cache if it isn't allowed to be built [#9042](https://github.com/pnpm/pnpm/issues/9042).
+- Updated dependencies [9843aed]
+  - @pnpm/headless@1001.1.5
+  - @pnpm/build-modules@1000.2.2
+
 ## 1002.0.3
 
 ### Patch Changes

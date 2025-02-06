@@ -1,5 +1,11 @@
 # @pnpm/exec.build-commands
 
+## 1000.0.2
+
+### Patch Changes
+
+- afbb654: `pnpm approve-builds` should work, when executed from a subdirectory of a workspace [#9042](https://github.com/pnpm/pnpm/issues/9042).
+
 ## 1000.0.1
 
 ### Patch Changes
