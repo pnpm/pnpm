@@ -9,6 +9,10 @@ import { prompt } from 'enquirer'
 export type RunDepsStatusCheckOptions = CheckDepsStatusOptions & { dir: string, verifyDepsBeforeRun?: VerifyDepsBeforeRun }
 
 export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Promise<void> {
+  // the following flags are always the default values during `pnpm run` and `pnpm exec`,
+  // so they may not match the workspace state after `pnpm install --production|--no-optional`
+  opts.ignoredWorkspaceStateSettings = ['dev', 'optional', 'production']
+
   const { upToDate, issue } = await checkDepsStatus(opts)
   if (upToDate) return
   switch (opts.verifyDepsBeforeRun) {

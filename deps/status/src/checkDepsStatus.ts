@@ -62,6 +62,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'pnpmfile'
 > & {
   ignoreFilteredInstallCache?: boolean
+  ignoredWorkspaceStateSettings?: Array<keyof WorkspaceStateSettings>
 } & WorkspaceStateSettings
 
 export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDate: boolean | undefined, issue?: string }> {
@@ -114,10 +115,11 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions): Promise<{ upToDa
   }
 
   if (workspaceState.settings) {
+    const ignoredSettings = new Set<keyof WorkspaceStateSettings>(opts.ignoredWorkspaceStateSettings)
+    ignoredSettings.add('catalogs') // 'catalogs' is always ignored
     for (const [settingName, settingValue] of Object.entries(workspaceState.settings)) {
-      if (settingName === 'catalogs') continue
-      // @ts-expect-error
-      if (!equals(settingValue, opts[settingName])) {
+      if (ignoredSettings.has(settingName as keyof WorkspaceStateSettings)) continue
+      if (!equals(settingValue, opts[settingName as keyof WorkspaceStateSettings])) {
         return {
           upToDate: false,
           issue: `The value of the ${settingName} setting has changed`,
