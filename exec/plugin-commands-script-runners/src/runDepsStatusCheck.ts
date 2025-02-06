@@ -44,16 +44,16 @@ Would you like to run "pnpm ${installCommand.join(' ')}" to update your "node_mo
     break
   }
 
-  type InstallOptions = Array<`--${'no-' | ''}${typeof ignoredWorkspaceStateSettings[number]}`>
-  type InstallCommand = ['install', ...InstallOptions]
+  type InstallOptions = Array<`--config.${typeof ignoredWorkspaceStateSettings[number]}=${'true' | 'false'}`>
+  type InstallCommand = [...InstallOptions, 'install']
 
   function createInstallCommand (): InstallCommand {
-    const command: InstallCommand = ['install']
+    const options: InstallOptions = []
     for (const settingName of ignoredWorkspaceStateSettings) {
-      const value: boolean | undefined = workspaceState?.settings[settingName]
-      command.push(value ? `--${settingName}` : `--no-${settingName}`)
+      const value = workspaceState?.settings[settingName] ? 'true' : 'false'
+      options.push(`--config.${settingName}=${value}`)
     }
-    return command
+    return [...options, 'install']
   }
 
   function runCommand (command: InstallCommand): void {
