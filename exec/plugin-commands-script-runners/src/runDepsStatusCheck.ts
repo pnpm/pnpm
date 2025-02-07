@@ -1,16 +1,24 @@
-import path from 'path'
-import { sync as execSync } from 'execa'
 import { type VerifyDepsBeforeRun } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
-import { checkDepsStatus, type CheckDepsStatusOptions } from '@pnpm/deps.status'
+import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
 import { prompt } from 'enquirer'
+import * as installCommand from './installCommand'
 
 export type RunDepsStatusCheckOptions = CheckDepsStatusOptions & { dir: string, verifyDepsBeforeRun?: VerifyDepsBeforeRun }
 
 export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Promise<void> {
-  const { upToDate, issue } = await checkDepsStatus(opts)
+  // the following flags are always the default values during `pnpm run` and `pnpm exec`,
+  // so they may not match the workspace state after `pnpm install --production|--no-optional`
+  const ignoredWorkspaceStateSettings = ['dev', 'optional', 'production'] satisfies Array<keyof WorkspaceStateSettings>
+  opts.ignoredWorkspaceStateSettings = ignoredWorkspaceStateSettings
+
+  const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
   if (upToDate) return
+
+  const command = installCommand.createFromFlags(workspaceState?.settings)
+  const install = installCommand.run.bind(null, opts.dir, command)
+
   switch (opts.verifyDepsBeforeRun) {
   case 'install':
     install()
@@ -21,7 +29,7 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
       name: 'runInstall',
       message: `Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file. This can lead to issues during scripts execution.
 
-Would you like to run "pnpm install" to update your "node_modules"?`,
+Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?`,
       initial: true,
     })
     if (confirmed.runInstall) {
@@ -36,19 +44,5 @@ Would you like to run "pnpm install" to update your "node_modules"?`,
   case 'warn':
     globalWarn(`Your node_modules are out of sync with your lockfile. ${issue}`)
     break
-  }
-
-  function install () {
-    const execOpts = {
-      cwd: opts.dir,
-      stdio: 'inherit' as const,
-    }
-    if (path.basename(process.execPath) === 'pnpm') {
-      execSync(process.execPath, ['install'], execOpts)
-    } else if (path.basename(process.argv[1]) === 'pnpm.cjs') {
-      execSync(process.execPath, [process.argv[1], 'install'], execOpts)
-    } else {
-      execSync('pnpm', ['install'], execOpts)
-    }
   }
 }
