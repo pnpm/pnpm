@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.5
+
+### Patch Changes
+
+- 96cdfa3: `pnpm deploy --legacy` should work without injected dependencies.
+- e9d8f48: Add information about how to deploy without "injected dependencies" to the "pnpm deploy" error message.
+  - @pnpm/plugin-commands-installation@1001.3.2
+
 ## 1001.1.4
 
 ### Patch Changes

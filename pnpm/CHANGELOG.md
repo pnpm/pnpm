@@ -1,5 +1,14 @@
 # pnpm
 
+## 10.2.1
+
+### Patch Changes
+
+- Don't read a package from side-effects cache if it isn't allowed to be built [#9042](https://github.com/pnpm/pnpm/issues/9042).
+- `pnpm approve-builds` should work, when executed from a subdirectory of a workspace [#9042](https://github.com/pnpm/pnpm/issues/9042).
+- `pnpm deploy --legacy` should work without injected dependencies.
+- Add information about how to deploy without "injected dependencies" to the "pnpm deploy" error message.
+
 ## 10.2.0
 
 ### Minor Changes

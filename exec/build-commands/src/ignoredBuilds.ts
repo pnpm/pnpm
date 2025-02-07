@@ -2,7 +2,7 @@ import { type Config } from '@pnpm/config'
 import renderHelp from 'render-help'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds'
 
-export type IgnoredBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest'>
+export type IgnoredBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'lockfileDir'>
 
 export const commandNames = ['ignored-builds']
 

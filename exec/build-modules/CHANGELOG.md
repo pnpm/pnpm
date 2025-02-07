@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 1000.2.2
+
+### Patch Changes
+
+- 9843aed: Don't read a package from side-effects cache if it isn't allowed to be built [#9042](https://github.com/pnpm/pnpm/issues/9042).
+
 ## 1000.2.1
 
 ### Patch Changes

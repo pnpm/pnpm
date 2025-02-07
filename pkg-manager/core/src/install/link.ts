@@ -395,6 +395,7 @@ async function linkNewPackages (
         optional: opts.optional,
       }),
     linkAllPkgs(opts.storeController, newPkgs, {
+      allowBuild: opts.allowBuild,
       depGraph,
       depsStateCache: opts.depsStateCache,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,

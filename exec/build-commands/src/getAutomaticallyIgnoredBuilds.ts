@@ -3,7 +3,7 @@ import { readModulesManifest } from '@pnpm/modules-yaml'
 import { type IgnoredBuildsCommandOpts } from './ignoredBuilds'
 
 export async function getAutomaticallyIgnoredBuilds (opts: IgnoredBuildsCommandOpts): Promise<null | string[]> {
-  const modulesManifest = await readModulesManifest(opts.modulesDir ?? path.join(opts.dir, 'node_modules'))
+  const modulesManifest = await readModulesManifest(opts.modulesDir ?? path.join(opts.lockfileDir ?? opts.dir, 'node_modules'))
   if (modulesManifest == null) {
     return null
   }

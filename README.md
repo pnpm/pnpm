@@ -44,9 +44,6 @@ To quote the [Rush](https://rushjs.io/) team:
       <td align="center" valign="middle">
         <a href="https://sanity.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/sanity.svg" width="180" alt="Bit"></a>
       </td>
-      <td align="center" valign="middle">
-        <a href="https://figma.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/figma.svg" width="80" alt="Figma"></a>
-      </td>
     </tr>
   </tbody>
 </table>
@@ -66,17 +63,6 @@ To quote the [Rush](https://rushjs.io/) team:
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/prisma.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/prisma_light.svg" />
-            <img src="https://pnpm.io/img/users/prisma.svg" width="180" alt="Prisma" />
-          </picture>
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="middle">
         <a href="https://uscreen.de/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/uscreen.svg" />
@@ -85,6 +71,8 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://www.jetbrains.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
@@ -94,8 +82,6 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://nx.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
@@ -105,6 +91,8 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://coderabbit.ai/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
@@ -114,13 +102,13 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://route4me.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <img src="https://pnpm.io/img/users/route4me.svg" width="220" alt="Route4Me" />
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://workleap.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
@@ -128,13 +116,6 @@ To quote the [Rush](https://rushjs.io/) team:
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/workleap_light.svg" />
             <img src="https://pnpm.io/img/users/workleap.svg" width="190" alt="Workleap" />
           </picture>
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="middle">
-        <a href="https://canva.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <img src="https://pnpm.io/img/users/canva.svg" width="120" alt="Canva" />
         </a>
       </td>
     </tr>
