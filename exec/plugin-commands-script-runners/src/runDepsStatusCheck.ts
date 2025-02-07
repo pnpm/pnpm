@@ -1,10 +1,9 @@
-import path from 'path'
-import { sync as execSync } from 'execa'
 import { type VerifyDepsBeforeRun } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
 import { prompt } from 'enquirer'
+import * as installCommand from './installCommand'
 
 export type RunDepsStatusCheckOptions = CheckDepsStatusOptions & { dir: string, verifyDepsBeforeRun?: VerifyDepsBeforeRun }
 
@@ -16,22 +15,25 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
 
   const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
   if (upToDate) return
+
+  const command = installCommand.fromWorkspaceStateSettings(workspaceState?.settings)
+  const install = installCommand.run.bind(null, opts.dir, command)
+
   switch (opts.verifyDepsBeforeRun) {
   case 'install':
-    runCommand(createInstallCommand())
+    install()
     break
   case 'prompt': {
-    const installCommand = createInstallCommand()
     const confirmed = await prompt<{ runInstall: boolean }>({
       type: 'confirm',
       name: 'runInstall',
       message: `Your "node_modules" directory is out of sync with the "pnpm-lock.yaml" file. This can lead to issues during scripts execution.
 
-Would you like to run "pnpm ${installCommand.join(' ')}" to update your "node_modules"?`,
+Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?`,
       initial: true,
     })
     if (confirmed.runInstall) {
-      runCommand(installCommand)
+      install()
     }
     break
   }
@@ -42,37 +44,5 @@ Would you like to run "pnpm ${installCommand.join(' ')}" to update your "node_mo
   case 'warn':
     globalWarn(`Your node_modules are out of sync with your lockfile. ${issue}`)
     break
-  }
-
-  type InstallOptions = Array<'--production' | '--dev' | '--no-optional'>
-  type InstallCommand = ['install', ...InstallOptions]
-
-  function createInstallCommand (): InstallCommand {
-    const command: InstallCommand = ['install']
-    if (!workspaceState) return command
-    const { dev, optional, production } = workspaceState.settings
-    if (production && !dev) {
-      command.push('--production')
-    } else if (dev && !production) {
-      command.push('--dev')
-    }
-    if (!optional) {
-      command.push('--no-optional')
-    }
-    return command
-  }
-
-  function runCommand (command: InstallCommand): void {
-    const execOpts = {
-      cwd: opts.dir,
-      stdio: 'inherit' as const,
-    }
-    if (path.basename(process.execPath) === 'pnpm') {
-      execSync(process.execPath, command, execOpts)
-    } else if (path.basename(process.argv[1]) === 'pnpm.cjs') {
-      execSync(process.execPath, [process.argv[1], ...command], execOpts)
-    } else {
-      execSync('pnpm', command, execOpts)
-    }
   }
 }
