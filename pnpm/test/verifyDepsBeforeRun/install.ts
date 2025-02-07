@@ -1,0 +1,126 @@
+import fs from 'fs'
+import { prepare } from '@pnpm/prepare'
+import { type ProjectManifest } from '@pnpm/types'
+import { loadWorkspaceState } from '@pnpm/workspace.state'
+import { execPnpm, execPnpmSync } from '../utils'
+
+const CONFIG = ['--config.verify-deps-before-run=install'] as const
+
+test('verify-deps-before-run=install reuses the same flags as specified by the workspace state (#9109)', async () => {
+  const manifest: ProjectManifest = {
+    name: 'root',
+    private: true,
+    dependencies: {
+      '@pnpm.e2e/foo': '100.0.0',
+    },
+    devDependencies: {
+      '@pnpm.e2e/bar': '100.0.0',
+    },
+    scripts: {
+      start: 'echo hello from script',
+    },
+  }
+
+  const project = prepare(manifest)
+
+  await execPnpm([...CONFIG, 'install'])
+
+  // --production
+  {
+    fs.rmSync('node_modules', { recursive: true })
+    await execPnpm([...CONFIG, 'install', '--production', '--frozen-lockfile'])
+    expect(loadWorkspaceState(process.cwd())).toMatchObject({
+      settings: {
+        dev: false,
+        optional: true,
+        production: true,
+      },
+    })
+
+    project.writePackageJson({
+      ...manifest,
+      dependencies: {
+        ...manifest.dependencies,
+        '@pnpm.e2e/foo': '100.1.0', // different from the initial manifest
+      },
+    })
+
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
+    expect(stdout.toString()).not.toContain('dependencies: skipped')
+    expect(stdout.toString()).toContain('devDependencies: skipped')
+    expect(stdout.toString()).toContain('hello from script')
+    expect(loadWorkspaceState(process.cwd())).toMatchObject({
+      settings: {
+        dev: false,
+        optional: true,
+        production: true,
+      },
+    })
+  }
+
+  // --dev
+  {
+    fs.rmSync('node_modules', { recursive: true })
+    await execPnpm([...CONFIG, 'install', '--dev', '--frozen-lockfile'])
+    expect(loadWorkspaceState(process.cwd())).toMatchObject({
+      settings: {
+        dev: true,
+        optional: false,
+        production: false,
+      },
+    })
+
+    project.writePackageJson({
+      ...manifest,
+      dependencies: {
+        ...manifest.dependencies,
+        '@pnpm.e2e/foo': '100.0.0', // different from the manifest created by --production
+      },
+    })
+
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('dependencies: skipped')
+    expect(stdout.toString()).not.toContain('devDependencies: skipped')
+    expect(stdout.toString()).toContain('hello from script')
+    expect(loadWorkspaceState(process.cwd())).toMatchObject({
+      settings: {
+        dev: true,
+        optional: false,
+        production: false,
+      },
+    })
+  }
+
+  // neither --dev nor --production
+  {
+    fs.rmSync('node_modules', { recursive: true })
+    await execPnpm([...CONFIG, 'install', '--frozen-lockfile'])
+    expect(loadWorkspaceState(process.cwd())).toMatchObject({
+      settings: {
+        dev: true,
+        optional: true,
+        production: true,
+      },
+    })
+
+    project.writePackageJson({
+      ...manifest,
+      dependencies: {
+        ...manifest.dependencies,
+        '@pnpm.e2e/foo': '100.1.0', // different from the manifest created by --dev
+      },
+    })
+
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
+    expect(stdout.toString()).not.toContain('dependencies: skipped')
+    expect(stdout.toString()).not.toContain('devDependencies: skipped')
+    expect(stdout.toString()).toContain('hello from script')
+    expect(loadWorkspaceState(process.cwd())).toMatchObject({
+      settings: {
+        dev: true,
+        optional: true,
+        production: true,
+      },
+    })
+  }
+})
