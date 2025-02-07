@@ -4,7 +4,10 @@ import { type ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { execPnpm, execPnpmSync } from '../utils'
 
-const CONFIG = ['--config.verify-deps-before-run=install'] as const
+const CONFIG = [
+  '--config.verify-deps-before-run=install',
+  '--reporter=append-only',
+] as const
 
 test('verify-deps-before-run=install reuses the same flags as specified by the workspace state (#9109)', async () => {
   const manifest: ProjectManifest = {
@@ -18,6 +21,7 @@ test('verify-deps-before-run=install reuses the same flags as specified by the w
     },
     scripts: {
       start: 'echo hello from script',
+      postinstall: 'echo install was executed',
     },
   }
 
@@ -48,6 +52,7 @@ test('verify-deps-before-run=install reuses the same flags as specified by the w
     })
 
     const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('install was executed')
     expect(stdout.toString()).toContain('hello from script')
     project.has('@pnpm.e2e/foo')
     project.hasNot('@pnpm.e2e/bar')
@@ -83,6 +88,7 @@ test('verify-deps-before-run=install reuses the same flags as specified by the w
     })
 
     const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('install was executed')
     expect(stdout.toString()).toContain('hello from script')
     project.hasNot('@pnpm.e2e/foo')
     project.has('@pnpm.e2e/bar')
@@ -118,6 +124,7 @@ test('verify-deps-before-run=install reuses the same flags as specified by the w
     })
 
     const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('install was executed')
     expect(stdout.toString()).toContain('hello from script')
     project.has('@pnpm.e2e/foo')
     project.has('@pnpm.e2e/bar')
