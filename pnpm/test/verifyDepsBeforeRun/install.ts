@@ -29,6 +29,8 @@ test('verify-deps-before-run=install reuses the same flags as specified by the w
   {
     fs.rmSync('node_modules', { recursive: true })
     await execPnpm([...CONFIG, 'install', '--production', '--frozen-lockfile'])
+    project.has('@pnpm.e2e/foo')
+    project.hasNot('@pnpm.e2e/bar')
     expect(loadWorkspaceState(process.cwd())).toMatchObject({
       settings: {
         dev: false,
@@ -46,9 +48,9 @@ test('verify-deps-before-run=install reuses the same flags as specified by the w
     })
 
     const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
-    expect(stdout.toString()).not.toContain('dependencies: skipped')
-    expect(stdout.toString()).toContain('devDependencies: skipped')
     expect(stdout.toString()).toContain('hello from script')
+    project.has('@pnpm.e2e/foo')
+    project.hasNot('@pnpm.e2e/bar')
     expect(loadWorkspaceState(process.cwd())).toMatchObject({
       settings: {
         dev: false,
@@ -62,6 +64,8 @@ test('verify-deps-before-run=install reuses the same flags as specified by the w
   {
     fs.rmSync('node_modules', { recursive: true })
     await execPnpm([...CONFIG, 'install', '--dev', '--frozen-lockfile'])
+    project.hasNot('@pnpm.e2e/foo')
+    project.has('@pnpm.e2e/bar')
     expect(loadWorkspaceState(process.cwd())).toMatchObject({
       settings: {
         dev: true,
@@ -79,9 +83,9 @@ test('verify-deps-before-run=install reuses the same flags as specified by the w
     })
 
     const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
-    expect(stdout.toString()).toContain('dependencies: skipped')
-    expect(stdout.toString()).not.toContain('devDependencies: skipped')
     expect(stdout.toString()).toContain('hello from script')
+    project.hasNot('@pnpm.e2e/foo')
+    project.has('@pnpm.e2e/bar')
     expect(loadWorkspaceState(process.cwd())).toMatchObject({
       settings: {
         dev: true,
@@ -95,6 +99,8 @@ test('verify-deps-before-run=install reuses the same flags as specified by the w
   {
     fs.rmSync('node_modules', { recursive: true })
     await execPnpm([...CONFIG, 'install', '--frozen-lockfile'])
+    project.has('@pnpm.e2e/foo')
+    project.has('@pnpm.e2e/bar')
     expect(loadWorkspaceState(process.cwd())).toMatchObject({
       settings: {
         dev: true,
@@ -112,9 +118,9 @@ test('verify-deps-before-run=install reuses the same flags as specified by the w
     })
 
     const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
-    expect(stdout.toString()).not.toContain('dependencies: skipped')
-    expect(stdout.toString()).not.toContain('devDependencies: skipped')
     expect(stdout.toString()).toContain('hello from script')
+    project.has('@pnpm.e2e/foo')
+    project.has('@pnpm.e2e/bar')
     expect(loadWorkspaceState(process.cwd())).toMatchObject({
       settings: {
         dev: true,
