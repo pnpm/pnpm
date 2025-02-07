@@ -1,14 +1,19 @@
 import path from 'path'
 import { sync as execSync } from 'execa'
-import { type WorkspaceStateSettings } from '@pnpm/deps.status'
 
 export type InstallOptions = Array<'--production' | '--dev' | '--no-optional'>
 export type InstallCommand = ['install', ...InstallOptions]
 
-export function fromWorkspaceStateSettings (settings: WorkspaceStateSettings | undefined): InstallCommand {
+export interface Flags {
+  dev?: boolean
+  optional?: boolean
+  production?: boolean
+}
+
+export function createFromFlags (flags: Flags | undefined): InstallCommand {
   const command: InstallCommand = ['install']
-  if (!settings) return command
-  const { dev, optional, production } = settings
+  if (!flags) return command
+  const { dev, optional, production } = flags
   if (production && !dev) {
     command.push('--production')
   } else if (dev && !production) {

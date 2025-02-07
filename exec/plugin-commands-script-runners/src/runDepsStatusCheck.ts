@@ -16,7 +16,7 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
   const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
   if (upToDate) return
 
-  const command = installCommand.fromWorkspaceStateSettings(workspaceState?.settings)
+  const command = installCommand.createFromFlags(workspaceState?.settings)
   const install = installCommand.run.bind(null, opts.dir, command)
 
   switch (opts.verifyDepsBeforeRun) {
