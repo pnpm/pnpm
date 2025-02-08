@@ -72,7 +72,7 @@ export function renderPeerIssues (
       const { conflicts, intersections } = peerDependencyIssuesByProjects[projectKey]
       if (conflicts.length) {
         summaries.push(
-          chalk.red(`✕ Conflicting peer dependencies:\n  ${cliColumns(conflicts, cliColumnsOptions)}`)
+          chalk.red(`✕ Conflicting peer dependencies:\n  ${cliColumns(conflicts, cliColumnsOptions).trimEnd()}`)
         )
       }
       if (Object.keys(intersections).length) {
