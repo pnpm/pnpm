@@ -2448,6 +2448,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/exec.pnpm-cli-runner':
+        specifier: workspace:*
+        version: link:../pnpm-cli-runner
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../lifecycle
@@ -2554,6 +2557,16 @@ importers:
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
+
+  exec/pnpm-cli-runner:
+    dependencies:
+      execa:
+        specifier: 'catalog:'
+        version: safe-execa@0.1.2
+    devDependencies:
+      '@pnpm/exec.pnpm-cli-runner':
+        specifier: workspace:*
+        version: 'link:'
 
   exec/prepare-package:
     dependencies:

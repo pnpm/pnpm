@@ -1,9 +1,9 @@
 import { type VerifyDepsBeforeRun } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
+import { runPnpmCli } from '@pnpm/exec.pnpm-cli-runner'
 import { globalWarn } from '@pnpm/logger'
 import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
 import { prompt } from 'enquirer'
-import * as installCommand from './installCommand'
 
 export type RunDepsStatusCheckOptions = CheckDepsStatusOptions & { dir: string, verifyDepsBeforeRun?: VerifyDepsBeforeRun }
 
@@ -16,8 +16,8 @@ export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Prom
   const { upToDate, issue, workspaceState } = await checkDepsStatus(opts)
   if (upToDate) return
 
-  const command = installCommand.createFromFlags(workspaceState?.settings)
-  const install = installCommand.run.bind(null, opts.dir, command)
+  const command = ['install', ...createInstallArgs(workspaceState?.settings)]
+  const install = runPnpmCli.bind(null, command, { cwd: opts.dir })
 
   switch (opts.verifyDepsBeforeRun) {
   case 'install':
@@ -45,4 +45,19 @@ Would you like to run "pnpm ${command.join(' ')}" to update your "node_modules"?
     globalWarn(`Your node_modules are out of sync with your lockfile. ${issue}`)
     break
   }
+}
+
+export function createInstallArgs (opts: Pick<WorkspaceStateSettings, 'dev' | 'optional' | 'production'> | undefined): string[] {
+  const args: string[] = []
+  if (!opts) return args
+  const { dev, optional, production } = opts
+  if (production && !dev) {
+    args.push('--production')
+  } else if (dev && !production) {
+    args.push('--dev')
+  }
+  if (!optional) {
+    args.push('--no-optional')
+  }
+  return args
 }

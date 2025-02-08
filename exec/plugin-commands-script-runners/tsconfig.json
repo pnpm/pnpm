@@ -86,6 +86,9 @@
     },
     {
       "path": "../lifecycle"
+    },
+    {
+      "path": "../pnpm-cli-runner"
     }
   ]
 }
