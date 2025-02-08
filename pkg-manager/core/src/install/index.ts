@@ -1300,12 +1300,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }))
   }
 
-  summaryLogger.debug({ prefix: opts.lockfileDir })
-
   reportPeerDependencyIssues(peerDependencyIssuesByProjects, {
     lockfileDir: opts.lockfileDir,
     strictPeerDependencies: opts.strictPeerDependencies,
   })
+
+  summaryLogger.debug({ prefix: opts.lockfileDir })
 
   // Similar to the sequencing for when the original wanted lockfile is
   // copied, the new lockfile passed here should be as close as possible to

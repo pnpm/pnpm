@@ -81,12 +81,9 @@ export function renderPeerIssues (
         )
       }
       const title = chalk.reset(projectKey)
-      let summariesConcatenated = summaries.join('\n')
-      if (summariesConcatenated) {
-        summariesConcatenated += '\n'
-      }
-      return `${archy(toArchyData(title, project))}${summariesConcatenated}`
-    }).join('\n')
+      const summariesConcatenated = summaries.join('\n')
+      return `${archy(toArchyData(title, project))}${summariesConcatenated}`.trimEnd()
+    }).join('\n\n')
 }
 
 function formatUnmetPeerMessage (
