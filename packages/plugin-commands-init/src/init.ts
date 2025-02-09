@@ -40,8 +40,11 @@ export async function handler (
   if (fs.existsSync(manifestPath)) {
     throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
   }
+  const response = await fetch('https://registry.npmjs.org/pnpm/latest')
+  const version = (await response.json() as any).version // eslint-disable-line
   const manifest = {
     name: path.basename(process.cwd()),
+    packageManager: `pnpm@${version}`,
     version: '1.0.0',
     description: '',
     main: 'index.js',
