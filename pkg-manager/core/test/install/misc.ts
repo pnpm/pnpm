@@ -788,7 +788,7 @@ test('rewrites node_modules created by npm', async () => {
 
   await execa('npm', ['install', 'rimraf@2.5.1', '@types/node', '--save'])
 
-  const manifest = await install({}, testDefaults())
+  const { updatedManifest: manifest } = await install({}, testDefaults())
 
   const m = project.requireModule('rimraf')
   expect(typeof m).toEqual('function')

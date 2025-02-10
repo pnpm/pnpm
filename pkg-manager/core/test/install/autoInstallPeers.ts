@@ -184,7 +184,7 @@ test('prefer the peer dependency version already used in the root', async () => 
 test('automatically install root peer dependencies', async () => {
   const project = prepareEmpty()
 
-  let manifest = await install({
+  let { updatedManifest: manifest } = await install({
     dependencies: {
       'is-negative': '^1.0.1',
     },

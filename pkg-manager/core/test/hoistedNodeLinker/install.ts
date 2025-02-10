@@ -57,7 +57,7 @@ test('installing with hoisted node-linker and no lockfile', async () => {
 
 test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
   const project = prepareEmpty()
-  const manifest = await addDependenciesToPackage(
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
     ['is-positive@3.0.0'],
     testDefaults({ nodeLinker: 'hoisted', save: true })
@@ -80,7 +80,7 @@ test('overwriting existing files in node_modules', async () => {
   prepareEmpty()
   await symlinkDir(__dirname, path.resolve('node_modules/is-positive'))
 
-  const manifest = await addDependenciesToPackage(
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
     ['is-positive@3.0.0'],
     testDefaults({ nodeLinker: 'hoisted', save: true })
@@ -95,7 +95,7 @@ test('preserve subdeps on update', async () => {
 
   await addDistTag({ package: '@pnpm.e2e/foobarqar', version: '1.0.0', distTag: 'latest' })
 
-  const manifest = await addDependenciesToPackage(
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
     ['@pnpm.e2e/foobarqar@1.0.0', '@pnpm.e2e/bar@100.1.0'],
     testDefaults({ nodeLinker: 'hoisted' })

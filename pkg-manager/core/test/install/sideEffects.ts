@@ -21,14 +21,14 @@ test.skip('caching side effects of native package', async () => {
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
   })
-  let manifest = await addDependenciesToPackage({}, ['diskusage@1.1.3'], opts)
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['diskusage@1.1.3'], opts)
   const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   const stat1 = fs.statSync(cacheBuildDir)
 
   expect(fs.existsSync('node_modules/diskusage/build')).toBeTruthy()
   expect(fs.existsSync(cacheBuildDir)).toBeTruthy()
 
-  manifest = await addDependenciesToPackage(manifest, ['diskusage@1.1.3'], opts)
+  manifest = (await addDependenciesToPackage(manifest, ['diskusage@1.1.3'], opts)).updatedManifest
   const stat2 = fs.statSync(cacheBuildDir)
   expect(stat1.ino).toBe(stat2.ino)
 
@@ -49,7 +49,7 @@ test.skip('caching side effects of native package when hoisting is used', async 
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
   })
-  const manifest = await addDependenciesToPackage({}, ['expire-fs@2.2.3'], opts)
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['expire-fs@2.2.3'], opts)
   const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   const stat1 = fs.statSync(cacheBuildDir)
 
@@ -80,7 +80,7 @@ test('using side effects cache', async () => {
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
   }, {}, {}, { packageImportMethod: 'copy' })
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
 
   const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
@@ -115,7 +115,7 @@ test.skip('readonly side effects cache', async () => {
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
   })
-  let manifest = await addDependenciesToPackage({}, ['diskusage@1.1.3'], opts1)
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['diskusage@1.1.3'], opts1)
 
   // Modify the side effects cache to make sure we are using it
   const cacheBuildDir = path.join(opts1.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
@@ -128,7 +128,7 @@ test.skip('readonly side effects cache', async () => {
     sideEffectsCacheWrite: false,
     verifyStoreIntegrity: false,
   }, {}, {}, { packageImportMethod: 'copy' })
-  manifest = await addDependenciesToPackage(manifest, ['diskusage@1.1.3'], opts2)
+  manifest = (await addDependenciesToPackage(manifest, ['diskusage@1.1.3'], opts2)).updatedManifest
 
   expect(fs.existsSync('node_modules/diskusage/build/new-file.txt')).toBeTruthy()
 
@@ -192,7 +192,7 @@ test('a corrupted side-effects cache is ignored', async () => {
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
   })
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
 
   const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)

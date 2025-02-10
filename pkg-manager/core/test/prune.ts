@@ -19,7 +19,7 @@ test('prune removes extraneous packages', async () => {
   const project = prepareEmpty()
 
   const opts = testDefaults()
-  let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], { ...opts, targetDependenciesField: 'dependencies' })
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-negative@2.1.0'], { ...opts, targetDependenciesField: 'dependencies' })
   manifest = await addDependenciesToPackage(manifest, ['applyq@0.2.1'], { ...opts, targetDependenciesField: 'devDependencies' })
   manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], { ...opts, targetDependenciesField: 'optionalDependencies' })
   manifest = await addDependenciesToPackage(manifest, ['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)
@@ -74,7 +74,7 @@ test('prune removes extraneous packages', async () => {
 test('prune removes dev dependencies in production', async () => {
   const project = prepareEmpty()
 
-  let manifest = await addDependenciesToPackage({}, ['is-positive@2.0.0'], testDefaults({ targetDependenciesField: 'devDependencies' }))
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@2.0.0'], testDefaults({ targetDependenciesField: 'devDependencies' }))
   manifest = await addDependenciesToPackage(manifest, ['is-negative@2.1.0'], testDefaults({ targetDependenciesField: 'dependencies' }))
   manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], testDefaults({ targetDependenciesField: 'optionalDependencies' }))
   await install(manifest, testDefaults({

@@ -529,7 +529,7 @@ test('adding a new dev dependency to project that uses a shared lockfile', async
       },
     ],
   }))).updatedProjects
-  manifest = await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))
+  manifest = (await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))).updatedManifest
 
   expect(manifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
   expect(manifest.devDependencies).toStrictEqual({ 'is-negative': '1.0.0' })

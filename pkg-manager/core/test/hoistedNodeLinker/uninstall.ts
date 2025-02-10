@@ -14,7 +14,7 @@ import { testDefaults } from './../utils'
 test('uninstall package with no dependencies', async () => {
   const project = prepareEmpty()
 
-  let manifest = await addDependenciesToPackage(
+  let { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
     ['is-negative@2.1.0'],
     testDefaults({ save: true, nodeLinker: 'hoisted' })
@@ -74,7 +74,7 @@ test('uninstall package with no dependencies', async () => {
 
 test('uninstall package with dependencies and do not touch other deps', async () => {
   const project = prepareEmpty()
-  let manifest = await addDependenciesToPackage(
+  let { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
     ['is-negative@2.1.0', 'camelcase-keys@3.0.0'],
     testDefaults({ nodeLinker: 'hoisted', save: true })

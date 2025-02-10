@@ -198,7 +198,7 @@ test('an update bumps the versions in the manifest', async () => {
 
   prepareEmpty()
 
-  const { manifest } = await mutateModulesInSingleProject({
+  const { updatedProject: { manifest } } = await mutateModulesInSingleProject({
     manifest: {
       dependencies: {
         '@pnpm.e2e/peer-a': '~1.0.0',
