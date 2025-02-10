@@ -70,7 +70,6 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'savePrefix'
 | 'saveProd'
 | 'saveWorkspaceProtocol'
-| 'strictDepBuilds'
 | 'lockfileIncludeTarballUrl'
 | 'sharedWorkspaceLockfile'
 | 'tag'
@@ -99,6 +98,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 } & Partial<
 Pick<Config,
 | 'sort'
+| 'strictDepBuilds'
 | 'workspaceConcurrency'
 >
 > & Required<

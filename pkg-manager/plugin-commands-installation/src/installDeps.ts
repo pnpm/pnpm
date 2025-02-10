@@ -94,7 +94,6 @@ export type InstallDepsOptions = Pick<Config,
 | 'sort'
 | 'sharedWorkspaceLockfile'
 | 'shellEmulator'
-| 'strictDepBuilds'
 | 'tag'
 | 'optional'
 | 'workspaceConcurrency'
@@ -135,7 +134,7 @@ export type InstallDepsOptions = Pick<Config,
   includeOnlyPackageFiles?: boolean
   prepareExecutionEnv: PrepareExecutionEnv
   fetchFullMetadata?: boolean
-} & Partial<Pick<Config, 'pnpmHomeDir'>>
+} & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds'>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
