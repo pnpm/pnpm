@@ -26,7 +26,7 @@ test('uninstall package with no dependencies', async () => {
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ nodeLinker: 'hoisted', save: true, reporter }))).manifest
+  }, testDefaults({ nodeLinker: 'hoisted', save: true, reporter }))).updatedProject.manifest
 
   expect(reporter.calledWithMatch({
     initial: {
@@ -84,7 +84,7 @@ test('uninstall package with dependencies and do not touch other deps', async ()
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ nodeLinker: 'hoisted', pruneStore: true, save: true }))).manifest
+  }, testDefaults({ nodeLinker: 'hoisted', pruneStore: true, save: true }))).updatedProject.manifest
 
   project.storeHasNot('camelcase-keys', '3.0.0')
   project.hasNot('camelcase-keys')

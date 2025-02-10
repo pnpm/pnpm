@@ -36,7 +36,7 @@ test('uninstall package with no dependencies', async () => {
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ save: true, reporter }))).manifest
+  }, testDefaults({ save: true, reporter }))).updatedProject.manifest
 
   expect(reporter.calledWithMatch({
     initial: {
@@ -108,7 +108,7 @@ test('uninstall scoped package', async () => {
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ save: true }))).manifest
+  }, testDefaults({ save: true }))).updatedProject.manifest
 
   project.storeHas('@zkochan/logger', '0.1.0')
 
@@ -127,7 +127,7 @@ test('uninstall tarball dependency', async () => {
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd() as ProjectRootDir,
-  }, opts)).manifest
+  }, opts)).updatedProject.manifest
 
   project.storeHas('is-array', '1.0.1')
   project.hasNot('is-array')
@@ -143,7 +143,7 @@ test('uninstall package with dependencies and do not touch other deps', async ()
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ pruneStore: true, save: true }))).manifest
+  }, testDefaults({ pruneStore: true, save: true }))).updatedProject.manifest
 
   project.storeHasNot('camelcase-keys', '3.0.0')
   project.hasNot('camelcase-keys')

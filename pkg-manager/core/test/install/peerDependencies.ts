@@ -775,7 +775,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     })
   }
 
-  manifest = await install(manifest, testDefaults({ lockfileDir, strictPeerDependencies: false }))
+  manifest = (await install(manifest, testDefaults({ lockfileDir, strictPeerDependencies: false }))).updatedManifest
 
   {
     const lockfile = readYamlFile<LockfileFile>(path.resolve('..', WANTED_LOCKFILE))
@@ -949,7 +949,7 @@ test('transitive peerDependencies field does not break the lockfile on subsequen
       name: 'pkg',
     },
   ])
-  const { manifest } = await mutateModulesInSingleProject({
+  const { updatedProject: { manifest } } = await mutateModulesInSingleProject({
     dependencySelectors: ['most@1.7.3'],
     manifest: {},
     mutation: 'installSome',

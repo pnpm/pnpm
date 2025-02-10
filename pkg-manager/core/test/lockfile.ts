@@ -321,7 +321,6 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/qar'], testDefaults({ addDependenciesToPackage: 'devDependencies' }))).updatedManifest
   manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/foobar'], testDefaults({ save: true }))).updatedManifest
 
-
   expect((await readPackageJsonFromDir(path.resolve('node_modules', '@pnpm.e2e/foo'))).version).toBe('100.0.0')
   expect((await readPackageJsonFromDir(path.resolve('node_modules', '@pnpm.e2e/bar'))).version).toBe('100.0.0')
   expect((await readPackageJsonFromDir(path.resolve('node_modules', '@pnpm.e2e/qar'))).version).toBe('100.0.0')
@@ -391,9 +390,7 @@ test("recreates lockfile if it doesn't match the dependencies in package.json", 
 
   let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-negative@1.0.0'], testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'dependencies' }))
   manifest = (await addDependenciesToPackage(manifest, ['is-positive@1.0.0'], testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'devDependencies' }))).updatedManifest
-
   manifest = (await addDependenciesToPackage(manifest, ['map-obj@1.0.0'], testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'optionalDependencies' }))).updatedManifest
-
 
   const lockfile1 = project.readLockfile()
   expect(lockfile1.importers['.'].dependencies?.['is-negative'].version).toBe('1.0.0')
@@ -940,14 +937,14 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     },
   }, { lineWidth: 1000 })
 
-  pkg2 = await addDependenciesToPackage(
+  pkg2 = (await addDependenciesToPackage(
     pkg2,
     ['is-positive'],
     testDefaults({
       dir: path.resolve('pkg2'),
       lockfileDir: process.cwd(),
     })
-  )
+  )).updatedManifest
 
   const currentLockfile = readYamlFile<LockfileFile>(path.resolve('node_modules/.pnpm/lock.yaml'))
 

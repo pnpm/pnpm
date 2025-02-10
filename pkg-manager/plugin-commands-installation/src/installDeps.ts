@@ -355,9 +355,9 @@ when running add/update with the --workspace option')
     return
   }
 
-  const { updatedProjectManifest, ignoredBuilds } = await install(manifest, installOpts)
+  const { updatedManifest, ignoredBuilds } = await install(manifest, installOpts)
   if (opts.update === true && opts.save !== false) {
-    await writeProjectManifest(updatedProjectManifest)
+    await writeProjectManifest(updatedManifest)
   }
   if (ignoredBuilds?.length) {
     throw new IgnoredBuildsError(ignoredBuilds)
