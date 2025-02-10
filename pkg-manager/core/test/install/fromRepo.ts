@@ -291,7 +291,7 @@ test('should not update when adding unrelated dependency', async () => {
 
   expect(fs.readdirSync('./node_modules/.pnpm')).toContain('is-negative@https+++codeload.github.com+kevva+is-negative+tar.gz+1d7e288222b53a0cab90a331f1865220ec29560c') // cspell:disable-line
 
-  manifest = await addDependenciesToPackage(manifest, ['is-number'], testDefaults({ preferFrozenLockfile: false, modulesCacheMaxAge: 0 }))
+  manifest = (await addDependenciesToPackage(manifest, ['is-number'], testDefaults({ preferFrozenLockfile: false, modulesCacheMaxAge: 0 }))).updatedManifest
 
   expect(manifest.dependencies).toHaveProperty('is-number')
   expect(manifest.dependencies['is-negative']).toBe('github:kevva/is-negative#master')
