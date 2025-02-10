@@ -94,6 +94,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'sort'
 | 'sharedWorkspaceLockfile'
 | 'shellEmulator'
+| 'strictDepBuilds'
 | 'tag'
 | 'optional'
 | 'workspaceConcurrency'
@@ -349,7 +350,7 @@ when running add/update with the --workspace option')
         configDependencies: opts.rootProjectManifest?.pnpm?.configDependencies,
       })
     }
-    if (ignoredBuilds?.length) {
+    if (opts.strictDepBuilds && ignoredBuilds?.length) {
       throw new IgnoredBuildsError(ignoredBuilds)
     }
     return
@@ -359,7 +360,7 @@ when running add/update with the --workspace option')
   if (opts.update === true && opts.save !== false) {
     await writeProjectManifest(updatedManifest)
   }
-  if (ignoredBuilds?.length) {
+  if (opts.strictDepBuilds && ignoredBuilds?.length) {
     throw new IgnoredBuildsError(ignoredBuilds)
   }
 

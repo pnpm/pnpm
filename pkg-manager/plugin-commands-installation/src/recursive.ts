@@ -70,6 +70,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'savePrefix'
 | 'saveProd'
 | 'saveWorkspaceProtocol'
+| 'strictDepBuilds'
 | 'lockfileIncludeTarballUrl'
 | 'sharedWorkspaceLockfile'
 | 'tag'
@@ -277,7 +278,7 @@ export async function recursive (
           })
       )
     }
-    if (ignoredBuilds?.length) {
+    if (opts.strictDepBuilds && ignoredBuilds?.length) {
       throw new IgnoredBuildsError(ignoredBuilds)
     }
     return true
@@ -368,7 +369,7 @@ export async function recursive (
         if (opts.save !== false) {
           await writeProjectManifest(newManifest)
         }
-        if (ignoredBuilds?.length) {
+        if (opts.strictDepBuilds && ignoredBuilds?.length) {
           throw new IgnoredBuildsError(ignoredBuilds)
         }
         result[rootDir].status = 'passed'

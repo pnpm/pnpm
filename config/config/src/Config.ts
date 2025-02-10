@@ -213,6 +213,7 @@ export interface Config {
   peersSuffixMaxLength?: number
   strictStorePkgContentCheck: boolean
   managePackageManagerVersions: boolean
+  strictDepBuilds: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

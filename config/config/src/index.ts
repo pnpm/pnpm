@@ -168,6 +168,7 @@ export async function getConfig (opts: {
     'save-peer': false,
     'save-workspace-protocol': 'rolling',
     'scripts-prepend-node-path': false,
+    'strict-dep-builds': false,
     'side-effects-cache': true,
     symlink: true,
     'shared-workspace-lockfile': true,
