@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { type PackageManifest } from '@pnpm/types'
+import { type PackageManifest, type ProjectManifest } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import PATH from 'path-name'
 import loadJsonFile from 'load-json-file'
@@ -283,4 +283,23 @@ test('preinstall script does not trigger verify-deps-before-run (#8954)', async 
   const output = execPnpmSync(['--config.verify-deps-before-run=error', 'install'], { expectSuccess: true })
   expect(output.status).toBe(0)
   expect(output.stdout.toString()).toContain('hello world')
+})
+
+test('throw an error when strict-dep-builds is true and there are ignored scripts', async () => {
+  const project = prepare({})
+  const result = execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '--config.strict-dep-builds=true'])
+
+  expect(result.status).toBe(1)
+  expect(result.stdout.toString()).toContain('Ignored build scripts:')
+
+  project.has('@pnpm.e2e/pre-and-postinstall-scripts-example')
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
+
+  const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
+  expect(manifest.dependencies).toStrictEqual({
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+  })
 })
