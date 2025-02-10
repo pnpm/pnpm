@@ -97,6 +97,7 @@ export const types = Object.assign({
   'state-dir': String,
   'store-dir': String,
   stream: Boolean,
+  'strict-dep-builds': Boolean,
   'strict-store-pkg-content-check': Boolean,
   'strict-peer-dependencies': Boolean,
   'use-beta-cli': Boolean,

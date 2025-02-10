@@ -21,7 +21,7 @@ test('versions are replaced with versions specified through overrides option', a
     '@pnpm.e2e/bar@^100.0.0': '100.1.0',
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
   }
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/pkg-with-1-dep@100.0.0', '@pnpm.e2e/foobar@100.0.0', '@pnpm.e2e/foobarqar@1.0.0'],
     testDefaults({ overrides })
   )
@@ -112,7 +112,7 @@ test('when adding a new dependency that is present in the overrides, use the spe
   const overrides = {
     '@pnpm.e2e/bar': '100.1.0',
   }
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/bar'],
     testDefaults({ overrides })
   )
@@ -129,7 +129,7 @@ test('explicitly specifying a version at install will ignore overrides', async (
     '@pnpm.e2e/bar': '100.1.0',
   }
   const EXACT_VERSION = '100.0.0'
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     [`@pnpm.e2e/bar@${EXACT_VERSION}`],
     testDefaults({ overrides })
   )

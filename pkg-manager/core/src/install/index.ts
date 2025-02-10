@@ -141,9 +141,9 @@ type Opts = Omit<InstallOptions, 'allProjects'> & {
 export async function install (
   manifest: ProjectManifest,
   opts: Opts
-): Promise<ProjectManifest> {
+): Promise<{ updatedManifest: ProjectManifest, ignoredBuilds: string[] | undefined }> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { updatedProjects: projects } = await mutateModules(
+  const { updatedProjects: projects, ignoredBuilds } = await mutateModules(
     [
       {
         mutation: 'install',
@@ -165,7 +165,7 @@ export async function install (
       }],
     }
   )
-  return projects[0].manifest
+  return { updatedManifest: projects[0].manifest, ignoredBuilds }
 }
 
 interface ProjectToBeInstalled {
@@ -193,7 +193,7 @@ export async function mutateModulesInSingleProject (
     modulesDir?: string
   },
   maybeOpts: Omit<MutateModulesOptions, 'allProjects'> & InstallMutationOptions
-): Promise<UpdatedProject> {
+): Promise<{ updatedProject: UpdatedProject, ignoredBuilds: string[] | undefined }> {
   const result = await mutateModules(
     [
       {
@@ -212,13 +212,14 @@ export async function mutateModulesInSingleProject (
       }],
     }
   )
-  return result.updatedProjects[0]
+  return { updatedProject: result.updatedProjects[0], ignoredBuilds: result.ignoredBuilds }
 }
 
 export interface MutateModulesResult {
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
+  ignoredBuilds: string[] | undefined
 }
 
 export async function mutateModules (
@@ -314,9 +315,10 @@ export async function mutateModules (
     updatedProjects: result.updatedProjects,
     stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     depsRequiringBuild: result.depsRequiringBuild,
+    ignoredBuilds: result.ignoredBuilds,
   }
 
-  async function _install (): Promise<{ updatedProjects: UpdatedProject[], stats?: InstallationResultStats, depsRequiringBuild?: DepPath[] }> {
+  async function _install (): Promise<{ updatedProjects: UpdatedProject[], stats?: InstallationResultStats, depsRequiringBuild?: DepPath[], ignoredBuilds: string[] | undefined }> {
     const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
       extraBinPaths: opts.extraBinPaths,
       extraNodePaths: ctx.extraNodePaths,
@@ -469,6 +471,7 @@ Note that in CI environments, this setting is enabled by default.`,
         await writeWantedLockfile(ctx.lockfileDir, ctx.wantedLockfile)
         return {
           updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
+          ignoredBuilds: undefined,
         }
       }
       if (!ctx.existsNonEmptyWantedLockfile) {
@@ -482,7 +485,7 @@ Note that in CI environments, this setting is enabled by default.`,
           logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
         }
         try {
-          const { stats } = await headlessInstall({
+          const { stats, ignoredBuilds } = await headlessInstall({
             ...ctx,
             ...opts,
             currentEngine: {
@@ -520,6 +523,7 @@ Note that in CI environments, this setting is enabled by default.`,
               }
             }),
             stats,
+            ignoredBuilds,
           }
         } catch (error: any) { // eslint-disable-line
           if (
@@ -691,6 +695,7 @@ Note that in CI environments, this setting is enabled by default.`,
       updatedProjects: result.projects,
       stats: result.stats,
       depsRequiringBuild: result.depsRequiringBuild,
+      ignoredBuilds: result.ignoredBuilds,
     }
   }
 }
@@ -760,9 +765,9 @@ export async function addDependenciesToPackage (
     pinnedVersion?: 'major' | 'minor' | 'patch'
     targetDependenciesField?: DependenciesField
   } & InstallMutationOptions
-): Promise<ProjectManifest> {
+): Promise<{ updatedManifest: ProjectManifest, ignoredBuilds: string[] | undefined }> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { updatedProjects: projects } = await mutateModules(
+  const { updatedProjects: projects, ignoredBuilds } = await mutateModules(
     [
       {
         allowNew: opts.allowNew,
@@ -790,7 +795,7 @@ export async function addDependenciesToPackage (
         },
       ],
     })
-  return projects[0].manifest
+  return { updatedManifest: projects[0].manifest, ignoredBuilds }
 }
 
 export type ImporterToUpdate = {
@@ -819,6 +824,7 @@ interface InstallFunctionResult {
   projects: UpdatedProject[]
   stats?: InstallationResultStats
   depsRequiringBuild: DepPath[]
+  ignoredBuilds?: string[]
 }
 
 type InstallFunction = (
@@ -1031,6 +1037,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
   let stats: InstallationResultStats | undefined
   const allowBuild = createAllowBuildFunction(opts)
+  let ignoredBuilds: string[] | undefined
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,
@@ -1086,7 +1093,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     ctx.pendingBuilds = ctx.pendingBuilds
       .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
 
-    let ignoredBuilds: string[] | undefined
     if (result.newDepPaths?.length) {
       if (opts.ignoreScripts) {
         // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
@@ -1324,6 +1330,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     })),
     stats,
     depsRequiringBuild,
+    ignoredBuilds,
   }
 }
 
@@ -1380,7 +1387,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
             ...opts,
             lockfileOnly: true,
           })
-          const { stats } = await headlessInstall({
+          const { stats, ignoredBuilds } = await headlessInstall({
             ...ctx,
             ...opts,
             currentEngine: {
@@ -1398,6 +1405,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           return {
             ...result,
             stats,
+            ignoredBuilds,
           }
         }
       }
@@ -1407,7 +1415,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         ...opts,
         lockfileOnly: true,
       })
-      const { stats } = await headlessInstall({
+      const { stats, ignoredBuilds } = await headlessInstall({
         ...ctx,
         ...opts,
         currentEngine: {
@@ -1425,6 +1433,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       return {
         ...result,
         stats,
+        ignoredBuilds,
       }
     }
     if (opts.lockfileOnly && ctx.existsCurrentLockfile) {

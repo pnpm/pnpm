@@ -14,7 +14,7 @@ const f = fixtures(__dirname)
 test.skip('subsequent installation uses same lockfile directory by default', async () => {
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({ lockfileDir: path.resolve('..') }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({ lockfileDir: path.resolve('..') }))
 
   await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], testDefaults())
 
@@ -26,7 +26,7 @@ test.skip('subsequent installation uses same lockfile directory by default', asy
 test.skip('subsequent installation fails if a different lockfile directory is specified', async () => {
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({ lockfileDir: path.resolve('..') }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({ lockfileDir: path.resolve('..') }))
 
   let err!: Error & { code: string }
 
@@ -46,7 +46,7 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
   f.copy('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', 'pkg.tgz')
 
   const lockfileDir = path.resolve('..')
-  const { manifest } = await mutateModulesInSingleProject({
+  const { updatedProject: { manifest } } = await mutateModulesInSingleProject({
     allowNew: true,
     dependencySelectors: ['file:pkg.tgz'],
     manifest: {},

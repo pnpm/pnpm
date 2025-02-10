@@ -42,6 +42,7 @@ import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './u
 import { getSaveType } from './getSaveType'
 import { getPinnedVersion } from './getPinnedVersion'
 import { type PreferredVersions } from '@pnpm/resolver-base'
+import { IgnoredBuildsError } from './errors'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
@@ -97,6 +98,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 } & Partial<
 Pick<Config,
 | 'sort'
+| 'strictDepBuilds'
 | 'workspaceConcurrency'
 >
 > & Required<
@@ -264,7 +266,7 @@ export async function recursive (
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies of any of the projects.')
     }
-    const { updatedProjects: mutatedPkgs } = await mutateModules(mutatedImporters, {
+    const { updatedProjects: mutatedPkgs, ignoredBuilds } = await mutateModules(mutatedImporters, {
       ...installOpts,
       storeController: store.ctrl,
     })
@@ -275,6 +277,9 @@ export async function recursive (
             return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
           })
       )
+    }
+    if (opts.strictDepBuilds && ignoredBuilds?.length) {
+      throw new IgnoredBuildsError(ignoredBuilds)
     }
     return true
   }
@@ -328,7 +333,7 @@ export async function recursive (
                 rootDir,
               },
             ], opts)
-            return mutationResult.updatedProjects[0].manifest
+            return { updatedManifest: mutationResult.updatedProjects[0].manifest, ignoredBuilds: mutationResult.ignoredBuilds }
           }
           break
         default:
@@ -339,7 +344,7 @@ export async function recursive (
         }
 
         const localConfig = await memReadLocalConfig(rootDir)
-        const newManifest = await action(
+        const { updatedManifest: newManifest, ignoredBuilds } = await action(
           manifest,
           {
             ...installOpts,
@@ -363,6 +368,9 @@ export async function recursive (
         )
         if (opts.save !== false) {
           await writeProjectManifest(newManifest)
+        }
+        if (opts.strictDepBuilds && ignoredBuilds?.length) {
+          throw new IgnoredBuildsError(ignoredBuilds)
         }
         result[rootDir].status = 'passed'
       } catch (err: any) { // eslint-disable-line

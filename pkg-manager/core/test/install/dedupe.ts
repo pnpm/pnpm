@@ -28,7 +28,7 @@ test('prefer version ranges specified for top dependencies, when doing named ins
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
-  const manifest = await install(
+  const { updatedManifest: manifest } = await install(
     {
       dependencies: {
         '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
@@ -181,7 +181,7 @@ test('dedupe subdependency when a newer version of the same package is installed
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', '@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', '@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults())
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
@@ -196,7 +196,7 @@ test('when resolving dependencies, prefer versions that are used by direct depen
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()
 
-  const manifest = await install({
+  const { updatedManifest: manifest } = await install({
     dependencies: {
       '@pnpm.e2e/foo': '100.0.0',
       '@pnpm.e2e/has-foo-100.1.0-dep-1': '1.0.0',
@@ -214,7 +214,7 @@ test('when resolving dependencies, prefer versions that are used by direct depen
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()
 
-  const manifest = await install({
+  const { updatedManifest: manifest } = await install({
     dependencies: {
       '@pnpm.e2e/foo': '100.0.0',
       '@pnpm.e2e/has-foo-100.1.0-dep-1': '1.0.0',

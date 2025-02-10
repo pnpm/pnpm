@@ -26,6 +26,7 @@ import { sequenceGraph } from '@pnpm/sort-packages'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import isSubdir from 'is-subdir'
+import { IgnoredBuildsError } from './errors'
 import { getPinnedVersion } from './getPinnedVersion'
 import { getSaveType } from './getSaveType'
 import { getNodeExecPath } from './nodeExecPath'
@@ -133,7 +134,7 @@ export type InstallDepsOptions = Pick<Config,
   includeOnlyPackageFiles?: boolean
   prepareExecutionEnv: PrepareExecutionEnv
   fetchFullMetadata?: boolean
-} & Partial<Pick<Config, 'pnpmHomeDir'>>
+} & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds'>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
@@ -334,9 +335,9 @@ when running add/update with the --workspace option')
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const updatedImporter = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const { updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false) {
-      await writeProjectManifest(updatedImporter.manifest)
+      await writeProjectManifest(updatedProject.manifest)
     }
     if (!opts.lockfileOnly) {
       await updateWorkspaceState({
@@ -348,12 +349,18 @@ when running add/update with the --workspace option')
         configDependencies: opts.rootProjectManifest?.pnpm?.configDependencies,
       })
     }
+    if (opts.strictDepBuilds && ignoredBuilds?.length) {
+      throw new IgnoredBuildsError(ignoredBuilds)
+    }
     return
   }
 
-  const updatedManifest = await install(manifest, installOpts)
+  const { updatedManifest, ignoredBuilds } = await install(manifest, installOpts)
   if (opts.update === true && opts.save !== false) {
     await writeProjectManifest(updatedManifest)
+  }
+  if (opts.strictDepBuilds && ignoredBuilds?.length) {
+    throw new IgnoredBuildsError(ignoredBuilds)
   }
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {

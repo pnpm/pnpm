@@ -61,7 +61,7 @@ test('relative link is rewritten by named installation to regular dependency', a
   f.copy(linkedPkgName, linkedPkgPath)
   symlinkDir.sync(linkedPkgPath, path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin'))
 
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/hello-world-js-bin'], opts)
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/hello-world-js-bin'], opts)
 
   expect(manifest.dependencies).toStrictEqual({ '@pnpm.e2e/hello-world-js-bin': '^1.0.0' })
 

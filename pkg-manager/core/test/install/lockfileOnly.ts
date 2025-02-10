@@ -16,7 +16,7 @@ test('install with lockfileOnly = true', async () => {
   const project = prepareEmpty()
 
   const opts = testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' as const })
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
   const { cafsHasNot } = assertStore(opts.storeDir)
 
   cafsHasNot('@pnpm.e2e/pkg-with-1-dep', '100.0.0')
@@ -50,7 +50,7 @@ test('warn when installing with lockfileOnly = true and node_modules exists', as
   const project = prepareEmpty()
   const reporter = sinon.spy()
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive'], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive'], testDefaults())
   await addDependenciesToPackage(manifest, ['rimraf@2.5.1'], testDefaults({
     lockfileOnly: true,
     reporter,

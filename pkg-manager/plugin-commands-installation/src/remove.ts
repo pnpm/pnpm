@@ -228,5 +228,5 @@ export async function handler (
     },
     removeOpts
   )
-  await writeProjectManifest(mutationResult.manifest)
+  await writeProjectManifest(mutationResult.updatedProject.manifest)
 }

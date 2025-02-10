@@ -24,7 +24,7 @@ const testOnNonWindows = isWindows() ? test.skip : test
 
 test('run pre/postinstall scripts', async () => {
   const project = prepareEmpty()
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'],
     testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' })
   )
@@ -106,7 +106,7 @@ test('run pre/postinstall scripts, when PnP is used and no symlinks', async () =
 test('testing that the bins are linked when the package with the bins was already in node_modules', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/hello-world-js-bin'], testDefaults({ fastUnpack: false }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/hello-world-js-bin'], testDefaults({ fastUnpack: false }))
   await addDependenciesToPackage(manifest, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' }))
 
   const generatedByPreinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -128,7 +128,7 @@ test('run install scripts in the current project', async () => {
   await using server = await createTestIpcServer()
   await using serverForDevPreinstall = await createTestIpcServer()
   prepareEmpty()
-  const manifest = await addDependenciesToPackage({
+  const { updatedManifest: manifest } = await addDependenciesToPackage({
     scripts: {
       'pnpm:devPreinstall': `node -e "console.log('pnpm:devPreinstall-' + process.cwd())" | ${serverForDevPreinstall.generateSendStdinScript()}`,
       install: `node -e "console.log('install-' + process.cwd())" | ${server.generateSendStdinScript()}`,
@@ -153,7 +153,7 @@ test('run install scripts in the current project', async () => {
 test('run install scripts in the current project when its name is different than its directory', async () => {
   await using server = await createTestIpcServer()
   prepareEmpty()
-  const manifest = await addDependenciesToPackage({
+  const { updatedManifest: manifest } = await addDependenciesToPackage({
     name: 'different-name',
     scripts: {
       install: `node -e "console.log('install-' + process.cwd())" | ${server.generateSendStdinScript()}`,
@@ -325,7 +325,7 @@ test('run prepare script for git-hosted dependencies', async () => {
 test('lifecycle scripts run before linking bins', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/generated-bins'], testDefaults({ fastUnpack: false }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/generated-bins'], testDefaults({ fastUnpack: false }))
 
   project.isExecutable('.bin/cmd1')
   project.isExecutable('.bin/cmd2')
@@ -345,7 +345,7 @@ test('lifecycle scripts run before linking bins', async () => {
 test('hoisting does not fail on commands that will be created by lifecycle scripts on a later stage', async () => {
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-generated-bins-as-dep'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/has-generated-bins-as-dep'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   // project.isExecutable('.pnpm/node_modules/.bin/cmd1')
   // project.isExecutable('.pnpm/node_modules/.bin/cmd2')
@@ -366,7 +366,7 @@ test('hoisting does not fail on commands that will be created by lifecycle scrip
 test('bins are linked even if lifecycle scripts are ignored', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage(
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
     [
       '@pnpm.e2e/pkg-with-peer-having-bin',
@@ -402,7 +402,7 @@ test('bins are linked even if lifecycle scripts are ignored', async () => {
 test('dependency should not be added to current lockfile if it was not built successfully during headless install', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage(
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
     [
       'package-that-cannot-be-installed@0.0.0', // TODO: this package should be replaced
@@ -439,7 +439,7 @@ test('scripts have access to unlisted bins when hoisting is used', async () => {
 test('selectively ignore scripts in some dependencies by neverBuiltDependencies', async () => {
   prepareEmpty()
   const neverBuiltDependencies = ['@pnpm.e2e/pre-and-postinstall-scripts-example']
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
     testDefaults({ fastUnpack: false, neverBuiltDependencies })
   )
@@ -473,7 +473,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependencies', 
   prepareEmpty()
   const reporter = sinon.spy()
   const onlyBuiltDependencies = ['@pnpm.e2e/install-script-example']
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
     testDefaults({ fastUnpack: false, onlyBuiltDependencies, reporter })
   )
@@ -686,7 +686,7 @@ test('run pre/postinstall scripts in a workspace that uses node-linker=hoisted',
 
 test('run pre/postinstall scripts in a project that uses node-linker=hoisted. Should not fail on repeat install', async () => {
   const project = prepareEmpty()
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'],
     testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies', nodeLinker: 'hoisted', sideEffectsCacheRead: true, sideEffectsCacheWrite: true })
   )

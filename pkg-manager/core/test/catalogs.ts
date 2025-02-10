@@ -520,7 +520,7 @@ describe('add', () => {
       dependencies: {},
     }])
 
-    const updatedManifest = await addDependenciesToPackage(
+    const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
       ['is-positive@catalog:'],
       {
@@ -550,7 +550,7 @@ describe('add', () => {
       dependencies: {},
     }])
 
-    const updatedManifest = await addDependenciesToPackage(
+    const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
       ['is-positive'],
       {
@@ -580,7 +580,7 @@ describe('add', () => {
       dependencies: {},
     }])
 
-    const updatedManifest = await addDependenciesToPackage(
+    const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
       ['is-positive@1.0.0'],
       {
@@ -610,7 +610,7 @@ describe('add', () => {
       dependencies: {},
     }])
 
-    const updatedManifest = await addDependenciesToPackage(
+    const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
       ['is-positive@2.0.0'],
       {
@@ -648,7 +648,7 @@ describe('update', () => {
       },
     }])
 
-    const updatedManifest = await addDependenciesToPackage(
+    const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
       ['is-positive'],
       {
@@ -699,7 +699,7 @@ describe('update', () => {
     })
 
     // Expecting the manifest to remain unchanged after running an update.
-    const updatedManifest = await addDependenciesToPackage(
+    const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
       ['is-positive'],
       {
@@ -747,7 +747,7 @@ describe('update', () => {
       'is-positive': { specifier: '1.0.0', version: '1.0.0' },
     })
 
-    const updatedManifest = await addDependenciesToPackage(
+    const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
       ['is-positive'],
       {

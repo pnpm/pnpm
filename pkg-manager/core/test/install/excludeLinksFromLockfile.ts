@@ -126,7 +126,7 @@ test('local file using absolute path is correctly installed on repeat install', 
   f.copy('local-pkg', absolutePath)
 
   // is-odd is only added because otherwise no lockfile is created
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     [`link:${absolutePath}`, 'is-odd@1.0.0'],
     testDefaults({ excludeLinksFromLockfile: true })
   )
@@ -151,7 +151,7 @@ test('hoisted install should not fail with excludeLinksFromLockfile true', async
   f.copy('local-pkg', absolutePath)
 
   // is-odd is only added because otherwise no lockfile is created
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     [`link:${absolutePath}`, 'is-odd@1.0.0'],
     testDefaults({ excludeLinksFromLockfile: true, nodeLinker: 'hoisted' })
   )

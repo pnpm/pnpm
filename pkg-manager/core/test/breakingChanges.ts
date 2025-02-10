@@ -41,7 +41,7 @@ test("don't fail on non-compatible node_modules when forced in a workspace", asy
   const opts = testDefaults({ force: true })
 
   process.chdir('pkg')
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({ lockfileDir: path.resolve('..') }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({ lockfileDir: path.resolve('..') }))
   rimraf('node_modules')
 
   process.chdir('..')
