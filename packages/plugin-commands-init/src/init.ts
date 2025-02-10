@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { execSync } from 'child_process'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type CliOptions, type UniversalOptions } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -40,14 +41,13 @@ export async function handler (
   if (fs.existsSync(manifestPath)) {
     throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
   }
-  const response = await fetch('https://registry.npmjs.org/pnpm/latest')
-  const version = (await response.json() as any).version // eslint-disable-line
+  const version = execSync('pnpm -v').toString().trim()
   const manifest = {
     name: path.basename(process.cwd()),
-    packageManager: `pnpm@${version}`,
     version: '1.0.0',
     description: '',
     main: 'index.js',
+    packageManager: `pnpm@${version}`,
     scripts: {
       test: 'echo "Error: no test specified" && exit 1',
     },
