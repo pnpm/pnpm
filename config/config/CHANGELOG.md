@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 1002.3.0
+
+### Minor Changes
+
+- f6006f2: Added a new setting called `strict-dep-builds`. When enabled, the installation will exit with a non-zero exit code if any dependencies have unreviewed build scripts (aka postinstall scripts) [#9071](https://github.com/pnpm/pnpm/pull/9071).
+
 ## 1002.2.1
 
 ### Patch Changes

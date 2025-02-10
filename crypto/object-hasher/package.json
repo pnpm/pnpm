@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/crypto.object-hasher",
-  "version": "1000.0.0",
+  "version": "1000.0.1",
   "description": "Generate hashes from objects",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

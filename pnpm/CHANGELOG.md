@@ -1,5 +1,16 @@
 # pnpm
 
+## 10.3.0
+
+### Minor Changes
+
+- Added a new setting called `strict-dep-builds`. When enabled, the installation will exit with a non-zero exit code if any dependencies have unreviewed build scripts (aka postinstall scripts) [#9071](https://github.com/pnpm/pnpm/pull/9071).
+
+### Patch Changes
+
+- Fix a false negative of `verify-deps-before-run` after `pnpm install --production|--no-optional` [#9019](https://github.com/pnpm/pnpm/issues/9019).
+- Print the warning about blocked installation scripts at the end of the installation output and make it more prominent.
+
 ## 10.2.1
 
 ### Patch Changes

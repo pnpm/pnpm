@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1000.1.2
+
+### Patch Changes
+
+- 265946b: Fix a false negative of `verify-deps-before-run` after `pnpm install --production|--no-optional` [#9019](https://github.com/pnpm/pnpm/issues/9019).
+- Updated dependencies [c52f55a]
+- Updated dependencies [265946b]
+- Updated dependencies [f6006f2]
+  - @pnpm/exec.pnpm-cli-runner@1000.0.0
+  - @pnpm/deps.status@1001.2.0
+  - @pnpm/plugin-commands-installation@1001.4.0
+  - @pnpm/config@1002.3.0
+  - @pnpm/cli-utils@1000.0.8
+  - @pnpm/plugin-commands-env@1000.0.8
+
 ## 1000.1.1
 
 ### Patch Changes

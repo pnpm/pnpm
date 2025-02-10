@@ -1,5 +1,11 @@
 # @pnpm/render-peer-issues
 
+## 1000.0.4
+
+### Patch Changes
+
+- 3717340: Remove trailing new line from the output.
+
 ## 1000.0.3
 
 ### Patch Changes

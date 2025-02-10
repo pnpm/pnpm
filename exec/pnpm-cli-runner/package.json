@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.pnpm-cli-runner",
-  "version": "1000.0.0-0",
+  "version": "1000.0.0",
   "description": "Runs pnpm CLI",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

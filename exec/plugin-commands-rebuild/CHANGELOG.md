@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1001.1.6
+
+### Patch Changes
+
+- Updated dependencies [f6006f2]
+  - @pnpm/config@1002.3.0
+  - @pnpm/cli-utils@1000.0.8
+  - @pnpm/store-connection-manager@1000.0.8
+  - @pnpm/calc-dep-state@1001.0.3
+  - @pnpm/workspace.find-packages@1000.0.8
+
 ## 1001.1.5
 
 ### Patch Changes

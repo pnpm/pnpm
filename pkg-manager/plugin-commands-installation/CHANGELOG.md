@@ -1,5 +1,28 @@
 # @pnpm/plugin-commands-installation
 
+## 1001.4.0
+
+### Minor Changes
+
+- f6006f2: Added a new setting called `strict-dep-builds`. When enabled, the installation will exit with a non-zero exit code if any dependencies have unreviewed build scripts (aka postinstall scripts) [#9071](https://github.com/pnpm/pnpm/pull/9071).
+
+### Patch Changes
+
+- Updated dependencies [f6006f2]
+- Updated dependencies [265946b]
+- Updated dependencies [f6006f2]
+- Updated dependencies [3717340]
+  - @pnpm/core@1003.0.0
+  - @pnpm/deps.status@1001.2.0
+  - @pnpm/config@1002.3.0
+  - @pnpm/cli-utils@1000.0.8
+  - @pnpm/plugin-commands-env@1000.0.8
+  - @pnpm/plugin-commands-rebuild@1001.1.6
+  - @pnpm/store-connection-manager@1000.0.8
+  - @pnpm/workspace.state@1001.1.4
+  - @pnpm/workspace.find-packages@1000.0.8
+  - @pnpm/filter-workspace-packages@1000.0.8
+
 ## 1001.3.2
 
 ### Patch Changes

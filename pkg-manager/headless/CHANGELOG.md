@@ -1,5 +1,16 @@
 # @pnpm/headless
 
+## 1001.2.0
+
+### Minor Changes
+
+- f6006f2: Added a new setting called `strict-dep-builds`. When enabled, the installation will exit with a non-zero exit code if any dependencies have unreviewed build scripts (aka postinstall scripts) [#9071](https://github.com/pnpm/pnpm/pull/9071).
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@1001.0.3
+- @pnpm/build-modules@1000.2.3
+
 ## 1001.1.5
 
 ### Patch Changes

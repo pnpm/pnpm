@@ -1,5 +1,12 @@
 # @pnpm/calc-dep-state
 
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [3717340]
+  - @pnpm/crypto.object-hasher@1000.0.1
+
 ## 1001.0.2
 
 ### Patch Changes

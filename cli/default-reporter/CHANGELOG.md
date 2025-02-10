@@ -1,5 +1,15 @@
 # @pnpm/default-reporter
 
+## 1001.2.2
+
+### Patch Changes
+
+- 3717340: Print the warning about blocked installation scripts at the end of the installation output and make it more prominent.
+- Updated dependencies [f6006f2]
+- Updated dependencies [3717340]
+  - @pnpm/config@1002.3.0
+  - @pnpm/render-peer-issues@1000.0.4
+
 ## 1001.2.1
 
 ### Patch Changes

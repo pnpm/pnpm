@@ -1,5 +1,25 @@
 # @pnpm/core
 
+## 1003.0.0
+
+### Major Changes
+
+- f6006f2: Changed the API of all the functions. Now they always return an ignoredBuilds array.
+
+### Minor Changes
+
+- f6006f2: Added a new setting called `strict-dep-builds`. When enabled, the installation will exit with a non-zero exit code if any dependencies have unreviewed build scripts (aka postinstall scripts) [#9071](https://github.com/pnpm/pnpm/pull/9071).
+
+### Patch Changes
+
+- 3717340: Print the warning about blocked installation scripts at the end of the installation output and make it more prominent.
+- Updated dependencies [f6006f2]
+- Updated dependencies [3717340]
+  - @pnpm/headless@1001.2.0
+  - @pnpm/crypto.object-hasher@1000.0.1
+  - @pnpm/calc-dep-state@1001.0.3
+  - @pnpm/build-modules@1000.2.3
+
 ## 1002.0.4
 
 ### Patch Changes

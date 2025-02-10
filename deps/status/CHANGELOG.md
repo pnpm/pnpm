@@ -1,5 +1,20 @@
 # @pnpm/deps.status
 
+## 1001.2.0
+
+### Minor Changes
+
+- 265946b: Fix a false negative of `verify-deps-before-run` after `pnpm install --production|--no-optional` [#9019](https://github.com/pnpm/pnpm/issues/9019).
+
+### Patch Changes
+
+- Updated dependencies [f6006f2]
+- Updated dependencies [3717340]
+  - @pnpm/config@1002.3.0
+  - @pnpm/crypto.object-hasher@1000.0.1
+  - @pnpm/workspace.state@1001.1.4
+  - @pnpm/workspace.find-packages@1000.0.8
+
 ## 1001.1.3
 
 ### Patch Changes
