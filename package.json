@@ -83,6 +83,7 @@
       "path-to-regexp@<0.1.12": "^0.1.12",
       "path-to-regexp@>=4.0.0 <6.3.0": ">=6.3.0",
       "path-to-regexp@>=7.0.0 <8.0.0": ">=8.0.0",
+      "request": "npm:postman-request@2.88.1-postman.40",
       "semver@<7.5.2": "catalog:",
       "send@<0.19.0": "^0.19.0",
       "serve-static@<1.16.0": "^1.16.0",
@@ -164,14 +165,8 @@
     },
     "auditConfig": {
       "ignoreCves": [
-        "CVE-2023-28155",
-        "CVE-2024-24828",
-        "CVE-2024-29041",
-        "CVE-2024-4067"
       ],
       "ignoreGhsas": [
-        "GHSA-9wv6-86v2-598j",
-        "GHSA-pxg6-pf52-xh8x"
       ]
     },
     "ignoredBuiltDependencies": [
