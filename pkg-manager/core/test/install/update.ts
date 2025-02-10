@@ -19,7 +19,7 @@ test('preserve subdeps on update', async () => {
     addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' }),
   ])
 
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/foobarqar', '@pnpm.e2e/abc-grand-parent-with-c'], testDefaults())
+  const { updatedManifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/foobarqar', '@pnpm.e2e/abc-grand-parent-with-c'], testDefaults())
 
   await Promise.all([
     addDistTag({ package: '@pnpm.e2e/abc-grand-parent-with-c', version: '1.0.1', distTag: 'latest' }),
@@ -29,7 +29,7 @@ test('preserve subdeps on update', async () => {
     addDistTag({ package: '@pnpm.e2e/foobarqar', version: '1.0.1', distTag: 'latest' }),
   ])
 
-  await install(manifest, testDefaults({ update: true, depth: 0 }))
+  await install(updatedManifest, testDefaults({ update: true, depth: 0 }))
 
   const lockfile = project.readLockfile()
 
@@ -55,7 +55,7 @@ test('preserve subdeps on update when no node_modules is present', async () => {
     addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' }),
   ])
 
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/foobarqar', '@pnpm.e2e/abc-grand-parent-with-c'], testDefaults({ lockfileOnly: true }))
+  const { updatedManifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/foobarqar', '@pnpm.e2e/abc-grand-parent-with-c'], testDefaults({ lockfileOnly: true }))
 
   await Promise.all([
     addDistTag({ package: '@pnpm.e2e/abc-grand-parent-with-c', version: '1.0.1', distTag: 'latest' }),
@@ -65,7 +65,7 @@ test('preserve subdeps on update when no node_modules is present', async () => {
     addDistTag({ package: '@pnpm.e2e/foobarqar', version: '1.0.1', distTag: 'latest' }),
   ])
 
-  await install(manifest, testDefaults({ update: true, depth: 0 }))
+  await install(updatedManifest, testDefaults({ update: true, depth: 0 }))
 
   const lockfile = project.readLockfile()
 

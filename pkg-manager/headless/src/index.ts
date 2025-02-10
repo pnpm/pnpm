@@ -184,6 +184,7 @@ export interface InstallationResultStats {
 
 export interface InstallationResult {
   stats: InstallationResultStats
+  ignoredBuilds: string[] | undefined
 }
 
 export async function headlessInstall (opts: HeadlessOptions): Promise<InstallationResult> {
@@ -667,6 +668,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       removed,
       linkedToRoot,
     },
+    ignoredBuilds,
   }
 }
 

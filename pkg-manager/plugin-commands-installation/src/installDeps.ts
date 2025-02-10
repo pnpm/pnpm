@@ -26,6 +26,7 @@ import { sequenceGraph } from '@pnpm/sort-packages'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import isSubdir from 'is-subdir'
+import { IgnoredBuildsError } from './errors'
 import { getPinnedVersion } from './getPinnedVersion'
 import { getSaveType } from './getSaveType'
 import { getNodeExecPath } from './nodeExecPath'
@@ -334,9 +335,9 @@ when running add/update with the --workspace option')
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const updatedImporter = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const { updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false) {
-      await writeProjectManifest(updatedImporter.manifest)
+      await writeProjectManifest(updatedProject.manifest)
     }
     if (!opts.lockfileOnly) {
       await updateWorkspaceState({
@@ -348,12 +349,18 @@ when running add/update with the --workspace option')
         configDependencies: opts.rootProjectManifest?.pnpm?.configDependencies,
       })
     }
+    if (ignoredBuilds?.length) {
+      throw new IgnoredBuildsError(ignoredBuilds)
+    }
     return
   }
 
-  const updatedManifest = await install(manifest, installOpts)
+  const { updatedProjectManifest, ignoredBuilds } = await install(manifest, installOpts)
   if (opts.update === true && opts.save !== false) {
-    await writeProjectManifest(updatedManifest)
+    await writeProjectManifest(updatedProjectManifest)
+  }
+  if (ignoredBuilds?.length) {
+    throw new IgnoredBuildsError(ignoredBuilds)
   }
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {
