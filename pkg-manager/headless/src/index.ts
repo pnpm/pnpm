@@ -46,6 +46,7 @@ import {
 import { prune } from '@pnpm/modules-cleaner'
 import {
   type IncludedDependencies,
+  type Modules,
   writeModulesManifest,
 } from '@pnpm/modules-yaml'
 import { type HoistingLimits } from '@pnpm/real-hoist'
@@ -174,6 +175,7 @@ export interface HeadlessOptions {
   useLockfile?: boolean
   supportedArchitectures?: SupportedArchitectures
   hoistWorkspacePackages?: boolean
+  modulesFile?: Modules | null
 }
 
 export interface InstallationResultStats {
@@ -607,7 +609,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       hoistPattern: opts.hoistPattern,
       included: opts.include,
       injectedDeps,
-      ignoredBuilds,
+      ignoredBuilds: ignoredBuilds ?? opts.modulesFile?.ignoredBuilds,
       layoutVersion: LAYOUT_VERSION,
       hoistedLocations,
       nodeLinker: opts.nodeLinker,
