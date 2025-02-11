@@ -14,11 +14,14 @@ export async function switchCliVersion (config: Config): Promise<void> {
   const pm = config.wantedPackageManager
   if (pm == null || pm.name !== 'pnpm' || pm.version == null || pm.version === packageManager.version) return
   const pmVersion = semver.valid(pm.version)
-  if (!pmVersion || !/^\d+\.\d+\.\d+(-.+)?$/.test(pm.version)) {
+  if (!pmVersion) {
     globalWarn(`Cannot switch to pnpm@${pm.version}: "${pm.version}" is not a valid version`)
     return
   }
-  if (pmVersion === packageManager.version) return
+  if (pmVersion !== pm.version.trim()) {
+    globalWarn(`Cannot switch to pnpm@${pm.version}: you need to specify the version as "${pmVersion}"`)
+    return
+  }
   const pkgName = getCurrentPackageName()
   const dir = getToolDirPath({
     pnpmHomeDir: config.pnpmHomeDir,

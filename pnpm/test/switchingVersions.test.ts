@@ -56,7 +56,7 @@ test('do not switch to pnpm version that is specified starting with v', async ()
 
   const { stdout } = execPnpmSync(['help'], { env })
 
-  expect(stdout.toString()).toContain('Cannot switch to pnpm@v9.15.5: "v9.15.5" is not a valid version')
+  expect(stdout.toString()).toContain('Cannot switch to pnpm@v9.15.5: you need to specify the version as "9.15.5"')
 })
 
 test('do not switch to pnpm version when a range is specified', async () => {
