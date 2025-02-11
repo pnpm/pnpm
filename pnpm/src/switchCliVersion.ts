@@ -18,7 +18,10 @@ export async function switchCliVersion (config: Config): Promise<void> {
     globalWarn(`Cannot switch to pnpm@${pm.version}: "${pm.version}" is not a valid version`)
     return
   }
-  if (pmVersion === packageManager.version) return
+  if (pmVersion !== pm.version.trim()) {
+    globalWarn(`Cannot switch to pnpm@${pm.version}: you need to specify the version as "${pmVersion}"`)
+    return
+  }
   const pkgName = getCurrentPackageName()
   const dir = getToolDirPath({
     pnpmHomeDir: config.pnpmHomeDir,

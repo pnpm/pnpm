@@ -47,6 +47,20 @@ test('do not switch to pnpm version that is specified not with a semver version'
   expect(stdout.toString()).toContain('Cannot switch to pnpm@kevva/is-positive')
 })
 
+test('do not switch to pnpm version that is specified starting with v', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  fs.writeFileSync('.npmrc', 'manage-package-manager-versions=true')
+  writeJsonFile('package.json', {
+    packageManager: 'pnpm@v9.15.5',
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+
+  expect(stdout.toString()).toContain('Cannot switch to pnpm@v9.15.5: you need to specify the version as "9.15.5"')
+})
+
 test('do not switch to pnpm version when a range is specified', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
