@@ -37,6 +37,7 @@
     "load-json-file": "catalog:"
   },
   "dependencies": {
+    "@pnpm/cli-meta": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",

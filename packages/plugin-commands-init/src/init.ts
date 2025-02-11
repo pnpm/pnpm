@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
-import { execSync } from 'child_process'
 import { docsUrl } from '@pnpm/cli-utils'
+import { packageManager } from '@pnpm/cli-meta'
 import { type CliOptions, type UniversalOptions } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
@@ -41,13 +41,12 @@ export async function handler (
   if (fs.existsSync(manifestPath)) {
     throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
   }
-  const version = execSync('pnpm -v').toString().trim()
   const manifest = {
     name: path.basename(process.cwd()),
     version: '1.0.0',
     description: '',
     main: 'index.js',
-    packageManager: `pnpm@${version}`,
+    packageManager: `pnpm@${packageManager.version}`,
     scripts: {
       test: 'echo "Error: no test specified" && exit 1',
     },
