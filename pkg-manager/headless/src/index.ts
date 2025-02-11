@@ -8,6 +8,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
+  ignoredScriptsLogger,
   packageManifestLogger,
   progressLogger,
   stageLogger,
@@ -549,6 +550,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       unsafePerm: opts.unsafePerm,
       userAgent: opts.userAgent,
     })).ignoredBuilds
+    if (ignoredBuilds == null && opts.modulesFile?.ignoredBuilds?.length) {
+      ignoredBuilds = opts.modulesFile.ignoredBuilds
+      ignoredScriptsLogger.debug({ packageNames: ignoredBuilds })
+    }
   }
 
   const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, wantedLockfile, {
@@ -609,7 +614,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       hoistPattern: opts.hoistPattern,
       included: opts.include,
       injectedDeps,
-      ignoredBuilds: ignoredBuilds ?? opts.modulesFile?.ignoredBuilds,
+      ignoredBuilds,
       layoutVersion: LAYOUT_VERSION,
       hoistedLocations,
       nodeLinker: opts.nodeLinker,
