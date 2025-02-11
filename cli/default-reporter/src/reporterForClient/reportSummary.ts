@@ -86,7 +86,7 @@ export function reportSummary (
             msg += EOL
           }
         }
-        if (ignoredScripts.packageNames && ignoredScripts.packageNames.length > 0) {
+        if (ignoredScripts.packageNames && ignoredScripts.packageNames.length > 0 && !opts.pnpmConfig?.strictDepBuilds) {
           msg += EOL
           msg += boxen(`Ignored build scripts: ${Array.from(ignoredScripts.packageNames).sort().join(', ')}.
 Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.`, {
