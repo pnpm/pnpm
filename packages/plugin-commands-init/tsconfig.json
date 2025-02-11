@@ -16,6 +16,9 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../cli/cli-meta"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {

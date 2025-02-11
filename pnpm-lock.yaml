@@ -3940,6 +3940,9 @@ importers:
 
   packages/plugin-commands-init:
     dependencies:
+      '@pnpm/cli-meta':
+        specifier: workspace:*
+        version: link:../../cli/cli-meta
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils

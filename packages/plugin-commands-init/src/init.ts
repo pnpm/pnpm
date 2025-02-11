@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
+import { packageManager } from '@pnpm/cli-meta'
 import { type CliOptions, type UniversalOptions } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
@@ -45,6 +46,7 @@ export async function handler (
     version: '1.0.0',
     description: '',
     main: 'index.js',
+    packageManager: `pnpm@${packageManager.version}`,
     scripts: {
       test: 'echo "Error: no test specified" && exit 1',
     },
