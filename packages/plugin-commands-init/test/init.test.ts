@@ -7,8 +7,9 @@ import { sync as loadJsonFile } from 'load-json-file'
 test('init a new package.json', async () => {
   prepareEmpty()
   await init.handler({ rawConfig: {}, cliOptions: {} })
-  const manifest = loadJsonFile(path.resolve('package.json'))
+  const manifest = loadJsonFile<Record<string, unknown>>(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
+  expect(manifest.packageManager).toBeFalsy()
 })
 
 test('throws an error if a package.json exists in the current directory', async () => {
@@ -66,4 +67,12 @@ test('init a new package.json if a package.json exists in the current directory 
   })
   const manifest = loadJsonFile(path.resolve('empty-dir2/package.json'))
   expect(manifest).toBeTruthy()
+})
+
+test('init a new package.json with packageManager option', async () => {
+  prepareEmpty()
+  await init.handler({ rawConfig: {}, cliOptions: { packageManager: true } })
+  const manifest = loadJsonFile<Record<string, unknown>>(path.resolve('package.json'))
+  expect(manifest).toBeTruthy()
+  expect(manifest.packageManager).toBeTruthy()
 })
