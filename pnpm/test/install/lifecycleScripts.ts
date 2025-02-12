@@ -303,3 +303,15 @@ test('throw an error when strict-dep-builds is true and there are ignored script
     '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
   })
 })
+
+test('the list of ignored builds is preserved after a repeat install', async () => {
+  const project = prepare({})
+  execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '--config.optimistic-repeat-install=false'])
+
+  const result = execPnpmSync(['install'])
+  // The warning is printed on repeat install too
+  expect(result.stdout.toString()).toContain('Ignored build scripts:')
+
+  const modulesManifest = project.readModulesManifest()
+  expect(modulesManifest?.ignoredBuilds).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+})

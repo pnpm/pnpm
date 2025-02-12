@@ -8,6 +8,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
+  ignoredScriptsLogger,
   packageManifestLogger,
   progressLogger,
   stageLogger,
@@ -46,6 +47,7 @@ import {
 import { prune } from '@pnpm/modules-cleaner'
 import {
   type IncludedDependencies,
+  type Modules,
   writeModulesManifest,
 } from '@pnpm/modules-yaml'
 import { type HoistingLimits } from '@pnpm/real-hoist'
@@ -174,6 +176,7 @@ export interface HeadlessOptions {
   useLockfile?: boolean
   supportedArchitectures?: SupportedArchitectures
   hoistWorkspacePackages?: boolean
+  modulesFile?: Modules | null
 }
 
 export interface InstallationResultStats {
@@ -547,6 +550,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       unsafePerm: opts.unsafePerm,
       userAgent: opts.userAgent,
     })).ignoredBuilds
+    if (ignoredBuilds == null && opts.modulesFile?.ignoredBuilds?.length) {
+      ignoredBuilds = opts.modulesFile.ignoredBuilds
+      ignoredScriptsLogger.debug({ packageNames: ignoredBuilds })
+    }
   }
 
   const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, wantedLockfile, {
