@@ -205,6 +205,8 @@ Do you want to continue?`,
       args.splice(index, 2)
     }
   }
+  // Convert Pnpm's "unknown config" form into regular form so that npm can understand it
+  args = args.map(a => a.replace(/^--config\./, '--'))
 
   if (dirInParams?.endsWith('.tgz')) {
     const { status } = runNpm(opts.npmPath, ['publish', dirInParams, ...args])
