@@ -16,6 +16,7 @@ import {
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
+import { updateInjectedPackages } from '@pnpm/workspace.update-injected-packages'
 import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
@@ -172,6 +173,7 @@ export type RunOpts =
   | 'scriptShell'
   | 'scriptsPrependNodePath'
   | 'shellEmulator'
+  | 'updateInjectedFilesAfterRun'
   | 'userAgent'
   >
   & (
@@ -290,7 +292,12 @@ so you may run "pnpm -w run ${scriptName}"`,
   try {
     const limitRun = pLimit(concurrency)
 
-    const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
+    const runScriptOptions: RunScriptOptions = {
+      enablePrePostScripts: opts.enablePrePostScripts ?? false,
+      updateInjectedFilesAfterRun: opts.updateInjectedFilesAfterRun ?? false,
+      virtualStoreDir: opts.virtualStoreDir,
+    }
+    const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
 
     await Promise.all(specifiedScripts.map(script => limitRun(() => _runScript(script))))
   } catch (err: unknown) {
@@ -377,6 +384,8 @@ ${renderCommands(rootScripts)}`
 
 export interface RunScriptOptions {
   enablePrePostScripts: boolean
+  updateInjectedFilesAfterRun: boolean | string[]
+  virtualStoreDir: string | undefined
 }
 
 export async function runScript (opts: {
@@ -400,6 +409,18 @@ export async function runScript (opts: {
   ) {
     await runLifecycleHook(`post${scriptName}`, opts.manifest, opts.lifecycleOpts)
   }
+  if (shouldUpdateInjectedFilesAfterRun(scriptName, opts.runScriptOptions.updateInjectedFilesAfterRun)) {
+    await updateInjectedPackages({
+      packageDir: opts.lifecycleOpts.pkgRoot,
+      virtualStoreDir: opts.runScriptOptions.virtualStoreDir,
+    })
+  }
+}
+
+function shouldUpdateInjectedFilesAfterRun (scriptName: string, updateInjectedFilesAfterRun: boolean | string[] | undefined): boolean {
+  return typeof updateInjectedFilesAfterRun === 'boolean'
+    ? updateInjectedFilesAfterRun
+    : updateInjectedFilesAfterRun?.includes(scriptName) ?? false
 }
 
 function renderCommands (commands: string[][]): string {

@@ -214,6 +214,7 @@ export interface Config {
   strictStorePkgContentCheck: boolean
   managePackageManagerVersions: boolean
   strictDepBuilds: boolean
+  updateInjectedFilesAfterRun?: boolean | string[]
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

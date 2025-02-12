@@ -2488,6 +2488,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/workspace.update-injected-packages':
+        specifier: workspace:*
+        version: link:../../workspace/update-injected-packages
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -8096,6 +8099,19 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+
+  workspace/update-injected-packages:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/lockfile.fs':
+        specifier: workspace:*
+        version: link:../../lockfile/fs
+    devDependencies:
+      '@pnpm/workspace.update-injected-packages':
+        specifier: workspace:*
+        version: 'link:'
 
 packages:
 

@@ -85,6 +85,9 @@
       "path": "../../workspace/sort-packages"
     },
     {
+      "path": "../../workspace/update-injected-packages"
+    },
+    {
       "path": "../lifecycle"
     },
     {
