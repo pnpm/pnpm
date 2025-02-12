@@ -174,6 +174,18 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFil
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })
 
+test('selectively allow scripts in some dependencies by --allow-build flag', async () => {
+  prepare({})
+  execPnpmSync(['add', '--allow-build=@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+
+  const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
+  expect(manifest.pnpm?.onlyBuiltDependencies).toStrictEqual(['@pnpm.e2e/install-script-example'])
+})
+
 test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace packages', async () => {
   const projects = preparePackages([
     {
