@@ -219,10 +219,10 @@ export async function handler (
   if (opts.allowBuild?.length) {
     opts.rootProjectManifest = opts.rootProjectManifest ?? {}
     opts.rootProjectManifest.pnpm = opts.rootProjectManifest.pnpm ?? {}
-    opts.rootProjectManifest.pnpm.onlyBuiltDependencies = [
+    opts.rootProjectManifest.pnpm.onlyBuiltDependencies = Array.from(new Set([
       ...(opts.rootProjectManifest.pnpm.onlyBuiltDependencies ?? []),
       ...opts.allowBuild,
-    ].sort((a, b) => a.localeCompare(b))
+    ])).sort((a, b) => a.localeCompare(b))
     const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
     await writeProjectManifest(opts.rootProjectManifest)
   }
