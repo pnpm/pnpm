@@ -11,7 +11,9 @@ import { parseRawConfig } from './utils'
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes (): Record<string, unknown> {
-  return {}
+  return {
+    packageManager: Boolean,
+  }
 }
 
 export const commandNames = ['init']
@@ -19,14 +21,24 @@ export const commandNames = ['init']
 export function help (): string {
   return renderHelp({
     description: 'Create a package.json file',
-    descriptionLists: [],
+    descriptionLists: [
+      {
+        title: 'Options',
+        list: [
+          {
+            description: 'Whether to add the packageManager field during initialization.',
+            name: '--packageManager',
+          },
+        ],
+      },
+    ],
     url: docsUrl('init'),
     usages: ['pnpm init'],
   })
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'rawConfig'> & { cliOptions: CliOptions },
+  opts: Pick<UniversalOptions, 'rawConfig'> & { cliOptions: CliOptions & { packageManager?: boolean } },
   params?: string[]
 ): Promise<string> {
   if (params?.length) {
@@ -41,7 +53,7 @@ export async function handler (
   if (fs.existsSync(manifestPath)) {
     throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
   }
-  const manifest = {
+  const manifest: Record<string, unknown> = {
     name: path.basename(process.cwd()),
     version: '1.0.0',
     description: '',
@@ -53,6 +65,9 @@ export async function handler (
     keywords: [],
     author: '',
     license: 'ISC',
+  }
+  if (!opts.cliOptions.packageManager) {
+    delete manifest.packageManager
   }
   const config = await parseRawConfig(opts.rawConfig)
   const packageJson = { ...manifest, ...config }
