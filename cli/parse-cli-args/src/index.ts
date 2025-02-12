@@ -221,11 +221,15 @@ function normalizeOptions (options: Record<string, unknown>, knownOptions: Set<s
   return { options: normalizedOptions, unknownOptions }
 }
 
+function isScopeRegistryOption (optionName: string): boolean {
+  return /^@[a-z0-9_-]+:registry$/.test(optionName)
+}
+
 function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>): Map<string, string[]> {
   const unknownOptions = new Map<string, string[]>()
   const closestMatches = getClosestOptionMatches.bind(null, Array.from(knownOptions))
   for (const usedOption of usedOptions) {
-    if (knownOptions.has(usedOption) || usedOption.startsWith('//')) continue
+    if (knownOptions.has(usedOption) || isScopeRegistryOption(usedOption) || usedOption.startsWith('//')) continue
 
     unknownOptions.set(usedOption, closestMatches(usedOption))
   }
