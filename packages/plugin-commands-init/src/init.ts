@@ -2,18 +2,17 @@ import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { packageManager } from '@pnpm/cli-meta'
-import { type CliOptions, type UniversalOptions } from '@pnpm/config'
+import { type CliOptions, type UniversalOptions, readLocalConfig } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import renderHelp from 'render-help'
 import { parseRawConfig } from './utils'
+import mem from 'mem'
 
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes (): Record<string, unknown> {
-  return {
-    packageManager: Boolean,
-  }
+  return {}
 }
 
 export const commandNames = ['init']
@@ -21,24 +20,14 @@ export const commandNames = ['init']
 export function help (): string {
   return renderHelp({
     description: 'Create a package.json file',
-    descriptionLists: [
-      {
-        title: 'Options',
-        list: [
-          {
-            description: 'Whether to add the packageManager field during initialization.',
-            name: '--packageManager',
-          },
-        ],
-      },
-    ],
+    descriptionLists: [],
     url: docsUrl('init'),
     usages: ['pnpm init'],
   })
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'rawConfig'> & { cliOptions: CliOptions & { packageManager?: boolean } },
+  opts: Pick<UniversalOptions, 'rawConfig'> & { cliOptions: CliOptions, initPackageManager?: boolean },
   params?: string[]
 ): Promise<string> {
   if (params?.length) {
@@ -66,7 +55,9 @@ export async function handler (
     author: '',
     license: 'ISC',
   }
-  if (!opts.cliOptions.packageManager) {
+  const memReadLocalConfig = mem(readLocalConfig)
+  const localConfig = await memReadLocalConfig(process.cwd())
+  if (!localConfig.initPackageManager) {
     delete manifest.packageManager
   }
   const config = await parseRawConfig(opts.rawConfig)

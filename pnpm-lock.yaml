@@ -3958,6 +3958,9 @@ importers:
       camelcase-keys:
         specifier: 'catalog:'
         version: 6.2.2
+      mem:
+        specifier: 'catalog:'
+        version: 8.1.1
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
@@ -12327,9 +12330,11 @@ packages:
 
   lodash.clone@4.3.2:
     resolution: {integrity: sha512-Yc/0UmZvWkFsbx7NB4feSX5bSX03SR0ft8CTkI8RCb3w/TzT71HXew2iNDm0aml93P49tIR/NJHOIoE+XEKz9A==}
+    deprecated: This package is deprecated. Use structuredClone instead.
 
   lodash.clone@4.5.0:
     resolution: {integrity: sha512-GhrVeweiTD6uTmmn5hV/lzgCQhccwReIVRLHp7LT4SopOjqEZ5BbX8b5WWEtAKasjmy8hR7ZPwsYlxRCku5odg==}
+    deprecated: This package is deprecated. Use structuredClone instead.
 
   lodash.clonedeep@4.5.0:
     resolution: {integrity: sha512-H5ZhCF25riFd9uB5UCkVKo61m3S/xZk1x4wA6yp/L3RFP6Z/eHH1ymQcGLo7J3GMPfm0V/7m1tryHuGVxpqEBQ==}
