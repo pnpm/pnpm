@@ -15,11 +15,26 @@ export function help (): string {
   return renderHelp({
     description: 'Approve dependencies for running scripts during installation',
     usages: [],
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: 'Approve dependencies of global packages',
+            name: '--global',
+            shortAlias: '-g',
+          },
+        ],
+      },
+    ],
   })
 }
 
 export function cliOptionsTypes (): Record<string, unknown> {
-  return {}
+  return {
+    global: Boolean,
+  }
 }
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -34,7 +49,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     return
   }
   const { result } = await prompt({
-    choices: sortStrings([...automaticallyIgnoredBuilds]),
+    choices: sortUniqueStrings([...automaticallyIgnoredBuilds]),
     indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       return ` ${choice.enabled ? '●' : '○'}`
     },
@@ -75,10 +90,10 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     if (opts.rootProjectManifest.pnpm?.ignoredBuiltDependencies == null) {
       opts.rootProjectManifest.pnpm = {
         ...opts.rootProjectManifest.pnpm,
-        ignoredBuiltDependencies: sortStrings(ignoredPackages),
+        ignoredBuiltDependencies: sortUniqueStrings(ignoredPackages),
       }
     } else {
-      opts.rootProjectManifest.pnpm.ignoredBuiltDependencies = sortStrings([
+      opts.rootProjectManifest.pnpm.ignoredBuiltDependencies = sortUniqueStrings([
         ...opts.rootProjectManifest.pnpm.ignoredBuiltDependencies,
         ...ignoredPackages,
       ])
@@ -88,10 +103,10 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     if (opts.rootProjectManifest.pnpm?.onlyBuiltDependencies == null) {
       opts.rootProjectManifest.pnpm = {
         ...opts.rootProjectManifest.pnpm,
-        onlyBuiltDependencies: sortStrings(buildPackages),
+        onlyBuiltDependencies: sortUniqueStrings(buildPackages),
       }
     } else {
-      opts.rootProjectManifest.pnpm.onlyBuiltDependencies = sortStrings([
+      opts.rootProjectManifest.pnpm.onlyBuiltDependencies = sortUniqueStrings([
         ...opts.rootProjectManifest.pnpm.onlyBuiltDependencies,
         ...buildPackages,
       ])
@@ -116,6 +131,6 @@ Do you approve?`,
   }
 }
 
-function sortStrings (array: string[]): string[] {
-  return array.sort((a, b) => a.localeCompare(b))
+function sortUniqueStrings (array: string[]): string[] {
+  return Array.from(new Set(array)).sort((a, b) => a.localeCompare(b))
 }
