@@ -1,5 +1,6 @@
 ---
 "@pnpm/default-reporter": patch
+"pnpm": patch
 ---
 
-Correct instruction for updating pnpm with corepack
+Fix instruction for updating pnpm with corepack [#9101](https://github.com/pnpm/pnpm/pull/9101).
