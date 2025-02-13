@@ -50,7 +50,7 @@ function renderUpdateMessage (opts: UpdateMessageOptions): string {
 
 function renderUpdateCommand (opts: UpdateMessageOptions): string {
   if (isExecutedByCorepack(opts.env)) {
-    return `corepack install -g pnpm@${opts.latestVersion}`
+    return `corepack use pnpm@${opts.latestVersion}`
   }
   if (opts.env.PNPM_HOME) {
     return 'pnpm self-update'
