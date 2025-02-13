@@ -148,6 +148,7 @@ export async function getConfig (opts: {
     'ignore-workspace-cycles': false,
     'ignore-workspace-root-check': false,
     'optimistic-repeat-install': false,
+    'init-package-manager': true,
     'inject-workspace-packages': false,
     'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
@@ -236,10 +237,7 @@ export async function getConfig (opts: {
     { registry: 'https://registry.npmjs.org/' },
     ...[...npmConfig.list].reverse(),
     cliOptions,
-    {
-      'user-agent': pnpmConfig.userAgent,
-      'init-package-manager': pnpmConfig.initPackageManager ?? true,
-    },
+    { 'user-agent': pnpmConfig.userAgent },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
   pnpmConfig.registries = {

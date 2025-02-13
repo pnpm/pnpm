@@ -2,6 +2,7 @@ import path from 'path'
 import fs from 'fs'
 import { init } from '@pnpm/plugin-commands-init'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
+import { type ProjectManifest } from '@pnpm/types'
 import { sync as loadJsonFile } from 'load-json-file'
 
 test('init a new package.json', async () => {
@@ -71,7 +72,7 @@ test('init a new package.json if a package.json exists in the current directory 
 test('init a new package.json with init-package-manager=true', async () => {
   prepareEmpty()
   await init.handler({ rawConfig: {}, cliOptions: {}, initPackageManager: true })
-  const manifest = loadJsonFile<Record<string, unknown>>(path.resolve('package.json'))
+  const manifest = loadJsonFile<ProjectManifest>(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
   expect(manifest.packageManager).toBeTruthy()
 })
@@ -79,7 +80,7 @@ test('init a new package.json with init-package-manager=true', async () => {
 test('init a new package.json with init-package-manager=false', async () => {
   prepareEmpty()
   await init.handler({ rawConfig: {}, cliOptions: {}, initPackageManager: false })
-  const manifest = loadJsonFile<Record<string, unknown>>(path.resolve('package.json'))
+  const manifest = loadJsonFile<ProjectManifest>(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
   expect(manifest.packageManager).toBeFalsy()
 })

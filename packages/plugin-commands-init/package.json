@@ -41,6 +41,7 @@
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
     "camelcase-keys": "catalog:",
     "render-help": "catalog:"

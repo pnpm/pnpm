@@ -3952,6 +3952,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../error
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../types
       '@pnpm/write-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/write-project-manifest
