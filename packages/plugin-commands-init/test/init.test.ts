@@ -7,7 +7,7 @@ import { sync as loadJsonFile } from 'load-json-file'
 test('init a new package.json', async () => {
   prepareEmpty()
   await init.handler({ rawConfig: {}, cliOptions: {} })
-  const manifest = loadJsonFile<Record<string, unknown>>(path.resolve('package.json'))
+  const manifest = loadJsonFile(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
 })
 
