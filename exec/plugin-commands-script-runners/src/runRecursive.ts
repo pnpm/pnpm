@@ -33,6 +33,8 @@ export type RecursiveRunOpts = Pick<Config,
 | 'stream'
 | 'updateInjectedFilesAfterRun'
 | 'virtualStoreDir'
+| 'virtualStoreDirMaxLength'
+| 'workspaceDir'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir' | 'dir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
@@ -143,6 +145,8 @@ export async function runRecursive (
             enablePrePostScripts: opts.enablePrePostScripts ?? false,
             updateInjectedFilesAfterRun: opts.updateInjectedFilesAfterRun ?? false,
             virtualStoreDir: opts.virtualStoreDir,
+            virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+            workspaceDir: opts.workspaceDir,
           }
           const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
           const groupEnd = (opts.workspaceConcurrency ?? 4) > 1

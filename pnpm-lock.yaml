@@ -8102,6 +8102,9 @@ importers:
 
   workspace/update-injected-packages:
     dependencies:
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -8111,6 +8114,9 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../lockfile/fs
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types

@@ -16,7 +16,13 @@
       "path": "../../lockfile/fs"
     },
     {
+      "path": "../../packages/dependency-path"
+    },
+    {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
     },
     {
       "path": "../../packages/types"

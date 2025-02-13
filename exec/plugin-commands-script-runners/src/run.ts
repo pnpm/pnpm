@@ -175,6 +175,7 @@ export type RunOpts =
   | 'shellEmulator'
   | 'updateInjectedFilesAfterRun'
   | 'userAgent'
+  | 'virtualStoreDirMaxLength'
   >
   & (
     | { recursive?: false } & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
@@ -296,6 +297,8 @@ so you may run "pnpm -w run ${scriptName}"`,
       enablePrePostScripts: opts.enablePrePostScripts ?? false,
       updateInjectedFilesAfterRun: opts.updateInjectedFilesAfterRun ?? false,
       virtualStoreDir: opts.virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      workspaceDir: opts.workspaceDir,
     }
     const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
 
@@ -386,6 +389,8 @@ export interface RunScriptOptions {
   enablePrePostScripts: boolean
   updateInjectedFilesAfterRun: boolean | string[]
   virtualStoreDir: string | undefined
+  virtualStoreDirMaxLength: number
+  workspaceDir: string | undefined
 }
 
 export async function runScript (opts: {
@@ -411,8 +416,11 @@ export async function runScript (opts: {
   }
   if (shouldUpdateInjectedFilesAfterRun(scriptName, opts.runScriptOptions.updateInjectedFilesAfterRun)) {
     await updateInjectedPackages({
+      pkgName: opts.manifest.name,
       pkgRootDir: opts.lifecycleOpts.pkgRoot,
       virtualStoreDir: opts.runScriptOptions.virtualStoreDir,
+      virtualStoreDirMaxLength: opts.runScriptOptions.virtualStoreDirMaxLength,
+      workspaceDir: opts.runScriptOptions.workspaceDir,
     })
   }
 }
