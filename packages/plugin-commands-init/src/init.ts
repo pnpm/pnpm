@@ -2,12 +2,11 @@ import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { packageManager } from '@pnpm/cli-meta'
-import { type CliOptions, type UniversalOptions, readLocalConfig } from '@pnpm/config'
+import { type CliOptions, type UniversalOptions } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import renderHelp from 'render-help'
 import { parseRawConfig } from './utils'
-import mem from 'mem'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -55,13 +54,15 @@ export async function handler (
     author: '',
     license: 'ISC',
   }
-  const memReadLocalConfig = mem(readLocalConfig)
-  const localConfig = await memReadLocalConfig(process.cwd())
-  if (!localConfig.initPackageManager) {
-    delete manifest.packageManager
-  }
   const config = await parseRawConfig(opts.rawConfig)
-  const packageJson = { ...manifest, ...config }
+  const packageJson = { ...manifest }
+  if (opts.initPackageManager) {
+    delete config.packageManager
+  } else {
+    delete packageJson.packageManager
+    delete config.packageManager
+  }
+  Object.assign(packageJson, config)
   await writeProjectManifest(manifestPath, packageJson, {
     indent: 2,
   })

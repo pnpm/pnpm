@@ -2,4 +2,4 @@
 "@pnpm/plugin-commands-init": patch
 ---
 
-`pnpm init` command adds a `packageManager` option decide whether to add `packageManager` field.
+Add the `init-package-manager` configuration. When the value is set to `false`, it is forbidden to add the `packageManager` field to the initialized package.json file.

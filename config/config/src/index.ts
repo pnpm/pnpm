@@ -189,7 +189,6 @@ export async function getConfig (opts: {
     'registry-supports-time-field': false,
     'virtual-store-dir-max-length': isWindows() ? 60 : 120,
     'peers-suffix-max-length': 1000,
-    'init-package-manager': false,
   }
 
   const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, defaultOptions)
@@ -237,7 +236,10 @@ export async function getConfig (opts: {
     { registry: 'https://registry.npmjs.org/' },
     ...[...npmConfig.list].reverse(),
     cliOptions,
-    { 'user-agent': pnpmConfig.userAgent },
+    {
+      'user-agent': pnpmConfig.userAgent,
+      'init-package-manager': pnpmConfig.initPackageManager ?? true,
+    },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
   pnpmConfig.registries = {
