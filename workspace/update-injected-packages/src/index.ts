@@ -1,5 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import { readCurrentLockfile } from '@pnpm/lockfile.fs'
+import { injectedPackages } from './injectedPackages'
 
 export interface UpdateInjectedPackagesOptions {
   pkgRootDir: string
@@ -14,7 +15,8 @@ export async function updateInjectedPackages (opts: UpdateInjectedPackagesOption
     ignoreIncompatible: false,
   })
   if (!lockfile) return
-  // TODO: continue from here
+  for (const info of injectedPackages(lockfile)) {
+    console.log('INJECTED PACKAGE', info) // TODO: remove this later
+    // TODO: continue from here
+  }
 }
-
-// TODO: write a function that lists all injected dependencies of a workspace package

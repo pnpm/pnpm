@@ -31,7 +31,9 @@
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/lockfile.fs": "workspace:*"
+    "@pnpm/fs.indexed-pkg-importer": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/workspace.update-injected-packages": "workspace:*"

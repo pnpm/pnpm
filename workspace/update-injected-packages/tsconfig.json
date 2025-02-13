@@ -10,10 +10,16 @@
   ],
   "references": [
     {
+      "path": "../../fs/indexed-pkg-importer"
+    },
+    {
       "path": "../../lockfile/fs"
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
     }
   ]
 }
