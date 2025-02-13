@@ -6,8 +6,6 @@ import { readCurrentLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo } from '@pnpm/logger'
 import { findInjectedPackages } from './findInjectedPackages'
 
-const importPackage = createIndexedPkgImporter('clone-or-copy')
-
 export interface UpdateInjectedPackagesOptions {
   pkgName: string | undefined
   pkgRootDir: string
@@ -53,6 +51,7 @@ export async function updateInjectedPackages (opts: UpdateInjectedPackagesOption
     force: true,
     resolvedFrom: 'local-dir',
   }
+  const importPackage = createIndexedPkgImporter('clone-or-copy')
   for (const { targetDir } of items) {
     globalInfo(`Importing ${targetDir} from ${pkgRootDir}`)
     importPackage(targetDir, importOptions)
