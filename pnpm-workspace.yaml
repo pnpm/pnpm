@@ -170,7 +170,7 @@ catalog:
   loud-rejection: ^2.2.0
   lru-cache: ^10.2.2
   make-empty-dir: ^3.0.2
-  mem: ^8.1.1
+  memoize: ^10.0.0
   micromatch: ^4.0.7
   ndjson: ^2.0.0
   nerf-dart: 1.0.0

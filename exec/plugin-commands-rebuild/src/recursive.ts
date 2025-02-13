@@ -12,7 +12,7 @@ import { logger } from '@pnpm/logger'
 import { sortPackages } from '@pnpm/sort-packages'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type Project, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
-import mem from 'mem'
+import mem from 'memoize'
 import pLimit from 'p-limit'
 import { rebuildProjects as rebuildAll, type RebuildOptions, rebuildSelectedPkgs } from './implementation'
 

@@ -396,9 +396,9 @@ catalogs:
     make-empty-dir:
       specifier: ^3.0.2
       version: 3.0.2
-    mem:
-      specifier: ^8.1.1
-      version: 8.1.1
+    memoize:
+      specifier: ^10.0.0
+      version: 10.0.0
     micromatch:
       specifier: ^4.0.7
       version: 4.0.8
@@ -1577,9 +1577,9 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
-      mem:
+      memoize:
         specifier: 'catalog:'
-        version: 8.1.1
+        version: 10.0.0
       semver:
         specifier: 'catalog:'
         version: 7.7.0
@@ -2068,9 +2068,9 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
-      mem:
+      memoize:
         specifier: 'catalog:'
-        version: 8.1.1
+        version: 10.0.0
     devDependencies:
       '@pnpm/env.system-node-version':
         specifier: workspace:*
@@ -2352,9 +2352,9 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
-      mem:
+      memoize:
         specifier: 'catalog:'
-        version: 8.1.1
+        version: 10.0.0
       p-limit:
         specifier: 'catalog:'
         version: 3.1.0
@@ -3390,9 +3390,9 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 4.1.2
-      mem:
+      memoize:
         specifier: 'catalog:'
-        version: 8.1.1
+        version: 10.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -5299,9 +5299,9 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
-      mem:
+      memoize:
         specifier: 'catalog:'
-        version: 8.1.1
+        version: 10.0.0
       p-filter:
         specifier: 'catalog:'
         version: 2.1.0
@@ -7244,9 +7244,9 @@ importers:
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../cafs
-      mem:
+      memoize:
         specifier: 'catalog:'
-        version: 8.1.1
+        version: 10.0.0
       path-temp:
         specifier: 'catalog:'
         version: 2.1.0
@@ -12327,9 +12327,11 @@ packages:
 
   lodash.clone@4.3.2:
     resolution: {integrity: sha512-Yc/0UmZvWkFsbx7NB4feSX5bSX03SR0ft8CTkI8RCb3w/TzT71HXew2iNDm0aml93P49tIR/NJHOIoE+XEKz9A==}
+    deprecated: This package is deprecated. Use structuredClone instead.
 
   lodash.clone@4.5.0:
     resolution: {integrity: sha512-GhrVeweiTD6uTmmn5hV/lzgCQhccwReIVRLHp7LT4SopOjqEZ5BbX8b5WWEtAKasjmy8hR7ZPwsYlxRCku5odg==}
+    deprecated: This package is deprecated. Use structuredClone instead.
 
   lodash.clonedeep@4.5.0:
     resolution: {integrity: sha512-H5ZhCF25riFd9uB5UCkVKo61m3S/xZk1x4wA6yp/L3RFP6Z/eHH1ymQcGLo7J3GMPfm0V/7m1tryHuGVxpqEBQ==}
@@ -12495,6 +12497,10 @@ packages:
     resolution: {integrity: sha512-qFCFUDs7U3b8mBDPyz5EToEKoAkgCzqquIgi9nkkR9bixxOVOre+09lbuH7+9Kn2NFpm56M3GUWVbU2hQgdACA==}
     engines: {node: '>=10'}
 
+  memoize@10.0.0:
+    resolution: {integrity: sha512-H6cBLgsi6vMWOcCpvVCdFFnl3kerEXbrYh9q+lY6VXvQSmM6CkmV08VOwT+WE2tzIEqRPFfAq3fm4v/UIW6mSA==}
+    engines: {node: '>=18'}
+
   meow@11.0.0:
     resolution: {integrity: sha512-Cl0yeeIrko6d94KpUo1M+0X1sB14ikoaqlIGuTH1fW4I+E3+YljL54/hb/BWmVfrV9tTV9zU04+xjw08Fh2WkA==}
     engines: {node: '>=14.16'}
@@ -12561,6 +12567,10 @@ packages:
   mimic-fn@3.1.0:
     resolution: {integrity: sha512-Ysbi9uYW9hFyfrThdDEQuykN4Ey6BuwPD2kpI5ES/nFTDn/98yxYNLZJcgUAKPT/mcrLLKaGzJR9YVxJrIdASQ==}
     engines: {node: '>=8'}
+
+  mimic-function@5.0.1:
+    resolution: {integrity: sha512-VP79XUPxV2CigYP3jWwAUFSku2aKqBH7uTAapFWCBqutsbmDo96KY5o8uh6U+/YSIn5OxJnXp73beVkpqMIGhA==}
+    engines: {node: '>=18'}
 
   mimic-response@1.0.1:
     resolution: {integrity: sha512-j5EctnkH7amfV/q5Hgmoal1g2QHFJRraOtmx0JpIqkxhBhI/lJSl1nMpQ45hVarwNETOoWEimndZ4QK0RHxuxQ==}
@@ -20091,6 +20101,10 @@ snapshots:
       map-age-cleaner: 0.1.3
       mimic-fn: 3.1.0
 
+  memoize@10.0.0:
+    dependencies:
+      mimic-function: 5.0.1
+
   meow@11.0.0:
     dependencies:
       '@types/minimist': 1.2.5
@@ -20172,6 +20186,8 @@ snapshots:
   mimic-fn@2.1.0: {}
 
   mimic-fn@3.1.0: {}
+
+  mimic-function@5.0.1: {}
 
   mimic-response@1.0.1: {}
 

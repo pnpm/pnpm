@@ -35,7 +35,7 @@ import {
   type WorkspacePackages,
 } from '@pnpm/core'
 import isSubdir from 'is-subdir'
-import mem from 'mem'
+import mem from 'memoize'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'

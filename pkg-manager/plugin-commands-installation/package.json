@@ -105,7 +105,7 @@
     "get-npm-tarball-url": "catalog:",
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
-    "mem": "catalog:",
+    "memoize": "catalog:",
     "p-filter": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:",

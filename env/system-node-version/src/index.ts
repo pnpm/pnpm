@@ -1,6 +1,6 @@
 import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
-import mem from 'mem'
 import * as execa from 'execa'
+import memoize from 'memoize'
 
 export function getSystemNodeVersionNonCached (): string | undefined {
   if (detectIfCurrentPkgIsExecutable()) {
@@ -14,4 +14,4 @@ export function getSystemNodeVersionNonCached (): string | undefined {
   return process.version
 }
 
-export const getSystemNodeVersion = mem(getSystemNodeVersionNonCached)
+export const getSystemNodeVersion = memoize(getSystemNodeVersionNonCached)

@@ -127,3 +127,8 @@ declare module 'ramda/src/map' {
   function map <K extends string | number | symbol, V, U> (fn: (x: V) => U, obj: Record<K, V>): Record<K, U>
   export = map
 }
+
+declare module 'memoize' {
+  const memoize: any
+  export default memoize
+}

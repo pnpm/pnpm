@@ -137,7 +137,7 @@
         "get-port",
         "is-port-reachable",
         "load-json-file",
-        "mem",
+        "memoize",
         "npm-packlist",
         "node-fetch",
         "normalize-newline",
@@ -164,10 +164,8 @@
       ]
     },
     "auditConfig": {
-      "ignoreCves": [
-      ],
-      "ignoreGhsas": [
-      ]
+      "ignoreCves": [],
+      "ignoreGhsas": []
     },
     "ignoredBuiltDependencies": [
       "core-js"
