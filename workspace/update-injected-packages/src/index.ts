@@ -2,7 +2,7 @@ import { PnpmError } from '@pnpm/error'
 import { readCurrentLockfile } from '@pnpm/lockfile.fs'
 
 export interface UpdateInjectedPackagesOptions {
-  packageDir: string
+  pkgRootDir: string
   virtualStoreDir: string | undefined
 }
 

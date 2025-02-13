@@ -411,7 +411,7 @@ export async function runScript (opts: {
   }
   if (shouldUpdateInjectedFilesAfterRun(scriptName, opts.runScriptOptions.updateInjectedFilesAfterRun)) {
     await updateInjectedPackages({
-      packageDir: opts.lifecycleOpts.pkgRoot,
+      pkgRootDir: opts.lifecycleOpts.pkgRoot,
       virtualStoreDir: opts.runScriptOptions.virtualStoreDir,
     })
   }
