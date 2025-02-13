@@ -214,6 +214,7 @@ export interface Config {
   strictStorePkgContentCheck: boolean
   managePackageManagerVersions: boolean
   strictDepBuilds: boolean
+  initPackageManager: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

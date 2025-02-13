@@ -2,8 +2,9 @@ import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { packageManager } from '@pnpm/cli-meta'
-import { type CliOptions, type UniversalOptions } from '@pnpm/config'
+import { type Config, type UniversalOptions } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
+import { type ProjectManifest } from '@pnpm/types'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import renderHelp from 'render-help'
 import { parseRawConfig } from './utils'
@@ -26,7 +27,7 @@ export function help (): string {
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'rawConfig'> & { cliOptions: CliOptions },
+  opts: Pick<UniversalOptions, 'rawConfig'> & Pick<Config, 'cliOptions'> & Partial<Pick<Config, 'initPackageManager'>>,
   params?: string[]
 ): Promise<string> {
   if (params?.length) {
@@ -41,12 +42,11 @@ export async function handler (
   if (fs.existsSync(manifestPath)) {
     throw new PnpmError('PACKAGE_JSON_EXISTS', 'package.json already exists')
   }
-  const manifest = {
+  const manifest: ProjectManifest = {
     name: path.basename(process.cwd()),
     version: '1.0.0',
     description: '',
     main: 'index.js',
-    packageManager: `pnpm@${packageManager.version}`,
     scripts: {
       test: 'echo "Error: no test specified" && exit 1',
     },
@@ -56,6 +56,9 @@ export async function handler (
   }
   const config = await parseRawConfig(opts.rawConfig)
   const packageJson = { ...manifest, ...config }
+  if (opts.initPackageManager) {
+    packageJson.packageManager = `pnpm@${packageManager.version}`
+  }
   await writeProjectManifest(manifestPath, packageJson, {
     indent: 2,
   })
