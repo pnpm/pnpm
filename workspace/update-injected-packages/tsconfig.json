@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../fetching/directory-fetcher"
+    },
+    {
       "path": "../../fs/indexed-pkg-importer"
     },
     {

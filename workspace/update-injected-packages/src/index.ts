@@ -1,8 +1,12 @@
 import path from 'path'
+import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { PnpmError } from '@pnpm/error'
+import { type ImportOptions, createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import { readCurrentLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo } from '@pnpm/logger'
 import { findInjectedPackages } from './findInjectedPackages'
+
+const importPackage = createIndexedPkgImporter('clone-or-copy')
 
 export interface UpdateInjectedPackagesOptions {
   pkgName: string | undefined
@@ -31,13 +35,26 @@ export async function updateInjectedPackages (opts: UpdateInjectedPackagesOption
     return
   }
   const pkgRootDir = path.resolve(opts.workspaceDir, opts.pkgRootDir)
-  for (const info of findInjectedPackages({
+  const items = [...findInjectedPackages({
     lockfile,
     pkgName: opts.pkgName,
     pkgRootDir,
     workspaceDir: opts.workspaceDir,
-  })) {
-    console.log('INJECTED PACKAGE', info) // TODO: remove this later
-    // TODO: continue from here
+    virtualStoreDir: opts.virtualStoreDir,
+    virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+  })]
+  if (items.length === 0) {
+    globalInfo(`Found no injected packages matching ${opts.pkgRootDir}`)
+    return
+  }
+  const { filesIndex } = await fetchFromDir(pkgRootDir, {})
+  const importOptions: ImportOptions = {
+    filesMap: filesIndex,
+    force: true,
+    resolvedFrom: 'local-dir',
+  }
+  for (const { targetDir } of items) {
+    globalInfo(`Importing ${targetDir} from ${pkgRootDir}`)
+    importPackage(targetDir, importOptions)
   }
 }

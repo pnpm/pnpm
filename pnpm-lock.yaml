@@ -8105,6 +8105,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/directory-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/directory-fetcher
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error

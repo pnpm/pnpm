@@ -30,6 +30,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/update-injected-packages#readme",
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
+    "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
