@@ -214,7 +214,7 @@ export interface Config {
   strictStorePkgContentCheck: boolean
   managePackageManagerVersions: boolean
   strictDepBuilds: boolean
-  updateInjectedFilesAfterRun?: boolean | string[]
+  updateInjectedPackagesAfterRun?: boolean | string[]
   initPackageManager: boolean
 }
 

@@ -26,7 +26,7 @@ import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
 import { runDepsStatusCheck } from './runDepsStatusCheck'
-import { shouldUpdateInjectedFilesAfterRun } from './shouldUpdateInjectedFilesAfterRun'
+import { shouldUpdateInjectedPackagesAfterRun } from './shouldUpdateInjectedPackagesAfterRun'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,
@@ -174,7 +174,7 @@ export type RunOpts =
   | 'scriptShell'
   | 'scriptsPrependNodePath'
   | 'shellEmulator'
-  | 'updateInjectedFilesAfterRun'
+  | 'updateInjectedPackagesAfterRun'
   | 'userAgent'
   >
   & (
@@ -295,7 +295,7 @@ so you may run "pnpm -w run ${scriptName}"`,
 
     const runScriptOptions: RunScriptOptions = {
       enablePrePostScripts: opts.enablePrePostScripts ?? false,
-      updateInjectedFilesAfterRun: opts.updateInjectedFilesAfterRun ?? false,
+      updateInjectedPackagesAfterRun: opts.updateInjectedPackagesAfterRun ?? false,
       workspaceDir: opts.workspaceDir,
     }
     const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
@@ -385,7 +385,7 @@ ${renderCommands(rootScripts)}`
 
 export interface RunScriptOptions {
   enablePrePostScripts: boolean
-  updateInjectedFilesAfterRun: boolean | string[]
+  updateInjectedPackagesAfterRun: boolean | string[]
   workspaceDir: string | undefined
 }
 
@@ -410,7 +410,7 @@ export async function runScript (opts: {
   ) {
     await runLifecycleHook(`post${scriptName}`, opts.manifest, opts.lifecycleOpts)
   }
-  if (shouldUpdateInjectedFilesAfterRun(scriptName, opts.runScriptOptions.updateInjectedFilesAfterRun)) {
+  if (shouldUpdateInjectedPackagesAfterRun(scriptName, opts.runScriptOptions.updateInjectedPackagesAfterRun)) {
     await updateInjectedPackages({
       pkgName: opts.manifest.name,
       pkgRootDir: opts.lifecycleOpts.pkgRoot,
