@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-init",
-  "version": "1000.0.8",
+  "version": "1000.1.0",
   "description": "Create a package.json file",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -41,6 +41,7 @@
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
     "camelcase-keys": "catalog:",
     "render-help": "catalog:"

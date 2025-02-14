@@ -1,6 +1,6 @@
 {
   "name": "pd",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "bin": "pd.js",
   "private": true,
   "scripts": {

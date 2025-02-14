@@ -215,6 +215,7 @@ export interface Config {
   managePackageManagerVersions: boolean
   strictDepBuilds: boolean
   updateInjectedFilesAfterRun?: boolean | string[]
+  initPackageManager: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

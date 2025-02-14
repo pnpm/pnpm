@@ -5,6 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+import { createProjectManifestWriter } from './createProjectManifestWriter'
 import { type InstallCommandOptions } from './install'
 import { installDeps } from './installDeps'
 
@@ -75,6 +76,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
+    'allow-build': [String, Array],
     recursive: Boolean,
     save: Boolean,
     workspace: Boolean,
@@ -142,6 +144,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           OPTIONS.virtualStoreDir,
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
+          {
+            description: 'A list of package names that are allowed to run postinstall scripts during installation',
+            name: '--allow-build',
+          },
         ],
       },
       FILTERING,
@@ -162,6 +168,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 }
 
 export type AddCommandOptions = InstallCommandOptions & {
+  allowBuild?: string[]
   allowNew?: boolean
   ignoreWorkspaceRootCheck?: boolean
   save?: boolean
@@ -208,6 +215,16 @@ export async function handler (
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
+  }
+  if (opts.allowBuild?.length) {
+    opts.rootProjectManifest = opts.rootProjectManifest ?? {}
+    opts.rootProjectManifest.pnpm = opts.rootProjectManifest.pnpm ?? {}
+    opts.rootProjectManifest.pnpm.onlyBuiltDependencies = Array.from(new Set([
+      ...(opts.rootProjectManifest.pnpm.onlyBuiltDependencies ?? []),
+      ...opts.allowBuild,
+    ])).sort((a, b) => a.localeCompare(b))
+    const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
+    await writeProjectManifest(opts.rootProjectManifest)
   }
   return installDeps({
     ...opts,

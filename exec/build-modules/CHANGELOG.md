@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 1000.2.4
+
+### Patch Changes
+
+- a5b36b7: `pnpm approve-builds` should work after two consecutive `pnpm install` runs [#9083](https://github.com/pnpm/pnpm/pull/9083).
+
 ## 1000.2.3
 
 ### Patch Changes
