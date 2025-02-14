@@ -1,5 +1,16 @@
 # @pnpm/default-reporter
 
+## 1001.3.0
+
+### Minor Changes
+
+- 4aa6d45: `pnpm approve-builds --global` works now for allowing dependencies of globally installed packages to run postinstall scripts.
+
+### Patch Changes
+
+- 7b9a9af: Fix instruction for updating pnpm with corepack [#9101](https://github.com/pnpm/pnpm/pull/9101).
+- b60661a: When `strict-dep-builds` is set to `true`, the same warning and error messages should not be output simultaneously [#9078](https://github.com/pnpm/pnpm/pull/9078).
+
 ## 1001.2.2
 
 ### Patch Changes

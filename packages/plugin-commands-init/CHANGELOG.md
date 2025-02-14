@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-init
 
+## 1000.1.0
+
+### Minor Changes
+
+- 49cc167: Add the `init-package-manager` configuration. When the value is set to `false`, `pnpm init` won't add the `packageManager` field to the initialized `package.json` file [#9087](https://github.com/pnpm/pnpm/pull/9087).
+- 483384a: `pnpm init` command adds a `packageManager` field with the current version of pnpm CLI [#9069](https://github.com/pnpm/pnpm/pull/9069).
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.9
+
 ## 1000.0.8
 
 ### Patch Changes

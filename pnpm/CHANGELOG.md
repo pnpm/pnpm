@@ -1,5 +1,28 @@
 # pnpm
 
+## 10.4.0
+
+### Minor Changes
+
+- `pnpm approve-builds --global` works now for allowing dependencies of globally installed packages to run postinstall scripts.
+- The `pnpm add` command now supports a new flag, `--allow-build`, which allows building the specified dependencies. For instance, if you want to install a package called `bundle` that has `esbuild` as a dependency and want to allow `esbuild` to run postinstall scripts, you can run:
+
+  ```
+  pnpm --allow-build=esbuild add bundle
+  ```
+
+  This will run `esbuild`'s postinstall script and also add it to the `pnpm.onlyBuiltDependencies` field of `package.json`. So, `esbuild` will always be allowed to run its scripts in the future.
+
+  Related PR: [#9086](https://github.com/pnpm/pnpm/pull/9086).
+
+- The `pnpm init` command adds a `packageManager` field with the current version of pnpm CLI [#9069](https://github.com/pnpm/pnpm/pull/9069). To disable this behaviour, set the `init-package-manager` setting to `false`.
+
+### Patch Changes
+
+- `pnpm approve-builds` should work after two consecutive `pnpm install` runs [#9083](https://github.com/pnpm/pnpm/pull/9083).
+- Fix instruction for updating pnpm with corepack [#9101](https://github.com/pnpm/pnpm/pull/9101).
+- The pnpm version specified by `packageManager` cannot start with `v`.
+
 ## 10.3.0
 
 ### Minor Changes

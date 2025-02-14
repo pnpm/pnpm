@@ -1,5 +1,15 @@
 # @pnpm/exec.build-commands
 
+## 1000.1.0
+
+### Minor Changes
+
+- 4aa6d45: `pnpm approve-builds --global` works now for allowing dependencies of globally installed packages to run postinstall scripts.
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@1001.1.7
+
 ## 1000.0.3
 
 ### Patch Changes

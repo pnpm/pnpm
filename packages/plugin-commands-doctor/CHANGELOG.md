@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-doctor
 
+## 1000.1.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.9
+
 ## 1000.1.7
 
 ### Patch Changes

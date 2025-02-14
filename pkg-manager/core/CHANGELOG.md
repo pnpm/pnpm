@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 1003.0.1
+
+### Patch Changes
+
+- Updated dependencies [a5b36b7]
+  - @pnpm/headless@1001.2.1
+  - @pnpm/build-modules@1000.2.4
+
 ## 1003.0.0
 
 ### Major Changes
