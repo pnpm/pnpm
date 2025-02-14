@@ -8,6 +8,8 @@ import renderHelp from 'render-help'
 import { createProjectManifestWriter } from './createProjectManifestWriter'
 import { type InstallCommandOptions } from './install'
 import { installDeps } from './installDeps'
+import { prompt } from 'enquirer'
+import chalk from 'chalk'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -223,6 +225,71 @@ export async function handler (
       ...(opts.rootProjectManifest.pnpm.onlyBuiltDependencies ?? []),
       ...opts.allowBuild,
     ])).sort((a, b) => a.localeCompare(b))
+    if (opts.rootProjectManifest.pnpm.ignoredBuiltDependencies?.length) {
+      const overlapDependencies = opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.filter((dep) => opts.allowBuild?.includes(dep))
+      if (overlapDependencies.length) {
+        const confirmed = await prompt<{ build: boolean }>({
+          type: 'confirm',
+          name: 'build',
+          message: `The following packages are in both allow-build and ignore-build lists: ${overlapDependencies.join(', ')}. Do you want to remove them from the ignore-build list?`,
+          initial: false,
+        })
+        if (!confirmed.build) {
+          return
+        }
+
+        const { result } = await prompt({
+          choices: sortUniqueStrings([...overlapDependencies]),
+          indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+            return ` ${choice.enabled ? '●' : '○'}`
+          },
+          message: 'Choose the packages to remove from the ignore-build list ' +
+            `(Press ${chalk.cyan('<space>')} to select, ` +
+            `${chalk.cyan('<a>')} to toggle all, ` +
+            `${chalk.cyan('<i>')} to invert selection)`,
+          name: 'result',
+          pointer: '❯',
+          result () {
+            return this.selected
+          },
+          styles: {
+            dark: chalk.reset,
+            em: chalk.bgBlack.whiteBright,
+            success: chalk.reset,
+          },
+          type: 'multiselect',
+
+          // For Vim users (related: https://github.com/enquirer/enquirer/pull/163)
+          j () {
+            return this.down()
+          },
+          k () {
+            return this.up()
+          },
+          cancel () {
+            // By default, canceling the prompt via Ctrl+c throws an empty string.
+            // The custom cancel function prevents that behavior.
+            // Otherwise, pnpm CLI would print an error and confuse users.
+            // See related issue: https://github.com/enquirer/enquirer/issues/225
+            process.exit(0)
+          },
+          validate () {
+            const selected = this.selected
+            if (!selected.length) {
+              return 'Please select at least one package'
+            }
+            return true
+          },
+        } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+        const removedIgnoreBuildList = result.map(({ value }: { value: string }) => value)
+        opts.rootProjectManifest.pnpm.ignoredBuiltDependencies = opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.filter((dep) => !removedIgnoreBuildList.includes(dep))
+        if (!opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.length) {
+          delete opts.rootProjectManifest.pnpm.ignoredBuiltDependencies
+        } else {
+          opts.rootProjectManifest.pnpm.onlyBuiltDependencies = opts.rootProjectManifest.pnpm.onlyBuiltDependencies.filter((dep) => !opts.rootProjectManifest!.pnpm!.ignoredBuiltDependencies?.includes(dep))
+        }
+      }
+    }
     const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
     await writeProjectManifest(opts.rootProjectManifest)
   }
@@ -232,4 +299,8 @@ export async function handler (
     includeDirect: include,
     prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   }, params)
+}
+
+function sortUniqueStrings (array: string[]): string[] {
+  return Array.from(new Set(array)).sort((a, b) => a.localeCompare(b))
 }
