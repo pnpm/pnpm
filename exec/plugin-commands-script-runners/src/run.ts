@@ -26,6 +26,7 @@ import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
 import { runDepsStatusCheck } from './runDepsStatusCheck'
+import { shouldUpdateInjectedFilesAfterRun } from './shouldUpdateInjectedFilesAfterRun'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,
@@ -416,12 +417,6 @@ export async function runScript (opts: {
       workspaceDir: opts.runScriptOptions.workspaceDir,
     })
   }
-}
-
-function shouldUpdateInjectedFilesAfterRun (scriptName: string, updateInjectedFilesAfterRun: boolean | string[] | undefined): boolean {
-  return typeof updateInjectedFilesAfterRun === 'boolean'
-    ? updateInjectedFilesAfterRun
-    : updateInjectedFilesAfterRun?.includes(scriptName) ?? false
 }
 
 function renderCommands (commands: string[][]): string {
