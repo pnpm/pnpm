@@ -44,6 +44,7 @@ export const types = Object.assign({
   'ignore-workspace-root-check': Boolean,
   'optimistic-repeat-install': Boolean,
   'include-workspace-root': Boolean,
+  'init-package-manager': Boolean,
   'inject-workspace-packages': Boolean,
   'legacy-dir-filtering': Boolean,
   'link-workspace-packages': [Boolean, 'deep'],
