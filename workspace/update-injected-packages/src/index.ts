@@ -2,9 +2,30 @@ import path from 'path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { PnpmError } from '@pnpm/error'
 import { type ImportOptions, createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
-import { globalInfo } from '@pnpm/logger'
+import { logger as createLogger } from '@pnpm/logger'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import normalizePath from 'normalize-path'
+
+interface LoggerPayloadBase {
+  type: string
+  msg: string
+  opts: UpdateInjectedPackagesOptions
+}
+
+interface LoggerSkip extends LoggerPayloadBase {
+  type: 'skip'
+  reason: 'no-name' | 'no-injected-deps'
+}
+
+interface LoggerResync extends LoggerPayloadBase {
+  type: 'resync'
+  sourceDir: string
+  targetDir: string
+}
+
+type LoggerPayload = LoggerSkip | LoggerResync
+
+const logger = createLogger<LoggerPayload>('update-injected-packages')
 
 export interface UpdateInjectedPackagesOptions {
   pkgName: string | undefined
@@ -15,7 +36,12 @@ export interface UpdateInjectedPackagesOptions {
 
 export async function updateInjectedPackages (opts: UpdateInjectedPackagesOptions): Promise<void> {
   if (!opts.pkgName) {
-    globalInfo(`Skip updating ${opts.pkgRootDir} as an injected package because without name, it cannot be a dependency`)
+    logger.debug({
+      type: 'skip',
+      reason: 'no-name',
+      msg: `Skip updating ${opts.pkgRootDir} as an injected package because without name, it cannot be a dependency`,
+      opts,
+    })
     return
   }
   if (!opts.workspaceDir) {
@@ -25,13 +51,23 @@ export async function updateInjectedPackages (opts: UpdateInjectedPackagesOption
   const modulesDir = /* opts.modulesDir ?? */ path.resolve(opts.workspaceDir, 'node_modules')
   const modules = await readModulesManifest(modulesDir)
   if (!modules?.injectedDeps) {
-    globalInfo('Skip updating injected packages because none were detected')
+    logger.debug({
+      type: 'skip',
+      reason: 'no-injected-deps',
+      msg: 'Skip updating injected packages because none were detected',
+      opts,
+    })
     return
   }
   const injectedDepKey = normalizePath(path.relative(opts.workspaceDir, pkgRootDir), true)
   const targetDirs: string[] | undefined = modules.injectedDeps[injectedDepKey]
   if (!targetDirs || targetDirs.length === 0) {
-    globalInfo(`There are no injected dependency from ${opts.pkgRootDir}`)
+    logger.debug({
+      type: 'skip',
+      reason: 'no-injected-deps',
+      msg: `There are no injected dependencies from ${opts.pkgRootDir}`,
+      opts,
+    })
     return
   }
   const { filesIndex } = await fetchFromDir(pkgRootDir, {})
@@ -43,7 +79,13 @@ export async function updateInjectedPackages (opts: UpdateInjectedPackagesOption
   const importPackage = createIndexedPkgImporter('hardlink')
   for (const targetDir of targetDirs) {
     const targetDirRealPath = path.resolve(opts.workspaceDir, targetDir)
-    globalInfo(`Importing ${targetDirRealPath} from ${pkgRootDir}`)
+    logger.debug({
+      type: 'resync',
+      msg: `Importing ${targetDirRealPath} from ${pkgRootDir}`,
+      sourceDir: pkgRootDir,
+      targetDir: targetDirRealPath,
+      opts,
+    })
     importPackage(targetDirRealPath, importOptions)
   }
 }
