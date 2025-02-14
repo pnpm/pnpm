@@ -1,8 +1,8 @@
 ---
-"@pnpm/plugin-commands-script-runners": major
 "@pnpm/workspace.update-injected-packages": major
 "@pnpm/fs.indexed-pkg-importer": minor
 "@pnpm/config": minor
+"@pnpm/plugin-commands-script-runners": minor
 "pnpm": minor
 ---
 
