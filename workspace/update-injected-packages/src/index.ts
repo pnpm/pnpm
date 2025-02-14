@@ -51,7 +51,7 @@ export async function updateInjectedPackages (opts: UpdateInjectedPackagesOption
     force: true,
     resolvedFrom: 'local-dir',
   }
-  const importPackage = createIndexedPkgImporter('clone-or-copy')
+  const importPackage = createIndexedPkgImporter('hardlink')
   for (const { targetDir } of items) {
     globalInfo(`Importing ${targetDir} from ${pkgRootDir}`)
     importPackage(targetDir, importOptions)
