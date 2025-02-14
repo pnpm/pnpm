@@ -30,7 +30,6 @@ const logger = createLogger<LoggerPayload>('update-injected-packages')
 export interface UpdateInjectedPackagesOptions {
   pkgName: string | undefined
   pkgRootDir: string
-  // modulesDir: string | undefined
   workspaceDir: string | undefined
 }
 
@@ -48,7 +47,7 @@ export async function updateInjectedPackages (opts: UpdateInjectedPackagesOption
     throw new PnpmError('NO_WORKSPACE_DIR', 'Cannot update injected packages without workspace dir')
   }
   const pkgRootDir = path.resolve(opts.workspaceDir, opts.pkgRootDir)
-  const modulesDir = /* opts.modulesDir ?? */ path.resolve(opts.workspaceDir, 'node_modules')
+  const modulesDir = path.resolve(opts.workspaceDir, 'node_modules')
   const modules = await readModulesManifest(modulesDir)
   if (!modules?.injectedDeps) {
     logger.debug({
