@@ -20,6 +20,7 @@ packages:
   - lockfile/*
   - network/*
   - modules-mounter/*
+  - object/*
   - packages/*
   - pkg-manager/*
   - pkg-manifest/*
