@@ -2096,6 +2096,9 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.0
       chalk:
         specifier: 'catalog:'
         version: 4.1.2

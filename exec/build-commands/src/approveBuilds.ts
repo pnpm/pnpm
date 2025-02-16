@@ -1,6 +1,7 @@
 import { type Config } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import renderHelp from 'render-help'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
@@ -132,5 +133,5 @@ Do you approve?`,
 }
 
 function sortUniqueStrings (array: string[]): string[] {
-  return Array.from(new Set(array)).sort((a, b) => a.localeCompare(b))
+  return Array.from(new Set(array)).sort(lexCompare)
 }
