@@ -3,4 +3,4 @@
 "@pnpm/exec.build-commands": patch
 ---
 
-When the value provided by the `allow-build` option overlaps with `ignoredBuiltDependencies`, remove if from `ignoredBuiltDependencies` list.
+Throws an error when the value provided by the `allow build` option overlaps with `ignoredBuildDependencies`.

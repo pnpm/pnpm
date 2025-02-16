@@ -224,9 +224,9 @@ export async function handler (
       ...opts.allowBuild,
     ])).sort((a, b) => a.localeCompare(b))
     if (opts.rootProjectManifest.pnpm.ignoredBuiltDependencies?.length) {
-      opts.rootProjectManifest.pnpm.ignoredBuiltDependencies = opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.filter((dep) => !opts.allowBuild?.includes(dep))
-      if (!opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.length) {
-        delete opts.rootProjectManifest.pnpm.ignoredBuiltDependencies
+      const overlapDependencies = opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.filter((dep) => !opts.allowBuild?.includes(dep))
+      if (overlapDependencies.length) {
+        throw new PnpmError('OVERRIDING_IGNORED_BUILT_DEPENDENCIES', `The following dependencies are ignored by the root project, but are allowed to be built by the current command: ${overlapDependencies.join(', ')}`)
       }
     }
     const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
