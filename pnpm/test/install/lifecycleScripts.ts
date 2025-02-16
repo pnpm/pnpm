@@ -186,6 +186,18 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   expect(manifest.pnpm?.onlyBuiltDependencies).toStrictEqual(['@pnpm.e2e/install-script-example'])
 })
 
+test('selectively allow scripts in some dependencies by --allow-build flag overlap ignoredBuiltDependencies', async () => {
+  prepare({
+    pnpm: {
+      ignoredBuiltDependencies: ['@pnpm.e2e/install-script-example'],
+    },
+  })
+  const result = execPnpmSync(['add', '--allow-build=@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
+
+  expect(result.status).toBe(1)
+  expect(result.stdout.toString()).toContain('The following dependencies are ignored by the root project, but are allowed to be built by the current command: @pnpm.e2e/install-script-example')
+})
+
 test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace packages', async () => {
   const projects = preparePackages([
     {
