@@ -65,11 +65,11 @@ export async function handler (
     'version',
     'description',
     'main',
-    'packageManager',
     'scripts',
     'keywords',
     'author',
     'license',
+    'packageManager',
   ].map((key, index) => [key, index]))
   const sortedPackageJson = sortKeysByPriority({ priority }, packageJson)
   await writeProjectManifest(manifestPath, sortedPackageJson, {
