@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-store-inspecting
 
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+- Updated dependencies [fee898f]
+  - @pnpm/config@1002.3.1
+  - @pnpm/object.key-sorting@1000.0.0
+
 ## 1000.0.8
 
 ### Patch Changes

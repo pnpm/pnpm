@@ -1,5 +1,14 @@
 # @pnpm/cache.commands
 
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+  - @pnpm/config@1002.3.1
+  - @pnpm/cache.api@1000.0.9
+  - @pnpm/cli-utils@1000.0.10
+
 ## 1000.0.9
 
 ### Patch Changes

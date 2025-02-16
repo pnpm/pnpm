@@ -1,5 +1,12 @@
 # @pnpm/lockfile-file
 
+## 1001.1.3
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+  - @pnpm/object.key-sorting@1000.0.0
+
 ## 1001.1.2
 
 ### Patch Changes

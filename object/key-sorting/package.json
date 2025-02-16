@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/object.key-sorting",
-  "version": "1000.0.0-0",
+  "version": "1000.0.0",
   "description": "Sorting the keys of an object",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

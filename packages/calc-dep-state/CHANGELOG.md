@@ -1,5 +1,12 @@
 # @pnpm/calc-dep-state
 
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+  - @pnpm/object.key-sorting@1000.0.0
+
 ## 1001.0.3
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/outdated
 
+## 1001.0.7
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.3
+
 ## 1001.0.6
 
 ### Patch Changes

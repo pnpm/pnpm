@@ -1,5 +1,12 @@
 # @pnpm/build-modules
 
+## 1000.2.5
+
+### Patch Changes
+
+- 0205498: Print warning about ignored builds of dependencies on repeat install [#9106](https://github.com/pnpm/pnpm/issues/9106).
+  - @pnpm/calc-dep-state@1001.0.4
+
 ## 1000.2.4
 
 ### Patch Changes

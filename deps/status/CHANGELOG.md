@@ -1,5 +1,17 @@
 # @pnpm/deps.status
 
+## 1001.2.2
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+  - @pnpm/config@1002.3.1
+  - @pnpm/workspace.state@1001.1.5
+  - @pnpm/lockfile.fs@1001.1.3
+  - @pnpm/workspace.find-packages@1000.0.10
+  - @pnpm/get-context@1001.0.5
+  - @pnpm/lockfile.verification@1001.0.5
+
 ## 1001.2.1
 
 ### Patch Changes
