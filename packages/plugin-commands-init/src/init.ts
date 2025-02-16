@@ -4,6 +4,7 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { packageManager } from '@pnpm/cli-meta'
 import { type Config, type UniversalOptions } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
+import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import { type ProjectManifest } from '@pnpm/types'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import renderHelp from 'render-help'
@@ -59,7 +60,19 @@ export async function handler (
   if (opts.initPackageManager) {
     packageJson.packageManager = `pnpm@${packageManager.version}`
   }
-  await writeProjectManifest(manifestPath, packageJson, {
+  const priority = Object.fromEntries([
+    'name',
+    'version',
+    'description',
+    'main',
+    'scripts',
+    'keywords',
+    'author',
+    'license',
+    'packageManager',
+  ].map((key, index) => [key, index]))
+  const sortedPackageJson = sortKeysByPriority({ priority }, packageJson)
+  await writeProjectManifest(manifestPath, sortedPackageJson, {
     indent: 2,
   })
   return `Wrote to ${manifestPath}
