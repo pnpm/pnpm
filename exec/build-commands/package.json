@@ -46,6 +46,7 @@
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "chalk": "catalog:",
     "enquirer": "catalog:",
     "render-help": "catalog:"
