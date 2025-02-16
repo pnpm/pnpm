@@ -1634,6 +1634,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/object.key-sorting':
+        specifier: workspace:*
+        version: link:../../object/key-sorting
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../../exec/run-npm
@@ -1646,9 +1649,6 @@ importers:
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
-      sort-keys:
-        specifier: 'catalog:'
-        version: 4.2.0
       write-ini-file:
         specifier: 'catalog:'
         version: 4.0.1
@@ -3249,9 +3249,6 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.7.0
-      sort-keys:
-        specifier: 'catalog:'
-        version: 4.2.0
       strip-bom:
         specifier: 'catalog:'
         version: 4.0.0
@@ -3492,9 +3489,6 @@ importers:
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
-      sort-keys:
-        specifier: 'catalog:'
-        version: 4.2.0
     devDependencies:
       '@pnpm/lockfile.settings-checker':
         specifier: workspace:*
@@ -5764,9 +5758,6 @@ importers:
       read-yaml-file:
         specifier: 'catalog:'
         version: 2.1.0
-      sort-keys:
-        specifier: 'catalog:'
-        version: 4.2.0
       strip-bom:
         specifier: 'catalog:'
         version: 4.0.0
@@ -7546,6 +7537,9 @@ importers:
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
+      '@pnpm/object.key-sorting':
+        specifier: workspace:*
+        version: link:../../object/key-sorting
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
@@ -7570,9 +7564,6 @@ importers:
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
-      sort-keys:
-        specifier: 'catalog:'
-        version: 4.2.0
     devDependencies:
       '@pnpm/plugin-commands-store-inspecting':
         specifier: workspace:*

@@ -34,8 +34,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/parse-overrides": "workspace:*",
     "p-map-values": "catalog:",
-    "ramda": "catalog:",
-    "sort-keys": "catalog:"
+    "ramda": "catalog:"
   },
   "devDependencies": {
     "@pnpm/lockfile.settings-checker": "workspace:*",

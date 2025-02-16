@@ -62,7 +62,6 @@
     "normalize-path": "catalog:",
     "ramda": "catalog:",
     "semver": "catalog:",
-    "sort-keys": "catalog:",
     "strip-bom": "catalog:",
     "write-file-atomic": "catalog:"
   },

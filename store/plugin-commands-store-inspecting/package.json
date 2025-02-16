@@ -40,6 +40,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/store-path": "workspace:*",
@@ -47,8 +48,7 @@
     "@pnpm/types": "workspace:*",
     "chalk": "catalog:",
     "load-json-file": "catalog:",
-    "render-help": "catalog:",
-    "sort-keys": "catalog:"
+    "render-help": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
