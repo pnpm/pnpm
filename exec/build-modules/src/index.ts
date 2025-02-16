@@ -58,6 +58,7 @@ export async function buildModules<T extends string> (
     warn,
   }
   const chunks = buildSequence<T>(depGraph, rootDepPaths)
+  if (!chunks.length) return {}
   const ignoredPkgs = new Set<string>()
   const allowBuild = opts.allowBuild ?? (() => true)
   const groups = chunks.map((chunk) => {
