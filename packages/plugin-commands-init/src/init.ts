@@ -77,5 +77,5 @@ export async function handler (
   })
   return `Wrote to ${manifestPath}
 
-${JSON.stringify(packageJson, null, 2)}`
+${JSON.stringify(sortedPackageJson, null, 2)}`
 }
