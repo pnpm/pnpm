@@ -3965,6 +3965,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../error
+      '@pnpm/object.key-sorting':
+        specifier: workspace:*
+        version: link:../../object/key-sorting
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
