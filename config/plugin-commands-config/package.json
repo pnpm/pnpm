@@ -33,11 +33,11 @@
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/run-npm": "workspace:*",
     "ini": "catalog:",
     "read-ini-file": "catalog:",
     "render-help": "catalog:",
-    "sort-keys": "catalog:",
     "write-ini-file": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",

@@ -40,7 +40,6 @@
     "json5": "catalog:",
     "parse-json": "catalog:",
     "read-yaml-file": "catalog:",
-    "sort-keys": "catalog:",
     "strip-bom": "catalog:"
   },
   "devDependencies": {
