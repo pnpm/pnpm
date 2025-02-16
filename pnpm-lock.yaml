@@ -3776,12 +3776,12 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../../lockfile/utils
+      '@pnpm/object.key-sorting':
+        specifier: workspace:*
+        version: link:../../object/key-sorting
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
-      sort-keys:
-        specifier: 'catalog:'
-        version: 4.2.0
     devDependencies:
       '@pnpm/calc-dep-state':
         specifier: workspace:*
