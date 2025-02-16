@@ -3225,12 +3225,12 @@ importers:
       '@pnpm/lockfile.utils':
         specifier: workspace:*
         version: link:../utils
+      '@pnpm/object.key-sorting':
+        specifier: workspace:*
+        version: link:../../object/key-sorting
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@pnpm/util.lex-comparator':
-        specifier: 'catalog:'
-        version: 3.0.0
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -3752,6 +3752,19 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  object/key-sorting:
+    dependencies:
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.0
+      sort-keys:
+        specifier: 'catalog:'
+        version: 4.2.0
+    devDependencies:
+      '@pnpm/object.key-sorting':
+        specifier: workspace:*
+        version: 'link:'
+
   packages/calc-dep-state:
     dependencies:
       '@pnpm/constants':
@@ -3952,6 +3965,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../error
+      '@pnpm/object.key-sorting':
+        specifier: workspace:*
+        version: link:../../object/key-sorting
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types

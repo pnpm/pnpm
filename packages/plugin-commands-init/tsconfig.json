@@ -25,6 +25,9 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../object/key-sorting"
+    },
+    {
       "path": "../../pkg-manifest/write-project-manifest"
     },
     {
