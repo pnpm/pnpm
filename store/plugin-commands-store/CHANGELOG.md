@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-store
 
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+  - @pnpm/config@1002.3.1
+  - @pnpm/cli-utils@1000.0.10
+  - @pnpm/store-connection-manager@1000.0.9
+  - @pnpm/get-context@1001.0.5
+
 ## 1000.0.10
 
 ### Patch Changes

@@ -19,6 +19,9 @@
       "path": "../../exec/run-npm"
     },
     {
+      "path": "../../object/key-sorting"
+    },
+    {
       "path": "../../packages/error"
     },
     {

@@ -217,6 +217,14 @@ export async function handler (
     optionalDependencies: opts.optional !== false,
   }
   if (opts.allowBuild?.length) {
+    if (opts.rootProjectManifest?.pnpm?.ignoredBuiltDependencies?.length) {
+      const overlapDependencies = opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.filter((dep) => opts.allowBuild?.includes(dep))
+      if (overlapDependencies.length) {
+        throw new PnpmError('OVERRIDING_IGNORED_BUILT_DEPENDENCIES', `The following dependencies are ignored by the root project, but are allowed to be built by the current command: ${overlapDependencies.join(', ')}`, {
+          hint: 'If you are sure you want to allow those dependencies to run installation scripts, remove them from the pnpm.ignoredBuiltDependencies list.',
+        })
+      }
+    }
     opts.rootProjectManifest = opts.rootProjectManifest ?? {}
     opts.rootProjectManifest.pnpm = opts.rootProjectManifest.pnpm ?? {}
     opts.rootProjectManifest.pnpm.onlyBuiltDependencies = Array.from(new Set([

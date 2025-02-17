@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 1001.3.1
+
+### Patch Changes
+
+- aa29bde: Print pnpm's version after the execution time at the end of the console output.
+- Updated dependencies [fee898f]
+  - @pnpm/config@1002.3.1
+
 ## 1001.3.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 1002.3.1
+
+### Patch Changes
+
+- fee898f: Setting `init-package-manager` should work.
+
 ## 1002.3.0
 
 ### Minor Changes

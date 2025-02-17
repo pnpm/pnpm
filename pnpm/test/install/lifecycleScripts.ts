@@ -186,6 +186,18 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   expect(manifest.pnpm?.onlyBuiltDependencies).toStrictEqual(['@pnpm.e2e/install-script-example'])
 })
 
+test('selectively allow scripts in some dependencies by --allow-build flag overlap ignoredBuiltDependencies', async () => {
+  prepare({
+    pnpm: {
+      ignoredBuiltDependencies: ['@pnpm.e2e/install-script-example'],
+    },
+  })
+  const result = execPnpmSync(['add', '--allow-build=@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
+
+  expect(result.status).toBe(1)
+  expect(result.stdout.toString()).toContain('The following dependencies are ignored by the root project, but are allowed to be built by the current command: @pnpm.e2e/install-script-example')
+})
+
 test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace packages', async () => {
   const projects = preparePackages([
     {
@@ -318,12 +330,15 @@ test('throw an error when strict-dep-builds is true and there are ignored script
 
 test('the list of ignored builds is preserved after a repeat install', async () => {
   const project = prepare({})
-  execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '--config.optimistic-repeat-install=false'])
+  execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', 'esbuild@0.25.0', '--config.optimistic-repeat-install=false'])
 
   const result = execPnpmSync(['install'])
   // The warning is printed on repeat install too
   expect(result.stdout.toString()).toContain('Ignored build scripts:')
 
   const modulesManifest = project.readModulesManifest()
-  expect(modulesManifest?.ignoredBuilds).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example'])
+  expect(modulesManifest?.ignoredBuilds?.sort()).toStrictEqual([
+    '@pnpm.e2e/pre-and-postinstall-scripts-example',
+    'esbuild',
+  ])
 })

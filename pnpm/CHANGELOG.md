@@ -1,5 +1,14 @@
 # pnpm
 
+## 10.4.1
+
+### Patch Changes
+
+- Throws an error when the value provided by the `--allow-build` option overlaps with the `pnpm.ignoredBuildDependencies` list [#9105](https://github.com/pnpm/pnpm/pull/9105).
+- Print pnpm's version after the execution time at the end of the console output.
+- Print warning about ignored builds of dependencies on repeat install [#9106](https://github.com/pnpm/pnpm/issues/9106).
+- Setting `init-package-manager` should work.
+
 ## 10.4.0
 
 ### Minor Changes

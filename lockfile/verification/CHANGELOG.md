@@ -1,5 +1,11 @@
 # @pnpm/lockfile.verification
 
+## 1001.0.5
+
+### Patch Changes
+
+- @pnpm/get-context@1001.0.5
+
 ## 1001.0.4
 
 ### Patch Changes

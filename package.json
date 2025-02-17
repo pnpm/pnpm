@@ -1,7 +1,7 @@
 {
   "name": "monorepo-root",
   "private": true,
-  "packageManager": "pnpm@10.2.0",
+  "packageManager": "pnpm@10.4.1",
   "scripts": {
     "bump": "changeset version && pnpm update-manifests",
     "changeset": "changeset",
@@ -164,10 +164,8 @@
       ]
     },
     "auditConfig": {
-      "ignoreCves": [
-      ],
-      "ignoreGhsas": [
-      ]
+      "ignoreCves": [],
+      "ignoreGhsas": []
     },
     "ignoredBuiltDependencies": [
       "core-js"

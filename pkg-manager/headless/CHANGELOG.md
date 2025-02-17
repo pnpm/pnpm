@@ -1,5 +1,17 @@
 # @pnpm/headless
 
+## 1001.2.2
+
+### Patch Changes
+
+- Updated dependencies [0205498]
+  - @pnpm/build-modules@1000.2.5
+  - @pnpm/lockfile.fs@1001.1.3
+  - @pnpm/calc-dep-state@1001.0.4
+  - @pnpm/deps.graph-builder@1001.0.6
+  - @pnpm/lockfile-to-pnp@1001.0.4
+  - @pnpm/real-hoist@1001.0.2
+
 ## 1001.2.1
 
 ### Patch Changes

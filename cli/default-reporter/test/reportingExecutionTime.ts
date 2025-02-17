@@ -1,4 +1,5 @@
 import { executionTimeLogger } from '@pnpm/core-loggers'
+import { packageManager } from '@pnpm/cli-meta'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
 import { take } from 'rxjs/operators'
@@ -49,7 +50,7 @@ test('prints execution time for install command', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe('Done in 10.8s')
+      expect(output).toBe(`Done in 10.8s using ${packageManager.name} v${packageManager.version}`)
     },
   })
 })

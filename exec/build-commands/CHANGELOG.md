@@ -1,5 +1,14 @@
 # @pnpm/exec.build-commands
 
+## 1000.1.1
+
+### Patch Changes
+
+- 546ab37: Throws an error when the value provided by the `--allow-build` option overlaps with the `pnpm.ignoredBuildDependencies` list [#9105](https://github.com/pnpm/pnpm/pull/9105).
+- Updated dependencies [fee898f]
+  - @pnpm/config@1002.3.1
+  - @pnpm/plugin-commands-rebuild@1001.1.8
+
 ## 1000.1.0
 
 ### Minor Changes

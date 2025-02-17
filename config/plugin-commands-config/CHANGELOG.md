@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-config
 
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+- Updated dependencies [fee898f]
+  - @pnpm/config@1002.3.1
+  - @pnpm/object.key-sorting@1000.0.0
+  - @pnpm/cli-utils@1000.0.10
+
 ## 1000.0.9
 
 ### Patch Changes

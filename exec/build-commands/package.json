@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.build-commands",
-  "version": "1000.1.0",
+  "version": "1000.1.1",
   "description": "Commands for managing dependency builds",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -46,6 +46,7 @@
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "chalk": "catalog:",
     "enquirer": "catalog:",
     "render-help": "catalog:"
