@@ -6,6 +6,7 @@ import {
   type PackageExtension,
   type PeerDependencyRules,
   type ProjectManifest,
+  type PnpmSettings,
 } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
 
@@ -35,18 +36,27 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
       ...manifest.pnpm?.overrides,
     }
   )
-  const neverBuiltDependencies = manifest.pnpm?.neverBuiltDependencies
-  let onlyBuiltDependencies = manifest.pnpm?.onlyBuiltDependencies
-  const onlyBuiltDependenciesFile = manifest.pnpm?.onlyBuiltDependenciesFile
+
+  const settings: OptionsFromRootManifest = {
+    overrides,
+    ...(manifest.pnpm ? getOptionsFromPnpmSettings(manifestDir, manifest.pnpm) : {}),
+  }
+  return settings
+}
+
+export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: PnpmSettings): OptionsFromRootManifest {
+  const neverBuiltDependencies = pnpmSettings.neverBuiltDependencies
+  let onlyBuiltDependencies = pnpmSettings.onlyBuiltDependencies
+  const onlyBuiltDependenciesFile = pnpmSettings.onlyBuiltDependenciesFile
   if (onlyBuiltDependenciesFile == null && neverBuiltDependencies == null && onlyBuiltDependencies == null) {
     onlyBuiltDependencies = []
   }
-  const packageExtensions = manifest.pnpm?.packageExtensions
-  const ignoredOptionalDependencies = manifest.pnpm?.ignoredOptionalDependencies
-  const peerDependencyRules = manifest.pnpm?.peerDependencyRules
-  const allowedDeprecatedVersions = manifest.pnpm?.allowedDeprecatedVersions
-  const allowNonAppliedPatches = manifest.pnpm?.allowNonAppliedPatches
-  let patchedDependencies = manifest.pnpm?.patchedDependencies
+  const packageExtensions = pnpmSettings.packageExtensions
+  const ignoredOptionalDependencies = pnpmSettings.ignoredOptionalDependencies
+  const peerDependencyRules = pnpmSettings.peerDependencyRules
+  const allowedDeprecatedVersions = pnpmSettings.allowedDeprecatedVersions
+  const allowNonAppliedPatches = pnpmSettings.allowNonAppliedPatches
+  let patchedDependencies = pnpmSettings.patchedDependencies
   if (patchedDependencies) {
     patchedDependencies = { ...patchedDependencies }
     for (const [dep, patchFile] of Object.entries(patchedDependencies)) {
@@ -56,22 +66,21 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
   }
 
   const supportedArchitectures = {
-    os: manifest.pnpm?.supportedArchitectures?.os ?? ['current'],
-    cpu: manifest.pnpm?.supportedArchitectures?.cpu ?? ['current'],
-    libc: manifest.pnpm?.supportedArchitectures?.libc ?? ['current'],
+    os: pnpmSettings.supportedArchitectures?.os ?? ['current'],
+    cpu: pnpmSettings.supportedArchitectures?.cpu ?? ['current'],
+    libc: pnpmSettings.supportedArchitectures?.libc ?? ['current'],
   }
 
   const settings: OptionsFromRootManifest = {
     allowedDeprecatedVersions,
     allowNonAppliedPatches,
-    overrides,
     neverBuiltDependencies,
     packageExtensions,
     ignoredOptionalDependencies,
     peerDependencyRules,
     patchedDependencies,
     supportedArchitectures,
-    ignoredBuiltDependencies: manifest.pnpm?.ignoredBuiltDependencies,
+    ignoredBuiltDependencies: pnpmSettings.ignoredBuiltDependencies,
   }
   if (onlyBuiltDependencies) {
     settings.onlyBuiltDependencies = onlyBuiltDependencies
@@ -79,7 +88,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
   if (onlyBuiltDependenciesFile) {
     settings.onlyBuiltDependenciesFile = path.join(manifestDir, onlyBuiltDependenciesFile)
   }
-  return settings
+  return JSON.parse(JSON.stringify(settings))
 }
 
 function createVersionReferencesReplacer (manifest: ProjectManifest): (spec: string) => string {

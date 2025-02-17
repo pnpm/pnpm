@@ -8042,6 +8042,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       read-yaml-file:
         specifier: 'catalog:'
         version: 2.1.0
