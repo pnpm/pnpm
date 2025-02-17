@@ -10,8 +10,7 @@ import * as enquirer from 'enquirer'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
-// eslint-disable-next-line
-const prompt = enquirer.prompt as any
+const prompt = enquirer.prompt as any // eslint-disable-line
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -319,27 +318,25 @@ test('interactively update should ignore dependencies from the ignoreDependencie
     storeDir,
   })
 
-  expect(prompt.mock.calls[0][0].choices).toStrictEqual(
-    [
-      {
-        choices: [
-          {
-            disabled: true,
-            hint: '',
-            name: 'Package                                                    Current   Target            URL ',
-            value: '',
-          },
-          {
-            message: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
-            value: 'micromatch',
-            name: 'micromatch',
-          },
-        ],
-        name: '[dependencies]',
-        message: 'dependencies',
-      },
-    ]
-  )
+  expect(prompt.mock.calls[0][0].choices).toStrictEqual([
+    {
+      choices: [
+        {
+          disabled: true,
+          hint: '',
+          name: 'Package                                                    Current   Target            URL ',
+          value: '',
+        },
+        {
+          message: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
+          value: 'micromatch',
+          name: 'micromatch',
+        },
+      ],
+      name: '[dependencies]',
+      message: 'dependencies',
+    },
+  ])
 
   expect(prompt).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -361,4 +358,84 @@ test('interactively update should ignore dependencies from the ignoreDependencie
     expect(lockfile.packages['is-negative@1.0.0']).toBeTruthy()
     expect(lockfile.packages['is-positive@2.0.0']).toBeTruthy()
   }
+})
+
+test('interactively update should update corepack config', async () => {
+  prepare({
+    name: 'project-1',
+    packageManager: 'pnpm@8.7.0',
+  })
+
+  const storeDir = path.resolve('pnpm-store')
+
+  await add.handler(
+    {
+      ...DEFAULT_OPTIONS,
+      cacheDir: path.resolve('cache'),
+      dir: process.cwd(),
+      linkWorkspacePackages: true,
+      save: false,
+      storeDir,
+    },
+    ['pnpm@8.9.2']
+  )
+
+  prompt.mockResolvedValue({
+    updateDependencies: [
+      {
+        value: 'pnpm',
+        name: chalk`pnpm 8.7.0 ❯ 8.9.2 https://pnpm.io/ `,
+      },
+    ],
+  })
+
+  prompt.mockClear()
+  await update.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    interactive: true,
+    linkWorkspacePackages: true,
+    storeDir,
+  })
+
+  const promptStr = JSON.stringify(prompt.mock.calls[0][0].choices[0])
+  const latestVersionIndex = promptStr.indexOf('❯')
+  const latestVersion = promptStr.substring(
+    latestVersionIndex + 2,
+    latestVersionIndex + 10
+  )
+  const promptChoices = JSON.parse(promptStr.replace(latestVersion, '8.9.0'))
+
+  expect(promptChoices).toMatchInlineSnapshot(`
+    {
+      "choices": [
+        {
+          "disabled": true,
+          "hint": "",
+          "name": "Package                                                    Current   Target            URL ",
+          "value": "",
+        },
+        {
+          "message": "pnpm                                                         8.7.0 ❯ 8.9.0              ",
+          "name": "pnpm",
+          "value": "pnpm",
+        },
+      ],
+      "message": "packageManager",
+      "name": "[packageManager]",
+    }
+  `)
+  expect(prompt).toBeCalledWith(
+    expect.objectContaining({
+      footer: '\nEnter to start updating. Ctrl-c to cancel.',
+      message:
+        'Choose which packages to update ' +
+        `(Press ${chalk.cyan('<space>')} to select, ` +
+        `${chalk.cyan('<a>')} to toggle all, ` +
+        `${chalk.cyan('<i>')} to invert selection)`,
+      name: 'updateDependencies',
+      type: 'multiselect',
+    })
+  )
 })
