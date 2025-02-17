@@ -46,6 +46,7 @@ import {
 } from './resolvePeers'
 import { toResolveImporter } from './toResolveImporter'
 import { updateLockfile } from './updateLockfile'
+import { updateLockfileOverrides } from './updateLockfileOverrides'
 import { updateProjectManifest } from './updateProjectManifest'
 import { getCatalogSnapshots } from './getCatalogSnapshots'
 
@@ -117,6 +118,7 @@ export async function resolveDependencies (
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
     allowNonAppliedPatches?: boolean
+    overridesRefMap?: Record<string, string | undefined>
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -306,6 +308,8 @@ export async function resolveDependencies (
   }
 
   newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
+
+  newLockfile.overrides = updateLockfileOverrides(newLockfile.overrides, opts.wantedLockfile.importers['.' as ProjectId], opts.overridesRefMap)
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
