@@ -67,15 +67,9 @@ export async function updateInjectedPackages (opts: UpdateInjectedPackagesOption
     })
     return
   }
-  await Promise.all(targetDirs.map(async targetDir => {
-    const targetDirRealPath = path.resolve(opts.workspaceDir!, targetDir)
-    const patcher = await DirPatcher.create(pkgRootDir, targetDirRealPath)
-    logger.debug({
-      type: 'resync',
-      msg: `Importing ${targetDirRealPath} from ${pkgRootDir}`,
-      patcher,
-      opts,
-    })
-    await patcher.apply()
-  }))
+  const patchers = await DirPatcher.fromMultipleTargets(
+    pkgRootDir,
+    targetDirs.map(targetDir => path.resolve(opts.workspaceDir!, targetDir)),
+  )
+  await Promise.all(patchers.map(patcher => patcher.apply()))
 }

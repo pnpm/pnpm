@@ -179,22 +179,28 @@ export class DirPatcher {
     this.targetDir = targetDir
   }
 
-  static async create (sourceDir: string, targetDir: string): Promise<DirPatcher> {
-    const [sourceMap, targetMap] = await Promise.all([sourceDir, targetDir].map(async dir => {
+  static async fromMultipleTargets (sourceDir: string, targetDirs: string[]): Promise<DirPatcher[]> {
+    async function loadMap (dir: string): Promise<[InodeMap, string]> {
       const { filesIndex } = await fetchFromDir(dir, {})
-      return extendFilesMap(filesIndex)
-    }))
-    const diff = diffDir(targetMap, sourceMap)
+      return [await extendFilesMap(filesIndex), dir]
+    }
 
-    // Before reversal, every directory in `diff.removed` are placed before its files.
-    // After reversal, every file is place before its ancestors,
-    // leading to children being deleted before parents, optimizing performance.
-    diff.removed.reverse()
+    const [[sourceMap, _], targetPairs] = await Promise.all([
+      loadMap(sourceDir),
+      Promise.all(targetDirs.map(loadMap)),
+    ])
 
-    return new this(diff, sourceDir, targetDir)
+    return targetPairs.map(([targetMap, targetDir]) => {
+      const diff = diffDir(targetMap, sourceMap)
+
+      // Before reversal, every directory in `diff.removed` are placed before its files.
+      // After reversal, every file is place before its ancestors,
+      // leading to children being deleted before parents, optimizing performance.
+      diff.removed.reverse()
+
+      return new this(diff, sourceDir, targetDir)
+    })
   }
-
-  // TODO: static async multipleTargets (sourceDir: string, targetDirs: string): Promise<DirPatcher>
 
   async apply (): Promise<void> {
     await applyDiff(this.diff, this.sourceDir, this.targetDir)
