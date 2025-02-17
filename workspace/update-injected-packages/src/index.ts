@@ -1,10 +1,9 @@
 import path from 'path'
-import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { PnpmError } from '@pnpm/error'
-import { type ImportOptions, createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import { logger as createLogger } from '@pnpm/logger'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import normalizePath from 'normalize-path'
+import { DirPatcher } from './DirPatcher'
 
 interface LoggerPayloadBase {
   type: string
@@ -19,8 +18,7 @@ interface LoggerSkip extends LoggerPayloadBase {
 
 interface LoggerResync extends LoggerPayloadBase {
   type: 'resync'
-  sourceDir: string
-  targetDir: string
+  patcher: DirPatcher
 }
 
 type LoggerPayload = LoggerSkip | LoggerResync
@@ -69,22 +67,15 @@ export async function updateInjectedPackages (opts: UpdateInjectedPackagesOption
     })
     return
   }
-  const { filesIndex } = await fetchFromDir(pkgRootDir, {})
-  const importOptions: ImportOptions = {
-    filesMap: filesIndex,
-    force: true,
-    resolvedFrom: 'local-dir',
-  }
-  const importPackage = createIndexedPkgImporter('hardlink')
-  for (const targetDir of targetDirs) {
-    const targetDirRealPath = path.resolve(opts.workspaceDir, targetDir)
+  await Promise.all(targetDirs.map(async targetDir => {
+    const targetDirRealPath = path.resolve(opts.workspaceDir!, targetDir)
+    const patcher = await DirPatcher.create(pkgRootDir, targetDirRealPath)
     logger.debug({
       type: 'resync',
       msg: `Importing ${targetDirRealPath} from ${pkgRootDir}`,
-      sourceDir: pkgRootDir,
-      targetDir: targetDirRealPath,
+      patcher,
       opts,
     })
-    importPackage(targetDirRealPath, importOptions)
-  }
+    await patcher.apply()
+  }))
 }
