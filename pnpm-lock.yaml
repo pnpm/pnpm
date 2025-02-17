@@ -8111,9 +8111,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fs.indexed-pkg-importer':
-        specifier: workspace:*
-        version: link:../../fs/indexed-pkg-importer
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger

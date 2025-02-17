@@ -13,9 +13,6 @@
       "path": "../../fetching/directory-fetcher"
     },
     {
-      "path": "../../fs/indexed-pkg-importer"
-    },
-    {
       "path": "../../packages/error"
     },
     {
