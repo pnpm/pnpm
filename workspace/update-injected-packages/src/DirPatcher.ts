@@ -185,7 +185,7 @@ export class DirPatcher {
       return [await extendFilesMap(filesIndex), dir]
     }
 
-    const [[sourceMap, _], targetPairs] = await Promise.all([
+    const [[sourceMap], targetPairs] = await Promise.all([
       loadMap(sourceDir),
       Promise.all(targetDirs.map(loadMap)),
     ])

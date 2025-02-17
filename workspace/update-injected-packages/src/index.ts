@@ -69,7 +69,7 @@ export async function updateInjectedPackages (opts: UpdateInjectedPackagesOption
   }
   const patchers = await DirPatcher.fromMultipleTargets(
     pkgRootDir,
-    targetDirs.map(targetDir => path.resolve(opts.workspaceDir!, targetDir)),
+    targetDirs.map(targetDir => path.resolve(opts.workspaceDir!, targetDir))
   )
   await Promise.all(patchers.map(patcher => patcher.apply()))
 }
