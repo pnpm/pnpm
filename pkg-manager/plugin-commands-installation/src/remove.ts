@@ -131,6 +131,7 @@ export async function handler (
   | 'allProjectsGraph'
   | 'bail'
   | 'bin'
+  | 'configDependencies'
   | 'dev'
   | 'engineStrict'
   | 'globalPnpmfile'
@@ -164,8 +165,8 @@ export async function handler (
     optionalDependencies: opts.optional !== false,
   }
   let store = await createOrConnectStoreController(opts)
-  if (opts.rootProjectManifest?.pnpm?.configDependencies) {
-    await installConfigDeps(opts.rootProjectManifest.pnpm.configDependencies, {
+  if (opts.configDependencies) {
+    await installConfigDeps(opts.configDependencies, {
       registries: opts.registries,
       rootDir: opts.lockfileDir ?? opts.rootProjectManifestDir,
       store: store.ctrl,

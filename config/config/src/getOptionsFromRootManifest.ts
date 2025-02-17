@@ -10,7 +10,7 @@ import {
 } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
 
-export interface OptionsFromRootManifest {
+export type OptionsFromRootManifest = {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowNonAppliedPatches?: boolean
   overrides?: Record<string, string>
@@ -23,7 +23,7 @@ export interface OptionsFromRootManifest {
   patchedDependencies?: Record<string, string>
   peerDependencyRules?: PeerDependencyRules
   supportedArchitectures?: SupportedArchitectures
-}
+} & Pick<PnpmSettings, 'configDependencies'>
 
 export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
   // We read Yarn's resolutions field for compatibility
@@ -74,6 +74,7 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
   const settings: OptionsFromRootManifest = {
     allowedDeprecatedVersions,
     allowNonAppliedPatches,
+    configDependencies: pnpmSettings.configDependencies,
     neverBuiltDependencies,
     packageExtensions,
     ignoredOptionalDependencies,

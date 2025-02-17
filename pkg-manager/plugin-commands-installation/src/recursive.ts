@@ -46,6 +46,7 @@ import { IgnoredBuildsError } from './errors'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
+| 'configDependencies'
 | 'dedupePeerDependents'
 | 'depth'
 | 'globalPnpmfile'
