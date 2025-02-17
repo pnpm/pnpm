@@ -1387,10 +1387,15 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
             nodeExecPath: opts.nodeExecPath,
             injectWorkspacePackages: opts.injectWorkspacePackages,
           }
+          const _isWantedDepPrefSame = isWantedDepPrefSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
           for (const project of allProjectsLocatedInsideWorkspace) {
             if (!newProjects.some(({ rootDir }) => rootDir === project.rootDir)) {
+              // This code block mirrors the installCase() function in
+              // mutateModules(). Consider a refactor that combines this logic
+              // to deduplicate code.
               const wantedDependencies = getWantedDependencies(project.manifest, getWantedDepsOpts)
                 .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
+              forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepPrefSame)
               newProjects.push({
                 mutation: 'install',
                 ...project,
