@@ -39,6 +39,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
 
   const settings: OptionsFromRootManifest = {
     overrides,
+    onlyBuiltDependencies: [],
     ...(manifest.pnpm ? getOptionsFromPnpmSettings(manifestDir, manifest.pnpm) : {}),
   }
   return settings
