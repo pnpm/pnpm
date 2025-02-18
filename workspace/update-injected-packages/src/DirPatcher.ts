@@ -189,7 +189,9 @@ export class DirPatcher {
   }
 
   static async fromMultipleTargets (sourceDir: string, targetDirs: string[]): Promise<DirPatcher[]> {
-    const fetchOpts: FetchFromDirOptions = {}
+    const fetchOpts: FetchFromDirOptions = {
+      resolveSymlinks: true, // make `shallowLStats` available
+    }
 
     async function loadMap (dir: string): Promise<[InodeMap, string]> {
       const fetchResult = await fetchFromDir(dir, fetchOpts)
