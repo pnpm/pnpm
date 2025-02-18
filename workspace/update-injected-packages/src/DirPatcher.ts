@@ -132,12 +132,20 @@ export async function applyDiff (optimizedDirDiff: DirDiff, sourceDir: string, t
 }
 
 export interface ExtendFilesMapOptions {
+  /**
+   * Map relative path of each file to their real path
+   */
   filesIndex: Record<string, string>
+  /**
+   * Optional {@link fs.lstat} results of the files in {@link filesIndex}.
+   * This record uses the same relative paths as keys.
+   */
   filesStats?: Record<string, fs.Stats | undefined>
 }
 
 /**
- * Convert a files map, which is a map from relative path of each file to their real paths,
+ * Convert a pair of a files index map, which is a map from relative path of each file to their real paths,
+ * and an optional file stats map, which is a map from relative path of each file to their {@link fs.lstat} results,
  * into an inodes map, which is a map from relative path of every file and directory to their inode type.
  */
 export async function extendFilesMap ({ filesIndex, filesStats }: ExtendFilesMapOptions): Promise<InodeMap> {
