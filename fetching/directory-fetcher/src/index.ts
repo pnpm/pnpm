@@ -31,7 +31,7 @@ export function createDirectoryFetcher (
   }
 }
 
-type FetchFromDirOpts = Omit<DirectoryFetcherOptions, 'lockfileDir'>
+type FetchFromDirOpts = Omit<DirectoryFetcherOptions, 'lockfileDir'> & CreateDirectoryFetcherOptions
 
 export interface FetchResult {
   local: true
@@ -42,10 +42,7 @@ export interface FetchResult {
   requiresBuild: boolean
 }
 
-export async function fetchFromDir (
-  dir: string,
-  opts: FetchFromDirOpts & CreateDirectoryFetcherOptions
-): Promise<FetchResult> {
+export async function fetchFromDir (dir: string, opts: FetchFromDirOpts): Promise<FetchResult> {
   if (opts.includeOnlyPackageFiles) {
     return fetchPackageFilesFromDir(dir)
   }
