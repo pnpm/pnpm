@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import path from 'path'
-import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
+import { createDirectoryFetcher, fetchFromDir } from '@pnpm/directory-fetcher'
 // @ts-expect-error
 import { debug } from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -151,5 +151,59 @@ describe('fetch resolves symlinked files to their real locations', () => {
     expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
     expect(fetchResult.filesIndex['index.js']).toBe(path.resolve('index.js'))
     expect(fetchResult.filesIndex['src/index.js']).toBe(path.resolve('src/index.js'))
+  })
+})
+
+describe('circular symlinks', () => {
+  const test = process.platform === 'win32' ? it.skip : it
+
+  beforeAll(() => {
+    process.chdir(f.find('pkg-with-circular-symlinks'))
+    rimraf('link-to-parent')
+    fs.symlinkSync('..', 'link-to-parent')
+    rimraf('some-dir/circular')
+    fs.symlinkSync('../some-dir', 'some-dir/circular')
+  })
+
+  test('fetchFromDir({})', async () => {
+    const fetchResult = await fetchFromDir('.', {})
+    expect(fetchResult).toMatchObject({
+      local: true,
+      packageImportMethod: 'hardlink',
+      filesIndex: {
+        'package.json': path.resolve('package.json'),
+      },
+    })
+  })
+
+  test('fetchFromDir({ resolveSymlinks: true })', async () => {
+    const fetchResult = await fetchFromDir('.', { resolveSymlinks: true })
+    expect(fetchResult).toMatchObject({
+      local: true,
+      packageImportMethod: 'hardlink',
+      filesIndex: {
+        'package.json': path.resolve('package.json'),
+      },
+    })
+  })
+
+  test('createDirectoryFetcher().directory()', async () => {
+    const fetcher = createDirectoryFetcher()
+
+    // eslint-disable-next-line
+    const fetchResult = await fetcher.directory({} as any, {
+      directory: '.',
+      type: 'directory',
+    }, {
+      lockfileDir: process.cwd(),
+    })
+
+    expect(fetchResult).toMatchObject({
+      local: true,
+      packageImportMethod: 'hardlink',
+      filesIndex: {
+        'package.json': path.resolve('package.json'),
+      },
+    })
   })
 })
