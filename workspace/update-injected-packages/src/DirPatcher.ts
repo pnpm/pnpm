@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import util from 'util'
-import { fetchFromDir } from '@pnpm/directory-fetcher'
+import { type FetchFromDirOptions, fetchFromDir } from '@pnpm/directory-fetcher'
 import { PnpmError } from '@pnpm/error'
 import symlinkDir from 'symlink-dir'
 
@@ -189,8 +189,12 @@ export class DirPatcher {
   }
 
   static async fromMultipleTargets (sourceDir: string, targetDirs: string[]): Promise<DirPatcher[]> {
+    const fetchOpts: FetchFromDirOptions = {
+      resolveSymlinks: false, // extendFilesMap requires lstat
+    }
+
     async function loadMap (dir: string): Promise<[InodeMap, string]> {
-      const fetchResult = await fetchFromDir(dir, {})
+      const fetchResult = await fetchFromDir(dir, fetchOpts)
       return [await extendFilesMap(fetchResult), dir]
     }
 
