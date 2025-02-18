@@ -140,7 +140,7 @@ export interface ExtendFilesMapOptions {
    * Optional {@link fs.lstat} results of the files in {@link filesIndex}.
    * This record uses the same relative paths as keys.
    */
-  filesStats?: Record<string, fs.Stats | undefined>
+  shallowLStats?: Record<string, fs.Stats | undefined>
 }
 
 /**
@@ -148,7 +148,7 @@ export interface ExtendFilesMapOptions {
  * and an optional file stats map, which is a map from relative path of each file to their {@link fs.lstat} results,
  * into an inodes map, which is a map from relative path of every file and directory to their inode type.
  */
-export async function extendFilesMap ({ filesIndex, filesStats }: ExtendFilesMapOptions): Promise<InodeMap> {
+export async function extendFilesMap ({ filesIndex, shallowLStats }: ExtendFilesMapOptions): Promise<InodeMap> {
   const result: InodeMap = {
     '.': DIR,
   }
@@ -161,7 +161,7 @@ export async function extendFilesMap ({ filesIndex, filesStats }: ExtendFilesMap
   }
 
   await Promise.all(Object.entries(filesIndex).map(async ([relativePath, realPath]) => {
-    const stats = filesStats?.[relativePath] ?? await fs.promises.lstat(realPath)
+    const stats = shallowLStats?.[relativePath] ?? await fs.promises.lstat(realPath)
     if (stats.isSymbolicLink()) {
       const linkTarget = await fs.promises.readlink(realPath)
       addInodeAndAncestors(relativePath, linkTarget)

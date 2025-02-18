@@ -36,7 +36,7 @@ export type FetchFromDirOptions = Omit<DirectoryFetcherOptions, 'lockfileDir'> &
 export interface FetchResult {
   local: true
   filesIndex: Record<string, string>
-  filesStats?: Record<string, Stats>
+  shallowLStats?: Record<string, Stats>
   packageImportMethod: 'hardlink'
   manifest: DependencyManifest
   requiresBuild: boolean
@@ -54,7 +54,7 @@ async function fetchAllFilesFromDir (
   readFileStat: ReadFileStat,
   dir: string
 ): Promise<FetchResult> {
-  const { filesIndex, filesStats } = await _fetchAllFilesFromDir(readFileStat, dir)
+  const { filesIndex, shallowLStats } = await _fetchAllFilesFromDir(readFileStat, dir)
   // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
   // Safe read was added to support the Bit workspace in which the components have no package.json files.
   // Related PR in Bit: https://github.com/teambit/bit/pull/5251
@@ -63,7 +63,7 @@ async function fetchAllFilesFromDir (
   return {
     local: true,
     filesIndex,
-    filesStats,
+    shallowLStats,
     packageImportMethod: 'hardlink',
     manifest,
     requiresBuild,
@@ -72,7 +72,7 @@ async function fetchAllFilesFromDir (
 
 interface SubFetchResult {
   filesIndex: Record<string, string>
-  filesStats: Record<string, Stats>
+  shallowLStats: Record<string, Stats>
 }
 
 async function _fetchAllFilesFromDir (
@@ -81,48 +81,58 @@ async function _fetchAllFilesFromDir (
   relativeDir = ''
 ): Promise<SubFetchResult> {
   const filesIndex: Record<string, string> = {}
-  const filesStats: Record<string, Stats> = {}
+  const shallowLStats: Record<string, Stats> = {}
   const files = await fs.readdir(dir)
   await Promise.all(files
     .filter((file) => file !== 'node_modules')
     .map(async (file) => {
-      const { filePath, stat } = await readFileStat(path.join(dir, file))
+      const { filePath, stat, shallowLStat } = await readFileStat(path.join(dir, file))
       if (!filePath) return
       const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
       if (stat.isDirectory()) {
         const subResult = await _fetchAllFilesFromDir(readFileStat, filePath, relativeSubdir)
         Object.assign(filesIndex, subResult.filesIndex)
-        Object.assign(filesStats, subResult.filesStats)
+        Object.assign(shallowLStats, subResult.shallowLStats)
       } else {
         filesIndex[relativeSubdir] = filePath
+        shallowLStats[relativeSubdir] = shallowLStat!
       }
     })
   )
-  return { filesIndex, filesStats }
+  return { filesIndex, shallowLStats }
 }
 
-type ReadFileStat = (filePath: string) => Promise<{ filePath: string, stat: Stats } | { filePath: null, stat: null }>
+type FileStatResult =
+  | { filePath: string, stat: Stats, shallowLStat?: Stats }
+  | { filePath: null, stat: null, shallowLStat?: null }
 
-async function realFileStat (filePath: string): Promise<{ filePath: string, stat: Stats } | { filePath: null, stat: null }> {
+type ReadFileStat = (filePath: string) => Promise<FileStatResult>
+
+type RealFileStatResult =
+  | { filePath: string, stat: Stats, shallowLStat: Stats }
+  | { filePath: null, stat: null, shallowLStat: null }
+
+async function realFileStat (filePath: string): Promise<RealFileStatResult> {
   let stat = await fs.lstat(filePath)
+  const shallowLStat = stat
   if (!stat.isSymbolicLink()) {
-    return { filePath, stat }
+    return { filePath, stat, shallowLStat }
   }
   try {
     filePath = await fs.realpath(filePath)
     stat = await fs.stat(filePath)
-    return { filePath, stat }
+    return { filePath, stat, shallowLStat }
   } catch (err: unknown) {
     // Broken symlinks are skipped
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       directoryFetcherLogger.debug({ brokenSymlink: filePath })
-      return { filePath: null, stat: null }
+      return { filePath: null, stat: null, shallowLStat: null }
     }
     throw err
   }
 }
 
-async function fileStat (filePath: string): Promise<{ filePath: string, stat: Stats } | { filePath: null, stat: null }> {
+async function fileStat (filePath: string): Promise<FileStatResult> {
   try {
     return {
       filePath,
