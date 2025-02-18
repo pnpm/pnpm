@@ -36,7 +36,7 @@ export type FetchFromDirOptions = Omit<DirectoryFetcherOptions, 'lockfileDir'> &
 export interface FetchResult {
   local: true
   filesIndex: Record<string, string>
-  shallowLStats?: Record<string, Stats>
+  shallowLStats?: Record<string, Stats | undefined>
   packageImportMethod: 'hardlink'
   manifest: DependencyManifest
   requiresBuild: boolean
@@ -72,7 +72,7 @@ async function fetchAllFilesFromDir (
 
 interface SubFetchResult {
   filesIndex: Record<string, string>
-  shallowLStats: Record<string, Stats>
+  shallowLStats: Record<string, Stats | undefined>
 }
 
 async function _fetchAllFilesFromDir (
@@ -81,7 +81,7 @@ async function _fetchAllFilesFromDir (
   relativeDir = ''
 ): Promise<SubFetchResult> {
   const filesIndex: Record<string, string> = {}
-  const shallowLStats: Record<string, Stats> = {}
+  const shallowLStats: Record<string, Stats | undefined> = {}
   const files = await fs.readdir(dir)
   await Promise.all(files
     .filter((file) => file !== 'node_modules')
@@ -96,7 +96,7 @@ async function _fetchAllFilesFromDir (
         Object.assign(shallowLStats, subResult.shallowLStats)
       } else {
         filesIndex[relativeSubdir] = filePath
-        shallowLStats[relativeSubdir] = shallowLStat!
+        shallowLStats[relativeSubdir] = shallowLStat
       }
     })
   )
