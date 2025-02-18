@@ -31,7 +31,7 @@ export function createDirectoryFetcher (
   }
 }
 
-type FetchFromDirOpts = Omit<DirectoryFetcherOptions, 'lockfileDir'> & CreateDirectoryFetcherOptions
+export type FetchFromDirOpts = Omit<DirectoryFetcherOptions, 'lockfileDir'> & CreateDirectoryFetcherOptions
 
 export interface FetchResult {
   local: true
