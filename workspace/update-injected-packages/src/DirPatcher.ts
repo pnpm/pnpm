@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import util from 'util'
-import { fetchFromDir } from '@pnpm/directory-fetcher'
+import { type FetchFromDirOptions, fetchFromDir } from '@pnpm/directory-fetcher'
 import { PnpmError } from '@pnpm/error'
 import symlinkDir from 'symlink-dir'
 
@@ -131,11 +131,20 @@ export async function applyDiff (optimizedDirDiff: DirDiff, sourceDir: string, t
   await Promise.all([adding, removing, modifying])
 }
 
+export interface ExtendFilesMapOptions {
+  /** Map relative path of each file to their real path */
+  filesIndex: Record<string, string>
+  /** Map relative path of each file to their stats */
+  filesStats?: Record<string, fs.Stats | null>
+}
+
 /**
  * Convert a files map, which is a map from relative path of each file to their real paths,
+ * Convert a pair of a files index map, which is a map from relative path of each file to their real paths,
+ * and an optional file stats map, which is a map from relative path of each file to their stats,
  * into an inodes map, which is a map from relative path of every file and directory to their inode type.
  */
-export async function extendFilesMap (filesMap: Record<string, string>): Promise<InodeMap> {
+export async function extendFilesMap ({ filesIndex, filesStats }: ExtendFilesMapOptions): Promise<InodeMap> {
   const result: InodeMap = {
     '.': DIR,
   }
@@ -147,8 +156,8 @@ export async function extendFilesMap (filesMap: Record<string, string>): Promise
     }
   }
 
-  await Promise.all(Object.entries(filesMap).map(async ([relativePath, realPath]) => {
-    const stats = await fs.promises.lstat(realPath)
+  await Promise.all(Object.entries(filesIndex).map(async ([relativePath, realPath]) => {
+    const stats = filesStats?.[relativePath] ?? await fs.promises.lstat(realPath)
     if (stats.isSymbolicLink()) {
       const linkTarget = await fs.promises.readlink(realPath)
       addInodeAndAncestors(relativePath, linkTarget)
@@ -176,9 +185,13 @@ export class DirPatcher {
   }
 
   static async fromMultipleTargets (sourceDir: string, targetDirs: string[]): Promise<DirPatcher[]> {
+    const fetchOptions: FetchFromDirOptions = {
+      resolveSymlinks: false,
+    }
+
     async function loadMap (dir: string): Promise<[InodeMap, string]> {
-      const { filesIndex } = await fetchFromDir(dir, {})
-      return [await extendFilesMap(filesIndex), dir]
+      const fetchResult = await fetchFromDir(dir, fetchOptions)
+      return [await extendFilesMap(fetchResult), dir]
     }
 
     const [[sourceMap], targetPairs] = await Promise.all([
