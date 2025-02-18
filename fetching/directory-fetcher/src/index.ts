@@ -86,8 +86,9 @@ async function _fetchAllFilesFromDir (
   await Promise.all(files
     .filter((file) => file !== 'node_modules')
     .map(async (file) => {
-      const { filePath, stat, shallowLStat } = await readFileStat(path.join(dir, file))
-      if (!filePath) return
+      const fileStatResult = await readFileStat(path.join(dir, file))
+      if (!fileStatResult) return
+      const { filePath, stat, shallowLStat } = fileStatResult
       const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
       if (stat.isDirectory()) {
         const subResult = await _fetchAllFilesFromDir(readFileStat, filePath, relativeSubdir)
@@ -102,17 +103,19 @@ async function _fetchAllFilesFromDir (
   return { filesIndex, shallowLStats }
 }
 
-type FileStatResult =
-  | { filePath: string, stat: Stats, shallowLStat?: Stats }
-  | { filePath: null, stat: null, shallowLStat?: null }
+interface FileStatResult {
+  filePath: string
+  stat: Stats
+  shallowLStat?: Stats
+}
 
-type ReadFileStat = (filePath: string) => Promise<FileStatResult>
+type ReadFileStat = (filePath: string) => Promise<FileStatResult | null>
 
-type RealFileStatResult =
-  | { filePath: string, stat: Stats, shallowLStat: Stats }
-  | { filePath: null, stat: null, shallowLStat: null }
+interface RealFileStatResult extends FileStatResult {
+  shallowLStat: Stats
+}
 
-async function realFileStat (filePath: string): Promise<RealFileStatResult> {
+async function realFileStat (filePath: string): Promise<RealFileStatResult | null> {
   let stat = await fs.lstat(filePath)
   const shallowLStat = stat
   if (!stat.isSymbolicLink()) {
@@ -126,13 +129,13 @@ async function realFileStat (filePath: string): Promise<RealFileStatResult> {
     // Broken symlinks are skipped
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       directoryFetcherLogger.debug({ brokenSymlink: filePath })
-      return { filePath: null, stat: null, shallowLStat: null }
+      return null
     }
     throw err
   }
 }
 
-async function fileStat (filePath: string): Promise<FileStatResult> {
+async function fileStat (filePath: string): Promise<FileStatResult | null> {
   try {
     return {
       filePath,
@@ -142,7 +145,7 @@ async function fileStat (filePath: string): Promise<FileStatResult> {
     // Broken symlinks are skipped
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
       directoryFetcherLogger.debug({ brokenSymlink: filePath })
-      return { filePath: null, stat: null }
+      return null
     }
     throw err
   }
