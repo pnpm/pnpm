@@ -189,9 +189,7 @@ export class DirPatcher {
   }
 
   static async fromMultipleTargets (sourceDir: string, targetDirs: string[]): Promise<DirPatcher[]> {
-    const fetchOpts: FetchFromDirOptions = {
-      resolveSymlinks: false, // extendFilesMap requires lstat
-    }
+    const fetchOpts: FetchFromDirOptions = {}
 
     async function loadMap (dir: string): Promise<[InodeMap, string]> {
       const fetchResult = await fetchFromDir(dir, fetchOpts)
