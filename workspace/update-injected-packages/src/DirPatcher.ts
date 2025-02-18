@@ -3,6 +3,7 @@ import path from 'path'
 import util from 'util'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { PnpmError } from '@pnpm/error'
+import symlinkDir from 'symlink-dir'
 
 export const DIR: unique symbol = Symbol('Path is a directory')
 
@@ -88,12 +89,7 @@ export async function applyDiff (optimizedDirDiff: DirDiff, sourceDir: string, t
     } else if (typeof value === 'string') {
       makeParent()
       const symlinkTarget = value
-      if (process.platform === 'win32') {
-        const symlinkRealTarget = path.resolve(sourceDir, symlinkTarget)
-        await fs.promises.symlink(symlinkRealTarget, targetPath, 'junction')
-      } else {
-        await fs.promises.symlink(symlinkTarget, targetPath)
-      }
+      await symlinkDir(symlinkTarget, targetPath, { overwrite: true })
     } else if (typeof value === 'number') {
       makeParent()
       await fs.promises.link(sourcePath, targetPath)
