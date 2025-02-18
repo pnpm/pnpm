@@ -131,11 +131,16 @@ export async function applyDiff (optimizedDirDiff: DirDiff, sourceDir: string, t
   await Promise.all([adding, removing, modifying])
 }
 
+export interface ExtendFilesMapOptions {
+  filesIndex: Record<string, string>
+  filesStats?: Record<string, fs.Stats | undefined>
+}
+
 /**
  * Convert a files map, which is a map from relative path of each file to their real paths,
  * into an inodes map, which is a map from relative path of every file and directory to their inode type.
  */
-export async function extendFilesMap (filesMap: Record<string, string>): Promise<InodeMap> {
+export async function extendFilesMap ({ filesIndex, filesStats }: ExtendFilesMapOptions): Promise<InodeMap> {
   const result: InodeMap = {
     '.': DIR,
   }
@@ -147,8 +152,8 @@ export async function extendFilesMap (filesMap: Record<string, string>): Promise
     }
   }
 
-  await Promise.all(Object.entries(filesMap).map(async ([relativePath, realPath]) => {
-    const stats = await fs.promises.lstat(realPath)
+  await Promise.all(Object.entries(filesIndex).map(async ([relativePath, realPath]) => {
+    const stats = filesStats?.[relativePath] ?? await fs.promises.lstat(realPath)
     if (stats.isSymbolicLink()) {
       const linkTarget = await fs.promises.readlink(realPath)
       addInodeAndAncestors(relativePath, linkTarget)
@@ -177,8 +182,8 @@ export class DirPatcher {
 
   static async fromMultipleTargets (sourceDir: string, targetDirs: string[]): Promise<DirPatcher[]> {
     async function loadMap (dir: string): Promise<[InodeMap, string]> {
-      const { filesIndex } = await fetchFromDir(dir, {})
-      return [await extendFilesMap(filesIndex), dir]
+      const fetchResult = await fetchFromDir(dir, {})
+      return [await extendFilesMap(fetchResult), dir]
     }
 
     const [[sourceMap], targetPairs] = await Promise.all([
