@@ -140,7 +140,7 @@ export async function handler (
     await checkPeerDeps(cwd, opts)
 
     const newManifest = opts.rootProjectManifest ?? {}
-    await addLinkToManifest(opts, newManifest, cwd, linkOpts.dir)
+    await addLinkToManifest(opts, newManifest, cwd, opts.rootProjectManifestDir)
     await writeProjectManifest(newManifest)
     await install.handler({
       ...linkOpts,
@@ -157,7 +157,7 @@ export async function handler (
   const newManifest = opts.rootProjectManifest ?? {}
   await Promise.all(
     pkgPaths.map(async (dir) => {
-      await addLinkToManifest(opts, newManifest, dir, opts.dir)
+      await addLinkToManifest(opts, newManifest, dir, opts.rootProjectManifestDir)
       await checkPeerDeps(dir, opts)
     })
   )
@@ -170,7 +170,7 @@ export async function handler (
   })
 }
 
-async function addLinkToManifest (opts: ReadProjectManifestOpts, manifest: ProjectManifest, linkedDepDir: string, dependentDir: string) {
+async function addLinkToManifest (opts: ReadProjectManifestOpts, manifest: ProjectManifest, linkedDepDir: string, manifestDir: string) {
   if (!manifest.pnpm) {
     manifest.pnpm = {
       overrides: {},
@@ -180,7 +180,7 @@ async function addLinkToManifest (opts: ReadProjectManifestOpts, manifest: Proje
   }
   const { manifest: linkedManifest } = await tryReadProjectManifest(linkedDepDir, opts)
   const linkedPkgName = linkedManifest?.name ?? path.basename(linkedDepDir)
-  const linkedPkgSpec = `link:${path.relative(dependentDir, linkedDepDir)}`
+  const linkedPkgSpec = `link:${path.relative(manifestDir, linkedDepDir)}`
   manifest.pnpm.overrides![linkedPkgName] = linkedPkgSpec
   if (DEPENDENCIES_FIELDS.every((depField) => manifest[depField]?.[linkedPkgName] == null)) {
     manifest.dependencies = manifest.dependencies ?? {}
