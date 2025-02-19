@@ -106,7 +106,6 @@ test('applies a patch on a directory', async () => {
     ],
   }
 
-  // NOTE: fetchFromDir is currently unable to list symlinks no matter the options, so we'll just have to resolve them
   const sourceFetchResult = await fetchFromDir('source', { includeOnlyPackageFiles: false, resolveSymlinks: true })
   const targetFetchResultBefore = await fetchFromDir('target', { includeOnlyPackageFiles: false, resolveSymlinks: true })
   expect(Object.keys(targetFetchResultBefore.filesIndex).sort()).not.toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
