@@ -48,7 +48,7 @@ export interface DirDiff {
 
 // length comparison should place every directory before the files it contains because
 // a directory path is always shorter than any file path it contains
-const comparePaths = (a: string, b: string): number => (a.split(/\\|\//).length - b.split(/\\|\//).length) || b.localeCompare(a)
+const comparePaths = (a: string, b: string): number => (a.split(/\\|\//).length - b.split(/\\|\//).length) || a.localeCompare(b)
 
 /**
  * Get the difference between 2 files tree.
