@@ -77,11 +77,11 @@ export function diffDir (oldIndex: InodeMap, newIndex: InodeMap): DirDiff {
 }
 
 /**
- * Apply a diff on a directory.
+ * Apply a patch on a directory.
  *
- * The {@link optimizedDirDiff} is assumed to be already optimized (i.e. `removed` is already reversed).
+ * The {@link optimizedDirPatch} is assumed to be already optimized (i.e. `removed` is already reversed).
  */
-export async function applyDiff (optimizedDirDiff: DirDiff, sourceDir: string, targetDir: string): Promise<void> {
+export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string, targetDir: string): Promise<void> {
   async function addRecursive (sourcePath: string, targetPath: string, value: Value): Promise<void> {
     const makeParent = () => fs.mkdirSync(path.dirname(targetPath), { recursive: true })
     if (value === DIR) {
@@ -109,18 +109,18 @@ export async function applyDiff (optimizedDirDiff: DirDiff, sourceDir: string, t
     }
   }
 
-  const adding = Promise.all(optimizedDirDiff.added.map(async item => {
+  const adding = Promise.all(optimizedDirPatch.added.map(async item => {
     const sourcePath = path.join(sourceDir, item.path)
     const targetPath = path.join(targetDir, item.path)
     await addRecursive(sourcePath, targetPath, item.newValue)
   }))
 
-  const removing = Promise.all(optimizedDirDiff.removed.map(async item => {
+  const removing = Promise.all(optimizedDirPatch.removed.map(async item => {
     const targetPath = path.join(targetDir, item.path)
     await removeRecursive(targetPath)
   }))
 
-  const modifying = Promise.all(optimizedDirDiff.modified.map(async item => {
+  const modifying = Promise.all(optimizedDirPatch.modified.map(async item => {
     const sourcePath = path.join(sourceDir, item.path)
     const targetPath = path.join(targetDir, item.path)
     if (item.oldValue === item.newValue) return
@@ -176,10 +176,10 @@ export async function extendFilesMap ({ filesIndex, filesStats }: ExtendFilesMap
 export class DirPatcher {
   private readonly sourceDir: string
   private readonly targetDir: string
-  private readonly diff: DirDiff
+  private readonly patch: DirDiff
 
-  private constructor (diff: DirDiff, sourceDir: string, targetDir: string) {
-    this.diff = diff
+  private constructor (patch: DirDiff, sourceDir: string, targetDir: string) {
+    this.patch = patch
     this.sourceDir = sourceDir
     this.targetDir = targetDir
   }
@@ -212,6 +212,6 @@ export class DirPatcher {
   }
 
   async apply (): Promise<void> {
-    await applyDiff(this.diff, this.sourceDir, this.targetDir)
+    await applyPatch(this.patch, this.sourceDir, this.targetDir)
   }
 }
