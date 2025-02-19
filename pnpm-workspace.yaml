@@ -138,7 +138,7 @@ catalog:
   dir-is-case-sensitive: ^2.0.0
   encode-registry: ^3.0.1
   enquirer: ^2.4.1
-  esbuild: ^0.19.12
+  esbuild: ^0.25.0
   escape-string-regexp: ^4.0.0
   execa: npm:safe-execa@0.1.2
   exists-link: 2.0.0
