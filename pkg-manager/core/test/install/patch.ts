@@ -23,6 +23,7 @@ test('patch package', async () => {
     'is-positive@1.0.0': patchPath,
   }
   const opts = testDefaults({
+    neverBuiltDependencies: undefined,
     onlyBuiltDependencies: [],
     fastUnpack: false,
     sideEffectsCacheRead: true,
@@ -288,6 +289,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     patchedDependencies,
+    neverBuiltDependencies: undefined,
     onlyBuiltDependencies: [],
   }, {}, {}, { packageImportMethod: 'hardlink' })
   await install({
@@ -355,6 +357,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
     fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
+    neverBuiltDependencies: undefined,
     onlyBuiltDependencies: [],
     offline: true,
   }, {}, {}, { packageImportMethod: 'hardlink' }))
