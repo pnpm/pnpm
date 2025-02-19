@@ -133,7 +133,6 @@ export interface ExtendFilesMapOptions {
 }
 
 /**
- * Convert a files map, which is a map from relative path of each file to their real paths,
  * Convert a pair of a files index map, which is a map from relative path of each file to their real paths,
  * and an optional file stats map, which is a map from relative path of each file to their stats,
  * into an inodes map, which is a map from relative path of every file and directory to their inode type.
