@@ -166,4 +166,7 @@ test('optimally synchronizes source and target', async () => {
     expect(fsMethods.rm).toHaveBeenCalledWith(targetFile, expect.anything())
     expect(fsMethods.link).toHaveBeenCalledWith(sourceFile, targetFile)
   }
+
+  expect(fsMethods.mkdir).toHaveBeenCalledWith(path.resolve(targetDir, 'files-to-add'), expect.anything())
+  expect(fsMethods.mkdir).toHaveBeenCalledWith(path.resolve(targetDir, 'files-to-add/a'), expect.anything())
 })
