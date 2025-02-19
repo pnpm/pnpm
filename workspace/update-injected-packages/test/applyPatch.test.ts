@@ -41,13 +41,13 @@ test('applies a patch on a directory', async () => {
   }
 
   /** Files that no longer exist in source but still exist in target */
-  const filesToDelete = [
-    'files-to-delete/a/a.txt',
-    'files-to-delete/a/b.txt',
-    'files-to-delete/b.txt',
-    'single-file-to-delete.txt',
+  const filesToRemove = [
+    'files-to-remove/a/a.txt',
+    'files-to-remove/a/b.txt',
+    'files-to-remove/b.txt',
+    'single-file-to-remove.txt',
   ] as const
-  for (const suffix of filesToDelete) {
+  for (const suffix of filesToRemove) {
     createFile(`target/${suffix}`)
   }
 
@@ -63,13 +63,13 @@ test('applies a patch on a directory', async () => {
   }
 
   /** Unequal files that exist in both source and target */
-  const filesToChange = [
-    'files-to-keep/a/a.txt',
-    'files-to-keep/a/b.txt',
-    'files-to-keep/b.txt',
-    'single-file-to-keep.txt',
+  const filesToModify = [
+    'files-to-modify/a/a.txt',
+    'files-to-modify/a/b.txt',
+    'files-to-modify/b.txt',
+    'single-file-to-modify.txt',
   ] as const
-  for (const suffix of filesToChange) {
+  for (const suffix of filesToModify) {
     createFile(`source/${suffix}`, 'new content')
     createFile(`target/${suffix}`, 'old content')
   }
@@ -88,17 +88,17 @@ test('applies a patch on a directory', async () => {
     ],
     removed: [
       {
-        path: 'files-to-removed',
+        path: 'files-to-remove',
         oldValue: DIR,
       } as const,
       {
-        path: 'files-to-removed/a',
+        path: 'files-to-remove/a',
         oldValue: DIR,
       } as const,
-      ...filesToDelete.map(path => ({ path, oldValue: inodeNumber(`target/${path}`) })),
+      ...filesToRemove.map(path => ({ path, oldValue: inodeNumber(`target/${path}`) })),
     ].reverse(),
     modified: [
-      ...filesToChange.map(path => ({
+      ...filesToModify.map(path => ({
         path,
         oldValue: inodeNumber(`target/${path}`),
         newValue: inodeNumber(`source/${path}`),
