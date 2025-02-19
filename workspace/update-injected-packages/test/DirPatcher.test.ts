@@ -170,3 +170,42 @@ test('optimally synchronizes source and target', async () => {
   expect(fsMethods.mkdir).toHaveBeenCalledWith(path.resolve(targetDir, 'files-to-add'), expect.anything())
   expect(fsMethods.mkdir).toHaveBeenCalledWith(path.resolve(targetDir, 'files-to-add/a'), expect.anything())
 })
+
+test('multiple patchers', async () => {
+  prepareEmpty()
+
+  createDir('target1')
+  createDir('target2')
+  createDir('target3')
+
+  createFile('source/dir/file1.txt')
+  createFile('source/dir/file2.txt')
+  createFile('source/file3.txt')
+
+  const patchers = await DirPatcher.fromMultipleTargets('source', ['target1', 'target2', 'target3'])
+  expect(patchers).toMatchObject([
+    { sourceDir: 'source', targetDir: 'target1' },
+    { sourceDir: 'source', targetDir: 'target2' },
+    { sourceDir: 'source', targetDir: 'target3' },
+  ])
+
+  const sourceFetchResult = await fetchFromDir('source', { includeOnlyPackageFiles: false, resolveSymlinks: true })
+  const targetFetchResultBefore1 = await fetchFromDir('target1', { includeOnlyPackageFiles: false, resolveSymlinks: true })
+  const targetFetchResultBefore2 = await fetchFromDir('target2', { includeOnlyPackageFiles: false, resolveSymlinks: true })
+  const targetFetchResultBefore3 = await fetchFromDir('target3', { includeOnlyPackageFiles: false, resolveSymlinks: true })
+  expect(Object.keys(targetFetchResultBefore1.filesIndex).sort()).not.toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
+  expect(Object.keys(targetFetchResultBefore2.filesIndex).sort()).not.toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
+  expect(Object.keys(targetFetchResultBefore3.filesIndex).sort()).not.toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
+  expect(Object.keys(targetFetchResultBefore1.filesIndex).sort()).toStrictEqual([])
+  expect(Object.keys(targetFetchResultBefore2.filesIndex).sort()).toStrictEqual([])
+  expect(Object.keys(targetFetchResultBefore3.filesIndex).sort()).toStrictEqual([])
+
+  await Promise.all(patchers.map(patcher => patcher.apply()))
+
+  const targetFetchResultAfter1 = await fetchFromDir('target1', { includeOnlyPackageFiles: false, resolveSymlinks: true })
+  const targetFetchResultAfter2 = await fetchFromDir('target2', { includeOnlyPackageFiles: false, resolveSymlinks: true })
+  const targetFetchResultAfter3 = await fetchFromDir('target3', { includeOnlyPackageFiles: false, resolveSymlinks: true })
+  expect(Object.keys(targetFetchResultAfter1.filesIndex).sort()).toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
+  expect(Object.keys(targetFetchResultAfter2.filesIndex).sort()).toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
+  expect(Object.keys(targetFetchResultAfter3.filesIndex).sort()).toStrictEqual(Object.keys(sourceFetchResult.filesIndex).sort())
+})
