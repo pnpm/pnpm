@@ -3,17 +3,15 @@ import path from 'path'
 import util from 'util'
 import { type FetchFromDirOptions, fetchFromDir } from '@pnpm/directory-fetcher'
 import { PnpmError } from '@pnpm/error'
-import symlinkDir from 'symlink-dir'
 
 export const DIR: unique symbol = Symbol('Path is a directory')
 
 // symbols, strings, and numbers are used instead of discriminated union because
 // it's faster and simpler to compare primitives than to deep compare objects
-export type Symlink = string // representing the symlink's target
 export type File = number // representing the file's inode, which is sufficient for hardlinks
 export type Dir = typeof DIR
 
-export type Value = Symlink | File | Dir
+export type Value = File | Dir
 export type InodeMap = Record<string, Value>
 
 export interface DiffItemBase {
@@ -86,10 +84,6 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
     const makeParent = () => fs.mkdirSync(path.dirname(targetPath), { recursive: true })
     if (value === DIR) {
       await fs.promises.mkdir(targetPath, { recursive: true })
-    } else if (typeof value === 'string') {
-      makeParent()
-      const symlinkTarget = value
-      await symlinkDir(symlinkTarget, targetPath, { overwrite: true })
     } else if (typeof value === 'number') {
       makeParent()
       await fs.promises.link(sourcePath, targetPath)
@@ -157,11 +151,9 @@ export async function extendFilesMap ({ filesIndex, filesStats }: ExtendFilesMap
   }
 
   await Promise.all(Object.entries(filesIndex).map(async ([relativePath, realPath]) => {
-    const stats = filesStats?.[relativePath] ?? await fs.promises.lstat(realPath)
-    if (stats.isSymbolicLink()) {
-      const linkTarget = await fs.promises.readlink(realPath)
-      addInodeAndAncestors(relativePath, linkTarget)
-    } else if (stats.isFile()) {
+    // use fs.stat instead of fs.lstat because the `symlink-dir` package is incapable of symlinking files.
+    const stats = filesStats?.[relativePath] ?? await fs.promises.stat(realPath)
+    if (stats.isFile()) {
       addInodeAndAncestors(relativePath, stats.ino)
     } else if (stats.isDirectory()) {
       addInodeAndAncestors(relativePath, DIR)

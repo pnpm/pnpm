@@ -7,8 +7,6 @@ test('produces a diff', () => {
     'not-changed/foo/foo.txt': 123,
     'not-changed/foo/bar.txt': 456,
     'not-changed/bar': DIR,
-    'not-changed/bar/link-to-foo': '../foo',
-    'not-changed/bar/link-to-foo-bar': '../foo/bar.txt',
     'some-files-changed/not-changed.txt': 623,
     'some-parts-deleted/file-not-deleted.txt': 624,
     'some-parts-added/file-not-added.txt': 145,
@@ -17,13 +15,11 @@ test('produces a diff', () => {
   const oldModifiedParts = {
     'some-files-changed': DIR,
     'some-files-changed/changed-file.txt': 887,
-    'some-files-changed/changed-link': '../not-changed/foo',
   } satisfies InodeMap
 
   const newModifiedParts: typeof oldModifiedParts = {
     'some-files-changed': DIR,
     'some-files-changed/changed-file.txt': 553,
-    'some-files-changed/changed-link': '../not-changed/bar',
   }
 
   const oldOnlyParts = {
@@ -82,11 +78,6 @@ test('produces a diff', () => {
         path: 'some-files-changed/changed-file.txt',
         oldValue: oldModifiedParts['some-files-changed/changed-file.txt'],
         newValue: newModifiedParts['some-files-changed/changed-file.txt'],
-      },
-      {
-        path: 'some-files-changed/changed-link',
-        oldValue: oldModifiedParts['some-files-changed/changed-link'],
-        newValue: newModifiedParts['some-files-changed/changed-link'],
       },
     ],
     removed: [

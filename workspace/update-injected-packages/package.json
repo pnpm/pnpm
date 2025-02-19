@@ -35,8 +35,7 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@types/normalize-path": "catalog:",
-    "normalize-path": "catalog:",
-    "symlink-dir": "catalog:"
+    "normalize-path": "catalog:"
   },
   "devDependencies": {
     "@pnpm/workspace.update-injected-packages": "workspace:*"

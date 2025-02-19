@@ -8133,9 +8133,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-      symlink-dir:
-        specifier: 'catalog:'
-        version: 6.0.4
     devDependencies:
       '@pnpm/workspace.update-injected-packages':
         specifier: workspace:*
