@@ -73,8 +73,11 @@ function validateWorkspaceManifest (manifest: unknown): asserts manifest is Work
   checkWorkspaceManifestAssignability(manifest)
 }
 
-function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown }): asserts manifest is { packages: string[] } {
+function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown, catalog?: unknown, catalogs?: unknown }): asserts manifest is { packages: string[], catalog?: WorkspaceCatalog, catalogs?: WorkspaceNamedCatalogs } {
   if (!manifest.packages) {
+    if (manifest.catalog || manifest.catalogs) {
+      return
+    }
     throw new InvalidWorkspaceManifestError('packages field missing or empty')
   }
 

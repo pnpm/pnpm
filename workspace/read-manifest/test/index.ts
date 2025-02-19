@@ -136,6 +136,14 @@ describe('readWorkspaceManifest() catalogs field', () => {
       readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalogs-invalid-named-catalog-specifier'))
     ).rejects.toThrow('Catalog \'foo\' has invalid entry \'bar\'. Expected string specifier, but found: object')
   })
+
+  test('readWorkspaceManifest() works when only config catalog', async () => {
+    expect(await readWorkspaceManifest(path.join(__dirname, '__fixtures__/only-catalog'))).toEqual({
+      catalog: {
+        foo: '^1.0.0',
+      },
+    })
+  })
 })
 
 describe('readWorkspaceManifest() reads default catalog defined alongside named catalogs', () => {
@@ -145,6 +153,16 @@ describe('readWorkspaceManifest() reads default catalog defined alongside named 
       catalog: {
         bar: '^1.0.0',
       },
+      catalogs: {
+        foo: {
+          bar: '^2.0.0',
+        },
+      },
+    })
+  })
+
+  test('readWorkspaceManifest() works when only config catalogs', async () => {
+    expect(await readWorkspaceManifest(path.join(__dirname, '__fixtures__/only-catalogs'))).toEqual({
       catalogs: {
         foo: {
           bar: '^2.0.0',
