@@ -16,6 +16,7 @@ import {
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
+import { updateInjectedPackages } from '@pnpm/workspace.update-injected-packages'
 import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
@@ -25,6 +26,7 @@ import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
 import { runDepsStatusCheck } from './runDepsStatusCheck'
+import { shouldUpdateInjectedPackagesAfterRun } from './shouldUpdateInjectedPackagesAfterRun'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,
@@ -172,6 +174,7 @@ export type RunOpts =
   | 'scriptShell'
   | 'scriptsPrependNodePath'
   | 'shellEmulator'
+  | 'updateInjectedPackagesAfterRun'
   | 'userAgent'
   >
   & (
@@ -290,7 +293,12 @@ so you may run "pnpm -w run ${scriptName}"`,
   try {
     const limitRun = pLimit(concurrency)
 
-    const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
+    const runScriptOptions: RunScriptOptions = {
+      enablePrePostScripts: opts.enablePrePostScripts ?? false,
+      updateInjectedPackagesAfterRun: opts.updateInjectedPackagesAfterRun ?? false,
+      workspaceDir: opts.workspaceDir,
+    }
+    const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
 
     await Promise.all(specifiedScripts.map(script => limitRun(() => _runScript(script))))
   } catch (err: unknown) {
@@ -377,6 +385,8 @@ ${renderCommands(rootScripts)}`
 
 export interface RunScriptOptions {
   enablePrePostScripts: boolean
+  updateInjectedPackagesAfterRun: boolean | string[]
+  workspaceDir: string | undefined
 }
 
 export async function runScript (opts: {
@@ -399,6 +409,13 @@ export async function runScript (opts: {
     !opts.manifest.scripts[scriptName].includes(`post${scriptName}`)
   ) {
     await runLifecycleHook(`post${scriptName}`, opts.manifest, opts.lifecycleOpts)
+  }
+  if (shouldUpdateInjectedPackagesAfterRun(scriptName, opts.runScriptOptions.updateInjectedPackagesAfterRun)) {
+    await updateInjectedPackages({
+      pkgName: opts.manifest.name,
+      pkgRootDir: opts.lifecycleOpts.pkgRoot,
+      workspaceDir: opts.runScriptOptions.workspaceDir,
+    })
   }
 }
 

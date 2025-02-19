@@ -8,6 +8,8 @@ import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import { type FilesMap, type ImportOptions, type ImportIndexedPackage } from '@pnpm/store-controller-types'
 import { importIndexedDir, type ImportFile } from './importIndexedDir'
 
+export { type FilesMap, type ImportOptions, type ImportIndexedPackage }
+
 export type PackageImportMethod = 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
 
 export function createIndexedPkgImporter (packageImportMethod?: PackageImportMethod): ImportIndexedPackage {

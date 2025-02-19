@@ -120,4 +120,5 @@ export const types = Object.assign({
   'update-notifier': Boolean,
   'registry-supports-time-field': Boolean,
   'fail-if-no-match': Boolean,
+  'update-injected-packages-after-run': [Boolean, Array],
 }, npmTypes.types)

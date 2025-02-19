@@ -1,0 +1,28 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../fetching/directory-fetcher"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
+    },
+    {
+      "path": "../../pkg-manager/modules-yaml"
+    }
+  ]
+}
