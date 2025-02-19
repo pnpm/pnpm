@@ -2,6 +2,7 @@ import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
@@ -36,6 +37,7 @@ import {
   writeWantedLockfile,
   cleanGitBranchLockfiles,
   type PatchFile,
+  type CatalogSnapshots,
 } from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { extendProjectsWithTargetDirs } from '@pnpm/lockfile.utils'
@@ -379,6 +381,7 @@ export async function mutateModules (
         throw new LockfileConfigMismatchError(outdatedLockfileSettingName!)
       }
     }
+    const _isWantedDepPrefSame = isWantedDepPrefSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
@@ -591,28 +594,6 @@ Note that in CI environments, this setting is enabled by default.`,
     }
     /* eslint-enable no-await-in-loop */
 
-    function isWantedDepPrefSame (alias: string, prevPref: string | undefined, nextPref: string): boolean {
-      if (prevPref !== nextPref) {
-        return false
-      }
-
-      // When pnpm catalogs are used, the specifiers can be the same (e.g.
-      // "catalog:default"), but the wanted versions for the dependency can be
-      // different after resolution if the catalog config was just edited.
-      const catalogName = parseCatalogProtocol(prevPref)
-
-      // If there's no catalog name, the catalog protocol was not used and we
-      // can assume the pref is the same since prevPref and nextPref match.
-      if (catalogName === null) {
-        return true
-      }
-
-      const prevCatalogEntrySpec = ctx.wantedLockfile.catalogs?.[catalogName]?.[alias]?.specifier
-      const nextCatalogEntrySpec = opts.catalogs[catalogName]?.[alias]
-
-      return prevCatalogEntrySpec === nextCatalogEntrySpec
-    }
-
     async function installCase (project: any) { // eslint-disable-line
       const wantedDependencies = getWantedDependencies(project.manifest, {
         autoInstallPeers: opts.autoInstallPeers,
@@ -623,7 +604,7 @@ Note that in CI environments, this setting is enabled by default.`,
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
 
       if (ctx.wantedLockfile?.importers) {
-        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, isWantedDepPrefSame)
+        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepPrefSame)
       }
       if (opts.ignoreScripts && project.manifest?.scripts &&
         (project.manifest.scripts.preinstall ||
@@ -753,6 +734,42 @@ function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): 
       ({ dependencies, optionalDependencies, ...rest }) => rest,
       wantedLockfile.packages)
   }
+}
+
+/**
+ * Check if a wanted pref is the same.
+ *
+ * It would be different if the user modified a dependency in package.json or a
+ * catalog entry in pnpm-workspace.yaml. This is normally a simple check to see
+ * if the specifier strings match, but catalogs make this more involved since we
+ * also have to check if the catalog config in pnpm-workspace.yaml is the same.
+ */
+function isWantedDepPrefSame (
+  prevCatalogs: CatalogSnapshots | undefined,
+  catalogsConfig: Catalogs | undefined,
+  alias: string,
+  prevPref: string | undefined,
+  nextPref: string
+): boolean {
+  if (prevPref !== nextPref) {
+    return false
+  }
+
+  // When pnpm catalogs are used, the specifiers can be the same (e.g.
+  // "catalog:default"), but the wanted versions for the dependency can be
+  // different after resolution if the catalog config was just edited.
+  const catalogName = parseCatalogProtocol(prevPref)
+
+  // If there's no catalog name, the catalog protocol was not used and we
+  // can assume the pref is the same since prevPref and nextPref match.
+  if (catalogName === null) {
+    return true
+  }
+
+  const prevCatalogEntrySpec = prevCatalogs?.[catalogName]?.[alias]?.specifier
+  const nextCatalogEntrySpec = catalogsConfig?.[catalogName]?.[alias]
+
+  return prevCatalogEntrySpec === nextCatalogEntrySpec
 }
 
 export async function addDependenciesToPackage (
@@ -1370,10 +1387,15 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
             nodeExecPath: opts.nodeExecPath,
             injectWorkspacePackages: opts.injectWorkspacePackages,
           }
+          const _isWantedDepPrefSame = isWantedDepPrefSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
           for (const project of allProjectsLocatedInsideWorkspace) {
             if (!newProjects.some(({ rootDir }) => rootDir === project.rootDir)) {
+              // This code block mirrors the installCase() function in
+              // mutateModules(). Consider a refactor that combines this logic
+              // to deduplicate code.
               const wantedDependencies = getWantedDependencies(project.manifest, getWantedDepsOpts)
                 .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
+              forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepPrefSame)
               newProjects.push({
                 mutation: 'install',
                 ...project,
