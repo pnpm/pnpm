@@ -38,6 +38,7 @@
     "normalize-path": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/prepare": "workspace:*",
     "@pnpm/workspace.update-injected-packages": "workspace:*"
   },
   "exports": {

@@ -8134,6 +8134,9 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
       '@pnpm/workspace.update-injected-packages':
         specifier: workspace:*
         version: 'link:'
