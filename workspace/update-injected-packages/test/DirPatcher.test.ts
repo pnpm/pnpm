@@ -46,8 +46,8 @@ const inodeNumber = (filePath: string): number => fs.lstatSync(filePath).ino
 test('optimally synchronizes source and target', async () => {
   prepareEmpty()
 
-  fs.mkdirSync('source')
-  fs.mkdirSync('target')
+  createDir('source')
+  createDir('target')
 
   /** Same files that exist in both source and target */
   const filesToKeep = [
