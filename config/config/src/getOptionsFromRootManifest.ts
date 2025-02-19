@@ -41,19 +41,13 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
     overrides,
     ...(manifest.pnpm ? getOptionsFromPnpmSettings(manifestDir, manifest.pnpm) : {}),
   }
-  if (settings.neverBuiltDependencies == null && settings.onlyBuiltDependencies == null && settings.onlyBuiltDependenciesFile == null) {
-    settings.onlyBuiltDependencies = []
-  }
   return settings
 }
 
 export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: PnpmSettings): OptionsFromRootManifest {
   const neverBuiltDependencies = pnpmSettings.neverBuiltDependencies
-  let onlyBuiltDependencies = pnpmSettings.onlyBuiltDependencies
+  const onlyBuiltDependencies = pnpmSettings.onlyBuiltDependencies
   const onlyBuiltDependenciesFile = pnpmSettings.onlyBuiltDependenciesFile
-  if (onlyBuiltDependenciesFile == null && neverBuiltDependencies == null && onlyBuiltDependencies == null) {
-    onlyBuiltDependencies = []
-  }
   const packageExtensions = pnpmSettings.packageExtensions
   const ignoredOptionalDependencies = pnpmSettings.ignoredOptionalDependencies
   const peerDependencyRules = pnpmSettings.peerDependencyRules
@@ -79,15 +73,13 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
     allowNonAppliedPatches,
     configDependencies: pnpmSettings.configDependencies,
     neverBuiltDependencies,
+    onlyBuiltDependencies,
     packageExtensions,
     ignoredOptionalDependencies,
     peerDependencyRules,
     patchedDependencies,
     supportedArchitectures,
     ignoredBuiltDependencies: pnpmSettings.ignoredBuiltDependencies,
-  }
-  if (onlyBuiltDependencies) {
-    settings.onlyBuiltDependencies = onlyBuiltDependencies
   }
   if (onlyBuiltDependenciesFile) {
     settings.onlyBuiltDependenciesFile = path.join(manifestDir, onlyBuiltDependenciesFile)
