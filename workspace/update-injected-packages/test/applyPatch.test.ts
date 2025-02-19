@@ -4,6 +4,29 @@ import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
 import { type DirDiff, DIR, applyPatch } from '../src/DirPatcher'
 
+const originalRm = fs.promises.rm
+const originalMkdir = fs.promises.mkdir
+const originalLink = fs.promises.link
+
+function mockFsPromises (): Record<'rm' | 'mkdir' | 'link', jest.Mock> {
+  const rm = jest.fn(fs.promises.rm)
+  const mkdir = jest.fn(fs.promises.mkdir)
+  const link = jest.fn(fs.promises.link)
+  fs.promises.rm = rm as typeof fs.promises.rm
+  fs.promises.mkdir = mkdir as typeof fs.promises.mkdir
+  fs.promises.link = link as typeof fs.promises.link
+  return { rm, mkdir, link }
+}
+
+function restoreAllMocks (): void {
+  jest.resetAllMocks()
+  fs.promises.rm = originalRm
+  fs.promises.mkdir = originalMkdir
+  fs.promises.link = originalLink
+}
+
+afterEach(restoreAllMocks)
+
 function createDir (dirPath: string): void {
   fs.mkdirSync(dirPath, { recursive: true })
 }
@@ -119,6 +142,8 @@ test('applies a patch on a directory', async () => {
       .map(inodeNumber)
   )
 
+  const fsMethods = mockFsPromises()
+
   await applyPatch(optimizedDirPath, path.resolve('source'), path.resolve('target'))
 
   const targetFetchResultAfter = await fetchFromDir('target', { includeOnlyPackageFiles: false, resolveSymlinks: true })
@@ -133,4 +158,41 @@ test('applies a patch on a directory', async () => {
       .map(suffix => `source/${suffix}`)
       .map(inodeNumber)
   )
+
+  // does not touch filesToKeep
+  for (const suffix of filesToKeep) {
+    const sourceFile = path.resolve('source', suffix)
+    const targetFile = path.resolve('target', suffix)
+    expect(fsMethods.rm).not.toHaveBeenCalledWith(targetFile, expect.anything())
+    expect(fsMethods.link).not.toHaveBeenCalledWith(sourceFile, expect.anything())
+    expect(fsMethods.link).not.toHaveBeenCalledWith(expect.anything(), targetFile)
+  }
+
+  // remove filesToRemove without replacement
+  for (const suffix of filesToRemove) {
+    const sourceFile = path.resolve('source', suffix)
+    const targetFile = path.resolve('target', suffix)
+    expect(fsMethods.rm).toHaveBeenCalledWith(targetFile, expect.anything())
+    expect(fsMethods.link).not.toHaveBeenCalledWith(sourceFile, expect.anything())
+    expect(fsMethods.link).not.toHaveBeenCalledWith(expect.anything(), targetFile)
+  }
+
+  // add filesToAdd without removing old files
+  for (const suffix of filesToAdd) {
+    const sourceFile = path.resolve('source', suffix)
+    const targetFile = path.resolve('target', suffix)
+    expect(fsMethods.rm).not.toHaveBeenCalledWith(targetFile, expect.anything())
+    expect(fsMethods.link).toHaveBeenCalledWith(sourceFile, targetFile)
+  }
+
+  // replace filesToModify by removing old files and add new hardlinks
+  for (const suffix of filesToModify) {
+    const sourceFile = path.resolve('source', suffix)
+    const targetFile = path.resolve('target', suffix)
+    expect(fsMethods.rm).toHaveBeenCalledWith(targetFile, expect.anything())
+    expect(fsMethods.link).toHaveBeenCalledWith(sourceFile, targetFile)
+  }
+
+  expect(fsMethods.mkdir).toHaveBeenCalledWith(path.resolve('target', 'files-to-add'), expect.anything())
+  expect(fsMethods.mkdir).toHaveBeenCalledWith(path.resolve('target', 'files-to-add/a'), expect.anything())
 })
