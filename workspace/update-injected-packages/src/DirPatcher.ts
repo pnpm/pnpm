@@ -152,7 +152,6 @@ export async function extendFilesMap ({ filesIndex, filesStats }: ExtendFilesMap
   }
 
   await Promise.all(Object.entries(filesIndex).map(async ([relativePath, realPath]) => {
-    // use fs.stat instead of fs.lstat because the `symlink-dir` package is incapable of symlinking files.
     const stats = filesStats?.[relativePath] ?? await fs.promises.stat(realPath)
     if (stats.isFile()) {
       addInodeAndAncestors(relativePath, stats.ino)
