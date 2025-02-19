@@ -125,11 +125,13 @@ export async function applyPatch (optimizedDirPatch: DirDiff, sourceDir: string,
   await Promise.all([adding, removing, modifying])
 }
 
+export type ExtendFilesMapStats = Pick<fs.Stats, 'ino' | 'isFile' | 'isDirectory'>
+
 export interface ExtendFilesMapOptions {
   /** Map relative path of each file to their real path */
   filesIndex: Record<string, string>
   /** Map relative path of each file to their stats */
-  filesStats?: Record<string, fs.Stats | null>
+  filesStats?: Record<string, ExtendFilesMapStats | null>
 }
 
 /**
