@@ -4,6 +4,14 @@ import { execPnpm } from '../utils'
 test('`pnpm recursive rebuild` specific dependencies', async () => {
   const projects = preparePackages([
     {
+      location: '.',
+      package: {
+        pnpm: {
+          neverBuiltDependencies: [],
+        },
+      },
+    },
+    {
       name: 'project-1',
       version: '1.0.0',
 

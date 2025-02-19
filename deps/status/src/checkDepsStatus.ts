@@ -59,6 +59,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'workspaceDir'
 | 'patchesDir'
 | 'pnpmfile'
+| 'configDependencies'
 > & {
   ignoreFilteredInstallCache?: boolean
   ignoredWorkspaceStateSettings?: Array<keyof WorkspaceStateSettings>
@@ -136,7 +137,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       }
     }
   }
-  if ((rootProjectManifest?.pnpm?.configDependencies != null || workspaceState.configDependencies != null) && !equals(rootProjectManifest?.pnpm?.configDependencies ?? {}, workspaceState.configDependencies ?? {})) {
+  if ((opts.configDependencies != null || workspaceState.configDependencies != null) && !equals(opts.configDependencies ?? {}, workspaceState.configDependencies ?? {})) {
     return {
       upToDate: false,
       issue: 'Configuration dependencies are not up to date',

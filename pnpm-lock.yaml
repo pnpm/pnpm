@@ -2099,6 +2099,9 @@ importers:
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
         version: 3.0.0
+      '@pnpm/workspace.manifest-writer':
+        specifier: workspace:*
+        version: link:../../workspace/manifest-writer
       chalk:
         specifier: 'catalog:'
         version: 4.1.2
@@ -8006,6 +8009,19 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  workspace/manifest-writer:
+    dependencies:
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../read-manifest
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 5.0.0
+    devDependencies:
+      '@pnpm/workspace.manifest-writer':
+        specifier: workspace:*
+        version: 'link:'
+
   workspace/pkgs-graph:
     dependencies:
       '@pnpm/npm-package-arg':
@@ -8042,6 +8058,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       read-yaml-file:
         specifier: 'catalog:'
         version: 2.1.0

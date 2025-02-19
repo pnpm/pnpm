@@ -6,9 +6,10 @@ import renderHelp from 'render-help'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
 import { rebuild, type RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
+import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir'>
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'onlyBuiltDependencies' | 'ignoredBuiltDependencies'>
 
 export const commandNames = ['approve-builds']
 
@@ -87,28 +88,24 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
   const buildPackages = result.map(({ value }: { value: string }) => value)
   const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
+  let updatedIgnoredBuiltDependencies: string[] | undefined
   if (ignoredPackages.length) {
-    if (opts.rootProjectManifest.pnpm?.ignoredBuiltDependencies == null) {
-      opts.rootProjectManifest.pnpm = {
-        ...opts.rootProjectManifest.pnpm,
-        ignoredBuiltDependencies: sortUniqueStrings(ignoredPackages),
-      }
+    if (opts.ignoredBuiltDependencies == null) {
+      updatedIgnoredBuiltDependencies = sortUniqueStrings(ignoredPackages)
     } else {
-      opts.rootProjectManifest.pnpm.ignoredBuiltDependencies = sortUniqueStrings([
-        ...opts.rootProjectManifest.pnpm.ignoredBuiltDependencies,
+      updatedIgnoredBuiltDependencies = sortUniqueStrings([
+        ...opts.ignoredBuiltDependencies,
         ...ignoredPackages,
       ])
     }
   }
+  let updatedOnlyBuiltDependencies: string[] | undefined
   if (buildPackages.length) {
-    if (opts.rootProjectManifest.pnpm?.onlyBuiltDependencies == null) {
-      opts.rootProjectManifest.pnpm = {
-        ...opts.rootProjectManifest.pnpm,
-        onlyBuiltDependencies: sortUniqueStrings(buildPackages),
-      }
+    if (opts.onlyBuiltDependencies == null) {
+      updatedOnlyBuiltDependencies = sortUniqueStrings(buildPackages)
     } else {
-      opts.rootProjectManifest.pnpm.onlyBuiltDependencies = sortUniqueStrings([
-        ...opts.rootProjectManifest.pnpm.onlyBuiltDependencies,
+      updatedOnlyBuiltDependencies = sortUniqueStrings([
+        ...opts.onlyBuiltDependencies,
         ...buildPackages,
       ])
     }
@@ -126,9 +123,26 @@ Do you approve?`,
     }
   }
   const { writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
-  await writeProjectManifest(opts.rootProjectManifest)
+  if (opts.rootProjectManifest.pnpm?.ignoredBuiltDependencies != null || opts.rootProjectManifest.pnpm?.onlyBuiltDependencies != null || opts.workspaceDir == null) {
+    opts.rootProjectManifest.pnpm = opts.rootProjectManifest.pnpm ?? {}
+    if (updatedOnlyBuiltDependencies) {
+      opts.rootProjectManifest.pnpm.onlyBuiltDependencies = updatedOnlyBuiltDependencies
+    }
+    if (updatedIgnoredBuiltDependencies) {
+      opts.rootProjectManifest.pnpm.ignoredBuiltDependencies = updatedIgnoredBuiltDependencies
+    }
+    await writeProjectManifest(opts.rootProjectManifest)
+  } else {
+    await updateWorkspaceManifest(opts.workspaceDir, {
+      onlyBuiltDependencies: updatedOnlyBuiltDependencies,
+      ignoredBuiltDependencies: updatedIgnoredBuiltDependencies,
+    })
+  }
   if (buildPackages.length) {
-    return rebuild.handler(opts, buildPackages)
+    return rebuild.handler({
+      ...opts,
+      onlyBuiltDependencies: updatedOnlyBuiltDependencies,
+    }, buildPackages)
   }
 }
 

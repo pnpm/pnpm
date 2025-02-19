@@ -102,6 +102,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'extraEnv'
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
+| 'configDependencies'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -171,8 +172,8 @@ when running add/update with the --workspace option')
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
   let store = await createOrConnectStoreController(opts)
-  if (opts.rootProjectManifest?.pnpm?.configDependencies) {
-    await installConfigDeps(opts.rootProjectManifest.pnpm.configDependencies, {
+  if (opts.configDependencies) {
+    await installConfigDeps(opts.configDependencies, {
       registries: opts.registries,
       rootDir: opts.lockfileDir ?? opts.rootProjectManifestDir,
       store: store.ctrl,
@@ -346,7 +347,7 @@ when running add/update with the --workspace option')
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
-        configDependencies: opts.rootProjectManifest?.pnpm?.configDependencies,
+        configDependencies: opts.configDependencies,
       })
     }
     if (opts.strictDepBuilds && ignoredBuilds?.length) {
@@ -406,7 +407,7 @@ when running add/update with the --workspace option')
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
         pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
-        configDependencies: opts.rootProjectManifest?.pnpm?.configDependencies,
+        configDependencies: opts.configDependencies,
       })
     }
   }
@@ -432,7 +433,7 @@ async function recursiveInstallThenUpdateWorkspaceState (
       workspaceDir: opts.workspaceDir,
       pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
       filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
-      configDependencies: opts.rootProjectManifest?.pnpm?.configDependencies,
+      configDependencies: opts.configDependencies,
     })
   }
   return recursiveResult

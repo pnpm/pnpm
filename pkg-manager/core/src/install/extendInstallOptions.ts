@@ -268,6 +268,9 @@ export function extendOptions (
       }
     }
   }
+  if (opts.neverBuiltDependencies == null && opts.onlyBuiltDependencies == null && opts.onlyBuiltDependenciesFile == null) {
+    opts.onlyBuiltDependencies = []
+  }
   if (opts.onlyBuiltDependencies && opts.neverBuiltDependencies) {
     throw new PnpmError('CONFIG_CONFLICT_BUILT_DEPENDENCIES', 'Cannot have both neverBuiltDependencies and onlyBuiltDependencies')
   }

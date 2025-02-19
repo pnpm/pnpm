@@ -7,6 +7,7 @@ import {
   type SslConfig,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
+import { type OptionsFromRootManifest } from './getOptionsFromRootManifest'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 
@@ -17,7 +18,7 @@ export interface WantedPackageManager {
 
 export type VerifyDepsBeforeRun = 'install' | 'warn' | 'error' | 'prompt' | false
 
-export interface Config {
+export interface Config extends OptionsFromRootManifest {
   allProjects?: Project[]
   selectedProjectsGraph?: ProjectsGraph
   allProjectsGraph?: ProjectsGraph

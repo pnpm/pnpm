@@ -31,9 +31,10 @@ import { getWorkspaceConcurrency } from './concurrency'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 import { types } from './types'
+import { getOptionsFromPnpmSettings } from './getOptionsFromRootManifest'
 export { types }
 
-export { getOptionsFromRootManifest, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
+export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
 export * from './readLocalConfig'
 
 export type { Config, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
@@ -484,6 +485,9 @@ export async function getConfig (opts: {
     if (pnpmConfig.rootProjectManifest.packageManager) {
       pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
     }
+    if (pnpmConfig.rootProjectManifest.pnpm) {
+      Object.assign(pnpmConfig, getOptionsFromPnpmSettings(pnpmConfig.rootProjectManifestDir, pnpmConfig.rootProjectManifest.pnpm))
+    }
   }
 
   if (pnpmConfig.workspaceDir != null) {
@@ -491,6 +495,9 @@ export async function getConfig (opts: {
 
     pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages
     pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+    if (workspaceManifest) {
+      Object.assign(pnpmConfig, getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest))
+    }
   }
 
   pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig

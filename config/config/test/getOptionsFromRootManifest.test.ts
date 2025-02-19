@@ -80,7 +80,7 @@ test('getOptionsFromRootManifest() throws an error if cannot resolve an override
 
 test('getOptionsFromRootManifest() should return an empty onlyBuiltDependencies list by default', () => {
   const options = getOptionsFromRootManifest(process.cwd(), {})
-  expect(options.onlyBuiltDependencies).toStrictEqual([])
+  expect(options.onlyBuiltDependencies).toStrictEqual(undefined)
 })
 
 test('getOptionsFromRootManifest() should return the list fromm onlyBuiltDependencies', () => {
