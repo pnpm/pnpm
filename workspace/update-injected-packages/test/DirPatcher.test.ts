@@ -153,7 +153,7 @@ test('optimally synchronizes source and target', async () => {
     expect(fsMethods.link).not.toHaveBeenCalledWith(expect.anything(), targetFile)
   }
 
-  // remove filesToRemove without replacement
+  // removes filesToRemove without replacement
   for (const suffix of filesToRemove) {
     const sourceFile = path.resolve(sourceDir, suffix)
     const targetFile = path.resolve(targetDir, suffix)
@@ -162,7 +162,7 @@ test('optimally synchronizes source and target', async () => {
     expect(fsMethods.link).not.toHaveBeenCalledWith(expect.anything(), targetFile)
   }
 
-  // add filesToAdd without removing old files
+  // adds filesToAdd without removing old files
   for (const suffix of filesToAdd) {
     const sourceFile = path.resolve(sourceDir, suffix)
     const targetFile = path.resolve(targetDir, suffix)
@@ -170,7 +170,7 @@ test('optimally synchronizes source and target', async () => {
     expect(fsMethods.link).toHaveBeenCalledWith(sourceFile, targetFile)
   }
 
-  // replace filesToModify by removing old files and add new hardlinks
+  // replaces filesToModify by removing old files and add new hardlinks
   for (const suffix of filesToModify) {
     const sourceFile = path.resolve(sourceDir, suffix)
     const targetFile = path.resolve(targetDir, suffix)
