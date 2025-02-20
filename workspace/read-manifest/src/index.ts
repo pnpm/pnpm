@@ -76,7 +76,7 @@ function validateWorkspaceManifest (manifest: unknown): asserts manifest is Work
 
 function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown }): asserts manifest is { packages: string[] } {
   if (!manifest.packages) {
-    throw new InvalidWorkspaceManifestError('packages field missing or empty')
+    return
   }
 
   if (!Array.isArray(manifest.packages)) {
