@@ -21,10 +21,10 @@ test('readWorkspaceManifest() throws on array content', async () => {
   ).rejects.toThrow('Expected object but found - array')
 })
 
-test('readWorkspaceManifest() throws on empty packages field', async () => {
+test('readWorkspaceManifest() does not throw on empty packages field', async () => {
   await expect(
     readWorkspaceManifest(path.join(__dirname, '__fixtures__/packages-empty'))
-  ).rejects.toThrow('packages field missing or empty')
+  ).resolves.toBeTruthy()
 })
 
 test('readWorkspaceManifest() throws on string packages field', async () => {
@@ -136,14 +136,6 @@ describe('readWorkspaceManifest() catalogs field', () => {
       readWorkspaceManifest(path.join(__dirname, '__fixtures__/catalogs-invalid-named-catalog-specifier'))
     ).rejects.toThrow('Catalog \'foo\' has invalid entry \'bar\'. Expected string specifier, but found: object')
   })
-
-  test('readWorkspaceManifest() works when only config catalog', async () => {
-    expect(await readWorkspaceManifest(path.join(__dirname, '__fixtures__/only-catalog'))).toEqual({
-      catalog: {
-        foo: '^1.0.0',
-      },
-    })
-  })
 })
 
 describe('readWorkspaceManifest() reads default catalog defined alongside named catalogs', () => {
@@ -153,16 +145,6 @@ describe('readWorkspaceManifest() reads default catalog defined alongside named 
       catalog: {
         bar: '^1.0.0',
       },
-      catalogs: {
-        foo: {
-          bar: '^2.0.0',
-        },
-      },
-    })
-  })
-
-  test('readWorkspaceManifest() works when only config catalogs', async () => {
-    expect(await readWorkspaceManifest(path.join(__dirname, '__fixtures__/only-catalogs'))).toEqual({
       catalogs: {
         foo: {
           bar: '^2.0.0',

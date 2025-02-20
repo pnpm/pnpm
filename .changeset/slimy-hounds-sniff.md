@@ -1,5 +1,6 @@
 ---
-"@pnpm/workspace.read-manifest": patch
+"@pnpm/workspace.read-manifest": minor
+"pnpm": minor
 ---
 
-Allows packages not to be configured when the `pnpm-workspace.yaml` file configures catalog or catalogs.
+The `packages` field in `pnpm-workspace.yaml` became optional.
