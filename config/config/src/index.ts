@@ -493,7 +493,7 @@ export async function getConfig (opts: {
   if (pnpmConfig.workspaceDir != null) {
     const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
 
-    pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages
+    pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
     pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
     if (workspaceManifest) {
       Object.assign(pnpmConfig, getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest))

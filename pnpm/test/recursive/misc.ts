@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { STORE_VERSION } from '@pnpm/constants'
-import { prepare, preparePackages } from '@pnpm/prepare'
+import { preparePackages } from '@pnpm/prepare'
 import { type LockfileFile } from '@pnpm/lockfile.types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { isCI } from 'ci-info'
@@ -359,9 +359,22 @@ test('non-recursive install ignores filter from config', async () => {
 })
 
 test('adding new dependency in the root should fail if neither --workspace-root nor --ignore-workspace-root-check are used', async () => {
-  const project = prepare()
+  const project = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+    {
+      name: 'project',
+    },
+  ])['root']
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - '.'
+  - 'project'
+`, 'utf8')
 
   {
     const { status, stdout } = execPnpmSync(['add', 'is-positive'])
