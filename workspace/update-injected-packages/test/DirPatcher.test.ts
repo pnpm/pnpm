@@ -181,10 +181,11 @@ test('optimally synchronizes source and target', async () => {
   expect(fsMethods.mkdir).toHaveBeenCalledWith(path.resolve(targetDir, 'files-to-add'), expect.anything())
   expect(fsMethods.mkdir).toHaveBeenCalledWith(path.resolve(targetDir, 'files-to-add/a'), expect.anything())
 
-  // Windows CI fails this step because of exactly one call to `target`.
-  // Not sure why it was called.
-  if (process.platform !== 'win32') {
-    // reuses `stat` results from @pnpm/directory-fetcher
+  // reuses `stat` results from @pnpm/directory-fetcher
+  if (process.platform === 'win32') {
+    // Some code somewhere may have called `stat` on `target` exactly once.
+    expect(fsMethods.stat.mock.calls.length).toBeLessThanOrEqual(1)
+  } else {
     expect(fsMethods.stat).not.toHaveBeenCalled()
   }
 })
