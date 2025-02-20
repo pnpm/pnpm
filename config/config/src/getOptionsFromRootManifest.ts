@@ -65,7 +65,7 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
     settings.patchedDependencies = { ...pnpmSettings.patchedDependencies }
     for (const [dep, patchFile] of Object.entries(pnpmSettings.patchedDependencies)) {
       if (path.isAbsolute(patchFile)) continue
-      pnpmSettings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
+      settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
   }
   return settings
