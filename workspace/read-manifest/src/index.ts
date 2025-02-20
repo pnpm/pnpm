@@ -73,7 +73,7 @@ function validateWorkspaceManifest (manifest: unknown): asserts manifest is Work
   checkWorkspaceManifestAssignability(manifest)
 }
 
-function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown, catalog?: unknown, catalogs?: unknown }): asserts manifest is { packages: string[], catalog?: WorkspaceCatalog, catalogs?: WorkspaceNamedCatalogs } {
+function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown }): asserts manifest is { packages: string[] } {
   if (!manifest.packages) {
     return
   }
