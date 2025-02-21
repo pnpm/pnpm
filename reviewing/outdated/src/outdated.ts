@@ -36,7 +36,7 @@ export type GetLatestManifestFunction = (packageName: string, rangeOrTag: string
 
 export interface OutdatedPackage {
   alias: string
-  belongsTo: DependenciesField
+  belongsTo: DependenciesField | 'packageManager'
   current?: string // not defined means the package is not installed
   latestManifest?: PackageManifest
   packageName: string
@@ -60,7 +60,7 @@ export async function outdated (
     wantedLockfile: LockfileObject | null
   }
 ): Promise<OutdatedPackage[]> {
-  if (packageHasNoDeps(opts.manifest)) return []
+  if (packageHasNoDeps(opts.manifest) && !opts.manifest.packageManager) return []
   if (opts.wantedLockfile == null) {
     throw new PnpmError('OUTDATED_NO_LOCKFILE', `No lockfile in directory "${opts.lockfileDir}". Run \`pnpm install\` to generate one.`)
   }
@@ -84,6 +84,22 @@ export async function outdated (
   const currentLockfile: LockfileObject = opts.currentLockfile ?? { lockfileVersion: LOCKFILE_VERSION, importers: { [importerId]: { specifiers: {} } } }
 
   const outdated: OutdatedPackage[] = []
+  if (typeof opts.manifest?.packageManager === 'string' && opts.manifest?.packageManager.startsWith('pnpm@')) {
+    const [pkgManager, pkgManagerVersion] = opts.manifest.packageManager.split('@')
+    const latestPkgManifest = await opts.getLatestManifest(pkgManager, 'latest')
+
+    if (latestPkgManifest !== null && semver.lt(pkgManagerVersion, latestPkgManifest.version)) {
+      outdated.push({
+        alias: pkgManager,
+        belongsTo: 'packageManager',
+        current: pkgManagerVersion,
+        packageName: pkgManager,
+        latestManifest: latestPkgManifest,
+        wanted: latestPkgManifest.version,
+        workspace: opts.manifest.name,
+      })
+    }
+  }
 
   const ignoreDependenciesMatcher = opts.ignoreDependencies?.length ? createMatcher(opts.ignoreDependencies) : undefined
 
@@ -182,7 +198,6 @@ export async function outdated (
               packageName,
               wanted,
               workspace: opts.manifest.name,
-
             })
           }
         })

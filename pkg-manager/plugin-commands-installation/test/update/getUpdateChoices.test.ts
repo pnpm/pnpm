@@ -6,7 +6,7 @@ test('getUpdateChoices()', () => {
     getUpdateChoices([
       {
         alias: 'foo',
-        belongsTo: 'dependencies' as const,
+        belongsTo: 'dependencies',
         current: '1.0.0',
         latestManifest: {
           name: 'foo',
@@ -18,7 +18,7 @@ test('getUpdateChoices()', () => {
       },
       {
         alias: 'foo',
-        belongsTo: 'devDependencies' as const,
+        belongsTo: 'devDependencies',
         current: '1.0.0',
         latestManifest: {
           name: 'foo',
@@ -32,7 +32,7 @@ test('getUpdateChoices()', () => {
       },
       {
         alias: 'qar',
-        belongsTo: 'devDependencies' as const,
+        belongsTo: 'devDependencies',
         current: '1.0.0',
         latestManifest: {
           name: 'qar',
@@ -43,7 +43,7 @@ test('getUpdateChoices()', () => {
       },
       {
         alias: 'zoo',
-        belongsTo: 'devDependencies' as const,
+        belongsTo: 'devDependencies',
         current: '1.1.0',
         latestManifest: {
           name: 'zoo',
@@ -54,7 +54,7 @@ test('getUpdateChoices()', () => {
       },
       {
         alias: 'qaz',
-        belongsTo: 'optionalDependencies' as const,
+        belongsTo: 'optionalDependencies',
         current: '1.0.1',
         latestManifest: {
           name: 'qaz',
@@ -65,7 +65,7 @@ test('getUpdateChoices()', () => {
       },
       {
         alias: 'qaz',
-        belongsTo: 'devDependencies' as const,
+        belongsTo: 'devDependencies',
         current: '1.0.1',
         latestManifest: {
           name: 'qaz',
@@ -73,6 +73,17 @@ test('getUpdateChoices()', () => {
         },
         packageName: 'foo',
         wanted: '1.0.1',
+      },
+      {
+        alias: 'pnpm',
+        belongsTo: 'packageManager',
+        current: '7.9.1',
+        latestManifest: {
+          name: 'pnpm',
+          version: '7.9.2',
+        },
+        packageName: 'pnpm',
+        wanted: '7.9.1',
       },
     ], false))
     .toStrictEqual([
@@ -134,6 +145,23 @@ test('getUpdateChoices()', () => {
             message: chalk`qaz                                                          1.0.1 ❯ 1.{yellowBright.bold 2.0}                 `,
             name: 'qaz',
             value: 'qaz',
+          },
+        ],
+      },
+      {
+        name: '[packageManager]',
+        message: 'packageManager',
+        choices: [
+          {
+            name: 'Package                                                    Current   Target            URL ',
+            disabled: true,
+            hint: '',
+            value: '',
+          },
+          {
+            message: chalk`pnpm                                                         7.9.1 ❯ 7.9.{greenBright.bold 2}                 `,
+            name: 'pnpm',
+            value: 'pnpm',
           },
         ],
       },

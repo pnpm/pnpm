@@ -110,6 +110,7 @@ export interface BaseManifest {
   author?: string
   license?: string
   exports?: Record<string, string>
+  packageManager?: string
 }
 
 export interface DependencyManifest extends BaseManifest {
