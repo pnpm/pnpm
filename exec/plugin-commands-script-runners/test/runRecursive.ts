@@ -726,7 +726,9 @@ test('`pnpm run -r` should avoid infinite recursion', async () => {
       },
     },
   ])
-  writeYamlFile('pnpm-workspace.yaml', {})
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**'],
+  })
 
   await execa(pnpmBin, [
     'install',
