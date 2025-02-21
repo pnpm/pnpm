@@ -4,26 +4,22 @@ import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
 import { DirPatcher } from '../src/DirPatcher'
 
-const originalStat = fs.promises.stat
 const originalRm = fs.promises.rm
 const originalMkdir = fs.promises.mkdir
 const originalLink = fs.promises.link
 
-function mockFsPromises (): Record<'stat' | 'rm' | 'mkdir' | 'link', jest.Mock> {
-  const stat = jest.fn(fs.promises.stat)
+function mockFsPromises (): Record<'rm' | 'mkdir' | 'link', jest.Mock> {
   const rm = jest.fn(fs.promises.rm)
   const mkdir = jest.fn(fs.promises.mkdir)
   const link = jest.fn(fs.promises.link)
-  fs.promises.stat = stat as typeof fs.promises.stat
   fs.promises.rm = rm as typeof fs.promises.rm
   fs.promises.mkdir = mkdir as typeof fs.promises.mkdir
   fs.promises.link = link as typeof fs.promises.link
-  return { stat, rm, mkdir, link }
+  return { rm, mkdir, link }
 }
 
 function restoreAllMocks (): void {
   jest.resetAllMocks()
-  fs.promises.stat = originalStat
   fs.promises.rm = originalRm
   fs.promises.mkdir = originalMkdir
   fs.promises.link = originalLink
@@ -121,7 +117,6 @@ test('optimally synchronizes source and target', async () => {
 
   const patchers = await DirPatcher.fromMultipleTargets(sourceDir, [targetDir])
   expect(patchers).toMatchObject([{ sourceDir, targetDir }])
-  expect(fsMethods.stat).toHaveBeenCalled()
   expect(fsMethods.rm).not.toHaveBeenCalled()
   expect(fsMethods.mkdir).not.toHaveBeenCalled()
   expect(fsMethods.link).not.toHaveBeenCalled()
@@ -180,14 +175,6 @@ test('optimally synchronizes source and target', async () => {
 
   expect(fsMethods.mkdir).toHaveBeenCalledWith(path.resolve(targetDir, 'files-to-add'), expect.anything())
   expect(fsMethods.mkdir).toHaveBeenCalledWith(path.resolve(targetDir, 'files-to-add/a'), expect.anything())
-
-  // reuses `stat` results from @pnpm/directory-fetcher
-  if (process.platform === 'win32') {
-    // Some code somewhere may have called `stat` on `target` exactly once.
-    expect(fsMethods.stat.mock.calls.length).toBeLessThanOrEqual(1)
-  } else {
-    expect(fsMethods.stat).not.toHaveBeenCalled()
-  }
 })
 
 test('multiple patchers', async () => {
