@@ -77,7 +77,8 @@ test('workspace .npmrc is always read', async () => {
   ])
 
   const storeDir = path.resolve('../store')
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - workspace/*`, 'utf8')
   fs.writeFileSync('.npmrc', 'shamefully-flatten = true\nshared-workspace-lockfile=false', 'utf8')
   fs.writeFileSync('workspace/project-2/.npmrc', 'hoist=false', 'utf8')
 
@@ -468,7 +469,8 @@ test('set recursive-install to false in .npmrc would disable recursive install i
   ])
 
   process.chdir('workspace')
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "**"`, 'utf8')
   fs.writeFileSync('.npmrc', `recursive-install = false
 dedupe-peer-dependents = false`, 'utf8')
 
@@ -506,7 +508,8 @@ test('set recursive-install to false would install as --filter {.}...', async ()
   ])
 
   process.chdir('workspace')
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "**"`, 'utf8')
   fs.writeFileSync('.npmrc', 'recursive-install = false', 'utf8')
 
   process.chdir('project-1')

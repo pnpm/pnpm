@@ -240,7 +240,8 @@ test('`pnpm -r add` should fail if no package name was provided', () => {
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - project`, 'utf8')
 
   const { status, stdout } = execPnpmSync(['-r', 'add'])
 
@@ -303,7 +304,8 @@ test('recursive install should fail if the used pnpm version does not satisfy th
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "*"`, 'utf8')
 
   process.chdir('project-1')
 
@@ -336,7 +338,8 @@ test('engine-strict=true: recursive install should fail if the used Node version
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "*"`, 'utf8')
 
   process.chdir('project-1')
 
@@ -369,7 +372,8 @@ test('engine-strict=false: recursive install should not fail if the used Node ve
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "*"`, 'utf8')
 
   process.chdir('project-1')
 
