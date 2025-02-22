@@ -78,7 +78,7 @@ test('getOptionsFromRootManifest() throws an error if cannot resolve an override
   })).toThrow('Cannot resolve version $foo in overrides. The direct dependencies don\'t have dependency "foo".')
 })
 
-test('getOptionsFromRootManifest() should return an empty onlyBuiltDependencies list by default', () => {
+test('getOptionsFromRootManifest() should return onlyBuiltDependencies as undefined by default', () => {
   const options = getOptionsFromRootManifest(process.cwd(), {})
   expect(options.onlyBuiltDependencies).toStrictEqual(undefined)
 })
