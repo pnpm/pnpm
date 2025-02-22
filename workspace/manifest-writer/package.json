@@ -1,0 +1,44 @@
+{
+  "name": "@pnpm/workspace.manifest-writer",
+  "version": "1000.0.0-0",
+  "description": "Updates the workspace manifest file",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=18.12"
+  },
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "pnpm run compile",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/manifest-writer",
+  "keywords": [
+    "pnpm10",
+    "pnpm"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/manifest-writer#readme",
+  "dependencies": {
+    "@pnpm/workspace.read-manifest": "workspace:*",
+    "write-yaml-file": "catalog:"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "devDependencies": {
+    "@pnpm/workspace.manifest-writer": "workspace:*"
+  },
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

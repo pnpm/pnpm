@@ -10,13 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../packages/constants"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
+      "path": "../read-manifest"
     }
   ]
 }

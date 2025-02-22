@@ -19,6 +19,7 @@ test('configuration dependency is installed', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
+    configDependencies: rootProjectManifest.pnpm!.configDependencies,
     dir: process.cwd(),
     rootProjectManifest,
     rootProjectManifestDir: process.cwd(),
@@ -35,6 +36,7 @@ test('configuration dependency is installed', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
+    configDependencies: rootProjectManifest.pnpm!.configDependencies,
     dir: process.cwd(),
     rootProjectManifest,
     rootProjectManifestDir: process.cwd(),
@@ -51,6 +53,7 @@ test('configuration dependency is installed', async () => {
 
   await install.handler({
     ...DEFAULT_OPTS,
+    configDependencies: rootProjectManifest.pnpm!.configDependencies,
     dir: process.cwd(),
     rootProjectManifest,
     rootProjectManifestDir: process.cwd(),
@@ -74,6 +77,7 @@ test('patch from configuration dependency is applied', async () => {
 
   await add.handler({
     ...DEFAULT_OPTS,
+    configDependencies: rootProjectManifest.pnpm!.configDependencies,
     dir: process.cwd(),
     rootProjectManifest,
     rootProjectManifestDir: process.cwd(),
@@ -94,6 +98,7 @@ test('installation fails if the checksum of the config dependency is invalid', a
 
   await expect(install.handler({
     ...DEFAULT_OPTS,
+    configDependencies: rootProjectManifest.pnpm!.configDependencies,
     dir: process.cwd(),
     rootProjectManifest,
     rootProjectManifestDir: process.cwd(),
@@ -112,6 +117,7 @@ test('installation fails if the config dependency does not have a checksum', asy
 
   await expect(install.handler({
     ...DEFAULT_OPTS,
+    configDependencies: rootProjectManifest.pnpm!.configDependencies,
     dir: process.cwd(),
     rootProjectManifest,
     rootProjectManifestDir: process.cwd(),
@@ -131,6 +137,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFil
 
   await add.handler({
     ...DEFAULT_OPTS,
+    configDependencies: rootProjectManifest.pnpm!.configDependencies,
     dir: process.cwd(),
     rootProjectManifest,
     rootProjectManifestDir: process.cwd(),
@@ -144,6 +151,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFil
 
   await install.handler({
     ...DEFAULT_OPTS,
+    configDependencies: rootProjectManifest.pnpm!.configDependencies,
     dir: process.cwd(),
     frozenLockfile: true,
     rootProjectManifest,
@@ -169,6 +177,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFil
 
   await add.handler({
     ...DEFAULT_OPTS,
+    configDependencies: rootProjectManifest.pnpm!.configDependencies,
     dir: process.cwd(),
     rootProjectManifest,
     rootProjectManifestDir: process.cwd(),
@@ -182,6 +191,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFil
 
   await install.handler({
     ...DEFAULT_OPTS,
+    configDependencies: rootProjectManifest.pnpm!.configDependencies,
     dir: process.cwd(),
     frozenLockfile: true,
     rootProjectManifest,

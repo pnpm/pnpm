@@ -473,9 +473,10 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependencies', 
   prepareEmpty()
   const reporter = sinon.spy()
   const onlyBuiltDependencies = ['@pnpm.e2e/install-script-example']
+  const neverBuiltDependencies: string[] | undefined = undefined
   const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
-    testDefaults({ fastUnpack: false, onlyBuiltDependencies, reporter })
+    testDefaults({ fastUnpack: false, onlyBuiltDependencies, neverBuiltDependencies, reporter })
   )
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
@@ -494,6 +495,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependencies', 
     fastUnpack: false,
     frozenLockfile: true,
     ignoredBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+    neverBuiltDependencies,
     onlyBuiltDependencies,
     reporter,
   }))

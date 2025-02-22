@@ -1009,3 +1009,18 @@ test('xxx', async () => {
 
   process.env = oldEnv
 })
+
+test('settings from pnpm-workspace.yaml are read', async () => {
+  const workspaceDir = f.find('settings-in-workspace-yaml')
+  process.chdir(workspaceDir)
+  const { config } = await getConfig({
+    cliOptions: {},
+    workspaceDir,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.onlyBuiltDependencies).toStrictEqual(['foo'])
+})

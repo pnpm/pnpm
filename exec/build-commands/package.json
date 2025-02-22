@@ -30,7 +30,6 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/build-commands#readme",
   "devDependencies": {
-    "@pnpm/config": "workspace:*",
     "@pnpm/exec.build-commands": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/prepare": "workspace:*",
@@ -47,6 +46,7 @@
     "@pnpm/prepare-temp-dir": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
+    "@pnpm/workspace.manifest-writer": "workspace:*",
     "chalk": "catalog:",
     "enquirer": "catalog:",
     "render-help": "catalog:"
