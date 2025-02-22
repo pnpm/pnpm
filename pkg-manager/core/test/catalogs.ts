@@ -3,6 +3,7 @@ import { type ProjectRootDir, type ProjectId, type ProjectManifest } from '@pnpm
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type MutatedProject, mutateModules, type ProjectOptions, type MutateModulesOptions, addDependenciesToPackage } from '@pnpm/core'
+import { sync as loadJsonFile } from 'load-json-file'
 import path from 'path'
 import { testDefaults } from './utils'
 
@@ -295,6 +296,87 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
       'is-positive': { specifier: '=3.1.0', version: '3.1.0' },
     },
   })
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/8638
+test('lockfile catalog snapshots do not contain stale references on --filter', async () => {
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {},
+    },
+    {
+      name: 'project2',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    },
+  ])
+
+  await mutateModules(installProjects(projects), {
+    ...options,
+    catalogs: {
+      default: {
+        'is-positive': '^1.0.0',
+      },
+    },
+  })
+
+  expect(readLockfile().catalogs).toStrictEqual({
+    default: {
+      'is-positive': { specifier: '^1.0.0', version: '1.0.0' },
+    },
+  })
+
+  // This test updates the catalog entry in project2, but only performs a
+  // filtered install on project1. The lockfile catalog snapshots for project2
+  // should still be updated despite it not being part of the filtered install.
+  const onlyProject1 = installProjects(projects).slice(0, 1)
+  expect(onlyProject1).toMatchObject([{ id: 'project1' }])
+
+  await mutateModules(onlyProject1, {
+    ...options,
+    catalogs: {
+      default: {
+        'is-positive': '=3.1.0',
+      },
+    },
+  })
+
+  expect(readLockfile()).toEqual(expect.objectContaining({
+    catalogs: {
+      default: {
+        'is-positive': { specifier: '=3.1.0', version: '3.1.0' },
+      },
+    },
+    importers: expect.objectContaining({
+      project1: {},
+      project2: expect.objectContaining({
+        dependencies: {
+          // project 2 should be updated even though it wasn't part of the
+          // filtered install. This is due to a filtered install updating
+          // the lockfile first: https://github.com/pnpm/pnpm/pull/8183
+          'is-positive': { specifier: 'catalog:', version: '3.1.0' },
+        },
+      }),
+    }),
+  }))
+
+  // is-positive was not updated because only dependencies of project1 were.
+  const pathToIsPositivePkgJson = path.join(options.allProjects[1].rootDir!, 'node_modules/is-positive/package.json')
+  expect(loadJsonFile<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('1.0.0')
+
+  await mutateModules(installProjects(projects), {
+    ...options,
+    catalogs: {
+      default: {
+        'is-positive': '=3.1.0',
+      },
+    },
+  })
+
+  // is-positive is now updated because a full install took place.
+  expect(loadJsonFile<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('3.1.0')
 })
 
 test('external dependency using catalog protocol errors', async () => {
