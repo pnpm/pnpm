@@ -27,24 +27,20 @@ export type OptionsFromRootManifest = {
 } & Pick<PnpmSettings, 'configDependencies'>
 
 export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
-  // We read Yarn's resolutions field for compatibility
-  // but we really replace the version specs to any other version spec, not only to exact versions,
-  // so we cannot call it resolutions
-  const overrides = mapValues(
-    createVersionReferencesReplacer(manifest),
-    {
+  const settings: OptionsFromRootManifest = getOptionsFromPnpmSettings(manifestDir, {
+    ...manifest.pnpm,
+    // We read Yarn's resolutions field for compatibility
+    // but we really replace the version specs to any other version spec, not only to exact versions,
+    // so we cannot call it resolutions
+    overrides: {
       ...manifest.resolutions,
       ...manifest.pnpm?.overrides,
-    }
-  )
-  const settings: OptionsFromRootManifest = {
-    overrides,
-    ...(manifest.pnpm ? getOptionsFromPnpmSettings(manifestDir, manifest.pnpm) : {}),
-  }
+    },
+  }, manifest)
   return settings
 }
 
-export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: PnpmSettings): OptionsFromRootManifest {
+export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
   const settings: OptionsFromRootManifest = pick([
     'allowNonAppliedPatches',
     'allowedDeprecatedVersions',
@@ -54,10 +50,14 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
     'neverBuiltDependencies',
     'onlyBuiltDependencies',
     'onlyBuiltDependenciesFile',
+    'overrides',
     'packageExtensions',
     'peerDependencyRules',
     'supportedArchitectures',
   ], pnpmSettings)
+  if (settings.overrides && manifest) {
+    settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
+  }
   if (pnpmSettings.onlyBuiltDependenciesFile) {
     settings.onlyBuiltDependenciesFile = path.join(manifestDir, pnpmSettings.onlyBuiltDependenciesFile)
   }
