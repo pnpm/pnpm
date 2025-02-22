@@ -432,7 +432,7 @@ export async function mutateModules (
      * if --frozen-lockfile wasn't explicitly specified. This allows users to
      * benefit from the increased performance of a frozen install automatically.
      *
-     * If a frozen install is not possible, this function will return undefined.
+     * If a frozen install is not possible, this function will return null.
      * This indicates a standard mutable install needs to be performed.
      *
      * Note this function may update the pnpm-lock.yaml file if the lockfile was
@@ -440,7 +440,7 @@ export async function mutateModules (
      * etc. These changes update the format of the pnpm-lock.yaml file, but do
      * not change recorded dependency resolutions.
      */
-    async function tryFrozenInstall (): Promise<InnerInstallResult | undefined> {
+    async function tryFrozenInstall (): Promise<InnerInstallResult | null> {
       const isFrozenInstallPossible =
         !ctx.lockfileHadConflicts &&
         !opts.fixLockfile &&
@@ -466,7 +466,7 @@ export async function mutateModules (
         )
 
       if (!isFrozenInstallPossible) {
-        return undefined
+        return null
       }
 
       if (needsFullResolution) {
@@ -519,7 +519,7 @@ Note that in CI environments, this setting is enabled by default.`,
         if (Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
           throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
         }
-        return undefined
+        return null
       }
 
       if (maybeOpts.ignorePackageManifest) {
@@ -591,11 +591,12 @@ Note that in CI environments, this setting is enabled by default.`,
           prefix: ctx.lockfileDir,
         })
         logger.error(new PnpmError(error.code, 'The lockfile is broken! Resolution step will be performed to fix it.'))
+        return null
       }
     }
 
     const frozenInstallResult = await tryFrozenInstall()
-    if (frozenInstallResult !== undefined) {
+    if (frozenInstallResult !== null) {
       return frozenInstallResult
     }
 
