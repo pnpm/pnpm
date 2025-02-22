@@ -85,7 +85,7 @@
       "path": "../../workspace/sort-packages"
     },
     {
-      "path": "../../workspace/update-injected-packages"
+      "path": "../../workspace/sync-injected-deps"
     },
     {
       "path": "../lifecycle"

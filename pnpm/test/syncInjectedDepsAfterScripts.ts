@@ -86,7 +86,7 @@ const template = {
   ].join('\n'),
 }
 
-test('update-injected-packages-after-run=true', async () => {
+test('sync-injected-deps-after-scripts=true', async () => {
   const manifests = template.manifests()
   preparePackages(
     TEMPLATE_PACKAGE_NAMES.map(pkgName => ({
@@ -106,7 +106,7 @@ test('update-injected-packages-after-run=true', async () => {
     packages: ['packages/*'],
   })
 
-  const npmrc = template.npmrc('update-injected-packages-after-run=true')
+  const npmrc = template.npmrc('sync-injected-deps-after-scripts=true')
   fs.writeFileSync('.npmrc', npmrc)
 
   await execPnpm(['install'])
@@ -166,7 +166,7 @@ test('update-injected-packages-after-run=true', async () => {
   }
 })
 
-test('update-injected-packages-after-run=false', async () => {
+test('sync-injected-deps-after-scripts=false', async () => {
   const manifests = template.manifests()
   preparePackages(
     TEMPLATE_PACKAGE_NAMES.map(pkgName => ({
@@ -186,7 +186,7 @@ test('update-injected-packages-after-run=false', async () => {
     packages: ['packages/*'],
   })
 
-  const npmrc = template.npmrc('update-injected-packages-after-run=false')
+  const npmrc = template.npmrc('sync-injected-deps-after-scripts=false')
   fs.writeFileSync('.npmrc', npmrc)
 
   await execPnpm(['install'])
@@ -252,7 +252,7 @@ test('filter scripts', async () => {
     packages: ['packages/*'],
   })
 
-  const npmrc = template.npmrc('update-injected-packages-after-run[]=build1')
+  const npmrc = template.npmrc('sync-injected-deps-after-scripts[]=build1')
   fs.writeFileSync('.npmrc', npmrc)
 
   await execPnpm(['install'])
@@ -328,7 +328,7 @@ test('directories and symlinks', async () => {
     packages: ['packages/*'],
   })
 
-  const npmrc = template.npmrc('update-injected-packages-after-run=true')
+  const npmrc = template.npmrc('sync-injected-deps-after-scripts=true')
   fs.writeFileSync('.npmrc', npmrc)
 
   await execPnpm(['install'])

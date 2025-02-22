@@ -1,5 +1,5 @@
 ---
-"@pnpm/workspace.update-injected-packages": major
+"@pnpm/workspace.sync-injected-deps": major
 ---
 
 Initial Release.

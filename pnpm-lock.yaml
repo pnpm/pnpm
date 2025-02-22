@@ -2491,9 +2491,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@pnpm/workspace.update-injected-packages':
+      '@pnpm/workspace.sync-injected-deps':
         specifier: workspace:*
-        version: link:../../workspace/update-injected-packages
+        version: link:../../workspace/sync-injected-deps
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -8113,7 +8113,7 @@ importers:
         specifier: 'catalog:'
         version: 0.29.12
 
-  workspace/update-injected-packages:
+  workspace/sync-injected-deps:
     dependencies:
       '@pnpm/directory-fetcher':
         specifier: workspace:*
@@ -8137,7 +8137,7 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
-      '@pnpm/workspace.update-injected-packages':
+      '@pnpm/workspace.sync-injected-deps':
         specifier: workspace:*
         version: 'link:'
 

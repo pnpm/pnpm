@@ -31,7 +31,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'scriptShell'
 | 'shellEmulator'
 | 'stream'
-| 'updateInjectedPackagesAfterRun'
+| 'syncInjectedDepsAfterScripts'
 | 'workspaceDir'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir' | 'dir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
@@ -141,7 +141,7 @@ export async function runRecursive (
 
           const runScriptOptions: RunScriptOptions = {
             enablePrePostScripts: opts.enablePrePostScripts ?? false,
-            updateInjectedPackagesAfterRun: opts.updateInjectedPackagesAfterRun ?? false,
+            syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts ?? false,
             workspaceDir: opts.workspaceDir,
           }
           const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions, passedThruArgs })

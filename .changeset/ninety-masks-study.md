@@ -1,5 +1,5 @@
 ---
-"@pnpm/workspace.update-injected-packages": major
+"@pnpm/workspace.sync-injected-deps": major
 "@pnpm/fs.indexed-pkg-importer": minor
 "@pnpm/config": minor
 "@pnpm/plugin-commands-script-runners": minor

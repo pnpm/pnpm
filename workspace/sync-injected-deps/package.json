@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/workspace.update-injected-packages",
+  "name": "@pnpm/workspace.sync-injected-deps",
   "version": "1000.0.0-0",
   "description": "Update all injected replica of a workspace package",
   "main": "lib/index.js",
@@ -18,7 +18,7 @@
     "compile": "tsc --build && pnpm run lint --fix",
     "_test": "jest"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/update-injected-packages",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/sync-injected-deps",
   "keywords": [
     "pnpm10",
     "pnpm"
@@ -27,7 +27,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/update-injected-packages#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/sync-injected-deps#readme",
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
     "@pnpm/directory-fetcher": "workspace:*",
@@ -39,7 +39,7 @@
   },
   "devDependencies": {
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/workspace.update-injected-packages": "workspace:*"
+    "@pnpm/workspace.sync-injected-deps": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"
