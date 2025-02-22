@@ -442,12 +442,19 @@ export async function mutateModules (
      */
     async function tryFrozenInstall (): Promise<InnerInstallResult | null> {
       const isFrozenInstallPossible =
+        // A frozen install is never possible when any of these are true:
         !ctx.lockfileHadConflicts &&
         !opts.fixLockfile &&
         !opts.dedupe &&
+
         installsOnly &&
         (
+          // If the user explicitly requested a frozen lockfile install, attempt
+          // to perform one. An error will be thrown if updates are required.
           frozenLockfile ||
+
+          // Otherwise, check if a frozen-like install is possible for
+          // performance. This will be the case if all projects are up-to-date.
           opts.ignorePackageManifest ||
           !needsFullResolution &&
           opts.preferFrozenLockfile &&
