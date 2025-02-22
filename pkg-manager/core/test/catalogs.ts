@@ -344,11 +344,24 @@ test('lockfile catalog snapshots do not contain stale references on --filter', a
     },
   })
 
-  expect(readLockfile().catalogs).toStrictEqual({
-    default: {
-      'is-positive': { specifier: '=3.1.0', version: '3.1.0' },
+  expect(readLockfile()).toEqual(expect.objectContaining({
+    catalogs: {
+      default: {
+        'is-positive': { specifier: '=3.1.0', version: '3.1.0' },
+      },
     },
-  })
+    importers: expect.objectContaining({
+      project1: {},
+      project2: expect.objectContaining({
+        dependencies: {
+          // project 2 should be updated even though it wasn't part of the
+          // filtered install. This is due to a filtered install updating
+          // the lockfile first: https://github.com/pnpm/pnpm/pull/8183
+          'is-positive': { specifier: 'catalog:', version: '3.1.0' },
+        },
+      }),
+    }),
+  }))
 })
 
 test('external dependency using catalog protocol errors', async () => {
