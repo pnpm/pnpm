@@ -441,7 +441,7 @@ export async function mutateModules (
      * not change recorded dependency resolutions.
      */
     async function tryFrozenInstall (): Promise<InnerInstallResult | undefined> {
-      if (
+      const isFrozenInstallPossible =
         !ctx.lockfileHadConflicts &&
         !opts.fixLockfile &&
         !opts.dedupe &&
@@ -464,128 +464,131 @@ export async function mutateModules (
             lockfileDir: opts.lockfileDir,
           })
         )
-      ) {
-        if (needsFullResolution) {
-          throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
-            'Cannot perform a frozen installation because the version of the lockfile is incompatible with this version of pnpm',
-            {
-              hint: `Try either:
-  1. Aligning the version of pnpm that generated the lockfile with the version that installs from it, or
-  2. Migrating the lockfile so that it is compatible with the newer version of pnpm, or
-  3. Using "pnpm install --no-frozen-lockfile".
-  Note that in CI environments, this setting is enabled by default.`,
-            }
-          )
-        }
-        if (!opts.ignorePackageManifest) {
-          const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
-            autoInstallPeers: opts.autoInstallPeers,
-            excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-          })
-          for (const { id, manifest, rootDir } of Object.values(ctx.projects)) {
-            const { satisfies, detailedReason } = _satisfiesPackageManifest(ctx.wantedLockfile.importers[id], manifest)
-            if (!satisfies) {
-              if (!ctx.existsWantedLockfile) {
-                throw new PnpmError('NO_LOCKFILE',
-                  `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`, {
-                    hint: 'Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"',
-                  })
-              }
 
-              throw new PnpmError('OUTDATED_LOCKFILE',
-                `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ` +
-                path.join('<ROOT>', path.relative(opts.lockfileDir, path.join(rootDir, 'package.json'))), {
-                  hint: `Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"
+      if (!isFrozenInstallPossible) {
+        return undefined
+      }
 
-      Failure reason:
-      ${detailedReason ?? ''}`,
+      if (needsFullResolution) {
+        throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
+          'Cannot perform a frozen installation because the version of the lockfile is incompatible with this version of pnpm',
+          {
+            hint: `Try either:
+1. Aligning the version of pnpm that generated the lockfile with the version that installs from it, or
+2. Migrating the lockfile so that it is compatible with the newer version of pnpm, or
+3. Using "pnpm install --no-frozen-lockfile".
+Note that in CI environments, this setting is enabled by default.`,
+          }
+        )
+      }
+      if (!opts.ignorePackageManifest) {
+        const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
+          autoInstallPeers: opts.autoInstallPeers,
+          excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+        })
+        for (const { id, manifest, rootDir } of Object.values(ctx.projects)) {
+          const { satisfies, detailedReason } = _satisfiesPackageManifest(ctx.wantedLockfile.importers[id], manifest)
+          if (!satisfies) {
+            if (!ctx.existsWantedLockfile) {
+              throw new PnpmError('NO_LOCKFILE',
+                `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`, {
+                  hint: 'Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"',
                 })
             }
-          }
-        }
-        if (opts.lockfileOnly) {
-          // The lockfile will only be changed if the workspace will have new projects with no dependencies.
-          await writeWantedLockfile(ctx.lockfileDir, ctx.wantedLockfile)
-          return {
-            updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
-            ignoredBuilds: undefined,
-          }
-        }
-        if (!ctx.existsNonEmptyWantedLockfile) {
-          if (Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
-            throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
-          }
-        } else {
-          if (maybeOpts.ignorePackageManifest) {
-            logger.info({ message: 'Importing packages to virtual store', prefix: opts.lockfileDir })
-          } else {
-            logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
-          }
-          try {
-            const { stats, ignoredBuilds } = await headlessInstall({
-              ...ctx,
-              ...opts,
-              currentEngine: {
-                nodeVersion: opts.nodeVersion,
-                pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-              },
-              currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
-              patchedDependencies: patchedDependenciesWithResolvedPath,
-              selectedProjectDirs: projects.map((project) => project.rootDir),
-              allProjects: ctx.projects,
-              prunedAt: ctx.modulesFile?.prunedAt,
-              pruneVirtualStore,
-              wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
-              useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
-            })
-            if (
-              opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles ||
-              !upToDateLockfileMajorVersion && !opts.frozenLockfile
-            ) {
-              await writeLockfiles({
-                currentLockfile: ctx.currentLockfile,
-                currentLockfileDir: ctx.virtualStoreDir,
-                wantedLockfile: ctx.wantedLockfile,
-                wantedLockfileDir: ctx.lockfileDir,
-                useGitBranchLockfile: opts.useGitBranchLockfile,
-                mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+
+            throw new PnpmError('OUTDATED_LOCKFILE',
+              `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ` +
+              path.join('<ROOT>', path.relative(opts.lockfileDir, path.join(rootDir, 'package.json'))), {
+                hint: `Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"
+
+    Failure reason:
+    ${detailedReason ?? ''}`,
               })
-            }
-            return {
-              updatedProjects: projects.map((mutatedProject) => {
-                const project = ctx.projects[mutatedProject.rootDir]
-                return {
-                  ...project,
-                  manifest: project.originalManifest ?? project.manifest,
-                }
-              }),
-              stats,
-              ignoredBuilds,
-            }
-          } catch (error: any) { // eslint-disable-line
-            if (
-              frozenLockfile ||
-              (
-                error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' &&
-                !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
-              ) ||
-              (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile)
-            ) throw error
-            if (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) {
-              needsFullResolution = true
-              // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
-              for (const project of projects) {
-                (project as InstallMutationOptions).update = true
-              }
-            }
-            // A broken lockfile may be caused by a badly resolved Git conflict
-            logger.warn({
-              error,
-              message: error.message,
-              prefix: ctx.lockfileDir,
-            })
-            logger.error(new PnpmError(error.code, 'The lockfile is broken! Resolution step will be performed to fix it.'))
           }
+        }
+      }
+      if (opts.lockfileOnly) {
+        // The lockfile will only be changed if the workspace will have new projects with no dependencies.
+        await writeWantedLockfile(ctx.lockfileDir, ctx.wantedLockfile)
+        return {
+          updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
+          ignoredBuilds: undefined,
+        }
+      }
+      if (!ctx.existsNonEmptyWantedLockfile) {
+        if (Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
+          throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
+        }
+      } else {
+        if (maybeOpts.ignorePackageManifest) {
+          logger.info({ message: 'Importing packages to virtual store', prefix: opts.lockfileDir })
+        } else {
+          logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
+        }
+        try {
+          const { stats, ignoredBuilds } = await headlessInstall({
+            ...ctx,
+            ...opts,
+            currentEngine: {
+              nodeVersion: opts.nodeVersion,
+              pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+            },
+            currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
+            patchedDependencies: patchedDependenciesWithResolvedPath,
+            selectedProjectDirs: projects.map((project) => project.rootDir),
+            allProjects: ctx.projects,
+            prunedAt: ctx.modulesFile?.prunedAt,
+            pruneVirtualStore,
+            wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
+            useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
+          })
+          if (
+            opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles ||
+            !upToDateLockfileMajorVersion && !opts.frozenLockfile
+          ) {
+            await writeLockfiles({
+              currentLockfile: ctx.currentLockfile,
+              currentLockfileDir: ctx.virtualStoreDir,
+              wantedLockfile: ctx.wantedLockfile,
+              wantedLockfileDir: ctx.lockfileDir,
+              useGitBranchLockfile: opts.useGitBranchLockfile,
+              mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+            })
+          }
+          return {
+            updatedProjects: projects.map((mutatedProject) => {
+              const project = ctx.projects[mutatedProject.rootDir]
+              return {
+                ...project,
+                manifest: project.originalManifest ?? project.manifest,
+              }
+            }),
+            stats,
+            ignoredBuilds,
+          }
+        } catch (error: any) { // eslint-disable-line
+          if (
+            frozenLockfile ||
+            (
+              error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' &&
+              !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
+            ) ||
+            (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile)
+          ) throw error
+          if (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) {
+            needsFullResolution = true
+            // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
+            for (const project of projects) {
+              (project as InstallMutationOptions).update = true
+            }
+          }
+          // A broken lockfile may be caused by a badly resolved Git conflict
+          logger.warn({
+            error,
+            message: error.message,
+            prefix: ctx.lockfileDir,
+          })
+          logger.error(new PnpmError(error.code, 'The lockfile is broken! Resolution step will be performed to fix it.'))
         }
       }
     }
