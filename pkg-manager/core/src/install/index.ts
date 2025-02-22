@@ -320,7 +320,14 @@ export async function mutateModules (
     ignoredBuilds: result.ignoredBuilds,
   }
 
-  async function _install (): Promise<{ updatedProjects: UpdatedProject[], stats?: InstallationResultStats, depsRequiringBuild?: DepPath[], ignoredBuilds: string[] | undefined }> {
+  interface InnerInstallResult {
+    readonly updatedProjects: UpdatedProject[]
+    readonly stats?: InstallationResultStats
+    readonly depsRequiringBuild?: DepPath[]
+    readonly ignoredBuilds: string[] | undefined
+  }
+
+  async function _install (): Promise<InnerInstallResult> {
     const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
       extraBinPaths: opts.extraBinPaths,
       extraNodePaths: ctx.extraNodePaths,
