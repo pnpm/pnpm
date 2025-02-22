@@ -3,6 +3,7 @@ import { type ProjectRootDir, type ProjectId, type ProjectManifest } from '@pnpm
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type MutatedProject, mutateModules, type ProjectOptions, type MutateModulesOptions, addDependenciesToPackage } from '@pnpm/core'
+import { sync as loadJsonFile } from 'load-json-file'
 import path from 'path'
 import { testDefaults } from './utils'
 
@@ -314,7 +315,6 @@ test('lockfile catalog snapshots do not contain stale references on --filter', a
 
   await mutateModules(installProjects(projects), {
     ...options,
-    lockfileOnly: true,
     catalogs: {
       default: {
         'is-positive': '^1.0.0',
@@ -336,7 +336,6 @@ test('lockfile catalog snapshots do not contain stale references on --filter', a
 
   await mutateModules(onlyProject1, {
     ...options,
-    lockfileOnly: true,
     catalogs: {
       default: {
         'is-positive': '=3.1.0',
@@ -362,6 +361,22 @@ test('lockfile catalog snapshots do not contain stale references on --filter', a
       }),
     }),
   }))
+
+  // is-positive was not updated because only dependencies of project1 were.
+  const pathToIsPositivePkgJson = path.join(options.allProjects[1].rootDir!, 'node_modules/is-positive/package.json')
+  expect(loadJsonFile<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('1.0.0')
+
+  await mutateModules(installProjects(projects), {
+    ...options,
+    catalogs: {
+      default: {
+        'is-positive': '=3.1.0',
+      },
+    },
+  })
+
+  // is-positive is now updated because a full install took place.
+  expect(loadJsonFile<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('3.1.0')
 })
 
 test('external dependency using catalog protocol errors', async () => {
