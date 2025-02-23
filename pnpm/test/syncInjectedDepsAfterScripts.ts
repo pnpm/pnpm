@@ -7,8 +7,10 @@ import { execPnpm } from './utils'
 
 const f = fixtures(__dirname)
 
-const TEMPLATE_SCRIPT_NAMES = ['build1.cjs', 'build2.cjs', 'build3.cjs'] as const
-const TEMPLATE_FILE_NAMES = [...TEMPLATE_SCRIPT_NAMES, 'should-be-deleted-by-build1.txt', 'should-be-modified-by-build1.txt'] as const
+const PKG_FILES = [
+  ...fs.readdirSync(f.find('injected-dep-files')),
+  'package.json',
+].sort()
 
 function prepareInjectedDepsWorkspace (npmrcSettings: string[]) {
   const scripts = {
@@ -69,17 +71,11 @@ test('with sync-injected-deps-after-scripts', async () => {
   await execPnpm(['install'])
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('foo@file+foo')
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('bar@file+bar')
-  expect(fs.readdirSync('node_modules/.pnpm/foo@file+foo/node_modules/foo').sort()).toStrictEqual([
-    ...TEMPLATE_FILE_NAMES,
-    'package.json',
-  ].sort())
+  expect(fs.readdirSync('node_modules/.pnpm/foo@file+foo/node_modules/foo').sort()).toStrictEqual(PKG_FILES)
   expect(
     fs.readFileSync('node_modules/.pnpm/foo@file+foo/node_modules/foo/should-be-modified-by-build1.txt', 'utf-8')
   ).toBe('Before modification\n')
-  expect(fs.readdirSync('node_modules/.pnpm/bar@file+bar/node_modules/bar').sort()).toStrictEqual([
-    ...TEMPLATE_FILE_NAMES,
-    'package.json',
-  ].sort())
+  expect(fs.readdirSync('node_modules/.pnpm/bar@file+bar/node_modules/bar').sort()).toStrictEqual(PKG_FILES)
   expect(
     fs.readFileSync('node_modules/.pnpm/bar@file+bar/node_modules/bar/should-be-modified-by-build1.txt', 'utf-8')
   ).toBe('Before modification\n')
@@ -129,17 +125,11 @@ test('without sync-injected-deps-after-scripts', async () => {
   await execPnpm(['install'])
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('foo@file+foo')
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('bar@file+bar')
-  expect(fs.readdirSync('node_modules/.pnpm/foo@file+foo/node_modules/foo').sort()).toStrictEqual([
-    ...TEMPLATE_FILE_NAMES,
-    'package.json',
-  ].sort())
+  expect(fs.readdirSync('node_modules/.pnpm/foo@file+foo/node_modules/foo').sort()).toStrictEqual(PKG_FILES)
   expect(
     fs.readFileSync('node_modules/.pnpm/foo@file+foo/node_modules/foo/should-be-modified-by-build1.txt', 'utf-8')
   ).toBe('Before modification\n')
-  expect(fs.readdirSync('node_modules/.pnpm/bar@file+bar/node_modules/bar').sort()).toStrictEqual([
-    ...TEMPLATE_FILE_NAMES,
-    'package.json',
-  ].sort())
+  expect(fs.readdirSync('node_modules/.pnpm/bar@file+bar/node_modules/bar').sort()).toStrictEqual(PKG_FILES)
   expect(
     fs.readFileSync('node_modules/.pnpm/bar@file+bar/node_modules/bar/should-be-modified-by-build1.txt', 'utf-8')
   ).toBe('Before modification\n')
@@ -175,17 +165,11 @@ test('filter scripts', async () => {
   await execPnpm(['install'])
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('foo@file+foo')
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('bar@file+bar')
-  expect(fs.readdirSync('node_modules/.pnpm/foo@file+foo/node_modules/foo').sort()).toStrictEqual([
-    ...TEMPLATE_FILE_NAMES,
-    'package.json',
-  ].sort())
+  expect(fs.readdirSync('node_modules/.pnpm/foo@file+foo/node_modules/foo').sort()).toStrictEqual(PKG_FILES)
   expect(
     fs.readFileSync('node_modules/.pnpm/foo@file+foo/node_modules/foo/should-be-modified-by-build1.txt', 'utf-8')
   ).toBe('Before modification\n')
-  expect(fs.readdirSync('node_modules/.pnpm/bar@file+bar/node_modules/bar').sort()).toStrictEqual([
-    ...TEMPLATE_FILE_NAMES,
-    'package.json',
-  ].sort())
+  expect(fs.readdirSync('node_modules/.pnpm/bar@file+bar/node_modules/bar').sort()).toStrictEqual(PKG_FILES)
   expect(
     fs.readFileSync('node_modules/.pnpm/bar@file+bar/node_modules/bar/should-be-modified-by-build1.txt', 'utf-8')
   ).toBe('Before modification\n')
@@ -235,14 +219,8 @@ test('directories and symlinks', async () => {
   await execPnpm(['install'])
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('foo@file+foo')
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('bar@file+bar')
-  expect(fs.readdirSync('node_modules/.pnpm/foo@file+foo/node_modules/foo').sort()).toStrictEqual([
-    ...TEMPLATE_FILE_NAMES,
-    'package.json',
-  ].sort())
-  expect(fs.readdirSync('node_modules/.pnpm/bar@file+bar/node_modules/bar').sort()).toStrictEqual([
-    ...TEMPLATE_FILE_NAMES,
-    'package.json',
-  ].sort())
+  expect(fs.readdirSync('node_modules/.pnpm/foo@file+foo/node_modules/foo').sort()).toStrictEqual(PKG_FILES)
+  expect(fs.readdirSync('node_modules/.pnpm/bar@file+bar/node_modules/bar').sort()).toStrictEqual(PKG_FILES)
 
   // build3 should update the injected files
   {
