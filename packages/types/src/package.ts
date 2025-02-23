@@ -127,33 +127,35 @@ export interface PeerDependencyRules {
 
 export type AllowedDeprecatedVersions = Record<string, string>
 
+export interface PnpmSettings {
+  configDependencies?: Record<string, string>
+  neverBuiltDependencies?: string[]
+  onlyBuiltDependencies?: string[]
+  onlyBuiltDependenciesFile?: string
+  ignoredBuiltDependencies?: string[]
+  overrides?: Record<string, string>
+  packageExtensions?: Record<string, PackageExtension>
+  ignoredOptionalDependencies?: string[]
+  peerDependencyRules?: PeerDependencyRules
+  allowedDeprecatedVersions?: AllowedDeprecatedVersions
+  allowNonAppliedPatches?: boolean
+  patchedDependencies?: Record<string, string>
+  updateConfig?: {
+    ignoreDependencies?: string[]
+  }
+  auditConfig?: {
+    ignoreCves?: string[]
+    ignoreGhsas?: string[]
+  }
+  requiredScripts?: string[]
+  supportedArchitectures?: SupportedArchitectures
+  executionEnv?: ExecutionEnv
+}
+
 export interface ProjectManifest extends BaseManifest {
   packageManager?: string
   workspaces?: string[]
-  pnpm?: {
-    configDependencies?: Record<string, string>
-    neverBuiltDependencies?: string[]
-    onlyBuiltDependencies?: string[]
-    onlyBuiltDependenciesFile?: string
-    ignoredBuiltDependencies?: string[]
-    overrides?: Record<string, string>
-    packageExtensions?: Record<string, PackageExtension>
-    ignoredOptionalDependencies?: string[]
-    peerDependencyRules?: PeerDependencyRules
-    allowedDeprecatedVersions?: AllowedDeprecatedVersions
-    allowNonAppliedPatches?: boolean
-    patchedDependencies?: Record<string, string>
-    updateConfig?: {
-      ignoreDependencies?: string[]
-    }
-    auditConfig?: {
-      ignoreCves?: string[]
-      ignoreGhsas?: string[]
-    }
-    requiredScripts?: string[]
-    supportedArchitectures?: SupportedArchitectures
-    executionEnv?: ExecutionEnv
-  }
+  pnpm?: PnpmSettings
   private?: boolean
   resolutions?: Record<string, string>
 }

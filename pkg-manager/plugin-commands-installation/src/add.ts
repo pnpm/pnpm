@@ -191,7 +191,9 @@ export async function handler (
     !opts.recursive &&
     opts.workspaceDir === opts.dir &&
     !opts.ignoreWorkspaceRootCheck &&
-    !opts.workspaceRoot
+    !opts.workspaceRoot &&
+    opts.workspacePackagePatterns &&
+    opts.workspacePackagePatterns.length > 1
   ) {
     throw new PnpmError('ADDING_TO_ROOT',
       'Running this command will add the dependency to the workspace root, ' +

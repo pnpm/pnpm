@@ -31,6 +31,7 @@
   "dependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "read-yaml-file": "catalog:"
   },
   "funding": "https://opencollective.com/pnpm",

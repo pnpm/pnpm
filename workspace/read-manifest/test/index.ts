@@ -21,10 +21,10 @@ test('readWorkspaceManifest() throws on array content', async () => {
   ).rejects.toThrow('Expected object but found - array')
 })
 
-test('readWorkspaceManifest() throws on empty packages field', async () => {
+test('readWorkspaceManifest() does not throw on empty packages field', async () => {
   await expect(
     readWorkspaceManifest(path.join(__dirname, '__fixtures__/packages-empty'))
-  ).rejects.toThrow('packages field missing or empty')
+  ).resolves.toBeTruthy()
 })
 
 test('readWorkspaceManifest() throws on string packages field', async () => {
