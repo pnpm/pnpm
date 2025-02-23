@@ -719,6 +719,162 @@ test('lockfile catalog snapshots should remove unused entries', async () => {
   }
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/8715
+//
+// Catalogs on injected deps require more consideration since the injected dep
+// is no longer seen as an "importer". The catalog protocol is traditionally
+// only for "importers" (i.e. packages matching the `packages` filter in
+// pnpm-workspace.yaml).
+//
+// Since injected deps copy the workspace package into the node_modules/.pnpm
+// dir, a bit more work has to be done to make catalogs usable on these unique
+// packages.
+//
+// Example of a package at packages/project2 getting "injected".
+//
+//   node_modules/.pnpm/project2@file+packages+project2/node_modules/project2
+//
+test('catalogs work in injected dep', async () => {
+  expect.hasAssertions()
+
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        project2: 'workspace:*',
+      },
+      dependenciesMeta: {
+        project2: { injected: true },
+      },
+    },
+    {
+      name: 'project2',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    },
+  ])
+
+  const install = () => mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    // This setting turns injected deps into regular symlinked workspace
+    // packages if peer dependencies aren't resolved differently.
+    dedupeInjectedDeps: false,
+    catalogs: {
+      default: { 'is-positive': '1.0.0' },
+    },
+  })
+
+  // This should run without "is-positive@catalog: isn't supported by any
+  // available resolver." errors.
+  await expect(install()).resolves.not.toThrow()
+
+  const lockfile = readLockfile()
+
+  // The resolved catalogs should be correct.
+  expect(lockfile.catalogs).toStrictEqual({
+    default: {
+      'is-positive': { specifier: '1.0.0', version: '1.0.0' },
+    },
+  })
+
+  expect(lockfile.importers).toEqual({
+    // Check that project2 was indeed injected into project1. Otherwise this
+    // test wouldn't be checking the correct scenario.
+    project1: {
+      dependencies: {
+        project2: { specifier: 'workspace:*', version: 'file:project2' },
+      },
+      dependenciesMeta: {
+        project2: { injected: true },
+      },
+    },
+    project2: {
+      dependencies: {
+        'is-positive': { specifier: 'catalog:', version: '1.0.0' },
+      },
+    },
+  })
+
+  // Double check the correct version of is-positive as requested from the
+  // catalog was installed and not the latest.
+  expect(lockfile.snapshots).toStrictEqual({
+    'is-positive@1.0.0': {},
+    'project2@file:project2': {
+      dependencies: { 'is-positive': '1.0.0' },
+    },
+  })
+})
+
+test('catalogs work when inject-workspace-packages=true', async () => {
+  expect.hasAssertions()
+
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        project2: 'workspace:*',
+      },
+    },
+    {
+      name: 'project2',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    },
+  ])
+
+  const install = () => mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    // This setting turns injected deps into regular symlinked workspace
+    // packages if peer dependencies aren't resolved differently.
+    dedupeInjectedDeps: false,
+    injectWorkspacePackages: true,
+    catalogs: {
+      default: { 'is-positive': '1.0.0' },
+    },
+  })
+
+  // This should run without "is-positive@catalog: isn't supported by any
+  // available resolver." errors.
+  await expect(install()).resolves.not.toThrow()
+
+  const lockfile = readLockfile()
+
+  // The resolved catalogs should be correct.
+  expect(lockfile.catalogs).toStrictEqual({
+    default: {
+      'is-positive': { specifier: '1.0.0', version: '1.0.0' },
+    },
+  })
+
+  expect(lockfile.importers).toEqual({
+    // Check that project2 was indeed injected into project1. Otherwise this
+    // test wouldn't be checking the correct scenario.
+    project1: {
+      dependencies: {
+        project2: { specifier: 'workspace:*', version: 'file:project2' },
+      },
+    },
+    project2: {
+      dependencies: {
+        'is-positive': { specifier: 'catalog:', version: '1.0.0' },
+      },
+    },
+  })
+
+  // Double check the correct version of is-positive as requested from the
+  // catalog was installed and not the latest.
+  expect(lockfile.snapshots).toStrictEqual({
+    'is-positive@1.0.0': {},
+    'project2@file:project2': {
+      dependencies: { 'is-positive': '1.0.0' },
+    },
+  })
+})
+
 describe('add', () => {
   test('adding is-positive@catalog: works', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
