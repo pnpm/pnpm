@@ -1,9 +1,12 @@
 import fs from 'fs'
 import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
 import { type ProjectManifest } from '@pnpm/types'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm } from './utils'
+
+const f = fixtures(__dirname)
 
 const TEMPLATE_PACKAGE_NAMES = ['foo', 'bar', 'baz'] as const
 const TEMPLATE_SCRIPT_NAMES = ['build1.cjs', 'build2.cjs', 'build3.cjs'] as const
@@ -48,36 +51,6 @@ const template = {
       },
     },
   }),
-  files: (): Record<typeof TEMPLATE_FILE_NAMES[number], string> => ({
-    'build1.cjs': `
-      const fs = require('fs')
-      fs.rmSync('should-be-deleted-by-build1.txt', { force: true })
-      fs.writeFileSync('should-be-modified-by-build1.txt', 'After modification')
-      fs.writeFileSync('should-be-added-by-build1.txt', __filename)
-    `,
-    'build2.cjs': `
-      const fs = require('fs')
-      fs.writeFileSync('created-by-build2.txt', __filename)
-    `,
-    'build3.cjs': `
-      const fs = require('fs')
-      console.log('Creating a tree of empty directories...')
-      fs.mkdirSync('empty-dirs/a/a/', { recursive: true })
-      fs.mkdirSync('empty-dirs/a/b/', { recursive: true })
-      fs.mkdirSync('empty-dirs/b/a/', { recursive: true })
-      fs.mkdirSync('empty-dirs/b/b/', { recursive: true })
-      console.log('Creating a tree of real files...')
-      fs.mkdirSync('files/foo/foo/', { recursive: true })
-      fs.writeFileSync('files/foo/foo/foo.txt', '')
-      fs.writeFileSync('files/foo/bar.txt', '')
-      fs.writeFileSync('files/foo_bar.txt', 'This is foo_bar')
-      console.log('Creating symlinks...')
-      fs.symlinkSync('files/foo_bar.txt', 'link-to-a-file', 'file')
-      fs.symlinkSync('files/foo', 'link-to-a-dir', 'dir')
-    `,
-    'should-be-deleted-by-build1.txt': '',
-    'should-be-modified-by-build1.txt': 'Before modification',
-  }),
   npmrc: (suffix: string[]): string => [
     'reporter=append-only',
     'inject-workspace-packages=true',
@@ -86,7 +59,7 @@ const template = {
   ].join('\n'),
 }
 
-test('with sync-injected-deps-after-scripts', async () => {
+function prepareInjectedDepsWorkspace (suffix: string[]) {
   const manifests = template.manifests()
   preparePackages(
     TEMPLATE_PACKAGE_NAMES.map(pkgName => ({
@@ -95,23 +68,24 @@ test('with sync-injected-deps-after-scripts', async () => {
     }))
   )
 
-  const files = template.files()
   for (const pkgName of TEMPLATE_PACKAGE_NAMES) {
-    for (const fileName of TEMPLATE_FILE_NAMES) {
-      fs.writeFileSync(path.join('packages', pkgName, fileName), files[fileName])
-    }
+    f.copy('injected-dep-files', path.join('packages', pkgName))
   }
 
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['packages/*'],
   })
 
-  const npmrc = template.npmrc([
+  const npmrc = template.npmrc(suffix)
+  fs.writeFileSync('.npmrc', npmrc)
+}
+
+test('with sync-injected-deps-after-scripts', async () => {
+  prepareInjectedDepsWorkspace([
     'sync-injected-deps-after-scripts[]=build1',
     'sync-injected-deps-after-scripts[]=build2',
     'sync-injected-deps-after-scripts[]=build3',
   ])
-  fs.writeFileSync('.npmrc', npmrc)
 
   await execPnpm(['install'])
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('foo@file+packages+foo')
@@ -122,14 +96,14 @@ test('with sync-injected-deps-after-scripts', async () => {
   ].sort())
   expect(
     fs.readFileSync('node_modules/.pnpm/foo@file+packages+foo/node_modules/foo/should-be-modified-by-build1.txt', 'utf-8')
-  ).toBe('Before modification')
+  ).toBe('Before modification\n')
   expect(fs.readdirSync('node_modules/.pnpm/bar@file+packages+bar/node_modules/bar').sort()).toStrictEqual([
     ...TEMPLATE_FILE_NAMES,
     'package.json',
   ].sort())
   expect(
     fs.readFileSync('node_modules/.pnpm/bar@file+packages+bar/node_modules/bar/should-be-modified-by-build1.txt', 'utf-8')
-  ).toBe('Before modification')
+  ).toBe('Before modification\n')
 
   // build1 should update the injected files
   {
@@ -171,27 +145,7 @@ test('with sync-injected-deps-after-scripts', async () => {
 })
 
 test('without sync-injected-deps-after-scripts', async () => {
-  const manifests = template.manifests()
-  preparePackages(
-    TEMPLATE_PACKAGE_NAMES.map(pkgName => ({
-      location: `packages/${pkgName}`,
-      package: manifests[pkgName],
-    }))
-  )
-
-  const files = template.files()
-  for (const pkgName of TEMPLATE_PACKAGE_NAMES) {
-    for (const fileName of TEMPLATE_FILE_NAMES) {
-      fs.writeFileSync(path.join('packages', pkgName, fileName), files[fileName])
-    }
-  }
-
-  writeYamlFile('pnpm-workspace.yaml', {
-    packages: ['packages/*'],
-  })
-
-  const npmrc = template.npmrc([])
-  fs.writeFileSync('.npmrc', npmrc)
+  prepareInjectedDepsWorkspace([])
 
   await execPnpm(['install'])
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('foo@file+packages+foo')
@@ -202,14 +156,14 @@ test('without sync-injected-deps-after-scripts', async () => {
   ].sort())
   expect(
     fs.readFileSync('node_modules/.pnpm/foo@file+packages+foo/node_modules/foo/should-be-modified-by-build1.txt', 'utf-8')
-  ).toBe('Before modification')
+  ).toBe('Before modification\n')
   expect(fs.readdirSync('node_modules/.pnpm/bar@file+packages+bar/node_modules/bar').sort()).toStrictEqual([
     ...TEMPLATE_FILE_NAMES,
     'package.json',
   ].sort())
   expect(
     fs.readFileSync('node_modules/.pnpm/bar@file+packages+bar/node_modules/bar/should-be-modified-by-build1.txt', 'utf-8')
-  ).toBe('Before modification')
+  ).toBe('Before modification\n')
 
   // build1 should not update the injected files
   {
@@ -237,27 +191,7 @@ test('without sync-injected-deps-after-scripts', async () => {
 })
 
 test('filter scripts', async () => {
-  const manifests = template.manifests()
-  preparePackages(
-    TEMPLATE_PACKAGE_NAMES.map(pkgName => ({
-      location: `packages/${pkgName}`,
-      package: manifests[pkgName],
-    }))
-  )
-
-  const files = template.files()
-  for (const pkgName of TEMPLATE_PACKAGE_NAMES) {
-    for (const fileName of TEMPLATE_FILE_NAMES) {
-      fs.writeFileSync(path.join('packages', pkgName, fileName), files[fileName])
-    }
-  }
-
-  writeYamlFile('pnpm-workspace.yaml', {
-    packages: ['packages/*'],
-  })
-
-  const npmrc = template.npmrc(['sync-injected-deps-after-scripts[]=build1'])
-  fs.writeFileSync('.npmrc', npmrc)
+  prepareInjectedDepsWorkspace(['sync-injected-deps-after-scripts[]=build1'])
 
   await execPnpm(['install'])
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('foo@file+packages+foo')
@@ -268,14 +202,14 @@ test('filter scripts', async () => {
   ].sort())
   expect(
     fs.readFileSync('node_modules/.pnpm/foo@file+packages+foo/node_modules/foo/should-be-modified-by-build1.txt', 'utf-8')
-  ).toBe('Before modification')
+  ).toBe('Before modification\n')
   expect(fs.readdirSync('node_modules/.pnpm/bar@file+packages+bar/node_modules/bar').sort()).toStrictEqual([
     ...TEMPLATE_FILE_NAMES,
     'package.json',
   ].sort())
   expect(
     fs.readFileSync('node_modules/.pnpm/bar@file+packages+bar/node_modules/bar/should-be-modified-by-build1.txt', 'utf-8')
-  ).toBe('Before modification')
+  ).toBe('Before modification\n')
 
   // build1 should update the injected files
   {
@@ -313,31 +247,11 @@ test('filter scripts', async () => {
 })
 
 test('directories and symlinks', async () => {
-  const manifests = template.manifests()
-  preparePackages(
-    TEMPLATE_PACKAGE_NAMES.map(pkgName => ({
-      location: `packages/${pkgName}`,
-      package: manifests[pkgName],
-    }))
-  )
-
-  const files = template.files()
-  for (const pkgName of TEMPLATE_PACKAGE_NAMES) {
-    for (const fileName of TEMPLATE_FILE_NAMES) {
-      fs.writeFileSync(path.join('packages', pkgName, fileName), files[fileName])
-    }
-  }
-
-  writeYamlFile('pnpm-workspace.yaml', {
-    packages: ['packages/*'],
-  })
-
-  const npmrc = template.npmrc([
+  prepareInjectedDepsWorkspace([
     'sync-injected-deps-after-scripts[]=build1',
     'sync-injected-deps-after-scripts[]=build2',
     'sync-injected-deps-after-scripts[]=build3',
   ])
-  fs.writeFileSync('.npmrc', npmrc)
 
   await execPnpm(['install'])
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('foo@file+packages+foo')
