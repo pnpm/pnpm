@@ -12,7 +12,7 @@ const PKG_FILES = [
   'package.json',
 ].sort()
 
-function prepareInjectedDepsWorkspace (npmrcSettings: string[]) {
+function prepareInjectedDepsWorkspace (syncInjectedDepsAfterScripts: string[]) {
   const scripts = {
     build1: 'node ./build1.cjs',
     build2: 'node ./build2.cjs',
@@ -57,16 +57,12 @@ function prepareInjectedDepsWorkspace (npmrcSettings: string[]) {
     'reporter=append-only',
     'inject-workspace-packages=true',
     'dedupe-injected-deps=false',
-    ...npmrcSettings,
+    ...syncInjectedDepsAfterScripts.map((scriptName) => `sync-injected-deps-after-scripts[]=${scriptName}`),
   ].join('\n'))
 }
 
 test('with sync-injected-deps-after-scripts', async () => {
-  prepareInjectedDepsWorkspace([
-    'sync-injected-deps-after-scripts[]=build1',
-    'sync-injected-deps-after-scripts[]=build2',
-    'sync-injected-deps-after-scripts[]=build3',
-  ])
+  prepareInjectedDepsWorkspace(['build1', 'build2', 'build3'])
 
   await execPnpm(['install'])
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('foo@file+foo')
@@ -160,7 +156,7 @@ test('without sync-injected-deps-after-scripts', async () => {
 })
 
 test('filter scripts', async () => {
-  prepareInjectedDepsWorkspace(['sync-injected-deps-after-scripts[]=build1'])
+  prepareInjectedDepsWorkspace(['build1'])
 
   await execPnpm(['install'])
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('foo@file+foo')
@@ -210,11 +206,7 @@ test('filter scripts', async () => {
 })
 
 test('directories and symlinks', async () => {
-  prepareInjectedDepsWorkspace([
-    'sync-injected-deps-after-scripts[]=build1',
-    'sync-injected-deps-after-scripts[]=build2',
-    'sync-injected-deps-after-scripts[]=build3',
-  ])
+  prepareInjectedDepsWorkspace(['build1', 'build2', 'build3'])
 
   await execPnpm(['install'])
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('foo@file+foo')
