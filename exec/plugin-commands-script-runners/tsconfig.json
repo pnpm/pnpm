@@ -82,10 +82,10 @@
       "path": "../../workspace/filter-workspace-packages"
     },
     {
-      "path": "../../workspace/sort-packages"
+      "path": "../../workspace/injected-deps-syncer"
     },
     {
-      "path": "../../workspace/sync-injected-deps"
+      "path": "../../workspace/sort-packages"
     },
     {
       "path": "../lifecycle"

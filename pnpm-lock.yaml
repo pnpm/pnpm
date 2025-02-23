@@ -2491,9 +2491,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@pnpm/workspace.sync-injected-deps':
+      '@pnpm/workspace.injected-deps-syncer':
         specifier: workspace:*
-        version: link:../../workspace/sync-injected-deps
+        version: link:../../workspace/injected-deps-syncer
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -8009,6 +8009,34 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  workspace/injected-deps-syncer:
+    dependencies:
+      '@pnpm/directory-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/directory-fetcher
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@pnpm/modules-yaml':
+        specifier: workspace:*
+        version: link:../../pkg-manager/modules-yaml
+      '@types/normalize-path':
+        specifier: 'catalog:'
+        version: 3.0.2
+      normalize-path:
+        specifier: 'catalog:'
+        version: 3.0.0
+    devDependencies:
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/workspace.injected-deps-syncer':
+        specifier: workspace:*
+        version: 'link:'
+
   workspace/pkgs-graph:
     dependencies:
       '@pnpm/npm-package-arg':
@@ -8112,34 +8140,6 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
-
-  workspace/sync-injected-deps:
-    dependencies:
-      '@pnpm/directory-fetcher':
-        specifier: workspace:*
-        version: link:../../fetching/directory-fetcher
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
-      '@pnpm/modules-yaml':
-        specifier: workspace:*
-        version: link:../../pkg-manager/modules-yaml
-      '@types/normalize-path':
-        specifier: 'catalog:'
-        version: 3.0.2
-      normalize-path:
-        specifier: 'catalog:'
-        version: 3.0.0
-    devDependencies:
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../__utils__/prepare
-      '@pnpm/workspace.sync-injected-deps':
-        specifier: workspace:*
-        version: 'link:'
 
 packages:
 

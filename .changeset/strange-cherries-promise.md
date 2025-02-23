@@ -1,5 +1,5 @@
 ---
-"@pnpm/workspace.sync-injected-deps": major
+"@pnpm/workspace.injected-deps-syncer": major
 ---
 
 Initial Release.

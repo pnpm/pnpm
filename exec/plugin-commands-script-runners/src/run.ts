@@ -16,7 +16,7 @@ import {
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
-import { updateInjectedPackages } from '@pnpm/workspace.sync-injected-deps'
+import { updateInjectedPackages } from '@pnpm/workspace.injected-deps-syncer'
 import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
