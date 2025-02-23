@@ -141,7 +141,7 @@ export async function runRecursive (
 
           const runScriptOptions: RunScriptOptions = {
             enablePrePostScripts: opts.enablePrePostScripts ?? false,
-            syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts ?? false,
+            syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
             workspaceDir: opts.workspaceDir,
           }
           const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions, passedThruArgs })

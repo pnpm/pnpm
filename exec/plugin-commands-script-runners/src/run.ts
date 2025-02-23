@@ -26,7 +26,6 @@ import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
 import { runDepsStatusCheck } from './runDepsStatusCheck'
-import { shouldSyncInjectedDepsAfterScripts } from './shouldSyncInjectedDepsAfterScripts'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,
@@ -295,7 +294,7 @@ so you may run "pnpm -w run ${scriptName}"`,
 
     const runScriptOptions: RunScriptOptions = {
       enablePrePostScripts: opts.enablePrePostScripts ?? false,
-      syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts ?? false,
+      syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
       workspaceDir: opts.workspaceDir,
     }
     const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
@@ -385,7 +384,7 @@ ${renderCommands(rootScripts)}`
 
 export interface RunScriptOptions {
   enablePrePostScripts: boolean
-  syncInjectedDepsAfterScripts: boolean | string[]
+  syncInjectedDepsAfterScripts: string[] | undefined
   workspaceDir: string | undefined
 }
 
@@ -410,7 +409,7 @@ export async function runScript (opts: {
   ) {
     await runLifecycleHook(`post${scriptName}`, opts.manifest, opts.lifecycleOpts)
   }
-  if (shouldSyncInjectedDepsAfterScripts(scriptName, opts.runScriptOptions.syncInjectedDepsAfterScripts)) {
+  if (opts.runScriptOptions.syncInjectedDepsAfterScripts?.includes(scriptName)) {
     await updateInjectedPackages({
       pkgName: opts.manifest.name,
       pkgRootDir: opts.lifecycleOpts.pkgRoot,

@@ -120,5 +120,5 @@ export const types = Object.assign({
   'update-notifier': Boolean,
   'registry-supports-time-field': Boolean,
   'fail-if-no-match': Boolean,
-  'sync-injected-deps-after-scripts': [Boolean, Array],
+  'sync-injected-deps-after-scripts': Array,
 }, npmTypes.types)
