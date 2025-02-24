@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-outdated
 
+## 900.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@900.0.5
+
 ## 900.0.5
 
 ### Patch Changes

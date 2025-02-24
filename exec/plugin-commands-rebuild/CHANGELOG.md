@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-rebuild
 
+## 900.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@900.0.5
+- @pnpm/workspace.find-packages@900.0.5
+
 ## 900.0.5
 
 ### Patch Changes

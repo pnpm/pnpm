@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-installation
 
+## 900.0.8
+
+### Patch Changes
+
+- Updated dependencies [c76494e]
+- Updated dependencies [b7144b1]
+  - @pnpm/core@901.0.3
+  - @pnpm/cli-utils@900.0.5
+  - @pnpm/plugin-commands-env@900.0.5
+  - @pnpm/plugin-commands-rebuild@900.0.6
+  - @pnpm/workspace.find-packages@900.0.5
+  - @pnpm/filter-workspace-packages@900.0.6
+
 ## 900.0.7
 
 ### Patch Changes

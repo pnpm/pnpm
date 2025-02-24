@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 901.0.3
+
+### Patch Changes
+
+- c76494e: Fix a bug causing catalog snapshots to be removed from the `pnpm-lock.yaml` file when using `--fix-lockfile` and `--filter`. [#8639](https://github.com/pnpm/pnpm/issues/8639)
+- b7144b1: Fix a bug causing catalog protocol dependencies to not re-resolve on a filtered install [#8638](https://github.com/pnpm/pnpm/issues/8638).
+
 ## 901.0.2
 
 ### Patch Changes

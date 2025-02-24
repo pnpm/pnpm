@@ -1,5 +1,15 @@
 # pnpm
 
+## 9.15.6
+
+### Patch Changes
+
+- Fix instruction for updating pnpm with corepack [#9101](https://github.com/pnpm/pnpm/pull/9101).
+- Print pnpm's version after the execution time at the end of the console output.
+- The pnpm version specified by `packageManager` cannot start with `v`.
+- Fix a bug causing catalog snapshots to be removed from the `pnpm-lock.yaml` file when using `--fix-lockfile` and `--filter`. [#8639](https://github.com/pnpm/pnpm/issues/8639)
+- Fix a bug causing catalog protocol dependencies to not re-resolve on a filtered install [#8638](https://github.com/pnpm/pnpm/issues/8638).
+
 ## 9.15.5
 
 ### Patch Changes

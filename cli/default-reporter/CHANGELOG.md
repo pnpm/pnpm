@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 900.1.3
+
+### Patch Changes
+
+- ec70032: Fix instruction for updating pnpm with corepack [#9101](https://github.com/pnpm/pnpm/pull/9101).
+- a4bd30b: Fix undefined being printed in install errors when a package does not have a version field.
+- 92ff417: Print pnpm's version after the execution time at the end of the console output.
+
 ## 900.1.2
 
 ### Patch Changes
