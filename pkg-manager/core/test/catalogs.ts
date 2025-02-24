@@ -3,6 +3,7 @@ import { type ProjectRootDir, type ProjectId, type ProjectManifest } from '@pnpm
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type MutatedProject, mutateModules, type ProjectOptions, type MutateModulesOptions, addDependenciesToPackage } from '@pnpm/core'
+import { type CatalogSnapshots } from '@pnpm/lockfile.types'
 import { sync as loadJsonFile } from 'load-json-file'
 import path from 'path'
 import { testDefaults } from './utils'
@@ -377,6 +378,61 @@ test('lockfile catalog snapshots do not contain stale references on --filter', a
 
   // is-positive is now updated because a full install took place.
   expect(loadJsonFile<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('3.1.0')
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/8639
+test('--fix-lockfile with --filter does not erase catalog snapshots', async () => {
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        'is-negative': 'catalog:',
+      },
+    },
+    {
+      name: 'project2',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    },
+  ])
+
+  const catalogs = {
+    default: {
+      'is-positive': '^1.0.0',
+      'is-negative': '^1.0.0',
+    },
+  }
+
+  const expectedCatalogsSnapshot: CatalogSnapshots = {
+    default: {
+      'is-negative': { specifier: '^1.0.0', version: '1.0.0' },
+      'is-positive': { specifier: '^1.0.0', version: '1.0.0' },
+    },
+  }
+
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+  })
+
+  // Sanity check this test is set up correctly.
+  expect(readLockfile().catalogs).toStrictEqual(expectedCatalogsSnapshot)
+
+  // The catalogs snapshot should still be the same after performing a filtered
+  // install with --fix-lockfile.
+  const onlyProject1 = installProjects(projects).slice(0, 1)
+  expect(onlyProject1).toMatchObject([{ id: 'project1' }])
+
+  await mutateModules(onlyProject1, {
+    ...options,
+    lockfileOnly: true,
+    fixLockfile: true,
+    catalogs,
+  })
+
+  expect(readLockfile().catalogs).toStrictEqual(expectedCatalogsSnapshot)
 })
 
 test('external dependency using catalog protocol errors', async () => {
