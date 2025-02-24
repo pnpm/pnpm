@@ -1433,73 +1433,55 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       const allProjectsLocatedInsideWorkspace = Object.values(ctx.projects)
         .filter((project) => isPathInsideWorkspace(project.rootDirRealPath ?? project.rootDir))
       if (allProjectsLocatedInsideWorkspace.length > projects.length) {
-        if (
-          allMutationsAreInstalls(projects) &&
-          await allProjectsAreUpToDate(allProjectsLocatedInsideWorkspace, {
-            catalogs: opts.catalogs,
-            autoInstallPeers: opts.autoInstallPeers,
-            excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-            linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
-            wantedLockfile: ctx.wantedLockfile,
-            workspacePackages: ctx.workspacePackages,
-            lockfileDir: opts.lockfileDir,
-          })
-        ) {
-          return installInContext(projects, ctx, {
-            ...opts,
-            frozenLockfile: true,
-          })
-        } else {
-          const newProjects = [...projects]
-          const getWantedDepsOpts = {
-            autoInstallPeers: opts.autoInstallPeers,
-            includeDirect: opts.includeDirect,
-            updateWorkspaceDependencies: false,
-            nodeExecPath: opts.nodeExecPath,
-            injectWorkspacePackages: opts.injectWorkspacePackages,
+        const newProjects = [...projects]
+        const getWantedDepsOpts = {
+          autoInstallPeers: opts.autoInstallPeers,
+          includeDirect: opts.includeDirect,
+          updateWorkspaceDependencies: false,
+          nodeExecPath: opts.nodeExecPath,
+          injectWorkspacePackages: opts.injectWorkspacePackages,
+        }
+        const _isWantedDepPrefSame = isWantedDepPrefSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
+        for (const project of allProjectsLocatedInsideWorkspace) {
+          if (!newProjects.some(({ rootDir }) => rootDir === project.rootDir)) {
+            // This code block mirrors the installCase() function in
+            // mutateModules(). Consider a refactor that combines this logic to
+            // deduplicate code.
+            const wantedDependencies = getWantedDependencies(project.manifest, getWantedDepsOpts)
+              .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
+            forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepPrefSame)
+            newProjects.push({
+              mutation: 'install',
+              ...project,
+              wantedDependencies,
+              pruneDirectDependencies: false,
+              updatePackageManifest: false,
+            })
           }
-          const _isWantedDepPrefSame = isWantedDepPrefSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
-          for (const project of allProjectsLocatedInsideWorkspace) {
-            if (!newProjects.some(({ rootDir }) => rootDir === project.rootDir)) {
-              // This code block mirrors the installCase() function in
-              // mutateModules(). Consider a refactor that combines this logic
-              // to deduplicate code.
-              const wantedDependencies = getWantedDependencies(project.manifest, getWantedDepsOpts)
-                .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
-              forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepPrefSame)
-              newProjects.push({
-                mutation: 'install',
-                ...project,
-                wantedDependencies,
-                pruneDirectDependencies: false,
-                updatePackageManifest: false,
-              })
-            }
-          }
-          const result = await installInContext(newProjects, ctx, {
-            ...opts,
-            lockfileOnly: true,
-          })
-          const { stats, ignoredBuilds } = await headlessInstall({
-            ...ctx,
-            ...opts,
-            currentEngine: {
-              nodeVersion: opts.nodeVersion,
-              pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-            },
-            currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
-            selectedProjectDirs: projects.map((project) => project.rootDir),
-            allProjects: ctx.projects,
-            prunedAt: ctx.modulesFile?.prunedAt,
-            wantedLockfile: result.newLockfile,
-            useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
-            hoistWorkspacePackages: opts.hoistWorkspacePackages,
-          })
-          return {
-            ...result,
-            stats,
-            ignoredBuilds,
-          }
+        }
+        const result = await installInContext(newProjects, ctx, {
+          ...opts,
+          lockfileOnly: true,
+        })
+        const { stats, ignoredBuilds } = await headlessInstall({
+          ...ctx,
+          ...opts,
+          currentEngine: {
+            nodeVersion: opts.nodeVersion,
+            pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+          },
+          currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
+          selectedProjectDirs: projects.map((project) => project.rootDir),
+          allProjects: ctx.projects,
+          prunedAt: ctx.modulesFile?.prunedAt,
+          wantedLockfile: result.newLockfile,
+          useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
+          hoistWorkspacePackages: opts.hoistWorkspacePackages,
+        })
+        return {
+          ...result,
+          stats,
+          ignoredBuilds,
         }
       }
     }
