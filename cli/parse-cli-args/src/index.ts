@@ -222,7 +222,7 @@ function normalizeOptions (options: Record<string, unknown>, knownOptions: Set<s
 }
 
 function isScopeRegistryOption (optionName: string): boolean {
-  return /^@[a-z0-9_-]+:registry$/.test(optionName)
+  return /^@[a-z0-9][\w.-]*:registry$/.test(optionName)
 }
 
 function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>): Map<string, string[]> {
