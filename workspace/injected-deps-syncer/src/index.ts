@@ -5,20 +5,13 @@ import { readModulesManifest } from '@pnpm/modules-yaml'
 import normalizePath from 'normalize-path'
 import { DirPatcher } from './DirPatcher'
 
-interface LoggerPayloadBase {
-  type: string
-  msg: string
+interface SkipSyncInjectedDepsMessage {
+  message: string
+  reason: 'no-name' | 'no-injected-deps'
   opts: SyncInjectedDepsOptions
 }
 
-interface LoggerSkip extends LoggerPayloadBase {
-  type: 'skip'
-  reason: 'no-name' | 'no-injected-deps'
-}
-
-type LoggerPayload = LoggerSkip
-
-const logger = createLogger<LoggerPayload>('sync-injected-deps')
+const logger = createLogger<SkipSyncInjectedDepsMessage>('skip-sync-injected-deps')
 
 export interface SyncInjectedDepsOptions {
   pkgName: string | undefined
@@ -29,9 +22,8 @@ export interface SyncInjectedDepsOptions {
 export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<void> {
   if (!opts.pkgName) {
     logger.debug({
-      type: 'skip',
       reason: 'no-name',
-      msg: `Skipping sync of ${opts.pkgRootDir} as an injected dependency because, without a name, it cannot be a dependency`,
+      message: `Skipping sync of ${opts.pkgRootDir} as an injected dependency because, without a name, it cannot be a dependency`,
       opts,
     })
     return
@@ -44,9 +36,8 @@ export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<
   const modules = await readModulesManifest(modulesDir)
   if (!modules?.injectedDeps) {
     logger.debug({
-      type: 'skip',
       reason: 'no-injected-deps',
-      msg: 'Skipping sync of injected dependencies because none were detected',
+      message: 'Skipping sync of injected dependencies because none were detected',
       opts,
     })
     return
@@ -55,9 +46,8 @@ export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<
   const targetDirs: string[] | undefined = modules.injectedDeps[injectedDepKey]
   if (!targetDirs || targetDirs.length === 0) {
     logger.debug({
-      type: 'skip',
       reason: 'no-injected-deps',
-      msg: `There are no injected dependencies from ${opts.pkgRootDir}`,
+      message: `There are no injected dependencies from ${opts.pkgRootDir}`,
       opts,
     })
     return
