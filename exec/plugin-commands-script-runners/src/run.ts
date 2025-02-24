@@ -16,7 +16,7 @@ import {
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
-import { updateInjectedPackages } from '@pnpm/workspace.injected-deps-syncer'
+import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
 import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
@@ -410,7 +410,7 @@ export async function runScript (opts: {
     await runLifecycleHook(`post${scriptName}`, opts.manifest, opts.lifecycleOpts)
   }
   if (opts.runScriptOptions.syncInjectedDepsAfterScripts?.includes(scriptName)) {
-    await updateInjectedPackages({
+    await syncInjectedDeps({
       pkgName: opts.manifest.name,
       pkgRootDir: opts.lifecycleOpts.pkgRoot,
       workspaceDir: opts.runScriptOptions.workspaceDir,
