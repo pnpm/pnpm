@@ -16,6 +16,7 @@ import {
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
+import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
 import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
@@ -172,6 +173,7 @@ export type RunOpts =
   | 'scriptShell'
   | 'scriptsPrependNodePath'
   | 'shellEmulator'
+  | 'syncInjectedDepsAfterScripts'
   | 'userAgent'
   >
   & (
@@ -290,7 +292,12 @@ so you may run "pnpm -w run ${scriptName}"`,
   try {
     const limitRun = pLimit(concurrency)
 
-    const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
+    const runScriptOptions: RunScriptOptions = {
+      enablePrePostScripts: opts.enablePrePostScripts ?? false,
+      syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
+      workspaceDir: opts.workspaceDir,
+    }
+    const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
 
     await Promise.all(specifiedScripts.map(script => limitRun(() => _runScript(script))))
   } catch (err: unknown) {
@@ -377,6 +384,8 @@ ${renderCommands(rootScripts)}`
 
 export interface RunScriptOptions {
   enablePrePostScripts: boolean
+  syncInjectedDepsAfterScripts: string[] | undefined
+  workspaceDir: string | undefined
 }
 
 export async function runScript (opts: {
@@ -399,6 +408,13 @@ export async function runScript (opts: {
     !opts.manifest.scripts[scriptName].includes(`post${scriptName}`)
   ) {
     await runLifecycleHook(`post${scriptName}`, opts.manifest, opts.lifecycleOpts)
+  }
+  if (opts.runScriptOptions.syncInjectedDepsAfterScripts?.includes(scriptName)) {
+    await syncInjectedDeps({
+      pkgName: opts.manifest.name,
+      pkgRootDir: opts.lifecycleOpts.pkgRoot,
+      workspaceDir: opts.runScriptOptions.workspaceDir,
+    })
   }
 }
 

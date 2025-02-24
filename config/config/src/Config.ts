@@ -215,6 +215,7 @@ export interface Config extends OptionsFromRootManifest {
   strictStorePkgContentCheck: boolean
   managePackageManagerVersions: boolean
   strictDepBuilds: boolean
+  syncInjectedDepsAfterScripts?: string[]
   initPackageManager: boolean
 }
 

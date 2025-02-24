@@ -31,11 +31,12 @@ export function createDirectoryFetcher (
   }
 }
 
-type FetchFromDirOptions = Omit<DirectoryFetcherOptions, 'lockfileDir'> & CreateDirectoryFetcherOptions
+export type FetchFromDirOptions = Omit<DirectoryFetcherOptions, 'lockfileDir'> & CreateDirectoryFetcherOptions
 
-interface FetchResult {
+export interface FetchResult {
   local: true
   filesIndex: Record<string, string>
+  filesStats?: Record<string, Stats | null>
   packageImportMethod: 'hardlink'
   manifest: DependencyManifest
   requiresBuild: boolean
@@ -53,7 +54,7 @@ async function fetchAllFilesFromDir (
   readFileStat: ReadFileStat,
   dir: string
 ): Promise<FetchResult> {
-  const filesIndex = await _fetchAllFilesFromDir(readFileStat, dir)
+  const { filesIndex, filesStats } = await _fetchAllFilesFromDir(readFileStat, dir)
   // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
   // Safe read was added to support the Bit workspace in which the components have no package.json files.
   // Related PR in Bit: https://github.com/teambit/bit/pull/5251
@@ -62,6 +63,7 @@ async function fetchAllFilesFromDir (
   return {
     local: true,
     filesIndex,
+    filesStats,
     packageImportMethod: 'hardlink',
     manifest,
     requiresBuild,
@@ -72,8 +74,9 @@ async function _fetchAllFilesFromDir (
   readFileStat: ReadFileStat,
   dir: string,
   relativeDir = ''
-): Promise<Record<string, string>> {
+): Promise<Pick<FetchResult, 'filesIndex' | 'filesStats'>> {
   const filesIndex: Record<string, string> = {}
+  const filesStats: Record<string, Stats | null> = {}
   const files = await fs.readdir(dir)
   await Promise.all(files
     .filter((file) => file !== 'node_modules')
@@ -83,14 +86,16 @@ async function _fetchAllFilesFromDir (
       const { filePath, stat } = fileStatResult
       const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
       if (stat.isDirectory()) {
-        const subFilesIndex = await _fetchAllFilesFromDir(readFileStat, filePath, relativeSubdir)
-        Object.assign(filesIndex, subFilesIndex)
+        const subFetchResult = await _fetchAllFilesFromDir(readFileStat, filePath, relativeSubdir)
+        Object.assign(filesIndex, subFetchResult.filesIndex)
+        Object.assign(filesStats, subFetchResult.filesStats)
       } else {
         filesIndex[relativeSubdir] = filePath
+        filesStats[relativeSubdir] = fileStatResult.stat
       }
     })
   )
-  return filesIndex
+  return { filesIndex, filesStats }
 }
 
 interface FileStatResult {

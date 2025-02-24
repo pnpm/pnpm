@@ -82,6 +82,9 @@
       "path": "../../workspace/filter-workspace-packages"
     },
     {
+      "path": "../../workspace/injected-deps-syncer"
+    },
+    {
       "path": "../../workspace/sort-packages"
     },
     {

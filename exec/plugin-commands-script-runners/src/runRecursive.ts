@@ -16,7 +16,7 @@ import pLimit from 'p-limit'
 import realpathMissing from 'realpath-missing'
 import { existsInDir } from './existsInDir'
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec'
-import { runScript } from './run'
+import { type RunScriptOptions, runScript } from './run'
 import { tryBuildRegExpFromCommand } from './regexpCommand'
 import { type PackageScripts, type ProjectRootDir } from '@pnpm/types'
 
@@ -31,6 +31,8 @@ export type RecursiveRunOpts = Pick<Config,
 | 'scriptShell'
 | 'shellEmulator'
 | 'stream'
+| 'syncInjectedDepsAfterScripts'
+| 'workspaceDir'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir' | 'dir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
@@ -137,7 +139,12 @@ export async function runRecursive (
             }
           }
 
-          const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
+          const runScriptOptions: RunScriptOptions = {
+            enablePrePostScripts: opts.enablePrePostScripts ?? false,
+            syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
+            workspaceDir: opts.workspaceDir,
+          }
+          const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
           const groupEnd = (opts.workspaceConcurrency ?? 4) > 1
             ? undefined
             : groupStart(formatSectionName({
