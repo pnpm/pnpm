@@ -114,7 +114,7 @@ test('detect unknown options', async () => {
       return {}
     },
     universalOptionsTypes: { filter: [String, Array] },
-  }, ['install', '--save-dev', '--registry=https://example.com', '--qar', '--filter=packages'])
+  }, ['install', '--save-dev', '--registry=https://example.com', '--@scope:registry=https://scope.example.com/npm', '--qar', '--filter=packages'])
   expect(Array.from(unknownOptions.entries())).toStrictEqual([['save-dev', []], ['qar', ['bar']]])
 })
 
