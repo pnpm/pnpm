@@ -1295,6 +1295,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.0
       ansi-diff:
         specifier: 'catalog:'
         version: 1.2.0
