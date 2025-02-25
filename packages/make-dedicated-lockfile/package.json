@@ -49,8 +49,7 @@
     "@pnpm/make-dedicated-lockfile": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "catalog:",
-    "execa": "catalog:",
-    "pnpm": "workspace:^"
+    "execa": "catalog:"
   },
   "exports": {
     ".": "./lib/index.js"

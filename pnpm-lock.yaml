@@ -3918,9 +3918,6 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
-      pnpm:
-        specifier: workspace:^
-        version: link:../../pnpm
 
   packages/parse-wanted-dependency:
     dependencies:
