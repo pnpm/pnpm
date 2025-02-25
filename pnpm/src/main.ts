@@ -97,6 +97,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
     const isDlxCommand = cmd === 'dlx'
+    cliOptions.global ||= cmd === 'link' && cliParams.length === 0
     config = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,

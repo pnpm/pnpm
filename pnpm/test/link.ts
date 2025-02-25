@@ -6,7 +6,7 @@ import { LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import { execPnpm } from './utils'
 
-test('link globally the command of a package that has no name in package.json', async () => {
+const testLinkGlobal = (specifyGlobalOption: boolean) => async () => {
   prepare()
   fs.mkdirSync('cmd')
   process.chdir('cmd')
@@ -18,9 +18,9 @@ console.log("hello world");`, 'utf8')
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)
 
+  const args = specifyGlobalOption ? ['link', '--global'] : ['link']
   const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
-
-  await execPnpm(['link', '--global'], { env })
+  await execPnpm(args, { env })
 
   const globalPrefix = path.join(global, `pnpm/global/${LAYOUT_VERSION}`)
   expect(fs.existsSync(path.join(globalPrefix, 'node_modules/cmd'))).toBeTruthy()
@@ -28,4 +28,8 @@ console.log("hello world");`, 'utf8')
     expect(value).toBeTruthy()
   }
   isExecutable(ok, path.join(pnpmHome, 'cmd'))
-})
+}
+
+test('link globally the command of a package that has no name in package.json', testLinkGlobal(true))
+
+test('link a package globally without specifying the global option', testLinkGlobal(false))
