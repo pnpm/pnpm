@@ -1,4 +1,3 @@
-import { promises as fs } from 'fs'
 import path from 'path'
 import {
   type RecursiveSummary,
@@ -34,9 +33,7 @@ import {
   type UpdateMatchingFunction,
   type WorkspacePackages,
 } from '@pnpm/core'
-import isSubdir from 'is-subdir'
 import mem from 'mem'
-import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 import { getSaveType } from './getSaveType'
@@ -175,11 +172,6 @@ export async function recursive (
   }
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
-    let importers = getImporters(opts)
-    const calculatedRepositoryRoot = await fs.realpath(calculateRepositoryRoot(opts.workspaceDir, importers.map(x => x.rootDir)))
-    const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
-    importers = await pFilter(importers, async ({ rootDirRealPath }) => isFromWorkspace(rootDirRealPath))
-    if (importers.length === 0) return true
     let mutation!: string
     switch (cmdFullName) {
     case 'remove':
@@ -192,6 +184,8 @@ export async function recursive (
       mutation = (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
       break
     }
+    const importers = getImporters(opts)
+    if (importers.length === 0) return true
     const mutatedImporters = [] as MutatedProject[]
     await Promise.all(importers.map(async ({ rootDir }) => {
       const localConfig = await memReadLocalConfig(rootDir)
@@ -415,25 +409,6 @@ export async function recursive (
   }
 
   return true
-}
-
-function calculateRepositoryRoot (
-  workspaceDir: string,
-  projectDirs: string[]
-): string {
-  // assume repo root is workspace dir
-  let relativeRepoRoot = '.'
-  for (const rootDir of projectDirs) {
-    const relativePartRegExp = new RegExp(`^(\\.\\.\\${path.sep})+`)
-    const relativePartMatch = relativePartRegExp.exec(path.relative(workspaceDir, rootDir))
-    if (relativePartMatch != null) {
-      const relativePart = relativePartMatch[0]
-      if (relativePart.length > relativeRepoRoot.length) {
-        relativeRepoRoot = relativePart
-      }
-    }
-  }
-  return path.resolve(workspaceDir, relativeRepoRoot)
 }
 
 export function matchDependencies (
