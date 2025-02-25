@@ -1,5 +1,12 @@
 # @pnpm/real-hoist
 
+## 1001.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.3
+- @pnpm/dependency-path@1000.0.3
+
 ## 1001.0.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 1000.2.0
+
+### Minor Changes
+
+- 8fcc221: Export PnpmSettings.
+
 ## 1000.1.1
 
 ### Patch Changes

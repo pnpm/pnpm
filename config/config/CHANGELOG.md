@@ -1,5 +1,27 @@
 # @pnpm/config
 
+## 1002.4.0
+
+### Minor Changes
+
+- 8fcc221: Allow to set the "pnpm" settings from `package.json` via the `pnpm-workspace.yaml` file.
+- e32b1a2: Added support for automatically syncing files of injected workspace packages after `pnpm run` [#9081](https://github.com/pnpm/pnpm/issues/9081). Use the `sync-injected-deps-after-scripts` setting to specify which scripts build the workspace package. This tells pnpm when syncing is needed. The setting should be defined in a `.npmrc` file at the root of the workspace. Example:
+
+  ```ini
+  sync-injected-deps-after-scripts[]=compile
+  ```
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/workspace.read-manifest@1000.1.0
+  - @pnpm/pnpmfile@1001.0.5
+  - @pnpm/read-project-manifest@1000.0.6
+  - @pnpm/catalogs.config@1000.0.2
+
 ## 1002.3.1
 
 ### Patch Changes

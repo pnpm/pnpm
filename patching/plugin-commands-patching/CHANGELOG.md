@@ -1,5 +1,28 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.0.13
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [5296961]
+- Updated dependencies [8fcc221]
+  - @pnpm/plugin-commands-installation@1002.0.0
+  - @pnpm/config@1002.4.0
+  - @pnpm/types@1000.2.0
+  - @pnpm/cli-utils@1000.0.11
+  - @pnpm/store-connection-manager@1000.0.10
+  - @pnpm/pick-registry-for-package@1000.0.3
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/lockfile.utils@1001.0.3
+  - @pnpm/modules-yaml@1000.1.3
+  - @pnpm/read-package-json@1000.0.4
+  - @pnpm/read-project-manifest@1000.0.6
+  - @pnpm/patching.apply-patch@1000.0.2
+  - @pnpm/pick-fetcher@1000.0.0
+
 ## 1000.0.12
 
 ### Patch Changes

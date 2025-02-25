@@ -1,5 +1,37 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1002.0.0
+
+### Major Changes
+
+- 8fcc221: Don't rebuild packages that are not in the approved list.
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [8fcc221]
+  - @pnpm/config@1002.4.0
+  - @pnpm/types@1000.2.0
+  - @pnpm/cli-utils@1000.0.11
+  - @pnpm/store-connection-manager@1000.0.10
+  - @pnpm/normalize-registries@1000.0.3
+  - @pnpm/lifecycle@1001.0.6
+  - @pnpm/lockfile.types@1001.0.3
+  - @pnpm/lockfile.utils@1001.0.3
+  - @pnpm/lockfile.walker@1001.0.3
+  - @pnpm/calc-dep-state@1001.0.5
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/dependency-path@1000.0.3
+  - @pnpm/get-context@1001.0.6
+  - @pnpm/link-bins@1000.0.7
+  - @pnpm/modules-yaml@1000.1.3
+  - @pnpm/store.cafs@1000.0.5
+  - @pnpm/store-controller-types@1001.0.2
+  - @pnpm/worker@1000.0.6
+  - @pnpm/workspace.find-packages@1000.0.11
+  - @pnpm/sort-packages@1000.0.3
+
 ## 1001.1.8
 
 ### Patch Changes

@@ -1,5 +1,48 @@
 # @pnpm/plugin-commands-installation
 
+## 1002.0.0
+
+### Major Changes
+
+- 8fcc221: Read `onlyBuiltDependencies` and `ignoredBuiltDependencies` from options.
+
+### Patch Changes
+
+- 5296961: `pnpm link <path>` should calculate relative path from the root of the workspace directory [#9132](https://github.com/pnpm/pnpm/pull/9132).
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [8fcc221]
+- Updated dependencies [41dada4]
+- Updated dependencies [8fcc221]
+- Updated dependencies [2d16f7a]
+  - @pnpm/config@1002.4.0
+  - @pnpm/plugin-commands-rebuild@1002.0.0
+  - @pnpm/core@1004.0.0
+  - @pnpm/types@1000.2.0
+  - @pnpm/deps.status@1002.0.0
+  - @pnpm/cli-utils@1000.0.11
+  - @pnpm/plugin-commands-env@1000.0.11
+  - @pnpm/store-connection-manager@1000.0.10
+  - @pnpm/workspace.state@1001.1.6
+  - @pnpm/pick-registry-for-package@1000.0.3
+  - @pnpm/dedupe.check@1001.0.3
+  - @pnpm/pnpmfile@1001.0.5
+  - @pnpm/lockfile.types@1001.0.3
+  - @pnpm/get-context@1001.0.6
+  - @pnpm/manifest-utils@1000.0.5
+  - @pnpm/read-package-json@1000.0.4
+  - @pnpm/read-project-manifest@1000.0.6
+  - @pnpm/write-project-manifest@1000.0.3
+  - @pnpm/resolver-base@1000.1.3
+  - @pnpm/outdated@1001.0.8
+  - @pnpm/package-store@1000.0.6
+  - @pnpm/filter-workspace-packages@1000.0.11
+  - @pnpm/workspace.find-packages@1000.0.11
+  - @pnpm/workspace.pkgs-graph@1000.0.5
+  - @pnpm/sort-packages@1000.0.3
+
 ## 1001.5.1
 
 ### Patch Changes

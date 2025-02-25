@@ -1,5 +1,13 @@
 # @pnpm/merge-lockfile-changes
 
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/lockfile.types@1001.0.3
+
 ## 1001.0.2
 
 ### Patch Changes

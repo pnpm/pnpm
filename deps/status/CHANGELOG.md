@@ -1,5 +1,30 @@
 # @pnpm/deps.status
 
+## 1002.0.0
+
+### Major Changes
+
+- 8fcc221: Read `configDependencies` from `options`.
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+  - @pnpm/config@1002.4.0
+  - @pnpm/types@1000.2.0
+  - @pnpm/workspace.read-manifest@1000.1.0
+  - @pnpm/workspace.state@1001.1.6
+  - @pnpm/pnpmfile@1001.0.5
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/lockfile.verification@1001.0.6
+  - @pnpm/get-context@1001.0.6
+  - @pnpm/resolver-base@1000.1.3
+  - @pnpm/workspace.find-packages@1000.0.11
+  - @pnpm/lockfile.settings-checker@1001.0.3
+
 ## 1001.2.2
 
 ### Patch Changes

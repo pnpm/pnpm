@@ -1,5 +1,24 @@
 # @pnpm/exec.build-commands
 
+## 1001.0.0
+
+### Major Changes
+
+- 8fcc221: Read `onlyBuiltDependencies` and `ignoredBuiltDependencies` from `options`.
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [8fcc221]
+  - @pnpm/workspace.manifest-writer@1000.0.0
+  - @pnpm/config@1002.4.0
+  - @pnpm/plugin-commands-rebuild@1002.0.0
+  - @pnpm/modules-yaml@1000.1.3
+  - @pnpm/read-project-manifest@1000.0.6
+
 ## 1000.1.1
 
 ### Patch Changes

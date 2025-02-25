@@ -1,5 +1,11 @@
 # @pnpm/parse-cli-args
 
+## 1000.0.3
+
+### Patch Changes
+
+- 48b4871: Allow scope registry CLI option without `--config.` prefix such as `--@scope:registry=https://scope.example.com/npm` [#9089](https://github.com/pnpm/pnpm/pull/9089).
+
 ## 1000.0.2
 
 ### Patch Changes

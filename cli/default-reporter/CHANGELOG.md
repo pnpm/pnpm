@@ -1,5 +1,19 @@
 # @pnpm/default-reporter
 
+## 1001.3.2
+
+### Patch Changes
+
+- 5df8de7: Fix undefined being printed in install errors when a package does not have a version field.
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [8fcc221]
+  - @pnpm/config@1002.4.0
+  - @pnpm/types@1000.2.0
+  - @pnpm/cli-meta@1000.0.3
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/render-peer-issues@1000.0.5
+
 ## 1001.3.1
 
 ### Patch Changes

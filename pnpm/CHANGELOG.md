@@ -1,5 +1,26 @@
 # pnpm
 
+## 10.5.0
+
+### Minor Changes
+
+- Allow to set the "pnpm" settings from `package.json` via the `pnpm-workspace.yaml` file [#9121](https://github.com/pnpm/pnpm/pull/9121).
+- Added support for automatically syncing files of injected workspace packages after `pnpm run` [#9081](https://github.com/pnpm/pnpm/issues/9081). Use the `sync-injected-deps-after-scripts` setting to specify which scripts build the workspace package. This tells pnpm when syncing is needed. The setting should be defined in a `.npmrc` file at the root of the workspace. Example:
+
+  ```ini
+  sync-injected-deps-after-scripts[]=compile
+  ```
+
+- The `packages` field in `pnpm-workspace.yaml` became optional.
+
+### Patch Changes
+
+- `pnpm link` with no parameters should work as if `--global` is specified [#9151](https://github.com/pnpm/pnpm/pull/9151).
+- Allow scope registry CLI option without `--config.` prefix such as `--@scope:registry=https://scope.example.com/npm` [#9089](https://github.com/pnpm/pnpm/pull/9089).
+- `pnpm link <path>` should calculate relative path from the root of the workspace directory [#9132](https://github.com/pnpm/pnpm/pull/9132).
+- Fix a bug causing catalog snapshots to be removed from the `pnpm-lock.yaml` file when using `--fix-lockfile` and `--filter`. [#8639](https://github.com/pnpm/pnpm/issues/8639)
+- Fix a bug causing catalog protocol dependencies to not re-resolve on a filtered install [#8638](https://github.com/pnpm/pnpm/issues/8638).
+
 ## 10.4.1
 
 ### Patch Changes

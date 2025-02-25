@@ -1,5 +1,20 @@
 # @pnpm/directory-fetcher
 
+## 1000.1.0
+
+### Minor Changes
+
+- e32b1a2: Optionally return file stats from `fetchFromDir`.
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/exec.pkg-requires-build@1000.0.3
+  - @pnpm/fetcher-base@1000.0.4
+  - @pnpm/read-project-manifest@1000.0.6
+  - @pnpm/resolver-base@1000.1.3
+
 ## 1000.0.5
 
 ### Patch Changes

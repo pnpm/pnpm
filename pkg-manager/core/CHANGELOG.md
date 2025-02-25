@@ -1,5 +1,52 @@
 # @pnpm/core
 
+## 1004.0.0
+
+### Major Changes
+
+- 8fcc221: By default, don't allow to run scripts of dependencies.
+
+### Patch Changes
+
+- 41dada4: Fix a bug causing catalog snapshots to be removed from the `pnpm-lock.yaml` file when using `--fix-lockfile` and `--filter`. [#8639](https://github.com/pnpm/pnpm/issues/8639)
+- 2d16f7a: Fix a bug causing catalog protocol dependencies to not re-resolve on a filtered install [#8638](https://github.com/pnpm/pnpm/issues/8638).
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/normalize-registries@1000.0.3
+  - @pnpm/build-modules@1000.2.6
+  - @pnpm/lifecycle@1001.0.6
+  - @pnpm/symlink-dependency@1000.0.4
+  - @pnpm/hooks.read-package-hook@1000.0.5
+  - @pnpm/hooks.types@1001.0.3
+  - @pnpm/lockfile.filtering@1001.0.4
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/lockfile-to-pnp@1001.0.5
+  - @pnpm/lockfile.preferred-versions@1000.0.5
+  - @pnpm/lockfile.pruner@1001.0.3
+  - @pnpm/lockfile.utils@1001.0.3
+  - @pnpm/lockfile.verification@1001.0.6
+  - @pnpm/lockfile.walker@1001.0.3
+  - @pnpm/calc-dep-state@1001.0.5
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/dependency-path@1000.0.3
+  - @pnpm/get-context@1001.0.6
+  - @pnpm/headless@1001.2.3
+  - @pnpm/hoist@1001.0.6
+  - @pnpm/link-bins@1000.0.7
+  - @pnpm/modules-cleaner@1001.0.5
+  - @pnpm/modules-yaml@1000.1.3
+  - @pnpm/package-requester@1001.0.2
+  - @pnpm/remove-bins@1000.0.5
+  - @pnpm/resolve-dependencies@1004.0.3
+  - @pnpm/manifest-utils@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.6
+  - @pnpm/resolver-base@1000.1.3
+  - @pnpm/store-controller-types@1001.0.2
+  - @pnpm/worker@1000.0.6
+  - @pnpm/crypto.hash@1000.0.0
+  - @pnpm/lockfile.settings-checker@1001.0.3
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.4
+
 ## 1003.0.2
 
 ### Patch Changes

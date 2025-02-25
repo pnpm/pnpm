@@ -1,5 +1,41 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1000.2.0
+
+### Minor Changes
+
+- e32b1a2: Added support for automatically syncing files of injected workspace packages after `pnpm run` [#9081](https://github.com/pnpm/pnpm/issues/9081). Use the `sync-injected-deps-after-scripts` setting to specify which scripts build the workspace package. This tells pnpm when syncing is needed. The setting should be defined in a `.npmrc` file at the root of the workspace. Example:
+
+  ```ini
+  sync-injected-deps-after-scripts[]=compile
+  ```
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [5296961]
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+  - @pnpm/plugin-commands-installation@1002.0.0
+  - @pnpm/config@1002.4.0
+  - @pnpm/workspace.injected-deps-syncer@1000.0.0
+  - @pnpm/types@1000.2.0
+  - @pnpm/deps.status@1002.0.0
+  - @pnpm/cli-utils@1000.0.11
+  - @pnpm/plugin-commands-env@1000.0.11
+  - @pnpm/pick-registry-for-package@1000.0.3
+  - @pnpm/lifecycle@1001.0.6
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/client@1000.0.7
+  - @pnpm/package-bins@1000.0.3
+  - @pnpm/read-package-json@1000.0.4
+  - @pnpm/read-project-manifest@1000.0.6
+  - @pnpm/sort-packages@1000.0.3
+  - @pnpm/crypto.hash@1000.0.0
+
 ## 1000.1.4
 
 ### Patch Changes

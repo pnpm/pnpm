@@ -1,5 +1,14 @@
 # @pnpm/prepare-package
 
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/lifecycle@1001.0.6
+  - @pnpm/read-package-json@1000.0.4
+
 ## 1000.0.6
 
 ### Patch Changes

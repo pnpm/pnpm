@@ -1,5 +1,20 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 1000.1.0
+
+### Minor Changes
+
+- e32b1a2: Added support for automatically syncing files of injected workspace packages after `pnpm run` [#9081](https://github.com/pnpm/pnpm/issues/9081). Use the `sync-injected-deps-after-scripts` setting to specify which scripts build the workspace package. This tells pnpm when syncing is needed. The setting should be defined in a `.npmrc` file at the root of the workspace. Example:
+
+  ```ini
+  sync-injected-deps-after-scripts[]=compile
+  ```
+
+### Patch Changes
+
+- @pnpm/core-loggers@1000.1.3
+- @pnpm/store-controller-types@1001.0.2
+
 ## 1000.0.5
 
 ### Patch Changes

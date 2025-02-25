@@ -1,5 +1,17 @@
 # @pnpm/workspace.read-manifest
 
+## 1000.1.0
+
+### Minor Changes
+
+- 8fcc221: Extend WorkspaceManifest with PnpmSettings.
+- 8fcc221: The `packages` field in `pnpm-workspace.yaml` became optional.
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+
 ## 1000.0.2
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/hooks.types",
-  "version": "1001.0.2",
+  "version": "1001.0.3",
   "description": "Types for hooks",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

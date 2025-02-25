@@ -1,5 +1,16 @@
 # @pnpm/create-cafs-store
 
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [e32b1a2]
+  - @pnpm/fs.indexed-pkg-importer@1000.1.0
+  - @pnpm/exec.pkg-requires-build@1000.0.3
+  - @pnpm/fetcher-base@1000.0.4
+  - @pnpm/store.cafs@1000.0.5
+  - @pnpm/store-controller-types@1001.0.2
+
 ## 1000.0.5
 
 ### Patch Changes
