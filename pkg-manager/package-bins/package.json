@@ -32,8 +32,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/package-bins#readme",
   "dependencies": {
     "@pnpm/types": "workspace:*",
-    "fast-glob": "catalog:",
-    "is-subdir": "catalog:"
+    "is-subdir": "catalog:",
+    "tinyglobby": "catalog:"
   },
   "devDependencies": {
     "@pnpm/package-bins": "workspace:*",

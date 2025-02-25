@@ -603,6 +603,9 @@ catalogs:
     terminal-link:
       specifier: ^2.1.1
       version: 2.1.1
+    tinyglobby:
+      specifier: ^0.2.12
+      version: 0.2.12
     touch:
       specifier: 3.1.0
       version: 3.1.0
@@ -1090,9 +1093,9 @@ importers:
       encode-registry:
         specifier: 'catalog:'
         version: 3.0.1
-      fast-glob:
+      tinyglobby:
         specifier: 'catalog:'
-        version: 3.3.3
+        version: 0.2.12
     devDependencies:
       '@pnpm/cache.api':
         specifier: workspace:*
@@ -2847,12 +2850,12 @@ importers:
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
         version: 3.0.0
-      fast-glob:
-        specifier: 'catalog:'
-        version: 3.3.3
       p-filter:
         specifier: 'catalog:'
         version: 2.1.0
+      tinyglobby:
+        specifier: 'catalog:'
+        version: 0.2.12
     devDependencies:
       '@pnpm/fs.find-packages':
         specifier: workspace:*
@@ -4175,9 +4178,6 @@ importers:
       escape-string-regexp:
         specifier: 'catalog:'
         version: 4.0.0
-      fast-glob:
-        specifier: 'catalog:'
-        version: 3.3.3
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -4208,6 +4208,9 @@ importers:
       terminal-link:
         specifier: 'catalog:'
         version: 2.1.1
+      tinyglobby:
+        specifier: 'catalog:'
+        version: 0.2.12
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -5052,12 +5055,12 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      fast-glob:
-        specifier: 'catalog:'
-        version: 3.3.3
       is-subdir:
         specifier: 'catalog:'
         version: 1.2.0
+      tinyglobby:
+        specifier: 'catalog:'
+        version: 0.2.12
     devDependencies:
       '@pnpm/package-bins':
         specifier: workspace:*
@@ -6365,9 +6368,6 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
-      fast-glob:
-        specifier: 'catalog:'
-        version: 3.3.3
       p-filter:
         specifier: 'catalog:'
         version: 2.1.0
@@ -6386,6 +6386,9 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
+      tinyglobby:
+        specifier: 'catalog:'
+        version: 0.2.12
       validate-npm-package-name:
         specifier: 'catalog:'
         version: 5.0.0

@@ -64,7 +64,6 @@
     "chalk": "catalog:",
     "enquirer": "catalog:",
     "escape-string-regexp": "catalog:",
-    "fast-glob": "catalog:",
     "is-windows": "catalog:",
     "make-empty-dir": "catalog:",
     "normalize-path": "catalog:",
@@ -74,7 +73,8 @@
     "safe-execa": "catalog:",
     "semver": "catalog:",
     "tempy": "catalog:",
-    "terminal-link": "catalog:"
+    "terminal-link": "catalog:",
+    "tinyglobby": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": ">=5.1.0 <1001.0.0"
