@@ -255,3 +255,63 @@ catalog:
   write-pkg: 4.0.0
   write-yaml-file: ^5.0.0
   yaml-tag: 1.1.0
+packageExtensions:
+  "@babel/parser":
+    peerDependencies:
+      "@babel/types": "*"
+  jest-circus:
+    dependencies:
+      slash: '3'
+  remark-stringify:
+    peerDependencies:
+      unified: "*"
+  remark-parse:
+    peerDependencies:
+      unified: "*"
+onlyBuiltDependencies:
+- esbuild
+- fuse-native
+- ghooks
+ignoredBuiltDependencies:
+- core-js
+patchedDependencies:
+  "@yao-pkg/pkg": __patches__/pkg.patch
+  graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
+  mdast-util-to-string@2.0.0: __patches__/mdast-util-to-string@2.0.0.patch
+updateConfig:
+  ignoreDependencies:
+  - boxen
+  - camelcase
+  - camelcase-keys
+  - chalk
+  - detect-indent
+  - escape-string-regexp
+  - filenamify
+  - find-up
+  - get-port
+  - is-port-reachable
+  - load-json-file
+  - mem
+  - npm-packlist
+  - node-fetch
+  - normalize-newline
+  - p-any
+  - p-defer
+  - p-filter
+  - p-limit
+  - p-memoize
+  - p-queue
+  - p-settle
+  - parse-json
+  - path-exists
+  - pretty-bytes
+  - pretty-ms
+  - process-exists
+  - ps-list
+  - sort-keys
+  - string-length
+  - strip-bom
+  - tempy
+  - unique-string
+  - write-json-file
+  - write-pkg
