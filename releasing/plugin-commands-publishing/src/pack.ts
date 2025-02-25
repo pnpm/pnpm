@@ -19,7 +19,6 @@ import chalk from 'chalk'
 import validateNpmPackageName from 'validate-npm-package-name'
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
-const findLicenses = glob.bind(glob, [LICENSE_GLOB]) as (opts: { cwd: string }) => Promise<string[]>
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {
@@ -162,7 +161,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   // cspell:disable-next-line
   if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(\..+)?/i.test(file))) {
-    const licenses = await findLicenses({ cwd: opts.workspaceDir, expandDirectories: false })
+    const licenses = await glob([LICENSE_GLOB], { cwd: opts.workspaceDir, expandDirectories: false })
     for (const license of licenses) {
       filesMap[`package/${license}`] = path.join(opts.workspaceDir, license)
     }
