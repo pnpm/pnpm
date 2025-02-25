@@ -20,6 +20,7 @@ import renderHelp from 'render-help'
 import { createProjectManifestWriter } from './createProjectManifestWriter'
 import { getSaveType } from './getSaveType'
 import * as install from './install'
+import normalize from 'normalize-path'
 
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
@@ -180,7 +181,7 @@ async function addLinkToManifest (opts: ReadProjectManifestOpts, manifest: Proje
   }
   const { manifest: linkedManifest } = await tryReadProjectManifest(linkedDepDir, opts)
   const linkedPkgName = linkedManifest?.name ?? path.basename(linkedDepDir)
-  const linkedPkgSpec = `link:${path.relative(manifestDir, linkedDepDir)}`
+  const linkedPkgSpec = `link:${normalize(path.relative(manifestDir, linkedDepDir))}`
   manifest.pnpm.overrides![linkedPkgName] = linkedPkgSpec
   if (DEPENDENCIES_FIELDS.every((depField) => manifest[depField]?.[linkedPkgName] == null)) {
     manifest.dependencies = manifest.dependencies ?? {}
