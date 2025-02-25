@@ -7,6 +7,7 @@ import {
   type SummaryLog,
 } from '@pnpm/core-loggers'
 import { type Config } from '@pnpm/config'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
 import boxen from 'boxen'
@@ -88,7 +89,7 @@ export function reportSummary (
         }
         if (ignoredScripts.packageNames && ignoredScripts.packageNames.length > 0 && !opts.pnpmConfig?.strictDepBuilds) {
           msg += EOL
-          msg += boxen(`Ignored build scripts: ${Array.from(ignoredScripts.packageNames).sort().join(', ')}.
+          msg += boxen(`Ignored build scripts: ${Array.from(ignoredScripts.packageNames).sort(lexCompare).join(', ')}.
 Run "pnpm approve-builds${opts.pnpmConfig?.cliOptions?.global ? ' -g' : ''}" to pick which dependencies should be allowed to run scripts.`, {
             title: 'Warning',
             padding: 1,

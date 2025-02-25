@@ -41,6 +41,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/render-peer-issues": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "ansi-diff": "catalog:",
     "boxen": "catalog:",
     "chalk": "catalog:",
