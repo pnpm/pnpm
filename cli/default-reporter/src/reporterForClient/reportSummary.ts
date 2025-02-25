@@ -88,7 +88,7 @@ export function reportSummary (
         }
         if (ignoredScripts.packageNames && ignoredScripts.packageNames.length > 0 && !opts.pnpmConfig?.strictDepBuilds) {
           msg += EOL
-          msg += boxen(`Ignored build scripts: ${Array.from(ignoredScripts.packageNames).sort().join(', ')}.
+          msg += boxen(`Ignored build scripts: ${Array.from(ignoredScripts.packageNames).sort((a, b) => a.localeCompare(b)).join(', ')}.
 Run "pnpm approve-builds${opts.pnpmConfig?.cliOptions?.global ? ' -g' : ''}" to pick which dependencies should be allowed to run scripts.`, {
             title: 'Warning',
             padding: 1,
