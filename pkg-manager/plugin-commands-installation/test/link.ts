@@ -361,21 +361,22 @@ test('link: fail when global bin directory is not found', async () => {
 test('relative link from workspace package', async () => {
   prepareEmpty()
 
-  await writePkg('workspace/packages/project', {
+  const rootProjectManifest = {
     name: 'project',
     version: '1.0.0',
     dependencies: {
       '@pnpm.e2e/hello-world-js-bin': '*',
     },
-  })
+  }
+  await writePkg('workspace/packages/project', rootProjectManifest)
+  const workspaceDir = path.resolve('workspace')
+  writeYamlFile(path.join(workspaceDir, 'pnpm-workspace.yaml'), { packages: ['packages/*'] })
 
   f.copy('hello-world-js-bin', 'hello-world-js-bin')
 
-  const workspaceDir = path.resolve('workspace')
   const projectDir = path.resolve('workspace/packages/project')
   const helloWorldJsBinDir = path.resolve('hello-world-js-bin')
 
-  writeYamlFile(path.join(workspaceDir, 'pnpm-workspace.yaml'), { packages: ['packages/*'] })
   process.chdir(projectDir)
 
   await link.handler({
@@ -384,11 +385,7 @@ test('relative link from workspace package', async () => {
     dir: process.cwd(),
     globalPkgDir: '',
     lockfileDir: workspaceDir,
-    rootProjectManifest: {
-      dependencies: {
-        '@pnpm.e2e/hello-world-js-bin': '*',
-      },
-    },
+    rootProjectManifest,
     rootProjectManifestDir: workspaceDir,
     workspaceDir,
     workspacePackagePatterns: ['packages/*'],
