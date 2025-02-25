@@ -1,8 +1,8 @@
 import fs from 'fs'
 import path from 'path'
 import { install, link } from '@pnpm/plugin-commands-installation'
-import { prepare, preparePackages } from '@pnpm/prepare'
-import { isExecutable } from '@pnpm/assert-project'
+import { prepare, preparePackages, prepareEmpty } from '@pnpm/prepare'
+import { isExecutable, assertProject } from '@pnpm/assert-project'
 import { fixtures } from '@pnpm/test-fixtures'
 import { logger } from '@pnpm/logger'
 import { sync as loadJsonFile } from 'load-json-file'
@@ -10,6 +10,8 @@ import PATH from 'path-name'
 import writePkg from 'write-pkg'
 import { DEFAULT_OPTS } from './utils'
 import { type PnpmError } from '@pnpm/error'
+import { sync as writeYamlFile } from 'write-yaml-file'
+import normalize from 'normalize-path'
 
 const f = fixtures(__dirname)
 
@@ -354,4 +356,57 @@ test('link: fail when global bin directory is not found', async () => {
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_NO_GLOBAL_BIN_DIR')
+})
+
+test('relative link from workspace package', async () => {
+  prepareEmpty()
+
+  const rootProjectManifest = {
+    name: 'project',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '*',
+    },
+  }
+  await writePkg('workspace/packages/project', rootProjectManifest)
+  const workspaceDir = path.resolve('workspace')
+  writeYamlFile(path.join(workspaceDir, 'pnpm-workspace.yaml'), { packages: ['packages/*'] })
+
+  f.copy('hello-world-js-bin', 'hello-world-js-bin')
+
+  const projectDir = path.resolve('workspace/packages/project')
+  const helloWorldJsBinDir = path.resolve('hello-world-js-bin')
+
+  process.chdir(projectDir)
+
+  await link.handler({
+    ...DEFAULT_OPTS,
+    dedupeDirectDeps: false,
+    dir: process.cwd(),
+    globalPkgDir: '',
+    lockfileDir: workspaceDir,
+    rootProjectManifest,
+    rootProjectManifestDir: workspaceDir,
+    workspaceDir,
+    workspacePackagePatterns: ['packages/*'],
+  }, ['../../../hello-world-js-bin'])
+
+  const manifest = loadJsonFile<{ pnpm?: { overrides?: Record<string, string> } }>(path.join(workspaceDir, 'package.json'))
+  expect(normalize(manifest.pnpm?.overrides?.['@pnpm.e2e/hello-world-js-bin'] ?? '')).toBe('link:../hello-world-js-bin')
+
+  const workspace = assertProject(workspaceDir)
+  ;[workspace.readLockfile(), workspace.readCurrentLockfile()].forEach(lockfile => {
+    expect(normalize(lockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin'].version ?? ''))
+      .toBe('link:../hello-world-js-bin')
+    expect(normalize(lockfile.importers['packages/project'].dependencies?.['@pnpm.e2e/hello-world-js-bin'].version ?? ''))
+      .toBe('link:../../../hello-world-js-bin')
+  })
+
+  const validateSymlink = (basePath: string) => {
+    process.chdir(path.join(basePath, 'node_modules', '@pnpm.e2e'))
+    expect(path.resolve(fs.readlinkSync('hello-world-js-bin'))).toBe(helloWorldJsBinDir)
+  }
+
+  validateSymlink(workspaceDir)
+  validateSymlink(projectDir)
 })

@@ -5370,6 +5370,9 @@ importers:
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
+      '@types/normalize-path':
+        specifier: 'catalog:'
+        version: 3.0.2
       '@types/proxyquire':
         specifier: 'catalog:'
         version: 1.3.31
@@ -5394,6 +5397,9 @@ importers:
       jest-diff:
         specifier: 'catalog:'
         version: 29.7.0
+      normalize-path:
+        specifier: 'catalog:'
+        version: 3.0.0
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
