@@ -14,7 +14,6 @@ const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => { // eslint-disable-line
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)!
-  const rootManifest = loadJsonFile.sync<ProjectManifest>(path.join(workspaceDir, 'package.json'))
   const pnpmManifest = loadJsonFile.sync<ProjectManifest>(path.join(workspaceDir, 'pnpm/package.json'))
   const pnpmVersion = pnpmManifest!.version!
   const pnpmMajorNumber = pnpmVersion.split('.')[0]
@@ -63,7 +62,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         }
       } else {
         manifest.pnpm = manifest.pnpm ?? {}
-        manifest.pnpm.overrides = { ...rootManifest.pnpm!.overrides }
+        manifest.pnpm.overrides = { ...workspaceManifest!.overrides }
         for (const selector in manifest.pnpm.overrides) {
           if (manifest.pnpm.overrides[selector] === 'catalog:') {
             const { targetPkg } = parsePkgAndParentSelector(selector)
