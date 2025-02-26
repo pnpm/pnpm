@@ -5324,6 +5324,9 @@ importers:
       mem:
         specifier: 'catalog:'
         version: 8.1.1
+      normalize-path:
+        specifier: 'catalog:'
+        version: 3.0.0
       p-filter:
         specifier: 'catalog:'
         version: 2.1.0
@@ -5397,9 +5400,6 @@ importers:
       jest-diff:
         specifier: 'catalog:'
         version: 29.7.0
-      normalize-path:
-        specifier: 'catalog:'
-        version: 3.0.0
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
