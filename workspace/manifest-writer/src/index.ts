@@ -7,6 +7,6 @@ export async function updateWorkspaceManifest (dir: string, updatedFields: Parti
   const manifest = await readWorkspaceManifest(dir)
   await writeYamlFile(path.join(dir, WORKSPACE_MANIFEST_FILENAME), {
     ...manifest,
-    updatedFields,
+    ...updatedFields,
   })
 }
