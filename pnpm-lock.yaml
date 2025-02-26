@@ -3588,6 +3588,9 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
