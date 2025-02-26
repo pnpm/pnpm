@@ -12,6 +12,7 @@ import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
+import { type PnpmSettings } from '@pnpm/types'
 import execa from 'execa'
 import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
@@ -75,7 +76,7 @@ export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
   allowBuild?: string[]
-} & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' | 'symlink'> & add.AddCommandOptions
+} & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' | 'symlink'> & add.AddCommandOptions & PnpmSettings
 
 export async function handler (
   opts: DlxCommandOptions,
@@ -110,7 +111,25 @@ export async function handler (
     await add.handler({
       // Ideally the config reader should ignore these settings when the dlx command is executed.
       // This is a temporary solution until "@pnpm/config" is refactored.
-      ...omit(['workspaceDir', 'rootProjectManifest', 'symlink'], opts),
+      ...omit([
+        'workspaceDir',
+        'rootProjectManifest',
+        'symlink',
+        // Options from root manifest
+        'allowNonAppliedPatches',
+        'allowedDeprecatedVersions',
+        'configDependencies',
+        'ignoredBuiltDependencies',
+        'ignoredOptionalDependencies',
+        'neverBuiltDependencies',
+        'onlyBuiltDependencies',
+        'onlyBuiltDependenciesFile',
+        'overrides',
+        'packageExtensions',
+        'patchedDependencies',
+        'peerDependencyRules',
+        'supportedArchitectures',
+      ], opts),
       bin: path.join(cachedDir, 'node_modules/.bin'),
       dir: cachedDir,
       lockfileDir: cachedDir,

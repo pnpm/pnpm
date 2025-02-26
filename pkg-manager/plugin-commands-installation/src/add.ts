@@ -181,6 +181,7 @@ export async function handler (
   opts: AddCommandOptions,
   params: string[]
 ): Promise<void> {
+  console.log(JSON.stringify(opts, null, 2))
   if (opts.cliOptions['save'] === false) {
     throw new PnpmError('OPTION_NOT_SUPPORTED', 'The "add" command currently does not support the no-save option')
   }
