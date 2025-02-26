@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../../__utils__/prepare-temp-dir"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../read-manifest"
     }
   ]

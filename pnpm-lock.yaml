@@ -8048,6 +8048,9 @@ importers:
 
   workspace/manifest-writer:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/workspace.read-manifest':
         specifier: workspace:*
         version: link:../read-manifest
@@ -8055,9 +8058,15 @@ importers:
         specifier: 'catalog:'
         version: 5.0.0
     devDependencies:
+      '@pnpm/prepare-temp-dir':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare-temp-dir
       '@pnpm/workspace.manifest-writer':
         specifier: workspace:*
         version: 'link:'
+      read-yaml-file:
+        specifier: 'catalog:'
+        version: 2.1.0
 
   workspace/pkgs-graph:
     dependencies:
