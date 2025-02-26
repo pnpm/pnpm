@@ -12,7 +12,7 @@ export async function findWorkspaceDir (cwd: string): Promise<string | undefined
   const workspaceManifestLocation = workspaceManifestDirEnvVar
     ? path.join(workspaceManifestDirEnvVar, WORKSPACE_MANIFEST_FILENAME)
     : await findUp([WORKSPACE_MANIFEST_FILENAME, ...INVALID_WORKSPACE_MANIFEST_FILENAME], { cwd: await getRealPath(cwd) })
-  if (workspaceManifestLocation && !path.basename(WORKSPACE_MANIFEST_FILENAME)) {
+  if (workspaceManifestLocation && path.basename(workspaceManifestLocation) !== WORKSPACE_MANIFEST_FILENAME) {
     throw new PnpmError('BAD_WORKSPACE_MANIFEST_NAME', `The workspace manifest file should be named "pnpm-workspace.yaml". File found: ${workspaceManifestLocation}`)
   }
   return workspaceManifestLocation && path.dirname(workspaceManifestLocation)
