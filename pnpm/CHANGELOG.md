@@ -1,5 +1,15 @@
 # pnpm
 
+## 10.5.1
+
+### Patch Changes
+
+- Throw an error message if a `pnpm-workspaces.yaml` or `pnpm-workspaces.yml` file is found instead of a `pnpm-workspace.yaml` [#9170](https://github.com/pnpm/pnpm/issues/9170).
+- Fix the update of `pnpm-workspace.yaml` by the `pnpm approve-builds` command [#9168](https://github.com/pnpm/pnpm/issues/9168).
+- Normalize generated link paths in `package.json` [#9163](https://github.com/pnpm/pnpm/pull/9163)
+- Specifying `overrides` in `pnpm-workspace.yaml` should work.
+- `pnpm dlx` should ignore settings from the `package.json` file in the current working directory [#9178](https://github.com/pnpm/pnpm/issues/9178).
+
 ## 10.5.0
 
 ### Minor Changes

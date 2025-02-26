@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cache.commands",
-  "version": "1000.0.11",
+  "version": "1000.0.12",
   "description": "Commands for controlling the cache",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

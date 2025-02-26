@@ -1,5 +1,13 @@
 # pd
 
+## 1.0.14
+
+### Patch Changes
+
+- Updated dependencies [69f922a]
+  - @pnpm/find-workspace-dir@1000.1.0
+  - @pnpm/workspace.find-packages@1000.0.12
+
 ## 1.0.13
 
 ### Patch Changes

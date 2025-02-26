@@ -1,5 +1,15 @@
 # @pnpm/exec.build-commands
 
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [23754c7]
+- Updated dependencies [1c2eb8c]
+  - @pnpm/workspace.manifest-writer@1000.0.1
+  - @pnpm/config@1002.4.1
+  - @pnpm/plugin-commands-rebuild@1002.0.1
+
 ## 1001.0.0
 
 ### Major Changes

@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 1002.4.1
+
+### Patch Changes
+
+- 1c2eb8c: Specifying `overrides` in `pnpm-workspace.yaml` should work.
+
 ## 1002.4.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.build-commands",
-  "version": "1001.0.0",
+  "version": "1001.0.1",
   "description": "Commands for managing dependency builds",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

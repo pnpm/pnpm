@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1000.2.1
+
+### Patch Changes
+
+- 0b31bf0: `pnpm dlx` should ignore settings from the `package.json` file in the current working directory [#9178](https://github.com/pnpm/pnpm/issues/9178).
+- Updated dependencies [76973d8]
+- Updated dependencies [1c2eb8c]
+  - @pnpm/plugin-commands-installation@1002.0.1
+  - @pnpm/config@1002.4.1
+  - @pnpm/cli-utils@1000.0.12
+  - @pnpm/deps.status@1002.0.1
+  - @pnpm/plugin-commands-env@1000.0.12
+
 ## 1000.2.0
 
 ### Minor Changes
