@@ -8048,6 +8048,9 @@ importers:
 
   workspace/manifest-writer:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/workspace.read-manifest':
         specifier: workspace:*
         version: link:../read-manifest
