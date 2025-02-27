@@ -56,7 +56,7 @@ catalog:
   "@pnpm/npm-lifecycle": ^1000.0.1
   "@pnpm/npm-package-arg": ^1.0.0
   "@pnpm/os.env.path-extender": ^2.0.0
-  "@pnpm/patch-package": 0.0.0
+  "@pnpm/patch-package": 0.0.1
   "@pnpm/registry-mock": 4.0.0
   "@pnpm/semver-diff": ^1.1.0
   "@pnpm/tabtab": ^0.5.4

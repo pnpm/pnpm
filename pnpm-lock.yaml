@@ -52,8 +52,8 @@ catalogs:
       specifier: ^2.0.0
       version: 2.0.0
     '@pnpm/patch-package':
-      specifier: 0.0.0
-      version: 0.0.0
+      specifier: 0.0.1
+      version: 0.0.1
     '@pnpm/registry-mock':
       specifier: 4.0.0
       version: 4.0.0
@@ -4088,7 +4088,7 @@ importers:
         version: link:../../packages/error
       '@pnpm/patch-package':
         specifier: 'catalog:'
-        version: 0.0.0
+        version: 0.0.1
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -9312,8 +9312,8 @@ packages:
     resolution: {integrity: sha512-01hKf1qHKREZDOwa5wRXk01P+xBGOeZf/idg17si8ji7UWpdWEQkrUVmGfv3sT04XoiwIb7kaRiKPQT7ooB4fA==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/patch-package@0.0.0':
-    resolution: {integrity: sha512-B17ZK4hUAKHDSeSlOg0N+jd+5TuxiSB/2jJcHM0oncf+W5FXslILITpwyIWut4p2P2RCgtSgTF9cSXEX/dGYQA==}
+  '@pnpm/patch-package@0.0.1':
+    resolution: {integrity: sha512-AEgJoZH2goHdGWlyQ1cOMlgmjGLCqk88IFcbAolxWqlhawa3bSL1jLHnjwQc1XBwxeeUltL7mNmPR23q+VZTWQ==}
     engines: {node: '>=14', npm: '>5'}
     hasBin: true
 
@@ -13584,10 +13584,6 @@ packages:
     resolution: {integrity: sha512-BOR/6Zr3F0vmTzwvkiCZaPrzv1NJZQVRhrWA4w2IQtj33owmh5Y4LRajsR4QrqdIgLlAqOLEEc1PiUf15ku9hQ==}
     engines: {node: '>=12.10'}
 
-  rename-overwrite@6.0.0:
-    resolution: {integrity: sha512-njyKyIyxYix8yklXAd5Jrp2otBFZdzD8069W/LaqhRpXqpdQpIb0ZEcheX25IdpX2LBpsGl3Qk+NRD/M7S27wg==}
-    engines: {node: '>=18'}
-
   rename-overwrite@6.0.2:
     resolution: {integrity: sha512-AOnE/H23f7tVoozuBs/PtKX7qy92T1RQZOhofr1d6iey0qUrUH1VJoZZUctCXi1AXqQqHwje2ybtC/LHeXy6NQ==}
     engines: {node: '>=18'}
@@ -14827,7 +14823,7 @@ snapshots:
       debug: 4.4.0
       gensync: 1.0.0-beta.2
       json5: 2.2.3
-      semver: 7.7.0
+      semver: 7.7.1
     transitivePeerDependencies:
       - supports-color
 
@@ -14856,7 +14852,7 @@ snapshots:
       '@babel/helper-validator-option': 7.25.9
       browserslist: 4.24.4
       lru-cache: 5.1.1
-      semver: 7.7.0
+      semver: 7.7.1
 
   '@babel/helper-create-class-features-plugin@7.25.9(@babel/core@7.26.7)':
     dependencies:
@@ -14867,7 +14863,7 @@ snapshots:
       '@babel/helper-replace-supers': 7.26.5(@babel/core@7.26.7)
       '@babel/helper-skip-transparent-expression-wrappers': 7.25.9
       '@babel/traverse': 7.26.7
-      semver: 7.7.0
+      semver: 7.7.1
     transitivePeerDependencies:
       - supports-color
 
@@ -15099,7 +15095,7 @@ snapshots:
       outdent: 0.5.0
       prettier: 2.8.8
       resolve-from: 5.0.0
-      semver: 7.7.0
+      semver: 7.7.1
 
   '@changesets/assemble-release-plan@6.0.5':
     dependencies:
@@ -15108,7 +15104,7 @@ snapshots:
       '@changesets/should-skip-package': 0.1.1
       '@changesets/types': 6.0.0
       '@manypkg/get-packages': 1.1.3
-      semver: 7.7.0
+      semver: 7.7.1
 
   '@changesets/changelog-git@0.2.0':
     dependencies:
@@ -15141,7 +15137,7 @@ snapshots:
       package-manager-detector: 0.2.9
       picocolors: 1.1.1
       resolve-from: 5.0.0
-      semver: 7.7.0
+      semver: 7.7.1
       spawndamnit: 3.0.1
       term-size: 2.2.1
 
@@ -15164,7 +15160,7 @@ snapshots:
       '@changesets/types': 6.0.0
       '@manypkg/get-packages': 1.1.3
       picocolors: 1.1.1
-      semver: 7.7.0
+      semver: 7.7.1
 
   '@changesets/get-release-plan@4.0.6':
     dependencies:
@@ -15732,7 +15728,7 @@ snapshots:
   '@jest/console@29.7.0':
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
       chalk: 4.1.2
       jest-message-util: 29.7.0
       jest-util: 29.7.0
@@ -15745,14 +15741,14 @@ snapshots:
       '@jest/test-result': 29.7.0
       '@jest/transform': 29.7.0(@babel/types@7.26.7)
       '@jest/types': 29.6.3
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       ci-info: 3.9.0
       exit: 0.1.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       jest-changed-files: 29.7.0
-      jest-config: 29.7.0(@babel/types@7.26.7)(@types/node@18.19.74)(ts-node@10.9.2(@types/node@18.19.74)(typescript@5.5.4))
+      jest-config: 29.7.0(@babel/types@7.26.7)(@types/node@22.13.0)(ts-node@10.9.2(@types/node@18.19.74)(typescript@5.5.4))
       jest-haste-map: 29.7.0
       jest-message-util: 29.7.0
       jest-regex-util: 29.6.3
@@ -15778,7 +15774,7 @@ snapshots:
     dependencies:
       '@jest/fake-timers': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
       jest-mock: 29.7.0
 
   '@jest/expect-utils@29.7.0':
@@ -15796,7 +15792,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@sinonjs/fake-timers': 10.3.0
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
       jest-message-util: 29.7.0
       jest-mock: 29.7.0
       jest-util: 29.7.0
@@ -15818,7 +15814,7 @@ snapshots:
       '@jest/transform': 29.7.0(@babel/types@7.26.7)
       '@jest/types': 29.6.3
       '@jridgewell/trace-mapping': 0.3.25
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
       chalk: 4.1.2
       collect-v8-coverage: 1.0.2
       exit: 0.1.2
@@ -15890,7 +15886,7 @@ snapshots:
       '@jest/schemas': 29.6.3
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
       '@types/yargs': 17.0.33
       chalk: 4.1.2
 
@@ -15956,7 +15952,7 @@ snapshots:
 
   '@npmcli/fs@4.0.0':
     dependencies:
-      semver: 7.7.0
+      semver: 7.7.1
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -15974,7 +15970,7 @@ snapshots:
   '@pnpm/catalogs.resolver@0.1.0':
     dependencies:
       '@pnpm/catalogs.protocol-parser': 0.1.0
-      '@pnpm/error': 6.0.1
+      '@pnpm/error': 6.0.3
 
   '@pnpm/catalogs.types@0.1.0': {}
 
@@ -16076,7 +16072,7 @@ snapshots:
       pretty-ms: 7.0.1
       ramda: '@pnpm/ramda@0.28.1'
       rxjs: 7.8.1
-      semver: 7.7.0
+      semver: 7.7.1
       stacktracey: 2.1.8
       string-length: 4.0.2
 
@@ -16241,7 +16237,7 @@ snapshots:
   '@pnpm/npm-package-arg@1.0.0':
     dependencies:
       hosted-git-info: 4.1.0
-      semver: 7.7.0
+      semver: 7.7.1
       validate-npm-package-name: 4.0.0
 
   '@pnpm/os.env.path-extender-posix@2.0.0':
@@ -16269,7 +16265,7 @@ snapshots:
       detect-libc: 2.0.3
       execa: safe-execa@0.1.2
       mem: 8.1.1
-      semver: 7.7.0
+      semver: 7.7.1
 
   '@pnpm/parse-overrides@5.1.0':
     dependencies:
@@ -16282,19 +16278,19 @@ snapshots:
     dependencies:
       validate-npm-package-name: 5.0.0
 
-  '@pnpm/patch-package@0.0.0':
+  '@pnpm/patch-package@0.0.1':
     dependencies:
       '@yarnpkg/lockfile': 1.1.0
       chalk: 4.1.2
       ci-info: 3.9.0
       cross-spawn: 7.0.6
       find-yarn-workspace-root: 2.0.0
-      fs-extra: 9.1.0
+      fs-extra: 11.3.0
       klaw-sync: 6.0.0
       minimist: 1.2.8
       open: 7.4.2
       rimraf: 2.7.1
-      semver: 7.7.0
+      semver: 7.7.1
       slash: 2.0.0
       tmp: 0.0.33
       yaml: 2.7.0
@@ -16357,7 +16353,7 @@ snapshots:
       archy: 1.0.0
       chalk: 4.1.2
       cli-columns: 4.0.0
-      semver: 7.7.0
+      semver: 7.7.1
 
   '@pnpm/resolver-base@13.0.2':
     dependencies:
@@ -16579,7 +16575,7 @@ snapshots:
 
   '@types/isexe@2.0.2':
     dependencies:
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
 
   '@types/istanbul-lib-coverage@2.0.6': {}
 
@@ -16696,7 +16692,7 @@ snapshots:
 
   '@types/touch@3.1.5':
     dependencies:
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
 
   '@types/treeify@1.0.3': {}
 
@@ -16733,7 +16729,7 @@ snapshots:
       graphemer: 1.4.0
       ignore: 5.3.2
       natural-compare: 1.4.0
-      semver: 7.7.0
+      semver: 7.7.1
       ts-api-utils: 1.4.3(typescript@5.5.4)
     optionalDependencies:
       typescript: 5.5.4
@@ -16780,7 +16776,7 @@ snapshots:
       globby: 11.1.0
       is-glob: 4.0.3
       minimatch: 9.0.3
-      semver: 7.7.0
+      semver: 7.7.1
       ts-api-utils: 1.4.3(typescript@5.5.4)
     optionalDependencies:
       typescript: 5.5.4
@@ -16796,7 +16792,7 @@ snapshots:
       '@typescript-eslint/types': 6.18.1
       '@typescript-eslint/typescript-estree': 6.18.1(typescript@5.5.4)
       eslint: 8.57.1
-      semver: 7.7.0
+      semver: 7.7.1
     transitivePeerDependencies:
       - supports-color
       - typescript
@@ -16832,7 +16828,7 @@ snapshots:
       http-errors: 1.8.1
       http-status-codes: 2.2.0
       process-warning: 1.0.0
-      semver: 7.7.0
+      semver: 7.7.1
 
   '@verdaccio/file-locking@10.3.0':
     dependencies:
@@ -16879,7 +16875,7 @@ snapshots:
       '@verdaccio/core': 6.0.0-6-next.55
       lodash: 4.17.21
       minimatch: 3.1.2
-      semver: 7.7.0
+      semver: 7.7.1
 
   '@yao-pkg/pkg-fetch@3.5.9(encoding@0.1.13)':
     dependencies:
@@ -16888,7 +16884,7 @@ snapshots:
       https-proxy-agent: 5.0.1
       node-fetch: 2.7.0(encoding@0.1.13)
       progress: 2.0.3
-      semver: 7.7.0
+      semver: 7.7.1
       tar-fs: 2.1.2
       yargs: 16.2.0
     transitivePeerDependencies:
@@ -16919,7 +16915,7 @@ snapshots:
   '@yarnpkg/core@4.0.5(typanion@3.14.0)':
     dependencies:
       '@arcanis/slice-ansi': 1.1.1
-      '@types/semver': 7.5.3
+      '@types/semver': 7.5.8
       '@types/treeify': 1.0.3
       '@yarnpkg/fslib': 3.1.1
       '@yarnpkg/libzip': 3.1.0(@yarnpkg/fslib@3.1.1)
@@ -16937,7 +16933,7 @@ snapshots:
       lodash: 4.17.21
       micromatch: 4.0.8
       p-limit: 2.3.0
-      semver: 7.7.0
+      semver: 7.7.1
       strip-ansi: 6.0.1
       tar: 6.2.1
       tinylogic: 2.0.0
@@ -16968,7 +16964,7 @@ snapshots:
       lodash: 4.17.21
       micromatch: 4.0.8
       p-limit: 2.3.0
-      semver: 7.7.0
+      semver: 7.7.1
       strip-ansi: 6.0.1
       tar: 6.2.1
       tinylogic: 2.0.0
@@ -17166,7 +17162,7 @@ snapshots:
       request: postman-request@2.88.1-postman.40
       retry: 0.13.1
       safe-buffer: 5.2.1
-      semver: 7.7.0
+      semver: 7.7.1
       slide: 1.1.6
       ssri: 8.0.1
     optionalDependencies:
@@ -17513,7 +17509,7 @@ snapshots:
 
   builtins@5.1.0:
     dependencies:
-      semver: 7.7.0
+      semver: 7.7.1
 
   bytes@3.0.0: {}
 
@@ -18360,7 +18356,7 @@ snapshots:
   eslint-compat-utils@0.5.1(eslint@8.57.1):
     dependencies:
       eslint: 8.57.1
-      semver: 7.7.0
+      semver: 7.7.1
 
   eslint-config-standard-with-typescript@39.1.1(@typescript-eslint/eslint-plugin@6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.1)(typescript@5.5.4))(eslint@8.57.1)(typescript@5.5.4))(eslint-plugin-import@2.31.0(@typescript-eslint/parser@6.18.1(eslint@8.57.1)(typescript@5.5.4))(eslint@8.57.1))(eslint-plugin-n@16.6.2(eslint@8.57.1))(eslint-plugin-promise@6.6.0(eslint@8.57.1))(eslint@8.57.1)(typescript@5.5.4):
     dependencies:
@@ -18432,7 +18428,7 @@ snapshots:
       object.fromentries: 2.0.8
       object.groupby: 1.0.3
       object.values: 1.2.1
-      semver: 7.7.0
+      semver: 7.7.1
       string.prototype.trimend: 1.0.9
       tsconfig-paths: 3.15.0
     optionalDependencies:
@@ -18455,7 +18451,7 @@ snapshots:
       is-core-module: 2.16.1
       minimatch: 3.1.2
       resolve: 1.22.10
-      semver: 7.7.0
+      semver: 7.7.1
 
   eslint-plugin-node@11.1.0(eslint@8.57.1):
     dependencies:
@@ -18465,7 +18461,7 @@ snapshots:
       ignore: 5.3.2
       minimatch: 3.1.2
       resolve: 1.22.10
-      semver: 7.7.0
+      semver: 7.7.1
 
   eslint-plugin-promise@6.6.0(eslint@8.57.1):
     dependencies:
@@ -19593,7 +19589,7 @@ snapshots:
       '@babel/parser': 7.26.7(@babel/types@7.26.7)
       '@istanbuljs/schema': 0.1.3
       istanbul-lib-coverage: 3.2.2
-      semver: 7.7.0
+      semver: 7.7.1
     transitivePeerDependencies:
       - '@babel/types'
       - supports-color
@@ -19604,7 +19600,7 @@ snapshots:
       '@babel/parser': 7.26.7(@babel/types@7.26.7)
       '@istanbuljs/schema': 0.1.3
       istanbul-lib-coverage: 3.2.2
-      semver: 7.7.0
+      semver: 7.7.1
     transitivePeerDependencies:
       - '@babel/types'
       - supports-color
@@ -19648,7 +19644,7 @@ snapshots:
       '@jest/expect': 29.7.0
       '@jest/test-result': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
       chalk: 4.1.2
       co: 4.6.0
       dedent: 1.5.3
@@ -19721,6 +19717,38 @@ snapshots:
       - babel-plugin-macros
       - supports-color
 
+  jest-config@29.7.0(@babel/types@7.26.7)(@types/node@22.13.0)(ts-node@10.9.2(@types/node@18.19.74)(typescript@5.5.4)):
+    dependencies:
+      '@babel/core': 7.26.7
+      '@jest/test-sequencer': 29.7.0
+      '@jest/types': 29.6.3
+      babel-jest: 29.7.0(@babel/core@7.26.7)(@babel/types@7.26.7)
+      chalk: 4.1.2
+      ci-info: 3.9.0
+      deepmerge: 4.3.1
+      glob: 7.2.3
+      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
+      jest-circus: 29.7.0(@babel/types@7.26.7)
+      jest-environment-node: 29.7.0
+      jest-get-type: 29.6.3
+      jest-regex-util: 29.6.3
+      jest-resolve: 29.7.0
+      jest-runner: 29.7.0(@babel/types@7.26.7)
+      jest-util: 29.7.0
+      jest-validate: 29.7.0
+      micromatch: 4.0.8
+      parse-json: 5.2.0
+      pretty-format: 29.7.0
+      slash: 3.0.0
+      strip-json-comments: 3.1.1
+    optionalDependencies:
+      '@types/node': 22.13.0
+      ts-node: 10.9.2(@types/node@18.19.74)(typescript@5.5.4)
+    transitivePeerDependencies:
+      - '@babel/types'
+      - babel-plugin-macros
+      - supports-color
+
   jest-diff@29.7.0:
     dependencies:
       chalk: 4.1.2
@@ -19745,7 +19773,7 @@ snapshots:
       '@jest/environment': 29.7.0
       '@jest/fake-timers': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
       jest-mock: 29.7.0
       jest-util: 29.7.0
 
@@ -19755,7 +19783,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@types/graceful-fs': 4.1.9
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -19794,7 +19822,7 @@ snapshots:
   jest-mock@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
       jest-util: 29.7.0
 
   jest-pnp-resolver@1.2.3(jest-resolve@29.7.0):
@@ -19829,7 +19857,7 @@ snapshots:
       '@jest/test-result': 29.7.0
       '@jest/transform': 29.7.0(@babel/types@7.26.7)
       '@jest/types': 29.6.3
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
       chalk: 4.1.2
       emittery: 0.13.1
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -19858,7 +19886,7 @@ snapshots:
       '@jest/test-result': 29.7.0
       '@jest/transform': 29.7.0(@babel/types@7.26.7)
       '@jest/types': 29.6.3
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
       chalk: 4.1.2
       cjs-module-lexer: 1.4.3
       collect-v8-coverage: 1.0.2
@@ -19898,14 +19926,14 @@ snapshots:
       jest-util: 29.7.0
       natural-compare: 1.4.0
       pretty-format: 29.7.0
-      semver: 7.7.0
+      semver: 7.7.1
     transitivePeerDependencies:
       - supports-color
 
   jest-util@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
       chalk: 4.1.2
       ci-info: 3.9.0
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -19924,7 +19952,7 @@ snapshots:
     dependencies:
       '@jest/test-result': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       emittery: 0.13.1
@@ -19933,7 +19961,7 @@ snapshots:
 
   jest-worker@29.7.0:
     dependencies:
-      '@types/node': 18.19.74
+      '@types/node': 22.13.0
       jest-util: 29.7.0
       merge-stream: 2.0.0
       supports-color: 8.1.1
@@ -19999,7 +20027,7 @@ snapshots:
       jws: 3.2.2
       lodash: 4.17.21
       ms: 2.1.3
-      semver: 7.7.0
+      semver: 7.7.1
 
   jsprim@2.0.2:
     dependencies:
@@ -20187,15 +20215,15 @@ snapshots:
   make-dir@2.1.0:
     dependencies:
       pify: 4.0.1
-      semver: 7.7.0
+      semver: 7.7.1
 
   make-dir@3.1.0:
     dependencies:
-      semver: 7.7.0
+      semver: 7.7.1
 
   make-dir@4.0.0:
     dependencies:
-      semver: 7.7.0
+      semver: 7.7.1
 
   make-empty-dir@3.0.2:
     dependencies:
@@ -20521,7 +20549,7 @@ snapshots:
 
   node-abi@3.74.0:
     dependencies:
-      semver: 7.7.0
+      semver: 7.7.1
 
   node-fetch@2.6.8(encoding@0.1.13):
     dependencies:
@@ -20547,7 +20575,7 @@ snapshots:
       make-fetch-happen: 14.0.3
       nopt: 8.1.0
       proc-log: 5.0.0
-      semver: 7.7.0
+      semver: 7.7.1
       tar: 7.4.3
       which: 5.0.0
     transitivePeerDependencies:
@@ -20571,28 +20599,28 @@ snapshots:
     dependencies:
       hosted-git-info: 2.8.9
       resolve: 1.22.10
-      semver: 7.7.0
+      semver: 7.7.1
       validate-npm-package-license: 3.0.4
 
   normalize-package-data@3.0.3:
     dependencies:
       hosted-git-info: 4.1.0
       is-core-module: 2.16.1
-      semver: 7.7.0
+      semver: 7.7.1
       validate-npm-package-license: 3.0.4
 
   normalize-package-data@4.0.1:
     dependencies:
       hosted-git-info: 5.2.1
       is-core-module: 2.16.1
-      semver: 7.7.0
+      semver: 7.7.1
       validate-npm-package-license: 3.0.4
 
   normalize-package-data@5.0.0:
     dependencies:
       hosted-git-info: 6.1.3
       is-core-module: 2.16.1
-      semver: 7.7.0
+      semver: 7.7.1
       validate-npm-package-license: 3.0.4
 
   normalize-path@2.1.1:
@@ -20621,7 +20649,7 @@ snapshots:
     dependencies:
       hosted-git-info: 2.8.9
       osenv: 0.1.5
-      semver: 7.7.0
+      semver: 7.7.1
       validate-npm-package-name: 3.0.0
 
   npm-packlist@5.1.3:
@@ -20862,7 +20890,7 @@ snapshots:
 
   parse-npm-tarball-url@3.0.0:
     dependencies:
-      semver: 7.7.0
+      semver: 7.7.1
 
   parseurl@1.3.3: {}
 
@@ -21270,11 +21298,6 @@ snapshots:
       '@zkochan/rimraf': 2.1.3
       fs-extra: 10.1.0
 
-  rename-overwrite@6.0.0:
-    dependencies:
-      '@zkochan/rimraf': 3.0.2
-      fs-extra: 10.1.0
-
   rename-overwrite@6.0.2:
     dependencies:
       '@zkochan/rimraf': 3.0.2
@@ -21444,7 +21467,7 @@ snapshots:
   semver-range-intersect@0.3.1:
     dependencies:
       '@types/semver': 6.2.7
-      semver: 7.7.0
+      semver: 7.7.1
 
   semver-utils@1.1.4: {}
 
@@ -21880,7 +21903,7 @@ snapshots:
   symlink-dir@6.0.4:
     dependencies:
       better-path-resolve: 1.0.0
-      rename-overwrite: 6.0.0
+      rename-overwrite: 6.0.2
 
   table@6.9.0:
     dependencies:
@@ -22036,7 +22059,7 @@ snapshots:
       json5: 2.2.3
       lodash.memoize: 4.1.2
       make-error: 1.3.6
-      semver: 7.7.0
+      semver: 7.7.1
       typescript: 5.5.4
       yargs-parser: 21.1.1
     optionalDependencies:
@@ -22362,7 +22385,7 @@ snapshots:
       prettier-bytes: 1.0.4
       pretty-ms: 7.0.1
       request: postman-request@2.88.1-postman.40
-      semver: 7.7.0
+      semver: 7.7.1
       validator: 13.7.0
       verdaccio-audit: 10.2.4(encoding@0.1.13)
       verdaccio-htpasswd: 10.5.2
@@ -22379,7 +22402,7 @@ snapshots:
 
   version-selector-type@3.0.0:
     dependencies:
-      semver: 7.7.0
+      semver: 7.7.1
 
   vfile-message@2.0.4:
     dependencies:
