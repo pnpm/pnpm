@@ -3640,6 +3640,12 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.5.3
+      '@types/tar-stream':
+        specifier: 'catalog:'
+        version: 2.2.3
+      tar-stream:
+        specifier: 'catalog:'
+        version: 2.2.0
 
   lockfile/walker:
     dependencies:

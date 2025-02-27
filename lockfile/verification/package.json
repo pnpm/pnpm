@@ -53,7 +53,9 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "catalog:",
-    "@types/semver": "catalog:"
+    "@types/semver": "catalog:",
+    "@types/tar-stream": "catalog:",
+    "tar-stream": "catalog:"
   },
   "engines": {
     "node": ">=18.12"
