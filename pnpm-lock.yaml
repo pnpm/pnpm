@@ -7810,9 +7810,18 @@ importers:
       '@pnpm/tools.path':
         specifier: workspace:*
         version: link:../path
+      '@zkochan/rimraf':
+        specifier: 'catalog:'
+        version: 3.0.2
+      path-temp:
+        specifier: 'catalog:'
+        version: 2.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
+      rename-overwrite:
+        specifier: 'catalog:'
+        version: 6.0.2
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
