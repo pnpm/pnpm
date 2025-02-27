@@ -212,7 +212,7 @@ catalog:
   read-ini-file: 4.0.0
   read-yaml-file: ^2.1.0
   realpath-missing: ^1.1.0
-  rename-overwrite: ^6.0.0
+  rename-overwrite: ^6.0.2
   render-help: ^1.0.3
   resolve-link-target: ^2.0.0
   rfc4648: ^1.5.3

@@ -517,8 +517,8 @@ catalogs:
       specifier: ^1.1.0
       version: 1.1.0
     rename-overwrite:
-      specifier: ^6.0.0
-      version: 6.0.0
+      specifier: ^6.0.2
+      version: 6.0.2
     render-help:
       specifier: ^1.0.3
       version: 1.0.3
@@ -1904,7 +1904,7 @@ importers:
         version: 2.0.3
       rename-overwrite:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.2
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -2791,7 +2791,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.2
     devDependencies:
       '@pnpm/cafs-types':
         specifier: workspace:*
@@ -2914,7 +2914,7 @@ importers:
         version: 2.1.0
       rename-overwrite:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.2
       sanitize-filename:
         specifier: 'catalog:'
         version: 1.6.3
@@ -3907,7 +3907,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.2
     devDependencies:
       '@pnpm/make-dedicated-lockfile':
         specifier: workspace:*
@@ -5624,7 +5624,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.2
       safe-promise-defer:
         specifier: 'catalog:'
         version: 1.0.1
@@ -6626,7 +6626,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       rename-overwrite:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.2
       semver:
         specifier: 'catalog:'
         version: 7.7.0
@@ -7204,7 +7204,7 @@ importers:
         version: 3.1.0
       rename-overwrite:
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 6.0.2
       ssri:
         specifier: 'catalog:'
         version: 10.0.5
@@ -13586,6 +13586,10 @@ packages:
 
   rename-overwrite@6.0.0:
     resolution: {integrity: sha512-njyKyIyxYix8yklXAd5Jrp2otBFZdzD8069W/LaqhRpXqpdQpIb0ZEcheX25IdpX2LBpsGl3Qk+NRD/M7S27wg==}
+    engines: {node: '>=18'}
+
+  rename-overwrite@6.0.2:
+    resolution: {integrity: sha512-AOnE/H23f7tVoozuBs/PtKX7qy92T1RQZOhofr1d6iey0qUrUH1VJoZZUctCXi1AXqQqHwje2ybtC/LHeXy6NQ==}
     engines: {node: '>=18'}
 
   render-help@1.0.3:
@@ -21270,6 +21274,11 @@ snapshots:
     dependencies:
       '@zkochan/rimraf': 3.0.2
       fs-extra: 10.1.0
+
+  rename-overwrite@6.0.2:
+    dependencies:
+      '@zkochan/rimraf': 3.0.2
+      fs-extra: 11.3.0
 
   render-help@1.0.3:
     dependencies:
