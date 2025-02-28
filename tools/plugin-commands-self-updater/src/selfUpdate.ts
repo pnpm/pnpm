@@ -94,6 +94,9 @@ export async function handler (
           ...opts,
           dir: stage,
           lockfileDir: stage,
+          // We want to avoid symlinks because of the rename step,
+          // which breaks the junctions on Windows.
+          nodeLinker: 'hoisted',
           // This won't be used but there is currently no way to skip the bin creation
           // and we can't create the bin shims in the pnpm home directory
           // because the stage directory will be renamed.
