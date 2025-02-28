@@ -151,7 +151,9 @@ test('self-update links pnpm that is already present on the disk', async () => {
     .get('/pnpm')
     .reply(200, createMetadata('9.2.0', opts.registries.default))
 
-  const latestPnpmDir = path.join(opts.pnpmHomeDir, '.tools/pnpm/9.2.0/node_modules/pnpm')
+  const baseDir = path.join(opts.pnpmHomeDir, '.tools/pnpm/9.2.0')
+  fs.mkdirSync(path.join(baseDir, 'bin'), { recursive: true })
+  const latestPnpmDir = path.join(baseDir, 'node_modules/pnpm')
   fs.mkdirSync(latestPnpmDir, { recursive: true })
   fs.writeFileSync(path.join(latestPnpmDir, 'package.json'), JSON.stringify({ name: 'pnpm', bin: 'bin.js' }), 'utf8')
   fs.writeFileSync(path.join(latestPnpmDir, 'bin.js'), `#!/usr/bin/env node
