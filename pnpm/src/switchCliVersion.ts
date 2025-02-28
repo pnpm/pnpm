@@ -20,13 +20,12 @@ export async function switchCliVersion (config: Config): Promise<void> {
     globalWarn(`Cannot switch to pnpm@${pm.version}: you need to specify the version as "${pmVersion}"`)
     return
   }
-  const { location: dir } = await installPnpmToTools(pmVersion, {
+  const { binDir: wantedPnpmBinDir } = await installPnpmToTools(pmVersion, {
     ...config,
     argv: {
       original: [],
     },
   })
-  const wantedPnpmBinDir = path.join(dir, 'bin')
   const pnpmEnv = prependDirsToPath([wantedPnpmBinDir])
   if (!pnpmEnv.updated) {
     // We throw this error to prevent an infinite recursive call of the same pnpm version.

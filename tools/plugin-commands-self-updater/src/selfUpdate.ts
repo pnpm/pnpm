@@ -77,18 +77,24 @@ export async function handler (
     return `The current project has been updated to use pnpm v${resolution.manifest.version}`
   }
 
-  const { location: dir, alreadyExisted: alreadyExists } = await installPnpmToTools(resolution.manifest.version, opts)
-  await linkBins(path.join(dir, opts.modulesDir ?? 'node_modules'), opts.pnpmHomeDir,
+  const { baseDir, alreadyExisted: alreadyExists } = await installPnpmToTools(resolution.manifest.version, opts)
+  await linkBins(path.join(baseDir, opts.modulesDir ?? 'node_modules'), opts.pnpmHomeDir,
     {
       warn: globalWarn,
     }
   )
   return alreadyExists
-    ? `The ${pref} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${dir}.`
+    ? `The ${pref} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
     : undefined
 }
 
-export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateCommandOptions): Promise<{ location: string, alreadyExisted: boolean }> {
+export interface InstallPnpmToToolsResult {
+  binDir: string
+  baseDir: string
+  alreadyExisted: boolean
+}
+
+export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateCommandOptions): Promise<InstallPnpmToToolsResult> {
   const currentPkgName = getCurrentPackageName()
   const dir = getToolDirPath({
     pnpmHomeDir: opts.pnpmHomeDir,
@@ -97,11 +103,14 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
       version: pnpmVersion,
     },
   })
-  const alreadyExists = fs.existsSync(path.join(dir, 'bin'))
-  if (alreadyExists) {
+
+  const binDir = path.join(dir, 'bin')
+  const alreadyExisted = fs.existsSync(binDir)
+  if (alreadyExisted) {
     return {
-      alreadyExisted: alreadyExists,
-      location: dir,
+      alreadyExisted,
+      baseDir: dir,
+      binDir,
     }
   }
   const stage = pathTemp(dir)
@@ -152,7 +161,8 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
     throw err
   }
   return {
-    alreadyExisted: alreadyExists,
-    location: dir,
+    alreadyExisted,
+    baseDir: dir,
+    binDir,
   }
 }
