@@ -11,7 +11,10 @@ import { add, type InstallCommandOptions } from '@pnpm/plugin-commands-installat
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { getToolDirPath } from '@pnpm/tools.path'
 import { linkBins } from '@pnpm/link-bins'
+import { sync as rimraf } from '@zkochan/rimraf'
+import { fastPathTemp as pathTemp } from 'path-temp'
 import pick from 'ramda/src/pick'
+import renameOverwrite from 'rename-overwrite'
 import renderHelp from 'render-help'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -80,24 +83,41 @@ export async function handler (
       version: resolution.manifest.version,
     },
   })
-  if (fs.existsSync(dir)) {
-    await linkBins(path.join(dir, opts.modulesDir ?? 'node_modules'), opts.pnpmHomeDir,
-      {
-        warn: globalWarn,
-      }
-    )
-    return `The ${pref} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${dir}.`
+  const alreadyExists = fs.existsSync(dir)
+  if (!alreadyExists) {
+    const stage = pathTemp(dir)
+    fs.mkdirSync(stage, { recursive: true })
+    fs.writeFileSync(path.join(stage, 'package.json'), '{}')
+    try {
+      await add.handler(
+        {
+          ...opts,
+          dir: stage,
+          lockfileDir: stage,
+          // We want to avoid symlinks because of the rename step,
+          // which breaks the junctions on Windows.
+          nodeLinker: 'hoisted',
+          // This won't be used but there is currently no way to skip the bin creation
+          // and we can't create the bin shims in the pnpm home directory
+          // because the stage directory will be renamed.
+          bin: path.join(stage, 'node_modules/.bin'),
+        },
+        [`${currentPkgName}@${resolution.manifest.version}`]
+      )
+      renameOverwrite.sync(stage, dir)
+    } catch (err: unknown) {
+      try {
+        rimraf(stage)
+      } catch {} // eslint-disable-line:no-empty
+      throw err
+    }
   }
-  fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(path.join(dir, 'package.json'), '{}')
-  await add.handler(
+  await linkBins(path.join(dir, opts.modulesDir ?? 'node_modules'), opts.pnpmHomeDir,
     {
-      ...opts,
-      dir,
-      lockfileDir: dir,
-      bin: opts.pnpmHomeDir,
-    },
-    [`${currentPkgName}@${resolution.manifest.version}`]
+      warn: globalWarn,
+    }
   )
-  return undefined
+  return alreadyExists
+    ? `The ${pref} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${dir}.`
+    : undefined
 }
