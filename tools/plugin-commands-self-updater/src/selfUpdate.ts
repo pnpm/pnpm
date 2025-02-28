@@ -77,64 +77,7 @@ export async function handler (
     return `The current project has been updated to use pnpm v${resolution.manifest.version}`
   }
 
-  const currentPkgName = getCurrentPackageName()
-  const dir = getToolDirPath({
-    pnpmHomeDir: opts.pnpmHomeDir,
-    tool: {
-      name: currentPkgName,
-      version: resolution.manifest.version,
-    },
-  })
-  const alreadyExists = fs.existsSync(dir)
-  if (!alreadyExists) {
-    const stage = pathTemp(dir)
-    fs.mkdirSync(stage, { recursive: true })
-    fs.writeFileSync(path.join(stage, 'package.json'), '{}')
-    try {
-      await add.handler(
-        {
-          // Ideally the config reader should ignore these settings when the dlx command is executed.
-          // This is a temporary solution until "@pnpm/config" is refactored.
-          ...omit([
-            'workspaceDir',
-            'rootProjectManifest',
-            'symlink',
-            // Options from root manifest
-            'allowNonAppliedPatches',
-            'allowedDeprecatedVersions',
-            'configDependencies',
-            'ignoredBuiltDependencies',
-            'ignoredOptionalDependencies',
-            'neverBuiltDependencies',
-            'onlyBuiltDependencies',
-            'onlyBuiltDependenciesFile',
-            'overrides',
-            'packageExtensions',
-            'patchedDependencies',
-            'peerDependencyRules',
-            'supportedArchitectures',
-          ], opts),
-          dir: stage,
-          lockfileDir: stage,
-          // We want to avoid symlinks because of the rename step,
-          // which breaks the junctions on Windows.
-          nodeLinker: 'hoisted',
-          onlyBuiltDependencies: ['@pnpm/exe'],
-          // This won't be used but there is currently no way to skip the bin creation
-          // and we can't create the bin shims in the pnpm home directory
-          // because the stage directory will be renamed.
-          bin: path.join(stage, 'node_modules/.bin'),
-        },
-        [`${currentPkgName}@${resolution.manifest.version}`]
-      )
-      renameOverwrite.sync(stage, dir)
-    } catch (err: unknown) {
-      try {
-        rimraf(stage)
-      } catch {} // eslint-disable-line:no-empty
-      throw err
-    }
-  }
+  const { location: dir, alreadyExisted: alreadyExists } = await installPnpmToTools(resolution.manifest.version, opts)
   await linkBins(path.join(dir, opts.modulesDir ?? 'node_modules'), opts.pnpmHomeDir,
     {
       warn: globalWarn,
@@ -143,4 +86,73 @@ export async function handler (
   return alreadyExists
     ? `The ${pref} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${dir}.`
     : undefined
+}
+
+export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateCommandOptions): Promise<{ location: string, alreadyExisted: boolean }> {
+  const currentPkgName = getCurrentPackageName()
+  const dir = getToolDirPath({
+    pnpmHomeDir: opts.pnpmHomeDir,
+    tool: {
+      name: currentPkgName,
+      version: pnpmVersion,
+    },
+  })
+  const alreadyExists = fs.existsSync(path.join(dir, 'bin'))
+  if (alreadyExists) {
+    return {
+      alreadyExisted: alreadyExists,
+      location: dir,
+    }
+  }
+  const stage = pathTemp(dir)
+  fs.mkdirSync(stage, { recursive: true })
+  fs.writeFileSync(path.join(stage, 'package.json'), '{}')
+  try {
+    await add.handler(
+      {
+        // Ideally the config reader should ignore these settings when the dlx command is executed.
+        // This is a temporary solution until "@pnpm/config" is refactored.
+        ...omit([
+          'workspaceDir',
+          'rootProjectManifest',
+          'symlink',
+          // Options from root manifest
+          'allowNonAppliedPatches',
+          'allowedDeprecatedVersions',
+          'configDependencies',
+          'ignoredBuiltDependencies',
+          'ignoredOptionalDependencies',
+          'neverBuiltDependencies',
+          'onlyBuiltDependencies',
+          'onlyBuiltDependenciesFile',
+          'overrides',
+          'packageExtensions',
+          'patchedDependencies',
+          'peerDependencyRules',
+          'supportedArchitectures',
+        ], opts),
+        dir: stage,
+        lockfileDir: stage,
+        // We want to avoid symlinks because of the rename step,
+        // which breaks the junctions on Windows.
+        nodeLinker: 'hoisted',
+        onlyBuiltDependencies: ['@pnpm/exe'],
+        // This won't be used but there is currently no way to skip the bin creation
+        // and we can't create the bin shims in the pnpm home directory
+        // because the stage directory will be renamed.
+        bin: path.join(stage, 'bin'),
+      },
+      [`${currentPkgName}@${pnpmVersion}`]
+    )
+    renameOverwrite.sync(stage, dir)
+  } catch (err: unknown) {
+    try {
+      rimraf(stage)
+    } catch {} // eslint-disable-line:no-empty
+    throw err
+  }
+  return {
+    alreadyExisted: alreadyExists,
+    location: dir,
+  }
 }
