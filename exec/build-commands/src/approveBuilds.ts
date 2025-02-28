@@ -1,6 +1,6 @@
 import { type Config } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
-import { readProjectManifest } from '@pnpm/read-project-manifest'
+import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import renderHelp from 'render-help'
 import { prompt } from 'enquirer'
@@ -44,7 +44,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
 }
 
 export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts): Promise<void> {
-  if (opts.rootProjectManifest == null) return
   const automaticallyIgnoredBuilds = await getAutomaticallyIgnoredBuilds(opts)
   if (!automaticallyIgnoredBuilds?.length) {
     globalInfo('There are no packages awaiting approval')
@@ -122,16 +121,17 @@ Do you approve?`,
       return
     }
   }
-  const { writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
-  if (opts.rootProjectManifest.pnpm?.ignoredBuiltDependencies != null || opts.rootProjectManifest.pnpm?.onlyBuiltDependencies != null || opts.workspaceDir == null) {
-    opts.rootProjectManifest.pnpm = opts.rootProjectManifest.pnpm ?? {}
+  let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.rootProjectManifestDir)
+  manifest ??= {}
+  if (opts.workspaceDir == null || manifest.pnpm?.onlyBuiltDependencies != null || manifest.pnpm?.onlyBuiltDependencies != null) {
+    manifest.pnpm ??= {}
     if (updatedOnlyBuiltDependencies) {
-      opts.rootProjectManifest.pnpm.onlyBuiltDependencies = updatedOnlyBuiltDependencies
+      manifest.pnpm.onlyBuiltDependencies = updatedOnlyBuiltDependencies
     }
     if (updatedIgnoredBuiltDependencies) {
-      opts.rootProjectManifest.pnpm.ignoredBuiltDependencies = updatedIgnoredBuiltDependencies
+      manifest.pnpm.ignoredBuiltDependencies = updatedIgnoredBuiltDependencies
     }
-    await writeProjectManifest(opts.rootProjectManifest)
+    await writeProjectManifest(manifest)
   } else {
     await updateWorkspaceManifest(opts.workspaceDir, {
       onlyBuiltDependencies: updatedOnlyBuiltDependencies,

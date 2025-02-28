@@ -37,7 +37,10 @@
     "@pnpm/types": "workspace:*",
     "@types/ramda": "catalog:",
     "load-json-file": "catalog:",
-    "ramda": "catalog:"
+    "ramda": "catalog:",
+    "read-yaml-file": "catalog:",
+    "write-pkg": "catalog:",
+    "write-yaml-file": "catalog:"
   },
   "dependencies": {
     "@pnpm/config": "workspace:*",
