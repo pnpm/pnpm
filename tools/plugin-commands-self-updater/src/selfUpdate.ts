@@ -77,13 +77,13 @@ export async function handler (
     return `The current project has been updated to use pnpm v${resolution.manifest.version}`
   }
 
-  const { baseDir, alreadyExisted: alreadyExists } = await installPnpmToTools(resolution.manifest.version, opts)
+  const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, opts)
   await linkBins(path.join(baseDir, opts.modulesDir ?? 'node_modules'), opts.pnpmHomeDir,
     {
       warn: globalWarn,
     }
   )
-  return alreadyExists
+  return alreadyExisted
     ? `The ${pref} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
     : undefined
 }
