@@ -39,6 +39,7 @@
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/tools.path": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "path-temp": "catalog:",
     "ramda": "catalog:",

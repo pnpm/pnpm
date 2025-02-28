@@ -133,12 +133,8 @@ export async function handler (
       bin: path.join(cachedDir, 'node_modules/.bin'),
       dir: cachedDir,
       lockfileDir: cachedDir,
+      onlyBuiltDependencies: [...resolvedPkgAliases, ...(opts.allowBuild ?? [])],
       rootProjectManifestDir: cachedDir, // This property won't be used as rootProjectManifest will be undefined
-      rootProjectManifest: {
-        pnpm: {
-          onlyBuiltDependencies: [...resolvedPkgAliases, ...(opts.allowBuild ?? [])],
-        },
-      },
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!
       saveDev: false,
       saveOptional: false,

@@ -9,10 +9,12 @@ import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { add, type InstallCommandOptions } from '@pnpm/plugin-commands-installation'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
+import { type PnpmSettings } from '@pnpm/types'
 import { getToolDirPath } from '@pnpm/tools.path'
 import { linkBins } from '@pnpm/link-bins'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { fastPathTemp as pathTemp } from 'path-temp'
+import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
 import renameOverwrite from 'rename-overwrite'
 import renderHelp from 'render-help'
@@ -43,7 +45,7 @@ export function help (): string {
   })
 }
 
-export type SelfUpdateCommandOptions = InstallCommandOptions & Pick<Config, 'wantedPackageManager' | 'managePackageManagerVersions'>
+export type SelfUpdateCommandOptions = InstallCommandOptions & Pick<Config, 'wantedPackageManager' | 'managePackageManagerVersions'> & PnpmSettings
 
 export async function handler (
   opts: SelfUpdateCommandOptions,
@@ -91,12 +93,33 @@ export async function handler (
     try {
       await add.handler(
         {
-          ...opts,
+          // Ideally the config reader should ignore these settings when the dlx command is executed.
+          // This is a temporary solution until "@pnpm/config" is refactored.
+          ...omit([
+            'workspaceDir',
+            'rootProjectManifest',
+            'symlink',
+            // Options from root manifest
+            'allowNonAppliedPatches',
+            'allowedDeprecatedVersions',
+            'configDependencies',
+            'ignoredBuiltDependencies',
+            'ignoredOptionalDependencies',
+            'neverBuiltDependencies',
+            'onlyBuiltDependencies',
+            'onlyBuiltDependenciesFile',
+            'overrides',
+            'packageExtensions',
+            'patchedDependencies',
+            'peerDependencyRules',
+            'supportedArchitectures',
+          ], opts),
           dir: stage,
           lockfileDir: stage,
           // We want to avoid symlinks because of the rename step,
           // which breaks the junctions on Windows.
           nodeLinker: 'hoisted',
+          onlyBuiltDependencies: ['@pnpm/exe'],
           // This won't be used but there is currently no way to skip the bin creation
           // and we can't create the bin shims in the pnpm home directory
           // because the stage directory will be renamed.

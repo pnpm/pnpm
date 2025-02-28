@@ -7810,6 +7810,9 @@ importers:
       '@pnpm/tools.path':
         specifier: workspace:*
         version: link:../path
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
