@@ -62,11 +62,13 @@ export async function getConfig (opts: {
   checkUnknownSetting?: boolean
   env?: Record<string, string | undefined>
   ignoreNonAuthSettingsFromLocal?: boolean
+  ignoreLocalSettings?: boolean
 }): Promise<{ config: Config, warnings: string[] }> {
   if (opts.ignoreNonAuthSettingsFromLocal) {
     const { ignoreNonAuthSettingsFromLocal: _, ...authOpts } = opts
     const globalCfgOpts: typeof authOpts = {
       ...authOpts,
+      ignoreLocalSettings: true,
       cliOptions: {
         ...authOpts.cliOptions,
         dir: os.homedir(),
@@ -318,7 +320,9 @@ export async function getConfig (opts: {
     pnpmConfig.virtualStoreDir = '.pnpm'
   } else {
     pnpmConfig.dir = cwd
-    pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
+    if (!pnpmConfig.bin) {
+      pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
+    }
   }
   if (opts.cliOptions['save-peer']) {
     if (opts.cliOptions['save-prod']) {
@@ -480,25 +484,27 @@ export async function getConfig (opts: {
 
   pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
 
-  if (!pnpmConfig.ignorePnpmfile) {
-    pnpmConfig.hooks = requireHooks(pnpmConfig.lockfileDir ?? pnpmConfig.dir, pnpmConfig)
-  }
-  pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
-  pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
-  if (pnpmConfig.rootProjectManifest != null) {
-    if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
-      warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
+  if (!opts.ignoreLocalSettings) {
+    if (!pnpmConfig.ignorePnpmfile) {
+      pnpmConfig.hooks = requireHooks(pnpmConfig.lockfileDir ?? pnpmConfig.dir, pnpmConfig)
     }
-    if (pnpmConfig.rootProjectManifest.packageManager) {
-      pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
+    pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
+    pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
+    if (pnpmConfig.rootProjectManifest != null) {
+      if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
+        warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
+      }
+      if (pnpmConfig.rootProjectManifest.packageManager) {
+        pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
+      }
     }
-  }
 
-  if (pnpmConfig.workspaceDir != null) {
-    const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
+    if (pnpmConfig.workspaceDir != null) {
+      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
 
-    pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages
-    pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages
+      pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+    }
   }
 
   pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig
