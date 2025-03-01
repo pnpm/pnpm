@@ -49,7 +49,7 @@ catalog:
   "@pnpm/exec": ^2.0.0
   "@pnpm/fs.packlist": 2.0.0
   "@pnpm/log.group": 3.0.0
-  "@pnpm/meta-updater": 2.0.3
+  "@pnpm/meta-updater": 2.0.4
   "@pnpm/network.agent": ^2.0.0
   "@pnpm/nopt": ^0.2.1
   "@pnpm/npm-conf": 3.0.0
