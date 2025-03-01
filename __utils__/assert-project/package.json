@@ -47,7 +47,7 @@
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/types": "workspace:*",
     "is-windows": "catalog:",
-    "isexe": "2.0.0",
+    "isexe": "catalog:",
     "read-yaml-file": "catalog:",
     "write-pkg": "catalog:"
   }
