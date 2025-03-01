@@ -34,6 +34,7 @@
     "@pnpm/client": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.pnpm-cli-runner": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",

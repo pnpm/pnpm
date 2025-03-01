@@ -7792,6 +7792,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/exec.pnpm-cli-runner':
+        specifier: workspace:*
+        version: link:../../exec/pnpm-cli-runner
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins

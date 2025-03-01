@@ -28,6 +28,9 @@
       "path": "../../env/path"
     },
     {
+      "path": "../../exec/pnpm-cli-runner"
+    },
+    {
       "path": "../../packages/error"
     },
     {
