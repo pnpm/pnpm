@@ -319,7 +319,7 @@ test('pnpm add - should add prefix when set in .npmrc when a range is not specif
 
     expect(
       manifest.dependencies['is-positive']
-    ).toMatch(/~(\d+)\.(\d+)\.(\d+)(?:-([\w-]+(?:\.[\w-]+)*))?(?:\+[\w-]+)?$/)
+    ).toMatch(/~([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+)?$/)
   }
 })
 
