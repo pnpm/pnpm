@@ -35,6 +35,8 @@ const INHERITED_MANIFEST_KEYS = [
   'packageManager',
   'dependenciesMeta',
   'peerDependenciesMeta',
+  'imports',
+  'license',
 ] as const satisfies Array<keyof ProjectManifest>
 
 export type DeployManifest = Pick<ProjectManifest, typeof INHERITED_MANIFEST_KEYS[number] | DependenciesField | 'pnpm'>
