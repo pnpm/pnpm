@@ -14,7 +14,6 @@ import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { type PnpmSettings } from '@pnpm/types'
 import execa from 'execa'
-import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import symlinkDir from 'symlink-dir'
@@ -109,40 +108,17 @@ export async function handler (
   if (!cacheExists) {
     fs.mkdirSync(cachedDir, { recursive: true })
     await add.handler({
-      // Ideally the config reader should ignore these settings when the dlx command is executed.
-      // This is a temporary solution until "@pnpm/config" is refactored.
-      ...omit([
-        'workspaceDir',
-        'rootProjectManifest',
-        'symlink',
-        // Options from root manifest
-        'allowNonAppliedPatches',
-        'allowedDeprecatedVersions',
-        'configDependencies',
-        'ignoredBuiltDependencies',
-        'ignoredOptionalDependencies',
-        'neverBuiltDependencies',
-        'onlyBuiltDependencies',
-        'onlyBuiltDependenciesFile',
-        'overrides',
-        'packageExtensions',
-        'patchedDependencies',
-        'peerDependencyRules',
-        'supportedArchitectures',
-      ], opts),
+      ...opts,
       bin: path.join(cachedDir, 'node_modules/.bin'),
       dir: cachedDir,
       lockfileDir: cachedDir,
-      rootProjectManifestDir: cachedDir, // This property won't be used as rootProjectManifest will be undefined
-      rootProjectManifest: {
-        pnpm: {
-          onlyBuiltDependencies: [...resolvedPkgAliases, ...(opts.allowBuild ?? [])],
-        },
-      },
+      onlyBuiltDependencies: [...resolvedPkgAliases, ...(opts.allowBuild ?? [])],
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!
       saveDev: false,
       saveOptional: false,
       savePeer: false,
+      symlink: true,
+      workspaceDir: undefined,
     }, resolvedPkgs)
     try {
       await symlinkDir(cachedDir, cacheLink, { overwrite: true })

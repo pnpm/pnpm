@@ -7792,6 +7792,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/exec.pnpm-cli-runner':
+        specifier: workspace:*
+        version: link:../../exec/pnpm-cli-runner
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
@@ -7801,9 +7804,6 @@ importers:
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
-      '@pnpm/plugin-commands-installation':
-        specifier: workspace:*
-        version: link:../../pkg-manager/plugin-commands-installation
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
