@@ -63,7 +63,7 @@ catalog:
   "@pnpm/util.lex-comparator": 3.0.0
   "@reflink/reflink": 0.1.18
   "@rushstack/worker-pool": 0.4.9
-  "@types/adm-zip": ^0.5.5
+  "@types/adm-zip": ^0.5.7
   "@types/archy": 0.0.33
   "@types/cross-spawn": ^6.0.6
   "@types/fs-extra": ^9.0.13
@@ -74,7 +74,7 @@ catalog:
   "@types/is-windows": ^1.0.2
   "@types/js-yaml": ^4.0.9
   "@types/lodash.throttle": 4.1.7
-  "@types/micromatch": ^4.0.7
+  "@types/micromatch": ^4.0.9
   "@types/node": ^18.19.34
   "@types/normalize-package-data": ^2.4.4
   "@types/normalize-path": ^3.0.2
@@ -104,7 +104,7 @@ catalog:
   "@yarnpkg/lockfile": ^1.1.0
   "@yarnpkg/nm": 4.0.5
   "@yarnpkg/parsers": 3.0.0
-  "@yarnpkg/pnp": ^4.0.6
+  "@yarnpkg/pnp": ^4.0.8
   "@zkochan/cmd-shim": ^6.0.0
   "@zkochan/diable": ^1.0.2
   "@zkochan/retry": ^0.2.0
@@ -112,12 +112,12 @@ catalog:
   "@zkochan/table": ^2.0.1
   "dint": ^5.1.0
   "js-yaml": npm:@zkochan/js-yaml@0.0.7
-  adm-zip: ^0.5.14
-  ansi-diff: ^1.1.1
+  adm-zip: ^0.5.16
+  ansi-diff: ^1.2.0
   archy: ^1.0.0
   better-path-resolve: 1.0.0
   bin-links: ^4.0.4
-  bole: ^5.0.14
+  bole: ^5.0.17
   boxen: ^5.1.2
   camelcase-keys: ^6.2.2
   camelcase: ^6.3.0
@@ -130,7 +130,7 @@ catalog:
   cmd-extension: ^1.0.2
   comver-to-semver: ^1.0.0
   concurrently: 8.2.1
-  cross-spawn: ^7.0.5
+  cross-spawn: ^7.0.6
   deep-require-cwd: 1.0.0
   delay: ^5.0.0
   detect-libc: ^2.0.3
@@ -146,7 +146,7 @@ catalog:
   fast-glob: ^3.3.2
   filenamify: ^4.3.0
   find-up: ^5.0.0
-  fs-extra: ^11.2.0
+  fs-extra: ^11.3.0
   fuse-native: ^2.2.6
   get-npm-tarball-url: ^2.1.0
   get-port: ^5.1.1
@@ -169,10 +169,10 @@ catalog:
   load-json-file: ^6.2.0
   lodash.throttle: 4.1.1
   loud-rejection: ^2.2.0
-  lru-cache: ^10.2.2
+  lru-cache: ^10.4.3
   make-empty-dir: ^3.0.2
   mem: ^8.1.1
-  micromatch: ^4.0.7
+  micromatch: ^4.0.8
   ndjson: ^2.0.0
   nerf-dart: 1.0.0
   nock: 13.3.4
@@ -201,7 +201,7 @@ catalog:
   path-temp: ^2.1.0
   pidtree: ^0.6.0
   pkg: npm:@yao-pkg/pkg@5.12.0
-  preferred-pm: ^3.1.3
+  preferred-pm: ^3.1.4
   pretty-bytes: ^5.6.0
   pretty-ms: ^7.0.1
   process-exists: ^4.1.0
@@ -226,7 +226,7 @@ catalog:
   sanitize-filename: ^1.6.3
   semver-range-intersect: ^0.3.1
   semver-utils: ^1.1.4
-  semver: ^7.6.2
+  semver: ^7.7.1
   shell-quote: ^1.8.2
   signal-exit: ^3.0.7
   sinon: ^16.1.3
