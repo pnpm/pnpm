@@ -37,7 +37,7 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
   fs.mkdirSync(stage, { recursive: true })
   fs.writeFileSync(path.join(stage, 'package.json'), '{}')
   try {
-    // The reason we don't just run app.handler is that at this point we might have settings from local config files
+    // The reason we don't just run add.handler is that at this point we might have settings from local config files
     // that we don't want to use while installing the pnpm CLI.
     runPnpmCli([
       'add',

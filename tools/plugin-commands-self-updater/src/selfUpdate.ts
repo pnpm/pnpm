@@ -6,9 +6,7 @@ import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
-import { type InstallCommandOptions } from '@pnpm/plugin-commands-installation'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
-import { type PnpmSettings } from '@pnpm/types'
 import { linkBins } from '@pnpm/link-bins'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
@@ -40,7 +38,18 @@ export function help (): string {
   })
 }
 
-export type SelfUpdateCommandOptions = InstallCommandOptions & Pick<Config, 'wantedPackageManager' | 'managePackageManagerVersions'> & PnpmSettings
+export type SelfUpdateCommandOptions = Pick<Config,
+| 'cacheDir'
+| 'dir'
+| 'lockfileDir'
+| 'managePackageManagerVersions'
+| 'modulesDir'
+| 'pnpmHomeDir'
+| 'rawConfig'
+| 'registries'
+| 'rootProjectManifestDir'
+| 'wantedPackageManager'
+>
 
 export async function handler (
   opts: SelfUpdateCommandOptions,
