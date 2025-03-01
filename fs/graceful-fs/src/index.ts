@@ -1,7 +1,7 @@
 import { promisify } from 'util'
 import gfs from 'graceful-fs'
 
-export default {
+export default { // eslint-disable-line
   copyFile: promisify(gfs.copyFile),
   copyFileSync: gfs.copyFileSync,
   createReadStream: gfs.createReadStream,
