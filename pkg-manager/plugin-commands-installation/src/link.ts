@@ -24,7 +24,7 @@ import normalize from 'normalize-path'
 
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
-const isFilespec = isWindows ? /^(?:[./\\]|~\/|[A-Z]:)/i : /^(?:[./]|~\/|[A-Z]:)/i
+const isFilespec = isWindows ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/ : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
 
 type LinkOpts = Pick<Config,
 | 'bin'

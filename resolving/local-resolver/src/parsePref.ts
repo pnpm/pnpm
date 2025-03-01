@@ -6,7 +6,7 @@ import { type PkgResolutionId } from '@pnpm/resolver-base'
 
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
-const isFilespec = isWindows ? /^(?:[./\\]|~\/|[A-Z]:)/i : /^(?:[./]|~\/|[A-Z]:)/i
+const isFilespec = isWindows ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/ : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
 const isFilename = /\.(?:tgz|tar.gz|tar)$/i
 const isAbsolutePath = /^\/|^[A-Z]:/i
 
