@@ -30,7 +30,7 @@ import {
   type InitStoreMessage,
 } from './types'
 
-const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
+const INTEGRITY_REGEX: RegExp = /^([^-]+)-([a-z0-9+/=]+)$/i
 
 parentPort!.on('message', handleMessage)
 

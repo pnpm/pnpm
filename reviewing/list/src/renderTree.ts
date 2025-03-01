@@ -97,7 +97,7 @@ async function renderTreeForPackage (
       return null
     }))).filter(Boolean).join('\n')
 
-  return `${chalk.bold.underline(label)}\n\n${output}`.replace(/(\n)+$/, '')
+  return `${chalk.bold.underline(label)}\n\n${output}`.replace(/\n+$/, '')
 }
 
 type GetPkgColor = (node: PackageNode) => (s: string) => string
