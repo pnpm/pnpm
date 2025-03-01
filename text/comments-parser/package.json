@@ -1,24 +1,27 @@
 {
   "name": "@pnpm/text.comments-parser",
-  "description": "Extracts and inserts comments from/to text",
   "version": "1000.0.0",
+  "description": "Extracts and inserts comments from/to text",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/text/comments-parser",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/text/comments-parser#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "keywords": [
-    "pnpm10"
-  ],
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.12"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/text/comments-parser",
   "scripts": {
     "start": "tsc --watch",
     "_test": "jest",
@@ -30,13 +33,11 @@
   "dependencies": {
     "strip-comments-strings": "catalog:"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/text/comments-parser#readme",
-  "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/text.comments-parser": "workspace:*"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

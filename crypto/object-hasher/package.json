@@ -2,8 +2,24 @@
   "name": "@pnpm/crypto.object-hasher",
   "version": "1000.0.1",
   "description": "Generate hashes from objects",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "crypto",
+    "hash"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/crypto/object-hasher",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/crypto/object-hasher#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
@@ -15,20 +31,6 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/crypto/object-hasher",
-  "keywords": [
-    "pnpm10",
-    "hash",
-    "crypto"
-  ],
-  "engines": {
-    "node": ">=18.12"
-  },
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/crypto/object-hasher#readme",
   "dependencies": {
     "object-hash": "catalog:",
     "ramda": "catalog:"
@@ -38,9 +40,8 @@
     "@types/object-hash": "catalog:",
     "@types/ramda": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

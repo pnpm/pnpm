@@ -2,21 +2,26 @@
   "name": "@pnpm/resolve-workspace-range",
   "version": "1000.0.0",
   "description": "Resolves a range from versions that are present inside a workspace",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/resolve-workspace-range",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/resolve-workspace-range#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "keywords": [
-    "pnpm10"
-  ],
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.12"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/resolve-workspace-range",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/resolve-workspace-range#readme",
   "scripts": {
     "start": "tsc --watch",
     "test": "pnpm run compile",
@@ -31,12 +36,8 @@
     "@pnpm/resolve-workspace-range": "workspace:*",
     "@types/semver": "catalog:"
   },
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

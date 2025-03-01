@@ -2,15 +2,28 @@
   "name": "@pnpm/client",
   "version": "1000.0.7",
   "description": "Creates the package resolve and fetch functions",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "npm",
+    "resolver"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/client",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/client#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -18,18 +31,6 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/client",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "resolver",
-    "npm"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/client#readme",
   "dependencies": {
     "@pnpm/default-resolver": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
@@ -47,9 +48,8 @@
     "@pnpm/fetcher-base": "workspace:*",
     "@types/ramda": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

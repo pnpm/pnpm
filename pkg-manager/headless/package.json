@@ -1,60 +1,32 @@
 {
   "name": "@pnpm/headless",
-  "description": "Fast installation using only pnpm-lock.yaml",
   "version": "1001.2.3",
+  "description": "Fast installation using only pnpm-lock.yaml",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "install",
+    "installer"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/headless",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/headless#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "peerDependencies": {
-    "@pnpm/logger": ">=5.1.0 <1001.0.0",
-    "@pnpm/worker": "workspace:^"
-  },
-  "devDependencies": {
-    "@pnpm/assert-project": "workspace:*",
-    "@pnpm/client": "workspace:*",
-    "@pnpm/crypto.object-hasher": "workspace:*",
-    "@pnpm/headless": "workspace:*",
-    "@pnpm/logger": "workspace:*",
-    "@pnpm/package-store": "workspace:*",
-    "@pnpm/prepare": "workspace:*",
-    "@pnpm/read-projects-context": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
-    "@pnpm/store-path": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/test-fixtures": "workspace:*",
-    "@pnpm/test-ipc-server": "workspace:*",
-    "@types/fs-extra": "catalog:",
-    "@types/ramda": "catalog:",
-    "@types/rimraf": "catalog:",
-    "@types/sinon": "catalog:",
-    "concurrently": "catalog:",
-    "isexe": "catalog:",
-    "load-json-file": "catalog:",
-    "sinon": "catalog:",
-    "tempy": "catalog:",
-    "write-json-file": "catalog:"
-  },
   "directories": {
     "test": "test"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/headless#readme",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "install",
-    "installer"
-  ],
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.12"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/headless",
   "scripts": {
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -64,9 +36,6 @@
     "runPrepareFixtures": "node ../../pnpm/bin/pnpm.cjs i -r -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force --no-strict-peer-dependencies",
     "prepareFixtures": "git clean -fdx test/fixtures && rm -rf \"test/fixtures/*/pnpm-lock.yaml\" && registry-mock prepare && concurrently --success=first --kill-others registry-mock \"pnpm run runPrepareFixtures\"",
     "compile": "tsc --build && pnpm run lint --fix"
-  },
-  "jest": {
-    "preset": "@pnpm/jest-config"
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:*",
@@ -103,8 +72,39 @@
     "ramda": "catalog:",
     "realpath-missing": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "peerDependencies": {
+    "@pnpm/logger": ">=5.1.0 <1001.0.0",
+    "@pnpm/worker": "workspace:^"
+  },
+  "devDependencies": {
+    "@pnpm/assert-project": "workspace:*",
+    "@pnpm/client": "workspace:*",
+    "@pnpm/crypto.object-hasher": "workspace:*",
+    "@pnpm/headless": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/package-store": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/read-projects-context": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/store-path": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
+    "@types/fs-extra": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/rimraf": "catalog:",
+    "@types/sinon": "catalog:",
+    "concurrently": "catalog:",
+    "isexe": "catalog:",
+    "load-json-file": "catalog:",
+    "sinon": "catalog:",
+    "tempy": "catalog:",
+    "write-json-file": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

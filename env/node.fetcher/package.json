@@ -2,19 +2,28 @@
   "name": "@pnpm/node.fetcher",
   "version": "1000.0.7",
   "description": "Node.js artifacts fetcher",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "env",
+    "node.js"
+  ],
+  "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/env/node.fetcher",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/env/node.fetcher#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "exports": {
-    ".": "./lib/index.js"
-  },
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -22,18 +31,6 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/env/node.fetcher",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "env",
-    "node.js"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/env/node.fetcher#readme",
   "dependencies": {
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/error": "workspace:*",
@@ -52,6 +49,9 @@
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "catalog:",
     "node-fetch": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

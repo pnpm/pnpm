@@ -2,19 +2,27 @@
   "name": "@pnpm/env.path",
   "version": "1000.0.0",
   "description": "Functions for changing PATH env variable",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "env"
+  ],
+  "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/env/path",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/env/path#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "exports": {
-    ".": "./lib/index.js"
-  },
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -22,22 +30,14 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/env/path",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "env"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/env/path#readme",
   "dependencies": {
     "path-name": "catalog:"
   },
   "devDependencies": {
     "@pnpm/env.path": "workspace:*"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

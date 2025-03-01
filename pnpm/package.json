@@ -1,20 +1,73 @@
 {
   "name": "pnpm",
-  "description": "Fast, disk space efficient package manager",
   "version": "10.5.2",
-  "bin": {
-    "pnpm": "bin/pnpm.cjs",
-    "pnpx": "bin/pnpx.cjs"
+  "description": "Fast, disk space efficient package manager",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "dependencies",
+    "dependency manager",
+    "efficient",
+    "fast",
+    "hardlinks",
+    "install",
+    "installer",
+    "link",
+    "lockfile",
+    "modules",
+    "monorepo",
+    "multi-package",
+    "npm",
+    "package manager",
+    "package.json",
+    "packages",
+    "prune",
+    "rapid",
+    "remove",
+    "shrinkwrap",
+    "symlinks",
+    "uninstall",
+    "workspace"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pnpm/pnpm.git",
+    "directory": "pnpm"
   },
+  "homepage": "https://pnpm.io",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "main": "bin/pnpm.cjs",
-  "unpkg": "dist/pnpm.cjs",
+  "exports": {
+    ".": "./package.json"
+  },
   "files": [
     "dist",
     "bin"
   ],
+  "bin": {
+    "pnpm": "bin/pnpm.cjs",
+    "pnpx": "bin/pnpx.cjs"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "unpkg": "dist/pnpm.cjs",
+  "scripts": {
+    "bundle": "ts-node bundle.ts",
+    "start": "tsc --watch",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "pretest:e2e": "rimraf node_modules/.bin/pnpm",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7778 jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm compile && publish-packed --prune --npm-client=pnpm --dest=dist",
+    "postpublish": "publish-packed",
+    "_compile": "tsc --build",
+    "compile": "tsc --build && pnpm run lint --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc"
+  },
   "dependencies": {
     "v8-compile-cache": "2.4.0"
   },
@@ -120,72 +173,8 @@
     "write-pkg": "catalog:",
     "write-yaml-file": "catalog:"
   },
-  "directories": {
-    "test": "test"
-  },
-  "homepage": "https://pnpm.io",
-  "keywords": [
-    "pnpm10",
-    "dependency manager",
-    "install",
-    "installer",
-    "uninstall",
-    "remove",
-    "link",
-    "prune",
-    "shrinkwrap",
-    "lockfile",
-    "fast",
-    "rapid",
-    "efficient",
-    "package.json",
-    "packages",
-    "dependencies",
-    "symlinks",
-    "hardlinks",
-    "modules",
-    "npm",
-    "package manager",
-    "monorepo",
-    "multi-package",
-    "workspace:*"
-  ],
-  "license": "MIT",
-  "preferGlobal": true,
   "engines": {
     "node": ">=18.12"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/pnpm/pnpm.git",
-    "directory": "pnpm"
-  },
-  "scripts": {
-    "bundle": "ts-node bundle.ts",
-    "start": "tsc --watch",
-    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "pretest:e2e": "rimraf node_modules/.bin/pnpm",
-    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7778 jest",
-    "test": "pnpm run compile && pnpm run _test",
-    "prepublishOnly": "pnpm compile && publish-packed --prune --npm-client=pnpm --dest=dist",
-    "postpublish": "publish-packed",
-    "_compile": "tsc --build",
-    "compile": "tsc --build && pnpm run lint --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc"
-  },
-  "publishConfig": {
-    "tag": "next-10",
-    "executableFiles": [
-      "./dist/node-gyp-bin/node-gyp",
-      "./dist/node-gyp-bin/node-gyp.cmd",
-      "./dist/node_modules/node-gyp/bin/node-gyp.js"
-    ]
-  },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./package.json"
-  },
-  "jest": {
-    "preset": "@pnpm/jest-config"
   },
   "pnpm": {
     "overrides": {
@@ -217,5 +206,17 @@
       "verdaccio": "5.20.1",
       "yaml@<2.2.2": ">=2.2.2"
     }
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  },
+  "preferGlobal": true,
+  "publishConfig": {
+    "tag": "next-10",
+    "executableFiles": [
+      "./dist/node-gyp-bin/node-gyp",
+      "./dist/node-gyp-bin/node-gyp.cmd",
+      "./dist/node_modules/node-gyp/bin/node-gyp.js"
+    ]
   }
 }

@@ -2,36 +2,33 @@
   "name": "@pnpm/catalogs.resolver",
   "version": "1000.0.2",
   "description": "Dereferences catalog protocol specifiers into usable specifiers.",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "types"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/catalogs/resolver",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/catalogs/resolver#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "engines": {
-    "node": ">=18.12"
+  "exports": {
+    ".": "./lib/index.js"
   },
   "files": [
     "lib",
     "!*.map"
   ],
-  "repository": "https://github.com/pnpm/pnpm/blob/main/catalogs/resolver",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "types"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/catalogs/resolver#readme",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "compile": "tsc --build && pnpm run lint --fix",
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile && pnpm run _test",
     "_test": "jest"
-  },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
   },
   "dependencies": {
     "@pnpm/catalogs.protocol-parser": "workspace:^",
@@ -40,6 +37,9 @@
   "devDependencies": {
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

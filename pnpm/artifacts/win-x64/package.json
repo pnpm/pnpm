@@ -1,7 +1,20 @@
 {
   "name": "@pnpm/win-x64",
   "version": "10.5.2",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
   "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/win-x64",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/win-x64#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "devDependencies": {
+    "@pnpm/win-x64": "workspace:*"
+  },
   "publishConfig": {
     "bin": {
       "pnpm": "pnpm.exe"
@@ -12,17 +25,5 @@
     "cpu": [
       "x64"
     ]
-  },
-  "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/win-x64",
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/win-x64#readme",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "keywords": [
-    "pnpm10"
-  ],
-  "devDependencies": {
-    "@pnpm/win-x64": "workspace:*"
   }
 }

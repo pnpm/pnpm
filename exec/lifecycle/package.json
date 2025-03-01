@@ -2,15 +2,28 @@
   "name": "@pnpm/lifecycle",
   "version": "1001.0.6",
   "description": "Package lifecycle hook runner",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "lifecycle",
+    "scripts"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/exec/lifecycle",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/lifecycle#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -18,21 +31,6 @@
     "prepublishOnly": "pnpm run compile",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "compile": "tsc --build && pnpm run lint --fix"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/exec/lifecycle",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "lifecycle",
-    "scripts"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/lifecycle#readme",
-  "peerDependencies": {
-    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
@@ -48,6 +46,9 @@
     "run-groups": "catalog:",
     "shell-quote": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
+  },
   "devDependencies": {
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/logger": "workspace:*",
@@ -60,9 +61,8 @@
     "@zkochan/rimraf": "catalog:",
     "load-json-file": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

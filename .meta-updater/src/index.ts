@@ -3,7 +3,7 @@ import path from 'path'
 import { readWantedLockfile, type LockfileObject } from '@pnpm/lockfile.fs'
 import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
-import { sortDirectKeys } from '@pnpm/object.key-sorting'
+import { sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
 import { parsePkgAndParentSelector } from '@pnpm/parse-overrides'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import isSubdir from 'is-subdir'
@@ -32,7 +32,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       }
       if (manifest.name === 'monorepo-root') {
         manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${nextTag} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${nextTag} --access=public`
-        return manifest
+        return sortKeysInManifest(manifest)
       }
       if (manifest.name && manifest.name !== CLI_PKG_NAME) {
         manifest.devDependencies = {
@@ -44,8 +44,9 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       }
       if (manifest.private === true || isSubdir(utilsDir, dir)) return manifest
       manifest.keywords = [
+        'pnpm',
         pnpmMajorKeyword,
-        ...(manifest.keywords ?? []).filter((keyword) => !/^pnpm[0-9]+$/.test(keyword)),
+        ...Array.from(new Set((manifest.keywords ?? []).filter((keyword) => keyword !== 'pnpm' && !/^pnpm[0-9]+$/.test(keyword)))).sort(),
       ]
       const smallestAllowedLibVersion = Number(pnpmMajorNumber) * 100
       const libMajorVersion = Number(manifest.version!.split('.')[0])
@@ -98,7 +99,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
             manifest.optionalDependencies![depName] = 'workspace:*'
           }
         }
-        return manifest
+        return sortKeysInManifest(manifest)
       }
       return updateManifest(workspaceDir, manifest, dir, nextTag)
     },
@@ -229,9 +230,7 @@ async function updateTSConfig (
 const registryMockPortForCore = 7769
 let registryMockPort = registryMockPortForCore
 
-type UpdatedManifest = ProjectManifest & Record<string, unknown>
-
-async function updateManifest (workspaceDir: string, manifest: ProjectManifest, dir: string, nextTag: string): Promise<UpdatedManifest> {
+async function updateManifest (workspaceDir: string, manifest: ProjectManifest, dir: string, nextTag: string): Promise<ProjectManifest> {
   const relative = normalizePath(path.relative(workspaceDir, dir))
   let scripts: Record<string, string>
   switch (manifest.name) {
@@ -349,7 +348,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       },
     })
   }
-  return {
+  return sortKeysInManifest({
     ...manifest,
     bugs: {
       url: 'https://github.com/pnpm/pnpm/issues',
@@ -366,5 +365,58 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     exports: {
       '.': manifest.name === 'pnpm' ? './package.json' : './lib/index.js',
     },
-  }
+  })
+}
+
+const priority = Object.fromEntries([
+  // Metadata
+  'name',
+  'private',
+  'version',
+  'description',
+  'keywords',
+  'license',
+  'author',
+  'contributors',
+  'funding',
+  'repository',
+  'homepage',
+  'bugs',
+
+  // Package Behavior
+  'type',
+  'main',
+  'types',
+  'module',
+  'browser',
+  'exports',
+  'files',
+  'bin',
+  'man',
+  'directories',
+  'unpkg',
+
+  // Scripts & Configuration
+  'scripts',
+  'config',
+
+  // Dependencies
+  'dependencies',
+  'peerDependencies',
+  'optionalDependencies',
+  'devDependencies',
+  'bundledDependencies', // alias: bundleDependencies
+
+  // Engines & Compatibility
+  'engines',
+  'os',
+  'cpu',
+
+  // pnpm/yarn/npm specific fields
+  'pnpm',
+  'packageManager',
+].map((key, index) => [key, index]))
+
+function sortKeysInManifest (manifest: ProjectManifest): ProjectManifest {
+  return sortKeysByPriority({ priority }, manifest)
 }

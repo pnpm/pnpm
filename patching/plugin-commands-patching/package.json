@@ -2,15 +2,27 @@
   "name": "@pnpm/plugin-commands-patching",
   "version": "1000.0.14",
   "description": "Commands for creating patches",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "scripts"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/patching/plugin-commands-patching",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/patching/plugin-commands-patching#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -18,30 +30,6 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/patching/plugin-commands-patching",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "scripts"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/patching/plugin-commands-patching#readme",
-  "devDependencies": {
-    "@pnpm/logger": "workspace:*",
-    "@pnpm/plugin-commands-patching": "workspace:*",
-    "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
-    "@pnpm/test-fixtures": "workspace:*",
-    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
-    "@types/is-windows": "catalog:",
-    "@types/normalize-path": "catalog:",
-    "@types/ramda": "catalog:",
-    "@types/semver": "catalog:",
-    "write-yaml-file": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
@@ -79,9 +67,21 @@
   "peerDependencies": {
     "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "devDependencies": {
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/plugin-commands-patching": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
+    "@types/is-windows": "catalog:",
+    "@types/normalize-path": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
+    "write-yaml-file": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"
