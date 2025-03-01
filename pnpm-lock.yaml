@@ -1677,6 +1677,12 @@ importers:
       '@pnpm/crypto.polyfill':
         specifier: workspace:*
         version: link:../polyfill
+      '@pnpm/graceful-fs':
+        specifier: workspace:*
+        version: link:../../fs/graceful-fs
+      ssri:
+        specifier: 'catalog:'
+        version: 10.0.5
     devDependencies:
       '@pnpm/crypto.hash':
         specifier: workspace:*
@@ -1684,6 +1690,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@types/ssri':
+        specifier: 'catalog:'
+        version: 7.1.5
 
   crypto/object-hasher:
     dependencies:
@@ -6530,12 +6539,12 @@ importers:
 
   resolving/local-resolver:
     dependencies:
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/graceful-fs':
-        specifier: workspace:*
-        version: link:../../fs/graceful-fs
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -6548,9 +6557,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-      ssri:
-        specifier: 'catalog:'
-        version: 10.0.5
     devDependencies:
       '@pnpm/local-resolver':
         specifier: workspace:*
@@ -6561,9 +6567,6 @@ importers:
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
-      '@types/ssri':
-        specifier: 'catalog:'
-        version: 7.1.5
 
   resolving/npm-resolver:
     dependencies:
