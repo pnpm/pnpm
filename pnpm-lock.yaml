@@ -787,6 +787,9 @@ importers:
       '@pnpm/meta-updater':
         specifier: 'catalog:'
         version: 2.0.3
+      '@pnpm/object.key-sorting':
+        specifier: workspace:*
+        version: link:../object/key-sorting
       '@pnpm/parse-overrides':
         specifier: workspace:*
         version: link:../config/parse-overrides

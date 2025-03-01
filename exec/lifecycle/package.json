@@ -45,8 +45,8 @@
     "@pnpm/types": "workspace:*",
     "is-windows": "catalog:",
     "path-exists": "catalog:",
-    "shell-quote": "catalog:",
-    "run-groups": "catalog:"
+    "run-groups": "catalog:",
+    "shell-quote": "catalog:"
   },
   "devDependencies": {
     "@pnpm/lifecycle": "workspace:*",

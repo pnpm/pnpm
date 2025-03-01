@@ -3,6 +3,7 @@ import path from 'path'
 import { readWantedLockfile, type LockfileObject } from '@pnpm/lockfile.fs'
 import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
+import { sortDirectKeys } from '@pnpm/object.key-sorting'
 import { parsePkgAndParentSelector } from '@pnpm/parse-overrides'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import isSubdir from 'is-subdir'
@@ -54,6 +55,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         }
         for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
           if (!manifest[depType]) continue
+          manifest[depType] = sortDirectKeys(manifest[depType])
           for (const depName of Object.keys(manifest[depType] ?? {})) {
             if (!manifest[depType]?.[depName].startsWith('workspace:')) {
               manifest[depType]![depName] = 'catalog:'
