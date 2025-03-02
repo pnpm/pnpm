@@ -35,8 +35,8 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
-    "fast-glob": "catalog:",
-    "p-filter": "catalog:"
+    "p-filter": "catalog:",
+    "tinyglobby": "catalog:"
   },
   "devDependencies": {
     "@pnpm/fs.find-packages": "workspace:*"

@@ -33,8 +33,8 @@
   },
   "dependencies": {
     "@pnpm/types": "workspace:*",
-    "fast-glob": "catalog:",
-    "is-subdir": "catalog:"
+    "is-subdir": "catalog:",
+    "tinyglobby": "catalog:"
   },
   "devDependencies": {
     "@pnpm/package-bins": "workspace:*",

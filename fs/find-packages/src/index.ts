@@ -4,7 +4,7 @@ import util from 'util'
 import { readExactProjectManifest } from '@pnpm/read-project-manifest'
 import { type Project, type ProjectRootDir, type ProjectRootDirRealPath } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import fastGlob from 'fast-glob'
+import { glob } from 'tinyglobby'
 import pFilter from 'p-filter'
 
 const DEFAULT_IGNORE = [
@@ -22,16 +22,17 @@ export interface Options {
 
 export async function findPackages (root: string, opts?: Options): Promise<Project[]> {
   opts = opts ?? {}
-  const globOpts = { ...opts, cwd: root }
+  const globOpts = { ...opts, cwd: root, expandDirectories: false }
   globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE
   const patterns = normalizePatterns(opts.patterns ?? ['.', '**'])
-  const paths: string[] = await fastGlob(patterns, globOpts)
+  delete globOpts.patterns
+  const paths: string[] = await glob(patterns, globOpts)
 
   if (opts.includeRoot) {
     // Always include the workspace root (https://github.com/pnpm/pnpm/issues/1986)
     Array.prototype.push.apply(
       paths,
-      await fastGlob(normalizePatterns(['.']), globOpts)
+      await glob(normalizePatterns(['.']), globOpts)
     )
   }
 

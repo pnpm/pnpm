@@ -35,7 +35,7 @@
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "encode-registry": "catalog:",
-    "fast-glob": "catalog:"
+    "tinyglobby": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": ">=5.1.0 <1001.0.0"
