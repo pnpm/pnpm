@@ -8,7 +8,7 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { type ProjectRootDir } from '@pnpm/types'
-import glob from 'fast-glob'
+import { glob } from 'tinyglobby'
 import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
 import equals from 'ramda/src/equals'
@@ -206,6 +206,7 @@ async function preparePkgFilesForDiff (src: string): Promise<string> {
 async function areAllFilesInPkg (files: string[], basePath: string): Promise<boolean> {
   const allFiles = await glob('**', {
     cwd: basePath,
+    expandDirectories: false,
   })
   return equals(allFiles.sort(), files.sort())
 }

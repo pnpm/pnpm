@@ -2,19 +2,28 @@
   "name": "@pnpm/node.resolver",
   "version": "1000.0.7",
   "description": "Resolves a Node.js version specifier to an exact Node.js version",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "env",
+    "node.js"
+  ],
+  "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/env/node.resolver",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/env/node.resolver#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "exports": {
-    ".": "./lib/index.js"
-  },
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -22,18 +31,6 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/env/node.resolver",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "env",
-    "node.js"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/env/node.resolver#readme",
   "dependencies": {
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
@@ -44,6 +41,9 @@
     "@pnpm/fetch": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
     "@types/semver": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

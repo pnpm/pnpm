@@ -2,17 +2,30 @@
   "name": "@pnpm/mount-modules",
   "version": "1001.0.11",
   "description": "Mounts a node_modules directory with FUSE",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "lockfile",
+    "shrinkwrap"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/modules-mounter/daemon",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/modules-mounter/daemon#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
-  "bin": "bin/mount-modules.js",
   "types": "lib/index.d.ts",
-  "engines": {
-    "node": ">=18.12"
+  "exports": {
+    ".": "./lib/index.js"
   },
   "files": [
     "lib",
     "!*.map",
     "bin"
   ],
+  "bin": "bin/mount-modules.js",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pnpm run compile && pnpm run _test",
@@ -20,28 +33,6 @@
     "pretest": "node ../../pnpm/dist/pnpm.cjs install --dir=test/__fixtures__/simple",
     "_test": "pnpm pretest && jest",
     "compile": "tsc --build && pnpm run lint --fix"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/modules-mounter/daemon",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "shrinkwrap",
-    "lockfile"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/modules-mounter/daemon#readme",
-  "peerDependencies": {
-    "@pnpm/logger": ">=5.1.0 <1001.0.0"
-  },
-  "devDependencies": {
-    "@pnpm/constants": "workspace:*",
-    "@pnpm/logger": "workspace:*",
-    "@pnpm/mount-modules": "workspace:*",
-    "@types/normalize-path": "catalog:",
-    "rimraf": "catalog:"
   },
   "dependencies": {
     "@pnpm/config": "workspace:*",
@@ -56,12 +47,21 @@
     "load-json-file": "catalog:",
     "normalize-path": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
+  "peerDependencies": {
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
+  },
   "optionalDependencies": {
     "fuse-native": "catalog:"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "devDependencies": {
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/mount-modules": "workspace:*",
+    "@types/normalize-path": "catalog:",
+    "rimraf": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

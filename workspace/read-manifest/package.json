@@ -2,15 +2,26 @@
   "name": "@pnpm/workspace.read-manifest",
   "version": "1000.1.0",
   "description": "Reads a workspace manifest file",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/read-manifest",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/read-manifest#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -18,28 +29,17 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/read-manifest",
-  "keywords": [
-    "pnpm10",
-    "pnpm"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/read-manifest#readme",
   "dependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
     "read-yaml-file": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/workspace.read-manifest": "workspace:*"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

@@ -2,33 +2,33 @@
   "name": "@pnpm/lockfile.types",
   "version": "1001.0.3",
   "description": "Types for the pnpm-lock.yaml lockfile",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "lockfile",
+    "types"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/types",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/types#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "engines": {
-    "node": ">=18.12"
+  "exports": {
+    ".": "./lib/index.js"
   },
   "files": [
     "lib",
     "!*.map"
   ],
-  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/types",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "types",
-    "lockfile"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/types#readme",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "compile": "tsc --build && pnpm run lint --fix",
     "prepublishOnly": "pnpm run compile"
   },
-  "funding": "https://opencollective.com/pnpm",
   "dependencies": {
     "@pnpm/patching.types": "workspace:*",
     "@pnpm/types": "workspace:*"
@@ -36,7 +36,7 @@
   "devDependencies": {
     "@pnpm/lockfile.types": "workspace:*"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   }
 }

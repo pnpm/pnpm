@@ -2,49 +2,33 @@
   "name": "@pnpm/plugin-commands-store",
   "version": "1000.0.13",
   "description": "Commands for controlling the store",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "scripts"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-store",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-store#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7784 jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-store",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "scripts"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-store#readme",
-  "devDependencies": {
-    "@pnpm/assert-store": "workspace:*",
-    "@pnpm/constants": "workspace:*",
-    "@pnpm/lockfile.fs": "workspace:*",
-    "@pnpm/logger": "workspace:*",
-    "@pnpm/plugin-commands-script-runners": "workspace:*",
-    "@pnpm/plugin-commands-store": "workspace:*",
-    "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
-    "@types/archy": "catalog:",
-    "@types/ramda": "catalog:",
-    "@types/ssri": "catalog:",
-    "@zkochan/rimraf": "catalog:",
-    "execa": "catalog:",
-    "ssri": "catalog:",
-    "tempy": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
@@ -71,9 +55,25 @@
   "peerDependencies": {
     "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "devDependencies": {
+    "@pnpm/assert-store": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/plugin-commands-script-runners": "workspace:*",
+    "@pnpm/plugin-commands-store": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "@types/archy": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/ssri": "catalog:",
+    "@zkochan/rimraf": "catalog:",
+    "execa": "catalog:",
+    "ssri": "catalog:",
+    "tempy": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

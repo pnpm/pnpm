@@ -2,41 +2,41 @@
   "name": "@pnpm/graceful-fs",
   "version": "1000.0.0",
   "description": "Promisified graceful-fs",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/fs/graceful-fs",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/graceful-fs#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/fs/graceful-fs",
-  "keywords": [
-    "pnpm10",
-    "pnpm"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/graceful-fs#readme",
   "dependencies": {
     "graceful-fs": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/graceful-fs": "workspace:*",
     "@types/graceful-fs": "catalog:"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

@@ -79,6 +79,7 @@ export interface BaseManifest {
     bin?: string
   }
   files?: string[]
+  funding?: string
   dependencies?: Dependencies
   devDependencies?: Dependencies
   optionalDependencies?: Dependencies
@@ -89,6 +90,10 @@ export interface BaseManifest {
   bundledDependencies?: string[] | boolean
   homepage?: string
   repository?: string | { url: string }
+  bugs?: string | {
+    url?: string
+    email?: string
+  }
   scripts?: PackageScripts
   config?: object
   engines?: {

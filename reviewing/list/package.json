@@ -2,8 +2,24 @@
   "name": "@pnpm/list",
   "version": "1000.0.9",
   "description": "List installed packages in a symlinked `node_modules`",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "list",
+    "ls"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/list",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/list#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
@@ -18,21 +34,6 @@
     "test": "pnpm run compile && pnpm run _test",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/list",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "list",
-    "ls"
-  ],
-  "engines": {
-    "node": ">=18.12"
-  },
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/list#readme",
   "dependencies": {
     "@pnpm/crypto.polyfill": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
@@ -51,9 +52,8 @@
     "@types/archy": "catalog:",
     "@types/ramda": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

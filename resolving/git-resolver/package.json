@@ -2,15 +2,28 @@
   "name": "@pnpm/git-resolver",
   "version": "1000.0.6",
   "description": "Resolver for git-hosted packages",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "npm",
+    "resolver"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/git-resolver",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/git-resolver#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -19,18 +32,6 @@
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/git-resolver",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "resolver",
-    "npm"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/git-resolver#readme",
   "dependencies": {
     "@pnpm/fetch": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
@@ -46,9 +47,8 @@
     "@types/semver": "catalog:",
     "is-windows": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"
