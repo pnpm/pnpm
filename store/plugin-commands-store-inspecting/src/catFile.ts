@@ -8,7 +8,7 @@ import { getStorePath } from '@pnpm/store-path'
 
 import renderHelp from 'render-help'
 
-const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
+const INTEGRITY_REGEX: RegExp = /^[^-]+-[A-Z0-9+/=]+$/i
 
 export const skipPackageManagerCheck = true
 

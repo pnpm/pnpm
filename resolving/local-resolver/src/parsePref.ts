@@ -6,7 +6,7 @@ import { type PkgResolutionId } from '@pnpm/resolver-base'
 
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
-const isFilespec = isWindows ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/ : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
+const isFilespec = isWindows ? /^(?:[./\\]|~\/|[a-z]:)/i : /^(?:[./]|~\/|[a-z]:)/i
 const isFilename = /\.(?:tgz|tar.gz|tar)$/i
 const isAbsolutePath = /^\/|^[A-Z]:/i
 
@@ -61,8 +61,8 @@ function fromLocal (
   type: 'file' | 'directory'
 ): LocalPackageSpec {
   const spec = pref.replace(/\\/g, '/')
-    .replace(/^(file|link|workspace):\/*([A-Z]:)/i, '$2') // drive name paths on windows
-    .replace(/^(file|link|workspace):(?:\/*([~./]))?/, '$2')
+    .replace(/^(?:file|link|workspace):\/*([A-Z]:)/i, '$1') // drive name paths on windows
+    .replace(/^(?:file|link|workspace):(?:\/*([~./]))?/, '$1')
 
   let protocol!: string
   if (pref.startsWith('file:')) {

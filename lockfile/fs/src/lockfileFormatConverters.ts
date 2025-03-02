@@ -138,7 +138,7 @@ function refToRelative (
   if (reference.startsWith('file:')) {
     return reference
   }
-  if (!reference.includes('/') || !reference.replace(/(\([^)]+\))+$/, '').includes('/')) {
+  if (!reference.includes('/') || !reference.replace(/(?:\([^)]+\))+$/, '').includes('/')) {
     return `/${pkgName}@${reference}`
   }
   return reference
