@@ -220,31 +220,10 @@ when running add/update with the --workspace option')
         })
       }
 
-      const didUserConfigureCatalogs = Object.values(opts.catalogs ?? {})
-        .some(catalog => Object.keys(catalog ?? {}).length > 0)
+      const allProjectsGraph: ProjectsGraph = opts.allProjectsGraph ?? createPkgGraph(allProjects, {
+        linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
+      }).graph
 
-      // pnpm catalogs and dedupe-peer-dependents are features that require the
-      // allProjectsGraph to contain all projects to correctly update the wanted
-      // lockfile. Otherwise the wanted lockfile would be partially updated for
-      // only the selected projects specified for the filtered install.
-      //
-      // This should still be performance since only dependencies for the
-      // selectedProjectsGraph are installed. The allProjectsGraph is only used
-      // to compute the wanted lockfile.
-      let allProjectsGraph!: ProjectsGraph
-      if (didUserConfigureCatalogs || opts.dedupePeerDependents) {
-        allProjectsGraph = opts.allProjectsGraph ?? createPkgGraph(allProjects, {
-          linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
-        }).graph
-      } else {
-        allProjectsGraph = selectedProjectsGraph
-        if (!allProjectsGraph[opts.workspaceDir as ProjectRootDir]) {
-          allProjectsGraph = {
-            ...allProjectsGraph,
-            ...selectProjectByDir(allProjects, opts.workspaceDir),
-          }
-        }
-      }
       await recursiveInstallThenUpdateWorkspaceState(allProjects,
         params,
         {
