@@ -34,14 +34,14 @@
   "dependencies": {
     "@pnpm/crypto.polyfill": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
-    "ssri": "catalog:",
-    "tar-stream": "catalog:"
+    "ssri": "catalog:"
   },
   "devDependencies": {
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ssri": "catalog:",
-    "@types/tar-stream": "catalog:"
+    "@types/tar-stream": "catalog:",
+    "tar-stream": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

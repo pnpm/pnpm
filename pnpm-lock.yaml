@@ -1683,9 +1683,6 @@ importers:
       ssri:
         specifier: 'catalog:'
         version: 10.0.5
-      tar-stream:
-        specifier: 'catalog:'
-        version: 2.2.0
     devDependencies:
       '@pnpm/crypto.hash':
         specifier: workspace:*
@@ -1699,6 +1696,9 @@ importers:
       '@types/tar-stream':
         specifier: 'catalog:'
         version: 2.2.3
+      tar-stream:
+        specifier: 'catalog:'
+        version: 2.2.0
 
   crypto/object-hasher:
     dependencies:
