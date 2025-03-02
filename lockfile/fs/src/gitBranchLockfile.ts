@@ -3,7 +3,8 @@ import path from 'path'
 
 export async function getGitBranchLockfileNames (lockfileDir: string): Promise<string[]> {
   const files = await fs.readdir(lockfileDir)
-  const gitBranchLockfileNames: string[] = files.filter(file => file.match(/^pnpm-lock\..*\.yaml$/))
+  // eslint-disable-next-line regexp/no-useless-non-capturing-group
+  const gitBranchLockfileNames: string[] = files.filter(file => file.match(/^pnpm-lock.(?:.*).yaml$/))
   return gitBranchLockfileNames
 }
 
