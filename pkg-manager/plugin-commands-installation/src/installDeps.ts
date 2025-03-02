@@ -40,6 +40,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'autoInstallPeers'
 | 'bail'
 | 'bin'
+| 'catalogs'
 | 'cliOptions'
 | 'dedupePeerDependents'
 | 'depth'

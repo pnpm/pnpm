@@ -254,6 +254,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'bin'
 | 'catalogs'
 | 'cliOptions'
+| 'dedupeInjectedDeps'
 | 'dedupeDirectDeps'
 | 'dedupePeerDependents'
 | 'deployAllFiles'
