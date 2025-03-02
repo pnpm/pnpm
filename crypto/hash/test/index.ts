@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
-import { createShortHash, createHashFromFile, createLocalTarballFileIntegrity } from '@pnpm/crypto.hash'
+import { createShortHash, createHashFromFile, getTarballIntegrity } from '@pnpm/crypto.hash'
 import { tempDir } from '@pnpm/prepare'
 import { pipeline } from 'node:stream/promises'
 import tar from 'tar-stream'
@@ -16,7 +16,7 @@ test('createHashFromFile normalizes line endings before calculating the hash', a
   expect(await createHashFromFile('win-eol.txt')).toEqual(await createHashFromFile('posix-eol.txt'))
 })
 
-test('createLocalTarballFileIntegrity creates integrity hash for tarball', async () => {
+test('getTarballIntegrity creates integrity hash for tarball', async () => {
   expect.hasAssertions()
   tempDir()
 
@@ -29,6 +29,6 @@ test('createLocalTarballFileIntegrity creates integrity hash for tarball', async
 
   await pipeline(pack, fs.createWriteStream('./local-tarball.tar'))
 
-  await expect(createLocalTarballFileIntegrity('./local-tarball.tar'))
+  await expect(getTarballIntegrity('./local-tarball.tar'))
     .resolves.toEqual('sha512-nQP7gWOhNQ/5HoM/rJmzOgzZt6Wg6k56CyvO/0sMmiS3UkLSmzY5mW8mMrnbspgqpmOW8q/FHyb0YIr4n2A8VQ==')
 })

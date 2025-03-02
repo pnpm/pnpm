@@ -28,6 +28,6 @@ async function readNormalizedFile (file: string): Promise<string> {
   return content.split('\r\n').join('\n')
 }
 
-export async function createLocalTarballFileIntegrity (filename: string): Promise<string> {
+export async function getTarballIntegrity (filename: string): Promise<string> {
   return (await ssri.fromStream(gfs.createReadStream(filename))).toString()
 }

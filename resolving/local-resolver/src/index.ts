@@ -1,6 +1,6 @@
 import { existsSync } from 'fs'
 import path from 'path'
-import { createLocalTarballFileIntegrity } from '@pnpm/crypto.hash'
+import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
@@ -37,7 +37,7 @@ export async function resolveFromLocal (
       id: spec.id,
       normalizedPref: spec.normalizedPref,
       resolution: {
-        integrity: await createLocalTarballFileIntegrity(spec.fetchSpec),
+        integrity: await getTarballIntegrity(spec.fetchSpec),
         tarball: spec.id,
       },
       resolvedVia: 'local-filesystem',

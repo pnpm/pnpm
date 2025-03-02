@@ -1,4 +1,4 @@
-import { createLocalTarballFileIntegrity } from '@pnpm/crypto.hash'
+import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { refToRelative } from '@pnpm/dependency-path'
 import {
   type ProjectSnapshot,
@@ -69,7 +69,7 @@ export async function localTarballDepsAreUpToDate (
 
         const filePath = path.join(lockfileDir, ref.slice('file:'.length))
 
-        const fileIntegrityPromise = fileIntegrityCache.get(filePath) ?? createLocalTarballFileIntegrity(filePath)
+        const fileIntegrityPromise = fileIntegrityCache.get(filePath) ?? getTarballIntegrity(filePath)
         if (!fileIntegrityCache.has(filePath)) {
           fileIntegrityCache.set(filePath, fileIntegrityPromise)
         }
