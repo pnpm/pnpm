@@ -2142,6 +2142,15 @@ importers:
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
+      read-yaml-file:
+        specifier: 'catalog:'
+        version: 2.1.0
+      write-pkg:
+        specifier: 'catalog:'
+        version: 4.0.0
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 5.0.0
 
   exec/build-modules:
     dependencies:
