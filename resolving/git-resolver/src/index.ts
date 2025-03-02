@@ -118,11 +118,11 @@ function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref:
     const vTags =
       Object.keys(refs)
         // using the same semantics of version tags as https://github.com/zkat/pacote
-        .filter((key: string) => /^refs\/tags\/v?(\d+\.\d+\.\d+(?:[-+].+)?)(\^{})?$/.test(key))
+        .filter((key: string) => /^refs\/tags\/v?\d+\.\d+\.\d+(?:[-+].+)?(?:\^\{\})?$/.test(key))
         .map((key: string) => {
           return key
             .replace(/^refs\/tags\//, '')
-            .replace(/\^{}$/, '') // accept annotated tags
+            .replace(/\^\{\}$/, '') // accept annotated tags
         })
         .filter((key: string) => semver.valid(key, true))
     const refVTag = resolveVTags(vTags, range)

@@ -160,7 +160,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   })
   const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   // cspell:disable-next-line
-  if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(\..+)?/i.test(file))) {
+  if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(?:\..+)?/i.test(file))) {
     const licenses = await glob([LICENSE_GLOB], { cwd: opts.workspaceDir, expandDirectories: false })
     for (const license of licenses) {
       filesMap[`package/${license}`] = path.join(opts.workspaceDir, license)
@@ -244,7 +244,7 @@ async function packPkg (opts: {
   await Promise.all(Object.entries(filesMap).map(async ([name, source]) => {
     const isExecutable = bins.some((bin) => path.relative(bin, source) === '')
     const mode = isExecutable ? 0o755 : 0o644
-    if (/^package\/package\.(json|json5|yaml)$/.test(name)) {
+    if (/^package\/package\.(?:json|json5|yaml)$/.test(name)) {
       pack.entry({ mode, mtime, name: 'package/package.json' }, JSON.stringify(manifest, null, 2))
       return
     }

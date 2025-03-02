@@ -46,7 +46,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       manifest.keywords = [
         'pnpm',
         pnpmMajorKeyword,
-        ...Array.from(new Set((manifest.keywords ?? []).filter((keyword) => keyword !== 'pnpm' && !/^pnpm[0-9]+$/.test(keyword)))).sort(),
+        ...Array.from(new Set((manifest.keywords ?? []).filter((keyword) => keyword !== 'pnpm' && !/^pnpm\d+$/.test(keyword)))).sort(),
       ]
       const smallestAllowedLibVersion = Number(pnpmMajorNumber) * 100
       const libMajorVersion = Number(manifest.version!.split('.')[0])

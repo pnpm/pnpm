@@ -22,7 +22,7 @@ interface MergeFileInfo {
 }
 
 function parseMergeFile (fileContent: string): MergeFileInfo {
-  const lines = fileContent.split(/[\n\r]+/g)
+  const lines = fileContent.split(/[\n\r]+/)
   let state: 'top' | 'ours' | 'theirs' | 'parent' = 'top'
   const ours = []
   const theirs = []

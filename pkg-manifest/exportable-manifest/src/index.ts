@@ -159,7 +159,7 @@ async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec:
   }
 
   // Dependencies with bare "*", "^", "~",">=",">","<=", "<", version
-  const workspaceSemverRegex = /workspace:([\^~*]|>=|>|<=|<)?((\d+|[xX]|\*)(\.(\d+|[xX]|\*)){0,2})?/
+  const workspaceSemverRegex = /workspace:([\^~*]|>=|>|<=|<)?((\d+|[xX*])(\.(\d+|[xX*])){0,2})?/
   const versionAliasSpecParts = workspaceSemverRegex.exec(depSpec)
 
   if (versionAliasSpecParts != null) {
