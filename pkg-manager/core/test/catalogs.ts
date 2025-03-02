@@ -380,6 +380,74 @@ test('lockfile catalog snapshots do not contain stale references on --filter', a
   expect(loadJsonFile<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('3.1.0')
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/9112
+test('dedupe-peer-dependents=false with --filter does not erase catalog snapshots', async () => {
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {},
+    },
+    {
+      name: 'project2',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    },
+  ])
+
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    dedupePeerDependents: false,
+    catalogs: {
+      default: {
+        'is-positive': '1.0.0',
+      },
+    },
+  })
+
+  expect(readLockfile().catalogs).toStrictEqual({
+    default: {
+      'is-positive': { specifier: '1.0.0', version: '1.0.0' },
+    },
+  })
+
+  // Perform a filtered install with only project 1. The catalog protocol usage
+  // in project 2 should be retained.
+  const onlyProject1 = installProjects(projects).slice(0, 1)
+  expect(onlyProject1).toMatchObject([{ id: 'project1' }])
+  await mutateModules(onlyProject1, {
+    ...options,
+    lockfileOnly: true,
+    dedupePeerDependents: false,
+    catalogs: {
+      default: {
+        // Modify the original specifier above from "1.0.0" to "^1.0.0" in order
+        // to force a resolution instead of a frozen install.
+        'is-positive': '^1.0.0',
+      },
+    },
+  })
+
+  // The catalogs snapshot section was erased in the bug report from
+  // https://github.com/pnpm/pnpm/issues/9112 when dedupe-peer-dependents=false.
+  expect(readLockfile()).toEqual(expect.objectContaining({
+    catalogs: {
+      default: {
+        'is-positive': { specifier: '^1.0.0', version: '1.0.0' },
+      },
+    },
+    importers: expect.objectContaining({
+      project1: {},
+      project2: expect.objectContaining({
+        dependencies: {
+          'is-positive': { specifier: 'catalog:', version: '1.0.0' },
+        },
+      }),
+    }),
+  }))
+})
+
 // Regression test for https://github.com/pnpm/pnpm/issues/8639
 test('--fix-lockfile with --filter does not erase catalog snapshots', async () => {
   const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
