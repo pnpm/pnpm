@@ -135,6 +135,13 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     // doesn't work with filters right now.
     // Related issue: https://github.com/pnpm/pnpm/issues/6858
     dedupePeerDependents: false,
+    // If enabled, dedupe-injected-deps will symlink workspace packages in the
+    // deployed dir to their original (non-deployed) directory in an attempt to
+    // dedupe workspace packages that don't need to be injected. The deployed
+    // dir shouldn't have symlinks to the original workspace. Disable
+    // dedupe-injected-deps to always inject workspace packages since copying is
+    // desirable.
+    dedupeInjectedDeps: false,
     depth: Infinity,
     hooks: {
       ...opts.hooks,
