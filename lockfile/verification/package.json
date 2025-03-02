@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/get-context": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
@@ -53,7 +54,9 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "catalog:",
-    "@types/semver": "catalog:"
+    "@types/semver": "catalog:",
+    "@types/tar-stream": "catalog:",
+    "tar-stream": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

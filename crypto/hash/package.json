@@ -32,11 +32,16 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/crypto.polyfill": "workspace:*"
+    "@pnpm/crypto.polyfill": "workspace:*",
+    "@pnpm/graceful-fs": "workspace:*",
+    "ssri": "catalog:"
   },
   "devDependencies": {
     "@pnpm/crypto.hash": "workspace:*",
-    "@pnpm/prepare": "workspace:*"
+    "@pnpm/prepare": "workspace:*",
+    "@types/ssri": "catalog:",
+    "@types/tar-stream": "catalog:",
+    "tar-stream": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

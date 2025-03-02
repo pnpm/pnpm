@@ -33,13 +33,12 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "normalize-path": "catalog:",
-    "ssri": "catalog:"
+    "normalize-path": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": ">=5.1.0 <1001.0.0"
@@ -47,8 +46,7 @@
   "devDependencies": {
     "@pnpm/local-resolver": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@types/normalize-path": "catalog:",
-    "@types/ssri": "catalog:"
+    "@types/normalize-path": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

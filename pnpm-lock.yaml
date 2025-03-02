@@ -1680,6 +1680,12 @@ importers:
       '@pnpm/crypto.polyfill':
         specifier: workspace:*
         version: link:../polyfill
+      '@pnpm/graceful-fs':
+        specifier: workspace:*
+        version: link:../../fs/graceful-fs
+      ssri:
+        specifier: 'catalog:'
+        version: 10.0.5
     devDependencies:
       '@pnpm/crypto.hash':
         specifier: workspace:*
@@ -1687,6 +1693,15 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@types/ssri':
+        specifier: 'catalog:'
+        version: 7.1.5
+      '@types/tar-stream':
+        specifier: 'catalog:'
+        version: 2.2.3
+      tar-stream:
+        specifier: 'catalog:'
+        version: 2.2.0
 
   crypto/object-hasher:
     dependencies:
@@ -3585,6 +3600,9 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
@@ -3637,6 +3655,12 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.5.3
+      '@types/tar-stream':
+        specifier: 'catalog:'
+        version: 2.2.3
+      tar-stream:
+        specifier: 'catalog:'
+        version: 2.2.0
 
   lockfile/walker:
     dependencies:
@@ -6542,12 +6566,12 @@ importers:
 
   resolving/local-resolver:
     dependencies:
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/graceful-fs':
-        specifier: workspace:*
-        version: link:../../fs/graceful-fs
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -6560,9 +6584,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-      ssri:
-        specifier: 'catalog:'
-        version: 10.0.5
     devDependencies:
       '@pnpm/local-resolver':
         specifier: workspace:*
@@ -6573,9 +6594,6 @@ importers:
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
-      '@types/ssri':
-        specifier: 'catalog:'
-        version: 7.1.5
 
   resolving/npm-resolver:
     dependencies:

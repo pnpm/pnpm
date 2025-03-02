@@ -1,7 +1,7 @@
 import { existsSync } from 'fs'
 import path from 'path'
+import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
-import gfs from '@pnpm/graceful-fs'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   type DirectoryResolution,
@@ -9,7 +9,6 @@ import {
   type TarballResolution,
 } from '@pnpm/resolver-base'
 import { type DependencyManifest } from '@pnpm/types'
-import ssri from 'ssri'
 import { logger } from '@pnpm/logger'
 import { parsePref, type WantedLocalDependency } from './parsePref'
 
@@ -38,7 +37,7 @@ export async function resolveFromLocal (
       id: spec.id,
       normalizedPref: spec.normalizedPref,
       resolution: {
-        integrity: await getFileIntegrity(spec.fetchSpec),
+        integrity: await getTarballIntegrity(spec.fetchSpec),
         tarball: spec.id,
       },
       resolvedVia: 'local-filesystem',
@@ -92,8 +91,4 @@ export async function resolveFromLocal (
     },
     resolvedVia: 'local-filesystem',
   }
-}
-
-async function getFileIntegrity (filename: string): Promise<string> {
-  return (await ssri.fromStream(gfs.createReadStream(filename))).toString()
 }
