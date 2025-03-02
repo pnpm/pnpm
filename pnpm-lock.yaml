@@ -34,8 +34,8 @@ catalogs:
       specifier: 2.0.5
       version: 2.0.5
     '@pnpm/network.agent':
-      specifier: ^2.0.0
-      version: 2.0.0
+      specifier: ^2.0.1
+      version: 2.0.1
     '@pnpm/nopt':
       specifier: ^0.2.1
       version: 0.2.1
@@ -43,14 +43,14 @@ catalogs:
       specifier: 3.0.0
       version: 3.0.0
     '@pnpm/npm-lifecycle':
-      specifier: ^1000.0.1
-      version: 1000.0.1
+      specifier: ^1000.0.2
+      version: 1000.0.2
     '@pnpm/npm-package-arg':
       specifier: ^1.0.0
       version: 1.0.0
     '@pnpm/os.env.path-extender':
-      specifier: ^2.0.0
-      version: 2.0.0
+      specifier: ^2.0.1
+      version: 2.0.1
     '@pnpm/patch-package':
       specifier: 0.0.1
       version: 0.0.1
@@ -2229,7 +2229,7 @@ importers:
         version: link:../../pkg-manager/link-bins
       '@pnpm/npm-lifecycle':
         specifier: 'catalog:'
-        version: 1000.0.1(typanion@3.14.0)
+        version: 1000.0.2(typanion@3.14.0)
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -3736,7 +3736,7 @@ importers:
         version: link:../fetching-types
       '@pnpm/network.agent':
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -4022,7 +4022,7 @@ importers:
         version: link:../../cli/cli-utils
       '@pnpm/os.env.path-extender':
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -6526,7 +6526,7 @@ importers:
         version: 'link:'
       '@pnpm/network.agent':
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 2.0.1
       '@types/hosted-git-info':
         specifier: 'catalog:'
         version: 3.0.5
@@ -9168,10 +9168,6 @@ packages:
     resolution: {integrity: sha512-pidH59zxnIB8Ci8Mvc18CVFN8MpgN6KzufiXey76q928F3HPPRni1mYaHTYJwSFhwvCh6gT9eb4u3HLt0pZCiQ==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/constants@10.0.0':
-    resolution: {integrity: sha512-dxIXcW1F1dxIGfye2JXE7Q8WVwYB0axVzdBOkvE1WKIVR4xjB8e6k/Dkjo7DpbyfW5Vu2k21p6dyM32YLSAWoQ==}
-    engines: {node: '>=18.12'}
-
   '@pnpm/constants@1001.1.0':
     resolution: {integrity: sha512-xb9dfSGi1qfUKY3r4Zy9JdC9+ZeaDxwfE7HrrGIEsBVY1hvIn6ntbR7A97z3nk44yX7vwbINNf9sizTp0WEtEw==}
     engines: {node: '>=18.12'}
@@ -9210,10 +9206,6 @@ packages:
 
   '@pnpm/error@1000.0.2':
     resolution: {integrity: sha512-2SfE4FFL73rE1WVIoESbqlj4sLy5nWW4M/RVdHvCRJPjlQHa9MH7m7CVJM204lz6I+eHoB+E7rL3zmpJR5wYnQ==}
-    engines: {node: '>=18.12'}
-
-  '@pnpm/error@6.0.3':
-    resolution: {integrity: sha512-OIYhG7HQh4zUFh2s8/6bp7glVRjNxms7bpzXVOLV7pyRa+rSYFmqJ8zDsBC64k58nuaxS85Ip+SCDjFxsFGeOg==}
     engines: {node: '>=18.12'}
 
   '@pnpm/exec@2.0.0':
@@ -9277,20 +9269,20 @@ packages:
     engines: {node: '>=18.12.0'}
     hasBin: true
 
-  '@pnpm/network.agent@2.0.0':
-    resolution: {integrity: sha512-CqONDs5W6vaAdgQEHyFSr4vj25Pv8eVzwI+oUvId/FBHOcTCgHndLIJGON39JnyQS40+yT9kpEj21la3rcJK2w==}
+  '@pnpm/network.agent@2.0.1':
+    resolution: {integrity: sha512-bYUMUGMH0D7HVDdsXPIWuoBvx9hQXHAhZ2SbSl02f4DrGBzlT/u3NBlSULcDqz7O/2QgnRDP05e1Y/qu5kkhTw==}
     engines: {node: '>=18.12'}
 
   '@pnpm/network.ca-file@1.0.2':
     resolution: {integrity: sha512-YcPQ8a0jwYU9bTdJDpXjMi7Brhkr1mXsXrUJvjqM2mQDgkRiz8jFaQGOdaLxgjtUfQgZhKy/O3cG/YwmgKaxLA==}
     engines: {node: '>=12.22.0'}
 
-  '@pnpm/network.config@2.0.0':
-    resolution: {integrity: sha512-DpTQTz4KBUgR0NNo/+/WXFlE4dy4+vgINhR9Eb+qo/Kb9RzGbhTN0ypv3sRYa6YG4UO5ft47rvEtHJ9i6VBwzA==}
+  '@pnpm/network.config@2.0.1':
+    resolution: {integrity: sha512-7hFqy3ixKy/7G0pDp4PkVAfS4bRTHO7AV7a4noK0ehpR4Qq7ZliTFFSWOvDNfPh+P71RnmDGLWQ+cczYNYIpZw==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/network.proxy-agent@2.0.0':
-    resolution: {integrity: sha512-gCShibUggQS1vveAzr84PhDvwoChR4HrHHdvTB8CqXHQu12eoXO8R01awalZWERrHL3fDkUQcqLqCospm2O/QQ==}
+  '@pnpm/network.proxy-agent@2.0.1':
+    resolution: {integrity: sha512-DjV7G7g72EzBmgHDX4ElE9bybxSClybYSm+TDFagjn7mX7Cv2IOpVMCIjCQosN7BHiUqOelagx1cy4agvqh8YQ==}
     engines: {node: '>=18.12'}
 
   '@pnpm/node-fetch@1.0.0':
@@ -9306,24 +9298,24 @@ packages:
     resolution: {integrity: sha512-LdFkv/+4ONkQ9ZyE8ihC2L2RcPjvNcOTQq6pvvvZp8KeDYATCJeJX7gpHZF3Bx1XvUSU35dyF9Q9dS+JShtOFA==}
     engines: {node: '>=12'}
 
-  '@pnpm/npm-lifecycle@1000.0.1':
-    resolution: {integrity: sha512-njwGrSi3643fCwS46giklcp54C7lRutf9boHiZ95zFuJdeifGNg5GqPWHjkLRDb8oz7DKboIV75MMphyyQ6Rug==}
+  '@pnpm/npm-lifecycle@1000.0.2':
+    resolution: {integrity: sha512-+MID5PrMc0hZyIG4GBkNt2a0BG50wX94IS+3Md/FTUJ+H0+BMkdkUGJJbbQhdIPxQD1eAhm+a/3bZuAhnuCNVA==}
     engines: {node: '>=18.12'}
 
   '@pnpm/npm-package-arg@1.0.0':
     resolution: {integrity: sha512-oQYP08exi6mOPdAZZWcNIGS+KKPsnNwUBzSuAEGWuCcqwMAt3k/WVCqVIXzBxhO5sP2b43og69VHmPj6IroKqw==}
     engines: {node: '>=14.6'}
 
-  '@pnpm/os.env.path-extender-posix@2.0.0':
-    resolution: {integrity: sha512-QDyvXcMQYn4yeoq9qyozNr8gc9Ci97zQdgXUOXnPsQo+3jSMMvCfjVlpjAwiKkQBZ7odh464Bvts2kmA/z0Ghw==}
+  '@pnpm/os.env.path-extender-posix@2.0.1':
+    resolution: {integrity: sha512-UA+17CyARGyvzZFiHRN2Yftl8ZSPjwxEWkd+PQldWyK8ptWUsYYusnCpQ5Prufk8WSFGBZFQFlll2O/YnomPWg==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/os.env.path-extender-windows@2.0.0':
-    resolution: {integrity: sha512-ltfKQBmKbZW7y7s/RtV7vSrA31H/3ybC+WsOkd79uAwjCnXs5+gwXZQQ/HEgWloFmjcMwNkq8dGPfGtYwgIocg==}
+  '@pnpm/os.env.path-extender-windows@2.0.1':
+    resolution: {integrity: sha512-BKdLbi6O+sG+zIXxighCgOro48SoyIi4LhM3a1aoPVV4mt2m+HTkWhb1AWPbYz6n9OILPZabEoB4akx77jyb/A==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/os.env.path-extender@2.0.0':
-    resolution: {integrity: sha512-ad4jgJSzrR+jupsrcBC5NmbQOIrJHAZiZc4bBQfdrqeU8B7X/hA0sdOwC4UoWMvk2y+J9DwdNu8cH1t/EqGqPw==}
+  '@pnpm/os.env.path-extender@2.0.1':
+    resolution: {integrity: sha512-qbLfZvNamI+WFyV6iiSnQL40RJhyplPKa3c7HXaeHV6qseLX+Tl/he3EFkMWPecs1Vtke5YX++cRK73vhyshZw==}
     engines: {node: '>=18.12'}
 
   '@pnpm/package-is-installable@1000.0.5':
@@ -16049,8 +16041,6 @@ snapshots:
     transitivePeerDependencies:
       - '@pnpm/logger'
 
-  '@pnpm/constants@10.0.0': {}
-
   '@pnpm/constants@1001.1.0': {}
 
   '@pnpm/core-loggers@1000.1.3(@pnpm/logger@1000.0.0)':
@@ -16106,10 +16096,6 @@ snapshots:
   '@pnpm/error@1000.0.2':
     dependencies:
       '@pnpm/constants': 1001.1.0
-
-  '@pnpm/error@6.0.3':
-    dependencies:
-      '@pnpm/constants': 10.0.0
 
   '@pnpm/exec@2.0.0':
     dependencies:
@@ -16195,10 +16181,10 @@ snapshots:
       print-diff: 2.0.0
       write-json-file: 5.0.0
 
-  '@pnpm/network.agent@2.0.0':
+  '@pnpm/network.agent@2.0.1':
     dependencies:
-      '@pnpm/network.config': 2.0.0
-      '@pnpm/network.proxy-agent': 2.0.0
+      '@pnpm/network.config': 2.0.1
+      '@pnpm/network.proxy-agent': 2.0.1
       agentkeepalive: 4.2.1
       lru-cache: 7.10.1
     transitivePeerDependencies:
@@ -16208,13 +16194,13 @@ snapshots:
     dependencies:
       graceful-fs: 4.2.10
 
-  '@pnpm/network.config@2.0.0':
+  '@pnpm/network.config@2.0.1':
     dependencies:
       nerf-dart: 1.0.0
 
-  '@pnpm/network.proxy-agent@2.0.0':
+  '@pnpm/network.proxy-agent@2.0.1':
     dependencies:
-      '@pnpm/error': 6.0.3
+      '@pnpm/error': 1000.0.2
       http-proxy-agent: 5.0.0
       https-proxy-agent: 5.0.1
       lru-cache: 7.10.1
@@ -16239,10 +16225,10 @@ snapshots:
       '@pnpm/network.ca-file': 1.0.2
       config-chain: 1.1.13
 
-  '@pnpm/npm-lifecycle@1000.0.1(typanion@3.14.0)':
+  '@pnpm/npm-lifecycle@1000.0.2(typanion@3.14.0)':
     dependencies:
       '@pnpm/byline': 1.0.0
-      '@pnpm/error': 6.0.3
+      '@pnpm/error': 1000.0.2
       '@yarnpkg/shell': 4.0.0(typanion@3.14.0)
       node-gyp: 11.1.0
       resolve-from: 5.0.0
@@ -16260,20 +16246,20 @@ snapshots:
       semver: 7.7.1
       validate-npm-package-name: 4.0.0
 
-  '@pnpm/os.env.path-extender-posix@2.0.0':
+  '@pnpm/os.env.path-extender-posix@2.0.1':
     dependencies:
-      '@pnpm/error': 6.0.3
+      '@pnpm/error': 1000.0.2
 
-  '@pnpm/os.env.path-extender-windows@2.0.0':
+  '@pnpm/os.env.path-extender-windows@2.0.1':
     dependencies:
-      '@pnpm/error': 6.0.3
+      '@pnpm/error': 1000.0.2
       safe-execa: 0.1.1
       string.prototype.matchall: 4.0.7
 
-  '@pnpm/os.env.path-extender@2.0.0':
+  '@pnpm/os.env.path-extender@2.0.1':
     dependencies:
-      '@pnpm/os.env.path-extender-posix': 2.0.0
-      '@pnpm/os.env.path-extender-windows': 2.0.0
+      '@pnpm/os.env.path-extender-posix': 2.0.1
+      '@pnpm/os.env.path-extender-windows': 2.0.1
 
   '@pnpm/package-is-installable@1000.0.5(@pnpm/logger@1000.0.0)':
     dependencies:

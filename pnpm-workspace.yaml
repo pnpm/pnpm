@@ -50,12 +50,12 @@ catalog:
   "@pnpm/fs.packlist": 2.0.0
   "@pnpm/log.group": 3.0.0
   "@pnpm/meta-updater": 2.0.5
-  "@pnpm/network.agent": ^2.0.0
+  "@pnpm/network.agent": ^2.0.1
   "@pnpm/nopt": ^0.2.1
   "@pnpm/npm-conf": 3.0.0
-  "@pnpm/npm-lifecycle": ^1000.0.1
+  "@pnpm/npm-lifecycle": ^1000.0.2
   "@pnpm/npm-package-arg": ^1.0.0
-  "@pnpm/os.env.path-extender": ^2.0.0
+  "@pnpm/os.env.path-extender": ^2.0.1
   "@pnpm/patch-package": 0.0.1
   "@pnpm/registry-mock": 4.0.0
   "@pnpm/semver-diff": ^1.1.0
