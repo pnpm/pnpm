@@ -11,7 +11,6 @@ import writePkg from 'write-pkg'
 import { DEFAULT_OPTS } from './utils'
 import { type PnpmError } from '@pnpm/error'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import normalize from 'normalize-path'
 
 const f = fixtures(__dirname)
 
@@ -148,6 +147,9 @@ test('relative link', async () => {
   }, [`../${linkedPkgName}`])
 
   project.isExecutable('.bin/hello-world-js-bin')
+
+  const manifest = loadJsonFile<{ pnpm?: { overrides?: Record<string, string> } }>('package.json')
+  expect(manifest.pnpm?.overrides?.['@pnpm.e2e/hello-world-js-bin']).toBe('link:../hello-world-js-bin')
 
   const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
@@ -392,13 +394,13 @@ test('relative link from workspace package', async () => {
   }, ['../../../hello-world-js-bin'])
 
   const manifest = loadJsonFile<{ pnpm?: { overrides?: Record<string, string> } }>(path.join(workspaceDir, 'package.json'))
-  expect(normalize(manifest.pnpm?.overrides?.['@pnpm.e2e/hello-world-js-bin'] ?? '')).toBe('link:../hello-world-js-bin')
+  expect(manifest.pnpm?.overrides?.['@pnpm.e2e/hello-world-js-bin']).toBe('link:../hello-world-js-bin')
 
   const workspace = assertProject(workspaceDir)
   ;[workspace.readLockfile(), workspace.readCurrentLockfile()].forEach(lockfile => {
-    expect(normalize(lockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin'].version ?? ''))
+    expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin'].version)
       .toBe('link:../hello-world-js-bin')
-    expect(normalize(lockfile.importers['packages/project'].dependencies?.['@pnpm.e2e/hello-world-js-bin'].version ?? ''))
+    expect(lockfile.importers['packages/project'].dependencies?.['@pnpm.e2e/hello-world-js-bin'].version)
       .toBe('link:../../../hello-world-js-bin')
   })
 

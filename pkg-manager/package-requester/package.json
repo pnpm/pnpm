@@ -2,15 +2,28 @@
   "name": "@pnpm/package-requester",
   "version": "1001.0.2",
   "description": "Concurrent downloader of npm-compatible packages",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "npm",
+    "resolver"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/package-requester",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/package-requester#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -18,22 +31,6 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/package-requester",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "resolver",
-    "npm"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/package-requester#readme",
-  "peerDependencies": {
-    "@pnpm/logger": ">=5.1.0 <1001.0.0",
-    "@pnpm/worker": "workspace:^"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
@@ -56,6 +53,10 @@
     "semver": "catalog:",
     "ssri": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": ">=5.1.0 <1001.0.0",
+    "@pnpm/worker": "workspace:^"
+  },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/client": "workspace:*",
@@ -74,9 +75,8 @@
     "normalize-path": "catalog:",
     "tempy": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

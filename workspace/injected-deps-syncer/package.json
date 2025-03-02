@@ -2,15 +2,26 @@
   "name": "@pnpm/workspace.injected-deps-syncer",
   "version": "1000.0.0",
   "description": "Update all injected replica of a workspace package",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/injected-deps-syncer",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/injected-deps-syncer#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pnpm run compile && pnpm run _test",
@@ -18,17 +29,6 @@
     "compile": "tsc --build && pnpm run lint --fix",
     "_test": "jest"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/injected-deps-syncer",
-  "keywords": [
-    "pnpm10",
-    "pnpm"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/injected-deps-syncer#readme",
-  "funding": "https://opencollective.com/pnpm",
   "dependencies": {
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
@@ -41,8 +41,8 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/workspace.injected-deps-syncer": "workspace:*"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

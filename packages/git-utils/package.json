@@ -2,15 +2,28 @@
   "name": "@pnpm/git-utils",
   "version": "1000.0.0",
   "description": "Utilities for git",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "git",
+    "npm"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/git-utils",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/git-utils#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -20,18 +33,6 @@
     "compile-only": "tsc --build",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/git-utils",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "git",
-    "npm"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/git-utils#readme",
   "dependencies": {
     "execa": "catalog:"
   },
@@ -39,9 +40,8 @@
     "@pnpm/git-utils": "workspace:*",
     "tempy": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

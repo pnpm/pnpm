@@ -2,15 +2,26 @@
   "name": "@pnpm/tarball-resolver",
   "version": "1001.0.3",
   "description": "Resolver for tarball dependencies",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/tarball-resolver",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/tarball-resolver#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
@@ -19,26 +30,16 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/tarball-resolver",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/tarball-resolver#readme",
   "dependencies": {
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/resolver-base": "workspace:*"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "keywords": [
-    "pnpm10"
-  ],
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
     "@pnpm/tarball-resolver": "workspace:*"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

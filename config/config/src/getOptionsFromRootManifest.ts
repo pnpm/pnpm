@@ -55,8 +55,12 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
     'peerDependencyRules',
     'supportedArchitectures',
   ], pnpmSettings)
-  if (settings.overrides && manifest) {
-    settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
+  if (settings.overrides) {
+    if (Object.keys(settings.overrides).length === 0) {
+      delete settings.overrides
+    } else if (manifest) {
+      settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
+    }
   }
   if (pnpmSettings.onlyBuiltDependenciesFile) {
     settings.onlyBuiltDependenciesFile = path.join(manifestDir, pnpmSettings.onlyBuiltDependenciesFile)

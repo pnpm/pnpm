@@ -1,24 +1,27 @@
 {
   "name": "@pnpm/render-peer-issues",
-  "description": "Visualizes peer dependency issues",
   "version": "1000.0.5",
+  "description": "Visualizes peer dependency issues",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/render-peer-issues",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/render-peer-issues#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "keywords": [
-    "pnpm10"
-  ],
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.12"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/render-peer-issues",
   "scripts": {
     "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
@@ -26,8 +29,6 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/render-peer-issues#readme",
-  "funding": "https://opencollective.com/pnpm",
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/matcher": "workspace:*",
@@ -43,8 +44,8 @@
     "@types/archy": "catalog:",
     "@types/semver": "catalog:"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

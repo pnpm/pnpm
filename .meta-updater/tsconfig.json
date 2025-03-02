@@ -17,6 +17,9 @@
       "path": "../lockfile/fs"
     },
     {
+      "path": "../object/key-sorting"
+    },
+    {
       "path": "../packages/logger"
     },
     {

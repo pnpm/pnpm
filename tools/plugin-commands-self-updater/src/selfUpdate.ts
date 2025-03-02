@@ -1,18 +1,16 @@
-import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
-import { getCurrentPackageName, packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
+import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { createResolver } from '@pnpm/client'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
-import { add, type InstallCommandOptions } from '@pnpm/plugin-commands-installation'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
-import { getToolDirPath } from '@pnpm/tools.path'
 import { linkBins } from '@pnpm/link-bins'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+import { installPnpmToTools } from './installPnpmToTools'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -40,7 +38,18 @@ export function help (): string {
   })
 }
 
-export type SelfUpdateCommandOptions = InstallCommandOptions & Pick<Config, 'wantedPackageManager' | 'managePackageManagerVersions'>
+export type SelfUpdateCommandOptions = Pick<Config,
+| 'cacheDir'
+| 'dir'
+| 'lockfileDir'
+| 'managePackageManagerVersions'
+| 'modulesDir'
+| 'pnpmHomeDir'
+| 'rawConfig'
+| 'registries'
+| 'rootProjectManifestDir'
+| 'wantedPackageManager'
+>
 
 export async function handler (
   opts: SelfUpdateCommandOptions,
@@ -72,32 +81,13 @@ export async function handler (
     return `The current project has been updated to use pnpm v${resolution.manifest.version}`
   }
 
-  const currentPkgName = getCurrentPackageName()
-  const dir = getToolDirPath({
-    pnpmHomeDir: opts.pnpmHomeDir,
-    tool: {
-      name: currentPkgName,
-      version: resolution.manifest.version,
-    },
-  })
-  if (fs.existsSync(dir)) {
-    await linkBins(path.join(dir, opts.modulesDir ?? 'node_modules'), opts.pnpmHomeDir,
-      {
-        warn: globalWarn,
-      }
-    )
-    return `The ${pref} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${dir}.`
-  }
-  fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(path.join(dir, 'package.json'), '{}')
-  await add.handler(
+  const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, opts)
+  await linkBins(path.join(baseDir, opts.modulesDir ?? 'node_modules'), opts.pnpmHomeDir,
     {
-      ...opts,
-      dir,
-      lockfileDir: dir,
-      bin: opts.pnpmHomeDir,
-    },
-    [`${currentPkgName}@${resolution.manifest.version}`]
+      warn: globalWarn,
+    }
   )
-  return undefined
+  return alreadyExisted
+    ? `The ${pref} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
+    : undefined
 }

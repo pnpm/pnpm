@@ -2,10 +2,21 @@
   "name": "@pnpm/read-project-manifest",
   "version": "1000.0.6",
   "description": "Read a project manifest (called package.json in most cases)",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/read-project-manifest",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/read-project-manifest#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "engines": {
-    "node": ">=18.12"
+  "exports": {
+    ".": "./lib/index.js"
   },
   "files": [
     "lib",
@@ -18,16 +29,6 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/read-project-manifest",
-  "keywords": [
-    "pnpm10",
-    "pnpm"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/read-project-manifest#readme",
   "dependencies": {
     "@gwhitney/detect-indent": "catalog:",
     "@pnpm/error": "workspace:*",
@@ -48,9 +49,8 @@
     "@types/parse-json": "catalog:",
     "tempy": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

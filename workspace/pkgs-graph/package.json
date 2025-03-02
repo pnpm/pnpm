@@ -2,8 +2,22 @@
   "name": "@pnpm/workspace.pkgs-graph",
   "version": "1000.0.5",
   "description": "Create a graph from an array of packages",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/pkgs-graph",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/pkgs-graph#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
@@ -15,20 +29,6 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/pkgs-graph",
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.12"
-  },
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/pkgs-graph#readme",
-  "devDependencies": {
-    "@pnpm/workspace.pkgs-graph": "workspace:*",
-    "@types/ramda": "catalog:",
-    "better-path-resolve": "catalog:"
-  },
   "dependencies": {
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/npm-resolver": "workspace:*",
@@ -36,12 +36,13 @@
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "keywords": [
-    "pnpm10"
-  ],
-  "exports": {
-    ".": "./lib/index.js"
+  "devDependencies": {
+    "@pnpm/workspace.pkgs-graph": "workspace:*",
+    "@types/ramda": "catalog:",
+    "better-path-resolve": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

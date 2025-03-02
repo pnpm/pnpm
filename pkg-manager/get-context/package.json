@@ -2,40 +2,33 @@
   "name": "@pnpm/get-context",
   "version": "1001.0.6",
   "description": "Gets context information about a project",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "scripts"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/get-context",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/get-context#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/get-context",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "scripts"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/get-context#readme",
-  "devDependencies": {
-    "@pnpm/get-context": "workspace:*",
-    "@pnpm/logger": "workspace:*",
-    "@types/ramda": "catalog:"
-  },
-  "peerDependencies": {
-    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*",
@@ -49,9 +42,16 @@
     "path-absolute": "catalog:",
     "ramda": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "peerDependencies": {
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/get-context": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@types/ramda": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

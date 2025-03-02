@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-installation
 
+## 1002.0.1
+
+### Patch Changes
+
+- 76973d8: Normalize generated link paths in `package.json` [#9163](https://github.com/pnpm/pnpm/pull/9163)
+- Updated dependencies [69f922a]
+- Updated dependencies [1c2eb8c]
+  - @pnpm/find-workspace-dir@1000.1.0
+  - @pnpm/config@1002.4.1
+  - @pnpm/cli-utils@1000.0.12
+  - @pnpm/deps.status@1002.0.1
+  - @pnpm/plugin-commands-env@1000.0.12
+  - @pnpm/plugin-commands-rebuild@1002.0.1
+  - @pnpm/store-connection-manager@1000.0.11
+  - @pnpm/workspace.state@1001.1.7
+  - @pnpm/workspace.find-packages@1000.0.12
+  - @pnpm/filter-workspace-packages@1000.0.12
+
 ## 1002.0.0
 
 ### Major Changes

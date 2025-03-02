@@ -2,15 +2,27 @@
   "name": "@pnpm/deps.graph-sequencer",
   "version": "1000.0.0",
   "description": "Sort items in a graph using a topological sort",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "graph"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/deps/graph-sequencer",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/deps/graph-sequencer#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -18,23 +30,11 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/deps/graph-sequencer",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "graph"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/deps/graph-sequencer#readme",
-  "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/deps.graph-sequencer": "workspace:*"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

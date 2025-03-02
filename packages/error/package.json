@@ -2,15 +2,27 @@
   "name": "@pnpm/error",
   "version": "1000.0.2",
   "description": "An error class for pnpm errors",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "error"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/error",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/error#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -18,26 +30,14 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/error",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "error"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/error#readme",
-  "funding": "https://opencollective.com/pnpm",
-  "devDependencies": {
-    "@pnpm/error": "workspace:*"
-  },
   "dependencies": {
     "@pnpm/constants": "workspace:*"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "devDependencies": {
+    "@pnpm/error": "workspace:*"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

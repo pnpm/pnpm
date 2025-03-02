@@ -1,14 +1,12 @@
-import fs from 'fs'
 import path from 'path'
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
-import { getCurrentPackageName, packageManager } from '@pnpm/cli-meta'
+import { packageManager } from '@pnpm/cli-meta'
 import { prependDirsToPath } from '@pnpm/env.path'
-import { getToolDirPath } from '@pnpm/tools.path'
+import { installPnpmToTools } from '@pnpm/tools.plugin-commands-self-updater'
 import spawn from 'cross-spawn'
 import semver from 'semver'
-import { pnpmCmds } from './cmd'
 
 export async function switchCliVersion (config: Config): Promise<void> {
   const pm = config.wantedPackageManager
@@ -22,28 +20,7 @@ export async function switchCliVersion (config: Config): Promise<void> {
     globalWarn(`Cannot switch to pnpm@${pm.version}: you need to specify the version as "${pmVersion}"`)
     return
   }
-  const pkgName = getCurrentPackageName()
-  const dir = getToolDirPath({
-    pnpmHomeDir: config.pnpmHomeDir,
-    tool: {
-      name: pkgName,
-      version: pmVersion,
-    },
-  })
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true })
-    fs.writeFileSync(path.join(dir, 'package.json'), '{}')
-    await pnpmCmds.add(
-      {
-        ...config,
-        dir,
-        lockfileDir: dir,
-        bin: path.join(dir, 'bin'),
-      },
-      [`${pkgName}@${pmVersion}`]
-    )
-  }
-  const wantedPnpmBinDir = path.join(dir, 'bin')
+  const { binDir: wantedPnpmBinDir } = await installPnpmToTools(pmVersion, config)
   const pnpmEnv = prependDirsToPath([wantedPnpmBinDir])
   if (!pnpmEnv.updated) {
     // We throw this error to prevent an infinite recursive call of the same pnpm version.
