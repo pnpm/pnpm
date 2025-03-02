@@ -34,7 +34,7 @@ catalogs:
       specifier: 2.0.3
       version: 2.0.3
     '@pnpm/network.agent':
-      specifier: ^2.0.0
+      specifier: 2.0.0
       version: 2.0.0
     '@pnpm/nopt':
       specifier: ^0.2.1
@@ -49,7 +49,7 @@ catalogs:
       specifier: ^1.0.0
       version: 1.0.0
     '@pnpm/os.env.path-extender':
-      specifier: ^2.0.0
+      specifier: 2.0.0
       version: 2.0.0
     '@pnpm/patch-package':
       specifier: 0.0.1
@@ -15665,12 +15665,12 @@ snapshots:
   '@pnpm/catalogs.resolver@0.1.0':
     dependencies:
       '@pnpm/catalogs.protocol-parser': 0.1.0
-      '@pnpm/error': 6.0.1
+      '@pnpm/error': 6.0.3
 
   '@pnpm/catalogs.resolver@0.1.1':
     dependencies:
       '@pnpm/catalogs.protocol-parser': 0.1.0
-      '@pnpm/error': 6.0.2
+      '@pnpm/error': 6.0.3
 
   '@pnpm/catalogs.types@0.1.0': {}
 
