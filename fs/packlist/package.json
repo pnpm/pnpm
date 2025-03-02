@@ -2,39 +2,40 @@
   "name": "@pnpm/fs.packlist",
   "version": "1000.0.0",
   "description": "Get a list of the files to add from a directory into an npm package",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/fs/packlist",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/packlist#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "types": "lib/index.d.ts",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix",
     "test": "pnpm run compile"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/fs/packlist",
-  "keywords": [
-    "pnpm10"
-  ],
-  "engines": {
-    "node": ">=18.12"
-  },
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/packlist#readme",
   "dependencies": {
     "npm-packlist": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/fs.packlist": "workspace:*"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

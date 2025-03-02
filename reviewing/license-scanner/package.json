@@ -2,10 +2,22 @@
   "name": "@pnpm/license-scanner",
   "version": "1001.0.8",
   "description": "Check for licenses packages",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "licenses"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/license-scanner",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/license-scanner#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "engines": {
-    "node": ">=18.12"
+  "exports": {
+    ".": "./lib/index.js"
   },
   "files": [
     "lib",
@@ -17,20 +29,6 @@
     "prepublishOnly": "pnpm run compile",
     "_test": "jest",
     "compile": "tsc --build && pnpm run lint --fix"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/license-scanner",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "licenses"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/license-scanner#readme",
-  "peerDependencies": {
-    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
@@ -51,6 +49,9 @@
     "ramda": "catalog:",
     "semver": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
+  },
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/license-scanner": "workspace:*",
@@ -58,9 +59,8 @@
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

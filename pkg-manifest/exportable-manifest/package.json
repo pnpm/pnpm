@@ -2,15 +2,26 @@
   "name": "@pnpm/exportable-manifest",
   "version": "1000.0.7",
   "description": "Creates an exportable manifest",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/exportable-manifest",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/exportable-manifest#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pnpm run compile && pnpm run _test",
@@ -18,16 +29,14 @@
     "compile": "tsc --build && pnpm run lint --fix",
     "_test": "jest"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/exportable-manifest",
-  "keywords": [
-    "pnpm10",
-    "pnpm"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
+  "dependencies": {
+    "@pnpm/catalogs.resolver": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "p-map-values": "catalog:",
+    "ramda": "catalog:"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/exportable-manifest#readme",
   "devDependencies": {
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
@@ -38,17 +47,8 @@
     "cross-spawn": "catalog:",
     "write-yaml-file": "catalog:"
   },
-  "dependencies": {
-    "@pnpm/catalogs.resolver": "workspace:*",
-    "@pnpm/error": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/types": "workspace:*",
-    "p-map-values": "catalog:",
-    "ramda": "catalog:"
-  },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

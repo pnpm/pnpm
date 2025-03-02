@@ -2,15 +2,28 @@
   "name": "@pnpm/plugin-commands-publishing",
   "version": "1000.1.10",
   "description": "The pack and publish commands of pnpm",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "pack",
+    "publish"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-publishing",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-publishing#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -18,41 +31,6 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-publishing",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "pack",
-    "publish"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-publishing#readme",
-  "devDependencies": {
-    "@pnpm/catalogs.config": "workspace:*",
-    "@pnpm/logger": "workspace:*",
-    "@pnpm/plugin-commands-publishing": "workspace:*",
-    "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
-    "@pnpm/test-ipc-server": "workspace:*",
-    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
-    "@types/cross-spawn": "catalog:",
-    "@types/is-windows": "catalog:",
-    "@types/proxyquire": "catalog:",
-    "@types/ramda": "catalog:",
-    "@types/sinon": "catalog:",
-    "@types/tar": "catalog:",
-    "@types/tar-stream": "catalog:",
-    "@types/validate-npm-package-name": "catalog:",
-    "ci-info": "catalog:",
-    "cross-spawn": "catalog:",
-    "is-windows": "catalog:",
-    "load-json-file": "catalog:",
-    "tar": "catalog:",
-    "write-yaml-file": "catalog:"
   },
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
@@ -90,9 +68,31 @@
   "peerDependencies": {
     "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "devDependencies": {
+    "@pnpm/catalogs.config": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/plugin-commands-publishing": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/test-ipc-server": "workspace:*",
+    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
+    "@types/cross-spawn": "catalog:",
+    "@types/is-windows": "catalog:",
+    "@types/proxyquire": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/sinon": "catalog:",
+    "@types/tar": "catalog:",
+    "@types/tar-stream": "catalog:",
+    "@types/validate-npm-package-name": "catalog:",
+    "ci-info": "catalog:",
+    "cross-spawn": "catalog:",
+    "is-windows": "catalog:",
+    "load-json-file": "catalog:",
+    "tar": "catalog:",
+    "write-yaml-file": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

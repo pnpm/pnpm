@@ -2,43 +2,33 @@
   "name": "@pnpm/plugin-commands-outdated",
   "version": "1000.0.13",
   "description": "The outdated command of pnpm",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "outdated"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-outdated",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-outdated#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7783 jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-outdated",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "outdated"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-outdated#readme",
-  "devDependencies": {
-    "@pnpm/constants": "workspace:*",
-    "@pnpm/plugin-commands-installation": "workspace:*",
-    "@pnpm/plugin-commands-outdated": "workspace:*",
-    "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
-    "@pnpm/test-fixtures": "workspace:*",
-    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
-    "@types/ramda": "catalog:",
-    "@types/zkochan__table": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
@@ -60,9 +50,19 @@
     "ramda": "catalog:",
     "render-help": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "devDependencies": {
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/plugin-commands-installation": "workspace:*",
+    "@pnpm/plugin-commands-outdated": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
+    "@types/ramda": "catalog:",
+    "@types/zkochan__table": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

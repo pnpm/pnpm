@@ -3,16 +3,16 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "@pnpm/workspace.read-manifest": "2.2.0",
     "@pnpm/workspace.find-packages": "4.0.6",
+    "@pnpm/workspace.read-manifest": "2.2.0",
     "execa": "catalog:",
     "fast-glob": "catalog:",
     "make-empty-dir": "catalog:",
     "normalize-path": "catalog:"
   },
   "devDependencies": {
-    "@types/normalize-path": "catalog:",
+    "@pnpm/logger": "^5.2.0",
     "@pnpm/scripts": "workspace:*",
-    "@pnpm/logger": "5"
+    "@types/normalize-path": "catalog:"
   }
 }

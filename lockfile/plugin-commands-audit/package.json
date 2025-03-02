@@ -2,15 +2,27 @@
   "name": "@pnpm/plugin-commands-audit",
   "version": "1001.0.12",
   "description": "pnpm commands for dependencies audit",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "audit"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/plugin-commands-audit",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/plugin-commands-audit#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -18,27 +30,6 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix",
     "update-responses": "ts-node test/utils/responses/update.ts"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/plugin-commands-audit",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "audit"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/plugin-commands-audit#readme",
-  "devDependencies": {
-    "@pnpm/plugin-commands-audit": "workspace:*",
-    "@pnpm/plugin-commands-installation": "workspace:*",
-    "@pnpm/test-fixtures": "workspace:*",
-    "@types/ramda": "catalog:",
-    "@types/zkochan__table": "catalog:",
-    "load-json-file": "catalog:",
-    "nock": "catalog:",
-    "tempy": "catalog:"
   },
   "dependencies": {
     "@pnpm/audit": "workspace:*",
@@ -56,9 +47,18 @@
     "ramda": "catalog:",
     "render-help": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "devDependencies": {
+    "@pnpm/plugin-commands-audit": "workspace:*",
+    "@pnpm/plugin-commands-installation": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@types/ramda": "catalog:",
+    "@types/zkochan__table": "catalog:",
+    "load-json-file": "catalog:",
+    "nock": "catalog:",
+    "tempy": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

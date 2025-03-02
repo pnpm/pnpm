@@ -2,8 +2,23 @@
   "name": "@pnpm/config",
   "version": "1002.4.1",
   "description": "Gets configuration options for pnpm",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "config"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/config/config",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/config/config#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
@@ -17,20 +32,6 @@
     "start": "tsc --watch",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/config/config",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "config"
-  ],
-  "engines": {
-    "node": ">=18.12"
-  },
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/config/config#readme",
   "dependencies": {
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
@@ -67,9 +68,8 @@
     "@types/which": "catalog:",
     "symlink-dir": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

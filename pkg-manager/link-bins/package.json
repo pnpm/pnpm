@@ -2,15 +2,27 @@
   "name": "@pnpm/link-bins",
   "version": "1000.0.7",
   "description": "Link bins to node_modules/.bin",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "bin"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/link-bins",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/link-bins#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -19,17 +31,6 @@
     "fix": "tslint -c tslint.json --project . --fix",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/link-bins",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "bin"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/link-bins#readme",
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
@@ -49,6 +50,9 @@
     "semver": "catalog:",
     "symlink-dir": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
+  },
   "devDependencies": {
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/logger": "workspace:*",
@@ -61,12 +65,8 @@
     "cmd-extension": "catalog:",
     "tempy": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "peerDependencies": {
-    "@pnpm/logger": ">=5.1.0 <1001.0.0"
-  },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

@@ -2,8 +2,23 @@
   "name": "@pnpm/fetcher-base",
   "version": "1000.0.4",
   "description": "Types for pnpm-compatible fetchers",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "fetcher"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/fetching/fetcher-base",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/fetching/fetcher-base#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
@@ -15,32 +30,17 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/fetching/fetcher-base",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "fetcher"
-  ],
-  "engines": {
-    "node": ">=18.12"
-  },
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/fetching/fetcher-base#readme",
   "dependencies": {
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/ssri": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

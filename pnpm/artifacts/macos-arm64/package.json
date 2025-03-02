@@ -1,7 +1,20 @@
 {
   "name": "@pnpm/macos-arm64",
   "version": "10.5.2",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
   "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/macos-arm64",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/macos-arm64#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "devDependencies": {
+    "@pnpm/macos-arm64": "workspace:*"
+  },
   "publishConfig": {
     "bin": {
       "pnpm": "pnpm"
@@ -12,17 +25,5 @@
     "cpu": [
       "arm64"
     ]
-  },
-  "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/macos-arm64",
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/macos-arm64#readme",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "keywords": [
-    "pnpm10"
-  ],
-  "devDependencies": {
-    "@pnpm/macos-arm64": "workspace:*"
   }
 }

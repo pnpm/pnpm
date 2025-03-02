@@ -2,44 +2,32 @@
   "name": "@pnpm/plugin-commands-listing",
   "version": "1000.0.13",
   "description": "The list and why commands of pnpm",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-listing",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-listing#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7782 jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-listing",
-  "keywords": [
-    "pnpm10",
-    "pnpm"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-listing#readme",
-  "devDependencies": {
-    "@pnpm/constants": "workspace:*",
-    "@pnpm/filter-workspace-packages": "workspace:*",
-    "@pnpm/logger": "workspace:*",
-    "@pnpm/plugin-commands-installation": "workspace:*",
-    "@pnpm/plugin-commands-listing": "workspace:*",
-    "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
-    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
-    "@types/ramda": "catalog:",
-    "execa": "catalog:",
-    "write-yaml-file": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
@@ -54,9 +42,21 @@
   "peerDependencies": {
     "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "devDependencies": {
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/filter-workspace-packages": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/plugin-commands-installation": "workspace:*",
+    "@pnpm/plugin-commands-listing": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
+    "@types/ramda": "catalog:",
+    "execa": "catalog:",
+    "write-yaml-file": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

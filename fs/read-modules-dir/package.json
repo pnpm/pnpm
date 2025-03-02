@@ -2,21 +2,26 @@
   "name": "@pnpm/read-modules-dir",
   "version": "1000.0.0",
   "description": "Finds all direct packages in node_modules",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/fs/read-modules-dir",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/read-modules-dir#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "keywords": [
-    "pnpm10"
-  ],
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.12"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/fs/read-modules-dir",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/read-modules-dir#readme",
   "scripts": {
     "start": "tsc --watch",
     "test": "pnpm run compile",
@@ -24,10 +29,6 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "funding": "https://opencollective.com/pnpm",
   "dependencies": {
     "graceful-fs": "catalog:"
   },
@@ -35,8 +36,8 @@
     "@pnpm/read-modules-dir": "workspace:*",
     "@types/graceful-fs": "catalog:"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

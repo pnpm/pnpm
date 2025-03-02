@@ -2,8 +2,23 @@
   "name": "@pnpm/resolver-base",
   "version": "1000.1.3",
   "description": "Types for pnpm-compatible resolvers",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "resolver"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/resolver-base",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/resolver-base#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
@@ -15,29 +30,14 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/resolver-base",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "resolver"
-  ],
-  "engines": {
-    "node": ">=18.12"
-  },
-  "license": "MIT",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/resolver-base#readme",
   "dependencies": {
     "@pnpm/types": "workspace:*"
   },
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/resolver-base": "workspace:*"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

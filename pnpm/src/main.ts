@@ -106,7 +106,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       rcOptionsTypes,
       workspaceDir,
       checkUnknownSetting: false,
-      ignoreNonAuthSettingsFromLocal: isDlxCommand,
+      ignoreNonAuthSettingsFromLocal: isDlxCommand || cmd === 'self-update',
     }) as typeof config
     if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
       if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm') {
