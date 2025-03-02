@@ -43,7 +43,6 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
       'add',
       `${currentPkgName}@${pnpmVersion}`,
       '--loglevel=error',
-      '--allow-build=@pnpm/exe',
       // We want to avoid symlinks because of the rename step,
       // which breaks the junctions on Windows.
       '--config.node-linker=hoisted',
