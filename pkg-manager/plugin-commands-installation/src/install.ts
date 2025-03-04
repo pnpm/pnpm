@@ -281,6 +281,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'lockfileOnly'
 | 'modulesDir'
 | 'nodeLinker'
+| 'patchedDependencies'
 | 'pnpmfile'
 | 'preferFrozenLockfile'
 | 'preferWorkspacePackages'

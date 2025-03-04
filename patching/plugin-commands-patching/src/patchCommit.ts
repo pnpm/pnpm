@@ -118,6 +118,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
 
   return install.handler({
     ...opts,
+    patchedDependencies: rootProjectManifest!.pnpm!.patchedDependencies!,
     rootProjectManifest,
     rawLocalConfig: {
       ...opts.rawLocalConfig,
