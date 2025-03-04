@@ -275,12 +275,14 @@ test('pnpm licenses should work with file protocol dependency', async () => {
 test('pnpm licenses should work with git protocol dep that have patches', async () => {
   const workspaceDir = tempDir()
   f.copy('with-git-protocol-patched-deps', workspaceDir)
+  const patchedDependencies = JSON.parse(fs.readFileSync(path.join(workspaceDir, 'package.json'), 'utf8')).pnpm.patchedDependencies
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
     frozenLockfile: true,
+    patchedDependencies,
     pnpmHomeDir: '',
     storeDir,
   })
