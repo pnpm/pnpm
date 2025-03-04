@@ -768,15 +768,16 @@ test('deploy with a shared lockfile should correctly handle packageExtensions', 
 })
 
 test('deploy with a shared lockfile should correctly handle patchedDependencies', async () => {
+  const patchedDependencies = {
+    'is-positive': '__patches__/is-positive.patch',
+  }
   const preparedManifests: Record<string, ProjectManifest> = {
     root: {
       name: 'root',
       version: '0.0.0',
       private: true,
       pnpm: {
-        patchedDependencies: {
-          'is-positive': '__patches__/is-positive.patch',
-        },
+        patchedDependencies,
       },
     },
     'project-0': {
@@ -818,6 +819,7 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
     allProjectsGraph,
     selectedProjectsGraph: allProjectsGraph,
     dir: process.cwd(),
+    patchedDependencies,
     recursive: true,
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
@@ -828,6 +830,7 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
+    patchedDependencies,
     recursive: true,
     selectedProjectsGraph,
     sharedWorkspaceLockfile: true,

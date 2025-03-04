@@ -28,7 +28,20 @@ export type OptionsFromRootManifest = {
 
 export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
   const settings: OptionsFromRootManifest = getOptionsFromPnpmSettings(manifestDir, {
-    ...manifest.pnpm,
+    ...pick([
+      'allowNonAppliedPatches',
+      'allowedDeprecatedVersions',
+      'configDependencies',
+      'ignoredBuiltDependencies',
+      'ignoredOptionalDependencies',
+      'neverBuiltDependencies',
+      'onlyBuiltDependencies',
+      'onlyBuiltDependenciesFile',
+      'overrides',
+      'packageExtensions',
+      'peerDependencyRules',
+      'supportedArchitectures',
+    ], manifest.pnpm ?? {}),
     // We read Yarn's resolutions field for compatibility
     // but we really replace the version specs to any other version spec, not only to exact versions,
     // so we cannot call it resolutions
@@ -41,20 +54,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
 }
 
 export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
-  const settings: OptionsFromRootManifest = pick([
-    'allowNonAppliedPatches',
-    'allowedDeprecatedVersions',
-    'configDependencies',
-    'ignoredBuiltDependencies',
-    'ignoredOptionalDependencies',
-    'neverBuiltDependencies',
-    'onlyBuiltDependencies',
-    'onlyBuiltDependenciesFile',
-    'overrides',
-    'packageExtensions',
-    'peerDependencyRules',
-    'supportedArchitectures',
-  ], pnpmSettings)
+  const settings: OptionsFromRootManifest = { ...pnpmSettings }
   if (settings.overrides) {
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
