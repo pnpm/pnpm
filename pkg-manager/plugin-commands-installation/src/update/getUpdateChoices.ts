@@ -4,6 +4,7 @@ import semverDiff from '@pnpm/semver-diff'
 import { getBorderCharacters, table } from '@zkochan/table'
 import { pipe, groupBy, pluck, uniqBy, pickBy, and } from 'ramda'
 import isEmpty from 'ramda/src/isEmpty'
+import chalk from 'chalk'
 
 export interface ChoiceRow {
   name: string
@@ -84,9 +85,12 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
 
 function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolean): { raw: string[], name: string, disabled?: boolean } {
   const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
-  const nextVersion = sdiff.change === null
+  let nextVersion = sdiff.change === null
     ? outdatedPkg.latestManifest!.version
     : colorizeSemverDiff(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (outdatedPkg.latestManifest?.deprecated) {
+    nextVersion += chalk.red('(deprecated)')
+  }
   const label = outdatedPkg.packageName
 
   const lineParts = {
@@ -136,7 +140,7 @@ function alignColumns (rows: string[][]): string[] {
           {
             0: { width: 50, truncate: 100 },
             1: { width: 15, alignment: 'right' },
-            3: { width: 15 },
+            3: { width: 30 },
             4: { paddingLeft: 2 },
             5: { paddingLeft: 2 },
           },
