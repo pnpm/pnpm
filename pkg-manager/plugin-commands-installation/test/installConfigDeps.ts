@@ -79,6 +79,7 @@ test('patch from configuration dependency is applied', async () => {
     ...DEFAULT_OPTS,
     configDependencies: rootProjectManifest.pnpm!.configDependencies,
     dir: process.cwd(),
+    patchedDependencies: rootProjectManifest.pnpm?.patchedDependencies,
     rootProjectManifest,
     rootProjectManifestDir: process.cwd(),
   }, ['@pnpm.e2e/foo@100.0.0'])
