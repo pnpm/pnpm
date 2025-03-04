@@ -213,20 +213,13 @@ export async function getConfig (opts: {
 
   const rcOptions = Object.keys(rcOptionsTypes)
 
-  const pnpmConfig: ConfigWithDeprecatedSettings = Object.fromEntries(rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)])) as any // eslint-disable-line
-  if (!opts.ignoreLocalSettings) {
-    if (opts.workspaceDir != null) {
-      const workspaceManifest = await readWorkspaceManifest(opts.workspaceDir)
-
-      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
-      pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
-      if (workspaceManifest) {
-        Object.assign(pnpmConfig, getOptionsFromPnpmSettings(opts.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest))
-      }
-    }
-  }
-  Object.assign(pnpmConfig, Object.fromEntries(Object.entries(cliOptions).filter(([name, value]) => typeof value !== 'undefined').map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
-  ) as unknown as ConfigWithDeprecatedSettings)
+  const configFromCliOpts = Object.fromEntries(Object.entries(cliOptions)
+    .filter(([_, value]) => typeof value !== 'undefined')
+    .map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
+  )
+  const pnpmConfig: ConfigWithDeprecatedSettings = Object.assign(Object.fromEntries(
+    rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)]) as any, // eslint-disable-line
+  ), configFromCliOpts) as unknown as ConfigWithDeprecatedSettings
   // Resolving the current working directory to its actual location is crucial.
   // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
   const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
@@ -503,6 +496,17 @@ export async function getConfig (opts: {
       if (pnpmConfig.rootProjectManifest) {
         Object.assign(pnpmConfig, getOptionsFromRootManifest(pnpmConfig.rootProjectManifestDir, pnpmConfig.rootProjectManifest))
       }
+    }
+
+    if (pnpmConfig.workspaceDir != null) {
+      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
+
+      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
+      if (workspaceManifest) {
+        console.log(getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest))
+        Object.assign(pnpmConfig, getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest), configFromCliOpts)
+      }
+      pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
     }
   }
 
