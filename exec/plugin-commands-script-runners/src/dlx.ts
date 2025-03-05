@@ -116,7 +116,7 @@ export async function handler (
         'rootProjectManifest',
         'symlink',
         // Options from root manifest
-        'allowNonAppliedPatches',
+        'allowUnusedPatches',
         'allowedDeprecatedVersions',
         'configDependencies',
         'ignoredBuiltDependencies',

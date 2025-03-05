@@ -38,6 +38,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/npm-conf": "catalog:",
     "@pnpm/pnpmfile": "workspace:*",

@@ -112,7 +112,7 @@ export interface StrictInstallOptions {
   enableModulesDir: boolean
   modulesCacheMaxAge: number
   allowedDeprecatedVersions: AllowedDeprecatedVersions
-  allowNonAppliedPatches: boolean
+  allowUnusedPatches: boolean
   preferSymlinkedExecutables: boolean
   resolutionMode: 'highest' | 'time-based' | 'lowest-direct'
   resolvePeersFromWorkspaceRoot: boolean
@@ -169,7 +169,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
   }
   return {
     allowedDeprecatedVersions: {},
-    allowNonAppliedPatches: false,
+    allowUnusedPatches: false,
     autoInstallPeers: true,
     autoInstallPeersFromHighestMatch: false,
     childConcurrency: 5,

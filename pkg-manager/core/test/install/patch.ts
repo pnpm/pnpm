@@ -109,7 +109,7 @@ test('patch package', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
 })
 
-test('patch package reports warning if not all patches are applied and allowNonAppliedPatches is set', async () => {
+test('patch package reports warning if not all patches are applied and allowUnusedPatches is set', async () => {
   prepareEmpty()
   const reporter = jest.fn()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
@@ -123,7 +123,7 @@ test('patch package reports warning if not all patches are applied and allowNonA
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     patchedDependencies,
-    allowNonAppliedPatches: true,
+    allowUnusedPatches: true,
     reporter,
   }, {}, {}, { packageImportMethod: 'hardlink' })
   await install({

@@ -1448,6 +1448,9 @@ importers:
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../matcher

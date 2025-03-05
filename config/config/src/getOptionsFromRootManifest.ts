@@ -10,10 +10,11 @@ import {
 } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
 import pick from 'ramda/src/pick'
+import { globalWarn } from '@pnpm/logger'
 
 export type OptionsFromRootManifest = {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
-  allowNonAppliedPatches?: boolean
+  allowUnusedPatches?: boolean
   overrides?: Record<string, string>
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
@@ -43,6 +44,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
 export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
   const settings: OptionsFromRootManifest = pick([
     'allowNonAppliedPatches',
+    'allowUnusedPatches',
     'allowedDeprecatedVersions',
     'configDependencies',
     'ignoredBuiltDependencies',
@@ -71,6 +73,10 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
       if (path.isAbsolute(patchFile)) continue
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
+  }
+  if (pnpmSettings.allowNonAppliedPatches != null) {
+    globalWarn('allowNonAppliedPatches is deprecated. Please use allowUnusedPatches instead.')
+    settings.allowUnusedPatches = pnpmSettings.allowUnusedPatches ?? pnpmSettings.allowNonAppliedPatches
   }
   return settings
 }

@@ -116,7 +116,7 @@ export async function resolveDependencies (
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
-    allowNonAppliedPatches?: boolean
+    allowUnusedPatches?: boolean
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -150,7 +150,7 @@ export async function resolveDependencies (
     verifyPatches({
       patchedDependencies: Object.keys(opts.patchedDependencies),
       appliedPatches,
-      allowNonAppliedPatches: opts.allowNonAppliedPatches,
+      allowUnusedPatches: opts.allowUnusedPatches,
     })
   }
 
@@ -332,17 +332,17 @@ function verifyPatches (
   {
     patchedDependencies,
     appliedPatches,
-    allowNonAppliedPatches,
+    allowUnusedPatches,
   }: {
     patchedDependencies: string[]
     appliedPatches: Set<string>
-    allowNonAppliedPatches: boolean
+    allowUnusedPatches: boolean
   }
 ): void {
   const nonAppliedPatches: string[] = patchedDependencies.filter((patchKey) => !appliedPatches.has(patchKey))
   if (!nonAppliedPatches.length) return
   const message = `The following patches were not applied: ${nonAppliedPatches.join(', ')}`
-  if (allowNonAppliedPatches) {
+  if (allowUnusedPatches) {
     globalWarn(message)
     return
   }

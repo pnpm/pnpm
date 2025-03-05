@@ -1031,7 +1031,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     projects,
     {
       allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
-      allowNonAppliedPatches: opts.allowNonAppliedPatches,
+      allowUnusedPatches: opts.allowUnusedPatches,
       autoInstallPeers: opts.autoInstallPeers,
       autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch,
       catalogs: opts.catalogs,

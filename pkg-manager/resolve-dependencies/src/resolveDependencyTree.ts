@@ -98,7 +98,7 @@ export interface ResolveDependenciesOptions {
   autoInstallPeers?: boolean
   autoInstallPeersFromHighestMatch?: boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
-  allowNonAppliedPatches: boolean
+  allowUnusedPatches: boolean
   catalogs?: Catalogs
   currentLockfile: LockfileObject
   dedupePeerDependents?: boolean
