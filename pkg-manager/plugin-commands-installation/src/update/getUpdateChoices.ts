@@ -48,7 +48,7 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
   const finalChoices: ChoiceGroup = []
   for (const [depGroup, choiceRows] of Object.entries(groupPkgsByType)) {
     if (choiceRows.length === 0) continue
-    const rawChoices = choiceRows.filter(choice => !choice.latestManifest?.deprecated).map(choice => buildPkgChoice(choice, workspacesEnabled))
+    const rawChoices = choiceRows.filter(choice => choice.latestManifest?.version !== choice.current).map(choice => buildPkgChoice(choice, workspacesEnabled))
     if (rawChoices.length === 0) continue
     // add in a header row for each group
     rawChoices.unshift({
