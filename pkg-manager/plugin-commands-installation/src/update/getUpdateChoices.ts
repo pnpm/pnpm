@@ -4,7 +4,6 @@ import semverDiff from '@pnpm/semver-diff'
 import { getBorderCharacters, table } from '@zkochan/table'
 import { pipe, groupBy, pluck, uniqBy, pickBy, and } from 'ramda'
 import isEmpty from 'ramda/src/isEmpty'
-import chalk from 'chalk'
 
 export interface ChoiceRow {
   name: string
@@ -49,16 +48,15 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
   const finalChoices: ChoiceGroup = []
   for (const [depGroup, choiceRows] of Object.entries(groupPkgsByType)) {
     if (choiceRows.length === 0) continue
-
-    const rawChoices = choiceRows.map(choice => buildPkgChoice(choice, workspacesEnabled))
+    const rawChoices = choiceRows.filter(choice => !choice.latestManifest?.deprecated).map(choice => buildPkgChoice(choice, workspacesEnabled))
+    if (rawChoices.length === 0) continue
     // add in a header row for each group
     rawChoices.unshift({
       raw: header,
       name: '',
       disabled: true,
     })
-    const hasDeprecated = rawChoices.some((outdatedPkg) => outdatedPkg.raw[3].includes('(deprecated)'))
-    const renderedTable = alignColumns(pluck('raw', rawChoices), hasDeprecated).filter(Boolean)
+    const renderedTable = alignColumns(pluck('raw', rawChoices)).filter(Boolean)
 
     const choices = rawChoices.map((outdatedPkg, i) => {
       if (i === 0) {
@@ -86,12 +84,9 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
 
 function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolean): { raw: string[], name: string, disabled?: boolean } {
   const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
-  let nextVersion = sdiff.change === null
+  const nextVersion = sdiff.change === null
     ? outdatedPkg.latestManifest!.version
     : colorizeSemverDiff(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-  if (outdatedPkg.latestManifest?.deprecated) {
-    nextVersion += chalk.red('(deprecated)')
-  }
   const label = outdatedPkg.packageName
 
   const lineParts = {
@@ -127,7 +122,7 @@ function getPkgUrl (pkg: OutdatedPackage): string {
   return ''
 }
 
-function alignColumns (rows: string[][], hasDeprecated: boolean): string[] {
+function alignColumns (rows: string[][]): string[] {
   return table(
     rows,
     {
@@ -141,7 +136,7 @@ function alignColumns (rows: string[][], hasDeprecated: boolean): string[] {
           {
             0: { width: 50, truncate: 100 },
             1: { width: 15, alignment: 'right' },
-            3: { width: hasDeprecated ? 30 : 15 },
+            3: { width: 15 },
             4: { paddingLeft: 2 },
             5: { paddingLeft: 2 },
           },
