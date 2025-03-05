@@ -57,7 +57,8 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
       name: '',
       disabled: true,
     })
-    const renderedTable = alignColumns(pluck('raw', rawChoices)).filter(Boolean)
+    const hasDeprecated = rawChoices.some((outdatedPkg) => outdatedPkg.raw[3].includes('(deprecated)'))
+    const renderedTable = alignColumns(pluck('raw', rawChoices), hasDeprecated).filter(Boolean)
 
     const choices = rawChoices.map((outdatedPkg, i) => {
       if (i === 0) {
@@ -126,7 +127,7 @@ function getPkgUrl (pkg: OutdatedPackage): string {
   return ''
 }
 
-function alignColumns (rows: string[][]): string[] {
+function alignColumns (rows: string[][], hasDeprecated: boolean): string[] {
   return table(
     rows,
     {
@@ -140,7 +141,7 @@ function alignColumns (rows: string[][]): string[] {
           {
             0: { width: 50, truncate: 100 },
             1: { width: 15, alignment: 'right' },
-            3: { width: 30 },
+            3: { width: hasDeprecated ? 30 : 15 },
             4: { paddingLeft: 2 },
             5: { paddingLeft: 2 },
           },
