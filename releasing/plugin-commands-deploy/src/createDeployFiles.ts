@@ -23,38 +23,20 @@ import {
 
 const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependencies'] as const satisfies DependenciesField[]
 
-const INHERITED_MANIFEST_KEYS = [
-  'name',
-  'description',
-  'version',
-  'private',
-  'author',
-  'type',
-  'bin',
-  'scripts',
-  'packageManager',
-  'dependenciesMeta',
-  'peerDependenciesMeta',
-  'imports',
-  'license',
-] as const satisfies Array<keyof ProjectManifest>
-
-export type DeployManifest = Pick<ProjectManifest, typeof INHERITED_MANIFEST_KEYS[number] | DependenciesField | 'pnpm'>
-
 export interface CreateDeployFilesOptions {
   allProjects: Array<Pick<Project, 'manifest' | 'rootDirRealPath'>>
   deployDir: string
   lockfile: LockfileObject
   lockfileDir: string
   rootProjectManifest?: Pick<ProjectManifest, 'pnpm'>
-  selectedProjectManifest: DeployManifest
+  selectedProjectManifest: ProjectManifest
   projectId: ProjectId
   rootProjectManifestDir: string
 }
 
 export interface DeployFiles {
   lockfile: LockfileObject
-  manifest: DeployManifest
+  manifest: ProjectManifest
 }
 
 export function createDeployFiles ({
@@ -147,7 +129,7 @@ export function createDeployFiles ({
       packages: targetPackageSnapshots,
     },
     manifest: {
-      ...pick(INHERITED_MANIFEST_KEYS, selectedProjectManifest),
+      ...selectedProjectManifest,
       dependencies: targetSnapshot.dependencies,
       devDependencies: targetSnapshot.devDependencies,
       optionalDependencies: targetSnapshot.optionalDependencies,
