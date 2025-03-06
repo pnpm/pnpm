@@ -142,7 +142,7 @@ async function buildDependency<T extends string> (
       const { file, strict } = depNode.patch
       // `strict` is a legacy property which was kept to preserve backward compatibility.
       // Once a major version of pnpm is release, `strict` should be removed completely.
-      const allowFailure: boolean = opts.allowPatchFailure ?? strict
+      const allowFailure: boolean = opts.allowPatchFailure ?? !strict
       isPatched = applyPatchToDir({ allowFailure, patchedDir: depNode.dir, patchFilePath: file.path })
     }
     const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
