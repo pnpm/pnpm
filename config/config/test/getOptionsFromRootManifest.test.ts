@@ -91,3 +91,59 @@ test('getOptionsFromRootManifest() should return the list fromm onlyBuiltDepende
   })
   expect(options.onlyBuiltDependencies).toStrictEqual(['electron'])
 })
+
+test('getOptionsFromRootManifest() should derive allowPatchFailure and allowUnusedPatch from strictPatches', () => {
+  expect(getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      strictPatches: true,
+    },
+  })).toMatchObject({
+    allowPatchFailure: false,
+    allowUnusedPatches: false,
+  })
+
+  expect(getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      strictPatches: false,
+    },
+  })).toMatchObject({
+    allowPatchFailure: true,
+    allowUnusedPatches: true,
+  })
+})
+
+test('getOptionsFromRootManifest() should derive allowUnusedPatches from allowNonAppliedPatches', () => {
+  expect(getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      allowNonAppliedPatches: false,
+    },
+  })).toMatchObject({
+    allowUnusedPatches: false,
+  })
+
+  expect(getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      allowNonAppliedPatches: true,
+    },
+  })).toMatchObject({
+    allowUnusedPatches: true,
+  })
+})
+
+describe('strictPatches, when defined, should override allowNonAppliedPatches', () => {
+  test.each([
+    [undefined, false, false], // `strictPatches` is undefined, use `allowNonAppliedPatches`
+    [false, false, true], // `strictPatches` is defined, use `!strictPatches`
+    [true, false, false], // `strictPatches` is defined, use `!strictPatches`
+    [undefined, true, true], // `strictPatches` is undefined, use `allowNonAppliedPatches`
+    [false, true, true], // `strictPatches` is defined, use `!strictPatches`
+    [true, true, false], // `strictPatches` is defined, use `!strictPatches`
+  ])('{ strictPatches: %o, allowNonAppliedPatches: %o } → { allowUnusedPatches: %o }', (strictPatches, allowNonAppliedPatches, allowUnusedPatches) => {
+    expect(getOptionsFromRootManifest(process.cwd(), {
+      pnpm: {
+        strictPatches,
+        allowNonAppliedPatches,
+      },
+    })).toMatchObject({ allowUnusedPatches })
+  })
+})
