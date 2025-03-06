@@ -4,6 +4,6 @@ export interface PatchFile {
 }
 
 export interface PatchInfo {
-  strict: boolean
+  strict: boolean // TODO: remove this once the next major version is released
   file: PatchFile
 }
