@@ -828,6 +828,7 @@ test('error is thrown when there is no package found for the requested version',
       new NoMatchingVersionError({
         wantedDependency,
         packageMeta: isPositiveMeta,
+        registry,
       })
     )
 })
@@ -870,6 +871,7 @@ test('error is thrown when there is no package found for the requested range', a
       new NoMatchingVersionError({
         wantedDependency,
         packageMeta: isPositiveMeta,
+        registry,
       })
     )
 })
@@ -888,6 +890,7 @@ test('error is thrown when there is no package found for the requested tag', asy
       new NoMatchingVersionError({
         wantedDependency,
         packageMeta: isPositiveMeta,
+        registry,
       })
     )
 })
