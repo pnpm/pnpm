@@ -89,7 +89,13 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
         <a href="https://sanity.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://pnpm.io/img/users/sanity.svg" width="180" alt="Bit"></a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://figma.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://pnpm.io/img/users/figma.svg" width="80" alt="Figma"></a>
+        <a href="https://syntax.fm/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/syntaxfm.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/syntaxfm_light.svg" />
+            <img src="https://pnpm.io/img/users/syntaxfm.svg" width="90" alt="Syntax" />
+          </picture>
+        </a>
       </td>
     </tr>
   </tbody>
@@ -110,17 +116,6 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/prisma.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/prisma_light.svg" />
-            <img src="https://pnpm.io/img/users/prisma.svg" width="180" alt="Prisma" />
-          </picture>
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="middle">
         <a href="https://uscreen.de/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/uscreen.svg" />
@@ -129,6 +124,8 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://www.jetbrains.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
@@ -138,8 +135,6 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://nx.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
@@ -149,6 +144,8 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://coderabbit.ai/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
@@ -158,13 +155,13 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://route4me.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <img src="https://pnpm.io/img/users/route4me.svg" width="220" alt="Route4Me" />
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://workleap.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
@@ -174,100 +171,12 @@ function getChangelogEntry (changelog: string, version: string): ChangelogEntry 
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
-        <a href="https://canva.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <img src="https://pnpm.io/img/users/canva.svg" width="120" alt="Canva" />
-        </a>
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-## Silver Sponsors
-
-<table>
-  <tbody>
-    <tr>
-      <td align="center" valign="middle">
-        <a href="https://leniolabs.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <img src="https://pnpm.io/img/users/leniolabs.jpg" width="80" alt="Leniolabs_">
-        </a>
-      </td>
-      <td align="center" valign="middle">
-        <a href="https://vercel.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+        <a href="https://stackblitz.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/vercel.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/vercel_light.svg" />
-            <img src="https://pnpm.io/img/users/vercel.svg" width="180" alt="Vercel" />
-          </picture>
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="middle">
-        <a href="https://depot.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/depot.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/depot_light.svg" />
-            <img src="https://pnpm.io/img/users/depot.svg" width="200" alt="Depot" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
-        <a href="https://moonrepo.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/moonrepo.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/moonrepo_light.svg" />
-            <img src="https://pnpm.io/img/users/moonrepo.svg" width="200" alt="moonrepo" />
-          </picture>
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="middle">
-        <a href="https://devowl.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/devowlio.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/devowlio.svg" />
-            <img src="https://pnpm.io/img/users/devowlio.svg" width="200" alt="devowl.io" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
-        <a href="https://cerbos.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/cerbos.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/cerbos_light.svg" />
-            <img src="https://pnpm.io/img/users/cerbos.svg" width="180" alt="Cerbos" />
-          </picture>
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="middle">
-        <a href="https://vlt.sh/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/vlt.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/vlt_light.svg" />
-            <img src="https://pnpm.io/img/users/vlt.svg" width="140" alt="vlt" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
-        <a href="https://vite.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <img src="https://pnpm.io/img/users/vitejs.svg" width="65" alt="Vite">
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="middle">
-        <a href="https://macpaw.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/macpaw.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/macpaw_light.svg" />
-            <img src="https://pnpm.io/img/users/macpaw.svg" width="200" />
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/stackblitz.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/stackblitz_light.svg" />
+            <img src="https://pnpm.io/img/users/stackblitz.svg" width="190" alt="Stackblitz" />
           </picture>
         </a>
       </td>
