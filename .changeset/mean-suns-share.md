@@ -1,8 +1,8 @@
 ---
 "@pnpm/resolve-dependencies": major
+"@pnpm/config": minor
 "@pnpm/core": major
 "@pnpm/types": minor
-"@pnpm/config": patch
 "@pnpm/headless": minor
 "@pnpm/patching.types": patch
 "@pnpm/plugin-commands-script-runners": patch
