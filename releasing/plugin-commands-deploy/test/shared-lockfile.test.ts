@@ -116,6 +116,7 @@ test('deploy with a shared lockfile after full install', async () => {
       'project-3': expect.stringMatching(/^project-3@file:/),
       'is-negative': '1.0.0',
     },
+    files: ['index.js'],
     optionalDependencies: {},
     pnpm: {},
   }
@@ -1043,6 +1044,10 @@ test('deploy with a shared lockfile that has peer dependencies suffix in workspa
     },
     devDependencies: {},
     optionalDependencies: {},
+    peerDependencies: {
+      'project-1': '*',
+      'project-2': '*',
+    },
     pnpm: {},
   } as ProjectManifest)
 
