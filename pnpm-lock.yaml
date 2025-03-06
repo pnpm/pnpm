@@ -300,6 +300,9 @@ catalogs:
     escape-string-regexp:
       specifier: ^4.0.0
       version: 4.0.0
+    eslint:
+      specifier: ^8.57.1
+      version: 8.57.1
     execa:
       specifier: npm:safe-execa@0.1.2
       version: 0.1.2
@@ -746,7 +749,7 @@ importers:
         specifier: 8.17.5
         version: 8.17.5
       eslint:
-        specifier: ^8.57.1
+        specifier: 'catalog:'
         version: 8.57.1
       eslint-plugin-regexp:
         specifier: 2.7.0
@@ -917,7 +920,7 @@ importers:
         specifier: 6.18.1
         version: 6.18.1(eslint@8.57.1)(typescript@5.5.4)
       eslint:
-        specifier: ^8.57.1
+        specifier: 'catalog:'
         version: 8.57.1
       eslint-config-standard-with-typescript:
         specifier: ^39.1.1
