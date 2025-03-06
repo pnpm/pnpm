@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/server",
-  "version": "1000.0.6",
+  "version": "1000.0.7",
   "description": "A pnpm installer server",
   "keywords": [
     "pnpm",

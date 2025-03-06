@@ -1,5 +1,13 @@
 # @pnpm/package-bins
 
+## 1000.0.4
+
+### Patch Changes
+
+- b8b0c68: `fast-glob` replace with `tinyglobby` to reduce the size of the pnpm CLI dependencies [#9169](https://github.com/pnpm/pnpm/pull/9169).
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+
 ## 1000.0.3
 
 ### Patch Changes

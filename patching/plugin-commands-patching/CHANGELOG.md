@@ -1,5 +1,44 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.1.0
+
+### Minor Changes
+
+- d965748: `pnpm-workspace.yaml` can now hold all the settings that `.npmrc` accepts. The settings should use camelCase [#9211](https://github.com/pnpm/pnpm/pull/9211).
+
+  `pnpm-workspace.yaml` example:
+
+  ```yaml
+  verifyDepsBeforeRun: install
+  optimisticRepeatInstall: true
+  publicHoistPattern:
+    - "*types*"
+    - "!@types/react"
+  ```
+
+### Patch Changes
+
+- b8b0c68: `fast-glob` replace with `tinyglobby` to reduce the size of the pnpm CLI dependencies [#9169](https://github.com/pnpm/pnpm/pull/9169).
+- Updated dependencies [6a59366]
+- Updated dependencies [a5e4965]
+- Updated dependencies [d9d7607]
+- Updated dependencies [d965748]
+- Updated dependencies [453a18a]
+- Updated dependencies [e4eeafd]
+  - @pnpm/plugin-commands-installation@1002.1.0
+  - @pnpm/types@1000.2.1
+  - @pnpm/config@1002.5.0
+  - @pnpm/patching.apply-patch@1000.0.3
+  - @pnpm/cli-utils@1000.0.13
+  - @pnpm/pick-registry-for-package@1000.0.4
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/modules-yaml@1000.1.4
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.7
+  - @pnpm/store-connection-manager@1000.0.12
+  - @pnpm/pick-fetcher@1000.0.0
+
 ## 1000.0.14
 
 ### Patch Changes

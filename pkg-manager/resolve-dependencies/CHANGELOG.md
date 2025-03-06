@@ -1,5 +1,25 @@
 # @pnpm/resolve-dependencies
 
+## 1004.0.4
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/npm-resolver@1000.1.5
+  - @pnpm/pick-registry-for-package@1000.0.4
+  - @pnpm/lockfile.preferred-versions@1000.0.6
+  - @pnpm/lockfile.pruner@1001.0.4
+  - @pnpm/lockfile.types@1001.0.4
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/manifest-utils@1000.0.6
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/resolver-base@1000.1.4
+  - @pnpm/store-controller-types@1001.0.3
+  - @pnpm/pick-fetcher@1000.0.0
+
 ## 1004.0.3
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-outdated",
-  "version": "1000.0.13",
+  "version": "1000.0.14",
   "description": "The outdated command of pnpm",
   "keywords": [
     "pnpm",

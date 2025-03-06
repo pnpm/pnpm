@@ -1,5 +1,11 @@
 # @pnpm/workspace.manifest-writer
 
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/workspace.read-manifest@1000.1.1
+
 ## 1000.0.1
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.build-commands",
-  "version": "1001.0.1",
+  "version": "1001.0.2",
   "description": "Commands for managing dependency builds",
   "keywords": [
     "pnpm",

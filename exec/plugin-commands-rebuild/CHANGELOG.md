@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+- Updated dependencies [d965748]
+  - @pnpm/types@1000.2.1
+  - @pnpm/config@1002.5.0
+  - @pnpm/link-bins@1000.0.8
+  - @pnpm/workspace.find-packages@1000.0.13
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/cli-utils@1000.0.13
+  - @pnpm/normalize-registries@1000.0.4
+  - @pnpm/lifecycle@1001.0.7
+  - @pnpm/lockfile.types@1001.0.4
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/lockfile.walker@1001.0.4
+  - @pnpm/calc-dep-state@1001.0.6
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/get-context@1001.0.7
+  - @pnpm/modules-yaml@1000.1.4
+  - @pnpm/store.cafs@1000.0.6
+  - @pnpm/store-controller-types@1001.0.3
+  - @pnpm/worker@1000.0.7
+  - @pnpm/sort-packages@1000.0.4
+  - @pnpm/store-connection-manager@1000.0.12
+
 ## 1002.0.1
 
 ### Patch Changes

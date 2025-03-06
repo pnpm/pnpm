@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-resolver",
-  "version": "1001.0.3",
+  "version": "1001.0.4",
   "description": "Resolver for tarball dependencies",
   "keywords": [
     "pnpm",

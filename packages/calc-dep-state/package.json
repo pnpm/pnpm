@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/calc-dep-state",
-  "version": "1001.0.5",
+  "version": "1001.0.6",
   "description": "Calculates the state of a dependency",
   "keywords": [
     "pnpm",

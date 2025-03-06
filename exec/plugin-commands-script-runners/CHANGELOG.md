@@ -1,5 +1,34 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1000.2.2
+
+### Patch Changes
+
+- 6a59366: Pass onlyBuiltDependencies as a direct option to add.handler.
+- Updated dependencies [b8b0c68]
+- Updated dependencies [daf47e9]
+- Updated dependencies [6a59366]
+- Updated dependencies [a5e4965]
+- Updated dependencies [d9d7607]
+- Updated dependencies [d965748]
+- Updated dependencies [e4eeafd]
+  - @pnpm/package-bins@1000.0.4
+  - @pnpm/crypto.hash@1000.1.0
+  - @pnpm/plugin-commands-installation@1002.1.0
+  - @pnpm/types@1000.2.1
+  - @pnpm/config@1002.5.0
+  - @pnpm/deps.status@1002.0.2
+  - @pnpm/cli-utils@1000.0.13
+  - @pnpm/pick-registry-for-package@1000.0.4
+  - @pnpm/plugin-commands-env@1000.0.13
+  - @pnpm/lifecycle@1001.0.7
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/client@1000.0.8
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.7
+  - @pnpm/sort-packages@1000.0.4
+  - @pnpm/workspace.injected-deps-syncer@1000.0.1
+
 ## 1000.2.1
 
 ### Patch Changes

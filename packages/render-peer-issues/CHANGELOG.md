@@ -1,5 +1,12 @@
 # @pnpm/render-peer-issues
 
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+
 ## 1000.0.5
 
 ### Patch Changes

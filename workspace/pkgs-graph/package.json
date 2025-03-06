@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.pkgs-graph",
-  "version": "1000.0.5",
+  "version": "1000.0.6",
   "description": "Create a graph from an array of packages",
   "keywords": [
     "pnpm",

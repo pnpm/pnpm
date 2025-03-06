@@ -1,5 +1,22 @@
 # @pnpm/build-modules
 
+## 1000.2.7
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+- Updated dependencies [453a18a]
+  - @pnpm/types@1000.2.1
+  - @pnpm/patching.apply-patch@1000.0.3
+  - @pnpm/link-bins@1000.0.8
+  - @pnpm/lifecycle@1001.0.7
+  - @pnpm/calc-dep-state@1001.0.6
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/store-controller-types@1001.0.3
+  - @pnpm/worker@1000.0.7
+  - @pnpm/fs.hard-link-dir@1000.0.0
+
 ## 1000.2.6
 
 ### Patch Changes

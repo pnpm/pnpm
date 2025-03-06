@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.detect-dep-types",
-  "version": "1001.0.3",
+  "version": "1001.0.4",
   "description": "Detect the types of dependencies",
   "keywords": [
     "pnpm",

@@ -1,5 +1,24 @@
 # @pnpm/lockfile.verification
 
+## 1001.1.0
+
+### Minor Changes
+
+- daf47e9: Projects using a `file:` dependency on a local tarball file (i.e. `.tgz`, `.tar.gz`, `.tar`) will see a performance improvement during installation. Previously, using a `file:` dependency on a tarball caused the lockfile resolution step to always run. The lockfile will now be considered up-to-date if the tarball is unchanged.
+
+### Patch Changes
+
+- Updated dependencies [daf47e9]
+- Updated dependencies [a5e4965]
+  - @pnpm/crypto.hash@1000.1.0
+  - @pnpm/types@1000.2.1
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/lockfile.types@1001.0.4
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/get-context@1001.0.7
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/resolver-base@1000.1.4
+
 ## 1001.0.6
 
 ### Patch Changes

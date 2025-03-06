@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.manifest-writer",
-  "version": "1000.0.1",
+  "version": "1000.0.2",
   "description": "Updates the workspace manifest file",
   "keywords": [
     "pnpm",

@@ -1,5 +1,24 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1000.1.0
+
+### Minor Changes
+
+- 6a59366: Export `installPnpmToTools`.
+
+### Patch Changes
+
+- e091871: `pnpm self-update` should not leave a directory with a broken pnpm installation if the installation fails.
+- 6a59366: `pnpm self-update` should not read the pnpm settings from the `package.json` file in the current working directory.
+- Updated dependencies [d965748]
+  - @pnpm/config@1002.5.0
+  - @pnpm/link-bins@1000.0.8
+  - @pnpm/cli-meta@1000.0.4
+  - @pnpm/cli-utils@1000.0.13
+  - @pnpm/pick-registry-for-package@1000.0.4
+  - @pnpm/client@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.7
+
 ## 1000.0.14
 
 ### Patch Changes

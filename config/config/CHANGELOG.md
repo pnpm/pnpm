@@ -1,5 +1,30 @@
 # @pnpm/config
 
+## 1002.5.0
+
+### Minor Changes
+
+- d965748: `pnpm-workspace.yaml` can now hold all the settings that `.npmrc` accepts. The settings should use camelCase [#9211](https://github.com/pnpm/pnpm/pull/9211).
+
+  `pnpm-workspace.yaml` example:
+
+  ```yaml
+  verifyDepsBeforeRun: install
+  optimisticRepeatInstall: true
+  publicHoistPattern:
+    - "*types*"
+    - "!@types/react"
+  ```
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/pnpmfile@1001.0.6
+  - @pnpm/read-project-manifest@1000.0.7
+  - @pnpm/workspace.read-manifest@1000.1.1
+  - @pnpm/catalogs.config@1000.0.2
+
 ## 1002.4.1
 
 ### Patch Changes

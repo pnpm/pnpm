@@ -1,5 +1,33 @@
 # pnpm
 
+## 10.6.0
+
+### Minor Changes
+
+- `pnpm-workspace.yaml` can now hold all the settings that `.npmrc` accepts. The settings should use camelCase [#9211](https://github.com/pnpm/pnpm/pull/9211).
+
+  `pnpm-workspace.yaml` example:
+
+  ```yaml
+  verifyDepsBeforeRun: install
+  optimisticRepeatInstall: true
+  publicHoistPattern:
+    - "*types*"
+    - "!@types/react"
+  ```
+
+- Projects using a `file:` dependency on a local tarball file (i.e. `.tgz`, `.tar.gz`, `.tar`) will see a performance improvement during installation. Previously, using a `file:` dependency on a tarball caused the lockfile resolution step to always run. The lockfile will now be considered up-to-date if the tarball is unchanged.
+
+### Patch Changes
+
+- `pnpm self-update` should not leave a directory with a broken pnpm installation if the installation fails.
+- `fast-glob` replace with `tinyglobby` to reduce the size of the pnpm CLI dependencies [#9169](https://github.com/pnpm/pnpm/pull/9169).
+- `pnpm deploy` should not remove fields from the deployed package's `package.json` file [#9215](https://github.com/pnpm/pnpm/issues/9215).
+- `pnpm self-update` should not read the pnpm settings from the `package.json` file in the current working directory.
+- Fix `pnpm deploy` creating a `package.json` without the `imports` and `license` field [#9193](https://github.com/pnpm/pnpm/issues/9193).
+- `pnpm update -i` should list only packages that have newer versions [#9206](https://github.com/pnpm/pnpm/issues/9206).
+- Fix a bug causing entries in the `catalogs` section of the `pnpm-lock.yaml` file to be removed when `dedupe-peer-dependents=false` on a filtered install. [#9112](https://github.com/pnpm/pnpm/issues/9112)
+
 ## 10.5.2
 
 ### Patch Changes

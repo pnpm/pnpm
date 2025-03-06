@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/hooks.types",
-  "version": "1001.0.3",
+  "version": "1001.0.4",
   "description": "Types for hooks",
   "keywords": [
     "pnpm",
