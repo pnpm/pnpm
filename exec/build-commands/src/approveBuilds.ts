@@ -123,7 +123,7 @@ Do you approve?`,
   }
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.rootProjectManifestDir)
   manifest ??= {}
-  if (opts.workspaceDir == null || manifest.pnpm?.onlyBuiltDependencies != null || manifest.pnpm?.onlyBuiltDependencies != null) {
+  if (opts.workspaceDir == null || manifest.pnpm?.onlyBuiltDependencies != null || manifest.pnpm?.ignoredBuiltDependencies != null) {
     manifest.pnpm ??= {}
     if (updatedOnlyBuiltDependencies) {
       manifest.pnpm.onlyBuiltDependencies = updatedOnlyBuiltDependencies
