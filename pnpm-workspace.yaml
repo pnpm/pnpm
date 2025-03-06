@@ -140,6 +140,7 @@ catalog:
   enquirer: ^2.4.1
   esbuild: ^0.25.0
   escape-string-regexp: ^4.0.0
+  eslint: ^8.57.1
   execa: npm:safe-execa@0.1.2
   exists-link: 2.0.0
   fast-deep-equal: ^3.1.3
