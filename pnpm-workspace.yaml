@@ -237,7 +237,7 @@ catalog:
   string-length: ^4.0.2
   strip-bom: ^4.0.0
   strip-comments-strings: 1.2.0
-  symlink-dir: ^6.0.4
+  symlink-dir: ^6.0.5
   tar-stream: ^2.2.0
   tar: ^6.2.1
   tempy: ^1.0.1
