@@ -1203,6 +1203,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         }
         ignoredBuilds = (await buildModules(dependenciesGraph, rootNodes, {
           allowBuild,
+          allowPatchFailure: opts.allowPatchFailure,
           ignoredBuiltDependencies: opts.ignoredBuiltDependencies,
           childConcurrency: opts.childConcurrency,
           depsStateCache,
