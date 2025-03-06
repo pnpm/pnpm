@@ -48,8 +48,15 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
   const finalChoices: ChoiceGroup = []
   for (const [depGroup, choiceRows] of Object.entries(groupPkgsByType)) {
     if (choiceRows.length === 0) continue
-
-    const rawChoices = choiceRows.map(choice => buildPkgChoice(choice, workspacesEnabled))
+    const rawChoices: RawChoice[] = []
+    for (const choice of choiceRows) {
+      // The list of outdated dependencies also contains deprecated packages.
+      // But we only want to show those dependencies that have newer versions.
+      if (choice.latestManifest?.version !== choice.current) {
+        rawChoices.push(buildPkgChoice(choice, workspacesEnabled))
+      }
+    }
+    if (rawChoices.length === 0) continue
     // add in a header row for each group
     rawChoices.unshift({
       raw: header,
@@ -82,7 +89,13 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
   return finalChoices
 }
 
-function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolean): { raw: string[], name: string, disabled?: boolean } {
+interface RawChoice {
+  raw: string[]
+  name: string
+  disabled?: boolean
+}
+
+function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolean): RawChoice {
   const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
   const nextVersion = sdiff.change === null
     ? outdatedPkg.latestManifest!.version
