@@ -4,7 +4,7 @@ import type { Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { addFilesFromTarball } from '@pnpm/worker'
 
-const isAbsolutePath = /^[/]|^[A-Za-z]:/
+const isAbsolutePath = /^\/|^[A-Z]:/i
 
 interface Resolution {
   integrity?: string

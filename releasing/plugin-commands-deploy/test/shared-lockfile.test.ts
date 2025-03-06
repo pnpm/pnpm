@@ -116,6 +116,7 @@ test('deploy with a shared lockfile after full install', async () => {
       'project-3': expect.stringMatching(/^project-3@file:/),
       'is-negative': '1.0.0',
     },
+    files: ['index.js'],
     optionalDependencies: {},
     pnpm: {},
   }
@@ -768,15 +769,16 @@ test('deploy with a shared lockfile should correctly handle packageExtensions', 
 })
 
 test('deploy with a shared lockfile should correctly handle patchedDependencies', async () => {
+  const patchedDependencies = {
+    'is-positive': '__patches__/is-positive.patch',
+  }
   const preparedManifests: Record<string, ProjectManifest> = {
     root: {
       name: 'root',
       version: '0.0.0',
       private: true,
       pnpm: {
-        patchedDependencies: {
-          'is-positive': '__patches__/is-positive.patch',
-        },
+        patchedDependencies,
       },
     },
     'project-0': {
@@ -818,6 +820,7 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
     allProjectsGraph,
     selectedProjectsGraph: allProjectsGraph,
     dir: process.cwd(),
+    patchedDependencies,
     recursive: true,
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
@@ -828,6 +831,7 @@ test('deploy with a shared lockfile should correctly handle patchedDependencies'
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
+    patchedDependencies,
     recursive: true,
     selectedProjectsGraph,
     sharedWorkspaceLockfile: true,
@@ -1040,6 +1044,10 @@ test('deploy with a shared lockfile that has peer dependencies suffix in workspa
     },
     devDependencies: {},
     optionalDependencies: {},
+    peerDependencies: {
+      'project-1': '*',
+      'project-2': '*',
+    },
     pnpm: {},
   } as ProjectManifest)
 

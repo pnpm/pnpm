@@ -273,7 +273,7 @@ test('recursive run when some packages define different node versions', async ()
       .toString()
       .trim()
       .split('\n')
-      .filter(x => /print-node-version.*v[0-9]+\.[0-9]+\.[0-9]+/.test(x))
+      .filter(x => /print-node-version.*v\d+\.\d+\.\d+/.test(x))
       .sort()
 
   expect(

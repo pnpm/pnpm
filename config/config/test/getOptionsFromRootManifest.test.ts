@@ -83,7 +83,7 @@ test('getOptionsFromRootManifest() should return onlyBuiltDependencies as undefi
   expect(options.onlyBuiltDependencies).toStrictEqual(undefined)
 })
 
-test('getOptionsFromRootManifest() should return the list fromm onlyBuiltDependencies', () => {
+test('getOptionsFromRootManifest() should return the list from onlyBuiltDependencies', () => {
   const options = getOptionsFromRootManifest(process.cwd(), {
     pnpm: {
       onlyBuiltDependencies: ['electron'],

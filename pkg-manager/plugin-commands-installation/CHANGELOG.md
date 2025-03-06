@@ -1,5 +1,55 @@
 # @pnpm/plugin-commands-installation
 
+## 1002.1.0
+
+### Minor Changes
+
+- d965748: `pnpm-workspace.yaml` can now hold all the settings that `.npmrc` accepts. The settings should use camelCase [#9211](https://github.com/pnpm/pnpm/pull/9211).
+
+  `pnpm-workspace.yaml` example:
+
+  ```yaml
+  verifyDepsBeforeRun: install
+  optimisticRepeatInstall: true
+  publicHoistPattern:
+    - "*types*"
+    - "!@types/react"
+  ```
+
+### Patch Changes
+
+- 6a59366: `pnpm self-update` should not read the pnpm settings from the `package.json` file in the current working directory.
+- d9d7607: `pnpm update -i` should list only packages that have newer versions [#9206](https://github.com/pnpm/pnpm/issues/9206).
+- e4eeafd: Fix a bug causing entries in the `catalogs` section of the `pnpm-lock.yaml` file to be removed when `dedupe-peer-dependents=false` on a filtered install. [#9112](https://github.com/pnpm/pnpm/issues/9112)
+- Updated dependencies [a5e4965]
+- Updated dependencies [d965748]
+- Updated dependencies [e4eeafd]
+  - @pnpm/types@1000.2.1
+  - @pnpm/config@1002.5.0
+  - @pnpm/core@1004.0.1
+  - @pnpm/workspace.find-packages@1000.0.13
+  - @pnpm/pnpmfile@1001.0.6
+  - @pnpm/deps.status@1002.0.2
+  - @pnpm/cli-utils@1000.0.13
+  - @pnpm/pick-registry-for-package@1000.0.4
+  - @pnpm/dedupe.check@1001.0.4
+  - @pnpm/plugin-commands-env@1000.0.13
+  - @pnpm/plugin-commands-rebuild@1002.0.2
+  - @pnpm/lockfile.types@1001.0.4
+  - @pnpm/get-context@1001.0.7
+  - @pnpm/manifest-utils@1000.0.6
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.7
+  - @pnpm/write-project-manifest@1000.0.4
+  - @pnpm/resolver-base@1000.1.4
+  - @pnpm/outdated@1001.0.9
+  - @pnpm/package-store@1000.0.7
+  - @pnpm/filter-workspace-packages@1000.0.13
+  - @pnpm/workspace.pkgs-graph@1000.0.6
+  - @pnpm/sort-packages@1000.0.4
+  - @pnpm/workspace.state@1001.1.8
+  - @pnpm/store-connection-manager@1000.0.12
+
 ## 1002.0.1
 
 ### Patch Changes

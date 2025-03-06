@@ -1,4 +1,4 @@
-const WORKSPACE_PREF_REGEX = /^workspace:((?<alias>[^._/][^@]*)@)?(?<version>.*)$/
+const WORKSPACE_PREF_REGEX = /^workspace:(?:(?<alias>[^._/][^@]*)@)?(?<version>.*)$/
 
 export class WorkspaceSpec {
   alias?: string

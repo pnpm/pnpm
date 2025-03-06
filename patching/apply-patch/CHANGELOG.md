@@ -1,5 +1,11 @@
 # @pnpm/patching.apply-patch
 
+## 1000.0.3
+
+### Patch Changes
+
+- 453a18a: Update @pnpm/patch-package to v0.0.1.
+
 ## 1000.0.2
 
 ### Patch Changes

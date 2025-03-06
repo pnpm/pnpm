@@ -1,6 +1,7 @@
 name: Feature Request 💡
 description: Suggest a new feature for pnpm
 labels: ['type: feature']
+type: Feature
 body:
   - type: markdown
     attributes:

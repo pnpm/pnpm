@@ -1,5 +1,49 @@
 # @pnpm/core
 
+## 1004.0.1
+
+### Patch Changes
+
+- e4eeafd: Fix a bug causing entries in the `catalogs` section of the `pnpm-lock.yaml` file to be removed when `dedupe-peer-dependents=false` on a filtered install. [#9112](https://github.com/pnpm/pnpm/issues/9112)
+- Updated dependencies [daf47e9]
+- Updated dependencies [daf47e9]
+- Updated dependencies [a5e4965]
+  - @pnpm/crypto.hash@1000.1.0
+  - @pnpm/lockfile.verification@1001.1.0
+  - @pnpm/types@1000.2.1
+  - @pnpm/link-bins@1000.0.8
+  - @pnpm/remove-bins@1000.0.6
+  - @pnpm/lockfile.settings-checker@1001.0.4
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/normalize-registries@1000.0.4
+  - @pnpm/build-modules@1000.2.7
+  - @pnpm/lifecycle@1001.0.7
+  - @pnpm/symlink-dependency@1000.0.5
+  - @pnpm/hooks.read-package-hook@1000.0.6
+  - @pnpm/hooks.types@1001.0.4
+  - @pnpm/lockfile.filtering@1001.0.5
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/lockfile-to-pnp@1001.0.6
+  - @pnpm/lockfile.preferred-versions@1000.0.6
+  - @pnpm/lockfile.pruner@1001.0.4
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/lockfile.walker@1001.0.4
+  - @pnpm/calc-dep-state@1001.0.6
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/get-context@1001.0.7
+  - @pnpm/headless@1001.2.4
+  - @pnpm/hoist@1001.0.7
+  - @pnpm/modules-cleaner@1001.0.6
+  - @pnpm/modules-yaml@1000.1.4
+  - @pnpm/package-requester@1001.0.3
+  - @pnpm/resolve-dependencies@1004.0.4
+  - @pnpm/manifest-utils@1000.0.6
+  - @pnpm/read-project-manifest@1000.0.7
+  - @pnpm/resolver-base@1000.1.4
+  - @pnpm/store-controller-types@1001.0.3
+  - @pnpm/worker@1000.0.7
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.5
+
 ## 1004.0.0
 
 ### Major Changes

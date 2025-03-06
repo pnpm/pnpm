@@ -63,11 +63,13 @@ export async function getConfig (opts: {
   checkUnknownSetting?: boolean
   env?: Record<string, string | undefined>
   ignoreNonAuthSettingsFromLocal?: boolean
+  ignoreLocalSettings?: boolean
 }): Promise<{ config: Config, warnings: string[] }> {
   if (opts.ignoreNonAuthSettingsFromLocal) {
     const { ignoreNonAuthSettingsFromLocal: _, ...authOpts } = opts
     const globalCfgOpts: typeof authOpts = {
       ...authOpts,
+      ignoreLocalSettings: true,
       cliOptions: {
         ...authOpts.cliOptions,
         dir: os.homedir(),
@@ -211,10 +213,13 @@ export async function getConfig (opts: {
 
   const rcOptions = Object.keys(rcOptionsTypes)
 
-  const pnpmConfig: ConfigWithDeprecatedSettings = Object.fromEntries([
-    ...rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)]) as any, // eslint-disable-line
-    ...Object.entries(cliOptions).filter(([name, value]) => typeof value !== 'undefined').map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value]),
-  ]) as unknown as ConfigWithDeprecatedSettings
+  const configFromCliOpts = Object.fromEntries(Object.entries(cliOptions)
+    .filter(([_, value]) => typeof value !== 'undefined')
+    .map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
+  )
+  const pnpmConfig: ConfigWithDeprecatedSettings = Object.assign(Object.fromEntries(
+    rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)]) as any, // eslint-disable-line
+  ), configFromCliOpts) as unknown as ConfigWithDeprecatedSettings
   // Resolving the current working directory to its actual location is crucial.
   // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
   const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
@@ -322,7 +327,9 @@ export async function getConfig (opts: {
     pnpmConfig.virtualStoreDir = '.pnpm'
   } else {
     pnpmConfig.dir = cwd
-    pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
+    if (!pnpmConfig.bin) {
+      pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
+    }
   }
   if (opts.cliOptions['save-peer']) {
     if (opts.cliOptions['save-prod']) {
@@ -476,27 +483,29 @@ export async function getConfig (opts: {
 
   pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
 
-  pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
-  pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
-  if (pnpmConfig.rootProjectManifest != null) {
-    if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
-      warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
+  if (!opts.ignoreLocalSettings) {
+    pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
+    pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
+    if (pnpmConfig.rootProjectManifest != null) {
+      if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
+        warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
+      }
+      if (pnpmConfig.rootProjectManifest.packageManager) {
+        pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
+      }
+      if (pnpmConfig.rootProjectManifest) {
+        Object.assign(pnpmConfig, getOptionsFromRootManifest(pnpmConfig.rootProjectManifestDir, pnpmConfig.rootProjectManifest))
+      }
     }
-    if (pnpmConfig.rootProjectManifest.packageManager) {
-      pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
-    }
-    if (pnpmConfig.rootProjectManifest) {
-      Object.assign(pnpmConfig, getOptionsFromRootManifest(pnpmConfig.rootProjectManifestDir, pnpmConfig.rootProjectManifest))
-    }
-  }
 
-  if (pnpmConfig.workspaceDir != null) {
-    const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
+    if (pnpmConfig.workspaceDir != null) {
+      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
 
-    pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
-    pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
-    if (workspaceManifest) {
-      Object.assign(pnpmConfig, getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest))
+      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
+      if (workspaceManifest) {
+        Object.assign(pnpmConfig, getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest), configFromCliOpts)
+        pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+      }
     }
   }
 

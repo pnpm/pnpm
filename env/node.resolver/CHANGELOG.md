@@ -1,5 +1,11 @@
 # @pnpm/node.resolver
 
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.8
+
 ## 1000.0.7
 
 ### Patch Changes

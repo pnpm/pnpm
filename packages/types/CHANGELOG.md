@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 1000.2.1
+
+### Patch Changes
+
+- a5e4965: Fix `pnpm deploy` creating a `package.json` without the `imports` and `license` field [#9193](https://github.com/pnpm/pnpm/issues/9193).
+
 ## 1000.2.0
 
 ### Minor Changes

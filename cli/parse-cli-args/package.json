@@ -2,15 +2,26 @@
   "name": "@pnpm/parse-cli-args",
   "version": "1000.0.4",
   "description": "Parses the CLI args passed to pnpm",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/cli/parse-cli-args",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/parse-cli-args#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -19,29 +30,18 @@
     "start": "tsc --watch",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/cli/parse-cli-args",
-  "keywords": [
-    "pnpm10",
-    "pnpm"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/parse-cli-args#readme",
-  "devDependencies": {
-    "@pnpm/parse-cli-args": "workspace:*",
-    "tempy": "catalog:"
-  },
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/nopt": "catalog:",
     "didyoumean2": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "devDependencies": {
+    "@pnpm/parse-cli-args": "workspace:*",
+    "tempy": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

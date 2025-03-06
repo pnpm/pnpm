@@ -1,5 +1,15 @@
 # @pnpm/cache.api
 
+## 1000.0.12
+
+### Patch Changes
+
+- b8b0c68: `fast-glob` replace with `tinyglobby` to reduce the size of the pnpm CLI dependencies [#9169](https://github.com/pnpm/pnpm/pull/9169).
+- Updated dependencies [d965748]
+  - @pnpm/config@1002.5.0
+  - @pnpm/npm-resolver@1000.1.5
+  - @pnpm/store.cafs@1000.0.6
+
 ## 1000.0.11
 
 ### Patch Changes

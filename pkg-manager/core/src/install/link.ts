@@ -307,7 +307,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
   }
 }
 
-const isAbsolutePath = /^[/]|^[A-Za-z]:/
+const isAbsolutePath = /^\/|^[A-Z]:/i
 
 // This function is copied from @pnpm/local-resolver
 function resolvePath (where: string, spec: string): string {

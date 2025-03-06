@@ -97,14 +97,16 @@ export async function main (inputArgv: string[]): Promise<void> {
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
     const isDlxCommand = cmd === 'dlx'
-    cliOptions.global ||= cmd === 'link' && cliParams.length === 0
+    if (cmd === 'link' && cliParams.length === 0) {
+      cliOptions.global = true
+    }
     config = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
       rcOptionsTypes,
       workspaceDir,
       checkUnknownSetting: false,
-      ignoreNonAuthSettingsFromLocal: isDlxCommand,
+      ignoreNonAuthSettingsFromLocal: isDlxCommand || cmd === 'self-update',
     }) as typeof config
     if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
       if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm') {

@@ -44,6 +44,15 @@ To quote the [Rush](https://rushjs.io/) team:
       <td align="center" valign="middle">
         <a href="https://sanity.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/sanity.svg" width="180" alt="Bit"></a>
       </td>
+      <td align="center" valign="middle">
+        <a href="https://syntax.fm/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/syntaxfm.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/syntaxfm_light.svg" />
+            <img src="https://pnpm.io/img/users/syntaxfm.svg" width="90" alt="Syntax" />
+          </picture>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
@@ -115,6 +124,15 @@ To quote the [Rush](https://rushjs.io/) team:
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/workleap.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/workleap_light.svg" />
             <img src="https://pnpm.io/img/users/workleap.svg" width="190" alt="Workleap" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://stackblitz.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/stackblitz.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/stackblitz_light.svg" />
+            <img src="https://pnpm.io/img/users/stackblitz.svg" width="190" alt="Stackblitz" />
           </picture>
         </a>
       </td>

@@ -1,5 +1,18 @@
 # @pnpm/hoist
 
+## 1001.0.7
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/link-bins@1000.0.8
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/lockfile.types@1001.0.4
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/lockfile.walker@1001.0.4
+  - @pnpm/core-loggers@1000.1.4
+
 ## 1001.0.6
 
 ### Patch Changes

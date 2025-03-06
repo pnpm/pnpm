@@ -8,7 +8,7 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { type ProjectRootDir } from '@pnpm/types'
-import glob from 'fast-glob'
+import { glob } from 'tinyglobby'
 import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
 import equals from 'ramda/src/equals'
@@ -118,6 +118,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
 
   return install.handler({
     ...opts,
+    patchedDependencies: rootProjectManifest!.pnpm!.patchedDependencies!,
     rootProjectManifest,
     rawLocalConfig: {
       ...opts.rawLocalConfig,
@@ -165,7 +166,7 @@ async function diffFolders (folderA: string, folderB: string): Promise<string> {
     .replace(new RegExp(escapeStringRegexp(`${folderAN}/`), 'g'), '')
     .replace(new RegExp(escapeStringRegexp(`${folderBN}/`), 'g'), '')
     .replace(/\n\\ No newline at end of file\n$/, '\n')
-    .replace(/^diff --git a\/.*\.DS_Store b\/.*\.DS_Store[\s\S]*?(?=^diff --git)/gm, '')
+    .replace(/^diff --git a\/.*\.DS_Store b\/.*\.DS_Store[\s\S]+?(?=^diff --git)/gm, '')
     .replace(/^diff --git a\/.*\.DS_Store b\/.*\.DS_Store[\s\S]*$/gm, '')
 }
 
@@ -206,6 +207,7 @@ async function preparePkgFilesForDiff (src: string): Promise<string> {
 async function areAllFilesInPkg (files: string[], basePath: string): Promise<boolean> {
   const allFiles = await glob('**', {
     cwd: basePath,
+    expandDirectories: false,
   })
   return equals(allFiles.sort(), files.sort())
 }

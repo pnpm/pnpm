@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import fastGlob from 'fast-glob'
+import { glob } from 'tinyglobby'
 import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
 import { type PackageMeta } from '@pnpm/npm-resolver'
 import getRegistryName from 'encode-registry'
@@ -14,8 +14,9 @@ interface CachedVersions {
 
 export async function cacheView (opts: { cacheDir: string, storeDir: string, registry?: string }, packageName: string): Promise<string> {
   const prefix = opts.registry ? `${getRegistryName(opts.registry)}` : '*'
-  const metaFilePaths = (await fastGlob(`${prefix}/${packageName}.json`, {
+  const metaFilePaths = (await glob(`${prefix}/${packageName}.json`, {
     cwd: opts.cacheDir,
+    expandDirectories: false,
   })).sort()
   const metaFilesByPath: Record<string, CachedVersions> = {}
   for (const filePath of metaFilePaths) {

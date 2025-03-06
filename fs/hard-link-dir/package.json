@@ -2,12 +2,28 @@
   "name": "@pnpm/fs.hard-link-dir",
   "version": "1000.0.0",
   "description": "Hard link (or copy if linking fails) all files from a directory to several target directories.",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "find",
+    "package"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/fs/hard-link-dir",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/hard-link-dir#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "types": "lib/index.d.ts",
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -15,21 +31,6 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/fs/hard-link-dir",
-  "keywords": [
-    "pnpm10",
-    "find",
-    "package"
-  ],
-  "engines": {
-    "node": ">=18.12"
-  },
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/hard-link-dir#readme",
-  "funding": "https://opencollective.com/pnpm",
   "peerDependencies": {
     "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
@@ -38,8 +39,8 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

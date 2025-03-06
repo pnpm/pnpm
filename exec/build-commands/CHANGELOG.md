@@ -1,5 +1,17 @@
 # @pnpm/exec.build-commands
 
+## 1001.0.2
+
+### Patch Changes
+
+- 8b3cfe2: fix: don't abort approve-builds command or err when manifest doesn't exist [#9198](https://github.com/pnpm/pnpm/pull/9198)
+- Updated dependencies [d965748]
+  - @pnpm/config@1002.5.0
+  - @pnpm/plugin-commands-rebuild@1002.0.2
+  - @pnpm/modules-yaml@1000.1.4
+  - @pnpm/read-project-manifest@1000.0.7
+  - @pnpm/workspace.manifest-writer@1000.0.2
+
 ## 1001.0.1
 
 ### Patch Changes
