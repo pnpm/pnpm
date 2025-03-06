@@ -1,3 +1,19 @@
+gitChecks: false
+hoistPattern:
+- jest-runner
+sharedWorkspaceLockfile: true
+publishBranch: main
+pnpmfile: .pnpmfile.cjs
+nodeVersion: 18.18.0
+engineStrict: true
+savePrefix: ''
+# dedupeDirectDeps: true # Otherwise exporting the manifest fails sometimes
+patchesDir: __patches__
+resolutionMode: lowest-direct
+enablePrePostScripts: false
+managePackageManagerVersions: true
+verifyDepsBeforeRun: install
+optimisticRepeatInstall: true
 packages:
   - .meta-updater
   - __typecheck__
