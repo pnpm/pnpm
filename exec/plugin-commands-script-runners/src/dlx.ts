@@ -116,7 +116,7 @@ export async function handler (
         'rootProjectManifest',
         'symlink',
         // Options from root manifest
-        'allowUnusedPatches',
+        'allowNonAppliedPatches',
         'allowedDeprecatedVersions',
         'configDependencies',
         'ignoredBuiltDependencies',
@@ -128,6 +128,7 @@ export async function handler (
         'packageExtensions',
         'patchedDependencies',
         'peerDependencyRules',
+        'strictPatches',
         'supportedArchitectures',
       ], opts),
       bin: path.join(cachedDir, 'node_modules/.bin'),

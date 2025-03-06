@@ -14,7 +14,8 @@ import { globalWarn } from '@pnpm/logger'
 
 export type OptionsFromRootManifest = {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
-  allowUnusedPatches?: boolean
+  allowUnusedPatches?: boolean // derived from either strictPatches or allowNonAppliedPatches
+  allowPatchFailure?: boolean // derived from strictPatches
   overrides?: Record<string, string>
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
@@ -44,7 +45,6 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
 export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
   const settings: OptionsFromRootManifest = pick([
     'allowNonAppliedPatches',
-    'allowUnusedPatches',
     'allowedDeprecatedVersions',
     'configDependencies',
     'ignoredBuiltDependencies',
@@ -75,8 +75,11 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
     }
   }
   if (pnpmSettings.allowNonAppliedPatches != null) {
-    globalWarn('allowNonAppliedPatches is deprecated. Please use allowUnusedPatches instead.')
-    settings.allowUnusedPatches = pnpmSettings.allowUnusedPatches ?? pnpmSettings.allowNonAppliedPatches
+    globalWarn(`allowNonAppliedPatches is deprecated. Please set strictPatches to ${!pnpmSettings.allowNonAppliedPatches} instead.`)
+    settings.allowUnusedPatches = pnpmSettings.allowNonAppliedPatches
+  }
+  if (pnpmSettings.strictPatches != null) {
+    settings.allowPatchFailure = settings.allowUnusedPatches = !pnpmSettings.strictPatches
   }
   return settings
 }

@@ -5,4 +5,4 @@
 "@pnpm/plugin-commands-script-runners": patch
 ---
 
-Deprecate `allowNonAppliedPatches` and introduce `allowUnusedPatches`.
+Deprecate `allowNonAppliedPatches` and introduce `strictPatches`.
