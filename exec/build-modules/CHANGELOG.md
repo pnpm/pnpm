@@ -1,5 +1,12 @@
 # @pnpm/build-modules
 
+## 900.1.3
+
+### Patch Changes
+
+- Updated dependencies [ac6f255]
+  - @pnpm/patching.apply-patch@900.0.2
+
 ## 900.1.2
 
 ### Patch Changes

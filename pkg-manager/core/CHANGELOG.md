@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 901.0.4
+
+### Patch Changes
+
+- a3b4b03: Fix a bug causing entries in the `catalogs` section of the `pnpm-lock.yaml` file to be removed when `dedupe-peer-dependents=false` on a filtered install. [#9112](https://github.com/pnpm/pnpm/issues/9112)
+  - @pnpm/build-modules@900.1.3
+  - @pnpm/headless@900.0.5
+
 ## 901.0.3
 
 ### Patch Changes

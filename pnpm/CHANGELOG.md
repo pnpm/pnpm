@@ -1,5 +1,15 @@
 # pnpm
 
+## 9.15.7
+
+### Patch Changes
+
+- `pnpm self-update` should not leave a directory with a broken pnpm installation if the installation fails.
+- Allow scope registry CLI option without `--config.` prefix such as `--@scope:registry=https://scope.example.com/npm` [#9089](https://github.com/pnpm/pnpm/pull/9089).
+- `pnpm self-update` should not read the pnpm settings from the `package.json` file in the current working directory.
+- `pnpm update -i` should list only packages that have newer versions [#9206](https://github.com/pnpm/pnpm/issues/9206).
+- Fix a bug causing entries in the `catalogs` section of the `pnpm-lock.yaml` file to be removed when `dedupe-peer-dependents=false` on a filtered install. [#9112](https://github.com/pnpm/pnpm/issues/9112)
+
 ## 9.15.6
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-script-runners
 
+## 900.0.9
+
+### Patch Changes
+
+- 52ca5a4: Pass onlyBuiltDependencies as a direct option to add.handler.
+- Updated dependencies [52ca5a4]
+- Updated dependencies [39a57ca]
+- Updated dependencies [a3b4b03]
+  - @pnpm/plugin-commands-installation@900.0.9
+
 ## 900.0.8
 
 ### Patch Changes

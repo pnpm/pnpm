@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-installation
 
+## 900.0.9
+
+### Patch Changes
+
+- 52ca5a4: `pnpm self-update` should not read the pnpm settings from the `package.json` file in the current working directory.
+- 39a57ca: `pnpm update -i` should list only packages that have newer versions [#9206](https://github.com/pnpm/pnpm/issues/9206).
+- a3b4b03: Fix a bug causing entries in the `catalogs` section of the `pnpm-lock.yaml` file to be removed when `dedupe-peer-dependents=false` on a filtered install. [#9112](https://github.com/pnpm/pnpm/issues/9112)
+- Updated dependencies [a3b4b03]
+  - @pnpm/core@901.0.4
+
 ## 900.0.8
 
 ### Patch Changes

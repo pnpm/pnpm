@@ -1,5 +1,11 @@
 # @pnpm/headless
 
+## 900.0.5
+
+### Patch Changes
+
+- @pnpm/build-modules@900.1.3
+
 ## 900.0.4
 
 ### Patch Changes

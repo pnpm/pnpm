@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-deploy
 
+## 900.0.9
+
+### Patch Changes
+
+- a3b4b03: Fix a bug causing entries in the `catalogs` section of the `pnpm-lock.yaml` file to be removed when `dedupe-peer-dependents=false` on a filtered install. [#9112](https://github.com/pnpm/pnpm/issues/9112)
+- Updated dependencies [52ca5a4]
+- Updated dependencies [39a57ca]
+- Updated dependencies [a3b4b03]
+  - @pnpm/plugin-commands-installation@900.0.9
+
 ## 900.0.8
 
 ### Patch Changes

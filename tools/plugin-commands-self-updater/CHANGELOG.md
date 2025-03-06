@@ -1,5 +1,16 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 900.1.0
+
+### Minor Changes
+
+- 52ca5a4: Export `installPnpmToTools`.
+
+### Patch Changes
+
+- 50172e2: `pnpm self-update` should not leave a directory with a broken pnpm installation if the installation fails.
+- 52ca5a4: `pnpm self-update` should not read the pnpm settings from the `package.json` file in the current working directory.
+
 ## 900.0.8
 
 ### Patch Changes

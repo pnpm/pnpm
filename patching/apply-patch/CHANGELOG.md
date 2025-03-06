@@ -1,5 +1,11 @@
 # @pnpm/patching.apply-patch
 
+## 900.0.2
+
+### Patch Changes
+
+- ac6f255: Update @pnpm/patch-package to v0.0.1.
+
 ## 900.0.1
 
 ### Patch Changes

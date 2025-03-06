@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-completion
 
+## 900.0.6
+
+### Patch Changes
+
+- Updated dependencies [bf9ce1c]
+  - @pnpm/parse-cli-args@900.0.2
+
 ## 900.0.5
 
 ### Patch Changes
