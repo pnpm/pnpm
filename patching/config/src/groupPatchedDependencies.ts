@@ -1,24 +1,7 @@
 import * as dp from '@pnpm/dependency-path'
 import { PnpmError } from '@pnpm/error'
-import { type PatchFile, type PatchInfo } from '@pnpm/patching.types'
+import { type PatchFile, type PatchGroup, type PatchGroupRecord } from '@pnpm/patching.types'
 import { validRange } from 'semver'
-
-export interface ExtendedPatchInfo extends PatchInfo {
-  key: string
-}
-
-/** A group of {@link ExtendedPatchInfo}s which correspond to a package name. */
-export interface PatchGroup {
-  /** Maps exact versions to {@link ExtendedPatchInfo}. */
-  exact: Record<string, ExtendedPatchInfo>
-  /** Maps version ranges to {@link ExtendedPatchInfo}. */
-  range: Record<string, ExtendedPatchInfo>
-  /** The {@link ExtendedPatchInfo} without exact versions or version ranges. */
-  blank: ExtendedPatchInfo | undefined
-}
-
-/** Maps package names to their corresponding groups. */
-export type PatchGroupRecord = Record<string, PatchGroup>
 
 export function groupPatchedDependencies (patchedDependencies: Record<string, PatchFile>): PatchGroupRecord {
   const result: PatchGroupRecord = {}

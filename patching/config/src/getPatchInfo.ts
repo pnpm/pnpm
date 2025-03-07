@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
+import { type ExtendedPatchInfo, type PatchGroupRecord } from '@pnpm/patching.types'
 import { satisfies } from 'semver'
-import { type ExtendedPatchInfo, type PatchGroupRecord } from './groupPatchedDependencies'
 
 export function getPatchInfo (
   patchFileGroups: PatchGroupRecord | undefined,

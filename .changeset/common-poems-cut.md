@@ -3,6 +3,7 @@
 "@pnpm/headless": major
 "@pnpm/deps.graph-builder": major
 "@pnpm/patching.config": major
+"@pnpm/patching.types": minor
 "@pnpm/core": patch
 ---
 

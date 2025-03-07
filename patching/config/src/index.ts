@@ -1,7 +1,9 @@
 export {
   type ExtendedPatchInfo,
+  type PatchFile,
+  type PatchInfo,
   type PatchGroup,
   type PatchGroupRecord,
-  groupPatchedDependencies,
-} from './groupPatchedDependencies'
+} from '@pnpm/patching.types'
+export { groupPatchedDependencies } from './groupPatchedDependencies'
 export { getPatchInfo } from './getPatchInfo'
