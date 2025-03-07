@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli-utils",
-  "version": "1000.0.13",
+  "version": "1000.0.14",
   "description": "Utils for pnpm commands",
   "keywords": [
     "pnpm",

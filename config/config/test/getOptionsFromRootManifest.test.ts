@@ -1,3 +1,4 @@
+import path from 'path'
 import { getOptionsFromRootManifest } from '../lib/getOptionsFromRootManifest'
 
 test('getOptionsFromRootManifest() should read "resolutions" field for compatibility with Yarn', () => {
@@ -146,4 +147,15 @@ describe('strictPatches, when defined, should override allowNonAppliedPatches', 
       },
     })).toMatchObject({ allowUnusedPatches })
   })
+})
+
+test('getOptionsFromRootManifest() should return patchedDependencies', () => {
+  const options = getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      patchedDependencies: {
+        foo: 'foo.patch',
+      },
+    },
+  })
+  expect(options.patchedDependencies).toStrictEqual({ foo: path.resolve('foo.patch') })
 })

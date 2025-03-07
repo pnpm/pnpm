@@ -1,5 +1,14 @@
 # @pnpm/exec.build-commands
 
+## 1001.0.3
+
+### Patch Changes
+
+- 1e6ae3e: When executing the `approve-builds` command, if package.json contains `onlyBuiltDependencies` or `ignoredBuiltDependencies`, the selected dependency package will continue to be written into `package.json`.
+- Updated dependencies [c3aa4d8]
+  - @pnpm/config@1002.5.1
+  - @pnpm/plugin-commands-rebuild@1002.0.3
+
 ## 1001.0.2
 
 ### Patch Changes

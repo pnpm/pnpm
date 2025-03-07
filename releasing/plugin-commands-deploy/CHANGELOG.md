@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.12
+
+### Patch Changes
+
+- Updated dependencies [c3aa4d8]
+  - @pnpm/config@1002.5.1
+  - @pnpm/cli-utils@1000.0.14
+  - @pnpm/plugin-commands-installation@1002.1.1
+
 ## 1001.1.11
 
 ### Patch Changes

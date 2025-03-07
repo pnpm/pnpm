@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 1001.3.5
+
+### Patch Changes
+
+- 6f56790: When `--loglevel` is set to `error`, don't show installation summary, execution time, and big tarball download progress.
+- Updated dependencies [c3aa4d8]
+  - @pnpm/config@1002.5.1
+
 ## 1001.3.4
 
 ### Patch Changes

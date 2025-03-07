@@ -41,6 +41,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
       'onlyBuiltDependenciesFile',
       'overrides',
       'packageExtensions',
+      'patchedDependencies',
       'peerDependencyRules',
       'strictPatches',
       'supportedArchitectures',
