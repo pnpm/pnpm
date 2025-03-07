@@ -4153,6 +4153,9 @@ importers:
 
   patching/config:
     dependencies:
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
       '@pnpm/patching.types':
         specifier: workspace:*
         version: link:../types

@@ -31,6 +31,7 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\""
   },
   "dependencies": {
+    "@pnpm/dependency-path": "workspace:*",
     "@pnpm/patching.types": "workspace:*"
   },
   "devDependencies": {

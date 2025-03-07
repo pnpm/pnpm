@@ -1,4 +1,4 @@
-import { getPatchInfo } from '../src/index'
+import { getPatchInfo } from '../src/getPatchInfo'
 
 test('getPatchInfo(undefined, ...) returns undefined', () => {
   expect(getPatchInfo(undefined, 'foo', '1.0.0')).toBeUndefined()
