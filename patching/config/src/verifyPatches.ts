@@ -3,17 +3,17 @@ import { globalWarn } from '@pnpm/logger'
 import { type PatchGroupRecord } from '@pnpm/patching.types'
 import { allPatchKeys } from './allPatchKeys'
 
-export function verifyPatches (
-  {
-    patchedDependencies,
-    appliedPatches,
-    allowUnusedPatches,
-  }: {
-    patchedDependencies: PatchGroupRecord
-    appliedPatches: Set<string>
-    allowUnusedPatches: boolean
-  }
-): void {
+export interface VerifyPatchesOptions {
+  patchedDependencies: PatchGroupRecord
+  appliedPatches: Set<string>
+  allowUnusedPatches: boolean
+}
+
+export function verifyPatches ({
+  patchedDependencies,
+  appliedPatches,
+  allowUnusedPatches,
+}: VerifyPatchesOptions): void {
   const unusedPatches: string[] = []
   for (const patchKey of allPatchKeys(patchedDependencies)) {
     if (!appliedPatches.has(patchKey)) unusedPatches.push(patchKey)

@@ -8,4 +8,4 @@ export {
 export { allPatchKeys } from './allPatchKeys'
 export { groupPatchedDependencies } from './groupPatchedDependencies'
 export { getPatchInfo } from './getPatchInfo'
-export { verifyPatches } from './verifyPatches'
+export { type VerifyPatchesOptions, verifyPatches } from './verifyPatches'
