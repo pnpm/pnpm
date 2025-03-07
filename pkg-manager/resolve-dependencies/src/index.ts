@@ -13,6 +13,7 @@ import {
   getSpecFromPackageManifest,
   type PinnedVersion,
 } from '@pnpm/manifest-utils'
+import { type PatchGroupRecord } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
   type DependenciesField,
@@ -148,7 +149,7 @@ export async function resolveDependencies (
     Object.keys(opts.wantedLockfile.importers).length === importers.length
   ) {
     verifyPatches({
-      patchedDependencies: Object.keys(opts.patchedDependencies),
+      patchedDependencies: opts.patchedDependencies,
       appliedPatches,
       allowUnusedPatches: opts.allowUnusedPatches,
     })
@@ -328,18 +329,37 @@ export async function resolveDependencies (
   }
 }
 
+function * allPatchKeys (patchedDependencies: PatchGroupRecord): Generator<string> {
+  for (const name in patchedDependencies) {
+    const group = patchedDependencies[name]
+    for (const version in group.exact) {
+      yield group.exact[version].key
+    }
+    for (const range in group.range) {
+      yield group.range[range].key
+    }
+    if (group.blank) {
+      yield group.blank.key
+    }
+  }
+}
+
 function verifyPatches (
   {
     patchedDependencies,
     appliedPatches,
     allowUnusedPatches,
   }: {
-    patchedDependencies: string[]
+    patchedDependencies: PatchGroupRecord
     appliedPatches: Set<string>
     allowUnusedPatches: boolean
   }
 ): void {
-  const nonAppliedPatches: string[] = patchedDependencies.filter((patchKey) => !appliedPatches.has(patchKey))
+  const nonAppliedPatches: string[] = []
+  for (const patchKey of allPatchKeys(patchedDependencies)) {
+    if (!appliedPatches.has(patchKey)) nonAppliedPatches.push(patchKey)
+  }
+
   if (!nonAppliedPatches.length) return
   const message = `The following patches were not applied: ${nonAppliedPatches.join(', ')}`
   if (allowUnusedPatches) {
