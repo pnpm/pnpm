@@ -37,8 +37,12 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
       continue
     }
 
-    if (name && nonSemverVersion && nonSemverVersion.trim() !== '*') {
-      getGroup(name).range[nonSemverVersion] = patchFile
+    if (name && nonSemverVersion) {
+      if (nonSemverVersion.trim() === '*') {
+        getGroup(name).blank = patchFile
+      } else {
+        getGroup(name).range[nonSemverVersion] = patchFile
+      }
       continue
     }
 
