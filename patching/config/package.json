@@ -32,10 +32,13 @@
   },
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/patching.types": "workspace:*"
+    "@pnpm/error": "workspace:*",
+    "@pnpm/patching.types": "workspace:*",
+    "semver": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/patching.config": "workspace:*"
+    "@pnpm/patching.config": "workspace:*",
+    "@types/semver": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

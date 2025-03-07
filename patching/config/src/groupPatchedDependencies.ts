@@ -1,5 +1,7 @@
 import * as dp from '@pnpm/dependency-path'
+import { PnpmError } from '@pnpm/error'
 import { type PatchFile } from '@pnpm/patching.types'
+import { validRange } from 'semver'
 
 /** A group of {@link PatchFile}s which correspond to a package name. */
 export interface PatchFileGroup {
@@ -38,6 +40,9 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
     }
 
     if (name && nonSemverVersion) {
+      if (!validRange(nonSemverVersion)) {
+        throw new PnpmError('PATCH_NON_SEMVER_RANGE', `${nonSemverVersion} is not a valid semantic version range.`)
+      }
       if (nonSemverVersion.trim() === '*') {
         getGroup(name).blank = patchFile
       } else {

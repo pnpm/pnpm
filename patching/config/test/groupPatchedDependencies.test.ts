@@ -83,3 +83,14 @@ test('groups patchedDependencies according to names, version selectors, and vers
     },
   } as PatchFileGroupRecord)
 })
+
+test('errors on invalid version range', async () => {
+  expect(() => groupPatchedDependencies({
+    'foo@link:packages/foo': {
+      hash: '00000000000000000000000000000000',
+      path: 'patches/foo.patch',
+    },
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_PATCH_NON_SEMVER_RANGE',
+  }))
+})

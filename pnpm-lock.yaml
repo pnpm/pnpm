@@ -4156,13 +4156,22 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/patching.types':
         specifier: workspace:*
         version: link:../types
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.1
     devDependencies:
       '@pnpm/patching.config':
         specifier: workspace:*
         version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
 
   patching/plugin-commands-patching:
     dependencies:
