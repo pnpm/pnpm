@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 1002.5.1
+
+### Patch Changes
+
+- c3aa4d8: Don't ignore pnpm.patchedDependencies from `package.json` [#9226](https://github.com/pnpm/pnpm/issues/9226).
+
 ## 1002.5.0
 
 ### Minor Changes

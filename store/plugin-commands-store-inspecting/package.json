@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store-inspecting",
-  "version": "1000.0.12",
+  "version": "1000.0.13",
   "description": "The inspecting store commands of pnpm",
   "keywords": [
     "pnpm",

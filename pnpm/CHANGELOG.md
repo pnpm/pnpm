@@ -1,5 +1,15 @@
 # pnpm
 
+## 10.6.1
+
+### Patch Changes
+
+- The pnpm CLI process should not stay hanging, when `--silent` reporting is used.
+- When `--loglevel` is set to `error`, don't show installation summary, execution time, and big tarball download progress.
+- Don't ignore pnpm.patchedDependencies from `package.json` [#9226](https://github.com/pnpm/pnpm/issues/9226).
+- When executing the `approve-builds` command, if package.json contains `onlyBuiltDependencies` or `ignoredBuiltDependencies`, the selected dependency package will continue to be written into `package.json`.
+- When a package version cannot be found in the package metadata, print the registry from which the package was fetched.
+
 ## 10.6.0
 
 ### Minor Changes

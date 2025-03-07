@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-completion",
-  "version": "1000.0.13",
+  "version": "1000.0.14",
   "description": "Commands for shell completions",
   "keywords": [
     "pnpm",

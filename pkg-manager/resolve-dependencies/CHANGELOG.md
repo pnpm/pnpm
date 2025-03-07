@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 1004.0.5
+
+### Patch Changes
+
+- Updated dependencies [8371664]
+  - @pnpm/npm-resolver@1000.1.6
+
 ## 1004.0.4
 
 ### Patch Changes
