@@ -90,3 +90,91 @@ describeOnLinuxOnly('filters optional dependencies based on libc', () => {
     expect(pkgDirs).not.toContain(notFound)
   })
 })
+
+describe('shouldFreezeLockfileIfExists', () => {
+  describe('when opts.frozenLockfileIfExists is set', () => {
+    it('is true', () => {
+      expect(install.shouldFreezeLockfileIfExists({
+        ...DEFAULT_OPTS,
+        dir: 'does-not-matter',
+        frozenLockfileIfExists: true,
+      }, false)).toEqual(true)
+    })
+
+    it('is false', () => {
+      expect(install.shouldFreezeLockfileIfExists({
+        ...DEFAULT_OPTS,
+        dir: 'does-not-matter',
+        frozenLockfileIfExists: false,
+        rawLocalConfig: {
+          'frozen-lockfile': true,
+          'prefer-frozen-lockfile': true,
+        },
+      }, true)).toEqual(false)
+    })
+  })
+
+  describe('when opts.frozenLockfileIfExists is not set', () => {
+    it('is false if not on CI', () => {
+      expect(install.shouldFreezeLockfileIfExists({
+        ...DEFAULT_OPTS,
+        dir: 'does-not-matter',
+        rawLocalConfig: {
+          'frozen-lockfile': true,
+          'prefer-frozen-lockfile': true,
+        },
+      }, false)).toEqual(false)
+    })
+
+    describe('when on CI', () => {
+      it('is true if frozen-lockfile and prefer-frozen-lockfile is true or unset', () => {
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          rawLocalConfig: {
+            'frozen-lockfile': true,
+            'prefer-frozen-lockfile': true,
+          },
+        }, true)).toEqual(true)
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          rawLocalConfig: {
+            'prefer-frozen-lockfile': true,
+          },
+        }, true)).toEqual(true)
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          rawLocalConfig: {
+            'frozen-lockfile': true,
+          },
+        }, true)).toEqual(true)
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          rawLocalConfig: {},
+        }, true)).toEqual(true)
+      })
+
+      it('is false if either frozen-lockfile or prefer-frozen-lockfile is false', () => {
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          rawLocalConfig: {
+            'frozen-lockfile': true,
+            'prefer-frozen-lockfile': false,
+          },
+        }, true)).toEqual(false)
+        expect(install.shouldFreezeLockfileIfExists({
+          ...DEFAULT_OPTS,
+          dir: 'does-not-matter',
+          rawLocalConfig: {
+            'frozen-lockfile': false,
+            'prefer-frozen-lockfile': true,
+          },
+        }, true)).toEqual(false)
+      })
+    })
+  })
+})
