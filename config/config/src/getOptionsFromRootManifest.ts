@@ -42,6 +42,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
       'overrides',
       'packageExtensions',
       'peerDependencyRules',
+      'strictPatches',
       'supportedArchitectures',
     ], manifest.pnpm ?? {}),
     // We read Yarn's resolutions field for compatibility
