@@ -111,12 +111,13 @@ export function reporterForClient (
     outputs.push(reportContext(log$, { cwd }))
   }
 
-  if (opts.cmd in PRINT_EXECUTION_TIME_IN_COMMANDS) {
-    outputs.push(reportExecutionTime(log$.executionTime))
-  }
-
   // logLevelNumber: 0123 = error warn info debug
   const logLevelNumber = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
+  const showInfo = logLevelNumber >= LOG_LEVEL_NUMBER.info
+
+  if (opts.cmd in PRINT_EXECUTION_TIME_IN_COMMANDS && showInfo) {
+    outputs.push(reportExecutionTime(log$.executionTime))
+  }
 
   if (logLevelNumber >= LOG_LEVEL_NUMBER.warn) {
     outputs.push(
@@ -129,7 +130,7 @@ export function reporterForClient (
     )
   }
 
-  if (logLevelNumber >= LOG_LEVEL_NUMBER.info) {
+  if (showInfo) {
     outputs.push(
       reportProgress(log$, {
         cwd,
@@ -147,11 +148,11 @@ export function reporterForClient (
     )
   }
 
-  if (!opts.appendOnly) {
+  if (!opts.appendOnly && showInfo) {
     outputs.push(reportBigTarballProgress(log$))
   }
 
-  if (!opts.isRecursive) {
+  if (!opts.isRecursive && showInfo) {
     outputs.push(reportSummary(log$, {
       cmd: opts.cmd,
       cwd,
