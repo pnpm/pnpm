@@ -28,7 +28,6 @@ import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   getLockfileImporterId,
   type LockfileObject,
-  type PatchFile,
   readCurrentLockfile,
   readWantedLockfile,
   writeLockfiles,
@@ -50,6 +49,7 @@ import {
   type Modules,
   writeModulesManifest,
 } from '@pnpm/modules-yaml'
+import { type PatchGroupRecord } from '@pnpm/patching.config'
 import { type HoistingLimits } from '@pnpm/real-hoist'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
@@ -144,7 +144,7 @@ export interface HeadlessOptions {
   modulesDir?: string
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
-  patchedDependencies?: Record<string, PatchFile>
+  patchedDependencies?: PatchGroupRecord
   scriptsPrependNodePath?: boolean | 'warn-only'
   scriptShell?: string
   shellEmulator?: boolean

@@ -1,25 +1,29 @@
 import * as dp from '@pnpm/dependency-path'
 import { PnpmError } from '@pnpm/error'
-import { type PatchFile } from '@pnpm/patching.types'
+import { type PatchFile, type PatchInfo } from '@pnpm/patching.types'
 import { validRange } from 'semver'
 
-/** A group of {@link PatchFile}s which correspond to a package name. */
-export interface PatchFileGroup {
-  /** Maps exact versions to {@link PatchFile}. */
-  exact: Record<string, PatchFile>
-  /** Maps version ranges to {@link PatchFile}. */
-  range: Record<string, PatchFile>
-  /** The {@link PatchFile} without exact versions or version ranges. */
-  blank: PatchFile | undefined
+export interface ExtendedPatchInfo extends PatchInfo {
+  key: string
+}
+
+/** A group of {@link ExtendedPatchInfo}s which correspond to a package name. */
+export interface PatchGroup {
+  /** Maps exact versions to {@link ExtendedPatchInfo}. */
+  exact: Record<string, ExtendedPatchInfo>
+  /** Maps version ranges to {@link ExtendedPatchInfo}. */
+  range: Record<string, ExtendedPatchInfo>
+  /** The {@link ExtendedPatchInfo} without exact versions or version ranges. */
+  blank: ExtendedPatchInfo | undefined
 }
 
 /** Maps package names to their corresponding groups. */
-export type PatchFileGroupRecord = Record<string, PatchFileGroup>
+export type PatchGroupRecord = Record<string, PatchGroup>
 
-export function groupPatchedDependencies (patchedDependencies: Record<string, PatchFile>): PatchFileGroupRecord {
-  const result: PatchFileGroupRecord = {}
-  function getGroup (name: string): PatchFileGroup {
-    let group: PatchFileGroup | undefined = result[name]
+export function groupPatchedDependencies (patchedDependencies: Record<string, PatchFile>): PatchGroupRecord {
+  const result: PatchGroupRecord = {}
+  function getGroup (name: string): PatchGroup {
+    let group: PatchGroup | undefined = result[name]
     if (group) return group
     group = {
       exact: {},
@@ -30,12 +34,12 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
     return group
   }
 
-  for (const patchKey in patchedDependencies) {
-    const patchFile = patchedDependencies[patchKey]
-    const { name, version, nonSemverVersion } = dp.parse(patchKey)
+  for (const key in patchedDependencies) {
+    const file = patchedDependencies[key]
+    const { name, version, nonSemverVersion } = dp.parse(key)
 
     if (name && version) {
-      getGroup(name).exact[version] = patchFile
+      getGroup(name).exact[version] = { strict: true, file, key }
       continue
     }
 
@@ -44,14 +48,15 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
         throw new PnpmError('PATCH_NON_SEMVER_RANGE', `${nonSemverVersion} is not a valid semantic version range.`)
       }
       if (nonSemverVersion.trim() === '*') {
-        getGroup(name).blank = patchFile
+        getGroup(name).blank = { strict: true, file, key }
       } else {
-        getGroup(name).range[nonSemverVersion] = patchFile
+        getGroup(name).range[nonSemverVersion] = { strict: true, file, key }
       }
       continue
     }
 
-    getGroup(patchKey).blank = patchFile
+    // Set `strict` to `false` to preserve backward compatibility.
+    getGroup(key).blank = { strict: false, file, key }
   }
 
   return result

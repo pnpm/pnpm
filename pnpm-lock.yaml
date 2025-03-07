@@ -4465,6 +4465,9 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
+      '@pnpm/patching.config':
+        specifier: workspace:*
+        version: link:../../patching/config
       '@pnpm/pkg-manager.direct-dep-linker':
         specifier: workspace:*
         version: link:../direct-dep-linker

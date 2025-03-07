@@ -1,2 +1,7 @@
-export { type ExtendedPatchInfo, getPatchInfo } from './getPatchInfo'
-export { type PatchFileGroup, type PatchFileGroupRecord, groupPatchedDependencies } from './groupPatchedDependencies'
+export {
+  type ExtendedPatchInfo,
+  type PatchGroup,
+  type PatchGroupRecord,
+  groupPatchedDependencies,
+} from './groupPatchedDependencies'
+export { getPatchInfo } from './getPatchInfo'
