@@ -33,6 +33,7 @@
   "dependencies": {
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/patching.types": "workspace:*",
     "semver": "catalog:"
   },

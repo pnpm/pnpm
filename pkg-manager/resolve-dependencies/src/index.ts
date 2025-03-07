@@ -1,9 +1,7 @@
 import path from 'path'
-import { PnpmError } from '@pnpm/error'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
-import { globalWarn } from '@pnpm/logger'
 import {
   type LockfileObject,
   type ProjectSnapshot,
@@ -13,7 +11,7 @@ import {
   getSpecFromPackageManifest,
   type PinnedVersion,
 } from '@pnpm/manifest-utils'
-import { type PatchGroupRecord } from '@pnpm/patching.config'
+import { verifyPatches } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
   type DependenciesField,
@@ -327,48 +325,6 @@ export async function resolveDependencies (
     waitTillAllFetchingsFinish,
     wantedToBeSkippedPackageIds,
   }
-}
-
-function * allPatchKeys (patchedDependencies: PatchGroupRecord): Generator<string> {
-  for (const name in patchedDependencies) {
-    const group = patchedDependencies[name]
-    for (const version in group.exact) {
-      yield group.exact[version].key
-    }
-    for (const range in group.range) {
-      yield group.range[range].key
-    }
-    if (group.blank) {
-      yield group.blank.key
-    }
-  }
-}
-
-function verifyPatches (
-  {
-    patchedDependencies,
-    appliedPatches,
-    allowUnusedPatches,
-  }: {
-    patchedDependencies: PatchGroupRecord
-    appliedPatches: Set<string>
-    allowUnusedPatches: boolean
-  }
-): void {
-  const nonAppliedPatches: string[] = []
-  for (const patchKey of allPatchKeys(patchedDependencies)) {
-    if (!appliedPatches.has(patchKey)) nonAppliedPatches.push(patchKey)
-  }
-
-  if (!nonAppliedPatches.length) return
-  const message = `The following patches were not applied: ${nonAppliedPatches.join(', ')}`
-  if (allowUnusedPatches) {
-    globalWarn(message)
-    return
-  }
-  throw new PnpmError('PATCH_NOT_APPLIED', message, {
-    hint: 'Either remove them from "patchedDependencies" or update them to match packages in your dependencies.',
-  })
 }
 
 function addDirectDependenciesToLockfile (
