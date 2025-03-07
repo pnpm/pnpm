@@ -4,6 +4,7 @@
 "@pnpm/core": major
 "@pnpm/types": minor
 "@pnpm/headless": minor
+"@pnpm/patching.config": minor
 "@pnpm/patching.types": patch
 "@pnpm/plugin-commands-script-runners": patch
 "@pnpm/build-modules": minor

@@ -134,7 +134,7 @@ test('patch package reports warning if not all patches are applied and allowUnus
   expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
       level: 'warn',
-      message: 'The following patches were not applied: is-negative@1.0.0',
+      message: 'The following patches were not used: is-negative@1.0.0',
     })
   )
 })
@@ -159,7 +159,7 @@ test('patch package throws an exception if not all patches are applied', async (
         'is-positive': '1.0.0',
       },
     }, opts)
-  ).rejects.toThrow('The following patches were not applied: is-negative@1.0.0')
+  ).rejects.toThrow('The following patches were not used: is-negative@1.0.0')
 })
 
 test('the patched package is updated if the patch is modified', async () => {
