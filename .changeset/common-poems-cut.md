@@ -5,6 +5,7 @@
 "@pnpm/patching.config": major
 "@pnpm/patching.types": minor
 "@pnpm/core": patch
+"pnpm": minor
 ---
 
 Add an ability to patch dependencies by version ranges. Exact versions override version ranges, which in turn override name-only patches. Version range `*` is the same as name-only, except that patch application failure will not be ignored.
