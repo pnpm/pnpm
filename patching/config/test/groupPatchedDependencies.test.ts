@@ -58,7 +58,7 @@ test('groups patchedDependencies according to names, version selectors, and vers
       exact: {},
       range: {
         '~1.2.0': patchedDependencies['version-range-only@~1.2.0'],
-        '4': patchedDependencies['version-range-only@4'],
+        4: patchedDependencies['version-range-only@4'],
       },
       blank: undefined,
     },
