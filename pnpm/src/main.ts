@@ -310,8 +310,14 @@ export async function main (inputArgv: string[]): Promise<void> {
       config as Omit<typeof config, 'reporter'>,
       cliParams
     )
-    if (result instanceof Promise) {
-      result = await result
+    try {
+      if (result instanceof Promise) {
+        result = await result
+      }
+    } finally {
+      // When use-node-version is set and "pnpm run" is executed,
+      // this will be the only place where the tarball worker pool is finished.
+      await finishWorkers()
     }
     executionTimeLogger.debug({
       startedAt: global['pnpm__startedAt'],
@@ -325,9 +331,6 @@ export async function main (inputArgv: string[]): Promise<void> {
     }
     return result
   })()
-  // When use-node-version is set and "pnpm run" is executed,
-  // this will be the only place where the tarball worker pool is finished.
-  await finishWorkers()
   if (output) {
     if (!output.endsWith('\n')) {
       output = `${output}\n`
