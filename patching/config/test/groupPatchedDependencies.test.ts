@@ -1,5 +1,5 @@
-import { type PatchFile } from '@pnpm/patching.types'
-import { type ExtendedPatchInfo, type PatchGroupRecord, groupPatchedDependencies } from '../src/groupPatchedDependencies'
+import { type ExtendedPatchInfo, type PatchFile, type PatchGroupRecord } from '@pnpm/patching.types'
+import { groupPatchedDependencies } from '../src/groupPatchedDependencies'
 
 test('groups patchedDependencies according to names, version selectors, and versions', () => {
   const patchedDependencies = {
