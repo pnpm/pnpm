@@ -2,7 +2,9 @@ import fs from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
 import { prepare } from '@pnpm/prepare'
+import { type ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
+import { sync as loadJsonFile } from 'load-json-file'
 import {
   execPnpm,
   retryLoadJsonFile,
@@ -33,4 +35,22 @@ skipOnWindows('self-update stops the store server', async () => {
 
   expect(fs.existsSync(serverJsonPath)).toBeFalsy()
   project.isExecutable('../pnpm')
+})
+
+test('self-update updates the packageManager field in package.json', async () => {
+  prepare({
+    packageManager: 'pnpm@9.0.0',
+  })
+
+  const pnpmHome = process.cwd()
+
+  const env = {
+    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]!}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: path.resolve('data'),
+  }
+
+  await execPnpm(['self-update', '10.0.0'], { env })
+
+  expect(loadJsonFile<ProjectManifest>('package.json').packageManager).toStrictEqual('pnpm@10.0.0')
 })

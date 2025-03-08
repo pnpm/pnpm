@@ -86,7 +86,7 @@ export async function handler (
   }
 
   const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, opts)
-  await linkBins(path.join(baseDir, opts.modulesDir ?? 'node_modules'), opts.pnpmHomeDir,
+  await linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir,
     {
       warn: globalWarn,
     }
