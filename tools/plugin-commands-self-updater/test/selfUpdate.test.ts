@@ -145,7 +145,7 @@ test('self-update does nothing when pnpm is up to date', async () => {
   expect(output).toBe('The currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
 })
 
-test('should update the packageManager field when the currently running pnpm is up to date', async () => {
+test('should update packageManager field when a newer pnpm version is available', async () => {
   const opts = prepare()
   const pkgJsonPath = path.join(opts.dir, 'package.json')
   fs.writeFileSync(pkgJsonPath, JSON.stringify({
@@ -168,7 +168,7 @@ test('should update the packageManager field when the currently running pnpm is 
   expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
-test('should not update the packageManager field when the currently running pnpm is up to date and matches the version in package.json', async () => {
+test('should not update packageManager field when current version matches latest', async () => {
   const opts = prepare()
   const pkgJsonPath = path.join(opts.dir, 'package.json')
   fs.writeFileSync(pkgJsonPath, JSON.stringify({
