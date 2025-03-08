@@ -106,10 +106,10 @@ export async function main (inputArgv: string[]): Promise<void> {
       rcOptionsTypes,
       workspaceDir,
       checkUnknownSetting: false,
-      ignoreNonAuthSettingsFromLocal: isDlxCommand || cmd === 'self-update',
+      ignoreNonAuthSettingsFromLocal: isDlxCommand,
     }) as typeof config
     if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
-      if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm') {
+      if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm' && cmd !== 'self-update') {
         await switchCliVersion(config)
       } else if (!cmd || !skipPackageManagerCheckForCommand.has(cmd)) {
         checkPackageManager(config.wantedPackageManager, config)
