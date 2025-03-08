@@ -48,6 +48,7 @@ test('self-update updates the packageManager field in package.json', async () =>
     [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]!}`,
     PNPM_HOME: pnpmHome,
     XDG_DATA_HOME: path.resolve('data'),
+    npm_config_manage_package_manager_versions: 'true',
   }
 
   await execPnpm(['self-update', '10.0.0'], { env })
