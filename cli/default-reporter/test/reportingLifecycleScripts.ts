@@ -116,7 +116,7 @@ test('groups lifecycle output', async () => {
   const output = await firstValueFrom(output$.pipe(skip(9), take(1), map(normalizeNewline)))
   expect(replaceTimeWith1Sec(output)).toBe(`\
 packages/foo ${PREINSTALL}$ node foo
-${OUTPUT_INDENTATION} foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
+${OUTPUT_INDENTATION} foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 2…
 ${STATUS_INDENTATION} ${STATUS_RUNNING}
 packages/foo ${POSTINSTALL}$ node foo
 ${OUTPUT_INDENTATION} foo I
@@ -867,8 +867,8 @@ test('collapses lifecycle output from preparation of a git-hosted dependency', a
 
   const output = await firstValueFrom(output$.pipe(skip(2), take(1), map(normalizeNewline)))
   expect(replaceTimeWith1Sec(output)).toBe(`\
-${chalk.gray('tmp')}_tmp_01234: Running preinstall script...
-${chalk.gray('tmp')}_tmp_01234: Running postinstall script, done in 1s`)
+${chalk.gray('tmp/')}_tmp_01243 [registry.npmjs.org/foo/1.0.0]: Running preinstall script...
+${chalk.gray('tmp/')}_tmp_01243 [registry.npmjs.org/foo/1.0.0]: Running postinstall script, done in 1s`)
 })
 
 test('output of failed optional dependency is not shown', async () => {

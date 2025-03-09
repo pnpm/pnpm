@@ -36,6 +36,7 @@ test('prints generic error', async () => {
 
   const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
   expect(output).toBe(`${formatError('ERROR', 'some error')}
+${ERROR_PAD}
 ${ERROR_PAD}${(new StackTracey(err.stack).asTable() as string).split('\n').join(`\n${ERROR_PAD}`)}`)
 })
 
@@ -356,6 +357,7 @@ test('prints error with packages stacktrace - depth 1 and hint', async () => {
   expect(output).toBe(`${formatError('ERR_PNPM_SOME_ERROR', 'some error')}
 ${ERROR_PAD}
 ${ERROR_PAD}This error happened while installing the dependencies of foo@1.0.0
+${ERROR_PAD}
 ${ERROR_PAD}hint`)
 })
 

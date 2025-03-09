@@ -291,6 +291,9 @@ test('prints summary without the filtered out entries', async () => {
   expect(output).toBe(EOL + `\
 ${h1('dependencies:')}
 ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
+
+${h1('devDependencies:')}
+${ADD} qar ${versionColor('2.0.0')}
 `)
 })
 
@@ -617,7 +620,11 @@ test('prints summary when some packages fail', async () => {
   logger.error(err, err)
 
   const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
-  expect(output).toBe(EOL + `Summary: ${chalk.red('6 fails')}, 7 passes
+  expect(output).toBe(`\
+${formatError('ERR_PNPM_RECURSIVE_FAIL', '')}
+
+
+Summary: ${chalk.red('6 fails')}, 7 passes
 
 /a:
 ${formatError('ERROR', 'a failed')}
@@ -1055,7 +1062,7 @@ test('logLevel=default', async () => {
   const output = await firstValueFrom(output$.pipe(skip(2), take(1)))
   expect(output).toBe(`Info message
 ${formatWarn('Some issue')}
-${formatError('ERROR', 'some error')}`)
+${formatError('ERR_PNPM_SOME_CODE', 'some error')}`)
 })
 
 test('logLevel=warn', async () => {
