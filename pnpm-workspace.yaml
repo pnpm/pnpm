@@ -58,25 +58,25 @@ packages:
   - "!resolving/local-resolver/example-package/**"
 catalog:
   "@gwhitney/detect-indent": 7.0.1
-  "@pnpm/builder.policy": 3.0.0
+  "@pnpm/builder.policy": 3.0.1
   "@pnpm/byline": ^1.0.0
   "@pnpm/colorize-semver-diff": ^1.0.1
-  "@pnpm/config.env-replace": 3.0.0
+  "@pnpm/config.env-replace": 3.0.1
   "@pnpm/exec": ^2.0.0
   "@pnpm/fs.packlist": 2.0.0
-  "@pnpm/log.group": 3.0.0
+  "@pnpm/log.group": 3.0.1
   "@pnpm/meta-updater": 2.0.5
-  "@pnpm/network.agent": ^2.0.1
+  "@pnpm/network.agent": ^2.0.2
   "@pnpm/nopt": ^0.2.1
   "@pnpm/npm-conf": 3.0.0
   "@pnpm/npm-lifecycle": ^1000.0.2
   "@pnpm/npm-package-arg": ^1.0.0
-  "@pnpm/os.env.path-extender": ^2.0.1
+  "@pnpm/os.env.path-extender": ^2.0.2
   "@pnpm/patch-package": 0.0.1
   "@pnpm/registry-mock": 4.0.0
   "@pnpm/semver-diff": ^1.1.0
   "@pnpm/tabtab": ^0.5.4
-  "@pnpm/util.lex-comparator": 3.0.0
+  "@pnpm/util.lex-comparator": 3.0.1
   "@reflink/reflink": 0.1.18
   "@rushstack/worker-pool": 0.4.9
   "@types/adm-zip": ^0.5.7
