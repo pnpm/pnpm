@@ -25,6 +25,9 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
+      "path": "../../crypto/hash"
+    },
+    {
       "path": "../../fetching/pick-fetcher"
     },
     {
@@ -65,6 +68,9 @@
     },
     {
       "path": "../../store/store-connection-manager"
+    },
+    {
+      "path": "../../store/store-path"
     },
     {
       "path": "../../workspace/filter-packages-from-dir"
