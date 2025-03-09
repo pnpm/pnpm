@@ -9,6 +9,7 @@ import { globalWarn } from '@pnpm/logger'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { getStorePath } from '@pnpm/store-path'
 import { type ProjectRootDir } from '@pnpm/types'
 import { glob } from 'tinyglobby'
 import normalizePath from 'normalize-path'
@@ -137,12 +138,15 @@ interface GetPatchContentContext {
   tmpName: string
 }
 
-type GetPatchContentOptions = Pick<PatchCommitCommandOptions, 'modulesDir' | 'storeDir'> & WritePackageOptions
+type GetPatchContentOptions = Pick<PatchCommitCommandOptions, 'dir' | 'pnpmHomeDir' | 'storeDir'> & WritePackageOptions
 
 async function getPatchContent (ctx: GetPatchContentContext, opts: GetPatchContentOptions): Promise<string> {
-  const srcDir = opts.storeDir
-    ? path.resolve(opts.storeDir, 'tmp', 'patch-commit', ctx.tmpName)
-    : path.resolve(opts.modulesDir ?? 'node_module', '.pnpm_tmp', 'patch-commit', ctx.tmpName)
+  const storeDir = await getStorePath({
+    pkgRoot: opts.dir,
+    storePath: opts.storeDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+  })
+  const srcDir = path.resolve(storeDir, 'tmp', 'patch-commit', ctx.tmpName)
   await writePackage(ctx.patchedPkg, srcDir, opts)
   const patchContent = await diffFolders(srcDir, ctx.patchedPkgDir)
   try {

@@ -70,6 +70,9 @@
       "path": "../../store/store-connection-manager"
     },
     {
+      "path": "../../store/store-path"
+    },
+    {
       "path": "../../workspace/filter-packages-from-dir"
     },
     {

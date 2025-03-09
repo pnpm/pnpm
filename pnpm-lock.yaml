@@ -4211,6 +4211,9 @@ importers:
       '@pnpm/store-connection-manager':
         specifier: workspace:*
         version: link:../../store/store-connection-manager
+      '@pnpm/store-path':
+        specifier: workspace:*
+        version: link:../../store/store-path
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types

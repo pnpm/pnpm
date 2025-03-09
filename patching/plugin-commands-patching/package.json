@@ -49,6 +49,7 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
+    "@pnpm/store-path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "chalk": "catalog:",
     "enquirer": "catalog:",
