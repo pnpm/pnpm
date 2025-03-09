@@ -1,5 +1,14 @@
 # pnpm
 
+## 9.15.8
+
+### Patch Changes
+
+- `pnpm self-update` should always update the version in the `packageManager` field of `package.json`.
+- The pnpm CLI process should not stay hanging, when `--silent` reporting is used.
+- When `--loglevel` is set to `error`, don't show installation summary, execution time, and big tarball download progress.
+- Don't show info output when `--loglevel=error` is used.
+
 ## 9.15.7
 
 ### Patch Changes

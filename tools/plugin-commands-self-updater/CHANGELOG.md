@@ -1,5 +1,12 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 900.1.1
+
+### Patch Changes
+
+- 24b921a: `pnpm self-update` should always update the version in the `packageManager` field of `package.json`.
+  - @pnpm/cli-utils@900.0.6
+
 ## 900.1.0
 
 ### Minor Changes

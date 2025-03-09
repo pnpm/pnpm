@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 900.1.4
+
+### Patch Changes
+
+- 052cc51: When `--loglevel` is set to `error`, don't show installation summary, execution time, and big tarball download progress.
+- 4bc9c31: Don't show info output when `--loglevel=error` is used.
+
 ## 900.1.3
 
 ### Patch Changes
