@@ -10,10 +10,12 @@ import {
 } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
 import pick from 'ramda/src/pick'
+import { globalWarn } from '@pnpm/logger'
 
 export type OptionsFromRootManifest = {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
-  allowNonAppliedPatches?: boolean
+  allowUnusedPatches?: boolean // derived from either strictPatches or allowNonAppliedPatches
+  allowPatchFailure?: boolean // derived from strictPatches
   overrides?: Record<string, string>
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
@@ -41,6 +43,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
       'packageExtensions',
       'patchedDependencies',
       'peerDependencyRules',
+      'strictPatches',
       'supportedArchitectures',
     ], manifest.pnpm ?? {}),
     // We read Yarn's resolutions field for compatibility
@@ -72,6 +75,13 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
       if (path.isAbsolute(patchFile)) continue
       settings.patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
+  }
+  if (pnpmSettings.allowNonAppliedPatches != null) {
+    globalWarn(`allowNonAppliedPatches is deprecated. Please set strictPatches to ${!pnpmSettings.allowNonAppliedPatches} instead.`)
+    settings.allowUnusedPatches = pnpmSettings.allowNonAppliedPatches
+  }
+  if (pnpmSettings.strictPatches != null) {
+    settings.allowPatchFailure = settings.allowUnusedPatches = !pnpmSettings.strictPatches
   }
   return settings
 }

@@ -31,10 +31,15 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\""
   },
   "dependencies": {
-    "@pnpm/patching.types": "workspace:*"
+    "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/patching.types": "workspace:*",
+    "semver": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/patching.config": "workspace:*"
+    "@pnpm/patching.config": "workspace:*",
+    "@types/semver": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

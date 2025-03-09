@@ -127,6 +127,9 @@
       "path": "../../packages/which-version-is-pinned"
     },
     {
+      "path": "../../patching/config"
+    },
+    {
       "path": "../../pkg-manifest/manifest-utils"
     },
     {

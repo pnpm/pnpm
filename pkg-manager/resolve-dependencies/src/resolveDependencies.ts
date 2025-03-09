@@ -16,7 +16,7 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { getPatchInfo } from '@pnpm/patching.config'
+import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import {
   type DirectoryResolution,
@@ -42,7 +42,7 @@ import {
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
-import { type PatchFile, type PatchInfo } from '@pnpm/patching.types'
+import { type PatchInfo } from '@pnpm/patching.types'
 import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import pDefer from 'p-defer'
@@ -148,7 +148,7 @@ export interface ResolutionContext {
   resolvedPkgsById: ResolvedPkgsById
   outdatedDependencies: Record<PkgResolutionId, string>
   childrenByParentId: ChildrenByParentId
-  patchedDependencies?: Record<string, PatchFile>
+  patchedDependencies?: PatchGroupRecord
   pendingNodes: PendingNode[]
   wantedLockfile: LockfileObject
   currentLockfile: LockfileObject

@@ -1,9 +1,7 @@
 import path from 'path'
-import { PnpmError } from '@pnpm/error'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
-import { globalWarn } from '@pnpm/logger'
 import {
   type LockfileObject,
   type ProjectSnapshot,
@@ -13,6 +11,7 @@ import {
   getSpecFromPackageManifest,
   type PinnedVersion,
 } from '@pnpm/manifest-utils'
+import { verifyPatches } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
   type DependenciesField,
@@ -116,7 +115,7 @@ export async function resolveDependencies (
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
-    allowNonAppliedPatches?: boolean
+    allowUnusedPatches?: boolean
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -148,9 +147,9 @@ export async function resolveDependencies (
     Object.keys(opts.wantedLockfile.importers).length === importers.length
   ) {
     verifyPatches({
-      patchedDependencies: Object.keys(opts.patchedDependencies),
+      patchedDependencies: opts.patchedDependencies,
       appliedPatches,
-      allowNonAppliedPatches: opts.allowNonAppliedPatches,
+      allowUnusedPatches: opts.allowUnusedPatches,
     })
   }
 
@@ -326,29 +325,6 @@ export async function resolveDependencies (
     waitTillAllFetchingsFinish,
     wantedToBeSkippedPackageIds,
   }
-}
-
-function verifyPatches (
-  {
-    patchedDependencies,
-    appliedPatches,
-    allowNonAppliedPatches,
-  }: {
-    patchedDependencies: string[]
-    appliedPatches: Set<string>
-    allowNonAppliedPatches: boolean
-  }
-): void {
-  const nonAppliedPatches: string[] = patchedDependencies.filter((patchKey) => !appliedPatches.has(patchKey))
-  if (!nonAppliedPatches.length) return
-  const message = `The following patches were not applied: ${nonAppliedPatches.join(', ')}`
-  if (allowNonAppliedPatches) {
-    globalWarn(message)
-    return
-  }
-  throw new PnpmError('PATCH_NOT_APPLIED', message, {
-    hint: 'Either remove them from "patchedDependencies" or update them to match packages in your dependencies.',
-  })
 }
 
 function addDirectDependenciesToLockfile (
