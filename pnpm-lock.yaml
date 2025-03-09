@@ -4169,6 +4169,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -4244,9 +4247,6 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.7.1
-      tempy:
-        specifier: 'catalog:'
-        version: 1.0.1
       terminal-link:
         specifier: 'catalog:'
         version: 2.1.1
@@ -4284,6 +4284,9 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.5.3
+      tempy:
+        specifier: 'catalog:'
+        version: 1.0.1
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
