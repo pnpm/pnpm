@@ -234,6 +234,124 @@ test('deploy with node-linker=hoisted', async () => {
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
 
+// Similar to the standard test with node-linker=hoisted, but should not link
+// project-3 if it's not in the dependency graph of the deployed package.
+test('deploy does not link unnecessary workspace packages, even with node-linker=hoisted', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+    {
+      name: 'project-3',
+      version: '2.0.0',
+      dependencies: {
+        'is-odd': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    nodeLinker: 'hoisted',
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['dist'])
+
+  const project = assertProject(path.resolve('dist'))
+
+  project.has('project-2')
+  project.has('is-positive')
+
+  // project-3 should not be deployed since it's not in the dependency graph of
+  // project-1. "is-odd" should not be deployed either since it's only a
+  // dependency of project-3.
+  project.hasNot('project-3')
+  project.hasNot('is-odd')
+})
+
+// Similar to the test above with node-linker=hoisted. We should also make sure
+// unnecessary workspace packages aren't linked in the standard
+// node-linker=isolated code path.
+test('deploy does not link unnecessary workspace packages', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+    {
+      name: 'project-3',
+      version: '2.0.0',
+      dependencies: {
+        'is-odd': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['dist'])
+
+  const project = assertProject(path.resolve('dist'))
+
+  project.has('project-2')
+  project.has('is-positive')
+
+  // project-3 should not be deployed since it's not in the dependency graph of
+  // project-1. "is-odd" should not be deployed either since it's only a
+  // dependency of project-3.
+  project.hasNot('project-3')
+  project.hasNot('is-odd')
+})
+
 test('deploy fails when the destination directory exists and is not empty', async () => {
   preparePackages([
     {
