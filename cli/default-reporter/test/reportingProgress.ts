@@ -309,15 +309,6 @@ test('moves fixed line to the end', (done) => {
     streamParser: createStreamParser(),
   })
 
-  output$.pipe(skip(3), take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(formatWarn('foo') + EOL +
-        `Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}, added ${hlValue('0')}, done`)
-    },
-  })
-
   const packageId = 'registry.npmjs.org/foo/1.0.0'
 
   stageLogger.debug({
@@ -344,6 +335,15 @@ test('moves fixed line to the end', (done) => {
   stageLogger.debug({
     prefix,
     stage: 'importing_done',
+  })
+
+  output$.pipe(skip(3), take(1), map(normalizeNewline)).subscribe({
+    complete: () => done(),
+    error: done,
+    next: output => {
+      expect(output).toBe(formatWarn('foo') + EOL +
+        `Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}, added ${hlValue('0')}, done`)
+    },
   })
 })
 
@@ -384,50 +384,6 @@ test('prints progress of big files download', (done) => {
   const pkgId1 = 'registry.npmjs.org/foo/1.0.0'
   const pkgId2 = 'registry.npmjs.org/bar/2.0.0'
   const pkgId3 = 'registry.npmjs.org/qar/3.0.0'
-
-  output$.pipe(
-    take(9),
-    map(normalizeNewline),
-    map((output, index) => {
-      switch (index) {
-      case 0:
-        expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
-        return
-      case 1:
-        expect(output).toBe(`\
-Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('0.00 B')}/${hlValue('10.49 MB')}`)
-        return
-      case 2:
-        expect(output).toBe(`\
-Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.49 MB')}`)
-        return
-      case 4:
-        expect(output).toBe(`\
-Progress: resolved ${hlValue('2')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.49 MB')}`)
-        return
-      case 7:
-        expect(output).toBe(`\
-Progress: resolved ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.49 MB')}
-Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.92 MB')}/${hlValue('20.97 MB')}`)
-        return
-      case 8:
-        expect(output).toBe(`\
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.49 MB')}/${hlValue('10.49 MB')}, done
-Progress: resolved ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
-Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.92 MB')}/${hlValue('20.97 MB')}`)
-        return // eslint-disable-line
-      }
-    })
-  )
-    .subscribe({
-      complete: () => done(),
-      error: done,
-      next: () => undefined,
-    })
 
   stageLogger.debug({
     prefix: '/src/project',
@@ -496,4 +452,48 @@ Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.92 MB')}/${hlValue('20.97 MB')}`)
     packageId: pkgId1,
     status: 'in_progress',
   })
+
+  output$.pipe(
+    take(9),
+    map(normalizeNewline),
+    map((output, index) => {
+      switch (index) {
+      case 0:
+        expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
+        return
+      case 1:
+        expect(output).toBe(`\
+Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('0.00 B')}/${hlValue('10.49 MB')}`)
+        return
+      case 2:
+        expect(output).toBe(`\
+Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.49 MB')}`)
+        return
+      case 4:
+        expect(output).toBe(`\
+Progress: resolved ${hlValue('2')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.49 MB')}`)
+        return
+      case 7:
+        expect(output).toBe(`\
+Progress: resolved ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.49 MB')}
+Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.92 MB')}/${hlValue('20.97 MB')}`)
+        return
+      case 8:
+        expect(output).toBe(`\
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.49 MB')}/${hlValue('10.49 MB')}, done
+Progress: resolved ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
+Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.92 MB')}/${hlValue('20.97 MB')}`)
+        return // eslint-disable-line
+      }
+    })
+  )
+    .subscribe({
+      complete: () => done(),
+      error: done,
+      next: () => undefined,
+    })
 })

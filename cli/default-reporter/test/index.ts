@@ -618,32 +618,6 @@ test('prints summary when some packages fail', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(EOL + `Summary: ${chalk.red('6 fails')}, 7 passes
-
-/a:
-${formatError('ERROR', 'a failed')}
-
-/b:
-${formatError('ERROR', 'b failed')}
-
-/c:
-${formatError('ERROR', 'c failed')}
-
-/d:
-${formatError('ERROR', 'd failed')}
-
-/e:
-${formatError('ERROR', 'e failed')}
-
-/f:
-${formatError('ERROR', 'f failed')}`)
-    },
-  })
-
   const err = Object.assign(new PnpmError('RECURSIVE_FAIL', '...'), {
     failures: [
       {
@@ -675,6 +649,32 @@ ${formatError('ERROR', 'f failed')}`)
   })
 
   logger.error(err, err)
+
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
+    complete: () => done(),
+    error: done,
+    next: output => {
+      expect(output).toBe(EOL + `Summary: ${chalk.red('6 fails')}, 7 passes
+
+/a:
+${formatError('ERROR', 'a failed')}
+
+/b:
+${formatError('ERROR', 'b failed')}
+
+/c:
+${formatError('ERROR', 'c failed')}
+
+/d:
+${formatError('ERROR', 'd failed')}
+
+/e:
+${formatError('ERROR', 'e failed')}
+
+/f:
+${formatError('ERROR', 'f failed')}`)
+    },
+  })
 })
 
 test('prints info', (done) => {
