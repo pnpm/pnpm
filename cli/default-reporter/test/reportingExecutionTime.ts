@@ -1,10 +1,13 @@
+import { setTimeout } from 'node:timers/promises'
 import { executionTimeLogger } from '@pnpm/core-loggers'
 import { packageManager } from '@pnpm/cli-meta'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
-import { take } from 'rxjs/operators'
+import { firstValueFrom } from 'rxjs'
 
-test('does not print execution time for help command', (done) => {
+const NO_OUTPUT = Symbol('test should not log anything')
+
+test('does not print execution time for help command', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['help'],
@@ -17,21 +20,15 @@ test('does not print execution time for help command', (done) => {
     endedAt: 1665279413671,
   })
 
-  const subscription = output$.subscribe({
-    complete: () => done(),
-    error: done,
-    next: () => {
-      done('should not log anything')
-    },
-  })
+  const output = await Promise.race([
+    firstValueFrom(output$),
+    setTimeout(10).then(() => NO_OUTPUT),
+  ])
 
-  setTimeout(() => {
-    done()
-    subscription.unsubscribe()
-  }, 10)
+  expect(output).toEqual(NO_OUTPUT)
 })
 
-test('prints execution time for install command', (done) => {
+test('prints execution time for install command', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -46,11 +43,6 @@ test('prints execution time for install command', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`Done in 10.8s using ${packageManager.name} v${packageManager.version}`)
-    },
-  })
+  const output = await firstValueFrom(output$)
+  expect(output).toBe(`Done in 10.8s using ${packageManager.name} v${packageManager.version}`)
 })

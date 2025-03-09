@@ -3,10 +3,10 @@ import { toOutput$ } from '@pnpm/default-reporter'
 import {
   createStreamParser,
 } from '@pnpm/logger'
-import { take } from 'rxjs/operators'
+import { firstValueFrom } from 'rxjs'
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn'
 
-test('print warning about request retry', (done) => {
+test('print warning about request retry', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -25,11 +25,6 @@ test('print warning about request retry', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(formatWarn('GET https://foo.bar/qar error (undefined). Will retry in 12.5 seconds. 4 retries left.'))
-    },
-  })
+  const output = await firstValueFrom(output$)
+  expect(output).toBe(formatWarn('GET https://foo.bar/qar error (undefined). Will retry in 12.5 seconds. 4 retries left.'))
 })

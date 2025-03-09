@@ -1,8 +1,9 @@
 import { type Log } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { logger, createStreamParser } from '@pnpm/logger'
+import { firstValueFrom } from 'rxjs'
 
-test('logger with filterLog hook', (done) => {
+test('logger with filterLog hook', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -49,16 +50,6 @@ test('logger with filterLog hook', (done) => {
 
   expect.assertions(1)
 
-  const subscription = output$.subscribe({
-    complete: () => done(),
-    error: done,
-    next: (msg) => {
-      expect(msg).toEqual(expect.stringContaining('bbb'))
-    },
-  })
-
-  setTimeout(() => {
-    done()
-    subscription.unsubscribe()
-  }, 10)
+  const msg = await firstValueFrom(output$)
+  expect(msg).toEqual(expect.stringContaining('bbb'))
 })
