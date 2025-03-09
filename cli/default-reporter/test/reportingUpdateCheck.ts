@@ -4,7 +4,6 @@ import { updateCheckLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
-import { take } from 'rxjs/operators'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 
 const NO_OUTPUT = Symbol('test should not log anything')
@@ -48,7 +47,7 @@ test('print update notification if the latest version is greater than the curren
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(stripAnsi(output)).toMatchSnapshot()
 })
 
@@ -71,7 +70,7 @@ test('print update notification for Corepack if the latest version is greater th
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(stripAnsi(output)).toMatchSnapshot()
 })
 
@@ -97,6 +96,6 @@ test('print update notification that suggests to use the standalone scripts for 
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(stripAnsi(output)).toMatchSnapshot()
 })

@@ -4,7 +4,6 @@ import { scopeLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
-import { take } from 'rxjs/operators'
 
 const NO_OUTPUT = Symbol('test should not log anything')
 
@@ -46,7 +45,7 @@ test('prints scope of recursive install in a workspace when not all packages are
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toBe('Scope: 2 of 10 workspace projects')
 })
 
@@ -67,7 +66,7 @@ test('prints scope of recursive install in a workspace when all packages are sel
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toBe('Scope: all 10 workspace projects')
 })
 
@@ -87,7 +86,7 @@ test('prints scope of recursive install not in a workspace when not all packages
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toBe('Scope: 2 of 10 projects')
 })
 
@@ -107,6 +106,6 @@ test('prints scope of recursive install not in a workspace when all packages are
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toBe('Scope: all 10 projects')
 })

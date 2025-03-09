@@ -42,7 +42,7 @@ test('prints progress beginning', async () => {
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
 })
 
@@ -70,7 +70,7 @@ test('prints progress without added packages stats', async () => {
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`)
 })
 
@@ -136,7 +136,7 @@ test('prints progress beginning of node_modules from not cwd', async () => {
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toBe(`foo                                      | Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
 })
 
@@ -164,7 +164,7 @@ test('prints progress beginning of node_modules from not cwd, when progress pref
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
 })
 
@@ -192,7 +192,7 @@ test('prints progress beginning when appendOnly is true', async () => {
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
 })
 
@@ -220,7 +220,7 @@ test('prints progress beginning during recursive install', async () => {
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
 })
 

@@ -5,7 +5,6 @@ import {
   createStreamParser,
 } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
-import { take } from 'rxjs/operators'
 
 const NO_OUTPUT = Symbol('test should not log anything')
 
@@ -28,7 +27,7 @@ test('print context and import method info', async () => {
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toBe(`\
 Packages are hard linked from the content-addressable store to the virtual store.
   Content-addressable store is at: ~/.pnpm-store/v3

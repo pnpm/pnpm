@@ -3,7 +3,6 @@ import { executionTimeLogger } from '@pnpm/core-loggers'
 import { packageManager } from '@pnpm/cli-meta'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
-import { take } from 'rxjs/operators'
 import { firstValueFrom } from 'rxjs'
 
 const NO_OUTPUT = Symbol('test should not log anything')
@@ -44,6 +43,6 @@ test('prints execution time for install command', async () => {
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toBe(`Done in 10.8s using ${packageManager.name} v${packageManager.version}`)
 })

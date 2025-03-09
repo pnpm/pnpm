@@ -5,7 +5,6 @@ import {
   logger,
 } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
-import { take } from 'rxjs/operators'
 
 test('print peer dependency issues warning', async () => {
   const output$ = toOutput$({
@@ -43,7 +42,7 @@ test('print peer dependency issues warning', async () => {
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toContain('.')
 })
 
@@ -85,6 +84,6 @@ test('print peer dependency issues error', async () => {
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toContain('.')
 })

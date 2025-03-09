@@ -1038,7 +1038,7 @@ test('prints skipped optional dependency info message', async () => {
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toBe(`info: ${pkgId} is an optional dependency and failed compatibility check. Excluding it from installation.`)
 })
 
@@ -1110,7 +1110,7 @@ test('logLevel=error', async () => {
 
   expect.assertions(1)
 
-  const output = await firstValueFrom(output$.pipe(take(1)))
+  const output = await firstValueFrom(output$)
   expect(output).toBe(formatError('ERR_PNPM_SOME_CODE', 'some error'))
 })
 
