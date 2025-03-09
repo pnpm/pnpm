@@ -4,9 +4,9 @@ import {
   createStreamParser,
   logger,
 } from '@pnpm/logger'
-import { take } from 'rxjs/operators'
+import { firstValueFrom } from 'rxjs'
 
-test('print peer dependency issues warning', (done) => {
+test('print peer dependency issues warning', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -42,16 +42,11 @@ test('print peer dependency issues warning', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toContain('.')
-    },
-  })
+  const output = await firstValueFrom(output$)
+  expect(output).toContain('.')
 })
 
-test('print peer dependency issues error', (done) => {
+test('print peer dependency issues error', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -89,11 +84,6 @@ test('print peer dependency issues error', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toContain('.')
-    },
-  })
+  const output = await firstValueFrom(output$)
+  expect(output).toContain('.')
 })

@@ -1,11 +1,14 @@
+import { setTimeout } from 'node:timers/promises'
 import { type Config } from '@pnpm/config'
 import { updateCheckLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
-import { take } from 'rxjs/operators'
+import { firstValueFrom } from 'rxjs'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 
-test('does not print update if latest is less than current', (done) => {
+const NO_OUTPUT = Symbol('test should not log anything')
+
+test('does not print update if latest is less than current', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -19,21 +22,15 @@ test('does not print update if latest is less than current', (done) => {
     latestVersion: '9.0.0',
   })
 
-  const subscription = output$.subscribe({
-    complete: () => done(),
-    error: done,
-    next: () => {
-      done('should not log anything')
-    },
-  })
+  const output = await Promise.race([
+    firstValueFrom(output$),
+    setTimeout(10).then(() => NO_OUTPUT),
+  ])
 
-  setTimeout(() => {
-    done()
-    subscription.unsubscribe()
-  }, 10)
+  expect(output).toEqual(NO_OUTPUT)
 })
 
-test('print update notification if the latest version is greater than the current', (done) => {
+test('print update notification if the latest version is greater than the current', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -50,16 +47,11 @@ test('print update notification if the latest version is greater than the curren
 
   expect.assertions(1)
 
-  output$.pipe(take(1)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(stripAnsi(output)).toMatchSnapshot()
-    },
-  })
+  const output = await firstValueFrom(output$)
+  expect(stripAnsi(output)).toMatchSnapshot()
 })
 
-test('print update notification for Corepack if the latest version is greater than the current', (done) => {
+test('print update notification for Corepack if the latest version is greater than the current', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -78,16 +70,11 @@ test('print update notification for Corepack if the latest version is greater th
 
   expect.assertions(1)
 
-  output$.pipe(take(1)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(stripAnsi(output)).toMatchSnapshot()
-    },
-  })
+  const output = await firstValueFrom(output$)
+  expect(stripAnsi(output)).toMatchSnapshot()
 })
 
-test('print update notification that suggests to use the standalone scripts for the upgrade', (done) => {
+test('print update notification that suggests to use the standalone scripts for the upgrade', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -109,11 +96,6 @@ test('print update notification that suggests to use the standalone scripts for 
 
   expect.assertions(1)
 
-  output$.pipe(take(1)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(stripAnsi(output)).toMatchSnapshot()
-    },
-  })
+  const output = await firstValueFrom(output$)
+  expect(stripAnsi(output)).toMatchSnapshot()
 })
