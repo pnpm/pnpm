@@ -4211,6 +4211,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/workspace.manifest-writer':
+        specifier: workspace:*
+        version: link:../../workspace/manifest-writer
       chalk:
         specifier: 'catalog:'
         version: 4.1.2
