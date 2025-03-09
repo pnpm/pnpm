@@ -73,6 +73,9 @@
       "path": "../../workspace/manifest-writer"
     },
     {
+      "path": "../../workspace/read-manifest"
+    },
+    {
       "path": "../apply-patch"
     }
   ]

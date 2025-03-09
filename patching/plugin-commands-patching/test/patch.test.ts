@@ -5,6 +5,7 @@ import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { install } from '@pnpm/plugin-commands-installation'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { sync as writeYamlFile } from 'write-yaml-file'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import tempy from 'tempy'
 import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
@@ -1041,7 +1042,9 @@ describe('patch and commit in workspaces', () => {
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual(undefined)
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
     })
     const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
@@ -1103,7 +1106,9 @@ describe('patch and commit in workspaces', () => {
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual(undefined)
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
     })
     const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
@@ -1244,7 +1249,9 @@ describe('patch and commit in workspaces', () => {
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual(undefined)
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'hi@1.0.0': 'patches/hi@1.0.0.patch',
     })
     const patchContent = fs.readFileSync('patches/hi@1.0.0.patch', 'utf8')
