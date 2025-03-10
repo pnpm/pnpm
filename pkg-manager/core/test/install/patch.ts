@@ -521,7 +521,7 @@ test('patch package should fail when the version range patch fails to apply', as
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
-    'is-positive@*': patchPath,
+    'is-positive@>=3': patchPath,
   }
   const opts = testDefaults({
     fastUnpack: false,
