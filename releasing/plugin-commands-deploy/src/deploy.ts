@@ -142,6 +142,29 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     // dedupe-injected-deps to always inject workspace packages since copying is
     // desirable.
     dedupeInjectedDeps: false,
+    // Compute the wanted lockfile correctly by setting pruneLockfileImporters.
+    // Since pnpm deploy only installs dependencies for a single selected
+    // project, other projects in the "importers" lockfile section will be
+    // empty when node-linker=hoisted.
+    //
+    // For example, when deploying project-1, project-2 may not be populated,
+    // even if it has dependencies.
+    //
+    //   importers:
+    //     project-1:
+    //       dependencies:
+    //         foo:
+    //           specifier: ^1.0.0
+    //           version: ^1.0.0
+    //     project-2: {}
+    //
+    // Avoid including these empty importers in the in-memory wanted lockfile.
+    // This is important when node-linker=hoisted to prevent project-2 from
+    // being included in the hoisted install. If project-2 is errantly hoisted
+    // to the root node_modules dir, downstream logic will fail to inject it to
+    // the deploy directory. It's also just weird to include empty importers
+    // that don't matter to the filtered lockfile generated for pnpm deploy.
+    pruneLockfileImporters: true,
     depth: Infinity,
     hooks: {
       ...opts.hooks,
