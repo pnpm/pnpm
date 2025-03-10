@@ -1,5 +1,11 @@
 # pnpm
 
+## 9.15.9
+
+### Patch Changes
+
+- Fix running pnpm CLI from pnpm CLI on Windows when the CLI is bundled to an executable [#8971](https://github.com/pnpm/pnpm/issues/8971).
+
 ## 9.15.8
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 900.1.2
+
+### Patch Changes
+
+- 76445bc: Fix running pnpm CLI from pnpm CLI on Windows when the CLI is bundled to an executable [#8971](https://github.com/pnpm/pnpm/issues/8971).
+
 ## 900.1.1
 
 ### Patch Changes
