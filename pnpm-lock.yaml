@@ -25,8 +25,8 @@ catalogs:
       specifier: ^2.0.0
       version: 2.0.0
     '@pnpm/exec.pnpm-cli-runner':
-      specifier: 1000.0.0
-      version: 1000.0.0
+      specifier: 1000.0.1
+      version: 1000.0.1
     '@pnpm/fs.packlist':
       specifier: 2.0.0
       version: 2.0.0
@@ -7560,7 +7560,7 @@ importers:
         version: link:../../packages/error
       '@pnpm/exec.pnpm-cli-runner':
         specifier: 'catalog:'
-        version: 1000.0.0
+        version: 1000.0.1
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
@@ -8819,8 +8819,8 @@ packages:
     resolution: {integrity: sha512-OIYhG7HQh4zUFh2s8/6bp7glVRjNxms7bpzXVOLV7pyRa+rSYFmqJ8zDsBC64k58nuaxS85Ip+SCDjFxsFGeOg==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/exec.pnpm-cli-runner@1000.0.0':
-    resolution: {integrity: sha512-5oRH9X7S1UKozhkOxMfn7i7H7fZSWRFlX6R/xXoTnLCIe7ab2tU3EN98D739areH53thhjk8bq9osklcOZGM7g==}
+  '@pnpm/exec.pnpm-cli-runner@1000.0.1':
+    resolution: {integrity: sha512-5e1P00zd9G3ogRFiT8lyXZFU1BEW7j0HiqhQqFULiQIKll/WEnbNDIhXnpj2LNT1fu9vPMQv6ABILhD+hc4wYw==}
     engines: {node: '>=18.12'}
 
   '@pnpm/exec@2.0.0':
@@ -15654,7 +15654,7 @@ snapshots:
     dependencies:
       '@pnpm/constants': 10.0.0
 
-  '@pnpm/exec.pnpm-cli-runner@1000.0.0':
+  '@pnpm/exec.pnpm-cli-runner@1000.0.1':
     dependencies:
       execa: safe-execa@0.1.2
 
