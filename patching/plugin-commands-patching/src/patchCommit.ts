@@ -23,6 +23,7 @@ import { type WritePackageOptions, writePackage } from './writePackage'
 import { type ParseWantedDependencyResult, parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency'
 import { readEditDirState } from './stateFile'
+import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -102,16 +103,26 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   const { writeProjectManifest, manifest } = await tryReadProjectManifest(lockfileDir)
 
   const rootProjectManifest = (!opts.sharedWorkspaceLockfile ? manifest : (opts.rootProjectManifest ?? manifest)) ?? {}
-
-  if (!rootProjectManifest.pnpm) {
-    rootProjectManifest.pnpm = {
-      patchedDependencies: {},
+  let patchedDependencies: Record<string, string> | undefined
+  if (opts.workspaceDir == null || rootProjectManifest?.pnpm?.patchedDependencies != null) {
+    if (!rootProjectManifest.pnpm) {
+      rootProjectManifest.pnpm = {
+        patchedDependencies: {},
+      }
+    } else if (!rootProjectManifest.pnpm.patchedDependencies) {
+      rootProjectManifest.pnpm.patchedDependencies = {}
     }
-  } else if (!rootProjectManifest.pnpm.patchedDependencies) {
-    rootProjectManifest.pnpm.patchedDependencies = {}
+    rootProjectManifest.pnpm.patchedDependencies![patchKey] = `${patchesDirName}/${patchFileName}.patch`
+    patchedDependencies = rootProjectManifest.pnpm.patchedDependencies
+    await writeProjectManifest(rootProjectManifest)
+  } else {
+    patchedDependencies = {
+      [patchKey]: `${patchesDirName}/${patchFileName}.patch`,
+    }
+    await updateWorkspaceManifest(opts.workspaceDir, {
+      patchedDependencies,
+    })
   }
-  rootProjectManifest.pnpm.patchedDependencies![patchKey] = `${patchesDirName}/${patchFileName}.patch`
-  await writeProjectManifest(rootProjectManifest)
 
   if (opts?.selectedProjectsGraph?.[lockfileDir]) {
     opts.selectedProjectsGraph[lockfileDir].package.manifest = rootProjectManifest
@@ -123,7 +134,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
 
   return install.handler({
     ...opts,
-    patchedDependencies: rootProjectManifest!.pnpm!.patchedDependencies!,
+    patchedDependencies,
     rootProjectManifest,
     rawLocalConfig: {
       ...opts.rawLocalConfig,

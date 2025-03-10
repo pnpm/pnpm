@@ -51,6 +51,8 @@
     "@pnpm/store-connection-manager": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.manifest-writer": "workspace:*",
+    "@pnpm/workspace.read-manifest": "workspace:*",
     "chalk": "catalog:",
     "enquirer": "catalog:",
     "escape-string-regexp": "catalog:",

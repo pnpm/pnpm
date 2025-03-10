@@ -76,6 +76,12 @@
       "path": "../../workspace/filter-packages-from-dir"
     },
     {
+      "path": "../../workspace/manifest-writer"
+    },
+    {
+      "path": "../../workspace/read-manifest"
+    },
+    {
       "path": "../apply-patch"
     }
   ]
