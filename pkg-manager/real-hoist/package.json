@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/real-hoist",
-  "version": "1001.0.4",
+  "version": "1001.0.5",
   "description": "Hoists dependencies in a node_modules created by pnpm",
   "keywords": [
     "pnpm",

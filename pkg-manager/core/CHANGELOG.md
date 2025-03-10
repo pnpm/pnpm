@@ -1,5 +1,30 @@
 # @pnpm/core
 
+## 1004.0.3
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.1.1
+- @pnpm/worker@1000.0.8
+- @pnpm/lockfile.settings-checker@1001.0.5
+- @pnpm/lockfile.verification@1001.1.1
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/build-modules@1000.2.8
+- @pnpm/headless@1001.2.5
+- @pnpm/package-requester@1001.0.4
+- @pnpm/lockfile.filtering@1001.0.6
+- @pnpm/lockfile.fs@1001.1.6
+- @pnpm/lockfile-to-pnp@1001.0.7
+- @pnpm/lockfile.pruner@1001.0.5
+- @pnpm/lockfile.utils@1001.0.5
+- @pnpm/lockfile.walker@1001.0.5
+- @pnpm/calc-dep-state@1001.0.7
+- @pnpm/hoist@1001.0.8
+- @pnpm/modules-cleaner@1001.0.7
+- @pnpm/resolve-dependencies@1004.0.6
+- @pnpm/get-context@1001.0.8
+- @pnpm/lockfile.preferred-versions@1000.0.7
+
 ## 1004.0.2
 
 ### Patch Changes
