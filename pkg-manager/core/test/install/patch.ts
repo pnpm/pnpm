@@ -494,7 +494,7 @@ test('patch package when the patched package has no dependencies and appears mul
   ].sort())
 })
 
-test('patch package should fail when the patch could not be applied', async () => {
+test('patch package should fail when the exact version patch fails to apply', async () => {
   prepareEmpty()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
