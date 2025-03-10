@@ -135,6 +135,7 @@ export type InstallDepsOptions = Pick<Config,
   includeOnlyPackageFiles?: boolean
   prepareExecutionEnv: PrepareExecutionEnv
   fetchFullMetadata?: boolean
+  pruneLockfileImporters?: boolean
 } & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds'>>
 
 export async function installDeps (
