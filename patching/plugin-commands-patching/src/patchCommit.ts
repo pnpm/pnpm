@@ -146,7 +146,7 @@ async function getPatchContent (ctx: GetPatchContentContext, opts: GetPatchConte
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
-  const srcDir = path.resolve(storeDir, 'tmp', 'patch-commit', ctx.tmpName)
+  const srcDir = path.join(storeDir, 'tmp', 'patch-commit', ctx.tmpName)
   await writePackage(ctx.patchedPkg, srcDir, opts)
   const patchContent = await diffFolders(srcDir, ctx.patchedPkgDir)
   try {
