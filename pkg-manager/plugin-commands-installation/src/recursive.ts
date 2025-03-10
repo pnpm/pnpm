@@ -92,6 +92,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   selectedProjectsGraph: ProjectsGraph
   preferredVersions?: PreferredVersions
   pruneDirectDependencies?: boolean
+  pruneLockfileImporters?: boolean
   storeControllerAndDir?: {
     ctrl: StoreController
     dir: string
@@ -139,8 +140,9 @@ export async function recursive (
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     ownLifecycleHooksStdio: 'pipe',
     peer: opts.savePeer,
-    pruneLockfileImporters: ((opts.ignoredPackages == null) || opts.ignoredPackages.size === 0) &&
-      pkgs.length === allProjects.length,
+    pruneLockfileImporters: opts.pruneLockfileImporters ??
+      (((opts.ignoredPackages == null) || opts.ignoredPackages.size === 0) &&
+        pkgs.length === allProjects.length),
     storeController: store.ctrl,
     storeDir: store.dir,
     targetDependenciesField,
