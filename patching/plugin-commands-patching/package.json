@@ -41,12 +41,14 @@
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
+    "tempy": "catalog:",
     "write-yaml-file": "catalog:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",
+    "@pnpm/crypto.hash": "catalog:",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
@@ -60,6 +62,7 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
+    "@pnpm/store-path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "chalk": "catalog:",
     "enquirer": "catalog:",
@@ -73,7 +76,6 @@
     "render-help": "catalog:",
     "safe-execa": "catalog:",
     "semver": "catalog:",
-    "tempy": "catalog:",
     "terminal-link": "catalog:"
   },
   "peerDependencies": {

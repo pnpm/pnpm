@@ -21,6 +21,9 @@ catalogs:
     '@pnpm/config.env-replace':
       specifier: 3.0.0
       version: 3.0.0
+    '@pnpm/crypto.hash':
+      specifier: 1000.1.1
+      version: 1000.1.1
     '@pnpm/exec':
       specifier: ^2.0.0
       version: 2.0.0
@@ -3951,6 +3954,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
+      '@pnpm/crypto.hash':
+        specifier: 'catalog:'
+        version: 1000.1.1
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -3990,6 +3996,9 @@ importers:
       '@pnpm/store-connection-manager':
         specifier: workspace:*
         version: link:../../store/store-connection-manager
+      '@pnpm/store-path':
+        specifier: workspace:*
+        version: link:../../store/store-path
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -4029,9 +4038,6 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.7.0
-      tempy:
-        specifier: 'catalog:'
-        version: 1.0.1
       terminal-link:
         specifier: 'catalog:'
         version: 2.1.1
@@ -4066,6 +4072,9 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.5.3
+      tempy:
+        specifier: 'catalog:'
+        version: 1.0.1
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -8797,6 +8806,14 @@ packages:
     resolution: {integrity: sha512-iGKP6rRKng5Tcad1+S+j3UoY5wVZN+z0ZgemlGp69jNgn6EaM4N0Q3mvnDNJ7UZFmL2ClXZZYLNuCk9pUYV3Xg==}
     engines: {node: '>=18.12'}
 
+  '@pnpm/crypto.hash@1000.1.1':
+    resolution: {integrity: sha512-lb5kwXaOXdIW/4bkLLmtM9HEVRvp2eIvp+TrdawcPoaptgA/5f0/sRG0P52BF8dFqeNDj+1tGdqH89WQEqJnxA==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/crypto.polyfill@1000.1.0':
+    resolution: {integrity: sha512-tNe7a6U4rCpxLMBaR0SIYTdjxGdL0Vwb3G1zY8++sPtHSvy7qd54u8CIB0Z+Y6t5tc9pNYMYCMwhE/wdSY7ltg==}
+    engines: {node: '>=18.12'}
+
   '@pnpm/dedupe.issues-renderer@2.0.0':
     resolution: {integrity: sha512-UFKcCGUtL+2vbjXPCdw5H3Y/xj6iqVS86ChJSZj6GVODNR+gWO9j0HYMYVBFiQVOIm/7p86Rudyrm3cxmIEmWw==}
     engines: {node: '>=18.12'}
@@ -8845,6 +8862,10 @@ packages:
 
   '@pnpm/git-utils@2.0.0':
     resolution: {integrity: sha512-k1rv4Zvno/5zJAqE/Mh9V0ehlm14NsYwpXTdaGMtyhkoHvlSckRfr23OIOIM7Q/TRX+LhqyJ2kep50SY2TsZ+g==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/graceful-fs@1000.0.0':
+    resolution: {integrity: sha512-RvMEliAmcfd/4UoaYQ93DLQcFeqit78jhYmeJJVPxqFGmj0jEcb9Tu0eAOXr7tGP3eJHpgvPbTU4o6pZ1bJhxg==}
     engines: {node: '>=18.12'}
 
   '@pnpm/graceful-fs@4.0.0':
@@ -15614,6 +15635,14 @@ snapshots:
     dependencies:
       rfc4648: 1.5.4
 
+  '@pnpm/crypto.hash@1000.1.1':
+    dependencies:
+      '@pnpm/crypto.polyfill': 1000.1.0
+      '@pnpm/graceful-fs': 1000.0.0
+      ssri: 10.0.5
+
+  '@pnpm/crypto.polyfill@1000.1.0': {}
+
   '@pnpm/dedupe.issues-renderer@2.0.0':
     dependencies:
       '@pnpm/dedupe.types': 2.0.0
@@ -15690,6 +15719,10 @@ snapshots:
   '@pnpm/git-utils@2.0.0':
     dependencies:
       execa: safe-execa@0.1.2
+
+  '@pnpm/graceful-fs@1000.0.0':
+    dependencies:
+      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
 
   '@pnpm/graceful-fs@4.0.0':
     dependencies:

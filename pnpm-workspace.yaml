@@ -44,6 +44,7 @@ catalog:
   "@pnpm/byline": ^1.0.0
   "@pnpm/colorize-semver-diff": ^1.0.1
   "@pnpm/config.env-replace": 3.0.0
+  "@pnpm/crypto.hash": 1000.1.1
   "@pnpm/exec": ^2.0.0
   "@pnpm/exec.pnpm-cli-runner": 1000.0.1
   "@pnpm/fs.packlist": 2.0.0
