@@ -515,3 +515,31 @@ test('patch package should fail when the patch could not be applied', async () =
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
 })
+
+test('failing to apply patch should print a warning when allowPatchFailure is set', async () => {
+  prepareEmpty()
+  const reporter = jest.fn()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+
+  const patchedDependencies = {
+    'is-positive@3.1.0': patchPath,
+  }
+  const opts = testDefaults({
+    allowPatchFailure: true,
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies,
+    reporter,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await install({
+    dependencies: {
+      'is-positive': '3.1.0',
+    },
+  }, opts)
+
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringMatching(/Could not apply patch/),
+  }))
+})
