@@ -18,6 +18,7 @@ import { type GetPatchedDependencyResult, getPatchedDependency } from './getPatc
 import { writeEditDirState } from './stateFile'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import isWindows from 'is-windows'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -112,12 +113,17 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
         rootProjectManifest = manifest
       }
     }
-    if (rootProjectManifest?.pnpm?.patchedDependencies) {
+    let patchedDependencies = rootProjectManifest?.pnpm?.patchedDependencies
+    if (!patchedDependencies) {
+      const workspaceManifest = await readWorkspaceManifest(opts.dir)
+      patchedDependencies = workspaceManifest?.patchedDependencies
+    }
+    if (patchedDependencies) {
       tryPatchWithExistingPatchFile({
         allowFailure: patchedDep.applyToAll,
         patchedDep,
         patchedDir: editDir,
-        patchedDependencies: rootProjectManifest.pnpm.patchedDependencies,
+        patchedDependencies,
         lockfileDir,
       })
     }
