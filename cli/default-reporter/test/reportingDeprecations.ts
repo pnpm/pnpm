@@ -5,12 +5,13 @@ import {
 } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
+import { firstValueFrom } from 'rxjs'
 import { map, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn'
 
-test('prints summary of deprecated subdependencies', (done) => {
+test('prints summary of deprecated subdependencies', async () => {
   const prefix = '/home/jane/project'
   const output$ = toOutput$({
     context: {
@@ -43,11 +44,6 @@ test('prints summary of deprecated subdependencies', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`${formatWarn(`${chalk.red('2 deprecated subdependencies found:')} bar@2.0.0, qar@3.0.0`)}`)
-    },
-  })
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`${formatWarn(`${chalk.red('2 deprecated subdependencies found:')} bar@2.0.0, qar@3.0.0`)}`)
 })

@@ -70,19 +70,23 @@ export async function handler (
   if (!resolution?.manifest) {
     throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${pref}" version of pnpm`)
   }
+
+  if (opts.wantedPackageManager?.name === packageManager.name && opts.managePackageManagerVersions) {
+    if (opts.wantedPackageManager?.version !== resolution.manifest.version) {
+      const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
+      manifest.packageManager = `pnpm@${resolution.manifest.version}`
+      await writeProjectManifest(manifest)
+      return `The current project has been updated to use pnpm v${resolution.manifest.version}`
+    } else {
+      return `The current project is already set to use pnpm v${resolution.manifest.version}`
+    }
+  }
   if (resolution.manifest.version === packageManager.version) {
     return `The currently active ${packageManager.name} v${packageManager.version} is already "${pref}" and doesn't need an update`
   }
 
-  if (opts.wantedPackageManager?.name === packageManager.name && opts.managePackageManagerVersions) {
-    const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
-    manifest.packageManager = `pnpm@${resolution.manifest.version}`
-    await writeProjectManifest(manifest)
-    return `The current project has been updated to use pnpm v${resolution.manifest.version}`
-  }
-
   const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, opts)
-  await linkBins(path.join(baseDir, opts.modulesDir ?? 'node_modules'), opts.pnpmHomeDir,
+  await linkBins(path.join(baseDir, 'node_modules'), opts.pnpmHomeDir,
     {
       warn: globalWarn,
     }

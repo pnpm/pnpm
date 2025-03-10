@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-outdated
 
+## 1000.0.16
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.15
+- @pnpm/config@1002.5.2
+- @pnpm/lockfile.fs@1001.1.6
+- @pnpm/outdated@1001.0.11
+- @pnpm/default-resolver@1001.0.9
+
 ## 1000.0.15
 
 ### Patch Changes

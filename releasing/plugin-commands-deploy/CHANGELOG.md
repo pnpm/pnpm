@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.13
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.15
+- @pnpm/plugin-commands-installation@1002.1.2
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/config@1002.5.2
+- @pnpm/lockfile.fs@1001.1.6
+
 ## 1001.1.12
 
 ### Patch Changes

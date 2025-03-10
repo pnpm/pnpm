@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1002.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.15
+- @pnpm/worker@1000.0.8
+- @pnpm/workspace.find-packages@1000.0.15
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/config@1002.5.2
+- @pnpm/lockfile.utils@1001.0.5
+- @pnpm/lockfile.walker@1001.0.5
+- @pnpm/calc-dep-state@1001.0.7
+- @pnpm/store-connection-manager@1000.0.14
+- @pnpm/get-context@1001.0.8
+
 ## 1002.0.3
 
 ### Patch Changes

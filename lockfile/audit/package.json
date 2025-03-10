@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/audit",
-  "version": "1001.0.9",
+  "version": "1001.0.10",
   "description": "Audit a lockfile",
   "keywords": [
     "pnpm",

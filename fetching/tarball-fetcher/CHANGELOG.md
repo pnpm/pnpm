@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.8
+
 ## 1000.0.8
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "1000.2.7",
+  "version": "1000.2.8",
   "description": "Build packages in node_modules",
   "keywords": [
     "pnpm",

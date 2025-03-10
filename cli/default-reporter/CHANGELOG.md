@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 1001.3.6
+
+### Patch Changes
+
+- f8c8e3f: Don't show info output when `--loglevel=error` is used.
+  - @pnpm/config@1002.5.2
+
 ## 1001.3.5
 
 ### Patch Changes

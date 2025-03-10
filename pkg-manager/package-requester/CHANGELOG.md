@@ -1,5 +1,12 @@
 # @pnpm/package-requester
 
+## 1001.0.4
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.8
+- @pnpm/dependency-path@1000.0.5
+
 ## 1001.0.3
 
 ### Patch Changes

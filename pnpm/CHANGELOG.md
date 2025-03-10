@@ -1,5 +1,15 @@
 # pnpm
 
+## 10.6.2
+
+### Patch Changes
+
+- `pnpm self-update` should always update the version in the `packageManager` field of `package.json`.
+- Fix running pnpm CLI from pnpm CLI on Windows when the CLI is bundled to an executable [#8971](https://github.com/pnpm/pnpm/issues/8971).
+- `pnpm patch-commit` will now use the same filesystem as the store directory to compare and create patch files.
+- Don't show info output when `--loglevel=error` is used.
+- `peerDependencyRules` should be set in `pnpm-workspace.yaml` to take effect.
+
 ## 10.6.1
 
 ### Patch Changes

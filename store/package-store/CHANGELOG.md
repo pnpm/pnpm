@@ -1,5 +1,12 @@
 # @pnpm/package-store
 
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.8
+- @pnpm/package-requester@1001.0.4
+
 ## 1000.0.7
 
 ### Patch Changes

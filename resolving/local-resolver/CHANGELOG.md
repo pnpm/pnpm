@@ -1,5 +1,11 @@
 # @pnpm/local-resolver
 
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.1.1
+
 ## 1000.0.7
 
 ### Patch Changes

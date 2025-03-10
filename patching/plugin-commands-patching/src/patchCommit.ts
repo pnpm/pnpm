@@ -2,11 +2,14 @@ import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
+import { createShortHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
+import { globalWarn } from '@pnpm/logger'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { getStorePath } from '@pnpm/store-path'
 import { type ProjectRootDir } from '@pnpm/types'
 import { glob } from 'tinyglobby'
 import normalizePath from 'normalize-path'
@@ -16,8 +19,7 @@ import execa from 'safe-execa'
 import escapeStringRegexp from 'escape-string-regexp'
 import makeEmptyDir from 'make-empty-dir'
 import renderHelp from 'render-help'
-import tempy from 'tempy'
-import { writePackage } from './writePackage'
+import { type WritePackageOptions, writePackage } from './writePackage'
 import { type ParseWantedDependencyResult, parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency'
 import { readEditDirState } from './stateFile'
@@ -79,10 +81,13 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
       virtualStoreDir: opts.virtualStoreDir,
     })
   }
-  const srcDir = tempy.directory()
-  await writePackage(parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : nameAndVersion), srcDir, opts)
+  const patchedPkg = parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : nameAndVersion)
   const patchedPkgDir = await preparePkgFilesForDiff(userDir)
-  const patchContent = await diffFolders(srcDir, patchedPkgDir)
+  const patchContent = await getPatchContent({
+    patchedPkg,
+    patchedPkgDir,
+    tmpName: createShortHash(editDir),
+  }, opts)
   if (patchedPkgDir !== userDir) {
     fs.rmSync(patchedPkgDir, { recursive: true })
   }
@@ -125,6 +130,31 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
       'frozen-lockfile': false,
     },
   }) as Promise<undefined>
+}
+
+interface GetPatchContentContext {
+  patchedPkg: ParseWantedDependencyResult
+  patchedPkgDir: string
+  tmpName: string
+}
+
+type GetPatchContentOptions = Pick<PatchCommitCommandOptions, 'dir' | 'pnpmHomeDir' | 'storeDir'> & WritePackageOptions
+
+async function getPatchContent (ctx: GetPatchContentContext, opts: GetPatchContentOptions): Promise<string> {
+  const storeDir = await getStorePath({
+    pkgRoot: opts.dir,
+    storePath: opts.storeDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+  })
+  const srcDir = path.join(storeDir, 'tmp', 'patch-commit', ctx.tmpName)
+  await writePackage(ctx.patchedPkg, srcDir, opts)
+  const patchContent = await diffFolders(srcDir, ctx.patchedPkgDir)
+  try {
+    fs.rmSync(srcDir, { recursive: true })
+  } catch (error) {
+    globalWarn(`Failed to clean up temporary directory at ${srcDir} with error: ${String(error)}`)
+  }
+  return patchContent
 }
 
 async function diffFolders (folderA: string, folderB: string): Promise<string> {

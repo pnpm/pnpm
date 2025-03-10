@@ -1,5 +1,16 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1000.1.2
+
+### Patch Changes
+
+- 7072838: `pnpm self-update` should always update the version in the `packageManager` field of `package.json`.
+- Updated dependencies [0b0bcfa]
+  - @pnpm/exec.pnpm-cli-runner@1000.0.1
+  - @pnpm/cli-utils@1000.0.15
+  - @pnpm/config@1002.5.2
+  - @pnpm/client@1000.0.10
+
 ## 1000.1.1
 
 ### Patch Changes

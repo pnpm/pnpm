@@ -28,7 +28,7 @@ export function initReporter (
         throttleProgress: 200,
         hideAddedPkgsProgress: opts.config.lockfileOnly,
         hideLifecyclePrefix: opts.config.reporterHidePrefix,
-        peerDependencyRules: opts.config.rootProjectManifest?.pnpm?.peerDependencyRules,
+        peerDependencyRules: opts.config.peerDependencyRules,
       },
       streamParser: streamParser as StreamParser<Log>,
     })
@@ -46,7 +46,7 @@ export function initReporter (
         logLevel: opts.config.loglevel as LogLevel,
         throttleProgress: 1000,
         hideLifecyclePrefix: opts.config.reporterHidePrefix,
-        peerDependencyRules: opts.config.rootProjectManifest?.pnpm?.peerDependencyRules,
+        peerDependencyRules: opts.config.peerDependencyRules,
       },
       streamParser: streamParser as StreamParser<Log>,
     })

@@ -50,15 +50,15 @@ function prepareOptions (dir: string) {
     },
     rawLocalConfig: {},
     sort: false,
-    rootProjectManifestDir: process.cwd(),
-    bin: process.cwd(),
+    rootProjectManifestDir: dir,
+    bin: dir,
     workspaceConcurrency: 1,
     extraEnv: {},
     pnpmfile: '',
     rawConfig: {},
     cacheDir: path.join(dir, '.cache'),
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
-    dir: process.cwd(),
+    dir,
     managePackageManagerVersions: false,
   }
 }
@@ -143,6 +143,52 @@ test('self-update does nothing when pnpm is up to date', async () => {
   const output = await selfUpdate.handler(opts, [])
 
   expect(output).toBe('The currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
+})
+
+test('should update packageManager field when a newer pnpm version is available', async () => {
+  const opts = prepare()
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  fs.writeFileSync(pkgJsonPath, JSON.stringify({
+    packageManager: 'pnpm@8.0.0',
+  }), 'utf8')
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
+})
+
+test('should not update packageManager field when current version matches latest', async () => {
+  const opts = prepare()
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  fs.writeFileSync(pkgJsonPath, JSON.stringify({
+    packageManager: 'pnpm@9.0.0',
+  }), 'utf8')
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project is already set to use pnpm v9.0.0')
+  expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
 })
 
 test('self-update links pnpm that is already present on the disk', async () => {
