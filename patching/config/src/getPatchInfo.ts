@@ -12,18 +12,16 @@ export function getPatchInfo (
   const exactVersion = patchFileGroups[pkgName].exact[pkgVersion]
   if (exactVersion) return exactVersion
 
-  const versionRanges = Object
-    .keys(patchFileGroups[pkgName].range)
-    .filter(range => satisfies(pkgVersion, range))
-  if (versionRanges.length > 1) {
+  const satisfied = patchFileGroups[pkgName].range.filter(item => satisfies(pkgVersion, item.version))
+  if (satisfied.length > 1) {
     const pkgId = `${pkgName}@${pkgVersion}`
-    const message = `Unable to choose between ${versionRanges.length} version ranges to patch ${pkgId}: ${versionRanges.join(', ')}`
+    const message = `Unable to choose between ${satisfied.length} version ranges to patch ${pkgId}: ${satisfied.map(x => x.version).join(', ')}`
     throw new PnpmError('PATCH_KEY_CONFLICT', message, {
       hint: `Explicitly set the exact version (${pkgId}) to resolve conflict`,
     })
   }
-  if (versionRanges.length === 1) {
-    return patchFileGroups[pkgName].range[versionRanges[0]]
+  if (satisfied.length === 1) {
+    return satisfied[0].patch
   }
 
   return patchFileGroups[pkgName].all

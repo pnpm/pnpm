@@ -18,7 +18,7 @@ test('getPatchInfo() returns exact version if match', () => {
           strict: true,
         },
       },
-      range: {},
+      range: [],
       all: undefined,
     },
   } satisfies PatchGroupRecord
@@ -32,8 +32,9 @@ test('getPatchInfo() returns range version if satisfied', () => {
   const patchedDependencies = {
     foo: {
       exact: {},
-      range: {
-        1: {
+      range: [{
+        version: '1',
+        patch: {
           file: {
             path: 'patches/foo@1.patch',
             hash: '00000000000000000000000000000000',
@@ -41,12 +42,12 @@ test('getPatchInfo() returns range version if satisfied', () => {
           key: 'foo@1',
           strict: true,
         },
-      },
+      }],
       all: undefined,
     },
   } satisfies PatchGroupRecord
-  expect(getPatchInfo(patchedDependencies, 'foo', '1.0.0')).toStrictEqual(patchedDependencies.foo.range['1'])
-  expect(getPatchInfo(patchedDependencies, 'foo', '1.1.0')).toStrictEqual(patchedDependencies.foo.range['1'])
+  expect(getPatchInfo(patchedDependencies, 'foo', '1.0.0')).toStrictEqual(patchedDependencies.foo.range[0].patch)
+  expect(getPatchInfo(patchedDependencies, 'foo', '1.1.0')).toStrictEqual(patchedDependencies.foo.range[0].patch)
   expect(getPatchInfo(patchedDependencies, 'foo', '2.0.0')).toBeUndefined()
   expect(getPatchInfo(patchedDependencies, 'bar', '1.0.0')).toBeUndefined()
 })
@@ -55,7 +56,7 @@ test('getPatchInfo() returns "all" if name matches', () => {
   const patchedDependencies = {
     foo: {
       exact: {},
-      range: {},
+      range: [],
       all: {
         file: {
           path: 'patches/foo.patch',
@@ -93,24 +94,30 @@ test('exact version overrides version range, version range overrides "all"', () 
           strict: true,
         },
       },
-      range: {
-        1: {
-          file: {
-            path: 'patches/foo@1.patch',
-            hash: '00000000000000000000000000000000',
+      range: [
+        {
+          version: '1',
+          patch: {
+            file: {
+              path: 'patches/foo@1.patch',
+              hash: '00000000000000000000000000000000',
+            },
+            key: 'foo@1',
+            strict: true,
           },
-          key: 'foo@1',
-          strict: true,
         },
-        2: {
-          file: {
-            path: 'patches/foo@2.patch',
-            hash: '00000000000000000000000000000000',
+        {
+          version: '2',
+          patch: {
+            file: {
+              path: 'patches/foo@2.patch',
+              hash: '00000000000000000000000000000000',
+            },
+            key: 'foo@2',
+            strict: true,
           },
-          key: 'foo@2',
-          strict: true,
         },
-      },
+      ],
       all: {
         file: {
           path: 'patches/foo.patch',
@@ -123,9 +130,9 @@ test('exact version overrides version range, version range overrides "all"', () 
   } satisfies PatchGroupRecord
   expect(getPatchInfo(patchedDependencies, 'foo', '1.0.0')).toStrictEqual(patchedDependencies.foo.exact['1.0.0'])
   expect(getPatchInfo(patchedDependencies, 'foo', '1.1.0')).toStrictEqual(patchedDependencies.foo.exact['1.1.0'])
-  expect(getPatchInfo(patchedDependencies, 'foo', '1.1.1')).toStrictEqual(patchedDependencies.foo.range[1])
-  expect(getPatchInfo(patchedDependencies, 'foo', '2.0.0')).toStrictEqual(patchedDependencies.foo.range[2])
-  expect(getPatchInfo(patchedDependencies, 'foo', '2.1.0')).toStrictEqual(patchedDependencies.foo.range[2])
+  expect(getPatchInfo(patchedDependencies, 'foo', '1.1.1')).toStrictEqual(patchedDependencies.foo.range[0].patch)
+  expect(getPatchInfo(patchedDependencies, 'foo', '2.0.0')).toStrictEqual(patchedDependencies.foo.range[1].patch)
+  expect(getPatchInfo(patchedDependencies, 'foo', '2.1.0')).toStrictEqual(patchedDependencies.foo.range[1].patch)
   expect(getPatchInfo(patchedDependencies, 'foo', '3.0.0')).toStrictEqual(patchedDependencies.foo.all)
   expect(getPatchInfo(patchedDependencies, 'bar', '1.0.0')).toBeUndefined()
 })
@@ -134,24 +141,30 @@ test('getPatchInfo(_, name, version) throws an error when name@version matches m
   const patchedDependencies = {
     foo: {
       exact: {},
-      range: {
-        '>=1.0.0 <3.0.0': {
-          file: {
-            path: 'patches/foo_a.patch',
-            hash: '00000000000000000000000000000000',
+      range: [
+        {
+          version: '>=1.0.0 <3.0.0',
+          patch: {
+            file: {
+              path: 'patches/foo_a.patch',
+              hash: '00000000000000000000000000000000',
+            },
+            key: 'foo@>=1.0.0 <3.0.0',
+            strict: true,
           },
-          key: 'foo@>=1.0.0 <3.0.0',
-          strict: true,
         },
-        '>=2.0.0': {
-          file: {
-            path: 'patches/foo_a.patch',
-            hash: '00000000000000000000000000000000',
+        {
+          version: '>=2.0.0',
+          patch: {
+            file: {
+              path: 'patches/foo_a.patch',
+              hash: '00000000000000000000000000000000',
+            },
+            key: 'foo@>=2.0.0',
+            strict: true,
           },
-          key: 'foo@>=2.0.0',
-          strict: true,
         },
-      },
+      ],
       all: undefined,
     },
   } satisfies PatchGroupRecord

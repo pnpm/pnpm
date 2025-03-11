@@ -10,7 +10,7 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
     if (group) return group
     group = {
       exact: {},
-      range: {},
+      range: [],
       all: undefined,
     }
     result[name] = group
@@ -33,7 +33,10 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
       if (nonSemverVersion.trim() === '*') {
         getGroup(name).all = { strict: true, file, key }
       } else {
-        getGroup(name).range[nonSemverVersion] = { strict: true, file, key }
+        getGroup(name).range.push({
+          version: nonSemverVersion,
+          patch: { strict: true, file, key },
+        })
       }
       continue
     }
