@@ -234,6 +234,71 @@ test('deploy with node-linker=hoisted', async () => {
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
 
+// Similar to the test above making sure pnpm deploy works with
+// node-linker=hoisted, but we should also make sure not to link projects not in
+// the dependency graph of the deployed package.
+//
+// Let's check node-linker=isolated as well for good measure.
+test.each(['isolated', 'hoisted'] as const)(
+  'deploy does not link unnecessary workspace packages when node-linker=%p',
+  async (nodeLinker) => {
+    preparePackages([
+      {
+        location: '.',
+        package: {
+          name: 'root',
+        },
+      },
+      {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: {
+          'project-2': 'workspace:*',
+          'is-positive': '1.0.0',
+        },
+      },
+      {
+        name: 'project-2',
+        version: '2.0.0',
+      },
+      {
+        name: 'project-3',
+        version: '2.0.0',
+        dependencies: {
+          'is-odd': '1.0.0',
+        },
+      },
+    ])
+
+    const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+    await deploy.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      dev: false,
+      production: true,
+      recursive: true,
+      selectedProjectsGraph,
+      nodeLinker,
+      sharedWorkspaceLockfile: true,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+    }, ['dist'])
+
+    const project = assertProject(path.resolve('dist'))
+
+    project.has('project-2')
+    project.has('is-positive')
+
+    // project-3 should not be deployed since it's not in the dependency graph of
+    // project-1. "is-odd" should not be deployed either since it's only a
+    // dependency of project-3.
+    project.hasNot('project-3')
+    project.hasNot('is-odd')
+  }
+)
+
 test('deploy fails when the destination directory exists and is not empty', async () => {
   preparePackages([
     {
