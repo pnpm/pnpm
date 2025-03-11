@@ -823,6 +823,44 @@ async function resolveDependenciesOfDependency (
     supportedArchitectures: options.supportedArchitectures,
     parentIds: options.parentIds,
   }
+
+  // The catalog protocol is normally replaced when resolving the dependencies
+  // of importers. However, when a workspace package is "injected", it becomes a
+  // "file:" dependency and is no longer an "importer" from the perspective of
+  // pnpm.
+  //
+  // To allow the catalog protocol to still be used for injected workspace
+  // packages, it's necessary to check if the parent package was an injected
+  // workspace package and replace the catalog: protocol for the current package.
+  const isInjectedWorkspacePackage = options.parentPkg.resolvedVia === 'workspace' &&
+    options.parentPkg.pkgId.startsWith('file:')
+  if (isInjectedWorkspacePackage) {
+    const catalogLookup = matchCatalogResolveResult(ctx.catalogResolver(extendedWantedDep.wantedDependency), {
+      found: (result) => result.resolution,
+      unused: () => undefined,
+      misconfiguration: (result) => {
+        throw result.error
+      },
+    })
+
+    // The standard process for replacing the catalog protocol when resolving
+    // the dependencies of "importers" stores the catalog lookup in the
+    // dependency resolution result. This allows the catalogs snapshot section
+    // of the wanted lockfile to be kept up to date.
+    //
+    // We can do a simple replacement here instead and discard the catalog
+    // lookup object. It's not necessary to store this information for injected
+    // workspace packages. The injected workspace package will still be resolved
+    // as an importer separately, and we can rely on that process keeping the
+    // importers lockfile catalog snapshots up to date.
+    if (catalogLookup != null) {
+      extendedWantedDep.wantedDependency.pref = getCatalogReplacementPref(
+        catalogLookup,
+        ctx.wantedLockfile,
+        extendedWantedDep.wantedDependency)
+    }
+  }
+
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
   if (resolveDependencyResult == null) return { resolveDependencyResult: null }
