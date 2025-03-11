@@ -190,12 +190,7 @@ export type PkgAddress = {
   depIsLinked: boolean
   isNew: boolean
   isLinkedDependency?: false
-  /**
-   * Whether or not this package is an "injected" workspace dependency. This may
-   * be the case through the inject-workspace-packages setting, or
-   * dependenciesMeta.*.injected.
-   */
-  isInjected?: boolean
+  isWorkspacePackage?: boolean
   nodeId: NodeId
   pkgId: PkgResolutionId
   normalizedPref?: string // is returned only for root dependencies
@@ -256,7 +251,7 @@ export interface ResolvedPackage {
   }
 }
 
-type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId' | 'isInjected'>
+type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId' | 'isWorkspacePackage'>
 
 export type ParentPkgAliases = Record<string, PkgAddress | true>
 
@@ -837,7 +832,8 @@ async function resolveDependenciesOfDependency (
   // To allow the catalog protocol to still be used for injected workspace
   // packages, it's necessary to check if the parent package was an injected
   // workspace package and replace the catalog: protocol for the current package.
-  if (options.parentPkg.isInjected) {
+  const isInjectedWorkspacePackage = options.parentPkg.isWorkspacePackage && options.parentPkg.pkgId.startsWith('file:')
+  if (isInjectedWorkspacePackage) {
     const catalogLookup = matchCatalogResolveResult(ctx.catalogResolver(extendedWantedDep.wantedDependency), {
       found: (result) => result.resolution,
       unused: () => undefined,
@@ -1564,7 +1560,7 @@ async function resolveDependency (
   return {
     alias: wantedDependency.alias || pkg.name,
     depIsLinked,
-    isInjected: wantedDependency.injected === true || (ctx.injectWorkspacePackages === true && wantedDependency.pref.startsWith('workspace:')),
+    isWorkspacePackage: pkgResponse.body.isWorkspacePackage,
     isNew,
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,

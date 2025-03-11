@@ -15,6 +15,7 @@ import {
   type WorkspacePackage,
   type WorkspacePackages,
   type WorkspacePackagesByVersion,
+  type WorkspaceResolveResult,
 } from '@pnpm/resolver-base'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
@@ -253,7 +254,7 @@ function tryResolveFromWorkspace (
     workspacePackages?: WorkspacePackages
     injectWorkspacePackages?: boolean
   }
-): ResolveResult | null {
+): WorkspaceResolveResult | null {
   if (!wantedDependency.pref?.startsWith('workspace:')) {
     return null
   }
@@ -284,7 +285,7 @@ function tryResolveFromWorkspacePackages (
     projectDir: string
     lockfileDir?: string
   }
-): ResolveResult {
+): WorkspaceResolveResult {
   const workspacePkgsMatchingName = workspacePackages.get(spec.name)
   if (!workspacePkgsMatchingName) {
     throw new PnpmError(
@@ -331,7 +332,7 @@ function resolveFromLocalPackage (
     projectDir: string
     lockfileDir?: string
   }
-): ResolveResult {
+): WorkspaceResolveResult {
   let id!: PkgResolutionId
   let directory!: string
   const localPackageDir = resolveLocalPackageDir(localPackage)
@@ -351,6 +352,7 @@ function resolveFromLocalPackage (
       type: 'directory',
     },
     resolvedVia: 'local-filesystem',
+    isWorkspacePackage: true,
   }
 }
 

@@ -169,6 +169,7 @@ async function resolveAndFetch (
   let updated = false
   let resolvedVia: string | undefined
   let publishedAt: string | undefined
+  let isWorkspacePackage: boolean | undefined
 
   // When fetching is skipped, resolution cannot be skipped.
   // We need the package's manifest when doing `lockfile-only` installs.
@@ -208,6 +209,7 @@ async function resolveAndFetch (
     resolution = resolveResult.resolution
     pkgId = resolveResult.id
     normalizedPref = resolveResult.normalizedPref
+    isWorkspacePackage = resolveResult.isWorkspacePackage
   }
 
   const id = pkgId!
@@ -225,6 +227,7 @@ async function resolveAndFetch (
         resolution: resolution as DirectoryResolution,
         resolvedVia,
         updated,
+        isWorkspacePackage,
       },
     }
   }
@@ -258,6 +261,7 @@ async function resolveAndFetch (
         resolvedVia,
         updated,
         publishedAt,
+        isWorkspacePackage,
       },
     }
   }
@@ -294,6 +298,7 @@ async function resolveAndFetch (
       resolvedVia,
       updated,
       publishedAt,
+      isWorkspacePackage,
     },
     fetching: fetchResult.fetching,
     filesIndexFile: fetchResult.filesIndexFile,
