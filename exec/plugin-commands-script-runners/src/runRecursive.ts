@@ -23,7 +23,6 @@ import { type PackageScripts, type ProjectRootDir } from '@pnpm/types'
 export type RecursiveRunOpts = Pick<Config,
 | 'bin'
 | 'enablePrePostScripts'
-| 'nodeOptions'
 | 'unsafePerm'
 | 'pnpmHomeDir'
 | 'rawConfig'
