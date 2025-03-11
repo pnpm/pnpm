@@ -11,7 +11,7 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
     group = {
       exact: {},
       range: {},
-      blank: undefined,
+      all: undefined,
     }
     result[name] = group
     return group
@@ -31,7 +31,7 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
         throw new PnpmError('PATCH_NON_SEMVER_RANGE', `${nonSemverVersion} is not a valid semantic version range.`)
       }
       if (nonSemverVersion.trim() === '*') {
-        getGroup(name).blank = { strict: true, file, key }
+        getGroup(name).all = { strict: true, file, key }
       } else {
         getGroup(name).range[nonSemverVersion] = { strict: true, file, key }
       }
@@ -39,7 +39,7 @@ export function groupPatchedDependencies (patchedDependencies: Record<string, Pa
     }
 
     // Set `strict` to `false` to preserve backward compatibility.
-    getGroup(key).blank = { strict: false, file, key }
+    getGroup(key).all = { strict: false, file, key }
   }
 
   return result

@@ -26,5 +26,5 @@ export function getPatchInfo (
     return patchFileGroups[pkgName].range[versionRanges[0]]
   }
 
-  return patchFileGroups[pkgName].blank
+  return patchFileGroups[pkgName].all
 }

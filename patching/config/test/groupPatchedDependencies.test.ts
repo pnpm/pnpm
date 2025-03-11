@@ -57,7 +57,7 @@ test('groups patchedDependencies according to names, version selectors, and vers
         '2.1.0': info(true, 'exact-version-only@2.1.0'),
       },
       range: {},
-      blank: undefined,
+      all: undefined,
     },
     'version-range-only': {
       exact: {},
@@ -65,17 +65,17 @@ test('groups patchedDependencies according to names, version selectors, and vers
         '~1.2.0': info(true, 'version-range-only@~1.2.0'),
         4: info(true, 'version-range-only@4'),
       },
-      blank: undefined,
+      all: undefined,
     },
     'star-version-range': {
       exact: {},
       range: {},
-      blank: info(true, 'star-version-range@*'),
+      all: info(true, 'star-version-range@*'),
     },
     'without-versions': {
       exact: {},
       range: {},
-      blank: info(false, 'without-versions'),
+      all: info(false, 'without-versions'),
     },
     'mixed-style': {
       exact: {
@@ -84,7 +84,7 @@ test('groups patchedDependencies according to names, version selectors, and vers
       range: {
         '1.x.x': info(true, 'mixed-style@1.x.x'),
       },
-      blank: info(false, 'mixed-style'),
+      all: info(false, 'mixed-style'),
     },
   } as PatchGroupRecord)
 })

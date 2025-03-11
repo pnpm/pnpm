@@ -19,7 +19,7 @@ test('getPatchInfo() returns exact version if match', () => {
         },
       },
       range: {},
-      blank: undefined,
+      all: undefined,
     },
   } satisfies PatchGroupRecord
   expect(getPatchInfo(patchedDependencies, 'foo', '1.0.0')).toStrictEqual(patchedDependencies.foo.exact['1.0.0'])
@@ -42,7 +42,7 @@ test('getPatchInfo() returns range version if satisfied', () => {
           strict: true,
         },
       },
-      blank: undefined,
+      all: undefined,
     },
   } satisfies PatchGroupRecord
   expect(getPatchInfo(patchedDependencies, 'foo', '1.0.0')).toStrictEqual(patchedDependencies.foo.range[1])
@@ -51,12 +51,12 @@ test('getPatchInfo() returns range version if satisfied', () => {
   expect(getPatchInfo(patchedDependencies, 'bar', '1.0.0')).toBeUndefined()
 })
 
-test('getPatchInfo() returns blanket if name matches', () => {
+test('getPatchInfo() returns "all" if name matches', () => {
   const patchedDependencies = {
     foo: {
       exact: {},
       range: {},
-      blank: {
+      all: {
         file: {
           path: 'patches/foo.patch',
           hash: '00000000000000000000000000000000',
@@ -66,13 +66,13 @@ test('getPatchInfo() returns blanket if name matches', () => {
       },
     },
   } satisfies PatchGroupRecord
-  expect(getPatchInfo(patchedDependencies, 'foo', '1.0.0')).toStrictEqual(patchedDependencies.foo.blank)
-  expect(getPatchInfo(patchedDependencies, 'foo', '1.1.0')).toStrictEqual(patchedDependencies.foo.blank)
-  expect(getPatchInfo(patchedDependencies, 'foo', '2.0.0')).toStrictEqual(patchedDependencies.foo.blank)
+  expect(getPatchInfo(patchedDependencies, 'foo', '1.0.0')).toStrictEqual(patchedDependencies.foo.all)
+  expect(getPatchInfo(patchedDependencies, 'foo', '1.1.0')).toStrictEqual(patchedDependencies.foo.all)
+  expect(getPatchInfo(patchedDependencies, 'foo', '2.0.0')).toStrictEqual(patchedDependencies.foo.all)
   expect(getPatchInfo(patchedDependencies, 'bar', '1.0.0')).toBeUndefined()
 })
 
-test('exact version overrides version range, version range overrides blanket', () => {
+test('exact version overrides version range, version range overrides "all"', () => {
   const patchedDependencies = {
     foo: {
       exact: {
@@ -111,7 +111,7 @@ test('exact version overrides version range, version range overrides blanket', (
           strict: true,
         },
       },
-      blank: {
+      all: {
         file: {
           path: 'patches/foo.patch',
           hash: '00000000000000000000000000000000',
@@ -126,7 +126,7 @@ test('exact version overrides version range, version range overrides blanket', (
   expect(getPatchInfo(patchedDependencies, 'foo', '1.1.1')).toStrictEqual(patchedDependencies.foo.range[1])
   expect(getPatchInfo(patchedDependencies, 'foo', '2.0.0')).toStrictEqual(patchedDependencies.foo.range[2])
   expect(getPatchInfo(patchedDependencies, 'foo', '2.1.0')).toStrictEqual(patchedDependencies.foo.range[2])
-  expect(getPatchInfo(patchedDependencies, 'foo', '3.0.0')).toStrictEqual(patchedDependencies.foo.blank)
+  expect(getPatchInfo(patchedDependencies, 'foo', '3.0.0')).toStrictEqual(patchedDependencies.foo.all)
   expect(getPatchInfo(patchedDependencies, 'bar', '1.0.0')).toBeUndefined()
 })
 
@@ -152,7 +152,7 @@ test('getPatchInfo(_, name, version) throws an error when name@version matches m
           strict: true,
         },
       },
-      blank: undefined,
+      all: undefined,
     },
   } satisfies PatchGroupRecord
   expect(() => getPatchInfo(patchedDependencies, 'foo', '2.1.0')).toThrow(expect.objectContaining({

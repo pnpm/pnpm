@@ -9,8 +9,8 @@ export function * allPatchKeys (patchedDependencies: PatchGroupRecord): Generato
     for (const range in group.range) {
       yield group.range[range].key
     }
-    if (group.blank) {
-      yield group.blank.key
+    if (group.all) {
+      yield group.all.key
     }
   }
 }
