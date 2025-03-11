@@ -1461,8 +1461,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/git-utils
       '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
+        specifier: '>=5.1.0 <1001.0.0'
+        version: 1000.0.0
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../matcher
@@ -4160,8 +4160,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/error
       '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
+        specifier: '>=5.1.0 <1001.0.0'
+        version: 1000.0.0
       '@pnpm/patching.types':
         specifier: workspace:*
         version: link:../types

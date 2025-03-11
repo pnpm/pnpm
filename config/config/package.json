@@ -39,7 +39,6 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
-    "@pnpm/logger": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/npm-conf": "catalog:",
     "@pnpm/pnpmfile": "workspace:*",
@@ -59,6 +58,9 @@
     "read-ini-file": "catalog:",
     "realpath-missing": "catalog:",
     "which": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
   },
   "devDependencies": {
     "@pnpm/config": "workspace:*",

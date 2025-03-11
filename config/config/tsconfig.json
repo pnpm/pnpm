@@ -34,9 +34,6 @@
       "path": "../../packages/git-utils"
     },
     {
-      "path": "../../packages/logger"
-    },
-    {
       "path": "../../packages/types"
     },
     {
