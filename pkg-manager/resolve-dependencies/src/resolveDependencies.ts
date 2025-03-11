@@ -190,6 +190,12 @@ export type PkgAddress = {
   depIsLinked: boolean
   isNew: boolean
   isLinkedDependency?: false
+  /**
+   * Whether or not this package is an "injected" workspace dependency. This may
+   * be the case through the inject-workspace-packages setting, or
+   * dependenciesMeta.*.injected.
+   */
+  isInjected?: boolean
   nodeId: NodeId
   pkgId: PkgResolutionId
   normalizedPref?: string // is returned only for root dependencies
@@ -250,7 +256,7 @@ export interface ResolvedPackage {
   }
 }
 
-type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId'>
+type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId' | 'isInjected'>
 
 export type ParentPkgAliases = Record<string, PkgAddress | true>
 
@@ -1522,6 +1528,7 @@ async function resolveDependency (
   return {
     alias: wantedDependency.alias || pkg.name,
     depIsLinked,
+    isInjected: wantedDependency.injected === true || (ctx.injectWorkspacePackages === true && wantedDependency.pref.startsWith('workspace:')),
     isNew,
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
