@@ -190,6 +190,7 @@ export type PkgAddress = {
   depIsLinked: boolean
   isNew: boolean
   isLinkedDependency?: false
+  resolvedVia?: string
   nodeId: NodeId
   pkgId: PkgResolutionId
   normalizedPref?: string // is returned only for root dependencies
@@ -250,7 +251,7 @@ export interface ResolvedPackage {
   }
 }
 
-type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId'>
+type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId' | 'resolvedVia'>
 
 export type ParentPkgAliases = Record<string, PkgAddress | true>
 
@@ -1522,6 +1523,7 @@ async function resolveDependency (
   return {
     alias: wantedDependency.alias || pkg.name,
     depIsLinked,
+    resolvedVia: pkgResponse.body.resolvedVia,
     isNew,
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
