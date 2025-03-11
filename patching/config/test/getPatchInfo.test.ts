@@ -45,8 +45,8 @@ test('getPatchInfo() returns range version if satisfied', () => {
       all: undefined,
     },
   } satisfies PatchGroupRecord
-  expect(getPatchInfo(patchedDependencies, 'foo', '1.0.0')).toStrictEqual(patchedDependencies.foo.range[1])
-  expect(getPatchInfo(patchedDependencies, 'foo', '1.1.0')).toStrictEqual(patchedDependencies.foo.range[1])
+  expect(getPatchInfo(patchedDependencies, 'foo', '1.0.0')).toStrictEqual(patchedDependencies.foo.range['1'])
+  expect(getPatchInfo(patchedDependencies, 'foo', '1.1.0')).toStrictEqual(patchedDependencies.foo.range['1'])
   expect(getPatchInfo(patchedDependencies, 'foo', '2.0.0')).toBeUndefined()
   expect(getPatchInfo(patchedDependencies, 'bar', '1.0.0')).toBeUndefined()
 })
