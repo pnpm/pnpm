@@ -31,8 +31,6 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/catalogs.resolver": "workspace:*",
-    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/config": "workspace:*",
