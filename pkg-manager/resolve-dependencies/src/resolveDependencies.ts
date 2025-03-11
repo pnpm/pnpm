@@ -1,5 +1,5 @@
 import path from 'path'
-import { matchCatalogResolveResult, type CatalogResolver } from '@pnpm/catalogs.resolver'
+import { type CatalogResolution, matchCatalogResolveResult, type CatalogResolver } from '@pnpm/catalogs.resolver'
 import {
   deprecationLogger,
   progressLogger,
@@ -551,18 +551,10 @@ async function resolveDependenciesOfImporterDependency (
   const originalPref = extendedWantedDep.wantedDependency.pref
 
   if (catalogLookup != null) {
-    // The lockfile from a previous installation may have already resolved this
-    // cataloged dependency. Reuse the exact version in the lockfile catalog
-    // snapshot to ensure all projects using the same cataloged dependency get
-    // the same version.
-    const existingCatalogResolution = ctx.wantedLockfile.catalogs
-      ?.[catalogLookup.catalogName]
-      ?.[extendedWantedDep.wantedDependency.alias]
-    const replacementPref = existingCatalogResolution?.specifier === catalogLookup.specifier
-      ? replaceVersionInPref(catalogLookup.specifier, existingCatalogResolution.version)
-      : catalogLookup.specifier
-
-    extendedWantedDep.wantedDependency.pref = replacementPref
+    extendedWantedDep.wantedDependency.pref = getCatalogReplacementPref(
+      catalogLookup,
+      ctx.wantedLockfile,
+      extendedWantedDep.wantedDependency)
   }
 
   const result = await resolveDependenciesOfDependency(
@@ -1650,4 +1642,23 @@ function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {
     }
   }
   return result
+}
+
+function getCatalogReplacementPref (
+  catalogLookup: CatalogResolution,
+  wantedLockfile: LockfileObject,
+  wantedDependency: WantedDependency
+): string {
+  // The lockfile from a previous installation may have already resolved this
+  // cataloged dependency. Reuse the exact version in the lockfile catalog
+  // snapshot to ensure all projects using the same cataloged dependency get the
+  // same version.
+  const existingCatalogResolution = wantedLockfile.catalogs
+    ?.[catalogLookup.catalogName]
+    ?.[wantedDependency.alias]
+  const replacementPref = existingCatalogResolution?.specifier === catalogLookup.specifier
+    ? replaceVersionInPref(catalogLookup.specifier, existingCatalogResolution.version)
+    : catalogLookup.specifier
+
+  return replacementPref
 }
