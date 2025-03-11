@@ -89,14 +89,6 @@ export async function runRecursive (
 
   const result = createEmptyRecursiveSummary(packageChunks)
 
-  let extraEnv = opts.extraEnv
-  if (opts.nodeOptions) {
-    extraEnv = {
-      ...opts.extraEnv,
-      NODE_OPTIONS: opts.nodeOptions,
-    }
-  }
-
   for (const chunk of packageChunks) {
     const selectedScripts = chunk.map(prefix => {
       const pkg = opts.selectedProjectsGraph[prefix]
@@ -125,7 +117,7 @@ export async function runRecursive (
           const lifecycleOpts: RunLifecycleHookOptions = {
             depPath: prefix,
             extraBinPaths: opts.extraBinPaths,
-            extraEnv,
+            extraEnv: opts.extraEnv,
             pkgRoot: prefix,
             rawConfig: opts.rawConfig,
             rootModulesDir: await realpathMissing(path.join(prefix, 'node_modules')),
