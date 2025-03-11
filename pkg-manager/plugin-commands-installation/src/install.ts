@@ -323,6 +323,7 @@ export type InstallCommandOptions = Pick<Config,
   frozenLockfileIfExists?: boolean
   useBetaCli?: boolean
   pruneDirectDependencies?: boolean
+  pruneLockfileImporters?: boolean
   pruneStore?: boolean
   recursive?: boolean
   resolutionOnly?: boolean
