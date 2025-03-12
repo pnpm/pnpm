@@ -157,7 +157,7 @@ test('getPatchInfo(_, name, version) throws an error when name@version matches m
           version: '>=2.0.0',
           patch: {
             file: {
-              path: 'patches/foo_a.patch',
+              path: 'patches/foo_b.patch',
               hash: '00000000000000000000000000000000',
             },
             key: 'foo@>=2.0.0',
