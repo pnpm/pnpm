@@ -10,7 +10,7 @@ function sanitizePatchGroupRecord (patchGroups: PatchGroupRecord): PatchGroupRec
 
 const _groupPatchedDependencies: typeof groupPatchedDependencies = patchedDependencies => sanitizePatchGroupRecord(groupPatchedDependencies(patchedDependencies))
 
-test('groups patchedDependencies according to names, version selectors, and versions', () => {
+test('groups patchedDependencies according to names, match types, and versions', () => {
   const patchedDependencies = {
     'exact-version-only@0.0.0': {
       hash: '00000000000000000000000000000000',
