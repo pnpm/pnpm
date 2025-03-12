@@ -137,7 +137,7 @@ test('exact version patches override version range patches, version range patche
   expect(getPatchInfo(patchedDependencies, 'bar', '1.0.0')).toBeUndefined()
 })
 
-test('getPatchInfo(_, name, version) throws an error when name@version matches more than one version ranges', () => {
+test('getPatchInfo(_, name, version) throws an error when name@version matches more than one version range patches', () => {
   const patchedDependencies = {
     foo: {
       exact: {},
