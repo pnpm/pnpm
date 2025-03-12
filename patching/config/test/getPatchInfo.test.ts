@@ -5,7 +5,7 @@ test('getPatchInfo(undefined, ...) returns undefined', () => {
   expect(getPatchInfo(undefined, 'foo', '1.0.0')).toBeUndefined()
 })
 
-test('getPatchInfo() returns exact version if match', () => {
+test('getPatchInfo() returns an exact version patch if the name and version match', () => {
   const patchedDependencies = {
     foo: {
       exact: {
@@ -28,7 +28,7 @@ test('getPatchInfo() returns exact version if match', () => {
   expect(getPatchInfo(patchedDependencies, 'bar', '1.0.0')).toBeUndefined()
 })
 
-test('getPatchInfo() returns range version if satisfied', () => {
+test('getPatchInfo() returns a range version patch if the name matches and the version satisfied', () => {
   const patchedDependencies = {
     foo: {
       exact: {},
@@ -52,7 +52,7 @@ test('getPatchInfo() returns range version if satisfied', () => {
   expect(getPatchInfo(patchedDependencies, 'bar', '1.0.0')).toBeUndefined()
 })
 
-test('getPatchInfo() returns "all" if name matches', () => {
+test('getPatchInfo() returns name-only patch if the name matches', () => {
   const patchedDependencies = {
     foo: {
       exact: {},
@@ -73,7 +73,7 @@ test('getPatchInfo() returns "all" if name matches', () => {
   expect(getPatchInfo(patchedDependencies, 'bar', '1.0.0')).toBeUndefined()
 })
 
-test('exact version overrides version range, version range overrides "all"', () => {
+test('exact version patches override version range patches, version range patches override name-only patches', () => {
   const patchedDependencies = {
     foo: {
       exact: {
