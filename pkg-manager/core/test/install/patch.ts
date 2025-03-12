@@ -566,7 +566,7 @@ test('patch package should print a warning when the patch fails to apply and all
   }))
 })
 
-test('patch package should print a warning when the versionless patch fails to apply (legacy behavior)', async () => {
+test('patch package should print a warning when the name-only patch fails to apply (legacy behavior)', async () => {
   prepareEmpty()
   const reporter = jest.fn()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
@@ -593,7 +593,7 @@ test('patch package should print a warning when the versionless patch fails to a
   }))
 })
 
-test('patch package should fail when the versionless range patch fails to apply and allowPatchFailure is explicitly set to false', async () => {
+test('patch package should fail when the name-only range patch fails to apply and allowPatchFailure is explicitly set to false', async () => {
   prepareEmpty()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 

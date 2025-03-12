@@ -152,7 +152,7 @@ describe('strictPatches=undefined', () => {
     expect(errorLines).toStrictEqual([expect.stringContaining('is-positive@3.1.0')])
   })
 
-  test('allows versionless patches to fail with a warning', async () => {
+  test('allows name-only patches to fail with a warning', async () => {
     preparePackages([
       {
         name: 'foo',
@@ -357,7 +357,7 @@ describe('strictPatches=false', () => {
     expect(fs.readFileSync('bar/node_modules/is-positive/index.js', 'utf-8')).not.toContain('// patched')
   })
 
-  test('allows versionless patches to fail with a warning', async () => {
+  test('allows name-only patches to fail with a warning', async () => {
     preparePackages([
       {
         name: 'foo',
@@ -551,7 +551,7 @@ describe('strictPatches=true', () => {
     expect(errorLines).toStrictEqual([expect.stringContaining('is-positive@3.1.0')])
   })
 
-  test('allows versionless patches to fail with a warning', async () => {
+  test('allows name-only patches to fail with a warning', async () => {
     preparePackages([
       {
         name: 'foo',
