@@ -93,26 +93,6 @@ test('getOptionsFromRootManifest() should return the list from onlyBuiltDependen
   expect(options.onlyBuiltDependencies).toStrictEqual(['electron'])
 })
 
-test('getOptionsFromRootManifest() should derive ignorePatchFailures and allowUnusedPatch from strictPatches', () => {
-  expect(getOptionsFromRootManifest(process.cwd(), {
-    pnpm: {
-      strictPatches: true,
-    },
-  })).toMatchObject({
-    allowUnusedPatches: false,
-    ignorePatchFailures: false,
-  })
-
-  expect(getOptionsFromRootManifest(process.cwd(), {
-    pnpm: {
-      strictPatches: false,
-    },
-  })).toMatchObject({
-    allowUnusedPatches: true,
-    ignorePatchFailures: true,
-  })
-})
-
 test('getOptionsFromRootManifest() should derive allowUnusedPatches from allowNonAppliedPatches', () => {
   expect(getOptionsFromRootManifest(process.cwd(), {
     pnpm: {
@@ -128,24 +108,6 @@ test('getOptionsFromRootManifest() should derive allowUnusedPatches from allowNo
     },
   })).toMatchObject({
     allowUnusedPatches: true,
-  })
-})
-
-describe('strictPatches, when defined, should override allowNonAppliedPatches', () => {
-  test.each([
-    [undefined, false, false], // `strictPatches` is undefined, use `allowNonAppliedPatches`
-    [false, false, true], // `strictPatches` is defined, use `!strictPatches`
-    [true, false, false], // `strictPatches` is defined, use `!strictPatches`
-    [undefined, true, true], // `strictPatches` is undefined, use `allowNonAppliedPatches`
-    [false, true, true], // `strictPatches` is defined, use `!strictPatches`
-    [true, true, false], // `strictPatches` is defined, use `!strictPatches`
-  ])('{ strictPatches: %o, allowNonAppliedPatches: %o } → { allowUnusedPatches: %o }', (strictPatches, allowNonAppliedPatches, allowUnusedPatches) => {
-    expect(getOptionsFromRootManifest(process.cwd(), {
-      pnpm: {
-        strictPatches,
-        allowNonAppliedPatches,
-      },
-    })).toMatchObject({ allowUnusedPatches })
   })
 })
 

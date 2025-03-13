@@ -6,37 +6,7 @@ import { execPnpmSync } from '../utils'
 
 const f = fixtures(__dirname)
 
-describe('strictPatches=undefined', () => {
-  test('errors on unused patches', async () => {
-    preparePackages([
-      {
-        name: 'foo',
-        version: '0.0.0',
-        private: true,
-      },
-      {
-        name: 'bar',
-        version: '0.0.0',
-        private: true,
-      },
-    ])
-
-    const patchFile = f.find('patch-pkg/is-positive@1.0.0.patch')
-
-    writeYamlFile('pnpm-workspace.yaml', {
-      packages: ['**', '!store/**'],
-      patchedDependencies: {
-        'is-positive': patchFile,
-      },
-    })
-
-    // pnpm install should fail
-    const { status, stdout } = execPnpmSync(['install'])
-    expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_UNUSED_PATCH')
-    expect(stdout.toString()).toContain('The following patches were not used: is-positive')
-  })
-
+describe('ignorePatchFailures=undefined', () => {
   test('errors on exact version patch failures', async () => {
     preparePackages([
       {
@@ -152,7 +122,7 @@ describe('strictPatches=undefined', () => {
     expect(errorLines).toStrictEqual([expect.stringContaining('is-positive@3.1.0')])
   })
 
-  test('allows name-only patches to fail with a warning', async () => {
+  test('allows name-only patches to fail with a warning (legacy behavior)', async () => {
     preparePackages([
       {
         name: 'foo',
@@ -195,38 +165,7 @@ describe('strictPatches=undefined', () => {
   })
 })
 
-describe('strictPatches=false', () => {
-  test('warns about unused patches', async () => {
-    preparePackages([
-      {
-        name: 'foo',
-        version: '0.0.0',
-        private: true,
-      },
-      {
-        name: 'bar',
-        version: '0.0.0',
-        private: true,
-      },
-    ])
-
-    const patchFile = f.find('patch-pkg/is-positive@1.0.0.patch')
-
-    writeYamlFile('pnpm-workspace.yaml', {
-      packages: ['**', '!store/**'],
-      patchedDependencies: {
-        'is-positive': patchFile,
-      },
-      strictPatches: false,
-    })
-
-    // pnpm install should not fail
-    const { stdout } = execPnpmSync(['install'], { expectSuccess: true })
-
-    // pnpm install should print a warning regarding unused patches
-    expect(stdout.toString()).toContain('The following patches were not used: is-positive')
-  })
-
+describe('ignorePatchFailures=true', () => {
   test('allows exact version patches to fail with a warning', async () => {
     preparePackages([
       {
@@ -255,7 +194,7 @@ describe('strictPatches=false', () => {
         'is-positive@1.0.0': patchFile, // should succeed
         'is-positive@3.1.0': patchFile, // should fail
       },
-      strictPatches: false,
+      ignorePatchFailures: true,
     })
 
     // pnpm install should not fail
@@ -298,7 +237,7 @@ describe('strictPatches=false', () => {
       patchedDependencies: {
         'is-positive@>=1': patchFile,
       },
-      strictPatches: false,
+      ignorePatchFailures: true,
     })
 
     // pnpm install should not fail
@@ -341,7 +280,7 @@ describe('strictPatches=false', () => {
       patchedDependencies: {
         'is-positive@*': patchFile,
       },
-      strictPatches: false,
+      ignorePatchFailures: true,
     })
 
     // pnpm install should not fail
@@ -384,7 +323,7 @@ describe('strictPatches=false', () => {
       patchedDependencies: {
         'is-positive': patchFile,
       },
-      strictPatches: false,
+      ignorePatchFailures: true,
     })
 
     // pnpm install should not fail
@@ -401,38 +340,7 @@ describe('strictPatches=false', () => {
   })
 })
 
-describe('strictPatches=true', () => {
-  test('errors on unused patches', async () => {
-    preparePackages([
-      {
-        name: 'foo',
-        version: '0.0.0',
-        private: true,
-      },
-      {
-        name: 'bar',
-        version: '0.0.0',
-        private: true,
-      },
-    ])
-
-    const patchFile = f.find('patch-pkg/is-positive@1.0.0.patch')
-
-    writeYamlFile('pnpm-workspace.yaml', {
-      packages: ['**', '!store/**'],
-      patchedDependencies: {
-        'is-positive': patchFile,
-      },
-      strictPatches: true,
-    })
-
-    // pnpm install should fail
-    const { status, stdout } = execPnpmSync(['install'])
-    expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_UNUSED_PATCH')
-    expect(stdout.toString()).toContain('The following patches were not used: is-positive')
-  })
-
+describe('ignorePatchFailures=false', () => {
   test('errors on exact version patch failures', async () => {
     preparePackages([
       {
@@ -461,7 +369,7 @@ describe('strictPatches=true', () => {
         'is-positive@1.0.0': patchFile, // should succeed
         'is-positive@3.1.0': patchFile, // should fail
       },
-      strictPatches: true,
+      ignorePatchFailures: false,
     })
 
     // pnpm install should fail
@@ -500,7 +408,7 @@ describe('strictPatches=true', () => {
       patchedDependencies: {
         'is-positive@>=1': patchFile,
       },
-      strictPatches: true,
+      ignorePatchFailures: false,
     })
 
     // pnpm install not fail
@@ -539,7 +447,7 @@ describe('strictPatches=true', () => {
       patchedDependencies: {
         'is-positive@*': patchFile,
       },
-      strictPatches: true,
+      ignorePatchFailures: false,
     })
 
     // pnpm install not fail
@@ -578,7 +486,7 @@ describe('strictPatches=true', () => {
       patchedDependencies: {
         'is-positive': patchFile,
       },
-      strictPatches: true,
+      ignorePatchFailures: false,
     })
 
     // pnpm install should fail

@@ -14,8 +14,8 @@ import { globalWarn } from '@pnpm/logger'
 
 export type OptionsFromRootManifest = {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
-  allowUnusedPatches?: boolean // derived from either strictPatches or allowNonAppliedPatches
-  ignorePatchFailures?: boolean // derived from strictPatches
+  allowUnusedPatches?: boolean // derived from allowNonAppliedPatches
+  ignorePatchFailures?: boolean
   overrides?: Record<string, string>
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
@@ -36,6 +36,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
       'configDependencies',
       'ignoredBuiltDependencies',
       'ignoredOptionalDependencies',
+      'ignorePatchFailures',
       'neverBuiltDependencies',
       'onlyBuiltDependencies',
       'onlyBuiltDependenciesFile',
@@ -43,7 +44,6 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
       'packageExtensions',
       'patchedDependencies',
       'peerDependencyRules',
-      'strictPatches',
       'supportedArchitectures',
     ], manifest.pnpm ?? {}),
     // We read Yarn's resolutions field for compatibility
@@ -77,11 +77,11 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
     }
   }
   if (pnpmSettings.allowNonAppliedPatches != null) {
-    globalWarn(`allowNonAppliedPatches is deprecated. Please set strictPatches to ${!pnpmSettings.allowNonAppliedPatches} instead.`)
+    globalWarn(`allowNonAppliedPatches is deprecated.`)
     settings.allowUnusedPatches = pnpmSettings.allowNonAppliedPatches
   }
-  if (pnpmSettings.strictPatches != null) {
-    settings.ignorePatchFailures = settings.allowUnusedPatches = !pnpmSettings.strictPatches
+  if (pnpmSettings.ignorePatchFailures != null) {
+    settings.ignorePatchFailures = pnpmSettings.ignorePatchFailures
   }
   return settings
 }
