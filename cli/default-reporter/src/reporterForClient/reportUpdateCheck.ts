@@ -22,7 +22,7 @@ export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
       return Rx.of({
         msg: boxen(`\
 Update available! ${chalk.red(log.currentVersion)} → ${chalk.green(log.latestVersion)}.
-${chalk.magenta('Changelog:')} https://github.com/pnpm/pnpm/releases/tag/v${log.latestVersion}
+${chalk.magenta('Changelog:')} https://pnpm.io/v/${log.latestVersion}
 ${updateMessage}`,
         {
           padding: 1,
@@ -45,7 +45,7 @@ interface UpdateMessageOptions {
 
 function renderUpdateMessage (opts: UpdateMessageOptions): string {
   const updateCommand = renderUpdateCommand(opts)
-  return `Run "${chalk.magenta(updateCommand)}" to update.`
+  return `To update, run: ${chalk.magenta(updateCommand)}`
 }
 
 function renderUpdateCommand (opts: UpdateMessageOptions): string {
