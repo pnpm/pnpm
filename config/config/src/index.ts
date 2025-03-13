@@ -346,18 +346,6 @@ export async function getConfig (opts: {
 
   pnpmConfig.packageManager = packageManager
 
-  if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {
-    pnpmConfig.production = true
-    pnpmConfig.dev = false
-  } else if (pnpmConfig.only === 'dev' || pnpmConfig.only === 'development' || pnpmConfig.dev) {
-    pnpmConfig.production = false
-    pnpmConfig.dev = true
-    pnpmConfig.optional = false
-  } else {
-    pnpmConfig.production = true
-    pnpmConfig.dev = true
-  }
-
   if (typeof pnpmConfig.filter === 'string') {
     pnpmConfig.filter = (pnpmConfig.filter as string).split(' ')
   }
@@ -510,6 +498,18 @@ export async function getConfig (opts: {
   }
 
   pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig
+
+  if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {
+    pnpmConfig.production = true
+    pnpmConfig.dev = false
+  } else if (pnpmConfig.only === 'dev' || pnpmConfig.only === 'development' || pnpmConfig.dev) {
+    pnpmConfig.production = false
+    pnpmConfig.dev = true
+    pnpmConfig.optional = false
+  } else {
+    pnpmConfig.production = true
+    pnpmConfig.dev = true
+  }
 
   return { config: pnpmConfig, warnings }
 }
