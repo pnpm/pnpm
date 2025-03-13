@@ -202,6 +202,13 @@ export async function handler (
     await runDepsStatusCheck(opts)
   }
 
+  if (opts.nodeOptions) {
+    opts.extraEnv = {
+      ...opts.extraEnv,
+      NODE_OPTIONS: opts.nodeOptions,
+    }
+  }
+
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
       return runRecursive(params, opts) as Promise<undefined>
@@ -258,15 +265,10 @@ so you may run "pnpm -w run ${scriptName}"`,
   }
   const concurrency = opts.workspaceConcurrency ?? 4
 
-  const extraEnv = {
-    ...opts.extraEnv,
-    ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
-  }
-
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
     extraBinPaths: opts.extraBinPaths,
-    extraEnv,
+    extraEnv: opts.extraEnv,
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),

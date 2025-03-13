@@ -124,7 +124,7 @@ test('dlx --package <pkg1> [--package <pkg2>]', async () => {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     package: [
-      'zkochan/for-testing-pnpm-dlx',
+      '@pnpm.e2e/for-testing-pnpm-dlx',
       'is-positive',
     ],
   }, ['foo'])
