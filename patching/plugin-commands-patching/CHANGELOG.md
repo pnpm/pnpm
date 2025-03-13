@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.1.3
+
+### Patch Changes
+
+- 968b85b: When `terminalLink` is not supported, it should fallback to the default text.
+- Updated dependencies [b4efd0e]
+- Updated dependencies [6e4459c]
+- Updated dependencies [cda1c43]
+  - @pnpm/plugin-commands-installation@1002.2.0
+  - @pnpm/config@1002.5.3
+  - @pnpm/cli-utils@1000.0.16
+  - @pnpm/store-connection-manager@1000.0.15
+
 ## 1000.1.2
 
 ### Patch Changes

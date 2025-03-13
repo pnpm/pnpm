@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.find-packages",
-  "version": "1000.0.15",
+  "version": "1000.0.16",
   "description": "Finds packages inside a workspace",
   "keywords": [
     "pnpm",

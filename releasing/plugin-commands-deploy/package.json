@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-deploy",
-  "version": "1001.1.13",
+  "version": "1001.1.14",
   "description": "Commands for deploy",
   "keywords": [
     "pnpm",
