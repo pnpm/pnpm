@@ -6,7 +6,7 @@ import { execPnpmSync } from '../utils'
 
 const f = fixtures(__dirname)
 
-describe('ignorePatchFailures=undefined', () => {
+describe('ignorePatchFailures=undefined (necessary for backward-compatibility)', () => {
   test('errors on exact version patch failures', async () => {
     preparePackages([
       {
