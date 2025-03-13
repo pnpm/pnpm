@@ -93,14 +93,14 @@ test('getOptionsFromRootManifest() should return the list from onlyBuiltDependen
   expect(options.onlyBuiltDependencies).toStrictEqual(['electron'])
 })
 
-test('getOptionsFromRootManifest() should derive allowPatchFailure and allowUnusedPatch from strictPatches', () => {
+test('getOptionsFromRootManifest() should derive ignorePatchFailures and allowUnusedPatch from strictPatches', () => {
   expect(getOptionsFromRootManifest(process.cwd(), {
     pnpm: {
       strictPatches: true,
     },
   })).toMatchObject({
-    allowPatchFailure: false,
     allowUnusedPatches: false,
+    ignorePatchFailures: false,
   })
 
   expect(getOptionsFromRootManifest(process.cwd(), {
@@ -108,8 +108,8 @@ test('getOptionsFromRootManifest() should derive allowPatchFailure and allowUnus
       strictPatches: false,
     },
   })).toMatchObject({
-    allowPatchFailure: true,
     allowUnusedPatches: true,
+    ignorePatchFailures: true,
   })
 })
 

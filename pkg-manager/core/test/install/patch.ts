@@ -538,7 +538,7 @@ test('patch package should fail when the version range patch fails to apply', as
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
 })
 
-test('patch package should print a warning when the patch fails to apply and allowPatchFailure is set to true', async () => {
+test('patch package should print a warning when the patch fails to apply and ignorePatchFailures is set to true', async () => {
   prepareEmpty()
   const reporter = jest.fn()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
@@ -547,8 +547,8 @@ test('patch package should print a warning when the patch fails to apply and all
     'is-positive@3.1.0': patchPath,
   }
   const opts = testDefaults({
-    allowPatchFailure: true,
     fastUnpack: false,
+    ignorePatchFailures: true,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     patchedDependencies,
@@ -593,7 +593,7 @@ test('patch package should print a warning when the name-only patch fails to app
   }))
 })
 
-test('patch package should fail when the name-only range patch fails to apply and allowPatchFailure is explicitly set to false', async () => {
+test('patch package should fail when the name-only range patch fails to apply and ignorePatchFailures is explicitly set to false', async () => {
   prepareEmpty()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
@@ -601,8 +601,8 @@ test('patch package should fail when the name-only range patch fails to apply an
     'is-positive': patchPath,
   }
   const opts = testDefaults({
-    allowPatchFailure: false,
     fastUnpack: false,
+    ignorePatchFailures: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     patchedDependencies,

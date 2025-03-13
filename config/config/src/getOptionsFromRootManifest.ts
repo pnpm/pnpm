@@ -15,7 +15,7 @@ import { globalWarn } from '@pnpm/logger'
 export type OptionsFromRootManifest = {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowUnusedPatches?: boolean // derived from either strictPatches or allowNonAppliedPatches
-  allowPatchFailure?: boolean // derived from strictPatches
+  ignorePatchFailures?: boolean // derived from strictPatches
   overrides?: Record<string, string>
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
@@ -81,7 +81,7 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
     settings.allowUnusedPatches = pnpmSettings.allowNonAppliedPatches
   }
   if (pnpmSettings.strictPatches != null) {
-    settings.allowPatchFailure = settings.allowUnusedPatches = !pnpmSettings.strictPatches
+    settings.ignorePatchFailures = settings.allowUnusedPatches = !pnpmSettings.strictPatches
   }
   return settings
 }

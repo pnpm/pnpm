@@ -112,7 +112,7 @@ export interface StrictInstallOptions {
   enableModulesDir: boolean
   modulesCacheMaxAge: number
   allowedDeprecatedVersions: AllowedDeprecatedVersions
-  allowPatchFailure?: boolean
+  ignorePatchFailures?: boolean
   allowUnusedPatches: boolean
   preferSymlinkedExecutables: boolean
   resolutionMode: 'highest' | 'time-based' | 'lowest-direct'
@@ -171,7 +171,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
   return {
     allowedDeprecatedVersions: {},
     allowUnusedPatches: false,
-    allowPatchFailure: undefined,
+    ignorePatchFailures: undefined,
     autoInstallPeers: true,
     autoInstallPeersFromHighestMatch: false,
     childConcurrency: 5,
