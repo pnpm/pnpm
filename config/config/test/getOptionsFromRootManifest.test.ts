@@ -93,7 +93,7 @@ test('getOptionsFromRootManifest() should return the list from onlyBuiltDependen
   expect(options.onlyBuiltDependencies).toStrictEqual(['electron'])
 })
 
-test('getOptionsFromRootManifest() should derive allowUnusedPatches from allowNonAppliedPatches', () => {
+test('getOptionsFromRootManifest() should derive allowUnusedPatches from allowNonAppliedPatches (legacy behavior)', () => {
   expect(getOptionsFromRootManifest(process.cwd(), {
     pnpm: {
       allowNonAppliedPatches: false,
