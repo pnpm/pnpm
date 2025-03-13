@@ -61,7 +61,7 @@ export async function getPeerDependencyIssues (
     {
       currentLockfile: ctx.currentLockfile,
       allowedDeprecatedVersions: {},
-      allowNonAppliedPatches: false,
+      allowUnusedPatches: false,
       catalogs: opts.catalogs,
       defaultUpdateDepth: -1,
       dedupePeerDependents: opts.dedupePeerDependents,

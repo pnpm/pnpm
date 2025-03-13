@@ -92,6 +92,7 @@
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
+    "@pnpm/patching.config": "workspace:*",
     "@pnpm/pkg-manager.direct-dep-linker": "workspace:*",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",

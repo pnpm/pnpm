@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../../packages/dependency-path"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
       "path": "../types"
     }
   ]

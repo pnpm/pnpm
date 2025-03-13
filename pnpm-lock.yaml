@@ -1460,6 +1460,9 @@ importers:
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
+      '@pnpm/logger':
+        specifier: '>=5.1.0 <1001.0.0'
+        version: 1000.0.0
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../matcher
@@ -4150,13 +4153,28 @@ importers:
 
   patching/config:
     dependencies:
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/logger':
+        specifier: '>=5.1.0 <1001.0.0'
+        version: 1000.0.0
       '@pnpm/patching.types':
         specifier: workspace:*
         version: link:../types
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.1
     devDependencies:
       '@pnpm/patching.config':
         specifier: workspace:*
         version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
 
   patching/plugin-commands-patching:
     dependencies:
@@ -4456,6 +4474,9 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
+      '@pnpm/patching.config':
+        specifier: workspace:*
+        version: link:../../patching/config
       '@pnpm/pkg-manager.direct-dep-linker':
         specifier: workspace:*
         version: link:../direct-dep-linker

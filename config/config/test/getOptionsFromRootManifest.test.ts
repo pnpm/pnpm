@@ -93,6 +93,62 @@ test('getOptionsFromRootManifest() should return the list from onlyBuiltDependen
   expect(options.onlyBuiltDependencies).toStrictEqual(['electron'])
 })
 
+test('getOptionsFromRootManifest() should derive allowUnusedPatches from allowNonAppliedPatches (legacy behavior)', () => {
+  expect(getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      allowNonAppliedPatches: false,
+    },
+  })).toStrictEqual({
+    allowUnusedPatches: false,
+  })
+
+  expect(getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      allowNonAppliedPatches: true,
+    },
+  })).toStrictEqual({
+    allowUnusedPatches: true,
+  })
+})
+
+test('allowUnusedPatches should override allowNonAppliedPatches', () => {
+  expect(getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      allowNonAppliedPatches: false,
+      allowUnusedPatches: false,
+    },
+  })).toStrictEqual({
+    allowUnusedPatches: false,
+  })
+
+  expect(getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      allowNonAppliedPatches: true,
+      allowUnusedPatches: false,
+    },
+  })).toStrictEqual({
+    allowUnusedPatches: false,
+  })
+
+  expect(getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      allowNonAppliedPatches: false,
+      allowUnusedPatches: false,
+    },
+  })).toStrictEqual({
+    allowUnusedPatches: false,
+  })
+
+  expect(getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      allowNonAppliedPatches: true,
+      allowUnusedPatches: false,
+    },
+  })).toStrictEqual({
+    allowUnusedPatches: false,
+  })
+})
+
 test('getOptionsFromRootManifest() should return patchedDependencies', () => {
   const options = getOptionsFromRootManifest(process.cwd(), {
     pnpm: {

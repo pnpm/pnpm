@@ -14,7 +14,7 @@ import { testDefaults } from '../utils'
 
 const f = fixtures(__dirname)
 
-test('patch package', async () => {
+test('patch package with exact version', async () => {
   const reporter = sinon.spy()
   const project = prepareEmpty()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
@@ -109,7 +109,102 @@ test('patch package', async () => {
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
 })
 
-test('patch package reports warning if not all patches are applied and allowNonAppliedPatches is set', async () => {
+test('patch package with version range', async () => {
+  const reporter = sinon.spy()
+  const project = prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+
+  const patchedDependencies = {
+    'is-positive@1': patchPath,
+  }
+  const opts = testDefaults({
+    neverBuiltDependencies: undefined,
+    onlyBuiltDependencies: [],
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies,
+    reporter,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, opts)
+
+  expect(reporter.calledWithMatch({
+    packageNames: [],
+    level: 'debug',
+    name: 'pnpm:ignored-scripts',
+  } as IgnoredScriptsLog)).toBeTruthy()
+
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
+
+  const patchFileHash = await createHexHashFromFile(patchPath)
+  const lockfile = project.readLockfile()
+  expect(lockfile.patchedDependencies).toStrictEqual({
+    'is-positive@1': {
+      path: path.relative(process.cwd(), patchedDependencies['is-positive@1']).replaceAll('\\', '/'),
+      hash: patchFileHash,
+    },
+  })
+  expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
+
+  const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
+  const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
+  const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
+  const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey].added?.['index.js']?.integrity
+  expect(patchedFileIntegrity).toBeTruthy()
+  const originalFileIntegrity = filesIndex.files['index.js'].integrity
+  expect(originalFileIntegrity).toBeTruthy()
+  // The integrity of the original file differs from the integrity of the patched file
+  expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
+
+  // The same with frozen lockfile
+  rimraf('node_modules')
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, {
+    ...opts,
+    frozenLockfile: true,
+  })
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
+
+  // The same with frozen lockfile and hoisted node_modules
+  rimraf('node_modules')
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, {
+    ...opts,
+    frozenLockfile: true,
+    nodeLinker: 'hoisted',
+  })
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
+
+  process.chdir('..')
+  fs.mkdirSync('project2')
+  process.chdir('project2')
+
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    offline: true,
+  }, {}, {}, { packageImportMethod: 'hardlink' }))
+
+  // The original file did not break, when a patched version was created
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
+})
+
+test('patch package reports warning if not all patches are applied and allowUnusedPatches is set', async () => {
   prepareEmpty()
   const reporter = jest.fn()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
@@ -123,7 +218,7 @@ test('patch package reports warning if not all patches are applied and allowNonA
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     patchedDependencies,
-    allowNonAppliedPatches: true,
+    allowUnusedPatches: true,
     reporter,
   }, {}, {}, { packageImportMethod: 'hardlink' })
   await install({
@@ -134,7 +229,7 @@ test('patch package reports warning if not all patches are applied and allowNonA
   expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
       level: 'warn',
-      message: 'The following patches were not applied: is-negative@1.0.0',
+      message: 'The following patches were not used: is-negative@1.0.0',
     })
   )
 })
@@ -159,7 +254,7 @@ test('patch package throws an exception if not all patches are applied', async (
         'is-positive': '1.0.0',
       },
     }, opts)
-  ).rejects.toThrow('The following patches were not applied: is-negative@1.0.0')
+  ).rejects.toThrow('The following patches were not used: is-negative@1.0.0')
 })
 
 test('the patched package is updated if the patch is modified', async () => {
@@ -399,7 +494,7 @@ test('patch package when the patched package has no dependencies and appears mul
   ].sort())
 })
 
-test('patch package should fail when the patch could not be applied', async () => {
+test('patch package should fail when the exact version patch fails to apply', async () => {
   prepareEmpty()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
@@ -408,6 +503,106 @@ test('patch package should fail when the patch could not be applied', async () =
   }
   const opts = testDefaults({
     fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await expect(install({
+    dependencies: {
+      'is-positive': '3.1.0',
+    },
+  }, opts)).rejects.toThrow(/Could not apply patch/)
+
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
+})
+
+test('patch package should fail when the version range patch fails to apply', async () => {
+  prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+
+  const patchedDependencies = {
+    'is-positive@>=3': patchPath,
+  }
+  const opts = testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await expect(install({
+    dependencies: {
+      'is-positive': '3.1.0',
+    },
+  }, opts)).rejects.toThrow(/Could not apply patch/)
+
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
+})
+
+test('patch package should print a warning when the patch fails to apply and ignorePatchFailures is set to true', async () => {
+  prepareEmpty()
+  const reporter = jest.fn()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+
+  const patchedDependencies = {
+    'is-positive@3.1.0': patchPath,
+  }
+  const opts = testDefaults({
+    fastUnpack: false,
+    ignorePatchFailures: true,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies,
+    reporter,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await install({
+    dependencies: {
+      'is-positive': '3.1.0',
+    },
+  }, opts)
+
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringMatching(/Could not apply patch/),
+  }))
+})
+
+test('patch package should print a warning when the name-only patch fails to apply (legacy behavior)', async () => {
+  prepareEmpty()
+  const reporter = jest.fn()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+
+  const patchedDependencies = {
+    'is-positive': patchPath,
+  }
+  const opts = testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies,
+    reporter,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await install({
+    dependencies: {
+      'is-positive': '3.1.0',
+    },
+  }, opts)
+
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringMatching(/Could not apply patch/),
+  }))
+})
+
+test('patch package should fail when the name-only range patch fails to apply and ignorePatchFailures is explicitly set to false', async () => {
+  prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+
+  const patchedDependencies = {
+    'is-positive': patchPath,
+  }
+  const opts = testDefaults({
+    fastUnpack: false,
+    ignorePatchFailures: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     patchedDependencies,

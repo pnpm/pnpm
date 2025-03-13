@@ -36,7 +36,6 @@ import {
   writeLockfiles,
   writeWantedLockfile,
   cleanGitBranchLockfiles,
-  type PatchFile,
   type CatalogSnapshots,
 } from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
@@ -46,6 +45,7 @@ import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.pre
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/manifest-utils'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
+import { type PatchGroupRecord, groupPatchedDependencies } from '@pnpm/patching.config'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   getWantedDependencies,
@@ -367,6 +367,7 @@ export async function mutateModules (
         path: path.join(opts.lockfileDir, patchFile.path),
       }), patchedDependencies)
       : undefined
+    const patchGroups = patchedDependenciesWithResolvedPath && groupPatchedDependencies(patchedDependenciesWithResolvedPath)
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false
@@ -418,7 +419,7 @@ export async function mutateModules (
     const frozenInstallResult = await tryFrozenInstall({
       frozenLockfile,
       needsFullResolution,
-      patchedDependenciesWithResolvedPath,
+      patchGroups,
       upToDateLockfileMajorVersion,
     })
     if (frozenInstallResult !== null) {
@@ -543,7 +544,7 @@ export async function mutateModules (
       pruneVirtualStore,
       scriptsOpts,
       updateLockfileMinorVersion: true,
-      patchedDependencies: patchedDependenciesWithResolvedPath,
+      patchedDependencies: patchGroups,
     })
 
     return {
@@ -582,12 +583,12 @@ export async function mutateModules (
   async function tryFrozenInstall ({
     frozenLockfile,
     needsFullResolution,
-    patchedDependenciesWithResolvedPath,
+    patchGroups,
     upToDateLockfileMajorVersion,
   }: {
     frozenLockfile: boolean
     needsFullResolution: boolean
-    patchedDependenciesWithResolvedPath?: Record<string, PatchFile>
+    patchGroups?: PatchGroupRecord
     upToDateLockfileMajorVersion: boolean
   }): Promise<InnerInstallResult | { needsFullResolution: boolean } | null> {
     const isFrozenInstallPossible =
@@ -692,7 +693,7 @@ Note that in CI environments, this setting is enabled by default.`,
           pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
         },
         currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
-        patchedDependencies: patchedDependenciesWithResolvedPath,
+        patchedDependencies: patchGroups,
         selectedProjectDirs: projects.map((project) => project.rootDir),
         allProjects: ctx.projects,
         prunedAt: ctx.modulesFile?.prunedAt,
@@ -919,7 +920,7 @@ type InstallFunction = (
   projects: ImporterToUpdate[],
   ctx: PnpmContext,
   opts: Omit<StrictInstallOptions, 'patchedDependencies'> & {
-    patchedDependencies?: Record<string, PatchFile>
+    patchedDependencies?: PatchGroupRecord
     makePartialCurrentLockfile: boolean
     needsFullResolution: boolean
     neverBuiltDependencies?: string[]
@@ -1031,7 +1032,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     projects,
     {
       allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
-      allowNonAppliedPatches: opts.allowNonAppliedPatches,
+      allowUnusedPatches: opts.allowUnusedPatches,
       autoInstallPeers: opts.autoInstallPeers,
       autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch,
       catalogs: opts.catalogs,
@@ -1203,6 +1204,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         }
         ignoredBuilds = (await buildModules(dependenciesGraph, rootNodes, {
           allowBuild,
+          ignorePatchFailures: opts.ignorePatchFailures,
           ignoredBuiltDependencies: opts.ignoredBuiltDependencies,
           childConcurrency: opts.childConcurrency,
           depsStateCache,

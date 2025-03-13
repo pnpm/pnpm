@@ -59,6 +59,9 @@
     "realpath-missing": "catalog:",
     "which": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
+  },
   "devDependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
