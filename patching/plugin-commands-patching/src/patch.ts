@@ -127,7 +127,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
 
   return `Patch: You can now edit the package at:
 
-  ${terminalLink(chalk.blue(editDir), 'file://' + editDir)}
+  ${terminalLink(chalk.blue(editDir), 'file://' + editDir, { fallback: false })}
 
 To commit your changes, run:
 
