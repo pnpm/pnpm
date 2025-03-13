@@ -15,7 +15,7 @@ import { globalWarn } from '@pnpm/logger'
 
 export type OptionsFromRootManifest = {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
-  allowUnusedPatches?: boolean // derived from allowNonAppliedPatches
+  allowUnusedPatches?: boolean
   ignorePatchFailures?: boolean
   overrides?: Record<string, string>
   neverBuiltDependencies?: string[]
