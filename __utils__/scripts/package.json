@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "@pnpm/workspace.find-packages": "^1000.0.12",
-    "@pnpm/workspace.read-manifest": "^1000.1.0",
+    "@pnpm/workspace.find-packages": "^1000.0.15",
+    "@pnpm/workspace.read-manifest": "^1000.1.1",
     "execa": "catalog:",
     "fast-glob": "catalog:",
     "make-empty-dir": "catalog:",
