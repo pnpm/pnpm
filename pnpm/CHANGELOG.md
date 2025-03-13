@@ -1,5 +1,15 @@
 # pnpm
 
+## 10.6.3
+
+### Patch Changes
+
+- `pnpm install --prod=false` should not crash, when executed in a project with a `pnpm-workspace.yaml` file [#9233](https://github.com/pnpm/pnpm/issues/9233). This fixes regression introduced via [#9211](https://github.com/pnpm/pnpm/pull/9211).
+- Add the missing `node-options` config to `recursive run` [#9180](https://github.com/pnpm/pnpm/issues/9180).
+- Removed a branching code path that only executed when `dedupe-peer-dependents=false`. We believe this internal refactor will not result in behavior changes, but we expect it to make future pnpm versions behave more consistently for projects that override `dedupe-peer-dependents` to false. There should be less unique bugs from turning off `dedupe-peer-dependents`.
+
+  See details in [#9259](https://github.com/pnpm/pnpm/pull/9259).
+
 ## 10.6.2
 
 ### Patch Changes

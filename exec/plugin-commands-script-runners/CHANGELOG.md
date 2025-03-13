@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1000.2.5
+
+### Patch Changes
+
+- 57f989e: Add the missing `node-options` config to `recursive run` [#9180](https://github.com/pnpm/pnpm/issues/9180).
+- Updated dependencies [b4efd0e]
+- Updated dependencies [6e4459c]
+- Updated dependencies [cda1c43]
+  - @pnpm/plugin-commands-installation@1002.2.0
+  - @pnpm/config@1002.5.3
+  - @pnpm/cli-utils@1000.0.16
+  - @pnpm/deps.status@1002.0.5
+  - @pnpm/plugin-commands-env@1000.0.16
+
 ## 1000.2.4
 
 ### Patch Changes

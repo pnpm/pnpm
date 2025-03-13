@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 1002.5.3
+
+### Patch Changes
+
+- 6e4459c: `pnpm install --prod=false` should not crash, when executed in a project with a `pnpm-workspace.yaml` file [#9233](https://github.com/pnpm/pnpm/issues/9233). This fixes regression introduced via [#9211](https://github.com/pnpm/pnpm/pull/9211).
+
 ## 1002.5.2
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1002.0.5
+
+### Patch Changes
+
+- Updated dependencies [6e4459c]
+  - @pnpm/config@1002.5.3
+  - @pnpm/cli-utils@1000.0.16
+  - @pnpm/store-connection-manager@1000.0.15
+  - @pnpm/workspace.find-packages@1000.0.16
+
 ## 1002.0.4
 
 ### Patch Changes

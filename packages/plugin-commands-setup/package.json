@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-setup",
-  "version": "1000.0.15",
+  "version": "1000.0.16",
   "description": "pnpm commands for setting up pnpm",
   "keywords": [
     "pnpm",
