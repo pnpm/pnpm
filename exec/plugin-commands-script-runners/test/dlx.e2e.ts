@@ -115,28 +115,21 @@ test('dlx should not fail when the installed package has many commands and one e
   expect(fs.existsSync('touch.txt')).toBeTruthy()
 })
 
-// Creating a describe block to scope the jest.retryTimes setting.
-describe('dlx on flaky test', () => {
-  // This test is more prone to network flakes since it reaches out to
-  // github.com for a dependency.
-  jest.retryTimes(1, { logErrorsBeforeRetry: true })
+test('dlx --package <pkg1> [--package <pkg2>]', async () => {
+  prepareEmpty()
 
-  test('dlx --package <pkg1> [--package <pkg2>]', async () => {
-    prepareEmpty()
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    package: [
+      '@pnpm.e2e/for-testing-pnpm-dlx',
+      'is-positive',
+    ],
+  }, ['foo'])
 
-    await dlx.handler({
-      ...DEFAULT_OPTS,
-      dir: path.resolve('project'),
-      storeDir: path.resolve('store'),
-      cacheDir: path.resolve('cache'),
-      package: [
-        'zkochan/for-testing-pnpm-dlx',
-        'is-positive',
-      ],
-    }, ['foo'])
-
-    expect(fs.existsSync('foo')).toBeTruthy()
-  })
+  expect(fs.existsSync('foo')).toBeTruthy()
 })
 
 test('dlx should fail when the package has no bins', async () => {
