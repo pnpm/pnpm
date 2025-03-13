@@ -9,6 +9,7 @@ import {
   type PnpmSettings,
 } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
+import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
 import { globalWarn } from '@pnpm/logger'
 
@@ -31,8 +32,9 @@ export type OptionsFromRootManifest = {
 export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
   const settings: OptionsFromRootManifest = getOptionsFromPnpmSettings(manifestDir, {
     ...pick([
-      'allowNonAppliedPatches',
       'allowedDeprecatedVersions',
+      'allowNonAppliedPatches',
+      'allowUnusedPatches',
       'configDependencies',
       'ignoredBuiltDependencies',
       'ignoredOptionalDependencies',
@@ -58,7 +60,8 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
 }
 
 export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
-  const settings: OptionsFromRootManifest = { ...pnpmSettings }
+  const renamedKeys = ['allowNonAppliedPatches'] as const satisfies Array<keyof PnpmSettings>
+  const settings: OptionsFromRootManifest = omit(renamedKeys, pnpmSettings)
   if (settings.overrides) {
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
@@ -77,8 +80,8 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
     }
   }
   if (pnpmSettings.allowNonAppliedPatches != null) {
-    globalWarn(`allowNonAppliedPatches is deprecated.`)
-    settings.allowUnusedPatches = pnpmSettings.allowNonAppliedPatches
+    globalWarn('allowNonAppliedPatches is deprecated, use allowUnusedPatches instead.')
+    settings.allowUnusedPatches ??= pnpmSettings.allowNonAppliedPatches
   }
   if (pnpmSettings.ignorePatchFailures != null) {
     settings.ignorePatchFailures = pnpmSettings.ignorePatchFailures

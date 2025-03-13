@@ -98,7 +98,7 @@ test('getOptionsFromRootManifest() should derive allowUnusedPatches from allowNo
     pnpm: {
       allowNonAppliedPatches: false,
     },
-  })).toMatchObject({
+  })).toStrictEqual({
     allowUnusedPatches: false,
   })
 
@@ -106,8 +106,46 @@ test('getOptionsFromRootManifest() should derive allowUnusedPatches from allowNo
     pnpm: {
       allowNonAppliedPatches: true,
     },
-  })).toMatchObject({
+  })).toStrictEqual({
     allowUnusedPatches: true,
+  })
+})
+
+test('allowUnusedPatches should override allowNonAppliedPatches', () => {
+  expect(getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      allowNonAppliedPatches: false,
+      allowUnusedPatches: false,
+    },
+  })).toStrictEqual({
+    allowUnusedPatches: false,
+  })
+
+  expect(getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      allowNonAppliedPatches: true,
+      allowUnusedPatches: false,
+    },
+  })).toStrictEqual({
+    allowUnusedPatches: false,
+  })
+
+  expect(getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      allowNonAppliedPatches: false,
+      allowUnusedPatches: false,
+    },
+  })).toStrictEqual({
+    allowUnusedPatches: false,
+  })
+
+  expect(getOptionsFromRootManifest(process.cwd(), {
+    pnpm: {
+      allowNonAppliedPatches: true,
+      allowUnusedPatches: false,
+    },
+  })).toStrictEqual({
+    allowUnusedPatches: false,
   })
 })
 
