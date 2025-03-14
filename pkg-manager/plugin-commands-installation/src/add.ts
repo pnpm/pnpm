@@ -231,11 +231,13 @@ export async function handler (
       ...(opts.onlyBuiltDependencies ?? []),
       ...opts.allowBuild,
     ])).sort((a, b) => a.localeCompare(b))
-    opts.rootProjectManifest = opts.rootProjectManifest ?? {}
-    opts.rootProjectManifest.pnpm = opts.rootProjectManifest.pnpm ?? {}
-    opts.rootProjectManifest.pnpm.onlyBuiltDependencies = opts.onlyBuiltDependencies
-    const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
-    await writeProjectManifest(opts.rootProjectManifest)
+    if (opts.rootProjectManifestDir) {
+      opts.rootProjectManifest = opts.rootProjectManifest ?? {}
+      opts.rootProjectManifest.pnpm = opts.rootProjectManifest.pnpm ?? {}
+      opts.rootProjectManifest.pnpm.onlyBuiltDependencies = opts.onlyBuiltDependencies
+      const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
+      await writeProjectManifest(opts.rootProjectManifest)
+    }
   }
   return installDeps({
     ...opts,
