@@ -11,7 +11,7 @@ import { type PrepareExecutionEnvOptions, type PrepareExecutionEnvResult } from 
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import { getNodeMirror } from './getNodeMirror'
-import { isStableVersion, parseNodeSpecifier } from './parseNodeSpecifier'
+import { isValidVersion, parseNodeSpecifier } from './parseNodeSpecifier'
 
 export type NvmNodeCommandOptions = Pick<Config,
 | 'bin'
@@ -67,7 +67,7 @@ export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<strin
   if (opts.useNodeVersion != null) {
     // If the user has specified an invalid version via use-node-version, we should not throw an error. Or else, it will break all the commands.
     // Instead, we should fallback to the manifest node version
-    if (!isStableVersion(opts.useNodeVersion)) {
+    if (!isValidVersion(opts.useNodeVersion)) {
       globalWarn(`"${opts.useNodeVersion}" is not a valid Node.js version.`)
       wantedNodeVersion = manifestNodeVersion
     }
