@@ -5,7 +5,8 @@ export interface NodeSpecifier {
   useNodeVersion: string
 }
 
-const isStableVersion = (version: string) => /^\d+\.\d+\.\d+$/.test(version)
+export const isStableVersion = (version: string): boolean => /^\d+\.\d+\.\d+$/.test(version)
+
 const STABLE_RELEASE_ERROR_HINT = 'The correct syntax for stable release is strictly X.Y.Z or release/X.Y.Z'
 
 export function parseNodeSpecifier (specifier: string): NodeSpecifier {
