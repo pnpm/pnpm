@@ -29,7 +29,7 @@ export async function finishWorkers (): Promise<void> {
 }
 
 function createTarballWorkerPool (): WorkerPool {
-  const maxWorkers = Math.max(2, (os.availableParallelism?.() ?? os.cpus().length) - Math.abs(process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0)) - 1
+  const maxWorkers = calcMaxWorkers()
   const workerPool = new WorkerPool({
     id: 'pnpm',
     maxWorkers,
@@ -49,6 +49,23 @@ function createTarballWorkerPool (): WorkerPool {
     global.finishWorkers = () => workerPool.finishAsync()
   }
   return workerPool
+}
+
+function calcMaxWorkers () {
+  if (process.env.PNPM_WORKERS) {
+    const idleCPUs = Math.abs(process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0)
+    return Math.max(2, availableParallelism() - idleCPUs) - 1
+  }
+  // The workers are doing lots of file system operations
+  // so, running them in parallel helps only to a point.
+  // With local experimenting it was discovered that running 4 workers gives the best results.
+  // Adding more workers actually makes installation slower.
+  const optimalParallelism = 4
+  return Math.max(1, Math.min(optimalParallelism, availableParallelism() - 1))
+}
+
+function availableParallelism (): number {
+  return os.availableParallelism?.() ?? os.cpus().length
 }
 
 interface AddFilesResult {
