@@ -7,6 +7,7 @@ import { execSync } from 'child_process'
 import isWindows from 'is-windows'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'
+import pLimit from 'p-limit'
 import { quote as shellQuote } from 'shell-quote'
 import {
   type TarballExtractMessage,
@@ -56,12 +57,7 @@ function calcMaxWorkers () {
     const idleCPUs = Math.abs(process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0)
     return Math.max(2, availableParallelism() - idleCPUs) - 1
   }
-  // The workers are doing lots of file system operations
-  // so, running them in parallel helps only to a point.
-  // With local experimenting it was discovered that running 4 workers gives the best results.
-  // Adding more workers actually makes installation slower.
-  const optimalParallelism = 4
-  return Math.max(1, Math.min(optimalParallelism, availableParallelism() - 1))
+  return Math.max(1, availableParallelism() - 1)
 }
 
 function availableParallelism (): number {
@@ -203,25 +199,33 @@ export async function readPkgFromCafs (
   })
 }
 
+// The workers are doing lots of file system operations
+// so, running them in parallel helps only to a point.
+// With local experimenting it was discovered that running 4 workers gives the best results.
+// Adding more workers actually makes installation slower.
+const limitImporting = pLimit(4)
+
 export async function importPackage (
   opts: Omit<LinkPkgMessage, 'type'>
 ): Promise<{ isBuilt: boolean, importMethod: string | undefined }> {
-  if (!workerPool) {
-    workerPool = createTarballWorkerPool()
-  }
-  const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-      workerPool!.checkinWorker(localWorker)
-      if (status === 'error') {
-        reject(new PnpmError(error.code ?? 'LINKING_FAILED', error.message as string))
-        return
-      }
-      resolve(value)
-    })
-    localWorker.postMessage({
-      type: 'link',
-      ...opts,
+  return limitImporting(async () => {
+    if (!workerPool) {
+      workerPool = createTarballWorkerPool()
+    }
+    const localWorker = await workerPool.checkoutWorkerAsync(true)
+    return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
+      localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+        workerPool!.checkinWorker(localWorker)
+        if (status === 'error') {
+          reject(new PnpmError(error.code ?? 'LINKING_FAILED', error.message as string))
+          return
+        }
+        resolve(value)
+      })
+      localWorker.postMessage({
+        type: 'link',
+        ...opts,
+      })
     })
   })
 }
