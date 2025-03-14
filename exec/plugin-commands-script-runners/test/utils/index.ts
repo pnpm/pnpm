@@ -88,7 +88,6 @@ export const DLX_DEFAULT_OPTS = {
   registries: {
     default: REGISTRY_URL,
   },
-  rootProjectManifestDir: '',
   sort: true,
   storeDir: path.join(tmp, 'store'),
   symlink: true,
