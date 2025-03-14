@@ -24,7 +24,7 @@ export function addFilesFromTarball (
   for (const [relativePath, { mode, offset, size }] of files) {
     if (ignore(relativePath)) continue
 
-    const fileBuffer = tarContent.slice(offset, offset + size)
+    const fileBuffer = tarContent.subarray(offset, offset + size)
     if (readManifest && relativePath === 'package.json') {
       manifestBuffer = fileBuffer
     }
