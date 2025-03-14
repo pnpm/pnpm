@@ -75,7 +75,7 @@ export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
   allowBuild?: string[]
-} & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' | 'symlink'> & add.AddCommandOptions & PnpmSettings
+} & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
 
 export async function handler (
   opts: DlxCommandOptions,
@@ -113,6 +113,7 @@ export async function handler (
       dir: cachedDir,
       lockfileDir: cachedDir,
       onlyBuiltDependencies: [...resolvedPkgAliases, ...(opts.allowBuild ?? [])],
+      rootProjectManifestDir: cachedDir,
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!
       saveDev: false,
       saveOptional: false,
