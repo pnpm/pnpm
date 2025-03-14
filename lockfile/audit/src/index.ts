@@ -23,6 +23,7 @@ export async function audit (
     registry: string
     retry?: RetryTimeoutOptions
     timeout?: number
+    showPaths?: boolean
     virtualStoreDirMaxLength: number
   }
 ): Promise<AuditReport> {
@@ -52,12 +53,16 @@ export async function audit (
   }
   const auditReport = await (res.json() as Promise<AuditReport>)
   try {
-    return await extendWithDependencyPaths(auditReport, {
-      lockfile,
-      lockfileDir: opts.lockfileDir,
-      include: opts.include,
-      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-    })
+    if (opts.showPaths) {
+      return await extendWithDependencyPaths(auditReport, {
+        lockfile,
+        lockfileDir: opts.lockfileDir,
+        include: opts.include,
+        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      })
+    }
+
+    return auditReport
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
     globalWarn(`Failed to extend audit report with dependency paths: ${err.message}`)
