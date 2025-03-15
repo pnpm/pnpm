@@ -149,6 +149,7 @@ export interface PackageResponse {
     updated: boolean
     publishedAt?: string
     resolvedVia?: string
+    isWorkspacePackage?: boolean
     // This is useful for recommending updates.
     // If latest does not equal the version of the
     // resolved package, it is out-of-date.
