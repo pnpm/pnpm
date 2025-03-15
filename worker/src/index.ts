@@ -137,43 +137,35 @@ type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeD
   url: string
 }
 
-// The workers are doing lots of file system operations
-// so, running them in parallel helps only to a point.
-// With local experimenting it was discovered that running 4 workers gives the best results.
-// Adding more workers actually makes installation slower.
-const limitIoHeavyOperations = pLimit(4)
-
 export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Promise<AddFilesResult> {
-  return limitIoHeavyOperations(async () => {
-    if (!workerPool) {
-      workerPool = createTarballWorkerPool()
-    }
-    const localWorker = await workerPool.checkoutWorkerAsync(true)
-    return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest, requiresBuild: boolean }>((resolve, reject) => {
-      localWorker.once('message', ({ status, error, value }) => {
-        workerPool!.checkinWorker(localWorker)
-        if (status === 'error') {
-          if (error.type === 'integrity_validation_failed') {
-            reject(new TarballIntegrityError({
-              ...error,
-              url: opts.url,
-            }))
-            return
-          }
-          reject(new PnpmError(error.code ?? 'TARBALL_EXTRACT', `Failed to add tarball from "${opts.url}" to store: ${error.message as string}`))
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest, requiresBuild: boolean }>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, value }) => {
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        if (error.type === 'integrity_validation_failed') {
+          reject(new TarballIntegrityError({
+            ...error,
+            url: opts.url,
+          }))
           return
         }
-        resolve(value)
-      })
-      localWorker.postMessage({
-        type: 'extract',
-        buffer: opts.buffer,
-        storeDir: opts.storeDir,
-        integrity: opts.integrity,
-        filesIndexFile: opts.filesIndexFile,
-        readManifest: opts.readManifest,
-        pkg: opts.pkg,
-      })
+        reject(new PnpmError(error.code ?? 'TARBALL_EXTRACT', `Failed to add tarball from "${opts.url}" to store: ${error.message as string}`))
+        return
+      }
+      resolve(value)
+    })
+    localWorker.postMessage({
+      type: 'extract',
+      buffer: opts.buffer,
+      storeDir: opts.storeDir,
+      integrity: opts.integrity,
+      filesIndexFile: opts.filesIndexFile,
+      readManifest: opts.readManifest,
+      pkg: opts.pkg,
     })
   })
 }
@@ -207,10 +199,16 @@ export async function readPkgFromCafs (
   })
 }
 
+// The workers are doing lots of file system operations
+// so, running them in parallel helps only to a point.
+// With local experimenting it was discovered that running 4 workers gives the best results.
+// Adding more workers actually makes installation slower.
+const limitImportingPackage = pLimit(4)
+
 export async function importPackage (
   opts: Omit<LinkPkgMessage, 'type'>
 ): Promise<{ isBuilt: boolean, importMethod: string | undefined }> {
-  return limitIoHeavyOperations(async () => {
+  return limitImportingPackage(async () => {
     if (!workerPool) {
       workerPool = createTarballWorkerPool()
     }
