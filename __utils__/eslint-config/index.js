@@ -2,6 +2,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import js from '@eslint/js'
 import { FlatCompat } from '@eslint/eslintrc'
+import noDupeConditions from './no-dupe-conditions.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -25,6 +26,14 @@ export default [...compat.extends('standard-with-typescript'), {
     parserOptions: {
       project: './tsconfig.lint.json',
     },
+  },
+
+  plugins: {
+    "conditions": {
+      rules: {
+        'no-dupe-conditions': noDupeConditions,
+      }
+    }
   },
 
   rules: {
@@ -102,5 +111,6 @@ export default [...compat.extends('standard-with-typescript'), {
     'no-var': 'error',
     'no-lone-blocks': 'off',
     'space-before-function-paren': ['error', 'always'],
+    'conditions/no-dupe-conditions': 'error',
   },
 }]
