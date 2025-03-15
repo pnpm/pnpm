@@ -54,7 +54,7 @@ function createTarballWorkerPool (): WorkerPool {
 
 function calcMaxWorkers () {
   if (process.env.PNPM_WORKERS) {
-    const idleCPUs = Math.abs(process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0)
+    const idleCPUs = Math.abs(parseInt(process.env.PNPM_WORKERS))
     return Math.max(2, availableParallelism() - idleCPUs) - 1
   }
   return Math.max(1, availableParallelism() - 1)
