@@ -7931,6 +7931,9 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
+      p-limit:
+        specifier: 'catalog:'
+        version: 3.1.0
       shell-quote:
         specifier: 'catalog:'
         version: 1.8.2
