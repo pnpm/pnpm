@@ -42,6 +42,7 @@
     "@rushstack/worker-pool": "catalog:",
     "is-windows": "catalog:",
     "load-json-file": "catalog:",
+    "p-limit": "catalog:",
     "shell-quote": "catalog:"
   },
   "peerDependencies": {
