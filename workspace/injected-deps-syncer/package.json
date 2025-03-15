@@ -32,12 +32,15 @@
   "dependencies": {
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/logger": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@types/normalize-path": "catalog:",
     "normalize-path": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
+  },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/workspace.injected-deps-syncer": "workspace:*"
   },

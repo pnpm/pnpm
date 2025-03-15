@@ -8080,9 +8080,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
@@ -8093,6 +8090,9 @@ importers:
         specifier: 'catalog:'
         version: 3.0.0
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -8209,9 +8209,6 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -8219,6 +8216,9 @@ importers:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
     devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare

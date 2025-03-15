@@ -33,11 +33,14 @@
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config": "workspace:*",
-    "@pnpm/logger": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
+  },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/workspace.state": "workspace:*",
     "@types/ramda": "catalog:"
