@@ -4,14 +4,14 @@ import util from 'util'
 import { type Config } from '@pnpm/config'
 import { getSystemNodeVersion } from '@pnpm/env.system-node-version'
 import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/fetch'
-import { globalInfo } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetchNode } from '@pnpm/node.fetcher'
 import { getStorePath } from '@pnpm/store-path'
 import { type PrepareExecutionEnvOptions, type PrepareExecutionEnvResult } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import { getNodeMirror } from './getNodeMirror'
-import { parseNodeSpecifier } from './parseNodeSpecifier'
+import { isValidVersion, parseNodeSpecifier } from './parseNodeSpecifier'
 
 export type NvmNodeCommandOptions = Pick<Config,
 | 'bin'
@@ -62,7 +62,16 @@ export async function prepareExecutionEnv (config: NvmNodeCommandOptions, { extr
 export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<string> {
   const fetch = createFetchFromRegistry(opts)
   const nodesDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
-  let wantedNodeVersion = opts.useNodeVersion ?? (await readNodeVersionsManifest(nodesDir))?.default
+  const manifestNodeVersion = (await readNodeVersionsManifest(nodesDir))?.default
+  let wantedNodeVersion = opts.useNodeVersion ?? manifestNodeVersion
+  if (opts.useNodeVersion != null) {
+    // If the user has specified an invalid version via use-node-version, we should not throw an error. Or else, it will break all the commands.
+    // Instead, we should fallback to the manifest node version
+    if (!isValidVersion(opts.useNodeVersion)) {
+      globalWarn(`"${opts.useNodeVersion}" is not a valid Node.js version.`)
+      wantedNodeVersion = manifestNodeVersion
+    }
+  }
   if (wantedNodeVersion == null) {
     const response = await fetch('https://registry.npmjs.org/node')
     wantedNodeVersion = (await response.json() as any)['dist-tags'].lts // eslint-disable-line
