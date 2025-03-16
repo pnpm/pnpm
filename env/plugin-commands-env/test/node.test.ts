@@ -1,7 +1,7 @@
 import AdmZip from 'adm-zip'
 import { Response } from 'node-fetch'
 import path from 'path'
-import { promises as fs } from 'fs'
+import fs from 'fs'
 import { Readable } from 'stream'
 import tar from 'tar-stream'
 import { globalWarn } from '@pnpm/logger'
@@ -118,8 +118,8 @@ test('specified an invalid Node.js via use-node-version should not cause pnpm it
     useNodeVersion: '22.14',
   }
 
-  await fs.mkdir('nodejs', { recursive: true })
-  await fs.writeFile('nodejs/versions.json', '{"default":"16.4.0"}', 'utf8')
+  fs.mkdirSync('nodejs', { recursive: true })
+  fs.writeFileSync('nodejs/versions.json', '{"default":"16.4.0"}', 'utf8')
 
   expect(await getNodeBinDir(opts)).toBeTruthy()
 
