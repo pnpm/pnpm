@@ -1,4 +1,4 @@
-import { parseNodeSpecifier } from '../lib/parseNodeSpecifier'
+import { isValidVersion, parseNodeSpecifier } from '../lib/parseNodeSpecifier'
 
 test.each([
   ['rc/16.0.0-rc.0', '16.0.0-rc.0', 'rc'],
@@ -42,4 +42,28 @@ test.each([
   const promise = Promise.resolve().then(() => parseNodeSpecifier(specifier))
   await expect(promise).rejects.toThrow(`"${specifier}" is not a valid Node.js version`)
   await expect(promise).rejects.toHaveProperty('hint', 'The correct syntax for stable release is strictly X.Y.Z or release/X.Y.Z')
+})
+
+test.each([
+  ['rc/16.0.0-rc.0', '16.0.0-rc.0', 'rc'],
+  ['16.0.0-rc.0', '16.0.0-rc.0', 'rc'],
+  ['release/16.0.0', '16.0.0', 'release'],
+  ['16.0.0', '16.0.0', 'release'],
+])('valid Node.js specifier', async (specifier) => {
+  expect(isValidVersion(specifier)).toBe(true)
+})
+
+test.each([
+  ['nightly'],
+  ['rc'],
+  ['test'],
+  ['v8-canary'],
+  ['release'],
+  ['stable'],
+  ['latest'],
+  ['release/16.0.0.release.0'],
+  ['16'],
+  ['16.0'],
+])('invalid Node.js specifier', async (specifier) => {
+  expect(isValidVersion(specifier)).toBe(false)
 })
