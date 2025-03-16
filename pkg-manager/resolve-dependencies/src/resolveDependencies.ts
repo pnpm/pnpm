@@ -1697,13 +1697,13 @@ function getCatalogReplacementBareSpecifier (
   wantedDependency: WantedDependency
 ): string {
   // The lockfile from a previous installation may have already resolved this
-  // cataloged dependency. Reuse the exact version in the lockfile catalog
-  // snapshot to ensure all projects using the same cataloged dependency get the
-  // same version.
+  // cataloged dependency. Unless an update is requested, reuse the exact
+  // version in the lockfile catalog snapshot to ensure all projects using the
+  // same cataloged dependency get the same version.
   const existingCatalogResolution = wantedLockfile.catalogs
     ?.[catalogLookup.catalogName]
     ?.[wantedDependency.alias]
-  const replacementBareSpecifier = existingCatalogResolution?.specifier === catalogLookup.specifier
+  const replacementBareSpecifier = !wantedDependency.updateSpec && existingCatalogResolution?.specifier === catalogLookup.specifier
     ? replaceVersionInBareSpecifier(catalogLookup.specifier, existingCatalogResolution.version)
     : catalogLookup.specifier
 
