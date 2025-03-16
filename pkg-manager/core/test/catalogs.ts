@@ -1325,11 +1325,6 @@ describe('add', () => {
   })
 })
 
-// The 'pnpm update' command should eventually support updates of dependencies
-// in the catalog. This is a more involved feature since pnpm-workspace.yaml
-// needs to be edited. Until the catalog update feature is implemented, ensure
-// pnpm update does not touch or rewrite dependencies using the catalog
-// protocol.
 describe('update', () => {
   // Many of the update tests use @pnpm.e2e/foo, which has the following
   // versions currently published to the https://github.com/pnpm/registry-mock
@@ -1346,7 +1341,7 @@ describe('update', () => {
   // is-positive since public packages can release new versions and break the
   // tests here.
 
-  test('update does not upgrade cataloged dependency', async () => {
+  test('update works on cataloged dependency', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
       dependencies: {
@@ -1354,28 +1349,30 @@ describe('update', () => {
       },
     }])
 
-    const catalogs = {
-      default: { '@pnpm.e2e/foo': '1.0.0' },
-    }
     const mutateOpts = {
       ...options,
       lockfileOnly: true,
-      catalogs,
+      // Start by using 1.0.0 as the specifier. We'll then change this to ^1.0.0
+      // and to test pnpm properly updates from 1.0.0 to 1.3.0.
+      catalogs: {
+        default: { '@pnpm.e2e/foo': '1.0.0' },
+      },
     }
 
     await mutateModules(installProjects(projects), mutateOpts)
 
-    // Updating the catalog from 1.0.0 to ^1.0.0. This should still lock to the
-    // existing 1.0.0 version despite version 1.3.0 existing.
-    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    // Changing the catalog from 1.0.0 to ^1.0.0. This should still lock to the
+    // existing 1.0.0 version despite version 1.3.0 available on the registry.
+    mutateOpts.catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
     await mutateModules(installProjects(projects), mutateOpts)
 
+    // Sanity check that the @pnpm.e2e/foo dependency is installed on the older
+    // requested version.
     expect(readLockfile().catalogs.default).toEqual({
       '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
     })
 
-    // Expecting the manifest to remain unchanged after running an update.
-    const { updatedManifest } = await addDependenciesToPackage(
+    const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
       ['@pnpm.e2e/foo'],
       {
@@ -1384,21 +1381,34 @@ describe('update', () => {
         update: true,
       })
 
+    // Expecting the manifest to remain unchanged after running an update. The
+    // change should be reflected in the returned updatedCatalogs object
+    // instead.
     expect(updatedManifest).toEqual({
       name: 'project1',
       dependencies: {
         '@pnpm.e2e/foo': 'catalog:',
       },
     })
-
-    // The lockfile should only contain 1.0.0 and not 1.3.0 (or a later version).
-    expect(readLockfile()).toMatchObject({
-      catalogs: { default: { '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' } } },
-      packages: { '@pnpm.e2e/foo@1.0.0': expect.any(Object) },
+    expect(updatedCatalogs).toEqual({
+      default: {
+        '@pnpm.e2e/foo': '^1.3.0',
+      },
     })
+
+    // The lockfile should also contain the updated ^1.3.0 reference.
+    const lockfile = readLockfile()
+    expect(lockfile.catalogs).toEqual({
+      default: { '@pnpm.e2e/foo': { specifier: '^1.3.0', version: '1.3.0' } },
+    })
+
+    // Ensure the old 1.0.0 version is no longer used.
+    expect(Object.keys(lockfile.snapshots)).toEqual(['@pnpm.e2e/foo@1.3.0'])
   })
 
-  test('update latest does not modify catalog: protocol', async () => {
+  test('update --latest works on cataloged dependency', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
       dependencies: {
@@ -1424,7 +1434,7 @@ describe('update', () => {
       '@pnpm.e2e/foo': { specifier: '1.0.0', version: '1.0.0' },
     })
 
-    const { updatedManifest } = await addDependenciesToPackage(
+    const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
       ['@pnpm.e2e/foo'],
       {
@@ -1435,15 +1445,22 @@ describe('update', () => {
         updateToLatest: true,
       })
 
-    // Expecting the manifest to remain unchanged.
+    // Expecting the manifest to remain unchanged after running an update. The
+    // change should be reflected in the returned updatedCatalogs object
+    // instead.
     expect(updatedManifest).toEqual({
       name: 'project1',
       dependencies: {
         '@pnpm.e2e/foo': 'catalog:',
       },
     })
+    expect(updatedCatalogs).toEqual({
+      default: {
+        '@pnpm.e2e/foo': '100.1.0',
+      },
+    })
 
-    expect(Object.keys(readLockfile().snapshots)).toEqual(['@pnpm.e2e/foo@1.0.0'])
+    expect(Object.keys(readLockfile().snapshots)).toEqual(['@pnpm.e2e/foo@100.1.0'])
   })
 })
 
