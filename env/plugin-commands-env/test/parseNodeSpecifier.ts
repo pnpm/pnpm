@@ -49,6 +49,7 @@ test.each([
   ['16.0.0-rc.0', '16.0.0-rc.0', 'rc'],
   ['release/16.0.0', '16.0.0', 'release'],
   ['16.0.0', '16.0.0', 'release'],
+  ['24.0.0-nightly20250315d765e70802', '24.0.0-nightly20250315d765e70802', 'nightly'],
 ])('valid Node.js specifier', async (specifier) => {
   expect(isValidVersion(specifier)).toBe(true)
 })
