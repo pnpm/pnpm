@@ -1033,7 +1033,7 @@ describe('update', () => {
       },
     }])
 
-    const { updatedManifest } = await addDependenciesToPackage(
+    const { updatedCatalogConfigs, updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
       ['@pnpm.e2e/foo'],
       {
@@ -1055,7 +1055,11 @@ describe('update', () => {
       },
     })
 
-    // TODO: Check that the pnpm-workspace.yaml has changed.
+    expect(updatedCatalogConfigs).toEqual({
+      default: {
+        '@pnpm.e2e/foo': '^1.3.0',
+      },
+    })
   })
 
   test('update works on cataloged dependency', async () => {
@@ -1087,7 +1091,7 @@ describe('update', () => {
     })
 
     // Expecting the manifest to remain unchanged after running an update.
-    const { updatedManifest } = await addDependenciesToPackage(
+    const { updatedCatalogConfigs, updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
       ['@pnpm.e2e/foo'],
       {
@@ -1100,6 +1104,12 @@ describe('update', () => {
       name: 'project1',
       dependencies: {
         '@pnpm.e2e/foo': 'catalog:',
+      },
+    })
+
+    expect(updatedCatalogConfigs).toEqual({
+      default: {
+        '@pnpm.e2e/foo': '^1.3.0',
       },
     })
 
@@ -1140,7 +1150,7 @@ describe('update', () => {
       '@pnpm.e2e/foo': { specifier: '1.0.0', version: '1.0.0' },
     })
 
-    const { updatedManifest } = await addDependenciesToPackage(
+    const { updatedCatalogConfigs, updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
       ['@pnpm.e2e/foo'],
       {
@@ -1159,7 +1169,13 @@ describe('update', () => {
       },
     })
 
-    expect(Object.keys(readLockfile().snapshots)).toEqual(['@pnpm.e2e/foo@1.0.0'])
+    expect(updatedCatalogConfigs).toEqual({
+      default: {
+        '@pnpm.e2e/foo': '2.0.0',
+      },
+    })
+
+    expect(Object.keys(readLockfile().snapshots)).toEqual(['@pnpm.e2e/foo@2.0.0'])
   })
 })
 

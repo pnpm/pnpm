@@ -24,6 +24,7 @@ import { globalInfo, logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { updateCatalogs } from '@pnpm/workspace.manifest-writer'
 import isSubdir from 'is-subdir'
 import { IgnoredBuildsError } from './errors'
 import { getPinnedVersion } from './getPinnedVersion'
@@ -333,9 +334,12 @@ when running add/update with the --workspace option')
     return
   }
 
-  const { updatedManifest, ignoredBuilds } = await install(manifest, installOpts)
+  const { updatedCatalogConfigs, updatedManifest, ignoredBuilds } = await install(manifest, installOpts)
   if (opts.update === true && opts.save !== false) {
-    await writeProjectManifest(updatedManifest)
+    await Promise.all([
+      writeProjectManifest(updatedManifest),
+      opts.workspaceDir && updatedCatalogConfigs != null && updateCatalogs(opts.workspaceDir, updatedCatalogConfigs),
+    ])
   }
   if (opts.strictDepBuilds && ignoredBuilds?.length) {
     throw new IgnoredBuildsError(ignoredBuilds)

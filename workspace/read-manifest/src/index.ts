@@ -11,6 +11,8 @@ import {
 } from './catalogs'
 import { InvalidWorkspaceManifestError } from './errors/InvalidWorkspaceManifestError'
 
+export type { WorkspaceCatalog, WorkspaceNamedCatalogs }
+
 export interface WorkspaceManifest extends PnpmSettings {
   packages: string[]
 

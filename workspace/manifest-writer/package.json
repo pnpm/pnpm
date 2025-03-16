@@ -30,6 +30,7 @@
     "_test": "jest"
   },
   "dependencies": {
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/workspace.read-manifest": "workspace:*",
