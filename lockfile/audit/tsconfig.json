@@ -34,9 +34,6 @@
       "path": "../../pkg-manifest/read-project-manifest"
     },
     {
-      "path": "../../reviewing/list"
-    },
-    {
       "path": "../detect-dep-types"
     },
     {
