@@ -1301,6 +1301,9 @@ describe('update', () => {
       catalogs: { default: { '@pnpm.e2e/foo': { specifier: '^1.3.0', version: '1.3.0' } } },
       packages: { '@pnpm.e2e/foo@1.3.0': expect.objectContaining({}) },
     }))
+
+    // Ensure the old 1.0.0 version is no longer used.
+    expect(Object.keys(readLockfile().snapshots)).toEqual(['@pnpm.e2e/foo@1.3.0'])
   })
 
   // TODO: Update this test to check for the positive case instead of a no-op update.
