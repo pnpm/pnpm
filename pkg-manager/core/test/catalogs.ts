@@ -1025,7 +1025,7 @@ describe('update', () => {
   // is-positive since public packages can release new versions and break the
   // tests here.
 
-  test('update does not modify catalog: protocol', async () => {
+  test('update modifies pnpm-workspace.yaml instead of catalog reference', async () => {
     const { options, projects } = preparePackagesAndReturnObjects([{
       name: 'project1',
       dependencies: {
@@ -1054,9 +1054,11 @@ describe('update', () => {
         '@pnpm.e2e/foo': 'catalog:',
       },
     })
+
+    // TODO: Check that the pnpm-workspace.yaml has changed.
   })
 
-  test('update does not upgrade cataloged dependency', async () => {
+  test('update works on cataloged dependency', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
       dependencies: {
@@ -1076,7 +1078,7 @@ describe('update', () => {
     await mutateModules(installProjects(projects), mutateOpts)
 
     // Updating the catalog from 1.0.0 to ^1.0.0. This should still lock to the
-    // existing 1.0.0 version despite version 1.3.0 existing.
+    // existing 1.0.0 version despite version 1.3.0 available on the registry.
     catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
     await mutateModules(installProjects(projects), mutateOpts)
 
@@ -1101,14 +1103,15 @@ describe('update', () => {
       },
     })
 
-    // The lockfile should only contain 1.0.0 and not 1.3.0 (or a later version).
-    expect(readLockfile()).toMatchObject({
-      catalogs: { default: { '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' } } },
-      packages: { '@pnpm.e2e/foo@1.0.0': expect.any(Object) },
-    })
+    // The lockfile should contain the updated ^1.3.0 reference.
+    expect(readLockfile()).toEqual(expect.objectContaining({
+      catalogs: { default: { '@pnpm.e2e/foo': { specifier: '^1.3.0', version: '1.3.0' } } },
+      packages: { '@pnpm.e2e/foo@1.3.0': expect.objectContaining({}) },
+    }))
   })
 
-  test('update latest does not modify catalog: protocol', async () => {
+  // TODO: Update this test to check for the positive case instead of a no-op update.
+  test('update --latest works on cataloged dependency', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
       dependencies: {
