@@ -60,7 +60,7 @@ test('dlx', async () => {
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
-  }, ['shx', 'touch', 'foo'])
+  }, ['shx@0.3.4', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
 })
@@ -210,10 +210,10 @@ test('dlx with cache', async () => {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     dlxCacheMaxAge: Infinity,
-  }, ['shx', 'touch', 'foo'])
+  }, ['shx@0.3.4', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBe(true)
-  verifyDlxCache(createCacheKey('shx'))
+  verifyDlxCache(createCacheKey('shx@0.3.4'))
   expect(spy).toHaveBeenCalled()
 
   spy.mockReset()
@@ -224,10 +224,10 @@ test('dlx with cache', async () => {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     dlxCacheMaxAge: Infinity,
-  }, ['shx', 'touch', 'bar'])
+  }, ['shx@0.3.4', 'touch', 'bar'])
 
   expect(fs.existsSync('bar')).toBe(true)
-  verifyDlxCache(createCacheKey('shx'))
+  verifyDlxCache(createCacheKey('shx@0.3.4'))
   expect(spy).not.toHaveBeenCalled()
 
   spy.mockRestore()
@@ -245,12 +245,12 @@ test('dlx does not reuse expired cache', async () => {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     dlxCacheMaxAge: Infinity,
-  }, ['shx', 'echo', 'hello world'])
-  verifyDlxCache(createCacheKey('shx'))
+  }, ['shx@0.3.4', 'echo', 'hello world'])
+  verifyDlxCache(createCacheKey('shx@0.3.4'))
 
   // change the date attributes of the cache to 30 minutes older than now
   const newDate = new Date(now.getTime() - 30 * 60_000)
-  fs.lutimesSync(path.resolve('cache', 'dlx', createCacheKey('shx'), 'pkg'), newDate, newDate)
+  fs.lutimesSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'), 'pkg'), newDate, newDate)
 
   const spy = jest.spyOn(add, 'handler')
 
@@ -261,15 +261,15 @@ test('dlx does not reuse expired cache', async () => {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     dlxCacheMaxAge: 10, // 10 minutes should make 30 minutes old cache expired
-  }, ['shx', 'touch', 'BAR'])
+  }, ['shx@0.3.4', 'touch', 'BAR'])
 
   expect(fs.existsSync('BAR')).toBe(true)
-  expect(spy).toHaveBeenCalledWith(expect.anything(), ['shx'])
+  expect(spy).toHaveBeenCalledWith(expect.anything(), ['shx@0.3.4'])
 
   spy.mockRestore()
 
   expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx')))
+    fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4')))
       .map(sanitizeDlxCacheComponent)
       .sort()
   ).toStrictEqual([
@@ -277,7 +277,7 @@ test('dlx does not reuse expired cache', async () => {
     '***********-*****',
     '***********-*****',
   ].sort())
-  verifyDlxCacheLink(createCacheKey('shx'))
+  verifyDlxCacheLink(createCacheKey('shx@0.3.4'))
 })
 
 test('dlx still saves cache even if execution fails', async () => {
@@ -291,8 +291,8 @@ test('dlx still saves cache even if execution fails', async () => {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     dlxCacheMaxAge: Infinity,
-  }, ['shx', 'mkdir', path.resolve('not-a-dir')])
+  }, ['shx@0.3.4', 'mkdir', path.resolve('not-a-dir')])
 
   expect(fs.readFileSync(path.resolve('not-a-dir'), 'utf-8')).toEqual(expect.anything())
-  verifyDlxCache(createCacheKey('shx'))
+  verifyDlxCache(createCacheKey('shx@0.3.4'))
 })
