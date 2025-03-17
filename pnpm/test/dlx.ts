@@ -30,7 +30,7 @@ test('silent dlx prints the output of the child process only', async () => {
     XDG_DATA_HOME: global,
   }
 
-  const result = execPnpmSync(['--silent', 'dlx', 'shx', 'echo', 'hi'], { env })
+  const result = execPnpmSync(['--silent', 'dlx', 'shx@0.3.4', 'echo', 'hi'], { env })
 
   expect(result.stdout.toString().trim()).toBe('hi')
 })
@@ -78,7 +78,7 @@ test('parallel dlx calls of the same package', async () => {
       `--config.store-dir=${path.resolve('store')}`,
       `--config.cache-dir=${path.resolve('cache')}`,
       '--config.dlx-cache-max-age=Infinity',
-      'dlx', 'shx', 'touch', name])
+      'dlx', 'shx@0.3.4', 'touch', name])
   ))
 
   expect(['foo', 'bar', 'baz'].filter(name => fs.existsSync(name))).toStrictEqual(['foo', 'bar', 'baz'])
@@ -97,7 +97,7 @@ test('parallel dlx calls of the same package', async () => {
 
   // parallel dlx calls with cache
   await Promise.all(['abc', 'def', 'ghi'].map(
-    name => execPnpm(['dlx', 'shx', 'mkdir', name])
+    name => execPnpm(['dlx', 'shx@0.3.4', 'mkdir', name])
   ))
 
   expect(['abc', 'def', 'ghi'].filter(name => fs.existsSync(name))).toStrictEqual(['abc', 'def', 'ghi'])
@@ -119,7 +119,7 @@ test('parallel dlx calls of the same package', async () => {
       `--config.store-dir=${path.resolve('store')}`,
       `--config.cache-dir=${path.resolve('cache')}`,
       '--config.dlx-cache-max-age=0',
-      'dlx', 'shx', 'mkdir', '-p', dirPath])
+      'dlx', 'shx@0.3.4', 'mkdir', '-p', dirPath])
   ))
 
   expect(['a/b/c', 'd/e/f', 'g/h/i'].filter(name => fs.existsSync(name))).toStrictEqual(['a/b/c', 'd/e/f', 'g/h/i'])
@@ -208,7 +208,7 @@ test('dlx should ignore non-auth info from .npmrc in the current directory', asy
   await execPnpm([
     `--config.store-dir=${path.resolve('store')}`,
     `--config.cache-dir=${cacheDir}`,
-    'dlx', 'shx', 'echo', 'hi'])
+    'dlx', 'shx@0.3.4', 'echo', 'hi'])
 
   const modulesManifest = await readModulesManifest(path.join(cacheDir, 'dlx', createCacheKey('shx@0.3.4'), 'pkg/node_modules'))
   expect(modulesManifest?.hoistPattern).toStrictEqual(['*'])
