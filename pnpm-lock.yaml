@@ -232,7 +232,7 @@ catalogs:
       specifier: ^5.0.17
       version: 5.0.17
     boxen:
-      specifier: ^5.1.2
+      specifier: npm:@zkochan/boxen@5.1.2
       version: 5.1.2
     camelcase:
       specifier: ^6.3.0
@@ -1315,7 +1315,7 @@ importers:
         version: 1.2.0
       boxen:
         specifier: 'catalog:'
-        version: 5.1.2
+        version: '@zkochan/boxen@5.1.2'
       chalk:
         specifier: 'catalog:'
         version: 4.1.2
@@ -9942,6 +9942,10 @@ packages:
     engines: {node: '>=18.12.0'}
     hasBin: true
 
+  '@zkochan/boxen@5.1.2':
+    resolution: {integrity: sha512-MRUN24GOMTa14zkZ4Jd1BPmlagbk10+C6gegE5FgxzTVqiYMcm3KD+2qJs6OmlpEhqUKmm4pu/oTdn0KcMqbXg==}
+    engines: {node: '>=10'}
+
   '@zkochan/cmd-shim@6.0.0':
     resolution: {integrity: sha512-kLBj0hJjqIw/KkIs8tvFaG1AY/yX2iUJqj47Jgoo5WoeQJd552ijJsj4GAOQnmyfoFLLEKZ+aSYfCpMjyg2hJw==}
     engines: {node: '>=14.6'}
@@ -17120,6 +17124,17 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - typanion
+
+  '@zkochan/boxen@5.1.2':
+    dependencies:
+      ansi-align: 3.0.1
+      camelcase: 6.3.0
+      chalk: 4.1.2
+      cli-boxes: 2.2.1
+      string-width: 4.2.3
+      type-fest: 0.20.2
+      widest-line: 3.1.0
+      wrap-ansi: 7.0.0
 
   '@zkochan/cmd-shim@6.0.0':
     dependencies:

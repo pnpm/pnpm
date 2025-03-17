@@ -134,7 +134,7 @@ catalog:
   better-path-resolve: 1.0.0
   bin-links: ^4.0.4
   bole: ^5.0.17
-  boxen: ^5.1.2
+  boxen: npm:@zkochan/boxen@5.1.2
   camelcase-keys: ^6.2.2
   camelcase: ^6.3.0
   can-link: ^2.0.0
