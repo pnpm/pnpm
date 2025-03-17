@@ -40,7 +40,19 @@ export interface ResolveResult {
   manifest?: DependencyManifest
   normalizedPref?: string // is null for npm-hosted dependencies
   resolution: Resolution
-  resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'url' | string
+  resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'workspace' | 'url' | string
+}
+
+/**
+ * A dependency on a workspace package.
+ */
+export interface WorkspaceResolveResult extends ResolveResult {
+  /**
+   * 'workspace' will be returned for workspace: protocol dependencies or a
+   * package in the workspace that matches the wanted dependency's name and
+   * version range.
+   */
+  resolvedVia: 'workspace'
 }
 
 export interface WorkspacePackage {

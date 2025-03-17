@@ -1018,7 +1018,7 @@ test('resolve from local directory when it matches the latest version of the pac
     ]),
   })
 
-  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:is-positive')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
@@ -1056,7 +1056,9 @@ test('resolve injected dependency from local directory when it matches the lates
     ]),
   })
 
-  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  // Injected workspace dependencies should still signal that they're resolved
+  // via the 'workspace' rather than 'local-filesystem'.
+  expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('file:is-positive')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
@@ -1128,7 +1130,7 @@ test('resolve from local directory when alwaysTryWorkspacePackages is false but 
     ]),
   })
 
-  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:is-positive')
   expect(resolveResult!.resolution).toStrictEqual({
     directory: '/home/istvan/src/is-positive',
@@ -1161,7 +1163,7 @@ test('resolve from local directory when alwaysTryWorkspacePackages is false but 
     ]),
   })
 
-  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:is-positive')
   expect(resolveResult!.resolution).toStrictEqual({
     directory: '/home/istvan/src/is-positive',
@@ -1247,7 +1249,7 @@ test('preferWorkspacePackages: use version from the workspace even if there is n
 
   expect(resolveResult).toStrictEqual(
     expect.objectContaining({
-      resolvedVia: 'local-filesystem',
+      resolvedVia: 'workspace',
       id: 'link:is-positive',
       latest: '3.1.0',
     })
@@ -1284,7 +1286,7 @@ test('use local version if it is newer than the latest in the registry', async (
     ]),
   })
 
-  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:is-positive')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
@@ -1335,7 +1337,7 @@ test('resolve from local directory when package is not found in the registry', a
     ]),
   })
 
-  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:../is-positive')
   expect(resolveResult!.latest).toBeFalsy()
   expect(resolveResult!.resolution).toStrictEqual({
@@ -1386,7 +1388,7 @@ test('resolve from local directory when package is not found in the registry and
     ]),
   })
 
-  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:is-positive-2.0.0')
   expect(resolveResult!.latest).toBeFalsy()
   expect(resolveResult!.resolution).toStrictEqual({
@@ -1423,7 +1425,7 @@ test('resolve from local directory when package is not found in the registry and
     ]),
   })
 
-  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:is-positive')
   expect(resolveResult!.latest).toBeFalsy()
   expect(resolveResult!.resolution).toStrictEqual({
@@ -1474,7 +1476,7 @@ test('resolve from local directory when package is not found in the registry and
     ]),
   })
 
-  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:../is-positive')
   expect(resolveResult!.latest).toBeFalsy()
   expect(resolveResult!.resolution).toStrictEqual({
@@ -1511,7 +1513,7 @@ test('resolve from local directory when the requested version is not found in th
     ]),
   })
 
-  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:../is-positive')
   expect(resolveResult!.latest).toBeFalsy()
   expect(resolveResult!.resolution).toStrictEqual({
@@ -1544,7 +1546,7 @@ test('workspace protocol: resolve from local directory even when it does not mat
     ]),
   })
 
-  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:is-positive')
   expect(resolveResult!.latest).toBeFalsy()
   expect(resolveResult!.resolution).toStrictEqual({
@@ -1581,7 +1583,7 @@ test('workspace protocol: resolve from local package that has a pre-release vers
     ]),
   })
 
-  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:is-positive')
   expect(resolveResult!.latest).toBeFalsy()
   expect(resolveResult!.resolution).toStrictEqual({
