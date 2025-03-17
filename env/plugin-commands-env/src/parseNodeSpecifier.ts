@@ -6,7 +6,7 @@ export interface NodeSpecifier {
 }
 
 const isStableVersion = (version: string): boolean => /^\d+\.\d+\.\d+$/.test(version)
-const matchPrereleaseVersion = (version: string): RegExpMatchArray | null => version.match(/^\d+\.\d+\.\d+-(nightly|rc|test|v8-canary)(\..+)$/)
+const matchPrereleaseVersion = (version: string): RegExpMatchArray | null => version.match(/^\d+\.\d+\.\d+-((rc)(\..+)|(test|v8-canary|nightly)(.+))$/)
 
 const STABLE_RELEASE_ERROR_HINT = 'The correct syntax for stable release is strictly X.Y.Z or release/X.Y.Z'
 
@@ -43,7 +43,7 @@ export function parseNodeSpecifier (specifier: string): NodeSpecifier {
 
   const prereleaseMatch = matchPrereleaseVersion(specifier)
   if (prereleaseMatch != null) {
-    return { releaseChannel: prereleaseMatch[1], useNodeVersion: specifier }
+    return { releaseChannel: prereleaseMatch[2], useNodeVersion: specifier }
   }
 
   if (isStableVersion(specifier)) {
