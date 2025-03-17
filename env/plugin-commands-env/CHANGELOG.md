@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-env
 
+## 1000.0.17
+
+### Patch Changes
+
+- aec8c50: Invalid Node.js version in `use-node-version` should not cause pnpm itself to break [#9276](https://github.com/pnpm/pnpm/issues/9276).
+  - @pnpm/node.fetcher@1000.0.10
+  - @pnpm/node.resolver@1000.0.10
+
 ## 1000.0.16
 
 ### Patch Changes

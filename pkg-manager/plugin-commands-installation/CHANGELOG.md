@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-installation
 
+## 1002.2.1
+
+### Patch Changes
+
+- e5b7bf4: Fix `pnpm dlx` with `--allow-build` flag [#9263](https://github.com/pnpm/pnpm/issues/9263).
+- Updated dependencies [9904675]
+- Updated dependencies [aec8c50]
+  - @pnpm/workspace.state@1001.1.12
+  - @pnpm/plugin-commands-env@1000.0.17
+  - @pnpm/deps.status@1002.0.6
+  - @pnpm/plugin-commands-rebuild@1002.0.6
+  - @pnpm/core@1005.0.0
+  - @pnpm/package-store@1001.0.0
+  - @pnpm/store-connection-manager@1000.0.16
+  - @pnpm/outdated@1001.0.12
+
 ## 1002.2.0
 
 ### Minor Changes

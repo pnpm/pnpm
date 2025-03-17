@@ -1,5 +1,12 @@
 # @pnpm/build-modules
 
+## 1000.2.9
+
+### Patch Changes
+
+- Updated dependencies [2e05789]
+  - @pnpm/worker@1000.1.0
+
 ## 1000.2.8
 
 ### Patch Changes

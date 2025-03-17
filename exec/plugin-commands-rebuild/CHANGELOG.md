@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1002.0.6
+
+### Patch Changes
+
+- Updated dependencies [2e05789]
+  - @pnpm/worker@1000.1.0
+  - @pnpm/store-connection-manager@1000.0.16
+
 ## 1002.0.5
 
 ### Patch Changes

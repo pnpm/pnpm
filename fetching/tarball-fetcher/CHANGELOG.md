@@ -1,5 +1,12 @@
 # @pnpm/tarball-fetcher
 
+## 1001.0.0
+
+### Patch Changes
+
+- Updated dependencies [2e05789]
+  - @pnpm/worker@1000.1.0
+
 ## 1000.0.9
 
 ### Patch Changes

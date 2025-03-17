@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.1.15
+
+### Patch Changes
+
+- Updated dependencies [aec8c50]
+  - @pnpm/plugin-commands-env@1000.0.17
+  - @pnpm/client@1000.0.11
+
 ## 1000.1.14
 
 ### Patch Changes
