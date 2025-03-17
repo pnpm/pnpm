@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1000.2.6
+
+### Patch Changes
+
+- e5b7bf4: Fix `pnpm dlx` with `--allow-build` flag [#9263](https://github.com/pnpm/pnpm/issues/9263).
+- Updated dependencies [9904675]
+- Updated dependencies [e5b7bf4]
+- Updated dependencies [aec8c50]
+  - @pnpm/workspace.injected-deps-syncer@1000.0.2
+  - @pnpm/plugin-commands-installation@1002.2.1
+  - @pnpm/plugin-commands-env@1000.0.17
+  - @pnpm/deps.status@1002.0.6
+  - @pnpm/client@1000.0.11
+
 ## 1000.2.5
 
 ### Patch Changes

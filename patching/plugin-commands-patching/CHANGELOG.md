@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [e5b7bf4]
+  - @pnpm/plugin-commands-installation@1002.2.1
+  - @pnpm/store-connection-manager@1000.0.16
+
 ## 1000.1.3
 
 ### Patch Changes

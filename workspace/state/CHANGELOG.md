@@ -1,5 +1,11 @@
 # @pnpm/workspace.state
 
+## 1001.1.12
+
+### Patch Changes
+
+- 9904675: `@pnpm/logger` should be a peer dependency.
+
 ## 1001.1.11
 
 ### Patch Changes

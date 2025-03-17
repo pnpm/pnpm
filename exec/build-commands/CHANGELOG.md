@@ -1,5 +1,11 @@
 # @pnpm/exec.build-commands
 
+## 1001.0.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@1002.0.6
+
 ## 1001.0.5
 
 ### Patch Changes
