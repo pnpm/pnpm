@@ -469,8 +469,6 @@ export async function getConfig (opts: {
     }
   }
 
-  pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
-
   if (!opts.ignoreLocalSettings) {
     pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
     pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
@@ -496,6 +494,8 @@ export async function getConfig (opts: {
       }
     }
   }
+
+  pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
 
   pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig
 
