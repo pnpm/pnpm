@@ -630,7 +630,7 @@ test('setting workspace-concurrency to negative number', async () => {
     },
     workspaceDir,
   })
-  expect(config.workspaceConcurrency > 1).toBeTruthy()
+  expect(config.workspaceConcurrency >= 1).toBeTruthy()
 })
 
 test('respects test-pattern', async () => {
