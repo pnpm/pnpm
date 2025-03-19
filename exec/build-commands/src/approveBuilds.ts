@@ -1,6 +1,6 @@
 import { type Config } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
-import { type StrictModules, readModulesManifest, writeModulesManifest } from '@pnpm/modules-yaml'
+import { type StrictModules, writeModulesManifest } from '@pnpm/modules-yaml'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import renderHelp from 'render-help'
@@ -8,7 +8,7 @@ import { prompt } from 'enquirer'
 import chalk from 'chalk'
 import { rebuild, type RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
-import { getAutomaticallyIgnoredBuildsFromModules, getModulesDir } from './getAutomaticallyIgnoredBuilds'
+import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds'
 
 export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'onlyBuiltDependencies' | 'ignoredBuiltDependencies'>
 
@@ -45,9 +45,11 @@ export function rcOptionsTypes (): Record<string, unknown> {
 }
 
 export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts): Promise<void> {
-  const modulesDir = getModulesDir(opts)
-  const modulesManifest = await readModulesManifest(modulesDir)
-  const automaticallyIgnoredBuilds = getAutomaticallyIgnoredBuildsFromModules(modulesManifest)
+  const {
+    automaticallyIgnoredBuilds,
+    modulesDir,
+    modulesManifest,
+  } = await getAutomaticallyIgnoredBuilds(opts)
   if (!automaticallyIgnoredBuilds?.length) {
     globalInfo('There are no packages awaiting approval')
     return

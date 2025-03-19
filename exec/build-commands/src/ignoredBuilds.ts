@@ -23,7 +23,11 @@ export function rcOptionsTypes (): Record<string, unknown> {
 
 export async function handler (opts: IgnoredBuildsCommandOpts): Promise<string> {
   const ignoredBuiltDependencies = opts.rootProjectManifest?.pnpm?.ignoredBuiltDependencies ?? []
-  const automaticallyIgnoredBuilds = (await getAutomaticallyIgnoredBuilds(opts))?.filter((automaticallyIgnoredBuild) => !ignoredBuiltDependencies.includes(automaticallyIgnoredBuild))
+  let { automaticallyIgnoredBuilds } = await getAutomaticallyIgnoredBuilds(opts)
+  if (automaticallyIgnoredBuilds) {
+    automaticallyIgnoredBuilds = automaticallyIgnoredBuilds
+      .filter((automaticallyIgnoredBuild) => !ignoredBuiltDependencies.includes(automaticallyIgnoredBuild))
+  }
   let output = 'Automatically ignored builds during installation:\n'
   if (automaticallyIgnoredBuilds == null) {
     output += '  Cannot identify as no node_modules found'
