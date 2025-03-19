@@ -1,5 +1,39 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [e5b7bf4]
+  - @pnpm/plugin-commands-installation@1002.2.1
+  - @pnpm/store-connection-manager@1000.0.16
+
+## 1000.1.3
+
+### Patch Changes
+
+- 968b85b: When `terminalLink` is not supported, it should fallback to the default text.
+- Updated dependencies [b4efd0e]
+- Updated dependencies [6e4459c]
+- Updated dependencies [cda1c43]
+  - @pnpm/plugin-commands-installation@1002.2.0
+  - @pnpm/config@1002.5.3
+  - @pnpm/cli-utils@1000.0.16
+  - @pnpm/store-connection-manager@1000.0.15
+
+## 1000.1.2
+
+### Patch Changes
+
+- 0378a9a: `pnpm patch-commit` will now use the same filesystem as the store directory to compare and create patch files.
+  - @pnpm/cli-utils@1000.0.15
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/plugin-commands-installation@1002.1.2
+  - @pnpm/config@1002.5.2
+  - @pnpm/lockfile.fs@1001.1.6
+  - @pnpm/lockfile.utils@1001.0.5
+  - @pnpm/store-connection-manager@1000.0.14
+
 ## 1000.1.1
 
 ### Patch Changes

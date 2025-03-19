@@ -1,5 +1,11 @@
 # @pnpm/workspace.injected-deps-syncer
 
+## 1000.0.2
+
+### Patch Changes
+
+- 9904675: `@pnpm/logger` should be a peer dependency.
+
 ## 1000.0.1
 
 ### Patch Changes

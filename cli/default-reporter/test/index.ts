@@ -20,6 +20,7 @@ import {
 import { map, skip, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
+import { firstValueFrom } from 'rxjs'
 import repeat from 'ramda/src/repeat'
 import { formatWarn } from '../src/reporterForClient/utils/formatWarn'
 
@@ -35,7 +36,7 @@ const h1 = chalk.cyanBright
 
 const EOL = '\n'
 
-test('prints summary (of current package only)', (done) => {
+test('prints summary (of current package only)', async () => {
   const prefix = '/home/jane/project'
   const output$ = toOutput$({
     context: {
@@ -198,11 +199,8 @@ test('prints summary (of current package only)', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(skip(2), take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`packages/foo                             |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}${EOL}` +
+  const output = await firstValueFrom(output$.pipe(skip(2), take(1), map(normalizeNewline)))
+  expect(output).toBe(`packages/foo                             |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}${EOL}` +
         `${formatWarn(`${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla`)}${EOL}${EOL}` +
         `\
 ${h1('dependencies:')}
@@ -226,11 +224,9 @@ ${ADD} qar ${versionColor('2.0.0')}
 ${h1('node_modules:')}
 ${ADD} is-linked2 ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked2')}`)}
 `)
-    },
-  })
 })
 
-test('prints summary without the filtered out entries', (done) => {
+test('prints summary without the filtered out entries', async () => {
   const prefix = '/home/jane/project'
   const output$ = toOutput$({
     context: {
@@ -291,19 +287,17 @@ test('prints summary without the filtered out entries', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(EOL + `\
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(EOL + `\
 ${h1('dependencies:')}
 ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
+
+${h1('devDependencies:')}
+${ADD} qar ${versionColor('2.0.0')}
 `)
-    },
-  })
 })
 
-test('does not print deprecation message when log level is set to error', (done) => {
+test('does not print deprecation message when log level is set to error', async () => {
   const prefix = '/home/jane/project'
   const output$ = toOutput$({
     context: {
@@ -354,16 +348,11 @@ test('does not print deprecation message when log level is set to error', (done)
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(formatError('ERR_PNPM_SOME_CODE', 'some error'))
-    },
-  })
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(formatError('ERR_PNPM_SOME_CODE', 'some error'))
 })
 
-test('prints summary for global installation', (done) => {
+test('prints summary for global installation', async () => {
   const prefix = '/home/jane/.nvs/node/10.0.0/x64/pnpm-global/1'
   const output$ = toOutput$({
     context: {
@@ -413,20 +402,15 @@ test('prints summary for global installation', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(EOL + `\
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(EOL + `\
 ${h1(`${prefix}:`)}
 ${ADD} bar ${versionColor('2.0.0')}
 ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
 `)
-    },
-  })
 })
 
-test('prints added peer dependency', (done) => {
+test('prints added peer dependency', async () => {
   const prefix = '/home/jane/.nvs/node/10.0.0/x64/pnpm-global/1'
   const output$ = toOutput$({
     context: {
@@ -457,22 +441,17 @@ test('prints added peer dependency', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(EOL + `\
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(EOL + `\
 ${h1('peerDependencies:')}
 ${ADD} is-negative ${versionColor('^1.0.0')}
 
 ${h1('devDependencies:')}
 ${ADD} is-negative ${versionColor('^1.0.0')}
 `)
-    },
-  })
 })
 
-test('prints summary correctly when the same package is specified both in optional and prod dependencies', (done) => {
+test('prints summary correctly when the same package is specified both in optional and prod dependencies', async () => {
   const prefix = '/home/jane/.nvs/node/10.0.0/x64/pnpm-global/1'
   const output$ = toOutput$({
     context: {
@@ -524,19 +503,14 @@ test('prints summary correctly when the same package is specified both in option
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(EOL + `\
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(EOL + `\
 ${h1('dependencies:')}
 ${ADD} bar ${versionColor('2.0.0')}
 `)
-    },
-  })
 })
 
-test('in the installation summary report which dependency types are skipped', (done) => {
+test('in the installation summary report which dependency types are skipped', async () => {
   const prefix = '/home/jane/.nvs/node/10.0.0/x64/pnpm-global/1'
   const output$ = toOutput$({
     context: {
@@ -594,11 +568,8 @@ test('in the installation summary report which dependency types are skipped', (d
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(EOL + `\
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(EOL + `\
 ${h1('dependencies:')}
 ${ADD} bar ${versionColor('2.0.0')}
 
@@ -606,43 +577,15 @@ ${h1('optionalDependencies:')} skipped
 
 ${h1('devDependencies:')} skipped
 `)
-    },
-  })
 })
 
-test('prints summary when some packages fail', (done) => {
+test('prints summary when some packages fail', async () => {
   const output$ = toOutput$({
     context: { argv: ['run'], config: { recursive: true } as Config },
     streamParser: createStreamParser(),
   })
 
   expect.assertions(1)
-
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(EOL + `Summary: ${chalk.red('6 fails')}, 7 passes
-
-/a:
-${formatError('ERROR', 'a failed')}
-
-/b:
-${formatError('ERROR', 'b failed')}
-
-/c:
-${formatError('ERROR', 'c failed')}
-
-/d:
-${formatError('ERROR', 'd failed')}
-
-/e:
-${formatError('ERROR', 'e failed')}
-
-/f:
-${formatError('ERROR', 'f failed')}`)
-    },
-  })
 
   const err = Object.assign(new PnpmError('RECURSIVE_FAIL', '...'), {
     failures: [
@@ -675,9 +618,34 @@ ${formatError('ERROR', 'f failed')}`)
   })
 
   logger.error(err, err)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`\
+${formatError('ERR_PNPM_RECURSIVE_FAIL', '')}
+
+
+Summary: ${chalk.red('6 fails')}, 7 passes
+
+/a:
+${formatError('ERROR', 'a failed')}
+
+/b:
+${formatError('ERROR', 'b failed')}
+
+/c:
+${formatError('ERROR', 'c failed')}
+
+/d:
+${formatError('ERROR', 'd failed')}
+
+/e:
+${formatError('ERROR', 'e failed')}
+
+/f:
+${formatError('ERROR', 'f failed')}`)
 })
 
-test('prints info', (done) => {
+test('prints info', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -687,16 +655,11 @@ test('prints info', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe('info message')
-    },
-  })
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe('info message')
 })
 
-test('prints added/removed stats during installation', (done) => {
+test('prints added/removed stats during installation', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -708,18 +671,12 @@ test('prints added/removed stats during installation', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`Packages: ${chalk.green('+5')} ${chalk.red('-1')}
-${ADD + ADD + ADD + ADD + ADD + SUB}`
-      )
-    },
-  })
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.green('+5')} ${chalk.red('-1')}
+${ADD + ADD + ADD + ADD + ADD + SUB}`)
 })
 
-test('prints added/removed stats during installation when 0 removed', (done) => {
+test('prints added/removed stats during installation when 0 removed', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -731,18 +688,12 @@ test('prints added/removed stats during installation when 0 removed', (done) => 
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`Packages: ${chalk.green('+2')}
-${ADD + ADD}`
-      )
-    },
-  })
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.green('+2')}
+${ADD + ADD}`)
 })
 
-test('prints only the added stats if nothing was removed', (done) => {
+test('prints only the added stats if nothing was removed', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -754,17 +705,12 @@ test('prints only the added stats if nothing was removed', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`Packages: ${chalk.green('+1')}
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.green('+1')}
 ${ADD}`)
-    },
-  })
 })
 
-test('prints only the removed stats if nothing was added', (done) => {
+test('prints only the removed stats if nothing was added', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -776,17 +722,12 @@ test('prints only the removed stats if nothing was added', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`Packages: ${chalk.red('-1')}
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.red('-1')}
 ${SUB}`)
-    },
-  })
 })
 
-test('prints only the added stats if nothing was removed and a lot added', (done) => {
+test('prints only the added stats if nothing was removed and a lot added', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     reportingOptions: { outputMaxWidth: 20 },
@@ -799,17 +740,12 @@ test('prints only the added stats if nothing was removed and a lot added', (done
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`Packages: ${chalk.green('+100')}
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.green('+100')}
 ${repeat(ADD, 20).join('')}`)
-    },
-  })
 })
 
-test('prints only the removed stats if nothing was added and a lot removed', (done) => {
+test('prints only the removed stats if nothing was added and a lot removed', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     reportingOptions: { outputMaxWidth: 20 },
@@ -822,17 +758,12 @@ test('prints only the removed stats if nothing was added and a lot removed', (do
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`Packages: ${chalk.red('-100')}
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.red('-100')}
 ${repeat(SUB, 20).join('')}`)
-    },
-  })
 })
 
-test('prints at least one remove sign when removed !== 0', (done) => {
+test('prints at least one remove sign when removed !== 0', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     reportingOptions: { outputMaxWidth: 20 },
@@ -845,18 +776,12 @@ test('prints at least one remove sign when removed !== 0', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`Packages: ${chalk.green('+100')} ${chalk.red('-1')}
-${repeat(ADD, 19).join('') + SUB}`
-      )
-    },
-  })
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.green('+100')} ${chalk.red('-1')}
+${repeat(ADD, 19).join('') + SUB}`)
 })
 
-test('prints at least one add sign when added !== 0', (done) => {
+test('prints at least one add sign when added !== 0', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     reportingOptions: { outputMaxWidth: 20 },
@@ -869,17 +794,12 @@ test('prints at least one add sign when added !== 0', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`Packages: ${chalk.green('+1')} ${chalk.red('-100')}
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.green('+1')} ${chalk.red('-100')}
 ${ADD + repeat(SUB, 19).join('')}`)
-    },
-  })
 })
 
-test('prints just removed during uninstallation', (done) => {
+test('prints just removed during uninstallation', async () => {
   const output$ = toOutput$({
     context: { argv: ['remove'] },
     streamParser: createStreamParser(),
@@ -890,17 +810,12 @@ test('prints just removed during uninstallation', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`Packages: ${chalk.red('-4')}
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`Packages: ${chalk.red('-4')}
 ${SUB + SUB + SUB + SUB}`)
-    },
-  })
 })
 
-test('prints added/removed stats and warnings during recursive installation', (done) => {
+test('prints added/removed stats and warnings during recursive installation', async () => {
   const rootPrefix = '/home/jane/repo'
   const output$ = toOutput$({
     context: {
@@ -945,12 +860,9 @@ test('prints added/removed stats and warnings during recursive installation', (d
 
   expect.assertions(1)
 
-  output$.pipe(skip(8), take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      // cspell:disable
-      expect(output).toBe(`\
+  const output = await firstValueFrom(output$.pipe(skip(8), take(1), map(normalizeNewline)))
+  // cspell:disable
+  expect(output).toBe(`\
 pkg-5                                    | ${formatWarn('Some issue')}
 .                                        | ${formatWarn('Some other issue')}
 .                                        |   ${chalk.red('-1')} ${SUB}
@@ -960,12 +872,10 @@ dir/pkg-2                                |   ${chalk.green('+2')} ${ADD}
 .../pkg-3                                |   ${chalk.green('+1')} ${ADD}
 ...ooooooooooooooooooooooooooooong-pkg-4 |   ${chalk.red('-1')} ${SUB}
 .                                        | ${formatWarn(`${DEPRECATED} foo@1.0.0`)}`)
-      // cspell:enable
-    },
-  })
+  // cspell:enable
 })
 
-test('recursive installation: prints only the added stats if nothing was removed and a lot added', (done) => {
+test('recursive installation: prints only the added stats if nothing was removed and a lot added', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
@@ -980,16 +890,11 @@ test('recursive installation: prints only the added stats if nothing was removed
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`pkg-1                                    | ${chalk.green('+190')} ${repeat(ADD, 12).join('')}`)
-    },
-  })
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`pkg-1                                    | ${chalk.green('+190')} ${repeat(ADD, 12).join('')}`)
 })
 
-test('recursive installation: prints only the removed stats if nothing was added and a lot removed', (done) => {
+test('recursive installation: prints only the removed stats if nothing was added and a lot removed', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
@@ -1004,16 +909,11 @@ test('recursive installation: prints only the removed stats if nothing was added
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`pkg-1                                    | ${chalk.red('-190')} ${repeat(SUB, 12).join('')}`)
-    },
-  })
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`pkg-1                                    | ${chalk.red('-190')} ${repeat(SUB, 12).join('')}`)
 })
 
-test('recursive installation: prints at least one remove sign when removed !== 0', (done) => {
+test('recursive installation: prints at least one remove sign when removed !== 0', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
@@ -1028,16 +928,11 @@ test('recursive installation: prints at least one remove sign when removed !== 0
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`pkg-1                                    | ${chalk.green('+100')}   ${chalk.red('-1')} ${repeat(ADD, 8).join('') + SUB}`)
-    },
-  })
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`pkg-1                                    | ${chalk.green('+100')}   ${chalk.red('-1')} ${repeat(ADD, 8).join('') + SUB}`)
 })
 
-test('recursive installation: prints at least one add sign when added !== 0', (done) => {
+test('recursive installation: prints at least one add sign when added !== 0', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
@@ -1052,16 +947,11 @@ test('recursive installation: prints at least one add sign when added !== 0', (d
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`pkg-1                                    |   ${chalk.green('+1')} ${chalk.red('-100')} ${ADD + repeat(SUB, 8).join('')}`)
-    },
-  })
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`pkg-1                                    |   ${chalk.green('+1')} ${chalk.red('-100')} ${ADD + repeat(SUB, 8).join('')}`)
 })
 
-test('recursive uninstall: prints removed packages number', (done) => {
+test('recursive uninstall: prints removed packages number', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['remove'],
@@ -1075,16 +965,11 @@ test('recursive uninstall: prints removed packages number', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`pkg-1                                    |   ${chalk.red('-1')} ${SUB}`)
-    },
-  })
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`pkg-1                                    |   ${chalk.red('-1')} ${SUB}`)
 })
 
-test('install: print hook message', (done) => {
+test('install: print hook message', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -1102,16 +987,11 @@ test('install: print hook message', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`${chalk.magentaBright('readPackage')}: foo`)
-    },
-  })
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`${chalk.magentaBright('readPackage')}: foo`)
 })
 
-test('recursive: print hook message', (done) => {
+test('recursive: print hook message', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
@@ -1129,16 +1009,11 @@ test('recursive: print hook message', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1), map(normalizeNewline)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`pkg-1                                    | ${chalk.magentaBright('readPackage')}: foo`)
-    },
-  })
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(`pkg-1                                    | ${chalk.magentaBright('readPackage')}: foo`)
 })
 
-test('prints skipped optional dependency info message', (done) => {
+test('prints skipped optional dependency info message', async () => {
   const prefix = process.cwd()
   const output$ = toOutput$({
     context: {
@@ -1163,16 +1038,11 @@ test('prints skipped optional dependency info message', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`info: ${pkgId} is an optional dependency and failed compatibility check. Excluding it from installation.`)
-    },
-  })
+  const output = await firstValueFrom(output$)
+  expect(output).toBe(`info: ${pkgId} is an optional dependency and failed compatibility check. Excluding it from installation.`)
 })
 
-test('logLevel=default', (done) => {
+test('logLevel=default', async () => {
   const prefix = process.cwd()
   const output$ = toOutput$({
     context: {
@@ -1189,18 +1059,13 @@ test('logLevel=default', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(skip(2), take(1)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`Info message
+  const output = await firstValueFrom(output$.pipe(skip(2), take(1)))
+  expect(output).toBe(`Info message
 ${formatWarn('Some issue')}
-${formatError('ERROR', 'some error')}`)
-    },
-  })
+${formatError('ERR_PNPM_SOME_CODE', 'some error')}`)
 })
 
-test('logLevel=warn', (done) => {
+test('logLevel=warn', async () => {
   const prefix = process.cwd()
   const output$ = toOutput$({
     context: {
@@ -1220,17 +1085,12 @@ test('logLevel=warn', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(skip(1), take(1)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`${formatWarn('Some issue')}
+  const output = await firstValueFrom(output$.pipe(skip(1), take(1)))
+  expect(output).toBe(`${formatWarn('Some issue')}
 ${formatError('ERR_PNPM_SOME_CODE', 'some error')}`)
-    },
-  })
 })
 
-test('logLevel=error', (done) => {
+test('logLevel=error', async () => {
   const prefix = process.cwd()
   const output$ = toOutput$({
     context: {
@@ -1250,16 +1110,11 @@ test('logLevel=error', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(formatError('ERR_PNPM_SOME_CODE', 'some error'))
-    },
-  })
+  const output = await firstValueFrom(output$)
+  expect(output).toBe(formatError('ERR_PNPM_SOME_CODE', 'some error'))
 })
 
-test('warnings are collapsed', (done) => {
+test('warnings are collapsed', async () => {
   const prefix = process.cwd()
   const output$ = toOutput$({
     context: {
@@ -1282,21 +1137,16 @@ test('warnings are collapsed', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(skip(6), take(1)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(`${formatWarn('Some issue 1')}
+  const output = await firstValueFrom(output$.pipe(skip(6), take(1)))
+  expect(output).toBe(`${formatWarn('Some issue 1')}
 ${formatWarn('Some issue 2')}
 ${formatWarn('Some issue 3')}
 ${formatWarn('Some issue 4')}
 ${formatWarn('Some issue 5')}
 ${formatWarn('2 other warnings')}`)
-    },
-  })
 })
 
-test('warnings are not collapsed when append-only is true', (done) => {
+test('warnings are not collapsed when append-only is true', async () => {
   const prefix = process.cwd()
   const output$ = toOutput$({
     context: {
@@ -1320,11 +1170,6 @@ test('warnings are not collapsed when append-only is true', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(skip(6), take(1)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toBe(formatWarn('Some issue 7'))
-    },
-  })
+  const output = await firstValueFrom(output$.pipe(skip(6), take(1)))
+  expect(output).toBe(formatWarn('Some issue 7'))
 })

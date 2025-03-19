@@ -617,6 +617,22 @@ test('reads workspacePackagePatterns', async () => {
   expect(config.workspacePackagePatterns).toEqual(['packages/*'])
 })
 
+test('setting workspace-concurrency to negative number', async () => {
+  const workspaceDir = path.join(__dirname, 'fixtures/pkg-with-valid-workspace-yaml')
+  process.chdir(workspaceDir)
+  const { config } = await getConfig({
+    cliOptions: {
+      'workspace-concurrency': -1,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir,
+  })
+  expect(config.workspaceConcurrency >= 1).toBeTruthy()
+})
+
 test('respects test-pattern', async () => {
   {
     const { config } = await getConfig({

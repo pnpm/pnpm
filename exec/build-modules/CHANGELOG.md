@@ -1,5 +1,19 @@
 # @pnpm/build-modules
 
+## 1000.2.9
+
+### Patch Changes
+
+- Updated dependencies [2e05789]
+  - @pnpm/worker@1000.1.0
+
+## 1000.2.8
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.8
+- @pnpm/calc-dep-state@1001.0.7
+
 ## 1000.2.7
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.build-commands",
-  "version": "1001.0.3",
+  "version": "1001.0.6",
   "description": "Commands for managing dependency builds",
   "keywords": [
     "pnpm",
@@ -32,12 +32,11 @@
   },
   "dependencies": {
     "@pnpm/config": "workspace:*",
+    "@pnpm/config.config-writer": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
-    "@pnpm/workspace.manifest-writer": "workspace:*",
     "chalk": "catalog:",
     "enquirer": "catalog:",
     "render-help": "catalog:"

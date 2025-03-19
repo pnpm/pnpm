@@ -1,5 +1,19 @@
 # @pnpm/package-requester
 
+## 1002.0.0
+
+### Patch Changes
+
+- Updated dependencies [2e05789]
+  - @pnpm/worker@1000.1.0
+
+## 1001.0.4
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.8
+- @pnpm/dependency-path@1000.0.5
+
 ## 1001.0.3
 
 ### Patch Changes

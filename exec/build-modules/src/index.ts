@@ -23,6 +23,7 @@ export async function buildModules<T extends string> (
   rootDepPaths: T[],
   opts: {
     allowBuild?: (pkgName: string) => boolean
+    ignorePatchFailures?: boolean
     ignoredBuiltDependencies?: string[]
     childConcurrency?: number
     depsToBuild?: Set<string>
@@ -103,6 +104,7 @@ async function buildDependency<T extends string> (
   depPath: T,
   depGraph: DependenciesGraph<T>,
   opts: {
+    ignorePatchFailures?: boolean
     extraBinPaths?: string[]
     extraNodePaths?: string[]
     extraEnv?: Record<string, string>
@@ -138,7 +140,10 @@ async function buildDependency<T extends string> (
     let isPatched = false
     if (depNode.patch) {
       const { file, strict } = depNode.patch
-      isPatched = applyPatchToDir({ allowFailure: !strict, patchedDir: depNode.dir, patchFilePath: file.path })
+      // `strict` is a legacy property which was kept to preserve backward compatibility.
+      // Once a major version of pnpm is released, `strict` should be removed completely.
+      const allowFailure: boolean = opts.ignorePatchFailures ?? !strict
+      isPatched = applyPatchToDir({ allowFailure, patchedDir: depNode.dir, patchFilePath: file.path })
     }
     const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
       depPath,

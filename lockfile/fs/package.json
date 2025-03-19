@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.fs",
-  "version": "1001.1.5",
+  "version": "1001.1.6",
   "description": "Read/write pnpm-lock.yaml files",
   "keywords": [
     "pnpm",

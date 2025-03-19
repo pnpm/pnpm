@@ -1,5 +1,17 @@
 # pd
 
+## 1.0.18
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.16
+
+## 1.0.17
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.15
+
 ## 1.0.16
 
 ### Patch Changes

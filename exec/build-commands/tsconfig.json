@@ -19,6 +19,9 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../config/config-writer"
+    },
+    {
       "path": "../../packages/types"
     },
     {
@@ -26,12 +29,6 @@
     },
     {
       "path": "../../pkg-manager/plugin-commands-installation"
-    },
-    {
-      "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
-      "path": "../../workspace/manifest-writer"
     },
     {
       "path": "../plugin-commands-rebuild"

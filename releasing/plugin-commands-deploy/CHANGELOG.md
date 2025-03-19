@@ -1,5 +1,34 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.15
+
+### Patch Changes
+
+- Updated dependencies [e5b7bf4]
+  - @pnpm/plugin-commands-installation@1002.2.1
+
+## 1001.1.14
+
+### Patch Changes
+
+- cda1c43: An internal refactor was made to the `deploy` command to better handle a change in `plugin-commands-installation` when `node-linker=hoisted`. There are no behavior changes expected with this refactor.
+- Updated dependencies [b4efd0e]
+- Updated dependencies [6e4459c]
+- Updated dependencies [cda1c43]
+  - @pnpm/plugin-commands-installation@1002.2.0
+  - @pnpm/config@1002.5.3
+  - @pnpm/cli-utils@1000.0.16
+
+## 1001.1.13
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.15
+- @pnpm/plugin-commands-installation@1002.1.2
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/config@1002.5.2
+- @pnpm/lockfile.fs@1001.1.6
+
 ## 1001.1.12
 
 ### Patch Changes

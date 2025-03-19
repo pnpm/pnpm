@@ -1,5 +1,18 @@
 # @pnpm/git-fetcher
 
+## 1001.0.0
+
+### Patch Changes
+
+- Updated dependencies [2e05789]
+  - @pnpm/worker@1000.1.0
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.8
+
 ## 1000.0.8
 
 ### Patch Changes

@@ -2,36 +2,36 @@
 
 exports[`print update notification for Corepack if the latest version is greater than the current 1`] = `
 "
-   ╭──────────────────────────────────────────────────────────────────╮
-   │                                                                  │
-   │                Update available! 10.0.0 → 11.0.0.                │
-   │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v11.0.0   │
-   │            Run "corepack use pnpm@11.0.0" to update.             │
-   │                                                                  │
-   ╰──────────────────────────────────────────────────────────────────╯
+   ╭──────────────────────────────────────────────╮
+   │                                              │
+   │      Update available! 10.0.0 → 11.0.0.      │
+   │     Changelog: https://pnpm.io/v/11.0.0      │
+   │   To update, run: corepack use pnpm@11.0.0   │
+   │                                              │
+   ╰──────────────────────────────────────────────╯
 "
 `;
 
 exports[`print update notification if the latest version is greater than the current 1`] = `
 "
-   ╭──────────────────────────────────────────────────────────────────╮
-   │                                                                  │
-   │                Update available! 10.0.0 → 11.0.0.                │
-   │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v11.0.0   │
-   │                Run "pnpm add -g pnpm" to update.                 │
-   │                                                                  │
-   ╰──────────────────────────────────────────────────────────────────╯
+   ╭─────────────────────────────────────────╮
+   │                                         │
+   │   Update available! 10.0.0 → 11.0.0.    │
+   │   Changelog: https://pnpm.io/v/11.0.0   │
+   │    To update, run: pnpm add -g pnpm     │
+   │                                         │
+   ╰─────────────────────────────────────────╯
 "
 `;
 
 exports[`print update notification that suggests to use the standalone scripts for the upgrade 1`] = `
 "
-   ╭──────────────────────────────────────────────────────────────────╮
-   │                                                                  │
-   │                Update available! 10.0.0 → 11.0.0.                │
-   │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v11.0.0   │
-   │                Run "pnpm self-update" to update.                 │
-   │                                                                  │
-   ╰──────────────────────────────────────────────────────────────────╯
+   ╭─────────────────────────────────────────╮
+   │                                         │
+   │   Update available! 10.0.0 → 11.0.0.    │
+   │   Changelog: https://pnpm.io/v/11.0.0   │
+   │    To update, run: pnpm self-update     │
+   │                                         │
+   ╰─────────────────────────────────────────╯
 "
 `;

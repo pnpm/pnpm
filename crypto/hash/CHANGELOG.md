@@ -1,5 +1,12 @@
 # @pnpm/crypto.hash
 
+## 1000.1.1
+
+### Patch Changes
+
+- Updated dependencies [58d8597]
+  - @pnpm/crypto.polyfill@1000.1.0
+
 ## 1000.1.0
 
 ### Minor Changes

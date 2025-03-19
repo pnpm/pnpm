@@ -1,5 +1,64 @@
 # @pnpm/plugin-commands-installation
 
+## 1002.2.1
+
+### Patch Changes
+
+- e5b7bf4: Fix `pnpm dlx` with `--allow-build` flag [#9263](https://github.com/pnpm/pnpm/issues/9263).
+- Updated dependencies [9904675]
+- Updated dependencies [aec8c50]
+  - @pnpm/workspace.state@1001.1.12
+  - @pnpm/plugin-commands-env@1000.0.17
+  - @pnpm/deps.status@1002.0.6
+  - @pnpm/plugin-commands-rebuild@1002.0.6
+  - @pnpm/core@1005.0.0
+  - @pnpm/package-store@1001.0.0
+  - @pnpm/store-connection-manager@1000.0.16
+  - @pnpm/outdated@1001.0.12
+
+## 1002.2.0
+
+### Minor Changes
+
+- cda1c43: The `install` function now accepts a `pruneLockfileImporters` option. This is used internally by pnpm to create a more accurate filtered lockfile.
+
+### Patch Changes
+
+- b4efd0e: Removed a branching code path that only executed when `dedupe-peer-dependents=false`. We believe this internal refactor will not result in behavior changes, but we expect it to make future pnpm versions behave more consistently for projects that override `dedupe-peer-dependents` to false. There should be less unique bugs from turning off `dedupe-peer-dependents`.
+
+  See details in [#9259](https://github.com/pnpm/pnpm/pull/9259).
+
+- Updated dependencies [6e4459c]
+  - @pnpm/config@1002.5.3
+  - @pnpm/cli-utils@1000.0.16
+  - @pnpm/deps.status@1002.0.5
+  - @pnpm/plugin-commands-env@1000.0.16
+  - @pnpm/plugin-commands-rebuild@1002.0.5
+  - @pnpm/store-connection-manager@1000.0.15
+  - @pnpm/workspace.state@1001.1.11
+  - @pnpm/workspace.find-packages@1000.0.16
+  - @pnpm/filter-workspace-packages@1000.0.16
+
+## 1002.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.15
+- @pnpm/plugin-commands-env@1000.0.15
+- @pnpm/plugin-commands-rebuild@1002.0.4
+- @pnpm/workspace.find-packages@1000.0.15
+- @pnpm/pnpmfile@1001.0.7
+- @pnpm/core@1004.0.3
+- @pnpm/package-store@1000.0.8
+- @pnpm/deps.status@1002.0.4
+- @pnpm/filter-workspace-packages@1000.0.15
+- @pnpm/config@1002.5.2
+- @pnpm/outdated@1001.0.11
+- @pnpm/workspace.pkgs-graph@1000.0.8
+- @pnpm/store-connection-manager@1000.0.14
+- @pnpm/workspace.state@1001.1.10
+- @pnpm/get-context@1001.0.8
+
 ## 1002.1.1
 
 ### Patch Changes

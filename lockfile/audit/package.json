@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/audit",
-  "version": "1001.0.9",
+  "version": "1001.0.10",
   "description": "Audit a lockfile",
   "keywords": [
     "pnpm",
@@ -34,7 +34,6 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/list": "workspace:*",
     "@pnpm/lockfile.detect-dep-types": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",

@@ -1,5 +1,47 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1000.2.6
+
+### Patch Changes
+
+- e5b7bf4: Fix `pnpm dlx` with `--allow-build` flag [#9263](https://github.com/pnpm/pnpm/issues/9263).
+- Updated dependencies [9904675]
+- Updated dependencies [e5b7bf4]
+- Updated dependencies [aec8c50]
+  - @pnpm/workspace.injected-deps-syncer@1000.0.2
+  - @pnpm/plugin-commands-installation@1002.2.1
+  - @pnpm/plugin-commands-env@1000.0.17
+  - @pnpm/deps.status@1002.0.6
+  - @pnpm/client@1000.0.11
+
+## 1000.2.5
+
+### Patch Changes
+
+- 57f989e: Add the missing `node-options` config to `recursive run` [#9180](https://github.com/pnpm/pnpm/issues/9180).
+- Updated dependencies [b4efd0e]
+- Updated dependencies [6e4459c]
+- Updated dependencies [cda1c43]
+  - @pnpm/plugin-commands-installation@1002.2.0
+  - @pnpm/config@1002.5.3
+  - @pnpm/cli-utils@1000.0.16
+  - @pnpm/deps.status@1002.0.5
+  - @pnpm/plugin-commands-env@1000.0.16
+
+## 1000.2.4
+
+### Patch Changes
+
+- Updated dependencies [0b0bcfa]
+  - @pnpm/exec.pnpm-cli-runner@1000.0.1
+  - @pnpm/cli-utils@1000.0.15
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/plugin-commands-env@1000.0.15
+  - @pnpm/plugin-commands-installation@1002.1.2
+  - @pnpm/deps.status@1002.0.4
+  - @pnpm/config@1002.5.2
+  - @pnpm/client@1000.0.10
+
 ## 1000.2.3
 
 ### Patch Changes
