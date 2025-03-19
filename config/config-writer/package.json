@@ -26,8 +26,6 @@
   "scripts": {
     "prepublishOnly": "pnpm run compile",
     "lint": "eslint \"src/**/*.ts\"",
-    "test-with-preview": "ts-node test",
-    "_test": "jest",
     "test": "pnpm run compile",
     "start": "tsc --watch",
     "compile": "tsc --build && pnpm run lint --fix"
