@@ -1,13 +1,13 @@
 import { type Config } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { type StrictModules, writeModulesManifest } from '@pnpm/modules-yaml'
-import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+import { type PnpmSettings } from '@pnpm/types'
 import renderHelp from 'render-help'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
 import { rebuild, type RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
-import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
+import { writeSettings } from '@pnpm/config.config-writer'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds'
 
 export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'onlyBuiltDependencies' | 'ignoredBuiltDependencies'>
@@ -92,23 +92,22 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
   const buildPackages = result.map(({ value }: { value: string }) => value)
   const ignoredPackages = automaticallyIgnoredBuilds.filter((automaticallyIgnoredBuild) => !buildPackages.includes(automaticallyIgnoredBuild))
-  let updatedIgnoredBuiltDependencies: string[] | undefined
+  const updatedSettings: PnpmSettings = {}
   if (ignoredPackages.length) {
     if (opts.ignoredBuiltDependencies == null) {
-      updatedIgnoredBuiltDependencies = sortUniqueStrings(ignoredPackages)
+      updatedSettings.ignoredBuiltDependencies = sortUniqueStrings(ignoredPackages)
     } else {
-      updatedIgnoredBuiltDependencies = sortUniqueStrings([
+      updatedSettings.ignoredBuiltDependencies = sortUniqueStrings([
         ...opts.ignoredBuiltDependencies,
         ...ignoredPackages,
       ])
     }
   }
-  let updatedOnlyBuiltDependencies: string[] | undefined
   if (buildPackages.length) {
     if (opts.onlyBuiltDependencies == null) {
-      updatedOnlyBuiltDependencies = sortUniqueStrings(buildPackages)
+      updatedSettings.onlyBuiltDependencies = sortUniqueStrings(buildPackages)
     } else {
-      updatedOnlyBuiltDependencies = sortUniqueStrings([
+      updatedSettings.onlyBuiltDependencies = sortUniqueStrings([
         ...opts.onlyBuiltDependencies,
         ...buildPackages,
       ])
@@ -126,27 +125,15 @@ Do you approve?`,
       return
     }
   }
-  let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.rootProjectManifestDir)
-  manifest ??= {}
-  if (opts.workspaceDir == null || manifest.pnpm?.onlyBuiltDependencies != null || manifest.pnpm?.ignoredBuiltDependencies != null) {
-    manifest.pnpm ??= {}
-    if (updatedOnlyBuiltDependencies) {
-      manifest.pnpm.onlyBuiltDependencies = updatedOnlyBuiltDependencies
-    }
-    if (updatedIgnoredBuiltDependencies) {
-      manifest.pnpm.ignoredBuiltDependencies = updatedIgnoredBuiltDependencies
-    }
-    await writeProjectManifest(manifest)
-  } else {
-    await updateWorkspaceManifest(opts.workspaceDir, {
-      onlyBuiltDependencies: updatedOnlyBuiltDependencies,
-      ignoredBuiltDependencies: updatedIgnoredBuiltDependencies,
-    })
-  }
+  await writeSettings({
+    ...opts,
+    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    updatedSettings,
+  })
   if (buildPackages.length) {
     return rebuild.handler({
       ...opts,
-      onlyBuiltDependencies: updatedOnlyBuiltDependencies,
+      onlyBuiltDependencies: updatedSettings.onlyBuiltDependencies,
     }, buildPackages)
   } else if (modulesManifest) {
     delete modulesManifest.ignoredBuilds

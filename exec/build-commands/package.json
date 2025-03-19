@@ -32,12 +32,11 @@
   },
   "dependencies": {
     "@pnpm/config": "workspace:*",
+    "@pnpm/config.config-writer": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
-    "@pnpm/workspace.manifest-writer": "workspace:*",
     "chalk": "catalog:",
     "enquirer": "catalog:",
     "render-help": "catalog:"

@@ -1543,6 +1543,28 @@ importers:
         specifier: 'catalog:'
         version: 6.0.5
 
+  config/config-writer:
+    dependencies:
+      '@pnpm/read-project-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-project-manifest
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/workspace.manifest-writer':
+        specifier: workspace:*
+        version: link:../../workspace/manifest-writer
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
+    devDependencies:
+      '@pnpm/config.config-writer':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
+
   config/matcher:
     dependencies:
       escape-string-regexp:
@@ -2114,6 +2136,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/config.config-writer':
+        specifier: workspace:*
+        version: link:../../config/config-writer
       '@pnpm/logger':
         specifier: '>=5.1.0 <1001.0.0'
         version: 1000.0.0
@@ -2126,15 +2151,9 @@ importers:
       '@pnpm/prepare-temp-dir':
         specifier: workspace:*
         version: link:../../__utils__/prepare-temp-dir
-      '@pnpm/read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
         version: 3.0.1
-      '@pnpm/workspace.manifest-writer':
-        specifier: workspace:*
-        version: link:../../workspace/manifest-writer
       chalk:
         specifier: 'catalog:'
         version: 4.1.2
