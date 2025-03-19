@@ -1369,7 +1369,10 @@ describe('patch-remove', () => {
     fs.mkdirSync(path.join(process.cwd(), 'patches'))
     fs.writeFileSync(path.join(process.cwd(), 'patches/is-positive@1.0.0.patch'), 'test patch content', 'utf8')
 
-    await patchRemove.handler(defaultPatchRemoveOption, ['is-positive@1.0.0'])
+    await patchRemove.handler({
+      ...defaultPatchRemoveOption,
+      patchedDependencies: manifest.pnpm.patchedDependencies,
+    }, ['is-positive@1.0.0'])
 
     const { manifest: newManifest } = await readProjectManifest(process.cwd())
     expect(newManifest!.pnpm!).toBeUndefined()
@@ -1389,7 +1392,10 @@ describe('patch-remove', () => {
     prompt.mockResolvedValue({
       patches: ['is-positive@1.0.0', 'chalk@4.1.2'],
     })
-    await patchRemove.handler(defaultPatchRemoveOption, [])
+    await patchRemove.handler({
+      ...defaultPatchRemoveOption,
+      patchedDependencies: manifest.pnpm.patchedDependencies,
+    }, [])
     expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining(['is-positive@1.0.0', 'chalk@4.1.2']))
     prompt.mockClear()
 
@@ -1398,7 +1404,7 @@ describe('patch-remove', () => {
   })
 
   test('should throw error when there is no patch to remove', async () => {
-    await expect(() => patchRemove.handler(defaultPatchRemoveOption, []))
+    await expect(() => patchRemove.handler({ ...defaultPatchRemoveOption, patchedDependencies: {} }, []))
       .rejects.toThrow('There are no patches that need to be removed')
   })
 })
