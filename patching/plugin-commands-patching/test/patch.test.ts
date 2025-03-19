@@ -1348,12 +1348,12 @@ describe('patch-remove', () => {
     defaultPatchRemoveOption = {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
+      cacheDir,
+      storeDir,
     }
 
     await install.handler({
-      ...DEFAULT_OPTS,
-      cacheDir,
-      storeDir,
+      ...defaultPatchRemoveOption,
       dir: process.cwd(),
       saveLockfile: true,
     })
@@ -1371,6 +1371,7 @@ describe('patch-remove', () => {
 
     await patchRemove.handler({
       ...defaultPatchRemoveOption,
+      rootProjectManifest: manifest,
       patchedDependencies: manifest.pnpm.patchedDependencies,
     }, ['is-positive@1.0.0'])
 
@@ -1394,6 +1395,7 @@ describe('patch-remove', () => {
     })
     await patchRemove.handler({
       ...defaultPatchRemoveOption,
+      rootProjectManifest: manifest,
       patchedDependencies: manifest.pnpm.patchedDependencies,
     }, [])
     expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining(['is-positive@1.0.0', 'chalk@4.1.2']))

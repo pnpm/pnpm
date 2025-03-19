@@ -79,7 +79,7 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
     ...opts,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
     updatedSettings: {
-      patchedDependencies,
+      patchedDependencies: Object.keys(patchedDependencies).length ? patchedDependencies : undefined,
     },
   })
 
