@@ -108,9 +108,9 @@ test('approve no builds', async () => {
 
   await approveNoBuilds()
 
-  const manifest = loadJsonFile<ProjectManifest>(path.resolve('package.json'))
-  expect(manifest.pnpm?.onlyBuiltDependencies).toBeUndefined()
-  expect(manifest.pnpm?.ignoredBuiltDependencies?.sort()).toStrictEqual([
+  const manifest = readYamlFile<any>(path.resolve('pnpm-workspace.yaml')) // eslint-disable-line
+  expect(manifest.onlyBuiltDependencies).toBeUndefined()
+  expect(manifest.ignoredBuiltDependencies?.sort()).toStrictEqual([
     '@pnpm.e2e/install-script-example',
     '@pnpm.e2e/pre-and-postinstall-scripts-example',
   ])
