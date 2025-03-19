@@ -17,8 +17,15 @@ export async function writeSettings (opts: {
       for (const [key, value] of Object.entries(opts.updatedSettings)) {
         if (!equals(manifest.pnpm[key as keyof PnpmSettings], value)) {
           shouldBeUpdated = true
-          manifest.pnpm[key as keyof PnpmSettings] = value
+          if (value == null) {
+            delete manifest.pnpm[key as keyof PnpmSettings]
+          } else {
+            manifest.pnpm[key as keyof PnpmSettings] = value
+          }
         }
+      }
+      if (Object.keys(manifest.pnpm).length === 0) {
+        delete manifest.pnpm
       }
       if (shouldBeUpdated) {
         await writeProjectManifest(manifest)
