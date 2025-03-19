@@ -3,6 +3,7 @@ import path from 'path'
 import * as enquirer from 'enquirer'
 import { approveBuilds } from '@pnpm/exec.build-commands'
 import { install } from '@pnpm/plugin-commands-installation'
+import { type RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import { getConfig } from '@pnpm/config'
@@ -20,7 +21,9 @@ jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 // eslint-disable-next-line
 const prompt = enquirer.prompt as any
 
-const approveSomeBuilds = async (opts = {}) => {
+type ApproveBuildsOptions = Partial<approveBuilds.ApproveBuildsCommandOpts & RebuildCommandOpts>
+
+async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
   const cliOptions = {
     argv: [],
     dir: process.cwd(),
@@ -50,7 +53,7 @@ const approveSomeBuilds = async (opts = {}) => {
   await approveBuilds.handler({ ...config, ...opts })
 }
 
-const approveNoBuilds = async (opts = {}) => {
+async function approveNoBuilds (opts?: ApproveBuildsOptions) {
   const cliOptions = {
     argv: [],
     dir: process.cwd(),
