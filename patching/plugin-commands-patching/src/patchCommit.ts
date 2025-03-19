@@ -2,13 +2,13 @@ import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
+import { writeSettings } from '@pnpm/config.config-writer'
 import { createShortHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { getStorePath } from '@pnpm/store-path'
 import { type ProjectRootDir } from '@pnpm/types'
 import { glob } from 'tinyglobby'
@@ -23,7 +23,6 @@ import { type WritePackageOptions, writePackage } from './writePackage'
 import { type ParseWantedDependencyResult, parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency'
 import { readEditDirState } from './stateFile'
-import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -50,7 +49,7 @@ export function help (): string {
   })
 }
 
-type PatchCommitCommandOptions = install.InstallCommandOptions & Pick<Config, 'patchesDir' | 'rootProjectManifest' | 'rootProjectManifestDir'>
+type PatchCommitCommandOptions = install.InstallCommandOptions & Pick<Config, 'patchesDir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'patchedDependencies'>
 
 export async function handler (opts: PatchCommitCommandOptions, params: string[]): Promise<string | undefined> {
   const userDir = params[0]
@@ -100,42 +99,22 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
 
   const patchFileName = patchKey.replace('/', '__')
   await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')
-  const { writeProjectManifest, manifest } = await tryReadProjectManifest(lockfileDir)
 
-  const rootProjectManifest = (!opts.sharedWorkspaceLockfile ? manifest : (opts.rootProjectManifest ?? manifest)) ?? {}
-  let patchedDependencies: Record<string, string> | undefined
-  if (opts.workspaceDir == null || rootProjectManifest?.pnpm?.patchedDependencies != null) {
-    if (!rootProjectManifest.pnpm) {
-      rootProjectManifest.pnpm = {
-        patchedDependencies: {},
-      }
-    } else if (!rootProjectManifest.pnpm.patchedDependencies) {
-      rootProjectManifest.pnpm.patchedDependencies = {}
-    }
-    rootProjectManifest.pnpm.patchedDependencies![patchKey] = `${patchesDirName}/${patchFileName}.patch`
-    patchedDependencies = rootProjectManifest.pnpm.patchedDependencies
-    await writeProjectManifest(rootProjectManifest)
-  } else {
-    patchedDependencies = {
-      [patchKey]: `${patchesDirName}/${patchFileName}.patch`,
-    }
-    await updateWorkspaceManifest(opts.workspaceDir, {
+  const patchedDependencies = {
+    ...opts.patchedDependencies,
+    [patchKey]: `${patchesDirName}/${patchFileName}.patch`,
+  }
+  await writeSettings({
+    ...opts,
+    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    updatedSettings: {
       patchedDependencies,
-    })
-  }
-
-  if (opts?.selectedProjectsGraph?.[lockfileDir]) {
-    opts.selectedProjectsGraph[lockfileDir].package.manifest = rootProjectManifest
-  }
-
-  if (opts?.allProjectsGraph?.[lockfileDir].package.manifest) {
-    opts.allProjectsGraph[lockfileDir].package.manifest = rootProjectManifest
-  }
+    },
+  })
 
   return install.handler({
     ...opts,
     patchedDependencies,
-    rootProjectManifest,
     rawLocalConfig: {
       ...opts.rawLocalConfig,
       'frozen-lockfile': false,

@@ -93,8 +93,8 @@ describe('patch and commit', () => {
       storeDir,
     }, [patchDir])
 
-    const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
     })
     const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
@@ -130,8 +130,8 @@ describe('patch and commit', () => {
       storeDir,
     }, [patchDir])
 
-    const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive': 'patches/is-positive.patch',
     })
     const patchContent = fs.readFileSync('patches/is-positive.patch', 'utf8')
@@ -170,8 +170,8 @@ describe('patch and commit', () => {
         storeDir,
       }, [patchDir])
 
-      const { manifest } = await readProjectManifest(process.cwd())
-      expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      const workspaceManifest = await readWorkspaceManifest(process.cwd())
+      expect(workspaceManifest!.patchedDependencies).toStrictEqual({
         'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
       })
       const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
@@ -202,8 +202,8 @@ describe('patch and commit', () => {
         storeDir,
       }, [patchDir])
 
-      const { manifest } = await readProjectManifest(process.cwd())
-      expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      const workspaceManifest = await readWorkspaceManifest(process.cwd())
+      expect(workspaceManifest!.patchedDependencies).toStrictEqual({
         'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
       })
       const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
@@ -234,8 +234,8 @@ describe('patch and commit', () => {
         storeDir,
       }, [patchDir])
 
-      const { manifest } = await readProjectManifest(process.cwd())
-      expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      const workspaceManifest = await readWorkspaceManifest(process.cwd())
+      expect(workspaceManifest!.patchedDependencies).toStrictEqual({
         'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
       })
       const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
@@ -278,8 +278,8 @@ describe('patch and commit', () => {
       storeDir,
     }, [path.relative(process.cwd(), patchDir)])
 
-    const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
     })
     const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
@@ -390,8 +390,8 @@ describe('patch and commit', () => {
       storeDir,
     }, [patchDir])
 
-    const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive@1.0.0': 'ts/custom-patches/is-positive@1.0.0.patch',
     })
     expect(fs.existsSync(path.normalize(patchesDir))).toBe(true)
@@ -447,15 +447,16 @@ describe('patch and commit', () => {
       storeDir,
     }, [patchDir])
 
-    const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
     })
+    const { manifest } = await readProjectManifest(process.cwd())
     expect(fs.existsSync('patches/is-positive@1.0.0.patch')).toBe(true)
 
     // re-patch
     fs.rmSync(patchDir, { recursive: true })
-    output = await patch.handler({ ...defaultPatchOption, rootProjectManifest: manifest }, ['is-positive@1.0.0'])
+    output = await patch.handler({ ...defaultPatchOption, rootProjectManifest: manifest, patchedDependencies: workspaceManifest?.patchedDependencies }, ['is-positive@1.0.0'])
     patchDir = getPatchDirFromPatchOutput(output)
 
     expect(fs.existsSync(patchDir)).toBe(true)
@@ -480,15 +481,16 @@ describe('patch and commit', () => {
       storeDir,
     }, [patchDir])
 
-    const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive': 'patches/is-positive.patch',
     })
     expect(fs.existsSync('patches/is-positive.patch')).toBe(true)
 
     // re-patch
     fs.rmSync(patchDir, { recursive: true })
-    output = await patch.handler({ ...defaultPatchOption, rootProjectManifest: manifest }, ['is-positive'])
+    const { manifest } = await readProjectManifest(process.cwd())
+    output = await patch.handler({ ...defaultPatchOption, rootProjectManifest: manifest, patchedDependencies: workspaceManifest?.patchedDependencies }, ['is-positive'])
     patchDir = getPatchDirFromPatchOutput(output)
 
     expect(fs.existsSync(patchDir)).toBe(true)
@@ -531,8 +533,8 @@ describe('patch and commit', () => {
       storeDir,
     }, [patchDir])
 
-    const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
     })
     expect(fs.existsSync('patches/is-positive@1.0.0.patch')).toBe(true)
@@ -607,8 +609,8 @@ describe('patch and commit', () => {
       storeDir,
     }, [patchDir])
 
-    const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
     })
     const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
@@ -683,8 +685,8 @@ describe('multiple versions', () => {
       storeDir,
     }, [patchDir])
 
-    const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       '@pnpm.e2e/console-log': 'patches/@pnpm.e2e__console-log.patch',
     })
 
@@ -792,8 +794,8 @@ describe('prompt to choose version', () => {
       storeDir,
     }, [patchDir])
 
-    const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'chalk@5.3.0': 'patches/chalk@5.3.0.patch',
     })
     const patchContent = fs.readFileSync('patches/chalk@5.3.0.patch', 'utf8')
@@ -859,8 +861,8 @@ describe('prompt to choose version', () => {
       storeDir,
     }, [patchDir])
 
-    const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       chalk: 'patches/chalk.patch',
     })
     const patchContent = fs.readFileSync('patches/chalk.patch', 'utf8')
@@ -917,8 +919,8 @@ describe('patching should work when there is a no EOL in the patched file', () =
       fixLockfile: true,
     }, [userPatchDir])
 
-    const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'safe-execa@0.1.2': 'patches/safe-execa@0.1.2.patch',
     })
     const patchContent = fs.readFileSync('patches/safe-execa@0.1.2.patch', 'utf8')
@@ -946,8 +948,8 @@ describe('patching should work when there is a no EOL in the patched file', () =
       fixLockfile: true,
     }, [userPatchDir])
 
-    const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'safe-execa@0.1.2': 'patches/safe-execa@0.1.2.patch',
     })
     const patchContent = fs.readFileSync('patches/safe-execa@0.1.2.patch', 'utf8')
@@ -1149,6 +1151,7 @@ describe('patch and commit in workspaces', () => {
     fs.unlinkSync(path.join(patchDir, 'license'))
 
     // patch-commit
+    let workspaceManifest = await readWorkspaceManifest(process.cwd())
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       allProjects,
@@ -1156,6 +1159,7 @@ describe('patch and commit in workspaces', () => {
       selectedProjectsGraph,
       dir: process.cwd(),
       rootProjectManifestDir: process.cwd(),
+      patchedDependencies: workspaceManifest?.patchedDependencies,
       cacheDir,
       storeDir,
       lockfileDir: process.cwd(),
@@ -1172,9 +1176,11 @@ describe('patch and commit in workspaces', () => {
 
     // re-patch project-1
     fs.rmSync(patchDir, { recursive: true })
+    workspaceManifest = await readWorkspaceManifest(process.cwd())
     output = await patch.handler({
       ...defaultPatchOption,
       dir: process.cwd(),
+      patchedDependencies: workspaceManifest?.patchedDependencies,
     }, ['is-positive@1.0.0'])
     patchDir = getPatchDirFromPatchOutput(output)
     expect(fs.existsSync(patchDir)).toBe(true)
