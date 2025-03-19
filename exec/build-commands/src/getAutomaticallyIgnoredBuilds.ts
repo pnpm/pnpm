@@ -1,11 +1,23 @@
 import path from 'path'
-import { readModulesManifest } from '@pnpm/modules-yaml'
+import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { type IgnoredBuildsCommandOpts } from './ignoredBuilds'
 
-export async function getAutomaticallyIgnoredBuilds (opts: IgnoredBuildsCommandOpts): Promise<null | string[]> {
-  const modulesManifest = await readModulesManifest(opts.modulesDir ?? path.join(opts.lockfileDir ?? opts.dir, 'node_modules'))
-  if (modulesManifest == null) {
-    return null
+export interface GetAutomaticallyIgnoredBuildsResult {
+  automaticallyIgnoredBuilds: string[] | null
+  modulesDir: string
+  modulesManifest: Modules | null
+}
+
+export async function getAutomaticallyIgnoredBuilds (opts: IgnoredBuildsCommandOpts): Promise<GetAutomaticallyIgnoredBuildsResult> {
+  const modulesDir = getModulesDir(opts)
+  const modulesManifest = await readModulesManifest(modulesDir)
+  return {
+    automaticallyIgnoredBuilds: modulesManifest && (modulesManifest.ignoredBuilds ?? []),
+    modulesDir,
+    modulesManifest,
   }
-  return modulesManifest?.ignoredBuilds ?? []
+}
+
+function getModulesDir (opts: IgnoredBuildsCommandOpts): string {
+  return opts.modulesDir ?? path.join(opts.lockfileDir ?? opts.dir, 'node_modules')
 }

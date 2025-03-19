@@ -1,5 +1,6 @@
 import { type Config } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
+import { type StrictModules, writeModulesManifest } from '@pnpm/modules-yaml'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { type PnpmSettings } from '@pnpm/types'
 import renderHelp from 'render-help'
@@ -44,7 +45,11 @@ export function rcOptionsTypes (): Record<string, unknown> {
 }
 
 export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts): Promise<void> {
-  const automaticallyIgnoredBuilds = await getAutomaticallyIgnoredBuilds(opts)
+  const {
+    automaticallyIgnoredBuilds,
+    modulesDir,
+    modulesManifest,
+  } = await getAutomaticallyIgnoredBuilds(opts)
   if (!automaticallyIgnoredBuilds?.length) {
     globalInfo('There are no packages awaiting approval')
     return
@@ -130,6 +135,9 @@ Do you approve?`,
       ...opts,
       onlyBuiltDependencies: updatedSettings.onlyBuiltDependencies,
     }, buildPackages)
+  } else if (modulesManifest) {
+    delete modulesManifest.ignoredBuilds
+    await writeModulesManifest(modulesDir, modulesManifest as StrictModules)
   }
 }
 

@@ -95,9 +95,13 @@ const YAML_OPTS = {
   sortKeys: true,
 }
 
+export interface StrictModules extends Modules {
+  registries: Registries
+}
+
 export async function writeModulesManifest (
   modulesDir: string,
-  modules: Modules & { registries: Registries },
+  modules: StrictModules,
   opts?: {
     makeModulesDir?: boolean
   }
