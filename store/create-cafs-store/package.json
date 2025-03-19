@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/create-cafs-store",
-  "version": "1000.0.7",
+  "version": "1000.0.8",
   "description": "Create a CAFS store controller",
   "keywords": [
     "pnpm",

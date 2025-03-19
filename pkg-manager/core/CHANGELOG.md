@@ -1,5 +1,37 @@
 # @pnpm/core
 
+## 1005.0.1
+
+### Patch Changes
+
+- 36ff4bf: When installing different dependency packages, should retain the `ignoredBuilds` field in the `.modules.yaml` file [#9240](https://github.com/pnpm/pnpm/issues/9240).
+- Updated dependencies [d612dcf]
+- Updated dependencies [f0f95ab]
+- Updated dependencies [d612dcf]
+- Updated dependencies [3d52365]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/resolve-dependencies@1004.0.7
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/get-context@1001.0.9
+  - @pnpm/headless@1002.0.1
+  - @pnpm/lockfile.preferred-versions@1000.0.8
+  - @pnpm/lockfile.utils@1001.0.6
+  - @pnpm/lockfile.verification@1001.1.2
+  - @pnpm/package-requester@1002.0.1
+  - @pnpm/store-controller-types@1001.0.4
+  - @pnpm/lifecycle@1001.0.8
+  - @pnpm/lockfile.filtering@1001.0.7
+  - @pnpm/lockfile.fs@1001.1.7
+  - @pnpm/lockfile-to-pnp@1001.0.8
+  - @pnpm/calc-dep-state@1001.0.8
+  - @pnpm/hoist@1001.0.9
+  - @pnpm/modules-cleaner@1001.0.8
+  - @pnpm/build-modules@1000.2.10
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/symlink-dependency@1000.0.5
+  - @pnpm/lockfile.settings-checker@1001.0.5
+  - @pnpm/worker@1000.1.1
+
 ## 1005.0.0
 
 ### Patch Changes

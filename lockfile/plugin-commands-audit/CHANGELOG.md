@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-audit
 
+## 1001.0.17
+
+### Patch Changes
+
+- Updated dependencies [936430a]
+  - @pnpm/config@1002.5.4
+  - @pnpm/cli-utils@1000.0.17
+  - @pnpm/audit@1001.0.11
+  - @pnpm/lockfile.fs@1001.1.7
+
 ## 1001.0.16
 
 ### Patch Changes

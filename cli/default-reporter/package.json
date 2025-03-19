@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "1001.3.7",
+  "version": "1001.3.8",
   "description": "The default reporter of pnpm",
   "keywords": [
     "pnpm",

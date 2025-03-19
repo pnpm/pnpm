@@ -1,5 +1,18 @@
 # @pnpm/resolve-dependencies
 
+## 1004.0.7
+
+### Patch Changes
+
+- f0f95ab: Fix usages of the [`catalog:` protocol](https://pnpm.io/catalogs) in [injected local workspace packages](https://pnpm.io/package_json#dependenciesmetainjected). This previously errored with `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`. [#8715](https://github.com/pnpm/pnpm/issues/8715)
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/npm-resolver@1001.0.0
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/lockfile.preferred-versions@1000.0.8
+  - @pnpm/lockfile.utils@1001.0.6
+  - @pnpm/store-controller-types@1001.0.4
+
 ## 1004.0.6
 
 ### Patch Changes

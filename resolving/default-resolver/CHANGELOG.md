@@ -1,5 +1,16 @@
 # @pnpm/default-resolver
 
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/npm-resolver@1001.0.0
+  - @pnpm/git-resolver@1000.0.8
+  - @pnpm/local-resolver@1000.0.9
+  - @pnpm/tarball-resolver@1001.0.5
+
 ## 1001.0.9
 
 ### Patch Changes

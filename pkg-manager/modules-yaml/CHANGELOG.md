@@ -1,5 +1,12 @@
 # @pnpm/modules-yaml
 
+## 1000.2.0
+
+### Minor Changes
+
+- d612dcf: Remove warnings after having explicitly approved no builds [#9296](https://github.com/pnpm/pnpm/issues/9296).
+- d612dcf: Add type `StrictModules`.
+
 ## 1000.1.4
 
 ### Patch Changes

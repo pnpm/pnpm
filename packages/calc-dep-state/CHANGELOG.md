@@ -1,5 +1,11 @@
 # @pnpm/calc-dep-state
 
+## 1001.0.8
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.6
+
 ## 1001.0.7
 
 ### Patch Changes

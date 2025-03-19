@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-store",
-  "version": "1001.0.0",
+  "version": "1001.0.1",
   "description": "A storage for packages",
   "keywords": [
     "pnpm",

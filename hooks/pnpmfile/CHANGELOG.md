@@ -1,5 +1,12 @@
 # @pnpm/pnpmfile
 
+## 1001.0.8
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1001.0.4
+- @pnpm/crypto.hash@1000.1.1
+
 ## 1001.0.7
 
 ### Patch Changes
