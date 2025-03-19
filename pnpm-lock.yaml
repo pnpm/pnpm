@@ -4200,6 +4200,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/config.config-writer':
+        specifier: workspace:*
+        version: link:../../config/config-writer
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
@@ -4251,6 +4254,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../../workspace/read-manifest
       chalk:
         specifier: 'catalog:'
         version: 4.1.2

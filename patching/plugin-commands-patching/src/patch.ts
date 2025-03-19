@@ -16,7 +16,6 @@ import { writePackage } from './writePackage'
 import { getEditDirPath } from './getEditDirPath'
 import { type GetPatchedDependencyResult, getPatchedDependency } from './getPatchedDependency'
 import { writeEditDirState } from './stateFile'
-import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import isWindows from 'is-windows'
 
 export function rcOptionsTypes (): Record<string, unknown> {
@@ -56,6 +55,7 @@ export function help (): string {
 
 export type PatchCommandOptions = Pick<Config,
 | 'dir'
+| 'patchedDependencies'
 | 'registries'
 | 'tag'
 | 'storeDir'
@@ -104,23 +104,14 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
     applyToAll: patchedDep.applyToAll,
   })
 
-  if (!opts.ignoreExisting) {
-    let rootProjectManifest = opts.rootProjectManifest
-    if (!opts.sharedWorkspaceLockfile) {
-      const { manifest } = await tryReadProjectManifest(lockfileDir)
-      if (manifest) {
-        rootProjectManifest = manifest
-      }
-    }
-    if (rootProjectManifest?.pnpm?.patchedDependencies) {
-      tryPatchWithExistingPatchFile({
-        allowFailure: patchedDep.applyToAll,
-        patchedDep,
-        patchedDir: editDir,
-        patchedDependencies: rootProjectManifest.pnpm.patchedDependencies,
-        lockfileDir,
-      })
-    }
+  if (!opts.ignoreExisting && opts.patchedDependencies) {
+    tryPatchWithExistingPatchFile({
+      allowFailure: patchedDep.applyToAll,
+      patchedDep,
+      patchedDir: editDir,
+      patchedDependencies: opts.patchedDependencies,
+      lockfileDir,
+    })
   }
 
   const quote = isWindows() ? '"' : "'"

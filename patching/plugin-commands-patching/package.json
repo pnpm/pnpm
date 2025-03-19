@@ -34,6 +34,7 @@
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
+    "@pnpm/config.config-writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
@@ -51,6 +52,7 @@
     "@pnpm/store-connection-manager": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.read-manifest": "workspace:*",
     "chalk": "catalog:",
     "enquirer": "catalog:",
     "escape-string-regexp": "catalog:",
