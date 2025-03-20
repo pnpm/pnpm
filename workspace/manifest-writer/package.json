@@ -32,11 +32,13 @@
   "dependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/workspace.read-manifest": "workspace:*",
+    "ramda": "catalog:",
     "write-yaml-file": "catalog:"
   },
   "devDependencies": {
     "@pnpm/prepare-temp-dir": "workspace:*",
     "@pnpm/workspace.manifest-writer": "workspace:*",
+    "@types/ramda": "catalog:",
     "read-yaml-file": "catalog:"
   },
   "engines": {
