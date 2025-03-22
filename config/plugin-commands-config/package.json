@@ -50,7 +50,8 @@
     "@pnpm/prepare": "workspace:*",
     "@types/ini": "catalog:",
     "@types/lodash.camelcase": "catalog:",
-    "@types/lodash.kebabcase": "catalog:"
+    "@types/lodash.kebabcase": "catalog:",
+    "read-yaml-file": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

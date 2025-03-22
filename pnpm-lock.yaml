@@ -1732,6 +1732,9 @@ importers:
       '@types/lodash.kebabcase':
         specifier: 'catalog:'
         version: 4.1.9
+      read-yaml-file:
+        specifier: 'catalog:'
+        version: 2.1.0
 
   crypto/hash:
     dependencies:
