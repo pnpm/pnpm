@@ -8181,6 +8181,9 @@ importers:
       '@pnpm/workspace.read-manifest':
         specifier: workspace:*
         version: link:../read-manifest
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -8191,6 +8194,9 @@ importers:
       '@pnpm/workspace.manifest-writer':
         specifier: workspace:*
         version: 'link:'
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
       read-yaml-file:
         specifier: 'catalog:'
         version: 2.1.0

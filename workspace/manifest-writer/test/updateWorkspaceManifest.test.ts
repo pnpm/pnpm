@@ -5,7 +5,7 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 
-test('updateWorkspaceManifest', async () => {
+test('updateWorkspaceManifest adds a new setting', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   writeYamlFile(filePath, { packages: ['*'] })
@@ -15,5 +15,30 @@ test('updateWorkspaceManifest', async () => {
   expect(readYamlFile(filePath)).toStrictEqual({
     packages: ['*'],
     onlyBuiltDependencies: [],
+  })
+})
+
+test('updateWorkspaceManifest removes an existing setting', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFile(filePath, { packages: ['*'], overrides: { foo: '2' } })
+  await updateWorkspaceManifest(dir, {
+    overrides: undefined,
+  })
+  expect(readYamlFile(filePath)).toStrictEqual({
+    packages: ['*'],
+  })
+})
+
+test('updateWorkspaceManifest updates an existing setting', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFile(filePath, { packages: ['*'], overrides: { foo: '2' } })
+  await updateWorkspaceManifest(dir, {
+    overrides: { bar: '3' },
+  })
+  expect(readYamlFile(filePath)).toStrictEqual({
+    packages: ['*'],
+    overrides: { bar: '3' },
   })
 })
