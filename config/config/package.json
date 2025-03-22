@@ -51,6 +51,7 @@
     "can-write-to-dir": "catalog:",
     "is-subdir": "catalog:",
     "is-windows": "catalog:",
+    "lodash.kebabcase": "catalog:",
     "normalize-registry-url": "catalog:",
     "path-absolute": "catalog:",
     "path-name": "catalog:",
@@ -67,6 +68,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "catalog:",
+    "@types/lodash.kebabcase": "catalog:",
     "@types/ramda": "catalog:",
     "@types/which": "catalog:",
     "symlink-dir": "catalog:"

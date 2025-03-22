@@ -12,6 +12,7 @@ import { createMatcher } from '@pnpm/matcher'
 import betterPathResolve from 'better-path-resolve'
 import camelcase from 'camelcase'
 import isWindows from 'is-windows'
+import kebabCase from 'lodash.kebabcase'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
@@ -489,7 +490,12 @@ export async function getConfig (opts: {
 
       pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       if (workspaceManifest) {
-        Object.assign(pnpmConfig, getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest), configFromCliOpts)
+        const newSettings = Object.assign(getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest), configFromCliOpts)
+        for (const [key, value] of Object.entries(newSettings)) {
+          // @ts-expect-error
+          pnpmConfig[key] = value
+          pnpmConfig.rawConfig[kebabCase(key)] = value
+        }
         pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
       }
     }
