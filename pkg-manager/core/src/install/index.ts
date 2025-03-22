@@ -1227,8 +1227,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
         })).ignoredBuilds
-        if (ignoredBuilds == null && ctx.modulesFile?.ignoredBuilds?.length) {
-          ignoredBuilds = ctx.modulesFile.ignoredBuilds
+        if (ctx.modulesFile?.ignoredBuilds?.length) {
+          if (ignoredBuilds) {
+            ignoredBuilds = [...ignoredBuilds, ...ctx.modulesFile.ignoredBuilds]
+          } else {
+            ignoredBuilds = ctx.modulesFile.ignoredBuilds
+          }
           ignoredScriptsLogger.debug({ packageNames: ignoredBuilds })
         }
       }
