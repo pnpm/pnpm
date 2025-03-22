@@ -1,12 +1,15 @@
+import fs from 'fs'
 import path from 'path'
 import util from 'util'
 import { runNpm } from '@pnpm/run-npm'
+import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
+import camelCase from 'camelcase'
+import kebabCase from 'lodash.kebabcase'
 import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
 import { type ConfigCommandOptions } from './ConfigCommandOptions'
 
 export async function configSet (opts: ConfigCommandOptions, key: string, value: string | null): Promise<void> {
-  const configPath = opts.global ? path.join(opts.configDir, 'rc') : path.join(opts.dir, '.npmrc')
   if (opts.global && settingShouldFallBackToNpm(key)) {
     const _runNpm = runNpm.bind(null, opts.npmPath)
     if (value == null) {
@@ -16,14 +19,23 @@ export async function configSet (opts: ConfigCommandOptions, key: string, value:
     }
     return
   }
-  const settings = await safeReadIniFile(configPath)
-  if (value == null) {
-    if (settings[key] == null) return
-    delete settings[key]
-  } else {
-    settings[key] = value
+  if (opts.global === true || fs.existsSync(path.join(opts.dir, '.npmrc'))) {
+    const configPath = opts.global ? path.join(opts.configDir, 'rc') : path.join(opts.dir, '.npmrc')
+    const settings = await safeReadIniFile(configPath)
+    key = kebabCase(key)
+    if (value == null) {
+      if (settings[key] == null) return
+      delete settings[key]
+    } else {
+      settings[key] = value
+    }
+    await writeIniFile(configPath, settings)
+    return
   }
-  await writeIniFile(configPath, settings)
+  key = camelCase(key)
+  await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+    [key]: value,
+  })
 }
 
 function settingShouldFallBackToNpm (key: string): boolean {

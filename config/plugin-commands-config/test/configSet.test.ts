@@ -4,6 +4,7 @@ import { PnpmError } from '@pnpm/error'
 import { tempDir } from '@pnpm/prepare'
 import { config } from '@pnpm/plugin-commands-config'
 import { readIniFileSync } from 'read-ini-file'
+import { sync as readYamlFile } from 'read-yaml-file'
 
 test('config set using the global option', async () => {
   const tmp = tempDir()
@@ -37,11 +38,29 @@ test('config set using the location=global option', async () => {
     configDir,
     location: 'global',
     rawConfig: {},
-  }, ['set', 'fetch-retries', '1'])
+  }, ['set', 'fetchRetries', '1'])
 
   expect(readIniFileSync(path.join(configDir, 'rc'))).toEqual({
     'store-dir': '~/store',
     'fetch-retries': '1',
+  })
+})
+
+test('config set using the location=project option. The setting is written to pnpm-workspace.yaml, when .npmrc is not present', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', 'virtual-store-dir', '.pnpm'])
+
+  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
+    virtualStoreDir: '.pnpm',
   })
 })
 

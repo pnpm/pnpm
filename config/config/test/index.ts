@@ -1039,4 +1039,5 @@ test('settings from pnpm-workspace.yaml are read', async () => {
   })
 
   expect(config.onlyBuiltDependencies).toStrictEqual(['foo'])
+  expect(config.rawConfig['only-built-dependencies']).toStrictEqual(['foo'])
 })

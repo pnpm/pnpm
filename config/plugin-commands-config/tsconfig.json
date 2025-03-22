@@ -28,6 +28,9 @@
       "path": "../../packages/logger"
     },
     {
+      "path": "../../workspace/manifest-writer"
+    },
+    {
       "path": "../config"
     }
   ]
