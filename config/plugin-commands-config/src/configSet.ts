@@ -35,7 +35,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, value:
   key = camelCase(key)
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
     [key]: value,
-  })
+  }, value == null)
 }
 
 function settingShouldFallBackToNpm (key: string): boolean {
