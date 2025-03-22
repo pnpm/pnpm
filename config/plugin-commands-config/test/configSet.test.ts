@@ -64,6 +64,34 @@ test('config set using the location=project option. The setting is written to pn
   })
 })
 
+test('config delete using the location=project option. The setting in pnpm-workspace.yaml will be deleted, when .npmrc is not present', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', 'virtual-store-dir', '.pnpm'])
+
+  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
+    virtualStoreDir: '.pnpm',
+  })
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['delete', 'virtual-store-dir'])
+
+  expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBeFalsy()
+})
+
 test('config set using the location=project option', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
