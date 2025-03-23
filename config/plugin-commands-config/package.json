@@ -36,7 +36,10 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/run-npm": "workspace:*",
+    "@pnpm/workspace.manifest-writer": "workspace:*",
+    "camelcase": "catalog:",
     "ini": "catalog:",
+    "lodash.kebabcase": "catalog:",
     "read-ini-file": "catalog:",
     "render-help": "catalog:",
     "write-ini-file": "catalog:"
@@ -45,7 +48,9 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/ini": "catalog:"
+    "@types/ini": "catalog:",
+    "@types/lodash.kebabcase": "catalog:",
+    "read-yaml-file": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

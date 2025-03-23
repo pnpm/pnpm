@@ -1,5 +1,11 @@
 import path from 'path'
-import { getOptionsFromRootManifest } from '../lib/getOptionsFromRootManifest'
+import { getOptionsFromRootManifest, getOptionsFromPnpmSettings } from '../lib/getOptionsFromRootManifest'
+
+const ORIGINAL_ENV = process.env
+
+afterEach(() => {
+  process.env = { ...ORIGINAL_ENV }
+})
 
 test('getOptionsFromRootManifest() should read "resolutions" field for compatibility with Yarn', () => {
   const options = getOptionsFromRootManifest(process.cwd(), {
@@ -158,4 +164,13 @@ test('getOptionsFromRootManifest() should return patchedDependencies', () => {
     },
   })
   expect(options.patchedDependencies).toStrictEqual({ foo: path.resolve('foo.patch') })
+})
+
+test('getOptionsFromPnpmSettings() replaces env variables in settings', () => {
+  process.env.PNPM_TEST_KEY = 'foo'
+  process.env.PNPM_TEST_VALUE = 'bar'
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    '${PNPM_TEST_KEY}': '${PNPM_TEST_VALUE}', // eslint-disable-line
+  } as any) as any // eslint-disable-line
+  expect(options.foo).toEqual('bar')
 })

@@ -14,6 +14,20 @@ test('config get', async () => {
   expect(configKey).toEqual('~/store')
 })
 
+test('config get works with camelCase', async () => {
+  const configKey = await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    rawConfig: {
+      'store-dir': '~/store',
+    },
+  }, ['get', 'storeDir'])
+
+  expect(configKey).toEqual('~/store')
+})
+
 test('config get a boolean should return string format', async () => {
   const configKey = await config.handler({
     dir: process.cwd(),
