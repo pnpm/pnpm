@@ -1,4 +1,5 @@
 import assert from 'assert'
+import fs from 'fs'
 import path from 'path'
 import util from 'util'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
@@ -351,9 +352,11 @@ async function _rebuild (
             return
           }
         }
-
-        const pgkManifest = await import(path.join(pkgRoot, 'package.json')) as ProjectManifest
-        const requiresBuild = pkgRequiresBuild(pgkManifest, {})
+        let requiresBuild = true
+        if (fs.existsSync(path.join(pkgRoot, 'package.json'))) {
+          const pgkManifest = await fs.promises.readFile(path.join(pkgRoot, 'package.json'), 'utf8').then(JSON.parse)
+          requiresBuild = pkgRequiresBuild(pgkManifest, {})
+        }
 
         const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name) && await runPostinstallHooks({
           depPath,
