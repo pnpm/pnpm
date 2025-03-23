@@ -1,4 +1,5 @@
 import path from 'path'
+import { envReplace } from '@pnpm/config.env-replace'
 import { PnpmError } from '@pnpm/error'
 import {
   type SupportedArchitectures,
@@ -61,7 +62,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
 
 export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: PnpmSettings, manifest?: ProjectManifest): OptionsFromRootManifest {
   const renamedKeys = ['allowNonAppliedPatches'] as const satisfies Array<keyof PnpmSettings>
-  const settings: OptionsFromRootManifest = omit(renamedKeys, pnpmSettings)
+  const settings: OptionsFromRootManifest = omit(renamedKeys, replaceEnvInSettings(pnpmSettings))
   if (settings.overrides) {
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
@@ -87,6 +88,20 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
     settings.ignorePatchFailures = pnpmSettings.ignorePatchFailures
   }
   return settings
+}
+
+function replaceEnvInSettings (settings: PnpmSettings): PnpmSettings {
+  const newSettings: PnpmSettings = {}
+  for (const [key, value] of Object.entries(settings)) {
+    const newKey = envReplace(key, process.env)
+    if (typeof value === 'string') {
+      // @ts-expect-error
+      newSettings[newKey as keyof PnpmSettings] = envReplace(value, process.env)
+    } else {
+      newSettings[newKey as keyof PnpmSettings] = value
+    }
+  }
+  return newSettings
 }
 
 function createVersionReferencesReplacer (manifest: ProjectManifest): (spec: string) => string {
