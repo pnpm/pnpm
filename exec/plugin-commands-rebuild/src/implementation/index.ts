@@ -41,6 +41,7 @@ import {
   type RebuildOptions,
   type StrictRebuildOptions,
 } from './extendRebuildOptions'
+import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 
 export type { RebuildOptions }
 
@@ -351,7 +352,10 @@ async function _rebuild (
           }
         }
 
-        const hasSideEffects = allowBuild(pkgInfo.name) && await runPostinstallHooks({
+        const pgkManifest = await import(path.join(pkgRoot, 'package.json')) as ProjectManifest
+        const requiresBuild = pkgRequiresBuild(pgkManifest, {})
+
+        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name) && await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,

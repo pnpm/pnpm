@@ -2395,6 +2395,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/exec.pkg-requires-build':
+        specifier: workspace:*
+        version: link:../pkg-requires-build
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../../pkg-manager/get-context

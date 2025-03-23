@@ -41,6 +41,7 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.pkg-requires-build": "workspace:*",
     "@pnpm/get-context": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",

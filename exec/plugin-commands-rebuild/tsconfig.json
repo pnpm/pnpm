@@ -101,6 +101,9 @@
     },
     {
       "path": "../lifecycle"
+    },
+    {
+       "path": "../pkg-requires-build"
     }
   ]
 }
