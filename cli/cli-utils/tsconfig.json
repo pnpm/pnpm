@@ -16,6 +16,9 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../config/deps-installer"
+    },
+    {
       "path": "../../config/package-is-installable"
     },
     {
@@ -32,6 +35,9 @@
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../store/store-connection-manager"
     },
     {
       "path": "../cli-meta"
