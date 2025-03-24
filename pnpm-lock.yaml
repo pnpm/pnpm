@@ -2425,6 +2425,9 @@ importers:
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
         version: 1.0.0
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
       '@pnpm/sort-packages':
         specifier: workspace:*
         version: link:../../workspace/sort-packages
