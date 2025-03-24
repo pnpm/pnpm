@@ -28,7 +28,9 @@ import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { type DepPath, type ProjectManifest, type ProjectId, type ProjectRootDir } from '@pnpm/types'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
+import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import * as dp from '@pnpm/dependency-path'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { hardLinkDir } from '@pnpm/worker'
 import loadJsonFile from 'load-json-file'
 import runGroups from 'run-groups'
@@ -350,8 +352,15 @@ async function _rebuild (
             return
           }
         }
+        let requiresBuild = true
+        const pgkManifest = await safeReadPackageJsonFromDir(pkgRoot)
+        if (pgkManifest != null) {
+          // This won't return the correct result for packages with binding.gyp as we don't pass the filesIndex to the function.
+          // However, currently rebuild doesn't work for such packages at all, which should be fixed.
+          requiresBuild = pkgRequiresBuild(pgkManifest, {})
+        }
 
-        const hasSideEffects = allowBuild(pkgInfo.name) && await runPostinstallHooks({
+        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name) && await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,
