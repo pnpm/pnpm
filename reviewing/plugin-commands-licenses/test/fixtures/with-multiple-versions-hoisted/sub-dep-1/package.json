@@ -1,0 +1,8 @@
+{
+  "name": "pnpm-with-multiple-versions-hoisted-sub-dep-1",
+  "version": "1.0.0",
+  "license": "ISC",
+  "dependencies": {
+    "is-positive": "3.0.0"
+  }
+}

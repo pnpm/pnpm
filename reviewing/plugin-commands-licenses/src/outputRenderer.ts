@@ -70,7 +70,7 @@ function renderLicensesJson (licensePackages: readonly LicensePackage[]): string
       if (inputList == null) continue
       inputList.sort((a, b) => semver.compare(a.version, b.version))
       const versions = inputList.map((item) => item.version)
-      const paths = inputList.map((item) => item.path ?? null)
+      const paths = Array.from(new Set(inputList.map((item) => item.path ?? null)))
       const lastInputItem = inputList.at(-1)! // last item is chosen for its latest information
       const outputItem: LicensePackageJson = {
         name: lastInputItem.name,

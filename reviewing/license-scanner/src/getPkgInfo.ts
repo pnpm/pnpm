@@ -17,6 +17,10 @@ import { PnpmError } from '@pnpm/error'
 import { type LicensePackage } from './licenses'
 import { type DirectoryResolution, type PackageSnapshot, pkgSnapshotToResolution, type Resolution } from '@pnpm/lockfile.utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
+import { readLocalConfig } from '@pnpm/config'
+import mem from 'mem'
+
+const memReadLocalConfig = mem(readLocalConfig)
 
 const limitPkgReads = pLimit(4)
 
@@ -282,6 +286,7 @@ export async function readPackageIndexFile (
       files,
     }
   } catch (err: any) {  // eslint-disable-line
+    console.log(err)
     if (err.code === 'ENOENT') {
       throw new PnpmError(
         'MISSING_PACKAGE_INDEX_FILE',
@@ -373,18 +378,13 @@ export async function getPkgInfo (
 
   // Determine the path to the package as known by the user
   const modulesDir = opts.modulesDir ?? 'node_modules'
-  const virtualStoreDir = pathAbsolute(
-    opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'),
-    opts.dir
-  )
 
-  // TODO: fix issue that path is only correct when using node-linked=isolated
-  const packageModulePath = path.join(
-    virtualStoreDir,
-    depPathToFilename(pkg.depPath, opts.virtualStoreDirMaxLength),
+  const packageModulePath = await resolveModulePath(pkg, {
+    ...opts,
+    projectDir: opts.dir,
     modulesDir,
-    manifest.name
-  )
+    manifestName: manifest.name,
+  })
 
   const licenseInfo = await parseLicense(
     { manifest, files: packageFileIndexInfo },
@@ -415,4 +415,33 @@ export async function getPkgInfo (
   }
 
   return packageInfo
+}
+
+export interface ResolveModulePathOpts {
+  projectDir: string
+  virtualStoreDir: string
+  virtualStoreDirMaxLength: number
+  modulesDir: string
+  manifestName: string
+}
+
+export async function resolveModulePath (pkg: PackageInfo, opts: ResolveModulePathOpts): Promise<string> {
+  const pnpmConfig = await memReadLocalConfig(opts.projectDir)
+
+  if (pnpmConfig['nodeLinker'] === 'hoisted') {
+    // When node-linker=hoisted is set in the .npmrc the node_modules are set out as a flat list
+    return path.join(opts.projectDir, opts.modulesDir, opts.manifestName)
+  }
+
+  const virtualStoreDir = pathAbsolute(
+    opts.virtualStoreDir ?? path.join(opts.modulesDir, '.pnpm'),
+    opts.projectDir
+  )
+
+  return path.join(
+    virtualStoreDir,
+    depPathToFilename(pkg.depPath, opts.virtualStoreDirMaxLength),
+    opts.modulesDir,
+    opts.manifestName
+  )
 }
