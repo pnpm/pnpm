@@ -40,7 +40,6 @@ import {
   recursive,
 } from './recursive'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
-import { installConfigDeps } from './installConfigDeps'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -173,16 +172,9 @@ when running add/update with the --workspace option')
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
   let store = await createOrConnectStoreController(opts)
-  if (opts.configDependencies) {
-    await installConfigDeps(opts.configDependencies, {
-      registries: opts.registries,
-      rootDir: opts.lockfileDir ?? opts.rootProjectManifestDir,
-      store: store.ctrl,
-    })
-  }
-  if (!opts.ignorePnpmfile && !opts.hooks) {
-    opts.hooks = requireHooks(opts.lockfileDir ?? opts.dir, opts)
-    if (opts.hooks.fetchers != null || opts.hooks.importPackage != null) {
+  if (!opts.ignorePnpmfile) {
+    opts.hooks ??= requireHooks(opts.lockfileDir ?? opts.dir, opts)
+    if (opts.hooks != null && (opts.hooks.fetchers != null || opts.hooks.importPackage != null)) {
       store = await createOrConnectStoreController(opts)
     }
   }

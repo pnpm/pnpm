@@ -20,6 +20,7 @@ export interface CookedHooks {
   preResolution?: Cook<Required<Hooks>['preResolution']>
   afterAllResolved?: Array<Cook<Required<Hooks>['afterAllResolved']>>
   filterLog?: Array<Cook<Required<Hooks>['filterLog']>>
+  updateConfig?: Hooks['updateConfig']
   importPackage?: ImportIndexedPackageAsync
   fetchers?: CustomFetchers
   calculatePnpmfileChecksum?: () => Promise<string | undefined>
@@ -79,6 +80,7 @@ export function requireHooks (
     : undefined
 
   cookedHooks.fetchers = globalHooks.fetchers
+  cookedHooks.updateConfig = hooks.updateConfig
 
   return cookedHooks
 }

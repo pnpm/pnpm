@@ -19,7 +19,6 @@ import without from 'ramda/src/without'
 import renderHelp from 'render-help'
 import { getSaveType } from './getSaveType'
 import { recursive } from './recursive'
-import { installConfigDeps } from './installConfigDeps'
 
 class RemoveMissingDepsError extends PnpmError {
   constructor (
@@ -165,16 +164,9 @@ export async function handler (
     optionalDependencies: opts.optional !== false,
   }
   let store = await createOrConnectStoreController(opts)
-  if (opts.configDependencies) {
-    await installConfigDeps(opts.configDependencies, {
-      registries: opts.registries,
-      rootDir: opts.lockfileDir ?? opts.rootProjectManifestDir,
-      store: store.ctrl,
-    })
-  }
   if (!opts.ignorePnpmfile) {
-    opts.hooks = requireHooks(opts.lockfileDir ?? opts.dir, opts)
-    if (opts.hooks.fetchers != null || opts.hooks.importPackage != null) {
+    opts.hooks ??= requireHooks(opts.lockfileDir ?? opts.dir, opts)
+    if (opts.hooks != null && (opts.hooks.fetchers != null || opts.hooks.importPackage != null)) {
       store = await createOrConnectStoreController(opts)
     }
   }

@@ -85,6 +85,7 @@ export async function handler (
   const { resolve } = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
+    preferOffline: false,
   })
   const resolvedPkgAliases: string[] = []
   const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {

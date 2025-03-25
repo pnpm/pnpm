@@ -16,4 +16,6 @@ export interface Hooks {
   filterLog?: (log: Log) => boolean
   importPackage?: ImportIndexedPackageAsync
   fetchers?: CustomFetchers
+  // eslint-disable-next-line
+  updateConfig?: (config: any) => any
 }
