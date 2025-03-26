@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cache.api",
-  "version": "1000.0.15",
+  "version": "1000.0.16",
   "description": "API for controlling the cache",
   "keywords": [
     "pnpm",

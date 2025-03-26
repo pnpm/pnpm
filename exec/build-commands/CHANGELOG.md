@@ -1,5 +1,17 @@
 # @pnpm/exec.build-commands
 
+## 1001.0.7
+
+### Patch Changes
+
+- d612dcf: Remove warnings after having explicitly approved no builds [#9296](https://github.com/pnpm/pnpm/issues/9296).
+- Updated dependencies [d612dcf]
+- Updated dependencies [936430a]
+- Updated dependencies [d612dcf]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/config@1002.5.4
+  - @pnpm/plugin-commands-rebuild@1002.0.7
+
 ## 1001.0.6
 
 ### Patch Changes

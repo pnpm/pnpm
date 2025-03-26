@@ -1,5 +1,11 @@
 # @pnpm/resolver-base
 
+## 1000.2.0
+
+### Minor Changes
+
+- 3d52365: The `@pnpm/npm-resolver` package can now return `workspace` in the `resolvedVia` field of its results. This will be the case if the resolved package was requested through the `workspace:` protocol or if the wanted dependency's name and specifier match a package in the workspace. Previously, the `resolvedVia` field was always set to `local-filesystem` for workspace packages.
+
 ## 1000.1.4
 
 ### Patch Changes

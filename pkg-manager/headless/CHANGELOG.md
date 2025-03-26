@@ -1,5 +1,28 @@
 # @pnpm/headless
 
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [d612dcf]
+- Updated dependencies [d612dcf]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/deps.graph-builder@1001.0.10
+  - @pnpm/lockfile.utils@1001.0.6
+  - @pnpm/package-requester@1002.0.1
+  - @pnpm/store-controller-types@1001.0.4
+  - @pnpm/lifecycle@1001.0.8
+  - @pnpm/lockfile.filtering@1001.0.7
+  - @pnpm/lockfile.fs@1001.1.7
+  - @pnpm/lockfile-to-pnp@1001.0.8
+  - @pnpm/calc-dep-state@1001.0.8
+  - @pnpm/hoist@1001.0.9
+  - @pnpm/modules-cleaner@1001.0.8
+  - @pnpm/real-hoist@1001.0.6
+  - @pnpm/build-modules@1000.2.10
+  - @pnpm/symlink-dependency@1000.0.5
+  - @pnpm/worker@1000.1.1
+
 ## 1002.0.0
 
 ### Patch Changes

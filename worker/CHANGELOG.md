@@ -1,5 +1,14 @@
 # @pnpm/worker
 
+## 1000.1.1
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.7
+- @pnpm/create-cafs-store@1000.0.8
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/symlink-dependency@1000.0.5
+
 ## 1000.1.0
 
 ### Minor Changes

@@ -1,5 +1,14 @@
 # @pnpm/read-projects-context
 
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [d612dcf]
+- Updated dependencies [d612dcf]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/lockfile.fs@1001.1.7
+
 ## 1000.0.9
 
 ### Patch Changes

@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-installation
 
+## 1002.2.2
+
+### Patch Changes
+
+- Updated dependencies [36ff4bf]
+- Updated dependencies [936430a]
+- Updated dependencies [3d52365]
+  - @pnpm/core@1005.0.1
+  - @pnpm/config@1002.5.4
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/plugin-commands-rebuild@1002.0.7
+  - @pnpm/get-context@1001.0.9
+  - @pnpm/outdated@1001.0.13
+  - @pnpm/cli-utils@1000.0.17
+  - @pnpm/deps.status@1002.0.7
+  - @pnpm/plugin-commands-env@1000.0.18
+  - @pnpm/store-connection-manager@1000.0.17
+  - @pnpm/workspace.state@1001.1.13
+  - @pnpm/package-store@1001.0.1
+  - @pnpm/workspace.pkgs-graph@1000.0.9
+  - @pnpm/workspace.find-packages@1000.0.17
+  - @pnpm/pnpmfile@1001.0.8
+  - @pnpm/filter-workspace-packages@1000.0.17
+
 ## 1002.2.1
 
 ### Patch Changes

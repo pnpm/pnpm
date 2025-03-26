@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.filter-packages-from-dir",
-  "version": "1000.0.16",
+  "version": "1000.0.17",
   "description": "Filters packages in a directory",
   "keywords": [
     "pnpm",

@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1002.0.7
+
+### Patch Changes
+
+- Updated dependencies [d612dcf]
+- Updated dependencies [936430a]
+- Updated dependencies [d612dcf]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/config@1002.5.4
+  - @pnpm/get-context@1001.0.9
+  - @pnpm/cli-utils@1000.0.17
+  - @pnpm/store-connection-manager@1000.0.17
+  - @pnpm/lockfile.utils@1001.0.6
+  - @pnpm/store-controller-types@1001.0.4
+  - @pnpm/workspace.find-packages@1000.0.17
+  - @pnpm/lifecycle@1001.0.8
+  - @pnpm/store.cafs@1000.0.7
+  - @pnpm/calc-dep-state@1001.0.8
+  - @pnpm/worker@1000.1.1
+
 ## 1002.0.6
 
 ### Patch Changes

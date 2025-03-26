@@ -1,5 +1,16 @@
 # @pnpm/client
 
+## 1000.0.12
+
+### Patch Changes
+
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/directory-fetcher@1000.1.2
+  - @pnpm/default-resolver@1001.0.10
+  - @pnpm/git-fetcher@1001.0.1
+  - @pnpm/tarball-fetcher@1001.0.1
+
 ## 1000.0.11
 
 ### Patch Changes

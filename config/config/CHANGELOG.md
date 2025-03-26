@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 1002.5.4
+
+### Patch Changes
+
+- 936430a: Setting `workspace-concurrency` to less than or equal to 0 should work [#9297](https://github.com/pnpm/pnpm/issues/9297).
+  - @pnpm/pnpmfile@1001.0.8
+
 ## 1002.5.3
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/git-fetcher",
-  "version": "1001.0.0",
+  "version": "1001.0.1",
   "description": "A fetcher for git-hosted packages",
   "keywords": [
     "pnpm",
