@@ -24,7 +24,7 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "lint": "eslint --cache --cache-location=node_modules/.cache/eslint/.eslint-cache \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7770 jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",

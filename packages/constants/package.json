@@ -26,7 +26,7 @@
   "scripts": {
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
-    "lint": "eslint \"src/**/*.ts\"",
+    "lint": "eslint --cache --cache-location=node_modules/.cache/eslint/.eslint-cache \"src/**/*.ts\"",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "devDependencies": {

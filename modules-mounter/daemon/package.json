@@ -27,7 +27,7 @@
   ],
   "bin": "bin/mount-modules.js",
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "lint": "eslint --cache --cache-location=node_modules/.cache/eslint/.eslint-cache \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "pretest": "node ../../pnpm/dist/pnpm.cjs install --dir=test/__fixtures__/simple",

@@ -23,7 +23,7 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\"",
+    "lint": "eslint --cache --cache-location=node_modules/.cache/eslint/.eslint-cache \"src/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix",
     "test": "pnpm run compile"
