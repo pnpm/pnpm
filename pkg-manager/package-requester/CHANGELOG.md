@@ -1,5 +1,23 @@
 # @pnpm/package-requester
 
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/package-is-installable@1000.0.7
+  - @pnpm/fetcher-base@1000.0.7
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/resolver-base@1000.2.1
+  - @pnpm/store.cafs@1000.0.8
+  - @pnpm/store-controller-types@1001.0.5
+  - @pnpm/worker@1000.1.2
+  - @pnpm/pick-fetcher@1000.0.0
+
 ## 1002.0.1
 
 ### Patch Changes

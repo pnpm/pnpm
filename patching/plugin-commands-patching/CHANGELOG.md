@@ -1,5 +1,34 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.1.6
+
+### Patch Changes
+
+- e9e4c59: When executing the `patch-commit` command, if `patchedDependencies` does not exist in `package.json`, the configuration will be written to `pnpm-workspace.yaml`.
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5a9e34f]
+- Updated dependencies [64f6b4f]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/config.config-writer@1000.0.0
+  - @pnpm/modules-yaml@1000.3.0
+  - @pnpm/cli-utils@1000.0.18
+  - @pnpm/plugin-commands-installation@1002.2.3
+  - @pnpm/store-connection-manager@1000.0.18
+  - @pnpm/pick-registry-for-package@1000.0.5
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/read-project-manifest@1000.0.8
+  - @pnpm/workspace.read-manifest@1000.1.2
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/patching.apply-patch@1000.0.3
+  - @pnpm/pick-fetcher@1000.0.0
+
 ## 1000.1.5
 
 ### Patch Changes

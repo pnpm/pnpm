@@ -1,5 +1,31 @@
 # @pnpm/config
 
+## 1002.6.0
+
+### Minor Changes
+
+- 9bcca9f: `pnpm config get` and `list` also show settings set in `pnpm-workspace.yaml` files [#9316](https://github.com/pnpm/pnpm/pull/9316).
+- 5b35dff: It should be possible to use env variables in `pnpm-workspace.yaml` setting names and value.
+- 9bcca9f: `pnpm config set --location=project` saves the setting to a `pnpm-workspace.yaml` file if no `.npmrc` file is present in the directory [#9316](https://github.com/pnpm/pnpm/pull/9316).
+- 5f7be64: Rename `pnpm.allowNonAppliedPatches` to `pnpm.allowUnusedPatches`. The old name is still supported but it would print a deprecation warning message.
+- 5f7be64: Add `pnpm.ignorePatchFailures` to manage whether pnpm would ignore patch application failures.
+
+  If `ignorePatchFailures` is not set, pnpm would throw an error when patches with exact versions or version ranges fail to apply, and it would ignore failures from name-only patches.
+
+  If `ignorePatchFailures` is explicitly set to `false`, pnpm would throw an error when any type of patch fails to apply.
+
+  If `ignorePatchFailures` is explicitly set to `true`, pnpm would print a warning when any type of patch fails to apply.
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/pnpmfile@1001.0.9
+  - @pnpm/read-project-manifest@1000.0.8
+  - @pnpm/workspace.read-manifest@1000.1.2
+  - @pnpm/catalogs.config@1000.0.2
+
 ## 1002.5.4
 
 ### Patch Changes

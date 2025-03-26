@@ -1,5 +1,39 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1002.0.8
+
+### Patch Changes
+
+- a2903a0: The pnpm rebuild command should not incorrectly add package information to `ignoredBuilds`.
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [64f6b4f]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/modules-yaml@1000.3.0
+  - @pnpm/cli-utils@1000.0.18
+  - @pnpm/store-connection-manager@1000.0.18
+  - @pnpm/lockfile.types@1001.0.5
+  - @pnpm/normalize-registries@1000.0.5
+  - @pnpm/lifecycle@1001.0.9
+  - @pnpm/exec.pkg-requires-build@1000.0.5
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/lockfile.walker@1001.0.6
+  - @pnpm/calc-dep-state@1001.0.9
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/get-context@1001.0.10
+  - @pnpm/link-bins@1000.0.9
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/store.cafs@1000.0.8
+  - @pnpm/store-controller-types@1001.0.5
+  - @pnpm/worker@1000.1.2
+  - @pnpm/workspace.find-packages@1000.0.18
+  - @pnpm/sort-packages@1000.0.5
+
 ## 1002.0.7
 
 ### Patch Changes

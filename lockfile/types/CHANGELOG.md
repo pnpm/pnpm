@@ -1,5 +1,15 @@
 # @pnpm/lockfile-types
 
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/patching.types@1000.1.0
+  - @pnpm/types@1000.3.0
+
 ## 1001.0.4
 
 ### Patch Changes

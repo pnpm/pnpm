@@ -1,5 +1,11 @@
 # @pnpm/env.system-node-version
 
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/cli-meta@1000.0.5
+
 ## 1000.0.4
 
 ### Patch Changes

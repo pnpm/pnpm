@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.17
+
+### Patch Changes
+
+- 9d30085: Removed a defunct special case to handle the `catalog:` protocol when deploying a package. This is no longer necessary with newer version of pnpm which handle injected workspace packages using the `catalog:` protocol out of the box.
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/cli-utils@1000.0.18
+  - @pnpm/plugin-commands-installation@1002.2.3
+  - @pnpm/lockfile.types@1001.0.5
+  - @pnpm/directory-fetcher@1000.1.3
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/fs.indexed-pkg-importer@1000.1.3
+
 ## 1001.1.16
 
 ### Patch Changes

@@ -1,5 +1,22 @@
 # @pnpm/exec.build-commands
 
+## 1001.0.8
+
+### Patch Changes
+
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [a2903a0]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5a9e34f]
+- Updated dependencies [64f6b4f]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/plugin-commands-rebuild@1002.0.8
+  - @pnpm/config.config-writer@1000.0.0
+  - @pnpm/modules-yaml@1000.3.0
+
 ## 1001.0.7
 
 ### Patch Changes

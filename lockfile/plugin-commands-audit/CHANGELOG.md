@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.0.0
+
+### Major Changes
+
+- 7f9f202: Remove dependency paths from audit output to prevent out-of-memory errors [#9280](https://github.com/pnpm/pnpm/issues/9280).
+
+### Patch Changes
+
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+- Updated dependencies [7f9f202]
+  - @pnpm/config@1002.6.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/audit@1002.0.0
+  - @pnpm/cli-utils@1000.0.18
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/read-project-manifest@1000.0.8
+
 ## 1001.0.17
 
 ### Patch Changes

@@ -1,5 +1,23 @@
 # @pnpm/audit
 
+## 1002.0.0
+
+### Major Changes
+
+- 7f9f202: Remove dependency paths from audit output to prevent out-of-memory errors [#9280](https://github.com/pnpm/pnpm/issues/9280).
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/lockfile.types@1001.0.5
+  - @pnpm/lockfile.detect-dep-types@1001.0.6
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/lockfile.walker@1001.0.6
+  - @pnpm/fetch@1000.1.6
+  - @pnpm/read-project-manifest@1000.0.8
+
 ## 1001.0.11
 
 ### Patch Changes

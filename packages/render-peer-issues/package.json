@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/render-peer-issues",
-  "version": "1000.0.6",
+  "version": "1000.0.7",
   "description": "Visualizes peer dependency issues",
   "keywords": [
     "pnpm",

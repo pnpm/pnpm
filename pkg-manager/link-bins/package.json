@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/link-bins",
-  "version": "1000.0.8",
+  "version": "1000.0.9",
   "description": "Link bins to node_modules/.bin",
   "keywords": [
     "pnpm",

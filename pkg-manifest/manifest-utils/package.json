@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/manifest-utils",
-  "version": "1000.0.6",
+  "version": "1000.0.7",
   "description": "Utils for dealing with package manifest",
   "keywords": [
     "pnpm",

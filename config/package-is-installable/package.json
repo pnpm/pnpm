@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-is-installable",
-  "version": "1000.0.6",
+  "version": "1000.0.7",
   "description": "Checks if a package is installable on the current system",
   "keywords": [
     "pnpm",

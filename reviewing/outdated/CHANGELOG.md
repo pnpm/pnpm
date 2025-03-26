@@ -1,5 +1,23 @@
 # @pnpm/outdated
 
+## 1001.0.14
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [64f6b4f]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/modules-yaml@1000.3.0
+  - @pnpm/pick-registry-for-package@1000.0.5
+  - @pnpm/hooks.read-package-hook@1000.0.7
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/client@1000.0.13
+  - @pnpm/manifest-utils@1000.0.7
+  - @pnpm/npm-resolver@1001.0.1
+
 ## 1001.0.13
 
 ### Patch Changes

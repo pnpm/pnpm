@@ -1,5 +1,17 @@
 # @pnpm/modules-yaml
 
+## 1000.3.0
+
+### Minor Changes
+
+- 64f6b4f: Add type `StrictModules`.
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+
 ## 1000.2.0
 
 ### Minor Changes

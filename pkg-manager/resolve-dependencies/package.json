@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "1004.0.7",
+  "version": "1005.0.0",
   "description": "Resolves dependency graph of a package",
   "keywords": [
     "pnpm",

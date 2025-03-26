@@ -1,5 +1,40 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1000.2.8
+
+### Patch Changes
+
+- 5f7be64: Rename `pnpm.allowNonAppliedPatches` to `pnpm.allowUnusedPatches`. The old name is still supported but it would print a deprecation warning message.
+- 5f7be64: Add `pnpm.ignorePatchFailures` to manage whether pnpm would ignore patch application failures.
+
+  If `ignorePatchFailures` is not set, pnpm would throw an error when patches with exact versions or version ranges fail to apply, and it would ignore failures from name-only patches.
+
+  If `ignorePatchFailures` is explicitly set to `false`, pnpm would throw an error when any type of patch fails to apply.
+
+  If `ignorePatchFailures` is explicitly set to `true`, pnpm would print a warning when any type of patch fails to apply.
+
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/cli-utils@1000.0.18
+  - @pnpm/deps.status@1002.0.8
+  - @pnpm/plugin-commands-env@1000.0.19
+  - @pnpm/plugin-commands-installation@1002.2.3
+  - @pnpm/pick-registry-for-package@1000.0.5
+  - @pnpm/lifecycle@1001.0.9
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/client@1000.0.13
+  - @pnpm/package-bins@1000.0.5
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/read-project-manifest@1000.0.8
+  - @pnpm/sort-packages@1000.0.5
+  - @pnpm/workspace.injected-deps-syncer@1000.0.4
+  - @pnpm/crypto.hash@1000.1.1
+
 ## 1000.2.7
 
 ### Patch Changes

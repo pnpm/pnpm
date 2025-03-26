@@ -1,5 +1,13 @@
 # @pnpm/core-loggers
 
+## 1000.1.5
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+
 ## 1000.1.4
 
 ### Patch Changes

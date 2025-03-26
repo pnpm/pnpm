@@ -1,5 +1,14 @@
 # @pnpm/exportable-manifest
 
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/read-project-manifest@1000.0.8
+
 ## 1000.0.8
 
 ### Patch Changes

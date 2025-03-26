@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/env.system-node-version",
-  "version": "1000.0.4",
+  "version": "1000.0.5",
   "description": "Detects the current system node version",
   "keywords": [
     "pnpm",

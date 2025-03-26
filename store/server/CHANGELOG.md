@@ -1,5 +1,15 @@
 # @pnpm/server
 
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/fetch@1000.1.6
+  - @pnpm/store-controller-types@1001.0.5
+
 ## 1000.0.8
 
 ### Patch Changes

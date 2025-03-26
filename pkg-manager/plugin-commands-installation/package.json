@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "1002.2.2",
+  "version": "1002.2.3",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",

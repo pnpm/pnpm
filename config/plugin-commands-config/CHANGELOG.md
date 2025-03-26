@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-config
 
+## 1000.1.0
+
+### Minor Changes
+
+- 9bcca9f: `pnpm config get` and `list` also show settings set in `pnpm-workspace.yaml` files [#9316](https://github.com/pnpm/pnpm/pull/9316).
+- 9bcca9f: `pnpm config set --location=project` saves the setting to a `pnpm-workspace.yaml` file if no `.npmrc` file is present in the directory [#9316](https://github.com/pnpm/pnpm/pull/9316).
+- 3a90ec1: `pnpm config delete --location=project` The setting in `pnpm-workspace.yaml` file will be deleted if no `.npmrc` file is present in the directory
+
+### Patch Changes
+
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [3a90ec1]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/workspace.manifest-writer@1000.1.0
+  - @pnpm/cli-utils@1000.0.18
+
 ## 1000.0.17
 
 ### Patch Changes

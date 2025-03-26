@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store-controller-types",
-  "version": "1001.0.4",
+  "version": "1001.0.5",
   "description": "Types for the store controller",
   "keywords": [
     "pnpm",
