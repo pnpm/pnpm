@@ -14,7 +14,7 @@ import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
 import { deployHook } from './deployHook'
 import { logger, globalWarn } from '@pnpm/logger'
-import { type Project } from '@pnpm/types'
+import { type ProjectsGraph, type Project } from '@pnpm/types'
 import { createDeployFiles } from './createDeployFiles'
 import { deployCatalogHook } from './deployCatalogHook'
 
@@ -127,8 +127,28 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
   if (deployedProject) {
     deployedProject.modulesDir = path.relative(selectedProject.rootDir, path.join(deployDir, 'node_modules'))
   }
+
+  let allProjectsGraph: ProjectsGraph | undefined
+
+  // When inject-workspace-packages=false, this is a "legacy deploy". The legacy
+  // deploy code path requires the allProjectsGraph to only be the deployed
+  // project and the root project (instead of all projects).
+  //
+  //   - https://github.com/pnpm/pnpm/issues/9302
+  //   - https://github.com/pnpm/pnpm/issues/9284
+  //
+  // When the legacy deploy code path is no longer necessary, this code
+  // allProjectsGraph override should be removed.
+  if (!opts.injectWorkspacePackages && deployedProject != null) {
+    allProjectsGraph = {
+      [deployedProject.rootDir]: { dependencies: [], package: deployedProject },
+      ...selectProjectByDir(opts.allProjects ?? [], opts.workspaceDir),
+    }
+  }
+
   await install.handler({
     ...opts,
+    allProjectsGraph,
     confirmModulesPurge: false,
     // Deploy doesn't work with dedupePeerDependents=true currently as for deploy
     // we need to select a single project for install, while dedupePeerDependents
@@ -284,4 +304,10 @@ async function deployFromSharedLockfile (
   }
 
   return undefined
+}
+
+function selectProjectByDir (projects: Project[], searchedDir: string): ProjectsGraph | undefined {
+  const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
+  if (project == null) return undefined
+  return { [searchedDir]: { dependencies: [], package: project } }
 }
