@@ -14,7 +14,7 @@
     "execa": "catalog:"
   },
   "scripts": {
-    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "lint": "eslint --cache --cache-location=node_modules/.cache/eslint/.eslint-cache src/**/*.ts test/**/*.ts",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build",
     "test": "pnpm run compile && jest"
   }
