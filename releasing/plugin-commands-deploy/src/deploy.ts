@@ -16,7 +16,6 @@ import { deployHook } from './deployHook'
 import { logger, globalWarn } from '@pnpm/logger'
 import { type Project } from '@pnpm/types'
 import { createDeployFiles } from './createDeployFiles'
-import { deployCatalogHook } from './deployCatalogHook'
 
 const FORCE_LEGACY_DEPLOY = 'force-legacy-deploy' satisfies keyof typeof configTypes
 
@@ -171,7 +170,6 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
       readPackage: [
         ...(opts.hooks?.readPackage ?? []),
         deployHook,
-        deployCatalogHook.bind(null, opts.catalogs ?? {}),
       ],
     },
     frozenLockfile: false,
@@ -268,7 +266,6 @@ async function deployFromSharedLockfile (
         readPackage: [
           ...(opts.hooks?.readPackage ?? []),
           deployHook,
-          deployCatalogHook.bind(null, opts.catalogs ?? {}),
         ],
         calculatePnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
       },
