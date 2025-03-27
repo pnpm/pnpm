@@ -323,9 +323,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   }
   if (scripts.lint) {
     if (fs.existsSync(path.join(dir, 'test'))) {
-      scripts.lint = 'eslint "src/**/*.ts" "test/**/*.ts"'
+      scripts.lint = 'eslint --cache --cache-location=node_modules/.cache/eslint/.eslint-cache "src/**/*.ts" "test/**/*.ts"'
     } else {
-      scripts.lint = 'eslint "src/**/*.ts"'
+      scripts.lint = 'eslint --cache --cache-location=node_modules/.cache/eslint/.eslint-cache "src/**/*.ts"'
     }
   }
   const files: string[] = []

@@ -9,7 +9,7 @@
     "@types/node": "catalog:"
   },
   "scripts": {
-    "lint": "eslint src/**/*.ts",
+    "lint": "eslint --cache --cache-location=node_modules/.cache/eslint/.eslint-cache src/**/*.ts",
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build"
