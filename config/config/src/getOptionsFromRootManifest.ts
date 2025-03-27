@@ -67,7 +67,12 @@ export function getOptionsFromPnpmSettings (manifestDir: string, pnpmSettings: P
     if (Object.keys(settings.overrides).length === 0) {
       delete settings.overrides
     } else if (manifest) {
-      settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
+      const currentDir = process.cwd()
+      if (path.resolve(manifestDir) === path.resolve(currentDir)) {
+        settings.overrides = mapValues(createVersionReferencesReplacer(manifest), settings.overrides)
+      } else {
+        delete settings.overrides
+      }
     }
   }
   if (pnpmSettings.onlyBuiltDependenciesFile) {
