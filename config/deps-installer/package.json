@@ -43,12 +43,16 @@
     "get-npm-tarball-url": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/config.deps-installer": "workspace:*"
+    "@pnpm/config.deps-installer": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/testing.temp-store": "workspace:*",
+    "load-json-file": "catalog:"
   },
   "engines": {
     "node": ">=18.12"
   },
   "jest": {
-    "preset": "@pnpm/jest-config"
+    "preset": "@pnpm/jest-config/with-registry"
   }
 }

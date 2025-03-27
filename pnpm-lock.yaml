@@ -1619,6 +1619,18 @@ importers:
       '@pnpm/config.deps-installer':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 4.0.0(encoding@0.1.13)(typanion@3.14.0)
+      '@pnpm/testing.temp-store':
+        specifier: workspace:*
+        version: link:../../testing/temp-store
+      load-json-file:
+        specifier: 'catalog:'
+        version: 6.2.0
 
   config/matcher:
     dependencies:

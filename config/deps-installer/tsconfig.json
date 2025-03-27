@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../__utils__/prepare"
+    },
+    {
       "path": "../../fs/read-modules-dir"
     },
     {
@@ -23,6 +26,9 @@
     },
     {
       "path": "../../store/package-store"
+    },
+    {
+      "path": "../../testing/temp-store"
     },
     {
       "path": "../pick-registry-for-package"
