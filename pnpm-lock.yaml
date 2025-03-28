@@ -4614,9 +4614,6 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
-      '@pnpm/client':
-        specifier: workspace:*
-        version: link:../client
       '@pnpm/core':
         specifier: workspace:*
         version: 'link:'
@@ -4629,9 +4626,6 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
-      '@pnpm/package-store':
-        specifier: workspace:*
-        version: link:../../store/package-store
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -4653,6 +4647,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/testing.temp-store':
+        specifier: workspace:*
+        version: link:../../testing/temp-store
       '@types/fs-extra':
         specifier: 'catalog:'
         version: 9.0.13
@@ -4893,9 +4890,6 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
-      '@pnpm/client':
-        specifier: workspace:*
-        version: link:../client
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher
@@ -4905,9 +4899,6 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
-      '@pnpm/package-store':
-        specifier: workspace:*
-        version: link:../../store/package-store
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -4929,6 +4920,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@pnpm/testing.temp-store':
+        specifier: workspace:*
+        version: link:../../testing/temp-store
       '@types/fs-extra':
         specifier: 'catalog:'
         version: 9.0.13
@@ -7876,6 +7870,25 @@ importers:
       rimraf:
         specifier: 'catalog:'
         version: 3.0.2
+
+  testing/temp-store:
+    dependencies:
+      '@pnpm/client':
+        specifier: workspace:*
+        version: link:../../pkg-manager/client
+      '@pnpm/package-store':
+        specifier: workspace:*
+        version: link:../../store/package-store
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 4.2.0(encoding@0.1.13)(typanion@3.14.0)
+      '@pnpm/store-controller-types':
+        specifier: workspace:*
+        version: link:../../store/store-controller-types
+    devDependencies:
+      '@pnpm/testing.temp-store':
+        specifier: workspace:*
+        version: 'link:'
 
   text/comments-parser:
     dependencies:

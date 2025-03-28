@@ -85,19 +85,16 @@
       "path": "../../store/cafs"
     },
     {
-      "path": "../../store/package-store"
-    },
-    {
       "path": "../../store/store-controller-types"
     },
     {
       "path": "../../store/store-path"
     },
     {
-      "path": "../../worker"
+      "path": "../../testing/temp-store"
     },
     {
-      "path": "../client"
+      "path": "../../worker"
     },
     {
       "path": "../direct-dep-linker"

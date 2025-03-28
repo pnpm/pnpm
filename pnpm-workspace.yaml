@@ -43,6 +43,7 @@ packages:
   - patching/*
   - pnpm
   - pnpm/dev
+  - testing/*
   - tools/*
   - worker
   - pnpm/artifacts/*
