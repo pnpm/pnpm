@@ -1,4 +1,4 @@
-# @pnpm/core
+# @pnpm/testing.temp-store
 
 > A temporary store for testing purposes
 
