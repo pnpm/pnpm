@@ -1,37 +1,33 @@
 import * as path from 'path'
-import { createClient } from '@pnpm/client'
-import { createPackageStore } from '@pnpm/package-store'
+import { type ClientOptions, createClient } from '@pnpm/client'
+import { createPackageStore, type CreatePackageStoreOptions } from '@pnpm/package-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { type StoreController } from '@pnpm/store-controller-types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
-const DEFAULT_RETRY_OPTS = {
-  retries: 4,
-  retryFactor: 10,
-  retryMaxtimeout: 60_000,
-  retryMintimeout: 10_000,
+export interface CreateTempStoreResult {
+  storeController: StoreController
+  storeDir: string
+  cacheDir: string
 }
 
 export function createTempStore (opts?: {
   fastUnpack?: boolean
   storeDir?: string
-  clientOptions?: any // eslint-disable-line
-  storeOptions?: any // eslint-disable-line
-  retry?: any // eslint-disable-line
-}): {
-    storeController: StoreController
-    storeDir: string
-    cacheDir: string
-  } {
+  clientOptions?: ClientOptions
+  storeOptions?: CreatePackageStoreOptions
+}): CreateTempStoreResult {
   const authConfig = { registry }
   const cacheDir = path.resolve('cache')
   const { resolve, fetchers, clearResolutionCache } = createClient({
     authConfig,
     rawConfig: {},
     retry: {
-      ...DEFAULT_RETRY_OPTS,
-      ...opts?.retry,
+      retries: 4,
+      factor: 10,
+      maxTimeout: 60_000,
+      minTimeout: 10_000,
     },
     cacheDir,
     ...opts?.clientOptions,
@@ -41,9 +37,11 @@ export function createTempStore (opts?: {
     resolve,
     fetchers,
     {
+      cacheDir,
       ignoreFile: opts?.fastUnpack === false ? undefined : (filename) => filename !== 'package.json',
       storeDir,
       verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
       clearResolutionCache,
       ...opts?.storeOptions,
     }
