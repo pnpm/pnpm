@@ -162,6 +162,6 @@
     "node": ">=18.12"
   },
   "jest": {
-    "preset": "@pnpm/jest-config"
+    "preset": "@pnpm/jest-config/with-registry"
   }
 }

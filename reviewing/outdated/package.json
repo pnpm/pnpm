@@ -27,7 +27,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7781 jest",
+    "_test": "jest",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
@@ -64,6 +64,6 @@
     "node": ">=18.12"
   },
   "jest": {
-    "preset": "@pnpm/jest-config"
+    "preset": "@pnpm/jest-config/with-registry"
   }
 }

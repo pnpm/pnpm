@@ -235,11 +235,11 @@ async function updateTSConfig (
 }
 
 const registryMockPortForCore = 7769
-let registryMockPort = registryMockPortForCore
 
 async function updateManifest (workspaceDir: string, manifest: ProjectManifest, dir: string, nextTag: string): Promise<ProjectManifest> {
   const relative = normalizePath(path.relative(workspaceDir, dir))
   let scripts: Record<string, string>
+  let preset = '@pnpm/jest-config'
   switch (manifest.name) {
   case '@pnpm/lockfile.types':
     scripts = { ...manifest.scripts }
@@ -261,14 +261,18 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-deploy':
   case CLI_PKG_NAME:
   case '@pnpm/core': {
-    // @pnpm/core tests currently works only with port 7769 due to the usage of
-    // the next package: pkg-with-tarball-dep-from-registry
-    const port = manifest.name === '@pnpm/core' ? registryMockPortForCore : ++registryMockPort
+    preset = '@pnpm/jest-config/with-registry'
     scripts = {
       ...(manifest.scripts as Record<string, string>),
     }
     scripts.test = 'pnpm run compile && pnpm run _test'
-    scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} jest`
+    if (manifest.name === '@pnpm/core') {
+      // @pnpm/core tests currently works only with port 7769 due to the usage of
+      // the next package: pkg-with-tarball-dep-from-registry
+      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} jest`
+    } else {
+      scripts._test = 'jest'
+    }
     break
   }
   default:
@@ -351,7 +355,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   if (scripts.test) {
     Object.assign(manifest, {
       jest: {
-        preset: '@pnpm/jest-config',
+        preset,
       },
     })
   }
