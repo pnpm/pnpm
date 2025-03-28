@@ -1,9 +1,12 @@
-const { start, prepare } = require('@pnpm/registry-mock')
+const getPort = require('get-port')
 const { promisify } = require('util')
 const kill = promisify(require('tree-kill'))
 
-module.exports = () => {
-  if (process.env.PNPM_REGISTRY_MOCK_PORT == null) return
+module.exports = async () => {
+  if (!process.env.PNPM_REGISTRY_MOCK_PORT) {
+    process.env.PNPM_REGISTRY_MOCK_PORT = (await getPort({ port: getPort.makeRange(7700, 7800) })).toString()
+  }
+  const { start, prepare } = require('@pnpm/registry-mock')
   prepare()
   const server = start({
     // Verdaccio stopped working properly on Node.js 22.
@@ -11,6 +14,7 @@ module.exports = () => {
     //   pnpm --filter=core run test test/install/auth.ts
     useNodeVersion: '20.16.0',
     stdio: 'inherit',
+    listen: process.env.PNPM_REGISTRY_MOCK_PORT,
   })
   let killed = false
   server.on('error', (err) => {

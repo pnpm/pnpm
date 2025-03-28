@@ -6,6 +6,7 @@
   "dependencies": {
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/worker": "workspace:*",
+    "get-port": "catalog:",
     "tree-kill": "catalog:"
   },
   "devDependencies": {
