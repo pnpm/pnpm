@@ -651,3 +651,42 @@ test('preResolution hook', async () => {
     '@foo': 'https://foo.com/',
   })
 })
+
+test('pass readPackage with shared lockfile', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['*'] })
+  fs.writeFileSync('.pnpmfile.cjs', `
+module.exports = {
+  hooks: {
+    readPackage: (pkg) => ({
+      ...pkg,
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    }),
+  },
+}
+`, 'utf8')
+
+  await execPnpm(['install'])
+
+  projects['project-1'].has('is-positive')
+  projects['project-1'].hasNot('is-negative')
+  projects['project-2'].has('is-positive')
+  projects['project-2'].hasNot('is-negative')
+})
