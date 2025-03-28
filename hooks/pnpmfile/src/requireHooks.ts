@@ -1,4 +1,5 @@
 import type { PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
+import { PnpmError } from '@pnpm/error'
 import { hookLogger } from '@pnpm/core-loggers'
 import { createHashFromFile } from '@pnpm/crypto.hash'
 import pathAbsolute from 'path-absolute'
@@ -80,7 +81,16 @@ export function requireHooks (
     : undefined
 
   cookedHooks.fetchers = globalHooks.fetchers
-  cookedHooks.updateConfig = hooks.updateConfig
+  if (hooks.updateConfig != null) {
+    const updateConfig = hooks.updateConfig
+    cookedHooks.updateConfig = (config) => {
+      const updatedConfig = updateConfig(config)
+      if (updatedConfig == null) {
+        throw new PnpmError('CONFIG_IS_UNDEFINED', 'The updateConfig hook returned undefined')
+      }
+      return updatedConfig
+    }
+  }
 
   return cookedHooks
 }
