@@ -12,7 +12,6 @@ import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
-import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir, type PrepareExecutionEnv } from '@pnpm/types'
 import {
@@ -171,13 +170,7 @@ when running add/update with the --workspace option')
     // @ts-expect-error
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
-  let store = await createOrConnectStoreController(opts)
-  if (!opts.ignorePnpmfile) {
-    opts.hooks ??= requireHooks(opts.lockfileDir ?? opts.dir, opts)
-    if (opts.hooks != null && (opts.hooks.fetchers != null || opts.hooks.importPackage != null)) {
-      store = await createOrConnectStoreController(opts)
-    }
-  }
+  const store = await createOrConnectStoreController(opts)
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,
     devDependencies: true,
