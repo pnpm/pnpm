@@ -1,0 +1,48 @@
+{
+  "name": "@pnpm/testing.temp-store",
+  "version": "1000.0.0-0",
+  "description": "A temporary store for testing purposes",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "store"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/testing/temp-store",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/testing/temp-store#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "prepublishOnly": "pnpm run compile",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "pnpm run compile",
+    "start": "tsc --watch",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/client": "workspace:*",
+    "@pnpm/package-store": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/store-controller-types": "workspace:*"
+  },
+  "devDependencies": {
+    "@pnpm/testing.temp-store": "workspace:*"
+  },
+  "engines": {
+    "node": ">=18.12"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

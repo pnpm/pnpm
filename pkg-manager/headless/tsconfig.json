@@ -94,6 +94,9 @@
       "path": "../../store/store-path"
     },
     {
+      "path": "../../testing/temp-store"
+    },
+    {
       "path": "../../worker"
     },
     {
