@@ -124,12 +124,10 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
-    "@pnpm/client": "workspace:*",
     "@pnpm/core": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/registry-mock": "catalog:",

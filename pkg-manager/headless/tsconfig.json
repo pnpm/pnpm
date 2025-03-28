@@ -85,9 +85,6 @@
       "path": "../../store/cafs"
     },
     {
-      "path": "../../store/package-store"
-    },
-    {
       "path": "../../store/store-controller-types"
     },
     {
@@ -98,9 +95,6 @@
     },
     {
       "path": "../../worker"
-    },
-    {
-      "path": "../client"
     },
     {
       "path": "../direct-dep-linker"

@@ -4614,9 +4614,6 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
-      '@pnpm/client':
-        specifier: workspace:*
-        version: link:../client
       '@pnpm/core':
         specifier: workspace:*
         version: 'link:'
@@ -4629,9 +4626,6 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
-      '@pnpm/package-store':
-        specifier: workspace:*
-        version: link:../../store/package-store
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -4896,9 +4890,6 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
-      '@pnpm/client':
-        specifier: workspace:*
-        version: link:../client
       '@pnpm/crypto.object-hasher':
         specifier: workspace:*
         version: link:../../crypto/object-hasher
@@ -4908,9 +4899,6 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
-      '@pnpm/package-store':
-        specifier: workspace:*
-        version: link:../../store/package-store
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
