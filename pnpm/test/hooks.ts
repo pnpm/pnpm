@@ -313,3 +313,26 @@ test('loading a pnpmfile from a config dependency', async () => {
 
   expect(fs.readdirSync('node_modules/.pnpm')).toContain('@pnpm+y@1.0.0')
 })
+
+test('updateConfig hook', async () => {
+  prepare()
+  const pnpmfile = `
+const fs = require('fs')
+
+module.exports = {
+  hooks: {
+    updateConfig: (config) => ({
+      ...config,
+      nodeLinker: 'hoisted',
+    }),
+  },
+}`
+
+  fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
+
+  await execPnpm(['add', 'is-odd@1.0.0'])
+
+  const nodeModulesFiles = fs.readdirSync('node_modules')
+  expect(nodeModulesFiles).toContain('kind-of')
+  expect(nodeModulesFiles).toContain('is-number')
+})
