@@ -317,8 +317,6 @@ test('loading a pnpmfile from a config dependency', async () => {
 test('updateConfig hook', async () => {
   prepare()
   const pnpmfile = `
-const fs = require('fs')
-
 module.exports = {
   hooks: {
     updateConfig: (config) => ({
