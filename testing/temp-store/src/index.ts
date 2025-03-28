@@ -15,7 +15,7 @@ export interface CreateTempStoreResult {
 export function createTempStore (opts?: {
   fastUnpack?: boolean
   storeDir?: string
-  clientOptions?: ClientOptions
+  clientOptions?: Partial<ClientOptions>
   storeOptions?: CreatePackageStoreOptions
 }): CreateTempStoreResult {
   const authConfig = { registry }

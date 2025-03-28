@@ -1236,6 +1236,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/config.deps-installer':
+        specifier: workspace:*
+        version: link:../../config/deps-installer
       '@pnpm/default-reporter':
         specifier: workspace:*
         version: link:../default-reporter
@@ -1248,9 +1251,15 @@ importers:
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
+      '@pnpm/pnpmfile':
+        specifier: workspace:*
+        version: link:../../hooks/pnpmfile
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
+      '@pnpm/store-connection-manager':
+        specifier: workspace:*
+        version: link:../../store/store-connection-manager
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1579,6 +1588,49 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
+
+  config/deps-installer:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/package-store':
+        specifier: workspace:*
+        version: link:../../store/package-store
+      '@pnpm/pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../pick-registry-for-package
+      '@pnpm/read-modules-dir':
+        specifier: workspace:*
+        version: link:../../fs/read-modules-dir
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@zkochan/rimraf':
+        specifier: 'catalog:'
+        version: 3.0.2
+      get-npm-tarball-url:
+        specifier: 'catalog:'
+        version: 2.1.0
+    devDependencies:
+      '@pnpm/config.deps-installer':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/registry-mock':
+        specifier: 'catalog:'
+        version: 4.2.0(encoding@0.1.13)(typanion@3.14.0)
+      '@pnpm/testing.temp-store':
+        specifier: workspace:*
+        version: link:../../testing/temp-store
+      load-json-file:
+        specifier: 'catalog:'
+        version: 6.2.0
 
   config/matcher:
     dependencies:
