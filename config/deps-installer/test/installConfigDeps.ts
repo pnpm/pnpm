@@ -62,8 +62,10 @@ test('configuration dependency is installed', async () => {
 test('installation fails if the checksum of the config dependency is invalid', async () => {
   prepareEmpty()
   const { storeController } = createTempStore({
-    retry: {
-      retries: 0,
+    clientOptions: {
+      retry: {
+        retries: 0,
+      },
     },
   })
 
@@ -82,8 +84,10 @@ test('installation fails if the checksum of the config dependency is invalid', a
 test('installation fails if the config dependency does not have a checksum', async () => {
   prepareEmpty()
   const { storeController } = createTempStore({
-    retry: {
-      retries: 0,
+    clientOptions: {
+      retry: {
+        retries: 0,
+      },
     },
   })
 
