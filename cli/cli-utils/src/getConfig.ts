@@ -1,7 +1,7 @@
 import { packageManager } from '@pnpm/cli-meta'
 import { getConfig as _getConfig, type CliOptions, type Config } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
-import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { installConfigDeps } from '@pnpm/config.deps-installer'
 import { requireHooks } from '@pnpm/pnpmfile'
 
@@ -27,7 +27,7 @@ export async function getConfig (
   })
   config.cliOptions = cliOptions
   if (config.configDependencies) {
-    let store = await createOrConnectStoreController(config)
+    const store = await createOrConnectStoreController(config)
     await installConfigDeps(config.configDependencies, {
       registries: config.registries,
       rootDir: config.lockfileDir ?? config.rootProjectManifestDir,

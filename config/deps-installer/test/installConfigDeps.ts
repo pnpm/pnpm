@@ -98,4 +98,3 @@ test('installation fails if the config dependency does not have a checksum', asy
     store: storeController,
   })).rejects.toThrow("doesn't have an integrity checksum")
 })
-
