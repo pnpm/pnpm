@@ -203,6 +203,7 @@ export interface Config extends OptionsFromRootManifest {
   dedupeDirectDeps?: boolean
   extendNodePath?: boolean
   gitBranchLockfile?: boolean
+  globalBinDir?: string
   globalDir?: string
   globalPkgDir: string
   lockfile?: boolean

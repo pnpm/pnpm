@@ -20,6 +20,7 @@ import which from 'which'
 import { inheritAuthConfig } from './auth'
 import { checkGlobalBinDir } from './checkGlobalBinDir'
 import { getNetworkConfigs } from './getNetworkConfigs'
+import { transformPathKeys } from './transformPath'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
 import {
   type Config,
@@ -516,6 +517,8 @@ export async function getConfig (opts: {
     pnpmConfig.production = true
     pnpmConfig.dev = true
   }
+
+  transformPathKeys(pnpmConfig, os.homedir())
 
   return { config: pnpmConfig, warnings }
 }
