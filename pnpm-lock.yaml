@@ -114,6 +114,9 @@ catalogs:
     '@types/node':
       specifier: ^18.19.34
       version: 18.19.34
+    '@types/node-fetch':
+      specifier: ^2.6.12
+      version: 2.6.12
     '@types/normalize-package-data':
       specifier: ^2.4.4
       version: 2.4.4
@@ -184,8 +187,8 @@ catalogs:
       specifier: npm:@types/table@6.0.0
       version: 6.0.0
     '@yarnpkg/core':
-      specifier: 4.0.5
-      version: 4.0.5
+      specifier: 4.2.0
+      version: 4.2.0
     '@yarnpkg/extensions':
       specifier: 2.0.3
       version: 2.0.3
@@ -3139,7 +3142,7 @@ importers:
         version: link:../../packages/types
       '@yarnpkg/extensions':
         specifier: 'catalog:'
-        version: 2.0.3(@yarnpkg/core@4.0.5(typanion@3.14.0))
+        version: 2.0.3(@yarnpkg/core@4.2.0(typanion@3.14.0))
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -3164,7 +3167,7 @@ importers:
         version: 7.5.3
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.0.5(typanion@3.14.0)
+        version: 4.2.0(typanion@3.14.0)
 
   hooks/types:
     dependencies:
@@ -3838,6 +3841,9 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@types/node-fetch':
+        specifier: 'catalog:'
+        version: 2.6.12
       https-proxy-server-express:
         specifier: 'catalog:'
         version: 0.1.2
@@ -3857,6 +3863,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: 'link:'
+      '@types/node-fetch':
+        specifier: 'catalog:'
+        version: 2.6.12
 
   object/key-sorting:
     dependencies:
@@ -4670,7 +4679,7 @@ importers:
         version: 10.0.20
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.0.5(typanion@3.14.0)
+        version: 4.2.0(typanion@3.14.0)
       deep-require-cwd:
         specifier: 'catalog:'
         version: 1.0.0
@@ -5414,7 +5423,7 @@ importers:
         version: link:../../pkg-manifest/write-project-manifest
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.0.5(typanion@3.14.0)
+        version: 4.2.0(typanion@3.14.0)
       '@yarnpkg/lockfile':
         specifier: 'catalog:'
         version: 1.1.0
@@ -5715,7 +5724,7 @@ importers:
         version: link:../../workspace/spec-parser
       '@yarnpkg/core':
         specifier: 'catalog:'
-        version: 4.0.5(typanion@3.14.0)
+        version: 4.2.0(typanion@3.14.0)
       filenamify:
         specifier: 'catalog:'
         version: 4.3.0
@@ -9746,6 +9755,9 @@ packages:
   '@types/minimist@1.2.5':
     resolution: {integrity: sha512-hov8bUuiLiyFPGyFPE1lwWhmzYbirOXQNNo40+y3zow8aFVTeyn3VWL0VFFfdNddA8S4Vf0Tc062rzyNr7Paag==}
 
+  '@types/node-fetch@2.6.12':
+    resolution: {integrity: sha512-8nneRWKCg3rMtF69nLQJnOYUcbafYeFSjqkw3jCRLsqkWFlHaoQrr5mXmofFGOx3DKn7UfmBMyov8ySvLRVldA==}
+
   '@types/node@12.20.55':
     resolution: {integrity: sha512-J8xLz7q2OFulZ2cyGTLE1TbbZcjpno7FaN6zdJNrgAdrJ+DZzh/uFR6YrTb4C+nXakvud8Q4+rbhoIWlYQbUFQ==}
 
@@ -9962,8 +9974,8 @@ packages:
     resolution: {integrity: sha512-KZVpiDKRi2gtrVtKwhz/ZUKBOicVNggxaYQzPBjULuOLJ/UypTmAz5a2g+utLMn+WogbLE3vLfmC+TWp8v3+aQ==}
     hasBin: true
 
-  '@yarnpkg/core@4.0.5':
-    resolution: {integrity: sha512-6ib9l8P30GxHvxZo3170hr5PCy2qQnI4N4lXwNJxJnV0i46UlgLA4hlGp/kFVttteATGeckfduIDyWZgjn9sPw==}
+  '@yarnpkg/core@4.2.0':
+    resolution: {integrity: sha512-h+cjnATkpO0ya6I5U4RYvOet/IsswOje3eBq9CsFM4XJZ2nS4WBBeFwYe0tqLD87IwKsoyuIdUwZjPHcn2DM8g==}
     engines: {node: '>=18.12.0'}
 
   '@yarnpkg/core@4.2.1':
@@ -11562,6 +11574,10 @@ packages:
 
   forever-agent@0.6.1:
     resolution: {integrity: sha512-j0KLYPhm6zeac4lz3oJ3o65qvgQCcPubiyotZrXqEaG4hNagNYO8qdlUrX5vwqv9ohqeT/Z3j6+yW067yWWdUw==}
+
+  form-data@4.0.2:
+    resolution: {integrity: sha512-hGfm/slu0ZabnNt4oaRZ6uREyfCj6P4fT/n6A1rGV+Z0VdGXjfOhVUpkn6qVQONHGIFwmveGXyDs75+nr6FM8w==}
+    engines: {node: '>= 6'}
 
   forwarded@0.2.0:
     resolution: {integrity: sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==}
@@ -16778,6 +16794,11 @@ snapshots:
 
   '@types/minimist@1.2.5': {}
 
+  '@types/node-fetch@2.6.12':
+    dependencies:
+      '@types/node': 22.13.10
+      form-data: 4.0.2
+
   '@types/node@12.20.55': {}
 
   '@types/node@18.19.34':
@@ -17074,7 +17095,7 @@ snapshots:
       - encoding
       - supports-color
 
-  '@yarnpkg/core@4.0.5(typanion@3.14.0)':
+  '@yarnpkg/core@4.2.0(typanion@3.14.0)':
     dependencies:
       '@arcanis/slice-ansi': 1.1.1
       '@types/semver': 7.5.8
@@ -17085,7 +17106,7 @@ snapshots:
       '@yarnpkg/shell': 4.1.2(typanion@3.14.0)
       camelcase: 5.3.1
       chalk: 3.0.0
-      ci-info: 3.9.0
+      ci-info: 4.2.0
       clipanion: 3.2.0-rc.6(typanion@3.14.0)
       cross-spawn: 7.0.6
       diff: 5.2.0
@@ -17136,9 +17157,9 @@ snapshots:
     transitivePeerDependencies:
       - typanion
 
-  '@yarnpkg/extensions@2.0.3(@yarnpkg/core@4.0.5(typanion@3.14.0))':
+  '@yarnpkg/extensions@2.0.3(@yarnpkg/core@4.2.0(typanion@3.14.0))':
     dependencies:
-      '@yarnpkg/core': 4.0.5(typanion@3.14.0)
+      '@yarnpkg/core': 4.2.0(typanion@3.14.0)
 
   '@yarnpkg/fslib@3.1.2':
     dependencies:
@@ -18985,6 +19006,13 @@ snapshots:
       signal-exit: 4.1.0
 
   forever-agent@0.6.1: {}
+
+  form-data@4.0.2:
+    dependencies:
+      asynckit: 0.4.0
+      combined-stream: 1.0.8
+      es-set-tostringtag: 2.1.0
+      mime-types: 2.1.35
 
   forwarded@0.2.0: {}
 
