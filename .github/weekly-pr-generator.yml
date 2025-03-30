@@ -1,0 +1,63 @@
+name: 🔁 Auto Weekly PR Generator
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+jobs:
+  pr:
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.create_pr.outputs.pull-request-number }}
+      branch_name: ${{ steps.set_branch.outputs.branch }}
+
+    steps:
+      - name: 📥 Checkout repo
+        uses: actions/checkout@v3
+
+      - name: 🔀 Set branch name
+        id: set_branch
+        run: echo "branch=weekly-boost-${{ github.run_id }}" >> $GITHUB_OUTPUT
+
+      - name: ✍️ Create weekly quote markdown
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+          curl -s https://api.quotable.io/random -o quote.json || echo '{"content":"Keep coding!","author":"GitHub"}' > quote.json
+          quote=$(jq -r '.content + " — " + .author' quote.json)
+
+          echo "🤖 Weekly DevOps Quote - $(date):" > weekly-boost.md
+          echo "" >> weekly-boost.md
+          echo "$quote" >> weekly-boost.md
+
+      - name: 🚀 Create PR
+        id: create_pr
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: 🧹 Weekly contribution"
+          title: "chore: 🧹 Weekly contribution"
+          body: |
+            This PR was auto-generated 🚀  
+            🗓️ Date: ${{ github.event.repository.updated_at }}
+          branch: ${{ steps.set_branch.outputs.branch }}
+          delete-branch: false
+
+  auto-merge:
+    needs: pr
+    runs-on: ubuntu-latest
+    if: needs.pr.outputs.pr_number != ''
+    steps:
+      - name: 🧠 Merge PR directly
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = `${{ needs.pr.outputs.pr_number }}`;
+            console.log("Merging PR #" + prNumber);
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: parseInt(prNumber),
+              merge_method: "squash"
+            });
