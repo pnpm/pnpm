@@ -37,7 +37,8 @@ export async function getConfig (
   if (!config.ignorePnpmfile) {
     config.hooks = requireHooks(config.lockfileDir ?? config.dir, config)
     if (config.hooks?.updateConfig) {
-      config = config.hooks.updateConfig(config)
+      const updateConfigResult = config.hooks.updateConfig(config)
+      config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult
     }
   }
 
