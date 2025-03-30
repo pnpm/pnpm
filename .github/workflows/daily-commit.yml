@@ -1,0 +1,27 @@
+name: Daily Commit
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update file
+        run: echo "Updated on $(date)" >> daily.txt
+
+      - name: Commit & Push
+        run: |
+          git config user.name "nholuongut"
+          git config user.email "luongutnho.dxc@gmail.com"
+          git add .
+          git commit -m "Daily update" || echo "No changes to commit"
+          git push
