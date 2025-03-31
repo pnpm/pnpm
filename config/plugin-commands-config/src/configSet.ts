@@ -38,7 +38,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, value:
   })
 }
 
-function settingShouldFallBackToNpm (key: string): boolean {
+export function settingShouldFallBackToNpm (key: string): boolean {
   return (
     ['registry', '_auth', '_authToken', 'username', '_password'].includes(key) ||
     key[0] === '@' ||

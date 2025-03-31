@@ -75,7 +75,9 @@ export function help (): string {
   })
 }
 
-export async function handler (opts: ConfigCommandOptions, params: string[]): Promise<string | undefined> {
+export type ConfigHandlerResult = string | undefined | { output: string, exitCode: number }
+
+export async function handler (opts: ConfigCommandOptions, params: string[]): Promise<ConfigHandlerResult> {
   if (params.length === 0) {
     throw new PnpmError('CONFIG_NO_SUBCOMMAND', 'Please specify the subcommand', {
       hint: help(),
