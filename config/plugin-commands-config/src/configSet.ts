@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import util from 'util'
+import { types } from '@pnpm/config'
 import { runNpm } from '@pnpm/run-npm'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import camelCase from 'camelcase'
@@ -34,8 +35,42 @@ export async function configSet (opts: ConfigCommandOptions, key: string, value:
   }
   key = camelCase(key)
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
-    [key]: value,
+    [key]: castField(value, kebabCase(key)),
   })
+}
+
+function castField (value: any, key: string) { // eslint-disable-line
+  if (typeof value !== 'string') {
+    return value
+  }
+
+  // @ts-expect-error
+  const typeList = [].concat(types[key])
+  // @ts-expect-error
+  const isNumber = typeList.includes(Number)
+
+  value = `${value}`.trim()
+
+  switch (value) {
+  case 'true': {
+    return true
+  }
+  case 'false': {
+    return false
+  }
+  case 'null': {
+    return null
+  }
+  case 'undefined': {
+    return undefined
+  }
+  }
+
+  if (isNumber && !isNaN(value)) {
+    value = Number(value)
+  }
+
+  return value
 }
 
 export function settingShouldFallBackToNpm (key: string): boolean {
