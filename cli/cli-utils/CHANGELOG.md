@@ -1,5 +1,13 @@
 # @pnpm/cli-utils
 
+## 1000.0.19
+
+### Patch Changes
+
+- Updated dependencies [e57f1df]
+  - @pnpm/config@1002.7.0
+  - @pnpm/default-reporter@1001.3.10
+
 ## 1000.0.18
 
 ### Patch Changes

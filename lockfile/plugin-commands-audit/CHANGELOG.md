@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [e57f1df]
+  - @pnpm/config@1002.7.0
+  - @pnpm/cli-utils@1000.0.19
+
 ## 1002.0.0
 
 ### Major Changes

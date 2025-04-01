@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-installation
 
+## 1002.2.4
+
+### Patch Changes
+
+- Updated dependencies [e57f1df]
+- Updated dependencies [a54d3ad]
+  - @pnpm/config@1002.7.0
+  - @pnpm/package-store@1001.1.0
+  - @pnpm/core@1006.0.0
+  - @pnpm/cli-utils@1000.0.19
+  - @pnpm/deps.status@1002.0.9
+  - @pnpm/plugin-commands-env@1000.0.20
+  - @pnpm/plugin-commands-rebuild@1002.0.9
+  - @pnpm/store-connection-manager@1000.0.19
+  - @pnpm/workspace.state@1001.1.15
+  - @pnpm/workspace.find-packages@1000.0.19
+  - @pnpm/filter-workspace-packages@1000.0.19
+
 ## 1002.2.3
 
 ### Patch Changes
