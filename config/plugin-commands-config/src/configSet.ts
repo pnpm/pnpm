@@ -39,14 +39,13 @@ export async function configSet (opts: ConfigCommandOptions, key: string, value:
   })
 }
 
-function castField (value: any, key: string) { // eslint-disable-line
+function castField (value: unknown, key: string) {
   if (typeof value !== 'string') {
     return value
   }
 
-  // @ts-expect-error
-  const typeList = [].concat(types[key])
-  // @ts-expect-error
+  const type = types[key as keyof typeof types] as (string | number | boolean | null | NumberConstructor)
+  const typeList = Array.isArray(type) ? type : [type]
   const isNumber = typeList.includes(Number)
 
   value = value.trim()
@@ -66,7 +65,7 @@ function castField (value: any, key: string) { // eslint-disable-line
   }
   }
 
-  if (isNumber && !isNaN(value)) {
+  if (isNumber && !isNaN(value as number)) {
     value = Number(value)
   }
 
