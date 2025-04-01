@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-server
 
+## 1000.0.20
+
+### Patch Changes
+
+- Updated dependencies [e57f1df]
+  - @pnpm/config@1002.7.0
+  - @pnpm/cli-utils@1000.0.19
+  - @pnpm/store-connection-manager@1000.0.19
+  - @pnpm/server@1000.0.9
+
 ## 1000.0.19
 
 ### Patch Changes

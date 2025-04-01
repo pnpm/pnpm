@@ -1,5 +1,13 @@
 # pnpm
 
+## 10.7.1
+
+### Patch Changes
+
+- `pnpm config set` should convert the settings to their correct type before adding them to `pnpm-workspace.yaml` [#9355](https://github.com/pnpm/pnpm/issues/9355).
+- `pnpm config get` should read auth related settings via npm CLI [#9345](https://github.com/pnpm/pnpm/issues/9345).
+- Replace leading `~/` in a path in `.npmrc` with the home directory [#9217](https://github.com/pnpm/pnpm/issues/9217).
+
 ## 10.7.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/package-store
 
+## 1001.1.0
+
+### Minor Changes
+
+- a54d3ad: Export `CreatePackageStoreOptions`.
+
 ## 1001.0.2
 
 ### Patch Changes
