@@ -31,6 +31,7 @@ import {
   pickPackage,
 } from './pickPackage'
 import {
+  parseJsrPref,
   parsePref,
   type RegistryPackageSpec,
 } from './parsePref'
@@ -275,10 +276,7 @@ async function tryResolveFromJsr (
   }
 
   const pref = wantedDependency.pref.slice('jsr:'.length)
-  const spec = parsePref(pref, wantedDependency.alias, defaultTag, registry)
-  if (!spec) {
-    throw new PnpmError('INVALID_JSR_SPECIFICATION', `Cannot parse '${pref}' as an npm specification`)
-  }
+  const spec = parseJsrPref(pref, wantedDependency.alias, defaultTag, registry)
   if (!spec.name.startsWith('@')) {
     throw new PnpmError('MISSING_JSR_PACKAGE_SCOPE', 'Package names from JSR must have scopes')
   }

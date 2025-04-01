@@ -1,3 +1,4 @@
+import { PnpmError } from '@pnpm/error'
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
 import getVersionSelectorType from 'version-selector-type'
 
@@ -48,4 +49,19 @@ export function parsePref (
     }
   }
   return null
+}
+
+export function parseJsrPref (
+  pref: string,
+  alias: string | undefined,
+  defaultTag: string,
+  registry: string
+): RegistryPackageSpec {
+  let spec = parsePref(pref, alias, defaultTag, registry)
+  if (spec) return spec
+  spec = parsePref(`npm:${pref}`, alias, defaultTag, registry)
+  if (!spec) {
+    throw new PnpmError('INVALID_JSR_SPECIFICATION', `Cannot parse '${pref}' as an npm specification`)
+  }
+  return spec
 }
