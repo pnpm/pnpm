@@ -58,6 +58,7 @@ export {
 }
 
 export interface ResolverFactoryOptions {
+  authConfig?: { '@jsr:registry'?: string }
   cacheDir: string
   fullMetadata?: boolean
   filterMetadata?: boolean
@@ -91,6 +92,7 @@ export function createNpmResolver (
   })
   return {
     resolveFromNpm: resolveNpm.bind(null, {
+      authConfig: opts.authConfig,
       getAuthHeaderValueByURI: getAuthHeader,
       pickPackage: pickPackage.bind(null, {
         fetch,
@@ -106,6 +108,12 @@ export function createNpmResolver (
       metaCache.clear()
     },
   }
+}
+
+export interface ResolveFromNpmContext {
+  authConfig: ResolverFactoryOptions['authConfig']
+  pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
+  getAuthHeaderValueByURI: (registry: string) => string | undefined
 }
 
 export type ResolveFromNpmOptions = {
@@ -129,10 +137,7 @@ export type ResolveFromNpmOptions = {
 })
 
 async function resolveNpm (
-  ctx: {
-    pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
-    getAuthHeaderValueByURI: (registry: string) => string | undefined
-  },
+  ctx: ResolveFromNpmContext,
   wantedDependency: WantedDependency,
   opts: ResolveFromNpmOptions
 ): Promise<ResolveResult | null> {
@@ -151,6 +156,12 @@ async function resolveNpm (
       return resolvedFromWorkspace
     }
   }
+
+  const resolvedFromJsr = await tryResolveFromJsr(ctx, wantedDependency, opts, defaultTag)
+  if (resolvedFromJsr != null) {
+    return resolvedFromJsr
+  }
+
   const workspacePackages = opts.alwaysTryWorkspacePackages !== false ? opts.workspacePackages : undefined
   const spec = wantedDependency.pref
     ? parsePref(wantedDependency.pref, wantedDependency.alias, defaultTag, opts.registry)
@@ -226,6 +237,67 @@ async function resolveNpm (
         latest: meta['dist-tags'].latest,
       }
     }
+  }
+
+  const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
+  const resolution = {
+    integrity: getIntegrity(pickedPackage.dist),
+    tarball: pickedPackage.dist.tarball,
+  }
+  return {
+    id,
+    latest: meta['dist-tags'].latest,
+    manifest: pickedPackage,
+    normalizedPref: spec.normalizedPref,
+    resolution,
+    resolvedVia: 'npm-registry',
+    publishedAt: meta.time?.[pickedPackage.version],
+  }
+}
+
+async function tryResolveFromJsr (
+  ctx: ResolveFromNpmContext,
+  wantedDependency: WantedDependency,
+  opts: Omit<ResolveFromNpmOptions, 'registry'>,
+  defaultTag: string
+): Promise<ResolveResult | null> {
+  if (!wantedDependency.pref?.startsWith('jsr:')) return null
+
+  const registry = ctx.authConfig?.['@jsr:registry']
+  if (!registry) {
+    // Q: Why throw an error instead of falling back to a default URL?
+    // A: The packages from JSR registry may have dependencies in the `@jsr` scope which would
+    //    cause confusing error messages should it not be defined.
+
+    throw new PnpmError('JSR_REGISTRY_NOT_DEFINED', 'Cannot use JSR registry without defining a registry for the `@jsr` scope', {
+      hint: 'Fix it by adding `@jsr:registry=https://npm.jsr.io` to .npmrc',
+    })
+  }
+
+  const pref = wantedDependency.pref.slice('jsr:'.length)
+  const spec = parsePref(pref, wantedDependency.alias, defaultTag, registry)
+  if (!spec) {
+    throw new PnpmError('INVALID_JSR_SPECIFICATION', `Cannot parse '${pref}' as an npm specification`)
+  }
+  if (!spec.name.startsWith('@')) {
+    throw new PnpmError('MISSING_JSR_PACKAGE_SCOPE', 'Package names from JSR must have scopes')
+  }
+  const jsrNameSuffix = spec.name.replace('@', '').replace('/', '__') // not replaceAll because we only replace the first of each character
+  spec.name = `@jsr/${jsrNameSuffix}`
+
+  const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
+  const { meta, pickedPackage } = await ctx.pickPackage(spec, {
+    pickLowestVersion: opts.pickLowestVersion,
+    publishedBy: opts.publishedBy,
+    authHeaderValue,
+    dryRun: opts.dryRun === true,
+    preferredVersionSelectors: opts.preferredVersions?.[spec.name],
+    registry,
+    updateToLatest: opts.updateToLatest,
+  })
+
+  if (pickedPackage == null) {
+    throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   }
 
   const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
