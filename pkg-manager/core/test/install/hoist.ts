@@ -21,7 +21,7 @@ import { testDefaults } from '../utils'
 test('should hoist dependencies', async () => {
   const project = prepareEmpty()
 
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['express', '@foo/has-dep-from-same-scope'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['express@4.21.2', '@foo/has-dep-from-same-scope'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   project.has('express')
   project.has('.pnpm/node_modules/debug')
@@ -51,7 +51,7 @@ test('should hoist dependencies to the root of node_modules when publicHoistPatt
   const project = prepareEmpty()
 
   await addDependenciesToPackage({},
-    ['express', '@foo/has-dep-from-same-scope'],
+    ['express@4.21.2', '@foo/has-dep-from-same-scope'],
     testDefaults({ fastUnpack: false, publicHoistPattern: '*' }))
 
   project.has('express')
@@ -87,7 +87,7 @@ test('should hoist some dependencies to the root of node_modules when publicHois
   const project = prepareEmpty()
 
   await addDependenciesToPackage({},
-    ['express', '@foo/has-dep-from-same-scope'],
+    ['express@4.21.2', '@foo/has-dep-from-same-scope'],
     testDefaults({ fastUnpack: false, hoistPattern: '*', publicHoistPattern: '@foo/*' }))
 
   project.has('express')
@@ -104,7 +104,7 @@ test('should hoist some dependencies to the root of node_modules when publicHois
 test('should hoist dependencies by pattern', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['express'], testDefaults({ fastUnpack: false, hoistPattern: 'mime' }))
+  await addDependenciesToPackage({}, ['express@4.21.2'], testDefaults({ fastUnpack: false, hoistPattern: 'mime' }))
 
   project.has('express')
   project.hasNot('.pnpm/node_modules/debug')
@@ -118,7 +118,7 @@ test('should hoist dependencies by pattern', async () => {
 test('should remove hoisted dependencies', async () => {
   const project = prepareEmpty()
 
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['express'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['express@4.21.2'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
   await mutateModulesInSingleProject({
     dependencyNames: ['express'],
     manifest,
@@ -198,7 +198,7 @@ test('should rehoist after running a general install', async () => {
 test('should not override aliased dependencies', async () => {
   const project = prepareEmpty()
   // now I install is-negative, but aliased as "debug". I do not want the "debug" dependency of express to override my alias
-  await addDependenciesToPackage({}, ['debug@npm:is-negative@1.0.0', 'express'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
+  await addDependenciesToPackage({}, ['debug@npm:is-negative@1.0.0', 'express@4.21.2'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   expect(project.requireModule('debug/package.json').version).toEqual('1.0.0')
 })
