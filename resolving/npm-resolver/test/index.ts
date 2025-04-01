@@ -238,6 +238,21 @@ test('resolveFromNpm() on jsr with alias renaming', async () => {
   })
 })
 
+test('resolveFromNpm() on jsr with packages without scope', async () => {
+  const cacheDir = tempy.directory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    cacheDir,
+    authConfig: {
+      '@jsr:registry': jsrRegistry,
+    },
+  })
+  await expect(resolveFromNpm({ alias: 'greet', pref: 'jsr:0.0.3' }, {
+    registry,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_MISSING_JSR_PACKAGE_SCOPE',
+  })
+})
+
 test('relative workspace protocol is skipped', async () => {
   const cacheDir = tempy.directory()
   const { resolveFromNpm } = createResolveFromNpm({
