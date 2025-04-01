@@ -238,6 +238,30 @@ test('resolveFromNpm() on jsr with alias renaming', async () => {
   })
 })
 
+test('resolveFromNpm() on jsr without @jsr:registry', async () => {
+  const slash = '%2F'
+  nock(registry)
+    .get(`/@jsr${slash}rus__greet`)
+    .reply(404)
+    .get(`/@jsr${slash}luca__cases`)
+    .reply(404)
+  nock(jsrRegistry)
+    .get(`/@jsr${slash}rus__greet`)
+    .reply(200, jsrRusGreetMeta)
+    .get(`/@jsr${slash}luca__cases`)
+    .reply(200, jsrLucaCasesMeta)
+
+  const cacheDir = tempy.directory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    cacheDir,
+  })
+  await expect(resolveFromNpm({ alias: '@rus/greet', pref: 'jsr:0.0.3' }, {
+    registry,
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_JSR_REGISTRY_NOT_DEFINED',
+  })
+})
+
 test('resolveFromNpm() on jsr with packages without scope', async () => {
   const cacheDir = tempy.directory()
   const { resolveFromNpm } = createResolveFromNpm({
