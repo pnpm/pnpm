@@ -49,7 +49,7 @@ function castField (value: any, key: string) { // eslint-disable-line
   // @ts-expect-error
   const isNumber = typeList.includes(Number)
 
-  value = `${value}`.trim()
+  value = value.trim()
 
   switch (value) {
   case 'true': {
