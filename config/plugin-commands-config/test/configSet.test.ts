@@ -112,6 +112,24 @@ test('config set using the location=project option', async () => {
   })
 })
 
+test('config set saves the setting in the right format to pnpm-workspace.yaml', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', 'fetch-timeout', '1000'])
+
+  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
+    fetchTimeout: 1000,
+  })
+})
+
 test('config set in project .npmrc file', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
