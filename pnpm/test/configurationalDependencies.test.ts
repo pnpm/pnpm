@@ -69,3 +69,36 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFil
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })
+
+test('catalog applied by configurational dependency hook', async () => {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': 'catalog:',
+      '@pnpm.e2e/bar': 'catalog:bar',
+    },
+  })
+  writeYamlFile('pnpm-workspace.yaml', {
+    configDependencies: {
+      '@pnpm.e2e/update-config-with-catalogs': `1.0.0+${getIntegrity('@pnpm.e2e/update-config-with-catalogs', '1.0.0')}`,
+    },
+    pnpmfile: 'node_modules/.pnpm-config/@pnpm.e2e/update-config-with-catalogs/pnpmfile.cjs',
+  })
+
+  await execPnpm(['install'])
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.catalogs).toStrictEqual({
+    bar: {
+      '@pnpm.e2e/bar': {
+        specifier: '100.0.0',
+        version: '100.0.0',
+      },
+    },
+    default: {
+      '@pnpm.e2e/foo': {
+        specifier: '100.0.0',
+        version: '100.0.0',
+      },
+    },
+  })
+})
