@@ -176,7 +176,7 @@ async function addLinkToManifest (opts: LinkOpts, manifest: ProjectManifest, lin
   const { manifest: linkedManifest } = await tryReadProjectManifest(linkedDepDir, opts)
   const linkedPkgName = linkedManifest?.name ?? path.basename(linkedDepDir)
   const linkedPkgSpec = `link:${normalize(path.relative(manifestDir, linkedDepDir))}`
-  const overrides = {
+  opts.overrides = {
     ...opts.overrides,
     [linkedPkgName]: linkedPkgSpec,
   }
@@ -184,7 +184,7 @@ async function addLinkToManifest (opts: LinkOpts, manifest: ProjectManifest, lin
     ...opts,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
     updatedSettings: {
-      overrides,
+      overrides: opts.overrides,
     },
   })
   if (DEPENDENCIES_FIELDS.every((depField) => manifest[depField]?.[linkedPkgName] == null)) {
