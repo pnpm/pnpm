@@ -113,37 +113,41 @@ export function help (): string {
   })
 }
 
-export async function handler (
-  opts: Pick<UniversalOptions, 'dir'> & {
-    auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
-    fix?: boolean
-    ignoreRegistryErrors?: boolean
-    json?: boolean
-    lockfileDir?: string
-    registries: Registries
-  } & Pick<Config, 'ca'
-  | 'cert'
-  | 'httpProxy'
-  | 'httpsProxy'
-  | 'key'
-  | 'localAddress'
-  | 'maxSockets'
-  | 'noProxy'
-  | 'strictSsl'
-  | 'fetchRetries'
-  | 'fetchRetryMaxtimeout'
-  | 'fetchRetryMintimeout'
-  | 'fetchRetryFactor'
-  | 'fetchTimeout'
-  | 'production'
-  | 'dev'
-  | 'optional'
-  | 'userConfig'
-  | 'rawConfig'
-  | 'rootProjectManifest'
-  | 'virtualStoreDirMaxLength'
-  >
-): Promise<{ exitCode: number, output: string }> {
+export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
+  auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
+  fix?: boolean
+  ignoreRegistryErrors?: boolean
+  json?: boolean
+  lockfileDir?: string
+  registries: Registries
+} & Pick<Config, 'auditConfig'
+| 'ca'
+| 'cert'
+| 'httpProxy'
+| 'httpsProxy'
+| 'key'
+| 'localAddress'
+| 'maxSockets'
+| 'noProxy'
+| 'strictSsl'
+| 'fetchRetries'
+| 'fetchRetryMaxtimeout'
+| 'fetchRetryMintimeout'
+| 'fetchRetryFactor'
+| 'fetchTimeout'
+| 'production'
+| 'dev'
+| 'overrides'
+| 'optional'
+| 'userConfig'
+| 'rawConfig'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
+| 'virtualStoreDirMaxLength'
+| 'workspaceDir'
+>
+
+export async function handler (opts: AuditOptions): Promise<{ exitCode: number, output: string }> {
   const lockfileDir = opts.lockfileDir ?? opts.dir
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
   if (lockfile == null) {
@@ -193,7 +197,7 @@ export async function handler (
     throw err
   }
   if (opts.fix) {
-    const newOverrides = await fix(opts.dir, auditReport)
+    const newOverrides = await fix(auditReport, opts)
     if (Object.values(newOverrides).length === 0) {
       return {
         exitCode: 0,
