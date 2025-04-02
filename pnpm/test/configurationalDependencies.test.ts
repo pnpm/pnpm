@@ -21,6 +21,23 @@ test('patch from configuration dependency is applied', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/foo/index.js')).toBeTruthy()
 })
 
+test('patch from configuration dependency is applied via updateConfig hook', async () => {
+  const project = prepare()
+  writeYamlFile('pnpm-workspace.yaml', {
+    configDependencies: {
+      '@pnpm.e2e/has-patch-for-foo': `1.0.0+${getIntegrity('@pnpm.e2e/has-patch-for-foo', '1.0.0')}`,
+    },
+    pnpmfile: 'node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo/pnpmfile.cjs',
+  })
+
+  await execPnpm(['add', '@pnpm.e2e/foo@100.0.0'])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/foo/index.js')).toBeTruthy()
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.patchedDependencies['@pnpm.e2e/foo'].path).toEqual('node_modules/.pnpm-config/@pnpm.e2e/has-patch-for-foo/@pnpm.e2e__foo@100.0.0.patch')
+})
+
 test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFile', async () => {
   prepare({})
   writeYamlFile('pnpm-workspace.yaml', {
