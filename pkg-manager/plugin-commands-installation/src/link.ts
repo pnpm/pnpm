@@ -2,9 +2,9 @@ import path from 'path'
 import {
   docsUrl,
   tryReadProjectManifest,
-  type ReadProjectManifestOpts,
 } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
+import { writeSettings } from '@pnpm/config.config-writer'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { DEPENDENCIES_FIELDS, type ProjectManifest, type Project } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
@@ -32,6 +32,7 @@ type LinkOpts = Pick<Config,
 | 'engineStrict'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
+| 'overrides'
 | 'saveDev'
 | 'saveOptional'
 | 'saveProd'
@@ -171,18 +172,21 @@ export async function handler (
   })
 }
 
-async function addLinkToManifest (opts: ReadProjectManifestOpts, manifest: ProjectManifest, linkedDepDir: string, manifestDir: string) {
-  if (!manifest.pnpm) {
-    manifest.pnpm = {
-      overrides: {},
-    }
-  } else if (!manifest.pnpm.overrides) {
-    manifest.pnpm.overrides = {}
-  }
+async function addLinkToManifest (opts: LinkOpts, manifest: ProjectManifest, linkedDepDir: string, manifestDir: string) {
   const { manifest: linkedManifest } = await tryReadProjectManifest(linkedDepDir, opts)
   const linkedPkgName = linkedManifest?.name ?? path.basename(linkedDepDir)
   const linkedPkgSpec = `link:${normalize(path.relative(manifestDir, linkedDepDir))}`
-  manifest.pnpm.overrides![linkedPkgName] = linkedPkgSpec
+  const overrides = {
+    ...opts.overrides,
+    [linkedPkgName]: linkedPkgSpec,
+  }
+  await writeSettings({
+    ...opts,
+    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    updatedSettings: {
+      overrides,
+    },
+  })
   if (DEPENDENCIES_FIELDS.every((depField) => manifest[depField]?.[linkedPkgName] == null)) {
     manifest.dependencies = manifest.dependencies ?? {}
     manifest.dependencies[linkedPkgName] = linkedPkgSpec
