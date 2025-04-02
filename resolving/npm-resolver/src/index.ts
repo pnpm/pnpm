@@ -158,16 +158,14 @@ async function resolveNpm (
     }
   }
 
-  const resolvedFromJsr = await tryResolveFromJsr(ctx, wantedDependency, opts, defaultTag)
-  if (resolvedFromJsr != null) {
-    return resolvedFromJsr
-  }
-
   const workspacePackages = opts.alwaysTryWorkspacePackages !== false ? opts.workspacePackages : undefined
   const spec = wantedDependency.pref
     ? parsePref(wantedDependency.pref, wantedDependency.alias, defaultTag, opts.registry)
     : defaultTagForAlias(wantedDependency.alias!, defaultTag)
-  if (spec == null) return null
+
+  if (spec == null) {
+    return tryResolveFromJsr(ctx, wantedDependency, opts, defaultTag)
+  }
 
   const authHeaderValue = ctx.getAuthHeaderValueByURI(opts.registry)
   let pickResult!: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
