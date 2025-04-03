@@ -5741,9 +5741,6 @@ importers:
       '@pnpm/pick-fetcher':
         specifier: workspace:*
         version: link:../../fetching/pick-fetcher
-      '@pnpm/pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../../config/pick-registry-for-package
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -6746,6 +6743,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
       '@pnpm/resolve-workspace-range':
         specifier: workspace:*
         version: link:../../workspace/resolve-workspace-range
@@ -7616,9 +7616,6 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
-      '@pnpm/pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../../config/pick-registry-for-package
       '@pnpm/store-connection-manager':
         specifier: workspace:*
         version: link:../store-connection-manager

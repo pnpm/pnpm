@@ -17,6 +17,7 @@ import {
   type SupportedArchitectures,
   type DependencyManifest,
   type PackageManifest,
+  type Registries,
 } from '@pnpm/types'
 
 export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync }
@@ -123,7 +124,7 @@ export interface RequestPackageOptions {
   lockfileDir: string
   preferredVersions: PreferredVersions
   preferWorkspacePackages?: boolean
-  registry: string
+  registries: Registries
   sideEffectsCache?: boolean
   skipFetch?: boolean
   update?: false | 'compatible' | 'latest'

@@ -17,7 +17,6 @@ import {
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import {
   type DirectoryResolution,
   DIRECT_DEP_SELECTOR_WEIGHT,
@@ -1279,7 +1278,7 @@ async function resolveDependency (
       )
         ? ctx.lockfileDir
         : options.parentPkg.rootDir,
-      registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.pref) || ctx.registries.default,
+      registries: ctx.registries,
       skipFetch: ctx.dryRun,
       update: options.update,
       workspacePackages: ctx.workspacePackages,

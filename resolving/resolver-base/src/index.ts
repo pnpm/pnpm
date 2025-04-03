@@ -1,4 +1,9 @@
-import { type ProjectRootDir, type DependencyManifest, type PkgResolutionId } from '@pnpm/types'
+import {
+  type ProjectRootDir,
+  type DependencyManifest,
+  type PkgResolutionId,
+  type Registries,
+} from '@pnpm/types'
 
 export { type PkgResolutionId }
 
@@ -92,7 +97,7 @@ export interface ResolveOptions {
   lockfileDir: string
   preferredVersions: PreferredVersions
   preferWorkspacePackages?: boolean
-  registry: string
+  registries: Registries
   workspacePackages?: WorkspacePackages
   updateToLatest?: boolean
   injectWorkspacePackages?: boolean

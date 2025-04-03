@@ -16,9 +16,6 @@
       "path": "../../catalogs/types"
     },
     {
-      "path": "../../config/pick-registry-for-package"
-    },
-    {
       "path": "../../fetching/pick-fetcher"
     },
     {

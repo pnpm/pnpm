@@ -25,9 +25,6 @@
       "path": "../../config/normalize-registries"
     },
     {
-      "path": "../../config/pick-registry-for-package"
-    },
-    {
       "path": "../../exec/plugin-commands-script-runners"
     },
     {

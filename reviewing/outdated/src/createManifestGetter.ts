@@ -3,7 +3,6 @@ import {
   createResolver,
   type ResolveFunction,
 } from '@pnpm/client'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { type DependencyManifest, type Registries } from '@pnpm/types'
 
 interface GetManifestOpts {
@@ -34,7 +33,7 @@ export async function getManifest (
     lockfileDir: opts.lockfileDir,
     preferredVersions: {},
     projectDir: opts.dir,
-    registry: pickRegistryForPackage(opts.registries, packageName, pref),
+    registries: opts.registries,
   })
   return resolution?.manifest ?? null
 }

@@ -14,7 +14,10 @@ test('getManifest()', async () => {
   }
 
   const resolve: ResolveFunction = async function (wantedPackage, opts) {
-    expect(opts.registry).toEqual('https://registry.npmjs.org/')
+    expect(opts.registries).toStrictEqual({
+      '@scope': 'https://pnpm.io/',
+      default: 'https://registry.npmjs.org/',
+    })
     return {
       id: 'foo/1.0.0' as PkgResolutionId,
       latest: '1.0.0',
@@ -35,7 +38,10 @@ test('getManifest()', async () => {
   })
 
   const resolve2: ResolveFunction = async function (wantedPackage, opts) {
-    expect(opts.registry).toEqual('https://pnpm.io/')
+    expect(opts.registries).toStrictEqual({
+      '@scope': 'https://pnpm.io/',
+      default: 'https://registry.npmjs.org/',
+    })
     return {
       id: 'foo/2.0.0' as PkgResolutionId,
       latest: '2.0.0',
