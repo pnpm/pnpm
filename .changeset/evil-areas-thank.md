@@ -10,6 +10,8 @@
 "@pnpm/outdated": patch
 "@pnpm/server": major
 "@pnpm/store-connection-manager": major
+"@pnpm/core": major
+"@pnpm/headless": major
 ---
 
-The resolving function now takes a `registries` object.
+The resolving function now takes a `registries` object, so it finds the required registry itself instead of receiving it from package requester.
