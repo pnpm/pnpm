@@ -67,6 +67,7 @@ export interface ResolverFactoryOptions {
   preferOffline?: boolean
   retry?: RetryTimeoutOptions
   timeout?: number
+  registries: Registries
 }
 
 export type NpmResolver = (wantedDependency: WantedDependency, opts: ResolveFromNpmOptions) => Promise<ResolveResult | null>
@@ -103,6 +104,7 @@ export function createNpmResolver (
         preferOffline: opts.preferOffline,
         cacheDir: opts.cacheDir,
       }),
+      registries: opts.registries,
     }),
     clearCache: () => {
       metaCache.clear()
@@ -117,7 +119,6 @@ export type ResolveFromNpmOptions = {
   pickLowestVersion?: boolean
   dryRun?: boolean
   lockfileDir?: string
-  registries: Registries
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
   updateToLatest?: boolean
@@ -134,14 +135,15 @@ async function resolveNpm (
   ctx: {
     pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
     getAuthHeaderValueByURI: (registry: string) => string | undefined
+    registries: Registries
   },
   wantedDependency: WantedDependency,
   opts: ResolveFromNpmOptions
 ): Promise<ResolveResult | null> {
   const defaultTag = opts.defaultTag ?? 'latest'
   const registry = wantedDependency.alias
-    ? pickRegistryForPackage(opts.registries, wantedDependency.alias, wantedDependency.pref)
-    : opts.registries.default
+    ? pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.pref)
+    : ctx.registries.default
   if (wantedDependency.pref?.startsWith('workspace:')) {
     if (wantedDependency.pref.startsWith('workspace:.')) return null
     const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {

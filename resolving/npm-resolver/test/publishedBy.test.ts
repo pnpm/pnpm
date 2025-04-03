@@ -42,9 +42,9 @@ test('fall back to a newer version if there is no version published by the given
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
+    registries,
   })
   const resolveResult = await resolveFromNpm({ alias: 'bad-dates', pref: '^1.0.0' }, {
-    registries,
     publishedBy: new Date('2015-08-17T19:26:00.508Z'),
   })
 
@@ -71,9 +71,9 @@ test('request metadata when the one in cache does not have a version satisfying 
     cacheDir,
     filterMetadata: true,
     fullMetadata: true,
+    registries,
   })
   const resolveResult = await resolveFromNpm({ alias: 'bad-dates', pref: '^1.0.0' }, {
-    registries,
     publishedBy: new Date('2015-08-17T19:26:00.508Z'),
   })
 
