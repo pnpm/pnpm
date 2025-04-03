@@ -67,11 +67,12 @@ export const DEFAULT_OPTS = {
 }
 
 describe('plugin-commands-audit', () => {
+  const hasVulnerabilitiesDir = f.find('has-vulnerabilities')
   beforeAll(async () => {
     await install.handler({
       ...DEFAULT_OPTS,
       frozenLockfile: true,
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
     })
   })
   test('audit', async () => {
@@ -80,7 +81,8 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       userConfig: {},
       rawConfig,
       registries,
@@ -96,7 +98,8 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { output, exitCode } = await audit.handler({
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       dev: true,
       production: false,
       userConfig: {},
@@ -116,7 +119,8 @@ describe('plugin-commands-audit', () => {
 
     const { output, exitCode } = await audit.handler({
       auditLevel: 'moderate',
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       userConfig: {},
       rawConfig,
       registries,
@@ -133,7 +137,8 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.NO_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      dir: f.find('has-outdated-deps'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       userConfig: {},
       rawConfig,
       registries,
@@ -150,7 +155,8 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       json: true,
       userConfig: {},
       rawConfig,
@@ -170,7 +176,8 @@ describe('plugin-commands-audit', () => {
 
     const { output, exitCode } = await audit.handler({
       auditLevel: 'high',
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       userConfig: {},
       rawConfig,
       dev: true,
@@ -188,7 +195,8 @@ describe('plugin-commands-audit', () => {
       .post('/-/npm/v1/security/audits')
       .reply(500, { message: 'Something bad happened' })
     const { output, exitCode } = await audit.handler({
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       dev: true,
       fetchRetries: 0,
       ignoreRegistryErrors: true,
@@ -211,7 +219,8 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.NO_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      dir: f.find('has-outdated-deps'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       userConfig: {},
       rawConfig: {
         registry: registries.default,
@@ -231,7 +240,8 @@ describe('plugin-commands-audit', () => {
       .reply(404, {})
 
     await expect(audit.handler({
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       dev: true,
       fetchRetries: 0,
       ignoreRegistryErrors: false,
@@ -253,6 +263,7 @@ describe('plugin-commands-audit', () => {
     const { exitCode, output } = await audit.handler({
       auditLevel: 'moderate',
       dir: tmp,
+      rootProjectManifestDir: tmp,
       userConfig: {},
       rawConfig,
       registries,
@@ -285,6 +296,7 @@ describe('plugin-commands-audit', () => {
     const { exitCode, output } = await audit.handler({
       auditLevel: 'moderate',
       dir: tmp,
+      rootProjectManifestDir: tmp,
       userConfig: {},
       rawConfig,
       registries,
@@ -317,6 +329,7 @@ describe('plugin-commands-audit', () => {
     const { exitCode, output } = await audit.handler({
       auditLevel: 'moderate',
       dir: tmp,
+      rootProjectManifestDir: tmp,
       json: true,
       userConfig: {},
       rawConfig,

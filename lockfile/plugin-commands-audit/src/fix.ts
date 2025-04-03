@@ -1,20 +1,21 @@
 import { type AuditReport, type AuditAdvisory } from '@pnpm/audit'
-import { readProjectManifest } from '@pnpm/read-project-manifest'
+import { writeSettings } from '@pnpm/config.config-writer'
 import difference from 'ramda/src/difference'
+import { type AuditOptions } from './audit'
 
-export async function fix (dir: string, auditReport: AuditReport): Promise<Record<string, string>> {
-  const { manifest, writeProjectManifest } = await readProjectManifest(dir)
-  const vulnOverrides = createOverrides(Object.values(auditReport.advisories), manifest.pnpm?.auditConfig?.ignoreCves)
+export async function fix (auditReport: AuditReport, opts: AuditOptions): Promise<Record<string, string>> {
+  const vulnOverrides = createOverrides(Object.values(auditReport.advisories), opts.auditConfig?.ignoreCves)
   if (Object.values(vulnOverrides).length === 0) return vulnOverrides
-  await writeProjectManifest({
-    ...manifest,
-    pnpm: {
-      ...manifest.pnpm,
+  await writeSettings({
+    updatedSettings: {
       overrides: {
-        ...manifest.pnpm?.overrides,
+        ...opts.overrides,
         ...vulnOverrides,
       },
     },
+    rootProjectManifest: opts.rootProjectManifest,
+    rootProjectManifestDir: opts.rootProjectManifestDir,
+    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
   })
   return vulnOverrides
 }
