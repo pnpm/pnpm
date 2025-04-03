@@ -37,7 +37,6 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pnpm-cli-runner": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/tools.path": "workspace:*",
     "@zkochan/rimraf": "catalog:",

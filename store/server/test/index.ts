@@ -5,6 +5,7 @@ import getPort from 'get-port'
 import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
 import { connectStoreController, createServer } from '@pnpm/server'
+import { type Registries } from '@pnpm/types'
 import fetch from 'node-fetch'
 import { sync as rimraf } from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
@@ -12,6 +13,8 @@ import tempy from 'tempy'
 import isPortReachable from 'is-port-reachable'
 
 const registry = 'https://registry.npmjs.org/'
+
+const registries: Registries = { default: registry }
 
 async function createStoreController (storeDir?: string) {
   const tmp = tempy.directory()
@@ -24,6 +27,7 @@ async function createStoreController (storeDir?: string) {
     authConfig,
     cacheDir,
     rawConfig: {},
+    registries,
   })
   return createPackageStore(resolve, fetchers, {
     networkConcurrency: 1,
@@ -53,7 +57,6 @@ test('server', async () => {
       lockfileDir: projectDir,
       preferredVersions: {},
       projectDir,
-      registry,
       sideEffectsCache: false,
     }
   )
@@ -131,7 +134,6 @@ test('server errors should arrive to the client', async () => {
         lockfileDir: projectDir,
         preferredVersions: {},
         projectDir,
-        registry,
         sideEffectsCache: false,
       }
     )

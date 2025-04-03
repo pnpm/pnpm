@@ -99,7 +99,6 @@
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/nopt": "catalog:",
     "@pnpm/parse-cli-args": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/plugin-commands-audit": "workspace:*",
     "@pnpm/plugin-commands-completion": "workspace:*",
     "@pnpm/plugin-commands-config": "workspace:*",

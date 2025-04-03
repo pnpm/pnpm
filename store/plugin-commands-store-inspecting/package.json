@@ -37,7 +37,6 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",

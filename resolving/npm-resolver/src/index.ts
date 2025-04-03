@@ -6,6 +6,7 @@ import {
   type GetAuthHeader,
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
+import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
   type PkgResolutionId,
@@ -17,6 +18,7 @@ import {
   type WorkspacePackagesByVersion,
   type WorkspaceResolveResult,
 } from '@pnpm/resolver-base'
+import { type Registries } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'
@@ -65,6 +67,7 @@ export interface ResolverFactoryOptions {
   preferOffline?: boolean
   retry?: RetryTimeoutOptions
   timeout?: number
+  registries: Registries
 }
 
 export type NpmResolver = (wantedDependency: WantedDependency, opts: ResolveFromNpmOptions) => Promise<ResolveResult | null>
@@ -101,6 +104,7 @@ export function createNpmResolver (
         preferOffline: opts.preferOffline,
         cacheDir: opts.cacheDir,
       }),
+      registries: opts.registries,
     }),
     clearCache: () => {
       metaCache.clear()
@@ -115,7 +119,6 @@ export type ResolveFromNpmOptions = {
   pickLowestVersion?: boolean
   dryRun?: boolean
   lockfileDir?: string
-  registry: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
   updateToLatest?: boolean
@@ -132,18 +135,22 @@ async function resolveNpm (
   ctx: {
     pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
     getAuthHeaderValueByURI: (registry: string) => string | undefined
+    registries: Registries
   },
   wantedDependency: WantedDependency,
   opts: ResolveFromNpmOptions
 ): Promise<ResolveResult | null> {
   const defaultTag = opts.defaultTag ?? 'latest'
+  const registry = wantedDependency.alias
+    ? pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.pref)
+    : ctx.registries.default
   if (wantedDependency.pref?.startsWith('workspace:')) {
     if (wantedDependency.pref.startsWith('workspace:.')) return null
     const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
       defaultTag,
       lockfileDir: opts.lockfileDir,
       projectDir: opts.projectDir,
-      registry: opts.registry,
+      registry,
       workspacePackages: opts.workspacePackages,
       injectWorkspacePackages: opts.injectWorkspacePackages,
     })
@@ -153,11 +160,11 @@ async function resolveNpm (
   }
   const workspacePackages = opts.alwaysTryWorkspacePackages !== false ? opts.workspacePackages : undefined
   const spec = wantedDependency.pref
-    ? parsePref(wantedDependency.pref, wantedDependency.alias, defaultTag, opts.registry)
+    ? parsePref(wantedDependency.pref, wantedDependency.alias, defaultTag, registry)
     : defaultTagForAlias(wantedDependency.alias!, defaultTag)
   if (spec == null) return null
 
-  const authHeaderValue = ctx.getAuthHeaderValueByURI(opts.registry)
+  const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
   let pickResult!: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
   try {
     pickResult = await ctx.pickPackage(spec, {
@@ -166,7 +173,7 @@ async function resolveNpm (
       authHeaderValue,
       dryRun: opts.dryRun === true,
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
-      registry: opts.registry,
+      registry,
       updateToLatest: opts.updateToLatest,
     })
   } catch (err: any) { // eslint-disable-line
@@ -199,7 +206,7 @@ async function resolveNpm (
         // ignore
       }
     }
-    throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry: opts.registry })
+    throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   }
 
   const workspacePkgsMatchingName = workspacePackages?.get(pickedPackage.name)

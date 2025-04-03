@@ -39,7 +39,6 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store-path": "workspace:*",

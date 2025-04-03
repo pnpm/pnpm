@@ -45,7 +45,6 @@
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",

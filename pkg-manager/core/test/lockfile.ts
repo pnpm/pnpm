@@ -450,11 +450,12 @@ test('package is not marked optional if it is also a subdep of a regular depende
 test('scoped module from different registry', async () => {
   const project = prepareEmpty()
 
-  const opts = testDefaults()
-  opts.registries!.default = 'https://registry.npmjs.org/'
-  opts.registries!['@zkochan'] = `http://localhost:${REGISTRY_MOCK_PORT}`
-  opts.registries!['@foo'] = `http://localhost:${REGISTRY_MOCK_PORT}`
-  await addDependenciesToPackage({}, ['@zkochan/foo', '@foo/has-dep-from-same-scope', 'is-positive'], opts)
+  const registries = {
+    default: 'https://registry.npmjs.org/',
+    '@zkochan': `http://localhost:${REGISTRY_MOCK_PORT}`,
+    '@foo': `http://localhost:${REGISTRY_MOCK_PORT}`,
+  }
+  await addDependenciesToPackage({}, ['@zkochan/foo', '@foo/has-dep-from-same-scope', 'is-positive'], testDefaults({ registries }, { registries }))
 
   project.has('@zkochan/foo')
 
@@ -1081,10 +1082,11 @@ test('tarball domain differs from registry domain', async () => {
     ], testDefaults({
       fastUnpack: false,
       lockfileOnly: true,
+      save: true,
+    }, {
       registries: {
         default: 'https://registry.example.com',
       },
-      save: true,
     })
   )
 

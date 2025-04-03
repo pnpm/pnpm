@@ -1208,6 +1208,7 @@ test('two dependencies have the same version and name. The only difference is th
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({
     fastUnpack: false,
+  }, {
     registries: {
       default: 'https://registry.npmjs.org/',
     },

@@ -2,7 +2,6 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { createResolver } from '@pnpm/client'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
@@ -65,7 +64,6 @@ export async function handler (
     lockfileDir: opts.lockfileDir ?? opts.dir,
     preferredVersions: {},
     projectDir: opts.dir,
-    registry: pickRegistryForPackage(opts.registries, pkgName, pref),
   })
   if (!resolution?.manifest) {
     throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${pref}" version of pnpm`)

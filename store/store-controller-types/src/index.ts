@@ -123,7 +123,6 @@ export interface RequestPackageOptions {
   lockfileDir: string
   preferredVersions: PreferredVersions
   preferWorkspacePackages?: boolean
-  registry: string
   sideEffectsCache?: boolean
   skipFetch?: boolean
   update?: false | 'compatible' | 'latest'
