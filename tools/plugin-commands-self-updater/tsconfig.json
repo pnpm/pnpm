@@ -22,9 +22,6 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../config/pick-registry-for-package"
-    },
-    {
       "path": "../../env/path"
     },
     {

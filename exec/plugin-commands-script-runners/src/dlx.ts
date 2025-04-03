@@ -11,7 +11,6 @@ import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { type PnpmSettings } from '@pnpm/types'
 import execa from 'execa'
 import pick from 'ramda/src/pick'
@@ -95,7 +94,6 @@ export async function handler (
       lockfileDir: opts.lockfileDir ?? opts.dir,
       preferredVersions: {},
       projectDir: opts.dir,
-      registry: pickRegistryForPackage(opts.registries, alias, pref),
     })
     return resolved.id
   }))

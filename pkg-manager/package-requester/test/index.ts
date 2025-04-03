@@ -29,6 +29,7 @@ const { resolve, fetchers } = createClient({
   authConfig,
   cacheDir: '.store',
   rawConfig: {},
+  registries,
 })
 
 test('request package', async () => {
@@ -51,7 +52,6 @@ test('request package', async () => {
     lockfileDir: projectDir,
     preferredVersions: {},
     projectDir,
-    registries,
   })
 
   expect(pkgResponse).toBeTruthy()
@@ -93,7 +93,6 @@ test('request package but skip fetching', async () => {
     lockfileDir: projectDir,
     preferredVersions: {},
     projectDir,
-    registries,
     skipFetch: true,
   })
 
@@ -140,7 +139,6 @@ test('request package but skip fetching, when resolution is already available', 
     lockfileDir: projectDir,
     preferredVersions: {},
     projectDir,
-    registries,
     skipFetch: true,
     update: false,
   }) as PackageResponse & {
@@ -181,7 +179,6 @@ test('refetch local tarball if its integrity has changed', async () => {
     lockfileDir: projectDir,
     preferredVersions: {},
     projectDir,
-    registries,
     skipFetch: true,
     update: false,
   } satisfies RequestPackageOptions
@@ -288,7 +285,6 @@ test('refetch local tarball if its integrity has changed. The requester does not
     lockfileDir: projectDir,
     preferredVersions: {},
     projectDir,
-    registries,
     update: false,
   } satisfies RequestPackageOptions
 
@@ -506,6 +502,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     rawConfig: {},
     retry: { retries: 0 },
     cacheDir: '.pnpm',
+    registries,
   })
 
   const storeDir = tempy.directory()
@@ -580,7 +577,6 @@ test('always return a package manifest in the response', async () => {
       lockfileDir: projectDir,
       preferredVersions: {},
       projectDir,
-      registries,
     }) as PackageResponse & { body: { manifest: { name: string } } }
 
     expect(pkgResponse.body).toBeTruthy()
@@ -600,7 +596,6 @@ test('always return a package manifest in the response', async () => {
       lockfileDir: projectDir,
       preferredVersions: {},
       projectDir,
-      registries,
     }) as PackageResponse & { fetching: () => Promise<PkgRequestFetchResult> }
 
     expect(pkgResponse.body).toBeTruthy()
@@ -776,7 +771,6 @@ test('do not fetch an optional package that is not installable', async () => {
     lockfileDir: projectDir,
     preferredVersions: {},
     projectDir,
-    registries,
   })
 
   expect(pkgResponse).toBeTruthy()
@@ -815,7 +809,6 @@ test('fetch a git package without a package.json', async () => {
       lockfileDir: projectDir,
       preferredVersions: {},
       projectDir,
-      registries,
     }) as PackageResponse & { body: { manifest: { name: string } } }
 
     expect(pkgResponse.body).toBeTruthy()
@@ -847,7 +840,6 @@ test('throw exception if the package data in the store differs from the expected
       lockfileDir: projectDir,
       preferredVersions: {},
       projectDir,
-      registries,
     })
     await pkgResponse.fetching!()
   }
@@ -984,7 +976,6 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
       lockfileDir: projectDir,
       preferredVersions: {},
       projectDir,
-      registries,
     })
     await pkgResponse.fetching!()
   }
@@ -1003,7 +994,6 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
     lockfileDir: tempy.directory(),
     preferredVersions: {},
     projectDir,
-    registries,
     expectedPkg: {
       name: 'is-positive',
       version: '3.0.0',
@@ -1031,7 +1021,6 @@ test('the version in the bundled manifest should be normalized', async () => {
     lockfileDir: tempy.directory(),
     preferredVersions: {},
     projectDir: tempy.directory(),
-    registries,
   })
   expect((await pkgResponse.fetching!()).bundledManifest).toStrictEqual(expect.objectContaining({
     version: '1.2.1',
@@ -1062,7 +1051,6 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
       lockfileDir: projectDir,
       preferredVersions: {},
       projectDir,
-      registries,
     })
 
     await pkgResponse.fetching!()

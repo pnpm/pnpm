@@ -30,6 +30,9 @@ export function createTempStore (opts?: {
       minTimeout: 10_000,
     },
     cacheDir,
+    registries: {
+      default: registry,
+    },
     ...opts?.clientOptions,
   })
   const storeDir = opts?.storeDir ?? path.resolve('.store')

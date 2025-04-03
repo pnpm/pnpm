@@ -2619,9 +2619,6 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
-      '@pnpm/pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../../config/pick-registry-for-package
       '@pnpm/plugin-commands-env':
         specifier: workspace:*
         version: link:../../env/plugin-commands-env
@@ -4321,9 +4318,6 @@ importers:
       '@pnpm/pick-fetcher':
         specifier: workspace:*
         version: link:../../fetching/pick-fetcher
-      '@pnpm/pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../../config/pick-registry-for-package
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../../pkg-manager/plugin-commands-installation
@@ -6069,9 +6063,6 @@ importers:
       '@pnpm/parse-cli-args':
         specifier: workspace:*
         version: link:../cli/parse-cli-args
-      '@pnpm/pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../config/pick-registry-for-package
       '@pnpm/plugin-commands-audit':
         specifier: workspace:*
         version: link:../lockfile/plugin-commands-audit
@@ -7719,9 +7710,6 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
-      '@pnpm/pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../../config/pick-registry-for-package
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
@@ -7981,9 +7969,6 @@ importers:
       '@pnpm/logger':
         specifier: '>=5.1.0 <1001.0.0'
         version: 1000.0.0
-      '@pnpm/pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../../config/pick-registry-for-package
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest

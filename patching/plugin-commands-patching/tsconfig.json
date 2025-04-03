@@ -25,9 +25,6 @@
       "path": "../../config/config-writer"
     },
     {
-      "path": "../../config/pick-registry-for-package"
-    },
-    {
       "path": "../../crypto/hash"
     },
     {

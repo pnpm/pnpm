@@ -3,13 +3,12 @@ import {
   createResolver,
   type ResolveFunction,
 } from '@pnpm/client'
-import { type DependencyManifest, type Registries } from '@pnpm/types'
+import { type DependencyManifest } from '@pnpm/types'
 
 interface GetManifestOpts {
   dir: string
   lockfileDir: string
   rawConfig: object
-  registries: Registries
 }
 
 export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig'>
@@ -33,7 +32,6 @@ export async function getManifest (
     lockfileDir: opts.lockfileDir,
     preferredVersions: {},
     projectDir: opts.dir,
-    registries: opts.registries,
   })
   return resolution?.manifest ?? null
 }

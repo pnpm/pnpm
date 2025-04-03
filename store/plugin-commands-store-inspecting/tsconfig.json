@@ -16,9 +16,6 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../config/pick-registry-for-package"
-    },
-    {
       "path": "../../fs/graceful-fs"
     },
     {

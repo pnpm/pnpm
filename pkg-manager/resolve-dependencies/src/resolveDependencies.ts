@@ -1278,7 +1278,6 @@ async function resolveDependency (
       )
         ? ctx.lockfileDir
         : options.parentPkg.rootDir,
-      registries: ctx.registries,
       skipFetch: ctx.dryRun,
       update: options.update,
       workspacePackages: ctx.workspacePackages,

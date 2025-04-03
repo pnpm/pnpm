@@ -16,6 +16,9 @@ describe('store.importPackage()', () => {
       authConfig,
       cacheDir: path.join(tmp, 'cache'),
       rawConfig: {},
+      registries: {
+        default: registry,
+      },
     })
     const storeController = createPackageStore(resolve, fetchers, {
       storeDir,
@@ -55,6 +58,9 @@ describe('store.importPackage()', () => {
       authConfig,
       cacheDir: path.join(tmp, 'cache'),
       rawConfig: {},
+      registries: {
+        default: registry,
+      },
     })
     const storeController = createPackageStore(resolve, fetchers, {
       packageImportMethod: 'copy',

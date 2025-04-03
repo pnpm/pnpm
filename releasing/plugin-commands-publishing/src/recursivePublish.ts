@@ -158,7 +158,6 @@ async function isAlreadyPublished (
       lockfileDir: opts.lockfileDir,
       preferredVersions: {},
       projectDir: opts.dir,
-      registries: opts.registries,
     })
     return true
   } catch (err: any) { // eslint-disable-line

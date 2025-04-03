@@ -2,14 +2,13 @@ import { PnpmError } from '@pnpm/error'
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type StoreController } from '@pnpm/store-controller-types'
-import { type SupportedArchitectures, type Registries } from '@pnpm/types'
+import { type SupportedArchitectures } from '@pnpm/types'
 import { type ReporterFunction } from './types'
 
 export async function storeAdd (
   fuzzyDeps: string[],
   opts: {
     prefix?: string
-    registries?: Registries
     reporter?: ReporterFunction
     storeController: StoreController
     tag?: string
@@ -25,9 +24,6 @@ export async function storeAdd (
 
   let hasFailures = false
   const prefix = opts.prefix ?? process.cwd()
-  const registries = opts.registries ?? {
-    default: 'https://registry.npmjs.org/',
-  }
   await Promise.all(deps.map(async (dep) => {
     try {
       const pkgResponse = await opts.storeController.requestPackage(dep, {
@@ -35,7 +31,6 @@ export async function storeAdd (
         lockfileDir: prefix,
         preferredVersions: {},
         projectDir: prefix,
-        registries,
         supportedArchitectures: opts.supportedArchitectures,
       })
       await pkgResponse.fetching!()

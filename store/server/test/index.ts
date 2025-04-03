@@ -27,6 +27,7 @@ async function createStoreController (storeDir?: string) {
     authConfig,
     cacheDir,
     rawConfig: {},
+    registries,
   })
   return createPackageStore(resolve, fetchers, {
     networkConcurrency: 1,
@@ -56,7 +57,6 @@ test('server', async () => {
       lockfileDir: projectDir,
       preferredVersions: {},
       projectDir,
-      registries,
       sideEffectsCache: false,
     }
   )
@@ -134,7 +134,6 @@ test('server errors should arrive to the client', async () => {
         lockfileDir: projectDir,
         preferredVersions: {},
         projectDir,
-        registries,
         sideEffectsCache: false,
       }
     )
