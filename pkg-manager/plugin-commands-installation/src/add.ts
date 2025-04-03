@@ -8,6 +8,7 @@ import renderHelp from 'render-help'
 import { createProjectManifestWriter } from './createProjectManifestWriter'
 import { type InstallCommandOptions } from './install'
 import { installDeps } from './installDeps'
+import { resolveConfigDeps } from './resolveConfigDeps'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -80,6 +81,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     recursive: Boolean,
     save: Boolean,
     workspace: Boolean,
+    config: Boolean,
   }
 }
 
@@ -137,6 +139,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: 'Only adds the new dependency if it is found in the workspace',
             name: '--workspace',
           },
+          {
+            description: 'Save the dependency to configurational dependencies',
+            name: '--config',
+          },
           OPTIONS.ignoreScripts,
           OPTIONS.offline,
           OPTIONS.preferOffline,
@@ -175,6 +181,7 @@ export type AddCommandOptions = InstallCommandOptions & {
   update?: boolean
   useBetaCli?: boolean
   workspaceRoot?: boolean
+  config?: boolean
 }
 
 export async function handler (
@@ -186,6 +193,10 @@ export async function handler (
   }
   if (!params || (params.length === 0)) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
+  }
+  if (opts.config) {
+    await resolveConfigDeps(params, opts)
+    return
   }
   if (
     !opts.recursive &&

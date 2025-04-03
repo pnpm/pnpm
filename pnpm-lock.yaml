@@ -5389,6 +5389,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
@@ -5410,6 +5413,12 @@ importers:
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../network/auth-header
+      '@pnpm/npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
       '@pnpm/outdated':
         specifier: workspace:*
         version: link:../../reviewing/outdated

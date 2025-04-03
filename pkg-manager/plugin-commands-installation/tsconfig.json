@@ -67,6 +67,12 @@
       "path": "../../lockfile/types"
     },
     {
+      "path": "../../network/auth-header"
+    },
+    {
+      "path": "../../network/fetch"
+    },
+    {
       "path": "../../packages/constants"
     },
     {
@@ -92,6 +98,9 @@
     },
     {
       "path": "../../pkg-manifest/write-project-manifest"
+    },
+    {
+      "path": "../../resolving/npm-resolver"
     },
     {
       "path": "../../resolving/resolver-base"
