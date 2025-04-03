@@ -93,7 +93,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
 
   if (fs.existsSync(editDir) && fs.readdirSync(editDir).length !== 0) {
     throw new PnpmError('EDIT_DIR_NOT_EMPTY', `The directory ${editDir} is not empty`, {
-      hint: `Either run pnpm patch-commit ${quote + editDir + quote} to commit or delete it then run "pnpm patch" to recreate it`,
+      hint: 'Either run `pnpm patch-commit ' + quote + editDir + quote + '` to commit or delete it then run `pnpm patch` to recreate it',
     })
   }
 
