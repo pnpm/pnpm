@@ -6,8 +6,8 @@ import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type AddCommandOptions } from './add'
 
-export async function resolveConfigDeps (configDeps: string[], opts: AddCommandOptions) {
-  const fetch = createFetchFromRegistry({})
+export async function resolveConfigDeps (configDeps: string[], opts: AddCommandOptions): Promise<void> {
+  const fetch = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.userConfig!, userSettings: opts.userConfig })
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)
   const configDependencies = opts.configDependencies ?? {}
