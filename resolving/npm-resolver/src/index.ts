@@ -279,11 +279,6 @@ async function tryResolveFromJsr (
 
   const pref = wantedDependency.pref.slice('jsr:'.length)
   const spec = parseJsrPref(pref, wantedDependency.alias, defaultTag, registry)
-  if (!spec.name.startsWith('@')) {
-    throw new PnpmError('MISSING_JSR_PACKAGE_SCOPE', 'Package names from JSR must have scopes')
-  }
-  const jsrNameSuffix = spec.name.replace('@', '').replace('/', '__') // not replaceAll because we only replace the first of each character
-  spec.name = `@jsr/${jsrNameSuffix}`
 
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
   const { meta, pickedPackage } = await ctx.pickPackage(spec, {
