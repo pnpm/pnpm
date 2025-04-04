@@ -30,11 +30,10 @@ const jsrRusGreetMeta = loadJsonFile.sync<any>(f.find('jsr-rus-greet.json'))
 const jsrLucaCasesMeta = loadJsonFile.sync<any>(f.find('jsr-luca-cases.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-const jsrRegistry = 'https://npm.jsr.io/' // TODO: remove this
-const registries: Registries = {
+const registries = {
   default: 'https://registry.npmjs.org/',
   '@jsr': 'https://npm.jsr.io/',
-}
+} satisfies Registries
 
 const delay = async (time: number) => new Promise<void>((resolve) => setTimeout(() => {
   resolve()
@@ -149,7 +148,7 @@ test('resolveFromNpm() on jsr', async () => {
     .reply(404)
     .get(`/@jsr${slash}luca__cases`)
     .reply(404)
-  nock(jsrRegistry)
+  nock(registries['@jsr'])
     .get(`/@jsr${slash}rus__greet`)
     .reply(200, jsrRusGreetMeta)
     .get(`/@jsr${slash}luca__cases`)
@@ -158,9 +157,6 @@ test('resolveFromNpm() on jsr', async () => {
   const cacheDir = tempy.directory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
-    authConfig: {
-      '@jsr:registry': jsrRegistry,
-    },
     registries,
   })
   const resolveResult = await resolveFromNpm({ alias: '@rus/greet', pref: 'jsr:0.0.3' }, {})
@@ -196,7 +192,7 @@ test('resolveFromNpm() on jsr with alias renaming', async () => {
     .reply(404)
     .get(`/@jsr${slash}luca__cases`)
     .reply(404)
-  nock(jsrRegistry)
+  nock(registries['@jsr'])
     .get(`/@jsr${slash}rus__greet`)
     .reply(200, jsrRusGreetMeta)
     .get(`/@jsr${slash}luca__cases`)
@@ -205,9 +201,6 @@ test('resolveFromNpm() on jsr with alias renaming', async () => {
   const cacheDir = tempy.directory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
-    authConfig: {
-      '@jsr:registry': jsrRegistry,
-    },
     registries,
   })
   const resolveResult = await resolveFromNpm({ alias: 'greet', pref: 'jsr:@rus/greet@0.0.3' }, {})
@@ -243,7 +236,7 @@ test('resolveFromNpm() on jsr without @jsr:registry', async () => {
     .reply(404)
     .get(`/@jsr${slash}luca__cases`)
     .reply(404)
-  nock(jsrRegistry)
+  nock(registries['@jsr'])
     .get(`/@jsr${slash}rus__greet`)
     .reply(200, jsrRusGreetMeta)
     .get(`/@jsr${slash}luca__cases`)
@@ -252,7 +245,7 @@ test('resolveFromNpm() on jsr without @jsr:registry', async () => {
   const cacheDir = tempy.directory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
-    registries,
+    registries: omit(['@jsr'], registries),
   })
   await expect(resolveFromNpm({ alias: '@rus/greet', pref: 'jsr:0.0.3' }, {})).rejects.toMatchObject({
     code: 'ERR_PNPM_JSR_REGISTRY_NOT_DEFINED',
@@ -263,9 +256,6 @@ test('resolveFromNpm() on jsr with packages without scope', async () => {
   const cacheDir = tempy.directory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
-    authConfig: {
-      '@jsr:registry': jsrRegistry,
-    },
     registries,
   })
   await expect(resolveFromNpm({ alias: 'greet', pref: 'jsr:0.0.3' }, {})).rejects.toMatchObject({

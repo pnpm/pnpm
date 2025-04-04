@@ -61,7 +61,6 @@ export {
 }
 
 export interface ResolverFactoryOptions {
-  authConfig?: { '@jsr:registry'?: string }
   cacheDir: string
   fullMetadata?: boolean
   filterMetadata?: boolean
@@ -96,7 +95,6 @@ export function createNpmResolver (
   })
   return {
     resolveFromNpm: resolveNpm.bind(null, {
-      authConfig: opts.authConfig,
       getAuthHeaderValueByURI: getAuthHeader,
       pickPackage: pickPackage.bind(null, {
         fetch,
@@ -116,7 +114,6 @@ export function createNpmResolver (
 }
 
 export interface ResolveFromNpmContext {
-  authConfig: ResolverFactoryOptions['authConfig']
   pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
   getAuthHeaderValueByURI: (registry: string) => string | undefined
   registries: Registries
@@ -269,7 +266,7 @@ async function tryResolveFromJsr (
 ): Promise<ResolveResult | null> {
   if (!wantedDependency.pref?.startsWith('jsr:')) return null
 
-  const registry = ctx.authConfig?.['@jsr:registry']
+  const registry: string | undefined = ctx.registries['@jsr']
   if (!registry) {
     // Q: Why throw an error instead of falling back to a default URL?
     // A: The packages from JSR registry may have dependencies in the `@jsr` scope which would
