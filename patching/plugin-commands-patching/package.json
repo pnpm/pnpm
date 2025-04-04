@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-patching",
-  "version": "1000.1.6",
+  "version": "1000.1.7",
   "description": "Commands for creating patches",
   "keywords": [
     "pnpm",
@@ -45,7 +45,6 @@
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",

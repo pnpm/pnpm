@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-config
 
+## 1000.1.1
+
+### Patch Changes
+
+- e059d99: `pnpm config set` should convert the settings to their correct type before adding them to `pnpm-workspace.yaml` [#9355](https://github.com/pnpm/pnpm/issues/9355).
+- 1b1ed10: `pnpm config get` should read auth related settings via npm CLI [#9345](https://github.com/pnpm/pnpm/issues/9345).
+- Updated dependencies [e57f1df]
+  - @pnpm/config@1002.7.0
+  - @pnpm/cli-utils@1000.0.19
+
 ## 1000.1.0
 
 ### Minor Changes

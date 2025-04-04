@@ -7,6 +7,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { logger } from '@pnpm/logger'
 import { sync as loadJsonFile } from 'load-json-file'
 import PATH from 'path-name'
+import { sync as readYamlFile } from 'read-yaml-file'
 import writePkg from 'write-pkg'
 import { DEFAULT_OPTS } from './utils'
 import { type PnpmError } from '@pnpm/error'
@@ -148,8 +149,8 @@ test('relative link', async () => {
 
   project.isExecutable('.bin/hello-world-js-bin')
 
-  const manifest = loadJsonFile<{ pnpm?: { overrides?: Record<string, string> } }>('package.json')
-  expect(manifest.pnpm?.overrides?.['@pnpm.e2e/hello-world-js-bin']).toBe('link:../hello-world-js-bin')
+  const manifest = readYamlFile<{ overrides?: Record<string, string> }>('pnpm-workspace.yaml')
+  expect(manifest.overrides?.['@pnpm.e2e/hello-world-js-bin']).toBe('link:../hello-world-js-bin')
 
   const wantedLockfile = project.readLockfile()
   expect(wantedLockfile.importers['.'].dependencies?.['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
@@ -393,8 +394,8 @@ test('relative link from workspace package', async () => {
     workspacePackagePatterns: ['packages/*'],
   }, ['../../../hello-world-js-bin'])
 
-  const manifest = loadJsonFile<{ pnpm?: { overrides?: Record<string, string> } }>(path.join(workspaceDir, 'package.json'))
-  expect(manifest.pnpm?.overrides?.['@pnpm.e2e/hello-world-js-bin']).toBe('link:../hello-world-js-bin')
+  const manifest = readYamlFile<{ overrides?: Record<string, string> }>(path.join(workspaceDir, 'pnpm-workspace.yaml'))
+  expect(manifest.overrides?.['@pnpm.e2e/hello-world-js-bin']).toBe('link:../hello-world-js-bin')
 
   const workspace = assertProject(workspaceDir)
   ;[workspace.readLockfile(), workspace.readCurrentLockfile()].forEach(lockfile => {

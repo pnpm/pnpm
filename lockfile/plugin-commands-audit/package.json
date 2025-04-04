@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-audit",
-  "version": "1002.0.0",
+  "version": "1002.0.1",
   "description": "pnpm commands for dependencies audit",
   "keywords": [
     "pnpm",
@@ -35,6 +35,7 @@
     "@pnpm/audit": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
+    "@pnpm/config.config-writer": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
@@ -55,6 +56,7 @@
     "@types/zkochan__table": "catalog:",
     "load-json-file": "catalog:",
     "nock": "catalog:",
+    "read-yaml-file": "catalog:",
     "tempy": "catalog:"
   },
   "engines": {

@@ -84,6 +84,8 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
     virtualStoreDir: opts.virtualStoreDir,
   })
 
+  const quote = isWindows() ? '"' : "'"
+
   const modulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
   const editDir = opts.editDir
     ? path.resolve(opts.dir, opts.editDir)
@@ -91,7 +93,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
 
   if (fs.existsSync(editDir) && fs.readdirSync(editDir).length !== 0) {
     throw new PnpmError('EDIT_DIR_NOT_EMPTY', `The directory ${editDir} is not empty`, {
-      hint: 'Either run `pnpm patch-commit` to commit or delete it then run `pnpm patch` to recreate it',
+      hint: 'Either run `pnpm patch-commit ' + quote + editDir + quote + '` to commit or delete it then run `pnpm patch` to recreate it',
     })
   }
 
@@ -113,8 +115,6 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
       lockfileDir,
     })
   }
-
-  const quote = isWindows() ? '"' : "'"
 
   return `Patch: You can now edit the package at:
 

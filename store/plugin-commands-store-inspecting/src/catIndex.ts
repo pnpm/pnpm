@@ -6,7 +6,6 @@ import { PnpmError } from '@pnpm/error'
 import { sortDeepKeys } from '@pnpm/object.key-sorting'
 import { getStorePath } from '@pnpm/store-path'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 
 import loadJsonFile from 'load-json-file'
@@ -78,7 +77,6 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
       lockfileDir: opts.lockfileDir ?? opts.dir,
       preferredVersions: {},
       projectDir: opts.dir,
-      registry: pickRegistryForPackage(opts.registries, alias, pref),
     }
   )
 

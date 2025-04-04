@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store",
-  "version": "1000.0.20",
+  "version": "1000.0.21",
   "description": "Commands for controlling the store",
   "keywords": [
     "pnpm",
@@ -39,7 +39,6 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store-path": "workspace:*",

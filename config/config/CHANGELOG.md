@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 1002.7.0
+
+### Minor Changes
+
+- e57f1df: Replace leading `~/` in a path in `.npmrc` with the home directory [#9217](https://github.com/pnpm/pnpm/issues/9217).
+
 ## 1002.6.0
 
 ### Minor Changes

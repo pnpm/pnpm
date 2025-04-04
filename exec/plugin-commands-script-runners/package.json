@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "1000.2.8",
+  "version": "1000.2.9",
   "description": "Commands for running scripts",
   "keywords": [
     "pnpm",
@@ -47,7 +47,6 @@
     "@pnpm/log.group": "catalog:",
     "@pnpm/package-bins": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",

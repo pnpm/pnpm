@@ -34,7 +34,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'offline'
 | 'packageImportMethod'
 | 'preferOffline'
-| 'registry'
+| 'registries'
 | 'registrySupportsTimeField'
 | 'resolutionMode'
 | 'strictSsl'
@@ -72,6 +72,7 @@ export async function createNewStoreController (
     preferOffline: opts.preferOffline,
     rawConfig: opts.rawConfig,
     sslConfigs: opts.sslConfigs,
+    registries: opts.registries,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,
