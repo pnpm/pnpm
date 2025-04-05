@@ -266,7 +266,7 @@ async function tryResolveFromJsr (
 ): Promise<ResolveResult | null> {
   if (!wantedDependency.pref?.startsWith('jsr:')) return null
 
-  const registry = ctx.registries['@jsr']! // '@jsr' is always defined
+  const registry = ctx.registries['@jsr'] ?? 'https://npm.jsr.io'
   const pref = wantedDependency.pref.slice('jsr:'.length)
   const spec = parseJsrPref(pref, wantedDependency.alias, defaultTag, registry)
 

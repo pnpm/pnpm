@@ -19,6 +19,9 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../registry/tarball-url"
+    },
+    {
       "path": "../../resolving/resolver-base"
     },
     {

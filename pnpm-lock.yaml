@@ -3682,15 +3682,15 @@ importers:
       '@pnpm/pick-fetcher':
         specifier: workspace:*
         version: link:../../fetching/pick-fetcher
+      '@pnpm/registry.tarball-url':
+        specifier: workspace:*
+        version: link:../../registry/tarball-url
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      get-npm-tarball-url:
-        specifier: 'catalog:'
-        version: 2.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -5747,6 +5747,9 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
+      '@pnpm/registry.tarball-url':
+        specifier: workspace:*
+        version: link:../../registry/tarball-url
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -5771,9 +5774,6 @@ importers:
       filenamify:
         specifier: 'catalog:'
         version: 4.3.0
-      get-npm-tarball-url:
-        specifier: 'catalog:'
-        version: 2.1.0
       graph-cycles:
         specifier: 'catalog:'
         version: 1.2.1
@@ -6376,6 +6376,16 @@ importers:
         version: 0.25.0
     devDependencies:
       pd:
+        specifier: workspace:*
+        version: 'link:'
+
+  registry/tarball-url:
+    dependencies:
+      get-npm-tarball-url:
+        specifier: 'catalog:'
+        version: 2.1.0
+    devDependencies:
+      '@pnpm/registry.tarball-url':
         specifier: workspace:*
         version: 'link:'
 

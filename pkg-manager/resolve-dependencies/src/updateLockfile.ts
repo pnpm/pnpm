@@ -8,7 +8,7 @@ import {
 import { type DirectoryResolution, type Resolution } from '@pnpm/resolver-base'
 import { type DepPath, type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
-import getNpmTarballUrl from 'get-npm-tarball-url'
+import { getTarballUrl } from '@pnpm/registry.tarball-url'
 import { type KeyValuePair } from 'ramda'
 import partition from 'ramda/src/partition'
 import { depPathToRef } from './depPathToRef'
@@ -193,7 +193,7 @@ function toLockfileResolution (
   // Sometimes packages are hosted under non-standard tarball URLs.
   // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
   // Or in other weird cases, like https://github.com/pnpm/pnpm/issues/1072
-  const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
+  const expectedTarball = getTarballUrl(pkg.name, pkg.version, registry)
   const actualTarball = resolution['tarball'].replace('%2f', '/')
   if (removeProtocol(expectedTarball) !== removeProtocol(actualTarball)) {
     return {

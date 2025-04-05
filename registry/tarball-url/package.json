@@ -1,0 +1,44 @@
+{
+  "name": "@pnpm/registry.tarball-url",
+  "version": "1000.0.0-0",
+  "description": "Calculates the tarball URL of a package in the registry",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "registry"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/registry/tarball-url",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/registry/tarball-url#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "pnpm run compile",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "get-npm-tarball-url": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/registry.tarball-url": "workspace:*"
+  },
+  "engines": {
+    "node": ">=18.12"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}
