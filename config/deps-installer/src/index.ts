@@ -1,2 +1,2 @@
-export { installConfigDeps } from './installConfigDeps'
-export { resolveConfigDeps } from './resolveConfigDeps'
+export { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps'
+export { resolveConfigDeps, type ResolveConfigDepsOpts } from './resolveConfigDeps'

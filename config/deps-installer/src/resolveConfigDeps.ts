@@ -5,14 +5,12 @@ import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/npm-resolv
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type ConfigDependencies } from '@pnpm/types'
+import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps'
 
-export type ResolveConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & {
+export type ResolveConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   configDependencies?: ConfigDependencies
-  dir: string
-  lockfileDir?: string
-  rootProjectManifestDir: string
+  rootDir: string
   userConfig?: Record<string, string>
-  workspaceDir?: string
 }
 
 export async function resolveConfigDeps (configDeps: string[], opts: ResolveConfigDepsOpts): Promise<void> {
@@ -26,9 +24,9 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
       throw new PnpmError('BAD_CONFIG_DEP', `Cannot install ${configDep} as configuration dependency`)
     }
     const resolution = await resolveFromNpm(wantedDep, {
-      lockfileDir: opts.lockfileDir,
+      lockfileDir: opts.rootDir,
       preferredVersions: {},
-      projectDir: opts.dir,
+      projectDir: opts.rootDir,
     })
     if (resolution?.resolution == null || !('integrity' in resolution?.resolution)) {
       throw new PnpmError('BAD_CONFIG_DEP', `Cannot install ${configDep} as configuration dependency because it has no integrity`)
@@ -37,9 +35,11 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
   }))
   await writeSettings({
     ...opts,
-    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    rootProjectManifestDir: opts.rootDir,
+    workspaceDir: opts.rootDir,
     updatedSettings: {
       configDependencies,
     },
   })
+  await installConfigDeps(configDependencies, opts)
 }

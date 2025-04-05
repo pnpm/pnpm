@@ -1600,6 +1600,9 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/logger':
+        specifier: '>=5.1.0 <1001.0.0'
+        version: 1000.0.0
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header

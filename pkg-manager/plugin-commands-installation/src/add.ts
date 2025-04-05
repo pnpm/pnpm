@@ -4,6 +4,7 @@ import { types as allTypes } from '@pnpm/config'
 import { resolveConfigDeps } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
+import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { createProjectManifestWriter } from './createProjectManifestWriter'
@@ -195,7 +196,12 @@ export async function handler (
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
   }
   if (opts.config) {
-    await resolveConfigDeps(params, opts)
+    const store = await createOrConnectStoreController(opts)
+    await resolveConfigDeps(params, {
+      ...opts,
+      store: store.ctrl,
+      rootDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    })
     return
   }
   if (

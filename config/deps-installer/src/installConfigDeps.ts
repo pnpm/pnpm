@@ -8,11 +8,13 @@ import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type StoreController } from '@pnpm/package-store'
 import { type Registries } from '@pnpm/types'
 
-export async function installConfigDeps (configDeps: Record<string, string>, opts: {
+export interface InstallConfigDepsOpts {
   registries: Registries
   rootDir: string
   store: StoreController
-}): Promise<void> {
+}
+
+export async function installConfigDeps (configDeps: Record<string, string>, opts: InstallConfigDepsOpts): Promise<void> {
   const configModulesDir = path.join(opts.rootDir, 'node_modules/.pnpm-config')
   const existingConfigDeps: string[] = await readModulesDir(configModulesDir) ?? []
   await Promise.all(existingConfigDeps.map(async (existingConfigDep) => {

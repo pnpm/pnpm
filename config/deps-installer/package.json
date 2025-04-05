@@ -47,6 +47,9 @@
     "@zkochan/rimraf": "catalog:",
     "get-npm-tarball-url": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
+  },
   "devDependencies": {
     "@pnpm/config.deps-installer": "workspace:*",
     "@pnpm/prepare": "workspace:*",
