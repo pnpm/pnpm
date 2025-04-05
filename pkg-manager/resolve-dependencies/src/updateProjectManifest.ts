@@ -128,6 +128,27 @@ function resolvedDirectDepToSpecObject (
     ) {
       pref = pref.replace(/^npm:/, '')
       pref = `workspace:${pref}`
+    } else if (specRaw.startsWith('jsr:@')) {
+      const jsrPrefStart = specRaw.indexOf('@', 'jsr:@'.length)
+      const versionSpec = () => createVersionSpec(version, {
+        pinnedVersion: opts.pinnedVersion,
+        rolling: false, // always false because there's it's definitely not a workspace protocol
+      })
+      const jsrPref = jsrPrefStart === -1
+        ? undefined
+        : specRaw.slice(jsrPrefStart)
+      if (jsrPref == null) {
+        pref = `${specRaw}@${versionSpec()}`
+      } else if (jsrPref === '@latest') {
+        const withoutPref = specRaw.slice(0, -'@latest'.length)
+        pref = `${withoutPref}@${versionSpec()}`
+      } else {
+        pref = specRaw
+      }
+      // if the alias is found in the pref, remove it
+      pref = pref.replace(`jsr:${alias}@`, 'jsr:')
+    } else if (specRaw.startsWith('jsr:')) {
+      pref = specRaw
     }
   }
   return {

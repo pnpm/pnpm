@@ -13,6 +13,20 @@ export type ParseWantedDependencyResult = Partial<ParsedWantedDependency> &
 )
 
 export function parseWantedDependency (rawWantedDependency: string): ParseWantedDependencyResult {
+  // expecting syntax: jsr:@<scope>/<name>[@<pref>]
+  if (rawWantedDependency.startsWith('jsr:@')) {
+    const versionDelimiter = rawWantedDependency.indexOf('@', 'jsr:@'.length)
+    const alias = versionDelimiter === -1
+      ? rawWantedDependency.slice('jsr:'.length)
+      : rawWantedDependency.substring('jsr:'.length, versionDelimiter)
+    return { alias, pref: rawWantedDependency }
+  }
+
+  // expecting syntax: jsr:<pref>
+  if (rawWantedDependency.startsWith('jsr:')) {
+    return { pref: rawWantedDependency }
+  }
+
   const versionDelimiter = rawWantedDependency.indexOf('@', 1) // starting from 1 to skip the @ that marks scope
   if (versionDelimiter !== -1) {
     const alias = rawWantedDependency.slice(0, versionDelimiter)
