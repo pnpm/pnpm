@@ -3,6 +3,7 @@ import { getPkgInfo } from '../lib/getPkgInfo'
 
 export const DEFAULT_REGISTRIES = {
   default: 'https://registry.npmjs.org/',
+  '@jsr': 'https://npm.jsr.io/',
 }
 
 describe('licences', () => {

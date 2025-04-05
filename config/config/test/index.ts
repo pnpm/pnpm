@@ -204,6 +204,7 @@ test('registries of scoped packages are read and normalized', async () => {
 
   expect(config.registries).toStrictEqual({
     default: 'https://default.com/',
+    '@jsr': 'https://npm.jsr.io/',
     '@foo': 'https://foo.com/',
     '@bar': 'https://bar.com/',
     '@qar': 'https://qar.com/qar',
@@ -227,9 +228,27 @@ test('registries in current directory\'s .npmrc have bigger priority then global
 
   expect(config.registries).toStrictEqual({
     default: 'https://pnpm.io/',
+    '@jsr': 'https://npm.jsr.io/',
     '@foo': 'https://foo.com/',
     '@bar': 'https://bar.com/',
     '@qar': 'https://qar.com/qar',
+  })
+})
+
+test('overriding jsr registry', async () => {
+  const { config } = await getConfig({
+    cliOptions: {
+      userconfig: path.join(__dirname, 'jsr-registry.ini'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.registries).toStrictEqual({
+    default: 'https://registry.npmjs.org/',
+    '@jsr': 'https://alternate-jsr-registry.com/',
   })
 })
 

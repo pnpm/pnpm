@@ -266,17 +266,7 @@ async function tryResolveFromJsr (
 ): Promise<ResolveResult | null> {
   if (!wantedDependency.pref?.startsWith('jsr:')) return null
 
-  const registry: string | undefined = ctx.registries['@jsr']
-  if (!registry) {
-    // Q: Why throw an error instead of falling back to a default URL?
-    // A: The packages from JSR registry may have dependencies in the `@jsr` scope which would
-    //    cause confusing error messages should it not be defined.
-
-    throw new PnpmError('JSR_REGISTRY_NOT_DEFINED', 'Cannot use JSR registry without defining a registry for the `@jsr` scope', {
-      hint: 'Fix it by running `pnpm config set @jsr:registry=https://npm.jsr.io`',
-    })
-  }
-
+  const registry = ctx.registries['@jsr']! // '@jsr' is always defined
   const pref = wantedDependency.pref.slice('jsr:'.length)
   const spec = parseJsrPref(pref, wantedDependency.alias, defaultTag, registry)
 
