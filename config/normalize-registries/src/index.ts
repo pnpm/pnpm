@@ -2,8 +2,9 @@ import { type Registries } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import mapValues from 'ramda/src/map'
 
-export const DEFAULT_REGISTRIES = {
+export const DEFAULT_REGISTRIES: Registries = {
   default: 'https://registry.npmjs.org/',
+  '@jsr': 'https://npm.jsr.io/',
 }
 
 export function normalizeRegistries (registries?: Record<string, string>): Registries {
