@@ -162,7 +162,7 @@ test('resolveFromNpm() on jsr', async () => {
   const resolveResult = await resolveFromNpm({ alias: '@rus/greet', pref: 'jsr:0.0.3' }, {})
 
   expect(resolveResult).toMatchObject({
-    resolvedVia: 'npm-registry',
+    resolvedVia: 'jsr-registry',
     id: '@jsr/rus__greet@0.0.3',
     latest: '0.0.3',
     manifest: {
@@ -206,7 +206,7 @@ test('resolveFromNpm() on jsr with alias renaming', async () => {
   const resolveResult = await resolveFromNpm({ alias: 'greet', pref: 'jsr:@rus/greet@0.0.3' }, {})
 
   expect(resolveResult).toMatchObject({
-    resolvedVia: 'npm-registry',
+    resolvedVia: 'jsr-registry',
     id: '@jsr/rus__greet@0.0.3',
     latest: '0.0.3',
     manifest: {

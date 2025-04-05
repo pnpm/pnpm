@@ -306,7 +306,7 @@ async function tryResolveFromJsr (
     manifest: pickedPackage,
     normalizedPref: spec.normalizedPref,
     resolution,
-    resolvedVia: 'npm-registry',
+    resolvedVia: 'jsr-registry',
     publishedAt: meta.time?.[pickedPackage.version],
   }
 }
