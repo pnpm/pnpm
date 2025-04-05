@@ -1,12 +1,21 @@
 import { PnpmError } from '@pnpm/error'
 import { writeSettings } from '@pnpm/config.config-writer'
-import { createFetchFromRegistry } from '@pnpm/fetch'
-import { createNpmResolver } from '@pnpm/npm-resolver'
+import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/fetch'
+import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/npm-resolver'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import { type AddCommandOptions } from './add'
+import { type ConfigDependencies } from '@pnpm/types'
 
-export async function resolveConfigDeps (configDeps: string[], opts: AddCommandOptions): Promise<void> {
+export type ResolveConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & {
+  configDependencies?: ConfigDependencies
+  dir: string
+  lockfileDir?: string
+  rootProjectManifestDir: string
+  userConfig?: Record<string, string>
+  workspaceDir?: string
+}
+
+export async function resolveConfigDeps (configDeps: string[], opts: ResolveConfigDepsOpts): Promise<void> {
   const fetch = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.userConfig!, userSettings: opts.userConfig })
   const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)

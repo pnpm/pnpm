@@ -16,7 +16,16 @@
       "path": "../../fs/read-modules-dir"
     },
     {
+      "path": "../../network/auth-header"
+    },
+    {
+      "path": "../../network/fetch"
+    },
+    {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/parse-wanted-dependency"
     },
     {
       "path": "../../packages/types"
@@ -25,10 +34,16 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
+      "path": "../../resolving/npm-resolver"
+    },
+    {
       "path": "../../store/package-store"
     },
     {
       "path": "../../testing/temp-store"
+    },
+    {
+      "path": "../config-writer"
     },
     {
       "path": "../pick-registry-for-package"

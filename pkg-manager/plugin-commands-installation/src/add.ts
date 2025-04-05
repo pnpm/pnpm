@@ -1,6 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
+import { resolveConfigDeps } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import pick from 'ramda/src/pick'
@@ -8,7 +9,6 @@ import renderHelp from 'render-help'
 import { createProjectManifestWriter } from './createProjectManifestWriter'
 import { type InstallCommandOptions } from './install'
 import { installDeps } from './installDeps'
-import { resolveConfigDeps } from './resolveConfigDeps'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([

@@ -33,8 +33,13 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/config.config-writer": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/package-store": "workspace:*",
+    "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
@@ -47,7 +52,8 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/testing.temp-store": "workspace:*",
-    "load-json-file": "catalog:"
+    "load-json-file": "catalog:",
+    "read-yaml-file": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

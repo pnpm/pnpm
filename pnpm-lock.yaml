@@ -1591,12 +1591,27 @@ importers:
 
   config/deps-installer:
     dependencies:
+      '@pnpm/config.config-writer':
+        specifier: workspace:*
+        version: link:../config-writer
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../network/auth-header
+      '@pnpm/npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../../store/package-store
+      '@pnpm/parse-wanted-dependency':
+        specifier: workspace:*
+        version: link:../../packages/parse-wanted-dependency
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../pick-registry-for-package
@@ -1631,6 +1646,9 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
+      read-yaml-file:
+        specifier: 'catalog:'
+        version: 2.1.0
 
   config/matcher:
     dependencies:
@@ -5374,6 +5392,9 @@ importers:
       '@pnpm/config.config-writer':
         specifier: workspace:*
         version: link:../../config/config-writer
+      '@pnpm/config.deps-installer':
+        specifier: workspace:*
+        version: link:../../config/deps-installer
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
@@ -5389,9 +5410,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fetch':
-        specifier: workspace:*
-        version: link:../../network/fetch
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
@@ -5413,12 +5431,6 @@ importers:
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
-      '@pnpm/network.auth-header':
-        specifier: workspace:*
-        version: link:../../network/auth-header
-      '@pnpm/npm-resolver':
-        specifier: workspace:*
-        version: link:../../resolving/npm-resolver
       '@pnpm/outdated':
         specifier: workspace:*
         version: link:../../reviewing/outdated
