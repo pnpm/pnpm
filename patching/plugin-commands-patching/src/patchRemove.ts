@@ -5,7 +5,6 @@ import { writeSettings } from '@pnpm/config.config-writer'
 import { install } from '@pnpm/plugin-commands-installation'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { type ProjectRootDir } from '@pnpm/types'
 import renderHelp from 'render-help'
 import { prompt } from 'enquirer'
 import pick from 'ramda/src/pick'
@@ -32,7 +31,6 @@ export type PatchRemoveCommandOptions = install.InstallCommandOptions & Pick<Con
 
 export async function handler (opts: PatchRemoveCommandOptions, params: string[]): Promise<void> {
   let patchesToRemove = params
-  const lockfileDir = (opts.lockfileDir ?? opts.dir ?? process.cwd()) as ProjectRootDir
   const patchedDependencies = opts.patchedDependencies ?? {}
 
   if (!params.length) {
@@ -59,7 +57,7 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
   const patchesDirs = new Set<string>()
   await Promise.all(patchesToRemove.map(async (patch) => {
     if (Object.prototype.hasOwnProperty.call(patchedDependencies, patch)) {
-      const patchFile = path.join(lockfileDir, patchedDependencies[patch])
+      const patchFile = patchedDependencies[patch]
       patchesDirs.add(path.dirname(patchFile))
       await fs.rm(patchFile, { force: true })
       delete patchedDependencies![patch]
