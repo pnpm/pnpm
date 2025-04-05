@@ -2,6 +2,7 @@ import fs from 'fs'
 import { prepare } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'
+import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm } from './utils'
 
@@ -117,5 +118,16 @@ test('catalog applied by configurational dependency hook', async () => {
         version: '100.0.0',
       },
     },
+  })
+})
+
+test('installing a new configurational dependency', async () => {
+  prepare()
+
+  await execPnpm(['add', '@pnpm.e2e/foo@100.0.0', '--config'])
+
+  const workspaceManifest = readYamlFile<{ configDependencies: Record<string, string> }>('pnpm-workspace.yaml')
+  expect(workspaceManifest.configDependencies).toStrictEqual({
+    '@pnpm.e2e/foo': `100.0.0+${getIntegrity('@pnpm.e2e/foo', '100.0.0')}`,
   })
 })

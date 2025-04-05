@@ -37,6 +37,7 @@
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/config.config-writer": "workspace:*",
+    "@pnpm/config.deps-installer": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core": "workspace:*",
     "@pnpm/dedupe.check": "workspace:*",

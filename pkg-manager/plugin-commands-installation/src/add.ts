@@ -1,8 +1,10 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
+import { resolveConfigDeps } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
+import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { createProjectManifestWriter } from './createProjectManifestWriter'
@@ -80,6 +82,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     recursive: Boolean,
     save: Boolean,
     workspace: Boolean,
+    config: Boolean,
   }
 }
 
@@ -137,6 +140,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: 'Only adds the new dependency if it is found in the workspace',
             name: '--workspace',
           },
+          {
+            description: 'Save the dependency to configurational dependencies',
+            name: '--config',
+          },
           OPTIONS.ignoreScripts,
           OPTIONS.offline,
           OPTIONS.preferOffline,
@@ -175,6 +182,7 @@ export type AddCommandOptions = InstallCommandOptions & {
   update?: boolean
   useBetaCli?: boolean
   workspaceRoot?: boolean
+  config?: boolean
 }
 
 export async function handler (
@@ -186,6 +194,15 @@ export async function handler (
   }
   if (!params || (params.length === 0)) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
+  }
+  if (opts.config) {
+    const store = await createOrConnectStoreController(opts)
+    await resolveConfigDeps(params, {
+      ...opts,
+      store: store.ctrl,
+      rootDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    })
+    return
   }
   if (
     !opts.recursive &&
