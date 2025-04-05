@@ -1,5 +1,6 @@
 import path from 'path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
+import { installedConfigDepsLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { readModulesDir } from '@pnpm/read-modules-dir'
@@ -22,6 +23,7 @@ export async function installConfigDeps (configDeps: Record<string, string>, opt
       await rimraf(path.join(configModulesDir, existingConfigDep))
     }
   }))
+  const installedConfigDeps: Array<{ name: string, version: string }> = []
   await Promise.all(Object.entries(configDeps).map(async ([pkgName, pkgSpec]) => {
     const configDepPath = path.join(configModulesDir, pkgName)
     const sepIndex = pkgSpec.indexOf('+')
@@ -44,6 +46,8 @@ export async function installConfigDeps (configDeps: Record<string, string>, opt
       const configDepPkgJson = await safeReadPackageJsonFromDir(configDepPath)
       if (configDepPkgJson == null || configDepPkgJson.name !== pkgName || configDepPkgJson.version !== version) {
         await rimraf(configDepPath)
+      } else {
+        return
       }
     }
     const registry = pickRegistryForPackage(opts.registries, pkgName)
@@ -64,5 +68,10 @@ export async function installConfigDeps (configDeps: Record<string, string>, opt
       requiresBuild: false,
       filesResponse,
     })
+    installedConfigDeps.push({
+      name: pkgName,
+      version,
+    })
   }))
+  installedConfigDepsLogger.debug({ deps: installedConfigDeps })
 }

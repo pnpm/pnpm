@@ -1594,6 +1594,9 @@ importers:
       '@pnpm/config.config-writer':
         specifier: workspace:*
         version: link:../config-writer
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../packages/core-loggers
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
