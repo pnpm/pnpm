@@ -1,5 +1,8 @@
 ---
 "@pnpm/plugin-commands-installation": minor
+"@pnpm/default-reporter": minor
+"@pnpm/config.deps-installer": minor
+"@pnpm/core-loggers": minor
 "pnpm": minor
 ---
 
