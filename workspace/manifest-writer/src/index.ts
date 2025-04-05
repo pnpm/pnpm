@@ -26,5 +26,11 @@ export async function updateWorkspaceManifest (dir: string, updatedFields: Parti
     await fs.promises.rm(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
     return
   }
-  await writeYamlFile(path.join(dir, WORKSPACE_MANIFEST_FILENAME), manifest)
+  await writeYamlFile(path.join(dir, WORKSPACE_MANIFEST_FILENAME), manifest, {
+    lineWidth: -1, // This is setting line width to never wrap
+    blankLines: true,
+    noCompatMode: true,
+    noRefs: true,
+    sortKeys: false,
+  })
 }
