@@ -247,7 +247,7 @@ test('overriding jsr registry', async () => {
   })
 
   expect(config.registries).toStrictEqual({
-    default: 'https://registry.npmjs.org/',
+    default: 'https://default.com/',
     '@jsr': 'https://alternate-jsr-registry.com/',
   })
 })
