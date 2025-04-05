@@ -273,7 +273,7 @@ async function tryResolveFromJsr (
     //    cause confusing error messages should it not be defined.
 
     throw new PnpmError('JSR_REGISTRY_NOT_DEFINED', 'Cannot use JSR registry without defining a registry for the `@jsr` scope', {
-      hint: 'Fix it by adding `@jsr:registry=https://npm.jsr.io` to .npmrc',
+      hint: 'Fix it by running `pnpm config set @jsr:registry=https://npm.jsr.io`',
     })
   }
 
