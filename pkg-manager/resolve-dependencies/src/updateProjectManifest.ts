@@ -132,7 +132,7 @@ function resolvedDirectDepToSpecObject (
       const jsrPrefStart = specRaw.indexOf('@', 'jsr:@'.length)
       const versionSpec = () => createVersionSpec(version, {
         pinnedVersion: opts.pinnedVersion,
-        rolling: false, // always false because there's it's definitely not a workspace protocol
+        rolling: false, // always false because it's definitely not a workspace protocol
       })
       const jsrPref = jsrPrefStart === -1
         ? undefined
