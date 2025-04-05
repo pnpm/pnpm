@@ -15,7 +15,7 @@ export function reportInstallingConfigDeps (
       }
       case 'done':
         return {
-          msg: `The next config dependencies were installed: ${log.deps.map(({ name, version }) => `${name}@${version}`).join(', ')}`,
+          msg: `Installed config dependencies: ${log.deps.map(({ name, version }) => `${name}@${version}`).join(', ')}`,
         }
       }
     })
