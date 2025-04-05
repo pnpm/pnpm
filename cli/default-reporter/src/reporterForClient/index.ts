@@ -9,7 +9,7 @@ import { reportExecutionTime } from './reportExecutionTime'
 import { reportDeprecations } from './reportDeprecations'
 import { reportHooks } from './reportHooks'
 import { reportInstallChecks } from './reportInstallChecks'
-import { reportInstalledConfigDeps } from './reportInstalledConfigDeps'
+import { reportInstallingConfigDeps } from './reportInstallingConfigDeps'
 import { reportLifecycleScripts } from './reportLifecycleScripts'
 import { reportMisc, LOG_LEVEL_NUMBER } from './reportMisc'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
@@ -42,7 +42,7 @@ export function reporterForClient (
     lifecycle: Rx.Observable<logs.LifecycleLog>
     stats: Rx.Observable<logs.StatsLog>
     installCheck: Rx.Observable<logs.InstallCheckLog>
-    installedConfigDeps: Rx.Observable<logs.InstalledConfigDepsLog>
+    installingConfigDeps: Rx.Observable<logs.InstallingConfigDepsLog>
     registry: Rx.Observable<logs.RegistryLog>
     root: Rx.Observable<logs.RootLog>
     packageManifest: Rx.Observable<logs.PackageManifestLog>
@@ -128,7 +128,7 @@ export function reporterForClient (
         width,
       }),
       reportInstallChecks(log$.installCheck, { cwd }),
-      reportInstalledConfigDeps(log$.installedConfigDeps),
+      reportInstallingConfigDeps(log$.installingConfigDeps),
       reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
       reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
       reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),

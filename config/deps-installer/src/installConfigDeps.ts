@@ -1,6 +1,6 @@
 import path from 'path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
-import { installedConfigDepsLogger } from '@pnpm/core-loggers'
+import { installingConfigDepsLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { readModulesDir } from '@pnpm/read-modules-dir'
@@ -31,13 +31,10 @@ export async function installConfigDeps (configDeps: Record<string, string>, opt
       throw new PnpmError('CONFIG_DEP_NO_INTEGRITY', `Your config dependency called "${pkgName}" at "pnpm.configDependencies" doesn't have an integrity checksum`, {
         hint: `All config dependencies should have their integrity checksum inlined in the version specifier. For example:
 
-{
-  "pnpm": {
-    "configDependencies": {
-      "my-config": "1.0.0+sha512-Xg0tn4HcfTijTwfDwYlvVCl43V6h4KyVVX2aEm4qdO/PC6L2YvzLHFdmxhoeSA3eslcE6+ZVXHgWwopXYLNq4Q=="
-    },
-  }
-}`,
+pnpm-workspace.yaml:
+configDependencies:
+  my-config: "1.0.0+sha512-Xg0tn4HcfTijTwfDwYlvVCl43V6h4KyVVX2aEm4qdO/PC6L2YvzLHFdmxhoeSA3eslcE6+ZVXHgWwopXYLNq4Q=="
+`,
       })
     }
     const version = pkgSpec.substring(0, sepIndex)
@@ -50,6 +47,7 @@ export async function installConfigDeps (configDeps: Record<string, string>, opt
         return
       }
     }
+    installingConfigDepsLogger.debug({ status: 'started' })
     const registry = pickRegistryForPackage(opts.registries, pkgName)
     const { fetching } = await opts.store.fetchPackage({
       force: true,
@@ -73,5 +71,7 @@ export async function installConfigDeps (configDeps: Record<string, string>, opt
       version,
     })
   }))
-  installedConfigDepsLogger.debug({ deps: installedConfigDeps })
+  if (installedConfigDeps.length) {
+    installingConfigDepsLogger.debug({ status: 'done', deps: installedConfigDeps })
+  }
 }

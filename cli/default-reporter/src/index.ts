@@ -137,7 +137,7 @@ export function toOutput$ (
   const statsPushStream = new Rx.Subject<logs.StatsLog>()
   const packageImportMethodPushStream = new Rx.Subject<logs.PackageImportMethodLog>()
   const installCheckPushStream = new Rx.Subject<logs.InstallCheckLog>()
-  const installedConfigDepsStream = new Rx.Subject<logs.InstalledConfigDepsLog>()
+  const installingConfigDepsStream = new Rx.Subject<logs.InstallingConfigDepsLog>()
   const ignoredScriptsPushStream = new Rx.Subject<logs.IgnoredScriptsLog>()
   const registryPushStream = new Rx.Subject<logs.RegistryLog>()
   const rootPushStream = new Rx.Subject<logs.RootLog>()
@@ -189,8 +189,8 @@ export function toOutput$ (
       case 'pnpm:install-check':
         installCheckPushStream.next(log)
         break
-      case 'pnpm:installed-config-deps':
-        installedConfigDepsStream.next(log)
+      case 'pnpm:installing-config-deps':
+        installingConfigDepsStream.next(log)
         break
       case 'pnpm:ignored-scripts':
         ignoredScriptsPushStream.next(log)
@@ -246,7 +246,7 @@ export function toOutput$ (
     executionTime: Rx.from(executionTimePushStream),
     hook: Rx.from(hookPushStream),
     installCheck: Rx.from(installCheckPushStream),
-    installedConfigDeps: Rx.from(installedConfigDepsStream),
+    installingConfigDeps: Rx.from(installingConfigDepsStream),
     ignoredScripts: Rx.from(ignoredScriptsPushStream),
     lifecycle: Rx.from(lifecyclePushStream),
     link: Rx.from(linkPushStream),
