@@ -1585,18 +1585,3 @@ test('setting a custom peersSuffixMaxLength', async () => {
   expect(lockfile.settings.peersSuffixMaxLength).toBe(10)
   expect(lockfile.importers['.']?.dependencies?.['@pnpm.e2e/abc']?.version?.length).toBe(39)
 })
-
-test('correct lockfile created for jsr package', async () => {
-  const project = prepareEmpty()
-
-  await addDependenciesToPackage({}, ['jsr:@pnpm-e2e/foo@0.1.0'], testDefaults())
-
-  const lockfile = project.readLockfile()
-  expect(lockfile.packages).toStrictEqual({
-    '@jsr/pnpm-e2e__foo@0.1.0': {
-      resolution: {
-        integrity: 'sha512-RNRaHk4tCgB0UkRXRS3gK+/6xBSZiFFjhVl2US1y2/jppJZv3sjp2BPznoieqZCF429Xb42PzHn//Ga05uyX2g==',
-      },
-    },
-  })
-})

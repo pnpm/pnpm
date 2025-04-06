@@ -64,9 +64,6 @@
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../registry/tarball-url"
-    },
-    {
       "path": "../../resolving/npm-resolver"
     },
     {
