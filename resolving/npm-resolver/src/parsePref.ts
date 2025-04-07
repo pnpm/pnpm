@@ -66,7 +66,9 @@ export function parseJsrPref (
   alias: string | undefined,
   defaultTag: string,
   registry: string
-): RegistryPackageSpec {
+): RegistryPackageSpec | null {
+  if (!pref.startsWith('jsr:')) return null
+  pref = pref.slice('jsr:'.length)
   let spec = parsePref(pref, alias, defaultTag, registry)
   if (!spec) {
     const [name, tag] = parseNameAndTag(pref, defaultTag)

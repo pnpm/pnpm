@@ -264,11 +264,11 @@ async function tryResolveFromJsr (
   opts: Omit<ResolveFromNpmOptions, 'registry'>,
   defaultTag: string
 ): Promise<ResolveResult | null> {
-  if (!wantedDependency.pref?.startsWith('jsr:')) return null
+  if (!wantedDependency.pref) return null
 
   const registry = ctx.registries['@jsr']! // '@jsr' is always defined
-  const pref = wantedDependency.pref.slice('jsr:'.length)
-  const spec = parseJsrPref(pref, wantedDependency.alias, defaultTag, registry)
+  const spec = parseJsrPref(wantedDependency.pref, wantedDependency.alias, defaultTag, registry)
+  if (spec == null) return null
 
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
   const { meta, pickedPackage } = await ctx.pickPackage(spec, {
