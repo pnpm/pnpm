@@ -30,13 +30,13 @@ export function fetchWithAgent (url: RequestInfo, opts: FetchWithAgentOptions): 
 
 export type { AgentOptions }
 
-export function createFetchFromRegistry (
-  defaultOpts: {
-    fullMetadata?: boolean
-    userAgent?: string
-    sslConfigs?: Record<string, SslConfig>
-  } & AgentOptions
-): FetchFromRegistry {
+export interface CreateFetchFromRegistryOptions extends AgentOptions {
+  fullMetadata?: boolean
+  userAgent?: string
+  sslConfigs?: Record<string, SslConfig>
+}
+
+export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOptions): FetchFromRegistry {
   return async (url, opts): Promise<Response> => {
     const headers = {
       'user-agent': USER_AGENT,

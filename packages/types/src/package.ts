@@ -133,8 +133,10 @@ export interface PeerDependencyRules {
 
 export type AllowedDeprecatedVersions = Record<string, string>
 
+export type ConfigDependencies = Record<string, string>
+
 export interface PnpmSettings {
-  configDependencies?: Record<string, string>
+  configDependencies?: ConfigDependencies
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   onlyBuiltDependenciesFile?: string
