@@ -9,26 +9,23 @@ export interface RegistryPackageSpec {
   normalizedPref?: string
 }
 
-export function parsePref (
-  pref: string,
-  alias: string | undefined,
-  defaultTag: string,
+function parseNameAndTag (pref: string, defaultTag: string): [string, string] {
+  const index = pref.lastIndexOf('@')
+  if (index < 1) {
+    return [pref, defaultTag]
+  }
+  const name = pref.slice(0, index)
+  const tag = pref.slice(index + '@'.length)
+  return [name, tag]
+}
+
+function parsePrefFromNameAndTag (
+  name: string | undefined,
+  tag: string,
   registry: string
 ): RegistryPackageSpec | null {
-  let name = alias
-  if (pref.startsWith('npm:')) {
-    pref = pref.slice(4)
-    const index = pref.lastIndexOf('@')
-    if (index < 1) {
-      name = pref
-      pref = defaultTag
-    } else {
-      name = pref.slice(0, index)
-      pref = pref.slice(index + 1)
-    }
-  }
   if (name) {
-    const selector = getVersionSelectorType(pref)
+    const selector = getVersionSelectorType(tag)
     if (selector != null) {
       return {
         fetchSpec: selector.normalized,
@@ -37,18 +34,31 @@ export function parsePref (
       }
     }
   }
-  if (pref.startsWith(registry)) {
-    const pkg = parseNpmTarballUrl(pref)
+  if (tag.startsWith(registry)) {
+    const pkg = parseNpmTarballUrl(tag)
     if (pkg != null) {
       return {
         fetchSpec: pkg.version,
         name: pkg.name,
-        normalizedPref: pref,
+        normalizedPref: tag,
         type: 'version',
       }
     }
   }
   return null
+}
+
+export function parsePref (
+  pref: string,
+  alias: string | undefined,
+  defaultTag: string,
+  registry: string
+): RegistryPackageSpec | null {
+  let name = alias
+  if (pref.startsWith('npm:')) {
+    [name, pref] = parseNameAndTag(pref.slice('npm:'.length), defaultTag)
+  }
+  return parsePrefFromNameAndTag(name, pref, registry)
 }
 
 export function parseJsrPref (
@@ -59,7 +69,8 @@ export function parseJsrPref (
 ): RegistryPackageSpec {
   let spec = parsePref(pref, alias, defaultTag, registry)
   if (!spec) {
-    spec = parsePref(`npm:${pref}`, alias, defaultTag, registry)
+    const [name, tag] = parseNameAndTag(pref, defaultTag)
+    spec = parsePrefFromNameAndTag(name, tag, registry)
   }
   if (!spec) {
     throw new PnpmError('INVALID_JSR_SPECIFICATION', `Cannot parse '${pref}' as an npm specification`)
