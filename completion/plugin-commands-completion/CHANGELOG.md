@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-completion
 
+## 1000.0.20
+
+### Patch Changes
+
+- Updated dependencies [1413c25]
+  - @pnpm/cli-utils@1000.1.0
+  - @pnpm/workspace.find-packages@1000.0.20
+  - @pnpm/workspace.read-manifest@1000.1.3
+
 ## 1000.0.19
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm-private/updater
 
+## 3.0.10
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/workspace.read-manifest@1000.1.3
+
 ## 3.0.9
 
 ### Patch Changes

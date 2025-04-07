@@ -1,5 +1,34 @@
 # @pnpm/pnpmfile
 
+## 1001.1.0
+
+### Minor Changes
+
+- 1413c25: **Experimental.** A new hook is supported for updating configuration settings. The hook can be provided via `.pnpmfile.cjs`. For example:
+
+  ```js
+  module.exports = {
+    hooks: {
+      updateConfig: (config) => ({
+        ...config,
+        nodeLinker: "hoisted",
+      }),
+    },
+  };
+  ```
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/hooks.types@1001.0.6
+  - @pnpm/lockfile.types@1001.0.6
+  - @pnpm/crypto.hash@1000.1.1
+
 ## 1001.0.9
 
 ### Patch Changes

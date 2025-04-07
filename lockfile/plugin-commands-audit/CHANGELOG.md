@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.0.2
+
+### Patch Changes
+
+- 01f2bcf: `pnpm audit --fix` should update the overrides in `pnpm-workspace.yaml`.
+- Updated dependencies [750ae7d]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/cli-utils@1000.1.0
+  - @pnpm/config.config-writer@1000.0.1
+  - @pnpm/audit@1002.0.1
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/read-project-manifest@1000.0.9
+
 ## 1002.0.1
 
 ### Patch Changes

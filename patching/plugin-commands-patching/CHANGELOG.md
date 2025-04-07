@@ -1,5 +1,36 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.2.0
+
+### Minor Changes
+
+- 31b19ae: The pnpm `patch-remove` command failed to remove the corresponding patch file.
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [750ae7d]
+- Updated dependencies [8033854]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-connection-manager@1001.0.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/plugin-commands-installation@1003.0.0
+  - @pnpm/cli-utils@1000.1.0
+  - @pnpm/config.config-writer@1000.0.1
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/modules-yaml@1000.3.1
+  - @pnpm/read-package-json@1000.0.7
+  - @pnpm/read-project-manifest@1000.0.9
+  - @pnpm/workspace.read-manifest@1000.1.3
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/patching.apply-patch@1000.0.3
+
 ## 1000.1.7
 
 ### Patch Changes

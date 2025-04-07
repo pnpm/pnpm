@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 1000.4.0
+
+### Minor Changes
+
+- 750ae7d: Export `ConfigDependencies` type.
+
 ## 1000.3.0
 
 ### Minor Changes

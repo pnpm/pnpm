@@ -1,5 +1,14 @@
 # @pnpm/manifest-utils
 
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/core-loggers@1000.2.0
+
 ## 1000.0.7
 
 ### Patch Changes

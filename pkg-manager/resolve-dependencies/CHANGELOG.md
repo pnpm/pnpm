@@ -1,5 +1,28 @@
 # @pnpm/resolve-dependencies
 
+## 1005.0.1
+
+### Patch Changes
+
+- 72cff38: The resolving function now takes a `registries` object, so it finds the required registry itself instead of receiving it from package requester.
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/npm-resolver@1002.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/lockfile.preferred-versions@1000.0.10
+  - @pnpm/lockfile.pruner@1001.0.7
+  - @pnpm/lockfile.types@1001.0.6
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/manifest-utils@1000.0.8
+  - @pnpm/read-package-json@1000.0.7
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/patching.config@1001.0.1
+
 ## 1005.0.0
 
 ### Major Changes

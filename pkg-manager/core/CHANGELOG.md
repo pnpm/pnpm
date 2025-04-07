@@ -1,5 +1,53 @@
 # @pnpm/core
 
+## 1007.0.0
+
+### Major Changes
+
+- 72cff38: The resolving function now takes a `registries` object, so it finds the required registry itself instead of receiving it from package requester.
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/resolve-dependencies@1005.0.1
+  - @pnpm/package-requester@1003.0.0
+  - @pnpm/headless@1004.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/normalize-registries@1000.0.6
+  - @pnpm/build-modules@1000.3.1
+  - @pnpm/lifecycle@1001.0.10
+  - @pnpm/symlink-dependency@1000.0.7
+  - @pnpm/hooks.read-package-hook@1000.0.8
+  - @pnpm/hooks.types@1001.0.6
+  - @pnpm/lockfile.filtering@1001.0.9
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/lockfile-to-pnp@1001.0.10
+  - @pnpm/lockfile.preferred-versions@1000.0.10
+  - @pnpm/lockfile.pruner@1001.0.7
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/lockfile.verification@1001.1.4
+  - @pnpm/lockfile.walker@1001.0.7
+  - @pnpm/calc-dep-state@1001.0.10
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/get-context@1001.0.11
+  - @pnpm/hoist@1001.0.11
+  - @pnpm/link-bins@1000.0.10
+  - @pnpm/modules-cleaner@1001.0.10
+  - @pnpm/modules-yaml@1000.3.1
+  - @pnpm/remove-bins@1000.0.8
+  - @pnpm/manifest-utils@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.9
+  - @pnpm/worker@1000.1.3
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.7
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/lockfile.settings-checker@1001.0.7
+  - @pnpm/patching.config@1001.0.1
+
 ## 1006.0.0
 
 ### Major Changes
