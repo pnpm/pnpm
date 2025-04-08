@@ -1041,3 +1041,19 @@ test('settings from pnpm-workspace.yaml are read', async () => {
   expect(config.onlyBuiltDependencies).toStrictEqual(['foo'])
   expect(config.rawConfig['only-built-dependencies']).toStrictEqual(['foo'])
 })
+
+test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect', async () => {
+  const workspaceDir = f.find('settings-in-workspace-yaml')
+  process.chdir(workspaceDir)
+  const { config } = await getConfig({
+    cliOptions: {},
+    workspaceDir,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.sharedWorkspaceLockfile).toBe(false)
+  expect(config.lockfileDir).toBe(undefined)
+})
