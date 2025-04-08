@@ -89,8 +89,7 @@ test('jsr without alias', async () => {
   } as Partial<LockfileFile>)
 })
 
-// TODO: fix this
-test.skip('jsr with alias', async () => {
+test('jsr with alias', async () => {
   await addDistTag({ package: '@jsr/pnpm-e2e__bar', version: '2.0.0', distTag: 'latest' })
 
   const project = prepare({

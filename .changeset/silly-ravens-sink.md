@@ -4,6 +4,7 @@
 "@pnpm/npm-resolver": minor
 "@pnpm/parse-wanted-dependency": minor
 "@pnpm/resolve-dependencies": minor
+"@pnpm/which-version-is-pinned": minor
 "pnpm": minor
 ---
 
