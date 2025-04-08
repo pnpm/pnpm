@@ -23,8 +23,7 @@ const createOptions = (jsr: string = DEFAULT_OPTS.registry) => ({
   storeDir: path.resolve('store'),
 })
 
-// TODO: fix this
-test.skip('jsr without alias', async () => {
+test('jsr without alias', async () => {
   await addDistTag({ package: '@jsr/pnpm-e2e__bar', version: '2.0.0', distTag: 'latest' })
 
   const project = prepare({
