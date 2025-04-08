@@ -52,7 +52,6 @@ test('pnpm add jsr:@<scope>/<name>', async () => {
       '@jsr/pnpm-e2e__foo@0.1.0': {
         resolution: {
           integrity: expect.any(String),
-          tarball: expect.any(String),
         },
       },
     },
@@ -92,7 +91,6 @@ test('pnpm add jsr:@<scope>/<name>@latest', async () => {
       '@jsr/pnpm-e2e__foo@0.1.0': {
         resolution: {
           integrity: expect.any(String),
-          tarball: expect.any(String),
         },
       },
     },
@@ -132,7 +130,6 @@ test('pnpm add jsr:@<scope>/<name>@<pref>', async () => {
       '@jsr/pnpm-e2e__foo@0.1.0': {
         resolution: {
           integrity: expect.any(String),
-          tarball: expect.any(String),
         },
       },
     },
@@ -172,7 +169,6 @@ test('pnpm add <alias>@jsr:@<scope>/<name>', async () => {
       '@jsr/pnpm-e2e__foo@0.1.0': {
         resolution: {
           integrity: expect.any(String),
-          tarball: expect.any(String),
         },
       },
     },
@@ -212,7 +208,6 @@ test('pnpm add <alias>@jsr:@<scope>/<name>@<pref>', async () => {
       '@jsr/pnpm-e2e__foo@0.1.0': {
         resolution: {
           integrity: expect.any(String),
-          tarball: expect.any(String),
         },
       },
     },
