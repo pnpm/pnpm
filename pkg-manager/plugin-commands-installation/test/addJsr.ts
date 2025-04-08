@@ -153,7 +153,7 @@ test('pnpm add <alias>@jsr:@<scope>/<name>', async () => {
 
   expect(loadJsonFile('package.json')).toMatchObject({
     dependencies: {
-      'foo-from-jsr': 'npm:@jsr/pnpm-e2e__foo@^0.1.0',
+      'foo-from-jsr': 'jsr:@pnpm-e2e/foo@^0.1.0',
     },
   } as ProjectManifest)
 
@@ -162,7 +162,7 @@ test('pnpm add <alias>@jsr:@<scope>/<name>', async () => {
       '.': {
         dependencies: {
           'foo-from-jsr': {
-            specifier: 'npm:@jsr/pnpm-e2e__foo@^0.1.0',
+            specifier: 'jsr:@pnpm-e2e/foo@^0.1.0',
             version: '@jsr/pnpm-e2e__foo@0.1.0',
           },
         },
@@ -182,8 +182,7 @@ test('pnpm add <alias>@jsr:@<scope>/<name>', async () => {
   } as Partial<LockfileFile>)
 })
 
-// TODO: make this works
-test.skip('pnpm add <alias>@jsr:@<scope>/<name>@<pref>', async () => {
+test('pnpm add <alias>@jsr:@<scope>/<name>@<pref>', async () => {
   const project = prepare({
     name: 'test-add-jsr',
     version: '0.0.0',
@@ -194,7 +193,7 @@ test.skip('pnpm add <alias>@jsr:@<scope>/<name>@<pref>', async () => {
 
   expect(loadJsonFile('package.json')).toMatchObject({
     dependencies: {
-      'foo-from-jsr': 'npm:@jsr/pnpm-e2e__foo@0.1',
+      'foo-from-jsr': 'jsr:@pnpm-e2e/foo@0.1',
     },
   } as ProjectManifest)
 
@@ -203,7 +202,7 @@ test.skip('pnpm add <alias>@jsr:@<scope>/<name>@<pref>', async () => {
       '.': {
         dependencies: {
           'foo-from-jsr': {
-            specifier: 'npm:@jsr/pnpm-e2e__foo@0.1',
+            specifier: 'jsr:@pnpm-e2e/foo@0.1',
             version: '@jsr/pnpm-e2e__foo@0.1.0',
           },
         },

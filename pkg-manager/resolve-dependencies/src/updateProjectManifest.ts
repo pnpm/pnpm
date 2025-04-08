@@ -128,27 +128,20 @@ function resolvedDirectDepToSpecObject (
     ) {
       pref = pref.replace(/^npm:/, '')
       pref = `workspace:${pref}`
-    } else if (specRaw.startsWith('jsr:@')) {
-      const jsrPrefStart = specRaw.indexOf('@', 'jsr:@'.length)
-      const versionSpec = () => createVersionSpec(version, {
+    } else {
+      pref = getJsrPref({
+        alias,
         pinnedVersion: opts.pinnedVersion,
-        rolling: false, // always false because it's definitely not a workspace protocol
-      })
-      const jsrPref = jsrPrefStart === -1
-        ? undefined
-        : specRaw.slice(jsrPrefStart)
-      if (jsrPref == null) {
-        pref = `${specRaw}@${versionSpec()}`
-      } else if (jsrPref === '@latest') {
-        const withoutPref = specRaw.slice(0, -'@latest'.length)
-        pref = `${withoutPref}@${versionSpec()}`
-      } else {
-        pref = specRaw
-      }
-      // if the alias is found in the pref, remove it
-      pref = pref.replace(`jsr:${alias}@`, 'jsr:')
-    } else if (specRaw.startsWith('jsr:')) {
-      pref = specRaw
+        prefix: '',
+        specRaw,
+        version,
+      }) ?? getJsrPref({
+        alias,
+        pinnedVersion: opts.pinnedVersion,
+        prefix: `${alias}@`,
+        specRaw,
+        version,
+      }) ?? pref
     }
   }
   return {
@@ -158,6 +151,70 @@ function resolvedDirectDepToSpecObject (
     pref,
     saveType: importer['targetDependenciesField'],
   }
+}
+
+function getJsrPref ({
+  alias,
+  pinnedVersion,
+  prefix,
+  specRaw,
+  version,
+}: {
+  alias: string
+  pinnedVersion?: PinnedVersion
+  prefix: '' | `${string}@`
+  specRaw: string
+  version: string
+}): string | undefined {
+  const versionSpec = () => createVersionSpec(version, {
+    pinnedVersion,
+    rolling: false, // always false because it's definitely not a workspace protocol
+  })
+
+  // syntax: [<name>@]jsr:@<real_scope>/<real_name>@<tag>
+  if (specRaw.startsWith(`${prefix}jsr:@`)) {
+    const specWithoutPrefix = specRaw.slice(prefix.length)
+    const index = specWithoutPrefix.indexOf('@', 'jsr:@'.length)
+    const suffix = index === -1
+      ? undefined
+      : specWithoutPrefix.slice(index)
+    let pref: string
+    if (suffix == null) {
+      pref = `${specWithoutPrefix}@${versionSpec()}`
+    } else if (suffix === '@latest') {
+      const withoutTag = specWithoutPrefix.slice(0, -'@latest'.length)
+      pref = `${withoutTag}@${versionSpec()}`
+    } else {
+      pref = specWithoutPrefix
+    }
+    pref = pref.replace(`jsr:${alias}@`, 'jsr:') // if the alias is found in the pref, remove it
+    return pref
+  }
+
+  // syntax: [<name>@]jsr:<tag>
+  if (specRaw.startsWith(`${prefix}jsr:`)) {
+    if (prefix === '') {
+      return specRaw === 'jsr:latest'
+        ? `jsr:${versionSpec()}`
+        : specRaw
+    }
+
+    // if the prefix is the alias, simplify it
+    if (prefix === `${alias}@`) {
+      return specRaw.slice(prefix.length)
+    }
+
+    // specRaw is now <name>@jsr:<tag>, it must be converted to jsr:<name>@<tag>, assuming <name> is a valid scoped package name
+    const index = specRaw.indexOf('@jsr:')
+    const name = specRaw.slice(0, index)
+    let tag = specRaw.slice(index + '@jsr:'.length)
+    if (tag === 'latest') {
+      tag = versionSpec()
+    }
+    return `jsr:${name}@${tag}`
+  }
+
+  return undefined
 }
 
 function getPrefPreferSpecifiedSpec (
