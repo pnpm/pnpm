@@ -218,3 +218,37 @@ test('catalog deps are replaced', async () => {
     },
   })
 })
+
+test('jsr deps are replaced', async () => {
+  const jsrProtocolPackageManifest = {
+    name: 'jsr-protocol-manifest',
+    version: '0.0.0',
+    dependencies: {
+      '@foo/bar': 'jsr:^1.0.0',
+    },
+    optionalDependencies: {
+      baz: 'jsr:@foo/baz@3.0',
+    },
+    peerDependencies: {
+      qux: 'jsr:@foo/qux',
+    },
+  } satisfies ProjectManifest
+
+  preparePackages([jsrProtocolPackageManifest])
+
+  process.chdir(jsrProtocolPackageManifest.name)
+
+  expect(await createExportableManifest(process.cwd(), jsrProtocolPackageManifest, { catalogs: {} })).toStrictEqual({
+    name: 'jsr-protocol-manifest',
+    version: '0.0.0',
+    dependencies: {
+      '@foo/bar': 'npm:@jsr/foo__bar@^1.0.0',
+    },
+    optionalDependencies: {
+      baz: 'npm:@jsr/foo__baz@3.0',
+    },
+    peerDependencies: {
+      qux: 'npm:@jsr/foo__qux',
+    },
+  } as Partial<typeof jsrProtocolPackageManifest>)
+})
