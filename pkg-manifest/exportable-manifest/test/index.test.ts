@@ -165,7 +165,7 @@ test('workspace deps are replaced', async () => {
   })
 })
 
-test('catalog deps are replace', async () => {
+test('catalog deps are replaced', async () => {
   const catalogProtocolPackageManifest: ProjectManifest = {
     name: 'catalog-protocol-package',
     version: '1.0.0',
