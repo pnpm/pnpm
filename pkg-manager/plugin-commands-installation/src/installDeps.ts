@@ -25,7 +25,7 @@ import { sequenceGraph } from '@pnpm/sort-packages'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import isSubdir from 'is-subdir'
-import { createJsrParamWithoutTag } from './createJsrParam'
+import { createJsrParamWithoutSpec } from './createJsrParam'
 import { IgnoredBuildsError } from './errors'
 import { getPinnedVersion } from './getPinnedVersion'
 import { getSaveType } from './getSaveType'
@@ -295,7 +295,7 @@ when running add/update with the --workspace option')
     const filteredDeps = filterDependenciesByType(manifest, includeDirect)
     params = Object
       .keys(filteredDeps)
-      .map(createJsrParamWithoutTag.bind(null, filteredDeps))
+      .map(createJsrParamWithoutSpec.bind(null, filteredDeps))
   }
   if (opts.workspace) {
     if (!params || (params.length === 0)) {

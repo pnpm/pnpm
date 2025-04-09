@@ -1,5 +1,5 @@
 import { type Dependencies } from '@pnpm/types'
-import { createJsrParamWithoutTag } from '../src/createJsrParam'
+import { createJsrParamWithoutSpec } from '../src/createJsrParam'
 
 const DEPENDENCIES = {
   '@foo/foo': 'jsr:^1.0.0',
@@ -8,19 +8,19 @@ const DEPENDENCIES = {
   '@bar/foo': '^3.0.0',
 } satisfies Dependencies
 
-const _createJsrParamWithoutTag: (alias: keyof typeof DEPENDENCIES) => string = createJsrParamWithoutTag.bind(null, DEPENDENCIES)
+const _createJsrParamWithoutSpec: (alias: keyof typeof DEPENDENCIES) => string = createJsrParamWithoutSpec.bind(null, DEPENDENCIES)
 
-describe('createJsrParamWithoutTag', () => {
-  test('on jsr without alias (jsr:<tag> → jsr:<alias>)', () => {
-    expect(_createJsrParamWithoutTag('@foo/foo')).toBe('jsr:@foo/foo')
+describe('createJsrParamWithoutSpec', () => {
+  test('on jsr without alias (jsr:<spec> → jsr:<alias>)', () => {
+    expect(_createJsrParamWithoutSpec('@foo/foo')).toBe('jsr:@foo/foo')
   })
 
-  test('on jsr with alias (jsr:@<scope>/<name>[@<tag>] → <alias>@jsr:@<scope>/<name>)', () => {
-    expect(_createJsrParamWithoutTag('jsr-bar')).toBe('jsr-bar@jsr:@foo/bar')
-    expect(_createJsrParamWithoutTag('jsr-baz')).toBe('jsr-baz@jsr:@foo/baz')
+  test('on jsr with alias (jsr:@<scope>/<name>[@<spec>] → <alias>@jsr:@<scope>/<name>)', () => {
+    expect(_createJsrParamWithoutSpec('jsr-bar')).toBe('jsr-bar@jsr:@foo/bar')
+    expect(_createJsrParamWithoutSpec('jsr-baz')).toBe('jsr-baz@jsr:@foo/baz')
   })
 
   test('on non-jsr', () => {
-    expect(_createJsrParamWithoutTag('@bar/foo')).toBe('@bar/foo')
+    expect(_createJsrParamWithoutSpec('@bar/foo')).toBe('@bar/foo')
   })
 })

@@ -186,7 +186,7 @@ async function replaceJsrProtocol (depName: string, depSpec: string): Promise<st
 
   depSpec = depSpec.slice('jsr:'.length)
 
-  // syntax: jsr:<tag>
+  // syntax: jsr:<spec>
   if (!depSpec.startsWith('@')) {
     const [scope, name] = depName.slice('@'.length).split('/')
     return `npm:@jsr/${scope}__${name}@${depSpec}`
@@ -195,11 +195,11 @@ async function replaceJsrProtocol (depName: string, depSpec: string): Promise<st
   depSpec = depSpec.slice('@'.length) // remove the leading '@' from the scope name
   const index = depSpec.lastIndexOf('@')
 
-  // syntax: jsr:@<scope>/<name>@<tag>
+  // syntax: jsr:@<scope>/<name>@<spec>
   if (index > 1) {
     const [scope, name] = depSpec.slice(0, index).split('/')
-    const tag = depSpec.slice(index + '@'.length)
-    return `npm:@jsr/${scope}__${name}@${tag}`
+    const subSpec = depSpec.slice(index + '@'.length)
+    return `npm:@jsr/${scope}__${name}@${subSpec}`
   }
 
   // syntax: jsr:@<scope>/<name>

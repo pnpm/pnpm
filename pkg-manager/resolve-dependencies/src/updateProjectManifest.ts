@@ -171,7 +171,7 @@ function getJsrPref ({
     rolling: false, // always false because it's definitely not a workspace protocol
   })
 
-  // syntax: [<name>@]jsr:@<real_scope>/<real_name>@<tag>
+  // syntax: [<name>@]jsr:@<real_scope>/<real_name>@<spec>
   if (specRaw.startsWith(`${prefix}jsr:@`)) {
     const specWithoutPrefix = specRaw.slice(prefix.length)
     const index = specWithoutPrefix.indexOf('@', 'jsr:@'.length)
@@ -191,7 +191,7 @@ function getJsrPref ({
     return pref
   }
 
-  // syntax: [<name>@]jsr:<tag>
+  // syntax: [<name>@]jsr:<spec>
   if (specRaw.startsWith(`${prefix}jsr:`)) {
     if (prefix === '') {
       return specRaw === 'jsr:latest'
@@ -204,14 +204,14 @@ function getJsrPref ({
       return specRaw.slice(prefix.length)
     }
 
-    // specRaw is now <name>@jsr:<tag>, it must be converted to jsr:<name>@<tag>, assuming <name> is a valid scoped package name
+    // specRaw is now <name>@jsr:<spec>, it must be converted to jsr:<name>@<spec>, assuming <name> is a valid scoped package name
     const index = specRaw.indexOf('@jsr:')
     const name = specRaw.slice(0, index)
-    let tag = specRaw.slice(index + '@jsr:'.length)
-    if (tag === 'latest') {
-      tag = versionSpec()
+    let subSpec = specRaw.slice(index + '@jsr:'.length)
+    if (subSpec === 'latest') {
+      subSpec = versionSpec()
     }
-    return `jsr:${name}@${tag}`
+    return `jsr:${name}@${subSpec}`
   }
 
   return undefined
