@@ -1,3 +1,4 @@
+import * as jsr from '@pnpm/jsr-specs'
 import {
   createVersionSpec,
   getPrefix,
@@ -166,55 +167,38 @@ function getJsrPref ({
   specRaw: string
   version: string
 }): string | undefined {
-  const versionSpec = () => createVersionSpec(version, {
-    pinnedVersion,
-    rolling: false, // always false because it's definitely not a workspace protocol
-  })
+  if (!specRaw.startsWith(prefix)) return undefined
+  const specWithoutPrefix = specRaw.slice(prefix.length)
 
-  // syntax: [<name>@]jsr:@<real_scope>/<real_name>@<spec>
-  if (specRaw.startsWith(`${prefix}jsr:@`)) {
-    const specWithoutPrefix = specRaw.slice(prefix.length)
-    const index = specWithoutPrefix.indexOf('@', 'jsr:@'.length)
-    const suffix = index === -1
-      ? undefined
-      : specWithoutPrefix.slice(index)
-    let pref: string
-    if (suffix == null) {
-      pref = `${specWithoutPrefix}@${versionSpec()}`
-    } else if (suffix === '@latest') {
-      const withoutTag = specWithoutPrefix.slice(0, -'@latest'.length)
-      pref = `${withoutTag}@${versionSpec()}`
-    } else {
-      pref = specWithoutPrefix
-    }
-    pref = pref.replace(`jsr:${alias}@`, 'jsr:') // if the alias is found in the pref, remove it
-    return pref
+  const spec = jsr.parseJsrSpec(specWithoutPrefix)
+  if (spec == null) return undefined
+
+  if (spec.spec == null || spec.spec === 'latest') {
+    spec.spec = createVersionSpec(version, {
+      pinnedVersion,
+      rolling: false, // always false because it's definitely not a workspace protocol
+    })
   }
 
-  // syntax: [<name>@]jsr:<spec>
-  if (specRaw.startsWith(`${prefix}jsr:`)) {
-    if (prefix === '') {
-      return specRaw === 'jsr:latest'
-        ? `jsr:${versionSpec()}`
-        : specRaw
-    }
-
-    // if the prefix is the alias, simplify it
-    if (prefix === `${alias}@`) {
-      return specRaw.slice(prefix.length)
-    }
-
-    // specRaw is now <name>@jsr:<spec>, it must be converted to jsr:<name>@<spec>, assuming <name> is a valid scoped package name
-    const index = specRaw.indexOf('@jsr:')
-    const name = specRaw.slice(0, index)
-    let subSpec = specRaw.slice(index + '@jsr:'.length)
-    if (subSpec === 'latest') {
-      subSpec = versionSpec()
-    }
-    return `jsr:${name}@${subSpec}`
+  // syntax: [<name>@]jsr:@<real_scope>/<real_name>[@<spec>]
+  if (spec.scope != null) {
+    const jsrPackageName = jsr.createJsrPackageName(spec)
+    return jsr.createJsrPref(
+      jsrPackageName === alias
+        ? { spec: spec.spec } // omit the alias from the pref
+        : spec
+    )
   }
 
-  return undefined
+  // syntax: jsr:<spec>
+  if (prefix === '') {
+    return jsr.createJsrPref(spec)
+  }
+
+  // syntax: <name>@jsr:<spec>
+  const parsed: jsr.JsrSpecWithAlias = jsr.parseJsrPackageName(prefix.slice(0, -'@'.length))
+  parsed.spec = spec.spec
+  return jsr.createJsrPref(parsed)
 }
 
 function getPrefPreferSpecifiedSpec (

@@ -4015,6 +4015,16 @@ importers:
         specifier: 'catalog:'
         version: 1.0.1
 
+  packages/jsr-specs:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../error
+    devDependencies:
+      '@pnpm/jsr-specs':
+        specifier: workspace:*
+        version: 'link:'
+
   packages/logger:
     dependencies:
       bole:
@@ -5717,6 +5727,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/jsr-specs':
+        specifier: workspace:*
+        version: link:../../packages/jsr-specs
       '@pnpm/lockfile.preferred-versions':
         specifier: workspace:*
         version: link:../../lockfile/preferred-versions
@@ -5838,6 +5851,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/jsr-specs':
+        specifier: workspace:*
+        version: link:../../packages/jsr-specs
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../read-project-manifest

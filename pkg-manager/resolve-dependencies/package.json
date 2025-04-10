@@ -37,6 +37,7 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/jsr-specs": "workspace:*",
     "@pnpm/lockfile.preferred-versions": "workspace:*",
     "@pnpm/lockfile.pruner": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",

@@ -2,6 +2,7 @@ import path from 'path'
 import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
+import * as jsr from '@pnpm/jsr-specs'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import omit from 'ramda/src/omit'
@@ -180,29 +181,16 @@ async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec:
 }
 
 async function replaceJsrProtocol (depName: string, depSpec: string): Promise<string> {
-  if (!depSpec.startsWith('jsr:')) {
+  const spec = jsr.parseJsrSpec(depSpec)
+  if (spec == null) {
     return depSpec
   }
 
-  depSpec = depSpec.slice('jsr:'.length)
-
-  // syntax: jsr:<spec>
-  if (!depSpec.startsWith('@')) {
-    const [scope, name] = depName.slice('@'.length).split('/')
-    return `npm:@jsr/${scope}__${name}@${depSpec}`
+  if (spec.scope != null) {
+    return jsr.createNpmPref(spec)
   }
 
-  depSpec = depSpec.slice('@'.length) // remove the leading '@' from the scope name
-  const index = depSpec.lastIndexOf('@')
-
-  // syntax: jsr:@<scope>/<name>@<spec>
-  if (index > 1) {
-    const [scope, name] = depSpec.slice(0, index).split('/')
-    const subSpec = depSpec.slice(index + '@'.length)
-    return `npm:@jsr/${scope}__${name}@${subSpec}`
-  }
-
-  // syntax: jsr:@<scope>/<name>
-  const [scope, name] = depSpec.split('/')
-  return `npm:@jsr/${scope}__${name}`
+  const parsed: jsr.JsrSpecWithAlias = jsr.parseJsrPackageName(depName)
+  parsed.spec = spec.spec
+  return jsr.createNpmPref(parsed)
 }
