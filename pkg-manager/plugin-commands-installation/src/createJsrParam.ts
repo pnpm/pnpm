@@ -1,3 +1,4 @@
+import { createJsrPref, parseJsrSpec } from '@pnpm/jsr-specs'
 import { type Dependencies } from '@pnpm/types'
 
 /**
@@ -11,24 +12,17 @@ import { type Dependencies } from '@pnpm/types'
 */
 export function createJsrParamWithoutSpec (dependencies: Dependencies, alias: string): string {
   const pref: string | undefined = dependencies[alias]
-  if (!pref?.startsWith('jsr:')) return alias
+  if (pref == null) return alias
 
-  const prefWithoutJsr = pref.slice('jsr:'.length)
-
-  // convert: jsr:@<scope>/<name>[@<spec>] → <alias>@jsr:@<scope>/<name>
-  if (prefWithoutJsr.startsWith('@')) {
-    const index = prefWithoutJsr.lastIndexOf('@')
-
-    // convert: jsr:@<scope>/<name> → <alias>@jsr:@<scope>/<name>
-    if (index < 1) {
-      return `${alias}@jsr:${prefWithoutJsr}`
-    }
-
-    // convert: jsr:@<scope>/<name>@<spec> → <alias>@jsr:@<scope>/<name>
-    const scopeAndName = prefWithoutJsr.slice(0, index)
-    return `${alias}@jsr:${scopeAndName}`
-  }
+  const spec = parseJsrSpec(pref)
+  if (spec == null) return alias
 
   // convert: jsr:<spec> → jsr:<alias>
-  return `jsr:${alias}`
+  if (spec.scope == null) {
+    return `jsr:${alias}`
+  }
+
+  // convert: jsr:@<scope>/<name>[@<spec>] → <alias>@jsr:@<scope>/<name>
+  delete spec.spec
+  return `${alias}@${createJsrPref(spec)}`
 }

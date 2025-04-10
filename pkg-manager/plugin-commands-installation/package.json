@@ -46,6 +46,7 @@
     "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/get-context": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/jsr-specs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/matcher": "workspace:*",
