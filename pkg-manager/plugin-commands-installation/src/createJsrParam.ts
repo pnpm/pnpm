@@ -9,7 +9,7 @@ import { type Dependencies } from '@pnpm/types'
  *
  * This function checks if the {@link alias} is a `jsr:` dependency and returns a bare `jsr:` pref
  * if it is. Otherwise, it returns {@link alias} as-is.
-*/
+ */
 export function createJsrParamWithoutSpec (dependencies: Dependencies, alias: string): string {
   const pref: string | undefined = dependencies[alias]
   if (pref == null) return alias
