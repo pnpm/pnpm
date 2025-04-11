@@ -54,7 +54,7 @@ export function help (): string {
             shortAlias: '-g',
           },
           {
-            description: 'When set to "project", the .npmrc file at the nearest package.json will be used',
+            description: 'When set to "project", the .npmrc file at the nearest package.json will be used. If no `.npmrc` file is present in the directory, the setting will be written to a `pnpm-workspace.yaml` file.',
             name: '--location <project|global>',
           },
           {
