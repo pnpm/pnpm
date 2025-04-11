@@ -74,7 +74,7 @@ export function parseJsrPref (
 
   if (name == null) return null
 
-  const selector = getVersionSelectorType(spec.spec ?? defaultTag)
+  const selector = getVersionSelectorType(spec.pref ?? defaultTag)
   if (selector == null) return null
 
   return {

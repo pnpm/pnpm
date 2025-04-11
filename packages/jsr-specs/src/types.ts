@@ -1,21 +1,21 @@
 export interface JsrSpecBase {
   scope?: string
   name?: string
-  spec?: string
+  pref?: string
 }
 
 /** Syntax: `jsr:<spec>` */
 export interface JsrSpecWithoutAlias extends JsrSpecBase {
   scope?: undefined
   name?: undefined
-  spec: string
+  pref: string
 }
 
 /** Syntax: `jsr:@<scope>/<name>[@<spec>] */
 export interface JsrSpecWithAlias extends JsrSpecBase {
   scope: string
   name: string
-  spec?: string
+  pref?: string
 }
 
 export type JsrSpec = JsrSpecWithoutAlias | JsrSpecWithAlias

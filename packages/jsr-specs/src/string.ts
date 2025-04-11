@@ -2,12 +2,12 @@ import { type JsrSpec, type JsrSpecWithAlias, type ParsedJsrPackageName } from '
 
 export function createJsrPref (parsed: JsrSpec): string {
   if (parsed.scope == null) {
-    return `jsr:${parsed.spec}`
+    return `jsr:${parsed.pref}`
   }
 
   let pref = `jsr:${createJsrPackageName(parsed)}`
-  if (parsed.spec) {
-    pref += `@${parsed.spec}`
+  if (parsed.pref) {
+    pref += `@${parsed.pref}`
   }
   return pref
 }
@@ -18,8 +18,8 @@ export function createJsrPackageName ({ scope, name }: ParsedJsrPackageName): st
 
 export function createNpmPref (jsr: JsrSpecWithAlias): string {
   let pref = `npm:${createNpmPackageName(jsr)}`
-  if (jsr.spec) {
-    pref += `@${jsr.spec}`
+  if (jsr.pref) {
+    pref += `@${jsr.pref}`
   }
   return pref
 }

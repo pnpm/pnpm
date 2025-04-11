@@ -23,6 +23,6 @@ export function createJsrParamWithoutSpec (dependencies: Dependencies, alias: st
   }
 
   // convert: jsr:@<scope>/<name>[@<spec>] → <alias>@jsr:@<scope>/<name>
-  delete spec.spec
+  delete spec.pref
   return `${alias}@${createJsrPref(spec)}`
 }

@@ -19,7 +19,7 @@ export function parseJsrPref (pref: string): JsrSpec | null {
 
     // syntax: jsr:@<scope>/<name>@<spec>
     const result: JsrSpecWithAlias = scopeAndName(pref.slice(0, index))
-    result.spec = pref.slice(index + '@'.length)
+    result.pref = pref.slice(index + '@'.length)
     return result
   }
 
@@ -29,7 +29,7 @@ export function parseJsrPref (pref: string): JsrSpec | null {
   }
 
   // syntax: jsr:<spec>
-  return { spec: pref }
+  return { pref: pref }
 }
 
 export function parseJsrPackageName (fullName: string): ParsedJsrPackageName {

@@ -173,8 +173,8 @@ function getJsrPref ({
   const spec = jsr.parseJsrPref(specWithoutPrefix)
   if (spec == null) return undefined
 
-  if (spec.spec == null || spec.spec === 'latest') {
-    spec.spec = createVersionSpec(version, {
+  if (spec.pref == null || spec.pref === 'latest') {
+    spec.pref = createVersionSpec(version, {
       pinnedVersion,
       rolling: false, // always false because it's definitely not a workspace protocol
     })
@@ -185,7 +185,7 @@ function getJsrPref ({
     const jsrPackageName = jsr.createJsrPackageName(spec)
     return jsr.createJsrPref(
       jsrPackageName === alias
-        ? { spec: spec.spec } // omit the alias from the pref
+        ? { pref: spec.pref } // omit the alias from the pref
         : spec
     )
   }
@@ -197,7 +197,7 @@ function getJsrPref ({
 
   // syntax: <name>@jsr:<spec>
   const parsed: jsr.JsrSpecWithAlias = jsr.parseJsrPackageName(prefix.slice(0, -'@'.length))
-  parsed.spec = spec.spec
+  parsed.pref = spec.pref
   return jsr.createJsrPref(parsed)
 }
 

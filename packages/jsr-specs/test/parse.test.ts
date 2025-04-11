@@ -14,9 +14,9 @@ describe('parseJsrPref', () => {
   })
 
   test('succeeds on jsr prefs that only specify versions/ranges/tags (jsr:<spec>)', () => {
-    expect(parseJsrPref('jsr:^1.0.0')).toStrictEqual({ spec: '^1.0.0' } as JsrSpec)
-    expect(parseJsrPref('jsr:1.0.0')).toStrictEqual({ spec: '1.0.0' } as JsrSpec)
-    expect(parseJsrPref('jsr:latest')).toStrictEqual({ spec: 'latest' } as JsrSpec)
+    expect(parseJsrPref('jsr:^1.0.0')).toStrictEqual({ pref: '^1.0.0' } as JsrSpec)
+    expect(parseJsrPref('jsr:1.0.0')).toStrictEqual({ pref: '1.0.0' } as JsrSpec)
+    expect(parseJsrPref('jsr:latest')).toStrictEqual({ pref: 'latest' } as JsrSpec)
   })
 
   test('succeeds on jsr prefs that only specify scope and name (jsr:@<scope>/<name>)', () => {
@@ -24,9 +24,9 @@ describe('parseJsrPref', () => {
   })
 
   test('succeeds on jsr prefs that specify scopes, names, and versions/ranges/tags (jsr:@<scope>/<name>@<spec>)', () => {
-    expect(parseJsrPref('jsr:@foo/bar@^1.0.0')).toStrictEqual({ scope: 'foo', name: 'bar', spec: '^1.0.0' } as JsrSpec)
-    expect(parseJsrPref('jsr:@foo/bar@1.0.0')).toStrictEqual({ scope: 'foo', name: 'bar', spec: '1.0.0' } as JsrSpec)
-    expect(parseJsrPref('jsr:@foo/bar@latest')).toStrictEqual({ scope: 'foo', name: 'bar', spec: 'latest' } as JsrSpec)
+    expect(parseJsrPref('jsr:@foo/bar@^1.0.0')).toStrictEqual({ scope: 'foo', name: 'bar', pref: '^1.0.0' } as JsrSpec)
+    expect(parseJsrPref('jsr:@foo/bar@1.0.0')).toStrictEqual({ scope: 'foo', name: 'bar', pref: '1.0.0' } as JsrSpec)
+    expect(parseJsrPref('jsr:@foo/bar@latest')).toStrictEqual({ scope: 'foo', name: 'bar', pref: 'latest' } as JsrSpec)
   })
 
   test('errors on jsr prefs that contain names without scopes', () => {

@@ -191,6 +191,6 @@ async function replaceJsrProtocol (depName: string, depSpec: string): Promise<st
   }
 
   const parsed: jsr.JsrSpecWithAlias = jsr.parseJsrPackageName(depName)
-  parsed.spec = spec.spec
+  parsed.pref = spec.pref
   return jsr.createNpmPref(parsed)
 }
