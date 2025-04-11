@@ -267,7 +267,7 @@ async function tryResolveFromJsr (
   if (!wantedDependency.pref) return null
 
   const registry = ctx.registries['@jsr']! // '@jsr' is always defined
-  const spec = parseJsrPref(wantedDependency.pref, wantedDependency.alias, defaultTag, registry)
+  const spec = parseJsrPref(wantedDependency.pref, wantedDependency.alias, defaultTag)
   if (spec == null) return null
 
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)

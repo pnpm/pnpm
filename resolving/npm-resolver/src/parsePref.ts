@@ -1,4 +1,4 @@
-import { PnpmError } from '@pnpm/error'
+import * as jsr from '@pnpm/jsr-specs'
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
 import getVersionSelectorType from 'version-selector-type'
 
@@ -9,45 +9,6 @@ export interface RegistryPackageSpec {
   normalizedPref?: string
 }
 
-function parseNameAndTag (pref: string, defaultTag: string): [string, string] {
-  const index = pref.lastIndexOf('@')
-  if (index < 1) {
-    return [pref, defaultTag]
-  }
-  const name = pref.slice(0, index)
-  const tag = pref.slice(index + '@'.length)
-  return [name, tag]
-}
-
-function parsePrefFromNameAndTag (
-  name: string | undefined,
-  tag: string,
-  registry: string
-): RegistryPackageSpec | null {
-  if (name) {
-    const selector = getVersionSelectorType(tag)
-    if (selector != null) {
-      return {
-        fetchSpec: selector.normalized,
-        name,
-        type: selector.type,
-      }
-    }
-  }
-  if (tag.startsWith(registry)) {
-    const pkg = parseNpmTarballUrl(tag)
-    if (pkg != null) {
-      return {
-        fetchSpec: pkg.version,
-        name: pkg.name,
-        normalizedPref: tag,
-        type: 'version',
-      }
-    }
-  }
-  return null
-}
-
 export function parsePref (
   pref: string,
   alias: string | undefined,
@@ -56,31 +17,69 @@ export function parsePref (
 ): RegistryPackageSpec | null {
   let name = alias
   if (pref.startsWith('npm:')) {
-    [name, pref] = parseNameAndTag(pref.slice('npm:'.length), defaultTag)
+    pref = pref.slice(4)
+    const index = pref.lastIndexOf('@')
+    if (index < 1) {
+      name = pref
+      pref = defaultTag
+    } else {
+      name = pref.slice(0, index)
+      pref = pref.slice(index + 1)
+    }
   }
-  return parsePrefFromNameAndTag(name, pref, registry)
+  if (name) {
+    const selector = getVersionSelectorType(pref)
+    if (selector != null) {
+      return {
+        fetchSpec: selector.normalized,
+        name,
+        type: selector.type,
+      }
+    }
+  }
+  if (pref.startsWith(registry)) {
+    const pkg = parseNpmTarballUrl(pref)
+    if (pkg != null) {
+      return {
+        fetchSpec: pkg.version,
+        name: pkg.name,
+        normalizedPref: pref,
+        type: 'version',
+      }
+    }
+  }
+  return null
 }
 
 export function parseJsrPref (
   pref: string,
   alias: string | undefined,
-  defaultTag: string,
-  registry: string
+  defaultTag: string
 ): RegistryPackageSpec | null {
-  if (!pref.startsWith('jsr:')) return null
-  pref = pref.slice('jsr:'.length)
-  let spec = parsePref(pref, alias, defaultTag, registry)
-  if (!spec) {
-    const [name, tag] = parseNameAndTag(pref, defaultTag)
-    spec = parsePrefFromNameAndTag(name, tag, registry)
+  const spec = jsr.parseJsrPref(pref)
+  if (spec == null) return null
+
+  let name: string | undefined
+
+  if (spec.scope != null) {
+    // syntax: jsr:@<scope>/<name>[@<spec>]
+    name = jsr.createNpmPackageName(spec)
+  } else if (alias != null) {
+    // syntax: jsr:<spec>
+    const parsed = jsr.parseJsrPackageName(alias)
+    if (parsed != null) {
+      name = jsr.createNpmPackageName(parsed)
+    }
   }
-  if (!spec) {
-    throw new PnpmError('INVALID_JSR_SPECIFICATION', `Cannot parse '${pref}' as an npm specification`)
+
+  if (name == null) return null
+
+  const selector = getVersionSelectorType(spec.spec ?? defaultTag)
+  if (selector == null) return null
+
+  return {
+    fetchSpec: selector.normalized,
+    name,
+    type: selector.type,
   }
-  if (!spec.name.startsWith('@')) {
-    throw new PnpmError('MISSING_JSR_PACKAGE_SCOPE', 'Package names from JSR must have scopes')
-  }
-  const jsrNameSuffix = spec.name.replace('@', '').replace('/', '__') // not replaceAll because we only replace the first of each character
-  spec.name = `@jsr/${jsrNameSuffix}`
-  return spec
 }

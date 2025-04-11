@@ -6762,6 +6762,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/jsr-specs':
+        specifier: workspace:*
+        version: link:../../packages/jsr-specs
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
