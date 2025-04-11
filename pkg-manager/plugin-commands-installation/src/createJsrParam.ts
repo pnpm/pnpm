@@ -1,4 +1,4 @@
-import { createJsrPref, parseJsrSpec } from '@pnpm/jsr-specs'
+import { createJsrPref, parseJsrPref } from '@pnpm/jsr-specs'
 import { type Dependencies } from '@pnpm/types'
 
 /**
@@ -14,7 +14,7 @@ export function createJsrParamWithoutSpec (dependencies: Dependencies, alias: st
   const pref: string | undefined = dependencies[alias]
   if (pref == null) return alias
 
-  const spec = parseJsrSpec(pref)
+  const spec = parseJsrPref(pref)
   if (spec == null) return alias
 
   // convert: jsr:<spec> → jsr:<alias>

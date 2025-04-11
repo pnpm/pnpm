@@ -170,7 +170,7 @@ function getJsrPref ({
   if (!specRaw.startsWith(prefix)) return undefined
   const specWithoutPrefix = specRaw.slice(prefix.length)
 
-  const spec = jsr.parseJsrSpec(specWithoutPrefix)
+  const spec = jsr.parseJsrPref(specWithoutPrefix)
   if (spec == null) return undefined
 
   if (spec.spec == null || spec.spec === 'latest') {

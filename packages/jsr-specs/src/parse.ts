@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { type JsrSpec, type JsrSpecWithAlias, type ParsedJsrPackageName } from './types'
 
-export function parseJsrSpec (pref: string): JsrSpec | null {
+export function parseJsrPref (pref: string): JsrSpec | null {
   if (!pref.startsWith('jsr:')) return null
 
   pref = pref.slice('jsr:'.length)

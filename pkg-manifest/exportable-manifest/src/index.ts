@@ -181,7 +181,7 @@ async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec:
 }
 
 async function replaceJsrProtocol (depName: string, depSpec: string): Promise<string> {
-  const spec = jsr.parseJsrSpec(depSpec)
+  const spec = jsr.parseJsrPref(depSpec)
   if (spec == null) {
     return depSpec
   }
