@@ -7,9 +7,9 @@ import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { createProjectManifestWriter } from './createProjectManifestWriter'
 import { type InstallCommandOptions } from './install'
 import { installDeps } from './installDeps'
+import { writeSettings } from '@pnpm/config.config-writer'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -250,10 +250,13 @@ export async function handler (
     ])).sort((a, b) => a.localeCompare(b))
     if (opts.rootProjectManifestDir) {
       opts.rootProjectManifest = opts.rootProjectManifest ?? {}
-      opts.rootProjectManifest.pnpm = opts.rootProjectManifest.pnpm ?? {}
-      opts.rootProjectManifest.pnpm.onlyBuiltDependencies = opts.onlyBuiltDependencies
-      const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
-      await writeProjectManifest(opts.rootProjectManifest)
+      await writeSettings({
+        ...opts,
+        workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+        updatedSettings: {
+          onlyBuiltDependencies: opts.onlyBuiltDependencies,
+        },
+      })
     }
   }
   return installDeps({
