@@ -72,7 +72,11 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
       }
     } catch {}
   }))
-
+  Object.entries(patchedDependencies).forEach(([key, value]) => {
+    if (path.isAbsolute(value)) {
+      patchedDependencies[key] = path.relative(opts.dir, value)
+    }
+  })
   await writeSettings({
     ...opts,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
