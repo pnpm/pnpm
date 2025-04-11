@@ -1,3 +1,4 @@
+import * as jsr from '@pnpm/jsr-specs'
 import {
   createVersionSpec,
   getPrefix,
@@ -128,6 +129,20 @@ function resolvedDirectDepToSpecObject (
     ) {
       pref = pref.replace(/^npm:/, '')
       pref = `workspace:${pref}`
+    } else {
+      pref = getJsrPref({
+        alias,
+        pinnedVersion: opts.pinnedVersion,
+        prefix: '',
+        specRaw,
+        version,
+      }) ?? getJsrPref({
+        alias,
+        pinnedVersion: opts.pinnedVersion,
+        prefix: `${alias}@`,
+        specRaw,
+        version,
+      }) ?? pref
     }
   }
   return {
@@ -137,6 +152,53 @@ function resolvedDirectDepToSpecObject (
     pref,
     saveType: importer['targetDependenciesField'],
   }
+}
+
+function getJsrPref ({
+  alias,
+  pinnedVersion,
+  prefix,
+  specRaw,
+  version,
+}: {
+  alias: string
+  pinnedVersion?: PinnedVersion
+  prefix: '' | `${string}@`
+  specRaw: string
+  version: string
+}): string | undefined {
+  if (!specRaw.startsWith(prefix)) return undefined
+  const specWithoutPrefix = specRaw.slice(prefix.length)
+
+  const spec = jsr.parseJsrPref(specWithoutPrefix)
+  if (spec == null) return undefined
+
+  if (spec.pref == null || spec.pref === 'latest') {
+    spec.pref = createVersionSpec(version, {
+      pinnedVersion,
+      rolling: false, // always false because it's definitely not a workspace protocol
+    })
+  }
+
+  // syntax: [<name>@]jsr:@<real_scope>/<real_name>[@<spec>]
+  if (spec.scope != null) {
+    const jsrPackageName = jsr.createJsrPackageName(spec)
+    return jsr.createJsrPref(
+      jsrPackageName === alias
+        ? { pref: spec.pref } // omit the alias from the pref
+        : spec
+    )
+  }
+
+  // syntax: jsr:<spec>
+  if (prefix === '') {
+    return jsr.createJsrPref(spec)
+  }
+
+  // syntax: <name>@jsr:<spec>
+  const parsed: jsr.JsrSpecWithAlias = jsr.parseJsrPackageName(prefix.slice(0, -'@'.length))
+  parsed.pref = spec.pref
+  return jsr.createJsrPref(parsed)
 }
 
 function getPrefPreferSpecifiedSpec (

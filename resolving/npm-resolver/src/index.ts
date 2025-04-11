@@ -33,6 +33,7 @@ import {
   pickPackage,
 } from './pickPackage'
 import {
+  parseJsrPref,
   parsePref,
   type RegistryPackageSpec,
 } from './parsePref'
@@ -112,6 +113,12 @@ export function createNpmResolver (
   }
 }
 
+export interface ResolveFromNpmContext {
+  pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
+  getAuthHeaderValueByURI: (registry: string) => string | undefined
+  registries: Registries
+}
+
 export type ResolveFromNpmOptions = {
   alwaysTryWorkspacePackages?: boolean
   defaultTag?: string
@@ -132,11 +139,7 @@ export type ResolveFromNpmOptions = {
 })
 
 async function resolveNpm (
-  ctx: {
-    pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
-    getAuthHeaderValueByURI: (registry: string) => string | undefined
-    registries: Registries
-  },
+  ctx: ResolveFromNpmContext,
   wantedDependency: WantedDependency,
   opts: ResolveFromNpmOptions
 ): Promise<ResolveResult | null> {
@@ -158,11 +161,15 @@ async function resolveNpm (
       return resolvedFromWorkspace
     }
   }
+
   const workspacePackages = opts.alwaysTryWorkspacePackages !== false ? opts.workspacePackages : undefined
   const spec = wantedDependency.pref
     ? parsePref(wantedDependency.pref, wantedDependency.alias, defaultTag, registry)
     : defaultTagForAlias(wantedDependency.alias!, defaultTag)
-  if (spec == null) return null
+
+  if (spec == null) {
+    return tryResolveFromJsr(ctx, wantedDependency, opts, defaultTag)
+  }
 
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
   let pickResult!: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
@@ -247,6 +254,49 @@ async function resolveNpm (
     normalizedPref: spec.normalizedPref,
     resolution,
     resolvedVia: 'npm-registry',
+    publishedAt: meta.time?.[pickedPackage.version],
+  }
+}
+
+async function tryResolveFromJsr (
+  ctx: ResolveFromNpmContext,
+  wantedDependency: WantedDependency,
+  opts: Omit<ResolveFromNpmOptions, 'registry'>,
+  defaultTag: string
+): Promise<ResolveResult | null> {
+  if (!wantedDependency.pref) return null
+
+  const registry = ctx.registries['@jsr']! // '@jsr' is always defined
+  const spec = parseJsrPref(wantedDependency.pref, wantedDependency.alias, defaultTag)
+  if (spec == null) return null
+
+  const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
+  const { meta, pickedPackage } = await ctx.pickPackage(spec, {
+    pickLowestVersion: opts.pickLowestVersion,
+    publishedBy: opts.publishedBy,
+    authHeaderValue,
+    dryRun: opts.dryRun === true,
+    preferredVersionSelectors: opts.preferredVersions?.[spec.name],
+    registry,
+    updateToLatest: opts.updateToLatest,
+  })
+
+  if (pickedPackage == null) {
+    throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
+  }
+
+  const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
+  const resolution = {
+    integrity: getIntegrity(pickedPackage.dist),
+    tarball: pickedPackage.dist.tarball,
+  }
+  return {
+    id,
+    latest: meta['dist-tags'].latest,
+    manifest: pickedPackage,
+    normalizedPref: spec.normalizedPref,
+    resolution,
+    resolvedVia: 'jsr-registry',
     publishedAt: meta.time?.[pickedPackage.version],
   }
 }
