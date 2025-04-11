@@ -104,6 +104,11 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
     ...opts.patchedDependencies,
     [patchKey]: `${patchesDirName}/${patchFileName}.patch`,
   }
+  Object.entries(patchedDependencies).forEach(([key, value]) => {
+    if (path.isAbsolute(value)) {
+      patchedDependencies[key] = path.relative(opts.dir, value)
+    }
+  })
   await writeSettings({
     ...opts,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
