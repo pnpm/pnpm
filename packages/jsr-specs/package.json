@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/jsr-specs",
-  "version": "1000.0.0",
+  "version": "1000.0.0-0",
   "description": "Parser and converter of jsr specifications",
   "keywords": [
     "pnpm",
