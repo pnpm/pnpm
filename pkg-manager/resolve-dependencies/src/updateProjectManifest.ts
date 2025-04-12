@@ -31,7 +31,7 @@ export async function updateProjectManifest (
         ...rdd,
         isNew:
         wantedDep.isNew,
-        specRaw: wantedDep.pref,
+        currentPref: wantedDep.pref,
         preserveNonSemverVersionSpec: wantedDep.preserveNonSemverVersionSpec,
         // For git-protocol dependencies that are already installed locally, there is no normalizedPref unless do force resolve,
         // so we use pref in wantedDependency here.
@@ -76,10 +76,10 @@ function resolvedDirectDepToSpecObject (
     name,
     normalizedPref,
     resolution,
-    specRaw,
+    currentPref,
     version,
     preserveNonSemverVersionSpec,
-  }: ResolvedDirectDependency & { isNew?: boolean, specRaw: string, preserveNonSemverVersionSpec?: boolean },
+  }: ResolvedDirectDependency & { isNew?: boolean, currentPref: string, preserveNonSemverVersionSpec?: boolean },
   importer: ImporterToResolve,
   opts: {
     nodeExecPath?: string
@@ -97,7 +97,7 @@ function resolvedDirectDepToSpecObject (
     const shouldUseWorkspaceProtocol = resolution.type === 'directory' &&
       (
         Boolean(opts.saveWorkspaceProtocol) ||
-        (opts.preserveWorkspaceProtocol && specRaw.startsWith('workspace:'))
+        (opts.preserveWorkspaceProtocol && currentPref.startsWith('workspace:'))
       ) &&
       opts.pinnedVersion !== 'none'
 
@@ -106,7 +106,7 @@ function resolvedDirectDepToSpecObject (
         alias,
         name,
         pinnedVersion: opts.pinnedVersion,
-        specRaw,
+        currentPref,
         version,
         rolling: shouldUseWorkspaceProtocol && opts.saveWorkspaceProtocol === 'rolling',
       })
@@ -115,7 +115,7 @@ function resolvedDirectDepToSpecObject (
         alias,
         name,
         pinnedVersion: opts.pinnedVersion,
-        specRaw,
+        currentPref,
         version,
         rolling: shouldUseWorkspaceProtocol && opts.saveWorkspaceProtocol === 'rolling',
         preserveNonSemverVersionSpec,
@@ -143,17 +143,17 @@ function getPrefPreferSpecifiedSpec (
     alias: string
     name: string
     version: string
-    specRaw: string
+    currentPref: string
     pinnedVersion?: PinnedVersion
     rolling: boolean
   }
 ): string {
-  const prefix = opts.specRaw.startsWith('npm:') ? `npm:${opts.name}@` : ''
-  const range = opts.specRaw.slice(prefix.length)
+  const prefix = opts.currentPref.startsWith('npm:') ? `npm:${opts.name}@` : ''
+  const range = opts.currentPref.slice(prefix.length)
   if (range) {
     const selector = versionSelectorType(range)
     if ((selector != null) && (selector.type === 'version' || selector.type === 'range')) {
-      return opts.specRaw
+      return opts.currentPref
     }
   }
   // A prerelease version is always added as an exact version
@@ -168,14 +168,14 @@ function getPrefPreferSpecifiedExoticSpec (
     alias: string
     name: string
     version: string
-    specRaw: string
+    currentPref: string
     pinnedVersion: PinnedVersion
     rolling: boolean
     preserveNonSemverVersionSpec?: boolean
   }
 ): string {
-  let prefix = opts.specRaw.startsWith('npm:') ? `npm:${opts.name}@` : ''
-  let specWithoutName = opts.specRaw.slice(prefix.length)
+  let prefix = opts.currentPref.startsWith('npm:') ? `npm:${opts.name}@` : ''
+  let specWithoutName = opts.currentPref.slice(prefix.length)
   if (specWithoutName.startsWith('workspace:')) {
     prefix = 'workspace:'
     specWithoutName = specWithoutName.slice(10)
@@ -188,7 +188,7 @@ function getPrefPreferSpecifiedExoticSpec (
     ((selector == null) || (selector.type !== 'version' && selector.type !== 'range')) &&
     opts.preserveNonSemverVersionSpec
   ) {
-    return opts.specRaw
+    return opts.currentPref
   }
   // A prerelease version is always added as an exact version
   if (semver.parse(opts.version)?.prerelease.length) {

@@ -38,9 +38,7 @@ export function parseWantedDependencies (
         pref = 'catalog:'
       }
       if (alias && opts.currentPrefs[alias]) {
-        if (!pref) {
-          pref = opts.currentPrefs[alias]
-        }
+        pref ??= opts.currentPrefs[alias]
         pinnedVersion = whichVersionIsPinned(opts.currentPrefs[alias])
       }
       const result = {
@@ -48,7 +46,6 @@ export function parseWantedDependencies (
         dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
         optional: Boolean(opts.optional || alias && !!opts.optionalDependencies[alias]),
         pinnedVersion,
-        raw: alias && opts.currentPrefs?.[alias]?.startsWith('workspace:') ? `${alias}@${opts.currentPrefs[alias]}` : rawWantedDependency,
       }
       if (pref) {
         return {
@@ -60,14 +57,12 @@ export function parseWantedDependencies (
         return {
           ...result,
           pref: opts.preferredSpecs[alias],
-          raw: `${rawWantedDependency}@${opts.preferredSpecs[alias]}`,
         }
       }
       if (alias && opts.overrides?.[alias]) {
         return {
           ...result,
           pref: opts.overrides[alias],
-          raw: `${alias}@${opts.overrides[alias]}`,
         }
       }
       return {
