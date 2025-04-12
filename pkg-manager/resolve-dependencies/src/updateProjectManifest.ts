@@ -1,6 +1,5 @@
 import {
   createVersionSpec,
-  getPrefix,
   type PackageSpecObject,
   type PinnedVersion,
   updateProjectManifestObject,
@@ -32,7 +31,7 @@ export async function updateProjectManifest (
         ...rdd,
         isNew:
         wantedDep.isNew,
-        specRaw: wantedDep.raw,
+        specRaw: wantedDep.pref,
         preserveNonSemverVersionSpec: wantedDep.preserveNonSemverVersionSpec,
         // For git-protocol dependencies that are already installed locally, there is no normalizedPref unless do force resolve,
         // so we use pref in wantedDependency here.
@@ -98,7 +97,7 @@ function resolvedDirectDepToSpecObject (
     const shouldUseWorkspaceProtocol = resolution.type === 'directory' &&
       (
         Boolean(opts.saveWorkspaceProtocol) ||
-        (opts.preserveWorkspaceProtocol && specRaw.includes('@workspace:'))
+        (opts.preserveWorkspaceProtocol && specRaw.startsWith('workspace:'))
       ) &&
       opts.pinnedVersion !== 'none'
 
@@ -149,14 +148,12 @@ function getPrefPreferSpecifiedSpec (
     rolling: boolean
   }
 ): string {
-  const prefix = getPrefix(opts.alias, opts.name)
-  if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
-    const range = opts.specRaw.slice(`${opts.alias}@${prefix}`.length)
-    if (range) {
-      const selector = versionSelectorType(range)
-      if ((selector != null) && (selector.type === 'version' || selector.type === 'range')) {
-        return opts.specRaw.slice(opts.alias.length + 1)
-      }
+  const prefix = opts.specRaw.startsWith('npm:') ? `npm:${opts.name}@` : ''
+  const range = opts.specRaw.slice(prefix.length)
+  if (range) {
+    const selector = versionSelectorType(range)
+    if ((selector != null) && (selector.type === 'version' || selector.type === 'range')) {
+      return opts.specRaw
     }
   }
   // A prerelease version is always added as an exact version
@@ -177,22 +174,20 @@ function getPrefPreferSpecifiedExoticSpec (
     preserveNonSemverVersionSpec?: boolean
   }
 ): string {
-  const prefix = getPrefix(opts.alias, opts.name)
-  if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
-    let specWithoutName = opts.specRaw.slice(`${opts.alias}@${prefix}`.length)
-    if (specWithoutName.startsWith('workspace:')) {
-      specWithoutName = specWithoutName.slice(10)
-      if (specWithoutName === '*' || specWithoutName === '^' || specWithoutName === '~') {
-        return specWithoutName
-      }
+  const prefix = opts.specRaw.startsWith('npm:') ? `npm:${opts.name}@` : ''
+  let specWithoutName = opts.specRaw.slice(prefix.length)
+  if (specWithoutName.startsWith('workspace:')) {
+    specWithoutName = specWithoutName.slice(10)
+    if (specWithoutName === '*' || specWithoutName === '^' || specWithoutName === '~') {
+      return specWithoutName
     }
-    const selector = versionSelectorType(specWithoutName)
-    if (
-      ((selector == null) || (selector.type !== 'version' && selector.type !== 'range')) &&
-      opts.preserveNonSemverVersionSpec
-    ) {
-      return opts.specRaw.slice(opts.alias.length + 1)
-    }
+  }
+  const selector = versionSelectorType(specWithoutName)
+  if (
+    ((selector == null) || (selector.type !== 'version' && selector.type !== 'range')) &&
+    opts.preserveNonSemverVersionSpec
+  ) {
+    return opts.specRaw
   }
   // A prerelease version is always added as an exact version
   if (semver.parse(opts.version)?.prerelease.length) {

@@ -15,7 +15,6 @@ export interface WantedDependency {
   pref: string // package reference
   dev: boolean
   optional: boolean
-  raw: string
   pinnedVersion?: PinnedVersion
   nodeExecPath?: string
   updateSpec?: boolean
@@ -57,7 +56,7 @@ export function getWantedDependencies (
 function updateWorkspacePref (pref: string): string {
   const spec = WorkspaceSpec.parse(pref)
   if (!spec) return pref
-  spec.version = '*'
+  // spec.version = '*'
   return spec.toString()
 }
 
@@ -89,7 +88,6 @@ function getWantedDependenciesFromGivenSet (
       nodeExecPath: opts.nodeExecPath ?? opts.dependenciesMeta[alias]?.node,
       pinnedVersion: whichVersionIsPinned(pref),
       pref: updatedPref,
-      raw: `${alias}@${pref}`,
     }
   })
 }
