@@ -174,9 +174,10 @@ function getPrefPreferSpecifiedExoticSpec (
     preserveNonSemverVersionSpec?: boolean
   }
 ): string {
-  const prefix = opts.specRaw.startsWith('npm:') ? `npm:${opts.name}@` : ''
+  let prefix = opts.specRaw.startsWith('npm:') ? `npm:${opts.name}@` : ''
   let specWithoutName = opts.specRaw.slice(prefix.length)
   if (specWithoutName.startsWith('workspace:')) {
+    prefix = 'workspace:'
     specWithoutName = specWithoutName.slice(10)
     if (specWithoutName === '*' || specWithoutName === '^' || specWithoutName === '~') {
       return specWithoutName

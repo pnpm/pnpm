@@ -303,7 +303,11 @@ function tryResolveFromWorkspacePackages (
       }
     )
   }
-  const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
+  const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, {
+    ...spec,
+    fetchSpec: '*',
+    type: 'range',
+  })
   if (!localVersion) {
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
