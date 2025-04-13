@@ -133,6 +133,7 @@
     "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
     "@pnpm/workspace.pkgs-graph": "workspace:*",
+    "@pnpm/workspace.read-manifest": "workspace:*",
     "@pnpm/workspace.state": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
     "@types/cross-spawn": "catalog:",

@@ -8,6 +8,7 @@ import loadJsonFile from 'load-json-file'
 import writeYamlFile from 'write-yaml-file'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
 import { getIntegrity } from '@pnpm/registry-mock'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 const pkgRoot = path.join(__dirname, '..', '..')
 const pnpmPkg = loadJsonFile.sync<PackageManifest>(path.join(pkgRoot, 'package.json'))
@@ -175,7 +176,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFil
 })
 
 test('selectively allow scripts in some dependencies by --allow-build flag', async () => {
-  prepare({})
+  const project = prepare({})
   execPnpmSync(['add', '--allow-build=@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
@@ -183,7 +184,9 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
   const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
-  expect(manifest.pnpm?.onlyBuiltDependencies).toStrictEqual(['@pnpm.e2e/install-script-example'])
+  expect(manifest.pnpm?.onlyBuiltDependencies).toStrictEqual(undefined)
+  const modulesManifest = await readWorkspaceManifest(project.dir())
+  expect(modulesManifest?.onlyBuiltDependencies).toStrictEqual(['@pnpm.e2e/install-script-example'])
 })
 
 test('selectively allow scripts in some dependencies by --allow-build flag overlap ignoredBuiltDependencies', async () => {
