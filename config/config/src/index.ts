@@ -281,7 +281,36 @@ export async function getConfig (opts: {
     globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
   }
   pnpmConfig.globalPkgDir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
+  if (!opts.ignoreLocalSettings) {
+    pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
+    pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
+    if (pnpmConfig.rootProjectManifest != null) {
+      if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
+        warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
+      }
+      if (pnpmConfig.rootProjectManifest.packageManager) {
+        pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
+      }
+      if (pnpmConfig.rootProjectManifest) {
+        Object.assign(pnpmConfig, getOptionsFromRootManifest(pnpmConfig.rootProjectManifestDir, pnpmConfig.rootProjectManifest))
+      }
+    }
 
+    if (pnpmConfig.workspaceDir != null) {
+      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
+
+      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
+      if (workspaceManifest) {
+        const newSettings = Object.assign(getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest), configFromCliOpts)
+        for (const [key, value] of Object.entries(newSettings)) {
+          // @ts-expect-error
+          pnpmConfig[key] = value
+          pnpmConfig.rawConfig[kebabCase(key)] = value
+        }
+        pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+      }
+    }
+  }
   if (cliOptions['global']) {
     pnpmConfig.dir = pnpmConfig.globalPkgDir
     pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
