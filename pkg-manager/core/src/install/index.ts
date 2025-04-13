@@ -474,7 +474,6 @@ export async function mutateModules (
       const wantedDependencies = getWantedDependencies(project.manifest, {
         autoInstallPeers: opts.autoInstallPeers,
         includeDirect: opts.includeDirect,
-        updateWorkspaceDependencies: project.update,
         nodeExecPath: opts.nodeExecPath,
       })
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))

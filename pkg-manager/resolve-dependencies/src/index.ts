@@ -76,7 +76,6 @@ export interface ImporterToResolve extends Importer<{
   isNew?: boolean
   nodeExecPath?: string
   pinnedVersion?: PinnedVersion
-  raw: string
   updateSpec?: boolean
   preserveNonSemverVersionSpec?: boolean
 }> {

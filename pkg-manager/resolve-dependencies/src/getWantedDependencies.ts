@@ -6,7 +6,6 @@ import {
   type ProjectManifest,
 } from '@pnpm/types'
 import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
-import { WorkspaceSpec } from '@pnpm/workspace.spec-parser'
 
 export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
 
@@ -15,7 +14,6 @@ export interface WantedDependency {
   pref: string // package reference
   dev: boolean
   optional: boolean
-  raw: string
   pinnedVersion?: PinnedVersion
   nodeExecPath?: string
   updateSpec?: boolean
@@ -27,7 +25,6 @@ export function getWantedDependencies (
     autoInstallPeers?: boolean
     includeDirect?: IncludedDependencies
     nodeExecPath?: string
-    updateWorkspaceDependencies?: boolean
   }
 ): WantedDependency[] {
   let depsToInstall = filterDependenciesByType(pkg,
@@ -48,17 +45,7 @@ export function getWantedDependencies (
     optionalDependencies: pkg.optionalDependencies ?? {},
     dependenciesMeta: pkg.dependenciesMeta ?? {},
     peerDependencies: pkg.peerDependencies ?? {},
-    updatePref: opts?.updateWorkspaceDependencies === true
-      ? updateWorkspacePref
-      : (pref) => pref,
   })
-}
-
-function updateWorkspacePref (pref: string): string {
-  const spec = WorkspaceSpec.parse(pref)
-  if (!spec) return pref
-  spec.version = '*'
-  return spec.toString()
 }
 
 function getWantedDependenciesFromGivenSet (
@@ -70,12 +57,10 @@ function getWantedDependenciesFromGivenSet (
     peerDependencies: Dependencies
     dependenciesMeta: DependenciesMeta
     nodeExecPath?: string
-    updatePref: (pref: string) => string
   }
 ): WantedDependency[] {
   if (!deps) return []
   return Object.entries(deps).map(([alias, pref]) => {
-    const updatedPref = opts.updatePref(pref)
     let depType
     if (opts.optionalDependencies[alias] != null) depType = 'optional'
     else if (opts.dependencies[alias] != null) depType = 'prod'
@@ -88,8 +73,7 @@ function getWantedDependenciesFromGivenSet (
       optional: depType === 'optional',
       nodeExecPath: opts.nodeExecPath ?? opts.dependenciesMeta[alias]?.node,
       pinnedVersion: whichVersionIsPinned(pref),
-      pref: updatedPref,
-      raw: `${alias}@${pref}`,
+      pref,
     }
   })
 }
