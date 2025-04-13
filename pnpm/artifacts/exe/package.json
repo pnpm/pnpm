@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exe",
-  "version": "10.7.1",
+  "version": "10.8.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",

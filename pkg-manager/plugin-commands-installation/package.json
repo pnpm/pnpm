@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "1002.2.4",
+  "version": "1003.0.0",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",
@@ -37,6 +37,7 @@
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/config.config-writer": "workspace:*",
+    "@pnpm/config.deps-installer": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core": "workspace:*",
     "@pnpm/dedupe.check": "workspace:*",

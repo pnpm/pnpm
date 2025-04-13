@@ -1,5 +1,16 @@
 # @pnpm/core-loggers
 
+## 1000.2.0
+
+### Minor Changes
+
+- 750ae7d: Now you can use the `pnpm add` command with the `--config` flag to install new configurational dependencies [#9377](https://github.com/pnpm/pnpm/pull/9377).
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+
 ## 1000.1.5
 
 ### Patch Changes

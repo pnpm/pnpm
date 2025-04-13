@@ -1,5 +1,64 @@
 # @pnpm/plugin-commands-installation
 
+## 1003.0.0
+
+### Major Changes
+
+- 1413c25: **Experimental.** A new hook is supported for updating configuration settings. The hook can be provided via `.pnpmfile.cjs`. For example:
+
+  ```js
+  module.exports = {
+    hooks: {
+      updateConfig: (config) => ({
+        ...config,
+        nodeLinker: "hoisted",
+      }),
+    },
+  };
+  ```
+
+### Minor Changes
+
+- 750ae7d: Now you can use the `pnpm add` command with the `--config` flag to install new configurational dependencies [#9377](https://github.com/pnpm/pnpm/pull/9377).
+
+### Patch Changes
+
+- 8033854: `pnpm link` should update overrides in `pnpm-workspace.yaml`, not in `package.json` [#9365](https://github.com/pnpm/pnpm/pull/9365).
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [750ae7d]
+- Updated dependencies [1413c25]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/package-store@1002.0.0
+  - @pnpm/outdated@1001.0.15
+  - @pnpm/store-connection-manager@1001.0.0
+  - @pnpm/core@1007.0.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/config.deps-installer@1000.0.0
+  - @pnpm/pnpmfile@1001.1.0
+  - @pnpm/cli-utils@1000.1.0
+  - @pnpm/config.config-writer@1000.0.1
+  - @pnpm/pick-registry-for-package@1000.0.6
+  - @pnpm/dedupe.check@1001.0.6
+  - @pnpm/deps.status@1002.0.10
+  - @pnpm/plugin-commands-env@1000.0.21
+  - @pnpm/plugin-commands-rebuild@1002.0.10
+  - @pnpm/lockfile.types@1001.0.6
+  - @pnpm/get-context@1001.0.11
+  - @pnpm/manifest-utils@1000.0.8
+  - @pnpm/read-package-json@1000.0.7
+  - @pnpm/read-project-manifest@1000.0.9
+  - @pnpm/write-project-manifest@1000.0.6
+  - @pnpm/filter-workspace-packages@1000.0.20
+  - @pnpm/workspace.find-packages@1000.0.20
+  - @pnpm/workspace.pkgs-graph@1000.0.11
+  - @pnpm/sort-packages@1000.0.6
+  - @pnpm/workspace.state@1001.1.16
+
 ## 1002.2.4
 
 ### Patch Changes

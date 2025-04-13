@@ -1,5 +1,22 @@
 # @pnpm/store-connection-manager
 
+## 1001.0.0
+
+### Major Changes
+
+- 72cff38: The resolving function now takes a `registries` object, so it finds the required registry itself instead of receiving it from package requester.
+
+### Patch Changes
+
+- Updated dependencies [72cff38]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+  - @pnpm/package-store@1002.0.0
+  - @pnpm/server@1001.0.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/cli-meta@1000.0.6
+  - @pnpm/client@1000.0.14
+
 ## 1000.0.19
 
 ### Patch Changes

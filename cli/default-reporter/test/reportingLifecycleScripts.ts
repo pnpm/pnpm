@@ -8,7 +8,6 @@ import normalizeNewline from 'normalize-newline'
 import { firstValueFrom } from 'rxjs'
 
 const hlValue = chalk.cyanBright
-const hlPkgId = chalk['whiteBright']
 
 const POSTINSTALL = hlValue('postinstall')
 const PREINSTALL = hlValue('preinstall')
@@ -1039,10 +1038,10 @@ test['skip']('prints lifecycle progress', async () => {
 
   const output = await firstValueFrom(output$.pipe(skip(3), take(1), map(normalizeNewline)))
   expect(output).toBe(`\
-Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo I')}
-Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}! ${childOutputError('foo II')}
-Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo III')}
-Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/bar/1.0.0')}: ${childOutputColor('bar I')}`)
+Running ${POSTINSTALL} for registry.npmjs.org/foo/1.0.0: ${childOutputColor('foo I')}
+Running ${POSTINSTALL} for registry.npmjs.org/foo/1.0.0! ${childOutputError('foo II')}
+Running ${POSTINSTALL} for registry.npmjs.org/foo/1.0.0: ${childOutputColor('foo III')}
+Running ${POSTINSTALL} for registry.npmjs.org/bar/1.0.0: ${childOutputColor('bar I')}`)
 })
 
 function failedAt (wd: string) {

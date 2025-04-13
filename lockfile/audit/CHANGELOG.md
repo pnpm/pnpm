@@ -1,5 +1,19 @@
 # @pnpm/audit
 
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/fetch@1000.2.0
+  - @pnpm/lockfile.detect-dep-types@1001.0.7
+  - @pnpm/lockfile.types@1001.0.6
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/lockfile.walker@1001.0.7
+  - @pnpm/read-project-manifest@1000.0.9
+
 ## 1002.0.0
 
 ### Major Changes

@@ -1,5 +1,23 @@
 # @pnpm/default-reporter
 
+## 1001.4.0
+
+### Minor Changes
+
+- 750ae7d: Now you can use the `pnpm add` command with the `--config` flag to install new configurational dependencies [#9377](https://github.com/pnpm/pnpm/pull/9377).
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/cli-meta@1000.0.6
+  - @pnpm/render-peer-issues@1000.0.8
+
 ## 1001.3.10
 
 ### Patch Changes

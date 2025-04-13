@@ -128,7 +128,7 @@ export type ResolveFromNpmOptions = {
   lockfileDir?: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
-  updateToLatest?: boolean
+  update?: false | 'compatible' | 'latest'
   injectWorkspacePackages?: boolean
 } & ({
   projectDir?: string
@@ -156,6 +156,7 @@ async function resolveNpm (
       registry,
       workspacePackages: opts.workspacePackages,
       injectWorkspacePackages: opts.injectWorkspacePackages,
+      update: Boolean(opts.update),
     })
     if (resolvedFromWorkspace != null) {
       return resolvedFromWorkspace
@@ -181,7 +182,7 @@ async function resolveNpm (
       dryRun: opts.dryRun === true,
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
       registry,
-      updateToLatest: opts.updateToLatest,
+      updateToLatest: opts.update === 'latest',
     })
   } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {
@@ -191,6 +192,7 @@ async function resolveNpm (
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
+          update: Boolean(opts.update),
         })
       } catch {
         // ignore
@@ -208,6 +210,7 @@ async function resolveNpm (
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
+          update: Boolean(opts.update),
         })
       } catch {
         // ignore
@@ -278,7 +281,7 @@ async function tryResolveFromJsr (
     dryRun: opts.dryRun === true,
     preferredVersionSelectors: opts.preferredVersions?.[spec.name],
     registry,
-    updateToLatest: opts.updateToLatest,
+    updateToLatest: opts.update === 'latest',
   })
 
   if (pickedPackage == null) {
@@ -310,6 +313,7 @@ function tryResolveFromWorkspace (
     registry: string
     workspacePackages?: WorkspacePackages
     injectWorkspacePackages?: boolean
+    update?: boolean
   }
 ): WorkspaceResolveResult | null {
   if (!wantedDependency.pref?.startsWith('workspace:')) {
@@ -330,6 +334,7 @@ function tryResolveFromWorkspace (
     projectDir: opts.projectDir,
     hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
     lockfileDir: opts.lockfileDir,
+    update: opts.update,
   })
 }
 
@@ -341,6 +346,7 @@ function tryResolveFromWorkspacePackages (
     hardLinkLocalPackages?: boolean
     projectDir: string
     lockfileDir?: string
+    update?: boolean
   }
 ): WorkspaceResolveResult {
   const workspacePkgsMatchingName = workspacePackages.get(spec.name)
@@ -353,7 +359,10 @@ function tryResolveFromWorkspacePackages (
       }
     )
   }
-  const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
+  const localVersion = pickMatchingLocalVersionOrNull(
+    workspacePkgsMatchingName,
+    opts.update ? { name: spec.name, fetchSpec: '*', type: 'range' } : spec
+  )
   if (!localVersion) {
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',

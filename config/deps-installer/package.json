@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.deps-installer",
-  "version": "1000.0.0-0",
+  "version": "1000.0.0",
   "description": "Installer for configurational dependencies",
   "keywords": [
     "pnpm",
@@ -33,8 +33,14 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/config.config-writer": "workspace:*",
+    "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/package-store": "workspace:*",
+    "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
@@ -42,12 +48,16 @@
     "@zkochan/rimraf": "catalog:",
     "get-npm-tarball-url": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": ">=5.1.0 <1001.0.0"
+  },
   "devDependencies": {
     "@pnpm/config.deps-installer": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/testing.temp-store": "workspace:*",
-    "load-json-file": "catalog:"
+    "load-json-file": "catalog:",
+    "read-yaml-file": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

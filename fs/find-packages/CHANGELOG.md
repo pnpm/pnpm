@@ -1,5 +1,14 @@
 # @pnpm/fs.find-packages
 
+## 1000.0.9
+
+### Patch Changes
+
+- c85aaf8: Do not hang indefinitely, when there is a glob that starts with `!/` in `pnpm-workspace.yaml`. This fixes a regression introduced by [#9169](https://github.com/pnpm/pnpm/pull/9169).
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/read-project-manifest@1000.0.9
+
 ## 1000.0.8
 
 ### Patch Changes

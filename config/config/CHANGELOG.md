@@ -1,5 +1,19 @@
 # @pnpm/config
 
+## 1002.7.1
+
+### Patch Changes
+
+- 5679712: `sharedWorkspaceLockfile` should be set in `pnpm-workspace.yaml` to take effect.
+- 01f2bcf: `pnpm audit --fix` should update the overrides in `pnpm-workspace.yaml`.
+- Updated dependencies [750ae7d]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/pnpmfile@1001.1.0
+  - @pnpm/read-project-manifest@1000.0.9
+  - @pnpm/workspace.read-manifest@1000.1.3
+  - @pnpm/catalogs.config@1000.0.2
+
 ## 1002.7.0
 
 ### Minor Changes

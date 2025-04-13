@@ -1,5 +1,22 @@
 # @pnpm/license-scanner
 
+## 1001.0.13
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/package-is-installable@1000.0.8
+  - @pnpm/directory-fetcher@1000.1.4
+  - @pnpm/lockfile.detect-dep-types@1001.0.7
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/lockfile.types@1001.0.6
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/lockfile.walker@1001.0.7
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/read-package-json@1000.0.7
+  - @pnpm/store.cafs@1000.0.9
+
 ## 1001.0.12
 
 ### Patch Changes

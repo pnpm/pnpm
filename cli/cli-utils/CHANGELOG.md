@@ -1,5 +1,42 @@
 # @pnpm/cli-utils
 
+## 1000.1.0
+
+### Minor Changes
+
+- 1413c25: **Experimental.** A new hook is supported for updating configuration settings. The hook can be provided via `.pnpmfile.cjs`. For example:
+
+  ```js
+  module.exports = {
+    hooks: {
+      updateConfig: (config) => ({
+        ...config,
+        nodeLinker: "hoisted",
+      }),
+    },
+  };
+  ```
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [750ae7d]
+- Updated dependencies [1413c25]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-connection-manager@1001.0.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/default-reporter@1001.4.0
+  - @pnpm/config.deps-installer@1000.0.0
+  - @pnpm/pnpmfile@1001.1.0
+  - @pnpm/cli-meta@1000.0.6
+  - @pnpm/package-is-installable@1000.0.8
+  - @pnpm/manifest-utils@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.9
+
 ## 1000.0.19
 
 ### Patch Changes

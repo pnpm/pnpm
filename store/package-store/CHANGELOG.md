@@ -1,5 +1,24 @@
 # @pnpm/package-store
 
+## 1002.0.0
+
+### Major Changes
+
+- 72cff38: The resolving function now takes a `registries` object, so it finds the required registry itself instead of receiving it from package requester.
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/package-requester@1003.0.0
+  - @pnpm/fetcher-base@1000.0.8
+  - @pnpm/store.cafs@1000.0.9
+  - @pnpm/worker@1000.1.3
+  - @pnpm/create-cafs-store@1000.0.10
+
 ## 1001.1.0
 
 ### Minor Changes

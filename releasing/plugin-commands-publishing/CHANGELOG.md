@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.1.19
+
+### Patch Changes
+
+- 72cff38: The resolving function now takes a `registries` object, so it finds the required registry itself instead of receiving it from package requester.
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/cli-utils@1000.1.0
+  - @pnpm/pick-registry-for-package@1000.0.6
+  - @pnpm/plugin-commands-env@1000.0.21
+  - @pnpm/lifecycle@1001.0.10
+  - @pnpm/client@1000.0.14
+  - @pnpm/package-bins@1000.0.6
+  - @pnpm/exportable-manifest@1000.0.10
+  - @pnpm/sort-packages@1000.0.6
+
 ## 1000.1.18
 
 ### Patch Changes

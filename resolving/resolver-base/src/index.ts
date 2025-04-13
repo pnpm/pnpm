@@ -97,7 +97,7 @@ export interface ResolveOptions {
   preferredVersions: PreferredVersions
   preferWorkspacePackages?: boolean
   workspacePackages?: WorkspacePackages
-  updateToLatest?: boolean
+  update?: false | 'compatible' | 'latest'
   injectWorkspacePackages?: boolean
 }
 

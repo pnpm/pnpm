@@ -1,5 +1,23 @@
 # @pnpm/outdated
 
+## 1001.0.15
+
+### Patch Changes
+
+- 72cff38: The resolving function now takes a `registries` object, so it finds the required registry itself instead of receiving it from package requester.
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+  - @pnpm/types@1000.4.0
+  - @pnpm/npm-resolver@1002.0.0
+  - @pnpm/pick-registry-for-package@1000.0.6
+  - @pnpm/hooks.read-package-hook@1000.0.8
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/client@1000.0.14
+  - @pnpm/modules-yaml@1000.3.1
+  - @pnpm/manifest-utils@1000.0.8
+
 ## 1001.0.14
 
 ### Patch Changes

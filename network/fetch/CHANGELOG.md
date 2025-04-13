@@ -1,5 +1,18 @@
 # @pnpm/fetch
 
+## 1000.2.0
+
+### Minor Changes
+
+- 750ae7d: Export `CreateFetchFromRegistryOptions` type.
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/core-loggers@1000.2.0
+
 ## 1000.1.6
 
 ### Patch Changes

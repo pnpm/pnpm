@@ -1,5 +1,16 @@
 # @pnpm/link-bins
 
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/package-bins@1000.0.6
+  - @pnpm/manifest-utils@1000.0.8
+  - @pnpm/read-package-json@1000.0.7
+  - @pnpm/read-project-manifest@1000.0.9
+
 ## 1000.0.9
 
 ### Patch Changes

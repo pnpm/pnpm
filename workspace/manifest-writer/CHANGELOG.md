@@ -1,5 +1,12 @@
 # @pnpm/workspace.manifest-writer
 
+## 1000.1.1
+
+### Patch Changes
+
+- ead11ad: Don't wrap lines in `pnpm-workspace.yaml`.
+  - @pnpm/workspace.read-manifest@1000.1.3
+
 ## 1000.1.0
 
 ### Minor Changes

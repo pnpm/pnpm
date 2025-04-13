@@ -186,7 +186,7 @@ async function resolveAndFetch (
       preferWorkspacePackages: options.preferWorkspacePackages,
       projectDir: options.projectDir,
       workspacePackages: options.workspacePackages,
-      updateToLatest: options.update === 'latest',
+      update: options.update,
       injectWorkspacePackages: options.injectWorkspacePackages,
     }), { priority: options.downloadPriority })
 

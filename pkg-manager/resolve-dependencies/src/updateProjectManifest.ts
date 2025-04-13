@@ -1,7 +1,6 @@
 import * as jsr from '@pnpm/jsr-specs'
 import {
   createVersionSpec,
-  getPrefix,
   type PackageSpecObject,
   type PinnedVersion,
   updateProjectManifestObject,
@@ -33,7 +32,7 @@ export async function updateProjectManifest (
         ...rdd,
         isNew:
         wantedDep.isNew,
-        specRaw: wantedDep.raw,
+        currentPref: wantedDep.pref,
         preserveNonSemverVersionSpec: wantedDep.preserveNonSemverVersionSpec,
         // For git-protocol dependencies that are already installed locally, there is no normalizedPref unless do force resolve,
         // so we use pref in wantedDependency here.
@@ -78,10 +77,10 @@ function resolvedDirectDepToSpecObject (
     name,
     normalizedPref,
     resolution,
-    specRaw,
+    currentPref,
     version,
     preserveNonSemverVersionSpec,
-  }: ResolvedDirectDependency & { isNew?: boolean, specRaw: string, preserveNonSemverVersionSpec?: boolean },
+  }: ResolvedDirectDependency & { isNew?: boolean, currentPref: string, preserveNonSemverVersionSpec?: boolean },
   importer: ImporterToResolve,
   opts: {
     nodeExecPath?: string
@@ -99,7 +98,7 @@ function resolvedDirectDepToSpecObject (
     const shouldUseWorkspaceProtocol = resolution.type === 'directory' &&
       (
         Boolean(opts.saveWorkspaceProtocol) ||
-        (opts.preserveWorkspaceProtocol && specRaw.includes('@workspace:'))
+        (opts.preserveWorkspaceProtocol && currentPref.startsWith('workspace:'))
       ) &&
       opts.pinnedVersion !== 'none'
 
@@ -108,7 +107,7 @@ function resolvedDirectDepToSpecObject (
         alias,
         name,
         pinnedVersion: opts.pinnedVersion,
-        specRaw,
+        currentPref,
         version,
         rolling: shouldUseWorkspaceProtocol && opts.saveWorkspaceProtocol === 'rolling',
       })
@@ -117,7 +116,7 @@ function resolvedDirectDepToSpecObject (
         alias,
         name,
         pinnedVersion: opts.pinnedVersion,
-        specRaw,
+        currentPref,
         version,
         rolling: shouldUseWorkspaceProtocol && opts.saveWorkspaceProtocol === 'rolling',
         preserveNonSemverVersionSpec,
@@ -134,13 +133,13 @@ function resolvedDirectDepToSpecObject (
         alias,
         pinnedVersion: opts.pinnedVersion,
         prefix: '',
-        specRaw,
+        currentPref,
         version,
       }) ?? getJsrPref({
         alias,
         pinnedVersion: opts.pinnedVersion,
         prefix: `${alias}@`,
-        specRaw,
+        currentPref,
         version,
       }) ?? pref
     }
@@ -158,17 +157,17 @@ function getJsrPref ({
   alias,
   pinnedVersion,
   prefix,
-  specRaw,
+  currentPref,
   version,
 }: {
   alias: string
   pinnedVersion?: PinnedVersion
   prefix: '' | `${string}@`
-  specRaw: string
+  currentPref: string
   version: string
 }): string | undefined {
-  if (!specRaw.startsWith(prefix)) return undefined
-  const specWithoutPrefix = specRaw.slice(prefix.length)
+  if (!currentPref.startsWith(prefix)) return undefined
+  const specWithoutPrefix = currentPref.slice(prefix.length)
 
   const spec = jsr.parseJsrPref(specWithoutPrefix)
   if (spec == null) return undefined
@@ -206,19 +205,17 @@ function getPrefPreferSpecifiedSpec (
     alias: string
     name: string
     version: string
-    specRaw: string
+    currentPref: string
     pinnedVersion?: PinnedVersion
     rolling: boolean
   }
 ): string {
-  const prefix = getPrefix(opts.alias, opts.name)
-  if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
-    const range = opts.specRaw.slice(`${opts.alias}@${prefix}`.length)
-    if (range) {
-      const selector = versionSelectorType(range)
-      if ((selector != null) && (selector.type === 'version' || selector.type === 'range')) {
-        return opts.specRaw.slice(opts.alias.length + 1)
-      }
+  const prefix = opts.currentPref.startsWith('npm:') ? `npm:${opts.name}@` : ''
+  const range = opts.currentPref.slice(prefix.length)
+  if (range) {
+    const selector = versionSelectorType(range)
+    if ((selector != null) && (selector.type === 'version' || selector.type === 'range')) {
+      return opts.currentPref
     }
   }
   // A prerelease version is always added as an exact version
@@ -233,28 +230,27 @@ function getPrefPreferSpecifiedExoticSpec (
     alias: string
     name: string
     version: string
-    specRaw: string
+    currentPref: string
     pinnedVersion: PinnedVersion
     rolling: boolean
     preserveNonSemverVersionSpec?: boolean
   }
 ): string {
-  const prefix = getPrefix(opts.alias, opts.name)
-  if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
-    let specWithoutName = opts.specRaw.slice(`${opts.alias}@${prefix}`.length)
-    if (specWithoutName.startsWith('workspace:')) {
-      specWithoutName = specWithoutName.slice(10)
-      if (specWithoutName === '*' || specWithoutName === '^' || specWithoutName === '~') {
-        return specWithoutName
-      }
+  let prefix = opts.currentPref.startsWith('npm:') ? `npm:${opts.name}@` : ''
+  let specWithoutName = opts.currentPref.slice(prefix.length)
+  if (specWithoutName.startsWith('workspace:')) {
+    prefix = 'workspace:'
+    specWithoutName = specWithoutName.slice(10)
+    if (specWithoutName === '*' || specWithoutName === '^' || specWithoutName === '~') {
+      return specWithoutName
     }
-    const selector = versionSelectorType(specWithoutName)
-    if (
-      ((selector == null) || (selector.type !== 'version' && selector.type !== 'range')) &&
-      opts.preserveNonSemverVersionSpec
-    ) {
-      return opts.specRaw.slice(opts.alias.length + 1)
-    }
+  }
+  const selector = versionSelectorType(specWithoutName)
+  if (
+    ((selector == null) || (selector.type !== 'version' && selector.type !== 'range')) &&
+    opts.preserveNonSemverVersionSpec
+  ) {
+    return opts.currentPref
   }
   // A prerelease version is always added as an exact version
   if (semver.parse(opts.version)?.prerelease.length) {
