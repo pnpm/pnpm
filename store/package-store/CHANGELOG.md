@@ -1,5 +1,18 @@
 # @pnpm/package-store
 
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/fetcher-base@1000.0.9
+  - @pnpm/package-requester@1003.0.1
+  - @pnpm/store-controller-types@1002.0.1
+  - @pnpm/create-cafs-store@1000.0.11
+  - @pnpm/store.cafs@1000.0.10
+  - @pnpm/worker@1000.1.4
+
 ## 1002.0.0
 
 ### Major Changes

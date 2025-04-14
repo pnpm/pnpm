@@ -1,5 +1,12 @@
 # @pnpm/lifecycle
 
+## 1001.0.11
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@1000.1.5
+- @pnpm/store-controller-types@1002.0.1
+
 ## 1001.0.10
 
 ### Patch Changes

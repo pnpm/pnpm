@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/pnpmfile",
-  "version": "1001.1.0",
+  "version": "1001.1.1",
   "description": "Reading a .pnpmfile.cjs",
   "keywords": [
     "pnpm",

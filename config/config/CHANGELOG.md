@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 1002.7.2
+
+### Patch Changes
+
+- @pnpm/pnpmfile@1001.1.1
+
 ## 1002.7.1
 
 ### Patch Changes

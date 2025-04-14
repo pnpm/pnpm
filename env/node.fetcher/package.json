@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/node.fetcher",
-  "version": "1000.0.13",
+  "version": "1000.0.14",
   "description": "Node.js artifacts fetcher",
   "keywords": [
     "pnpm",

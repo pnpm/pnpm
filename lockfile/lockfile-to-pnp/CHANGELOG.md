@@ -1,5 +1,12 @@
 # @pnpm/lockfile-to-pnp
 
+## 1001.0.11
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.9
+- @pnpm/lockfile.fs@1001.1.10
+
 ## 1001.0.10
 
 ### Patch Changes

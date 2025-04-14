@@ -1,5 +1,11 @@
 # @pnpm/config.config-writer
 
+## 1000.0.2
+
+### Patch Changes
+
+- 17b7e9f: The patch file path saved by the pnpm `patch-commit` and `patch-remove` commands should be a relative path [#9403](https://github.com/pnpm/pnpm/pull/9403).
+
 ## 1000.0.1
 
 ### Patch Changes

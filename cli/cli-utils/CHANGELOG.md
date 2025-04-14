@@ -1,5 +1,16 @@
 # @pnpm/cli-utils
 
+## 1000.1.1
+
+### Patch Changes
+
+- Updated dependencies [43bd37f]
+  - @pnpm/default-reporter@1001.4.1
+  - @pnpm/config.deps-installer@1000.0.1
+  - @pnpm/pnpmfile@1001.1.1
+  - @pnpm/store-connection-manager@1001.0.1
+  - @pnpm/config@1002.7.2
+
 ## 1000.1.0
 
 ### Minor Changes

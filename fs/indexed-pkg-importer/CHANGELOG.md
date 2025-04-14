@@ -1,5 +1,12 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 1000.1.5
+
+### Patch Changes
+
+- 032fff8: Update reflink to support macOS
+  - @pnpm/store-controller-types@1002.0.1
+
 ## 1000.1.4
 
 ### Patch Changes

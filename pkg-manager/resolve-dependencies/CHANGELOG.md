@@ -1,5 +1,21 @@
 # @pnpm/resolve-dependencies
 
+## 1006.0.0
+
+### Major Changes
+
+- 81f441c: Removed `raw` from `WantedDependency` object. Remove `updateWorkspaceDependencies` field.
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/npm-resolver@1003.0.0
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/lockfile.preferred-versions@1000.0.11
+  - @pnpm/lockfile.utils@1001.0.9
+  - @pnpm/store-controller-types@1002.0.1
+
 ## 1005.0.1
 
 ### Patch Changes

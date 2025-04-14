@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.2.1
+
+### Patch Changes
+
+- 17b7e9f: The patch file path saved by the pnpm `patch-commit` and `patch-remove` commands should be a relative path [#9403](https://github.com/pnpm/pnpm/pull/9403).
+- Updated dependencies [17b7e9f]
+- Updated dependencies [4d95e93]
+  - @pnpm/config.config-writer@1000.0.2
+  - @pnpm/plugin-commands-installation@1003.0.1
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/lockfile.utils@1001.0.9
+  - @pnpm/cli-utils@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.10
+  - @pnpm/store-connection-manager@1001.0.1
+  - @pnpm/config@1002.7.2
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/patching.apply-patch@1000.0.3
+
 ## 1000.2.0
 
 ### Minor Changes

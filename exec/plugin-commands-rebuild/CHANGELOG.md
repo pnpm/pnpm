@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1002.0.11
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.9
+- @pnpm/get-context@1001.0.12
+- @pnpm/store-controller-types@1002.0.1
+- @pnpm/cli-utils@1000.1.1
+- @pnpm/lifecycle@1001.0.11
+- @pnpm/store.cafs@1000.0.10
+- @pnpm/calc-dep-state@1001.0.11
+- @pnpm/store-connection-manager@1001.0.1
+- @pnpm/workspace.find-packages@1000.0.21
+- @pnpm/worker@1000.1.4
+- @pnpm/config@1002.7.2
+
 ## 1002.0.10
 
 ### Patch Changes

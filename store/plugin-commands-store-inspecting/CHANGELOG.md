@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-store-inspecting
 
+## 1000.0.21
+
+### Patch Changes
+
+- @pnpm/client@1000.0.15
+- @pnpm/store.cafs@1000.0.10
+- @pnpm/config@1002.7.2
+
 ## 1000.0.20
 
 ### Patch Changes

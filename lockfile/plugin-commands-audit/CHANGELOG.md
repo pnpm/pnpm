@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.0.3
+
+### Patch Changes
+
+- Updated dependencies [17b7e9f]
+  - @pnpm/config.config-writer@1000.0.2
+  - @pnpm/cli-utils@1000.1.1
+  - @pnpm/audit@1002.0.2
+  - @pnpm/lockfile.fs@1001.1.10
+  - @pnpm/config@1002.7.2
+
 ## 1002.0.2
 
 ### Patch Changes

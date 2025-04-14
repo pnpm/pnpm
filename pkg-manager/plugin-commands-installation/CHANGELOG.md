@@ -1,5 +1,31 @@
 # @pnpm/plugin-commands-installation
 
+## 1003.0.1
+
+### Patch Changes
+
+- 4d95e93: If there is no pnpm related configuration in `package.json`, `onlyBuiltDependencies` will be written to `pnpm-workspace.yaml` file [#9404](https://github.com/pnpm/pnpm/pull/9404).
+- Updated dependencies [81f441c]
+- Updated dependencies [17b7e9f]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/config.config-writer@1000.0.2
+  - @pnpm/deps.status@1002.0.11
+  - @pnpm/core@1007.0.1
+  - @pnpm/get-context@1001.0.12
+  - @pnpm/outdated@1001.0.16
+  - @pnpm/package-store@1002.0.1
+  - @pnpm/config.deps-installer@1000.0.1
+  - @pnpm/workspace.pkgs-graph@1000.0.12
+  - @pnpm/cli-utils@1000.1.1
+  - @pnpm/pnpmfile@1001.1.1
+  - @pnpm/plugin-commands-rebuild@1002.0.11
+  - @pnpm/store-connection-manager@1001.0.1
+  - @pnpm/filter-workspace-packages@1000.0.21
+  - @pnpm/plugin-commands-env@1000.0.22
+  - @pnpm/workspace.find-packages@1000.0.21
+  - @pnpm/config@1002.7.2
+  - @pnpm/workspace.state@1001.1.17
+
 ## 1003.0.0
 
 ### Major Changes

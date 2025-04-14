@@ -1,5 +1,12 @@
 # @pnpm/git-resolver
 
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+
 ## 1000.0.10
 
 ### Patch Changes

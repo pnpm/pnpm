@@ -1,5 +1,16 @@
 # @pnpm/build-modules
 
+## 1000.3.2
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1002.0.1
+- @pnpm/lifecycle@1001.0.11
+- @pnpm/calc-dep-state@1001.0.11
+- @pnpm/worker@1000.1.4
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/patching.apply-patch@1000.0.3
+
 ## 1000.3.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/audit
 
+## 1002.0.2
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.9
+
 ## 1002.0.1
 
 ### Patch Changes

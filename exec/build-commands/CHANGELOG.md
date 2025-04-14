@@ -1,5 +1,14 @@
 # @pnpm/exec.build-commands
 
+## 1001.0.11
+
+### Patch Changes
+
+- Updated dependencies [17b7e9f]
+  - @pnpm/config.config-writer@1000.0.2
+  - @pnpm/plugin-commands-rebuild@1002.0.11
+  - @pnpm/config@1002.7.2
+
 ## 1001.0.10
 
 ### Patch Changes

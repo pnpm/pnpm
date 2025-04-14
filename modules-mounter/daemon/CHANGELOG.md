@@ -1,5 +1,14 @@
 # @pnpm/mount-modules
 
+## 1001.0.20
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.9
+- @pnpm/store.cafs@1000.0.10
+- @pnpm/lockfile.fs@1001.1.10
+- @pnpm/config@1002.7.2
+
 ## 1001.0.19
 
 ### Patch Changes

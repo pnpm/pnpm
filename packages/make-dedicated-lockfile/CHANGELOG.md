@@ -1,5 +1,12 @@
 # @pnpm/make-dedicated-lockfile
 
+## 1000.0.16
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.10
+- @pnpm/exportable-manifest@1000.0.10
+
 ## 1000.0.15
 
 ### Patch Changes
