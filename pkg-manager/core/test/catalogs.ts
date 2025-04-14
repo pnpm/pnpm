@@ -1002,24 +1002,39 @@ describe('add', () => {
 // pnpm update does not touch or rewrite dependencies using the catalog
 // protocol.
 describe('update', () => {
+  // Many of the update tests use @pnpm.e2e/foo, which has the following
+  // versions currently published to the https://github.com/pnpm/registry-mock
+  //
+  //   - 1.0.0
+  //   - 1.1.0
+  //   - 1.2.0
+  //   - 1.3.0
+  //   - 2.0.0
+  //   - 100.0.0
+  //   - 100.1.0
+  //
+  // The @pnpm.e2e/foo package is used rather than public packages like
+  // is-positive since public packages can release new versions and break the
+  // tests here.
+
   test('update does not modify catalog: protocol', async () => {
     const { options, projects } = preparePackagesAndReturnObjects([{
       name: 'project1',
       dependencies: {
-        'is-positive': 'catalog:',
+        '@pnpm.e2e/foo': 'catalog:',
       },
     }])
 
     const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
-      ['is-positive'],
+      ['@pnpm.e2e/foo'],
       {
         ...options,
         lockfileOnly: true,
         allowNew: false,
         update: true,
         catalogs: {
-          default: { 'is-positive': '^1.0.0' },
+          default: { '@pnpm.e2e/foo': '^1.0.0' },
         },
       })
 
@@ -1027,7 +1042,7 @@ describe('update', () => {
     expect(updatedManifest).toEqual({
       name: 'project1',
       dependencies: {
-        'is-positive': 'catalog:',
+        '@pnpm.e2e/foo': 'catalog:',
       },
     })
   })
@@ -1036,12 +1051,12 @@ describe('update', () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
       dependencies: {
-        'is-positive': 'catalog:',
+        '@pnpm.e2e/foo': 'catalog:',
       },
     }])
 
     const catalogs = {
-      default: { 'is-positive': '3.0.0' },
+      default: { '@pnpm.e2e/foo': '1.0.0' },
     }
     const mutateOpts = {
       ...options,
@@ -1051,19 +1066,19 @@ describe('update', () => {
 
     await mutateModules(installProjects(projects), mutateOpts)
 
-    // Updating the catalog from 3.0.0 to ^3.0.0. This should still lock to the
-    // existing 3.0.0 version despite version 3.1.0 existing.
-    catalogs.default['is-positive'] = '^3.0.0'
+    // Updating the catalog from 1.0.0 to ^1.0.0. This should still lock to the
+    // existing 1.0.0 version despite version 1.3.0 existing.
+    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
     await mutateModules(installProjects(projects), mutateOpts)
 
     expect(readLockfile().catalogs.default).toEqual({
-      'is-positive': { specifier: '^3.0.0', version: '3.0.0' },
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
     })
 
     // Expecting the manifest to remain unchanged after running an update.
     const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
-      ['is-positive'],
+      ['@pnpm.e2e/foo'],
       {
         ...mutateOpts,
         update: true,
@@ -1072,14 +1087,14 @@ describe('update', () => {
     expect(updatedManifest).toEqual({
       name: 'project1',
       dependencies: {
-        'is-positive': 'catalog:',
+        '@pnpm.e2e/foo': 'catalog:',
       },
     })
 
-    // The lockfile should only contain 3.0.0 and not 3.1.0 (or a later version).
+    // The lockfile should only contain 1.0.0 and not 1.3.0 (or a later version).
     expect(readLockfile()).toEqual(expect.objectContaining({
-      catalogs: { default: { 'is-positive': { specifier: '^3.0.0', version: '3.0.0' } } },
-      packages: { 'is-positive@3.0.0': expect.objectContaining({}) },
+      catalogs: { default: { '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' } } },
+      packages: { '@pnpm.e2e/foo@1.0.0': expect.objectContaining({}) },
     }))
   })
 
@@ -1087,12 +1102,12 @@ describe('update', () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
       dependencies: {
-        'is-positive': 'catalog:',
+        '@pnpm.e2e/foo': 'catalog:',
       },
     }])
 
     const catalogs = {
-      default: { 'is-positive': '1.0.0' },
+      default: { '@pnpm.e2e/foo': '1.0.0' },
     }
 
     const mutateOpts = {
@@ -1103,15 +1118,15 @@ describe('update', () => {
 
     await mutateModules(installProjects(projects), mutateOpts)
 
-    // Sanity check that the is-positive dependency is installed on the older
+    // Sanity check that the @pnpm.e2e/foo dependency is installed on the older
     // requested version.
     expect(readLockfile().catalogs.default).toEqual({
-      'is-positive': { specifier: '1.0.0', version: '1.0.0' },
+      '@pnpm.e2e/foo': { specifier: '1.0.0', version: '1.0.0' },
     })
 
     const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
-      ['is-positive'],
+      ['@pnpm.e2e/foo'],
       {
         ...mutateOpts,
         allowNew: false,
@@ -1123,11 +1138,11 @@ describe('update', () => {
     expect(updatedManifest).toEqual({
       name: 'project1',
       dependencies: {
-        'is-positive': 'catalog:',
+        '@pnpm.e2e/foo': 'catalog:',
       },
     })
 
-    expect(Object.keys(readLockfile().snapshots)).toEqual(['is-positive@1.0.0'])
+    expect(Object.keys(readLockfile().snapshots)).toEqual(['@pnpm.e2e/foo@1.0.0'])
   })
 })
 
