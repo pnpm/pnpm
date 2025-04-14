@@ -1057,3 +1057,20 @@ test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect
   expect(config.sharedWorkspaceLockfile).toBe(false)
   expect(config.lockfileDir).toBe(undefined)
 })
+
+test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async () => {
+  const workspaceDir = f.find('settings-in-workspace-yaml')
+  process.chdir(workspaceDir)
+  const { config } = await getConfig({
+    cliOptions: {},
+    workspaceDir,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.shamefullyHoist).toBe(true)
+  expect(config.publicHoistPattern).toStrictEqual(['*'])
+  expect(config.rawConfig['shamefully-hoist']).toBe(true)
+})
