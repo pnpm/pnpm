@@ -78,7 +78,7 @@ catalog:
   "@pnpm/semver-diff": ^1.1.0
   "@pnpm/tabtab": ^0.5.4
   "@pnpm/util.lex-comparator": 3.0.1
-  "@reflink/reflink": 0.1.18
+  "@reflink/reflink": 0.1.19
   "@rushstack/worker-pool": 0.4.9
   "@types/adm-zip": ^0.5.7
   "@types/archy": 0.0.33
