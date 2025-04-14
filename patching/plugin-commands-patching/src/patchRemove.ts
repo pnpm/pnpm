@@ -1,13 +1,13 @@
 import path from 'path'
 import fs from 'fs/promises'
 import { docsUrl } from '@pnpm/cli-utils'
-import { writeSettings } from '@pnpm/config.config-writer'
 import { install } from '@pnpm/plugin-commands-installation'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import renderHelp from 'render-help'
 import { prompt } from 'enquirer'
 import pick from 'ramda/src/pick'
+import { updatePatchedDependencies } from './updatePatchedDependencies'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -72,13 +72,9 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
       }
     } catch {}
   }))
-
-  await writeSettings({
+  await updatePatchedDependencies(patchedDependencies, {
     ...opts,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
-    updatedSettings: {
-      patchedDependencies: Object.keys(patchedDependencies).length ? patchedDependencies : undefined,
-    },
   })
 
   return install.handler(opts)
