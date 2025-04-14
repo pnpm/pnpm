@@ -3,12 +3,14 @@ import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import equals from 'ramda/src/equals'
 
-export async function writeSettings (opts: {
+export interface WriteSettingsOptions {
   updatedSettings: PnpmSettings
   rootProjectManifest?: ProjectManifest
   rootProjectManifestDir: string
   workspaceDir: string
-}): Promise<void> {
+}
+
+export async function writeSettings (opts: WriteSettingsOptions): Promise<void> {
   if (opts.rootProjectManifest?.pnpm != null) {
     const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.rootProjectManifestDir)
     if (manifest) {

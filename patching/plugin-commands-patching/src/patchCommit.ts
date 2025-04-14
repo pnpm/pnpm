@@ -2,7 +2,6 @@ import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
-import { writeSettings } from '@pnpm/config.config-writer'
 import { createShortHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
@@ -23,6 +22,7 @@ import { type WritePackageOptions, writePackage } from './writePackage'
 import { type ParseWantedDependencyResult, parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency'
 import { readEditDirState } from './stateFile'
+import { updatePatchedDependencies } from './updatePatchedDependencies'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -104,17 +104,9 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
     ...opts.patchedDependencies,
     [patchKey]: `${patchesDirName}/${patchFileName}.patch`,
   }
-  Object.entries(patchedDependencies).forEach(([key, value]) => {
-    if (path.isAbsolute(value)) {
-      patchedDependencies[key] = path.relative(opts.workspaceDir ?? opts.rootProjectManifestDir, value)
-    }
-  })
-  await writeSettings({
+  await updatePatchedDependencies(patchedDependencies, {
     ...opts,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
-    updatedSettings: {
-      patchedDependencies,
-    },
   })
 
   return install.handler({
