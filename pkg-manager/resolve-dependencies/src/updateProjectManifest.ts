@@ -79,6 +79,7 @@ function resolvedDirectDepToSpecObject (
     currentPref,
     version,
     preserveNonSemverVersionSpec,
+    specifierTemplate,
   }: ResolvedDirectDependency & { isNew?: boolean, currentPref: string, preserveNonSemverVersionSpec?: boolean },
   importer: ImporterToResolve,
   opts: {
@@ -101,6 +102,9 @@ function resolvedDirectDepToSpecObject (
       ) &&
       opts.pinnedVersion !== 'none'
 
+    specifierTemplate = !shouldUseWorkspaceProtocol && specifierTemplate?.startsWith('workspace:')
+      ? specifierTemplate.replace(/^workspace:/, '')
+      : specifierTemplate!
     if (isNew === true) {
       pref = getPrefPreferSpecifiedSpec({
         alias,
@@ -109,6 +113,7 @@ function resolvedDirectDepToSpecObject (
         currentPref,
         version,
         rolling: shouldUseWorkspaceProtocol && opts.saveWorkspaceProtocol === 'rolling',
+        specifierTemplate: specifierTemplate!,
       })
     } else {
       pref = getPrefPreferSpecifiedExoticSpec({
@@ -119,6 +124,7 @@ function resolvedDirectDepToSpecObject (
         version,
         rolling: shouldUseWorkspaceProtocol && opts.saveWorkspaceProtocol === 'rolling',
         preserveNonSemverVersionSpec,
+        specifierTemplate: specifierTemplate!,
       })
     }
     if (
@@ -146,9 +152,27 @@ function getPrefPreferSpecifiedSpec (
     currentPref: string
     pinnedVersion?: PinnedVersion
     rolling: boolean
+    specifierTemplate: string
   }
 ): string {
-  const prefix = opts.currentPref.startsWith('npm:') ? `npm:${opts.name}@` : ''
+  if (!opts.specifierTemplate?.endsWith('<range>')) return opts.currentPref
+  const prefix = opts.specifierTemplate.substring(0, opts.specifierTemplate.length - '<range>'.length)
+  let specWithoutName = opts.currentPref
+  if (specWithoutName.startsWith('workspace:')) {
+    specWithoutName = specWithoutName.slice(10)
+    if (specWithoutName === '*' || specWithoutName === '^' || specWithoutName === '~') {
+      if (opts.pinnedVersion) {
+        return `${prefix}${createVersionSpec(opts.version, { pinnedVersion: opts.pinnedVersion, rolling: opts.rolling })}`
+      }
+      return opts.currentPref
+    }
+    const selector = versionSelectorType(specWithoutName)
+    if (
+      ((selector == null) || (selector.type !== 'version' && selector.type !== 'range'))
+    ) {
+      return opts.currentPref
+    }
+  }
   const range = opts.currentPref.slice(prefix.length)
   if (range) {
     const selector = versionSelectorType(range)
@@ -172,12 +196,13 @@ function getPrefPreferSpecifiedExoticSpec (
     pinnedVersion: PinnedVersion
     rolling: boolean
     preserveNonSemverVersionSpec?: boolean
+    specifierTemplate: string
   }
 ): string {
-  let prefix = opts.currentPref.startsWith('npm:') ? `npm:${opts.name}@` : ''
-  let specWithoutName = opts.currentPref.slice(prefix.length)
+  if (!opts.specifierTemplate?.endsWith('<range>')) return opts.currentPref
+  const prefix = opts.specifierTemplate.substring(0, opts.specifierTemplate.length - '<range>'.length)
+  let specWithoutName = opts.currentPref
   if (specWithoutName.startsWith('workspace:')) {
-    prefix = 'workspace:'
     specWithoutName = specWithoutName.slice(10)
     if (specWithoutName === '*' || specWithoutName === '^' || specWithoutName === '~') {
       return specWithoutName

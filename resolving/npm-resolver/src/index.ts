@@ -123,6 +123,7 @@ export type ResolveFromNpmOptions = {
   preferWorkspacePackages?: boolean
   update?: false | 'compatible' | 'latest'
   injectWorkspacePackages?: boolean
+  calcSpecifierTemplate?: boolean
 } & ({
   projectDir?: string
   workspacePackages?: undefined
@@ -251,7 +252,13 @@ async function resolveNpm (
     resolution,
     resolvedVia: 'npm-registry',
     publishedAt: meta.time?.[pickedPackage.version],
+    specifierTemplate: opts.calcSpecifierTemplate ? calcSpecifierTemplate(wantedDependency.alias, spec) : undefined,
   }
+}
+
+function calcSpecifierTemplate (alias: string | undefined, spec: RegistryPackageSpec): string {
+  if (!alias || spec.name === alias) return '<range>'
+  return `npm:${spec.name}@<range>`
 }
 
 function tryResolveFromWorkspace (
@@ -368,6 +375,7 @@ function resolveFromLocalPackage (
       type: 'directory',
     },
     resolvedVia: 'workspace',
+    specifierTemplate: 'workspace:<range>',
   }
 }
 

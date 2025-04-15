@@ -54,6 +54,7 @@ export interface ResolvedDirectDependency {
   name: string
   normalizedPref?: string
   catalogLookup?: CatalogLookupMetadata
+  specifierTemplate?: string
 }
 
 /**
@@ -264,6 +265,7 @@ export async function resolveDependencyTree<T> (
             pkgId: resolvedPackage.id,
             resolution: resolvedPackage.resolution,
             version: resolvedPackage.version,
+            specifierTemplate: dep.specifierTemplate,
           }
         }),
       directNodeIdsByAlias: new Map(directNonLinkedDeps.map(({ alias, nodeId }) => [alias, nodeId])),

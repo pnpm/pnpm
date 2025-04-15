@@ -45,6 +45,7 @@ export interface ResolveResult {
   normalizedPref?: string // is null for npm-hosted dependencies
   resolution: Resolution
   resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'workspace' | 'url' | string
+  specifierTemplate?: string
 }
 
 /**
@@ -99,6 +100,7 @@ export interface ResolveOptions {
   workspacePackages?: WorkspacePackages
   update?: false | 'compatible' | 'latest'
   injectWorkspacePackages?: boolean
+  calcSpecifierTemplate?: boolean
 }
 
 export type WantedDependency = {

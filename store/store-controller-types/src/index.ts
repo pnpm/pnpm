@@ -131,6 +131,7 @@ export interface RequestPackageOptions {
   supportedArchitectures?: SupportedArchitectures
   onFetchError?: OnFetchError
   injectWorkspacePackages?: boolean
+  calcSpecifierTemplate?: boolean
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
@@ -145,6 +146,7 @@ export interface PackageResponse {
     manifest?: PackageManifest
     id: PkgResolutionId
     normalizedPref?: string
+    specifierTemplate?: string
     updated: boolean
     publishedAt?: string
     resolvedVia?: string

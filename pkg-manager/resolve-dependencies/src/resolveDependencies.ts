@@ -113,6 +113,7 @@ export interface LinkedDependency {
   normalizedPref?: string
   alias: string
   catalogLookup?: CatalogLookupMetadata
+  specifierTemplate?: string
 }
 
 export interface PendingNode {
@@ -203,6 +204,7 @@ export type PkgAddress = {
   publishedAt?: string
   catalogLookup?: CatalogLookupMetadata
   optional: boolean
+  specifierTemplate?: string
 } & ({
   isLinkedDependency: true
   version: string
@@ -1252,7 +1254,8 @@ async function resolveDependency (
     }
   }
   try {
-    if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`)) {
+    const calcSpecifierTemplate = options.currentDepth === 0
+    if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifierTemplate) {
       wantedDependency.pref = replaceVersionInPref(wantedDependency.pref, currentPkg.version)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
@@ -1288,6 +1291,7 @@ async function resolveDependency (
         return err
       },
       injectWorkspacePackages: ctx.injectWorkspacePackages,
+      calcSpecifierTemplate,
     })
   } catch (err: any) { // eslint-disable-line
     const wantedDependencyDetails = {
@@ -1351,6 +1355,7 @@ async function resolveDependency (
       pkgId: pkgResponse.body.id,
       resolution: pkgResponse.body.resolution,
       version: pkgResponse.body.manifest.version,
+      specifierTemplate: pkgResponse.body.specifierTemplate,
     }
   }
 
@@ -1563,6 +1568,7 @@ async function resolveDependency (
     isNew,
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
+    specifierTemplate: pkgResponse.body.specifierTemplate,
     missingPeersOfChildren,
     pkgId: pkgResponse.body.id,
     rootDir,
