@@ -94,6 +94,7 @@ catalog:
   "@types/lodash.throttle": 4.1.7
   "@types/micromatch": ^4.0.9
   "@types/node": ^18.19.34
+  "@types/node-fetch": ^2.6.12
   "@types/normalize-package-data": ^2.4.4
   "@types/normalize-path": ^3.0.2
   "@types/object-hash": 3.0.6
@@ -117,7 +118,7 @@ catalog:
   "@types/write-file-atomic": ^4.0.3
   "@types/yarnpkg__lockfile": ^1.1.9
   "@types/zkochan__table": npm:@types/table@6.0.0
-  "@yarnpkg/core": 4.0.5
+  "@yarnpkg/core": 4.2.0
   "@yarnpkg/extensions": 2.0.3
   "@yarnpkg/lockfile": ^1.1.0
   "@yarnpkg/nm": 4.0.5
