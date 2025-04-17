@@ -50,6 +50,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'excludeLinksFromLockfile'
 | 'injectWorkspacePackages'
 | 'linkWorkspacePackages'
+| 'nodeLinker'
 | 'hooks'
 | 'peersSuffixMaxLength'
 | 'rootProjectManifest'
@@ -109,11 +110,17 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     catalogs,
     excludeLinksFromLockfile,
     linkWorkspacePackages,
+    nodeLinker,
     rootProjectManifest,
     rootProjectManifestDir,
     sharedWorkspaceLockfile,
     workspaceDir,
   } = opts
+
+  if (nodeLinker === 'pnp') {
+    globalWarn('verify-deps-before-run does not work with node-linker=pnp')
+    return { upToDate: true, workspaceState: undefined }
+  }
 
   const rootManifestOptions = rootProjectManifest && rootProjectManifestDir
     ? getOptionsFromRootManifest(rootProjectManifestDir, rootProjectManifest)
@@ -171,8 +178,18 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       }
     }
 
+    let statModulesDir: (project: Project) => Promise<fs.Stats | undefined>
+    if (nodeLinker === 'hoisted') {
+      const statsPromise = safeStat(path.join(rootProjectManifestDir, 'node_modules'))
+      statModulesDir = () => statsPromise
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const _nodeLinkerTypeGuard: 'isolated' | undefined = nodeLinker // static type assertion
+      statModulesDir = project => safeStat(path.join(project.rootDir, 'node_modules'))
+    }
+
     const allManifestStats = await Promise.all(allProjects.map(async project => {
-      const modulesDirStatsPromise = safeStat(path.join(project.rootDir, 'node_modules'))
+      const modulesDirStatsPromise = statModulesDir(project)
       const manifestStats = await statManifestFile(project.rootDir)
       if (!manifestStats) {
         // this error should not happen
