@@ -4,7 +4,6 @@ import {
   type PinnedVersion,
   updateProjectManifestObject,
 } from '@pnpm/manifest-utils'
-import versionSelectorType from 'version-selector-type'
 import semver from 'semver'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
 import { type TarballResolution } from '@pnpm/resolver-base'
@@ -123,22 +122,6 @@ function getPrefPreferSpecifiedSpec (
     return opts.specifierTemplate ?? opts.currentPref
   }
   const prefix = opts.specifierTemplate.substring(0, opts.specifierTemplate.length - '<range>'.length)
-  let specWithoutName = opts.currentPref
-  if (specWithoutName.startsWith('workspace:')) {
-    specWithoutName = specWithoutName.slice(10)
-    if (specWithoutName === '*' || specWithoutName === '^' || specWithoutName === '~') {
-      if (opts.pinnedVersion) {
-        return `${prefix}${createVersionSpec(opts.version, { pinnedVersion: opts.pinnedVersion, rolling: opts.rolling })}`
-      }
-      return opts.currentPref
-    }
-    const selector = versionSelectorType(specWithoutName)
-    if (
-      ((selector == null) || (selector.type !== 'version' && selector.type !== 'range'))
-    ) {
-      return opts.currentPref
-    }
-  }
   // A prerelease version is always added as an exact version
   if (semver.parse(opts.version)?.prerelease.length) {
     return `${prefix}${opts.version}`

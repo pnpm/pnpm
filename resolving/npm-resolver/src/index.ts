@@ -413,20 +413,21 @@ function calcSpecifierTemplateForWorkspaceDep (wantedDependency: WantedDependenc
   if (!saveWorkspaceProtocol && !wantedDependency.pref?.startsWith('workspace:')) {
     return calcSpecifierTemplate(wantedDependency, spec)
   }
+  const prefix = (!wantedDependency.alias || spec.name === wantedDependency.alias) ? 'workspace:' : `workspace:${spec.name}@`
   if (saveWorkspaceProtocol === 'rolling') {
     const pref = wantedDependency.prevPref ?? wantedDependency.pref
     if (pref) {
-      if (['workspace:*', 'workspace:^', 'workspace:~'].includes(pref)) return pref
+      if ([`${prefix}*`, `${prefix}^`, `${prefix}~`].includes(pref)) return pref
       const pinnedVersion = whichVersionIsPinned(pref)
       switch (pinnedVersion) {
-      case 'major': return 'workspace:^'
-      case 'minor': return 'workspace:~'
-      case 'patch': return 'workspace:*'
+      case 'major': return `${prefix}^`
+      case 'minor': return `${prefix}~`
+      case 'patch': return `${prefix}*`
       }
     }
-    return 'workspace:^'
+    return `${prefix}^`
   }
-  return 'workspace:<range>'
+  return `${prefix}<range>`
 }
 
 function resolveLocalPackageDir (localPackage: WorkspacePackage): string {
