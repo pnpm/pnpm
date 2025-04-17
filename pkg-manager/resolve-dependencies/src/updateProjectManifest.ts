@@ -1,10 +1,8 @@
 import {
-  createVersionSpec,
   type PackageSpecObject,
   type PinnedVersion,
   updateProjectManifestObject,
 } from '@pnpm/manifest-utils'
-import semver from 'semver'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
 import { type TarballResolution } from '@pnpm/resolver-base'
 import { type ProjectManifest } from '@pnpm/types'
@@ -68,10 +66,8 @@ function resolvedDirectDepToSpecObject (
   {
     alias,
     catalogLookup,
-    name,
     normalizedPref,
     currentPref,
-    version,
     specifierTemplate,
   }: Omit<ResolvedDirectDependency, 'resolution'> & { currentPref: string },
   importer: ImporterToResolve,
@@ -88,15 +84,7 @@ function resolvedDirectDepToSpecObject (
   } else if (normalizedPref) {
     pref = normalizedPref
   } else {
-    pref = getPrefPreferSpecifiedSpec({
-      alias,
-      name,
-      pinnedVersion: opts.pinnedVersion,
-      currentPref,
-      version,
-      rolling: opts.saveWorkspaceProtocol === 'rolling',
-      specifierTemplate: specifierTemplate!,
-    })
+    pref = specifierTemplate ?? currentPref
   }
   return {
     alias,
@@ -105,26 +93,4 @@ function resolvedDirectDepToSpecObject (
     pref,
     saveType: importer['targetDependenciesField'],
   }
-}
-
-function getPrefPreferSpecifiedSpec (
-  opts: {
-    alias: string
-    name: string
-    version: string
-    currentPref: string
-    pinnedVersion?: PinnedVersion
-    rolling: boolean
-    specifierTemplate: string
-  }
-): string {
-  if (!opts.specifierTemplate?.endsWith('<range>')) {
-    return opts.specifierTemplate ?? opts.currentPref
-  }
-  const prefix = opts.specifierTemplate.substring(0, opts.specifierTemplate.length - '<range>'.length)
-  // A prerelease version is always added as an exact version
-  if (semver.parse(opts.version)?.prerelease.length) {
-    return `${prefix}${opts.version}`
-  }
-  return `${prefix}${createVersionSpec(opts.version, { pinnedVersion: opts.pinnedVersion, rolling: prefix.startsWith('workspace:') && opts.rolling })}`
 }

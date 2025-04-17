@@ -5,7 +5,6 @@ import {
   type IncludedDependencies,
   type ProjectManifest,
 } from '@pnpm/types'
-import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
 
 export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
 
@@ -14,7 +13,6 @@ export interface WantedDependency {
   pref: string // package reference
   dev: boolean
   optional: boolean
-  pinnedVersion?: PinnedVersion
   nodeExecPath?: string
   updateSpec?: boolean
   prevPref?: string
@@ -73,7 +71,6 @@ function getWantedDependenciesFromGivenSet (
       injected: opts.dependenciesMeta[alias]?.injected,
       optional: depType === 'optional',
       nodeExecPath: opts.nodeExecPath ?? opts.dependenciesMeta[alias]?.node,
-      pinnedVersion: whichVersionIsPinned(pref),
       pref,
       prevPref: pref,
     }

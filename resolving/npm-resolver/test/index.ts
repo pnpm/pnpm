@@ -78,7 +78,7 @@ test('resolveFromNpm()', async () => {
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
-  expect(resolveResult!.specifierTemplate).toBe('<range>')
+  expect(resolveResult!.specifierTemplate).toBe('1.0.0')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
@@ -277,7 +277,7 @@ test('can resolve aliased dependency w/o version specifier to default tag', asyn
     calcSpecifierTemplate: true,
   })
   expect(resolveResult!.id).toBe('is-positive@3.0.0')
-  expect(resolveResult!.specifierTemplate).toBe('npm:is-positive@<range>')
+  expect(resolveResult!.specifierTemplate).toBe('npm:is-positive@^3.0.0')
 })
 
 test('can resolve aliased scoped dependency', async () => {

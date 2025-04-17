@@ -46,6 +46,9 @@
       "path": "../../packages/which-version-is-pinned"
     },
     {
+      "path": "../../pkg-manifest/manifest-utils"
+    },
+    {
       "path": "../../workspace/resolve-workspace-range"
     },
     {

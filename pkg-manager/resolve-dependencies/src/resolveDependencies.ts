@@ -42,6 +42,7 @@ import {
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import { type PatchInfo } from '@pnpm/patching.types'
+import { type PinnedVersion } from '@pnpm/manifest-utils'
 import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import pDefer from 'p-defer'
@@ -276,6 +277,7 @@ interface ResolvedDependenciesOptions {
   prefix: string
   supportedArchitectures?: SupportedArchitectures
   updateToLatest?: boolean
+  pinnedVersion?: PinnedVersion
 }
 
 interface PostponedResolutionOpts {
@@ -408,6 +410,7 @@ export interface ImporterToResolve {
   parentPkgAliases: ParentPkgAliases
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>
   options: ImporterToResolveOptions
+  pinnedVersion?: PinnedVersion
 }
 
 interface ResolveDependenciesOfImportersResult {
@@ -572,6 +575,7 @@ async function resolveDependenciesOfImporterDependency (
       updateToLatest: catalogLookup != null
         ? false
         : importer.options.updateToLatest,
+      pinnedVersion: importer.pinnedVersion,
     },
     extendedWantedDep
   )
@@ -823,6 +827,7 @@ async function resolveDependenciesOfDependency (
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
     parentIds: options.parentIds,
+    pinnedVersion: options.pinnedVersion,
   }
 
   // The catalog protocol is normally replaced when resolving the dependencies
@@ -1210,6 +1215,7 @@ interface ResolveDependencyOptions {
   updateDepth: number
   updateMatching?: UpdateMatchingFunction
   supportedArchitectures?: SupportedArchitectures
+  pinnedVersion?: PinnedVersion
 }
 
 type ResolveDependencyResult = PkgAddress | LinkedDependency | null
@@ -1292,6 +1298,7 @@ async function resolveDependency (
       },
       injectWorkspacePackages: ctx.injectWorkspacePackages,
       calcSpecifierTemplate,
+      pinnedVersion: options.pinnedVersion,
     })
   } catch (err: any) { // eslint-disable-line
     const wantedDependencyDetails = {

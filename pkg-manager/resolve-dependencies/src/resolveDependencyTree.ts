@@ -15,6 +15,7 @@ import {
   type ProjectRootDir,
 } from '@pnpm/types'
 import partition from 'ramda/src/partition'
+import { type PinnedVersion } from '@pnpm/manifest-utils'
 import zipObj from 'ramda/src/zipObj'
 import { type WantedDependency } from './getNonDevWantedDependencies'
 import { type NodeId, nextNodeId } from './nextNodeId'
@@ -93,6 +94,7 @@ export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
   wantedDependencies: Array<WantedDepExtraProps & WantedDependency & { updateDepth: number }>
+  pinnedVersion?: PinnedVersion
 }
 
 export interface ResolveDependenciesOptions {
@@ -227,6 +229,7 @@ export async function resolveDependencyTree<T> (
       preferredVersions: importer.preferredVersions ?? {},
       wantedDependencies: importer.wantedDependencies,
       options: resolveOpts,
+      pinnedVersion: importer.pinnedVersion,
     }
   })
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)

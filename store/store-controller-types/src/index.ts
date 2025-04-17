@@ -132,6 +132,10 @@ export interface RequestPackageOptions {
   onFetchError?: OnFetchError
   injectWorkspacePackages?: boolean
   calcSpecifierTemplate?: boolean
+  pinnedVersion?: | 'none'
+  | 'patch'
+  | 'minor'
+  | 'major'
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>

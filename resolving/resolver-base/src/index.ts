@@ -101,6 +101,10 @@ export interface ResolveOptions {
   update?: false | 'compatible' | 'latest'
   injectWorkspacePackages?: boolean
   calcSpecifierTemplate?: boolean
+  pinnedVersion?: | 'none'
+  | 'patch'
+  | 'minor'
+  | 'major'
 }
 
 export type WantedDependency = {

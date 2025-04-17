@@ -1,7 +1,6 @@
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type Dependencies } from '@pnpm/types'
-import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
-import { type PinnedVersion, type WantedDependency } from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
+import { type WantedDependency } from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
 import { type Catalog } from '@pnpm/catalogs.types'
 
 export function parseWantedDependencies (
@@ -25,7 +24,6 @@ export function parseWantedDependencies (
       const parsed = parseWantedDependency(rawWantedDependency)
       const alias = parsed['alias']
       let pref = parsed['pref']
-      let pinnedVersion!: PinnedVersion | undefined
 
       if (!opts.allowNew && (!alias || !opts.currentPrefs[alias])) {
         return null
@@ -39,15 +37,11 @@ export function parseWantedDependencies (
       }
       if (alias && opts.currentPrefs[alias]) {
         pref ??= opts.currentPrefs[alias]
-        pinnedVersion = whichVersionIsPinned(opts.currentPrefs[alias])
-      } else if (pref) {
-        pinnedVersion = whichVersionIsPinned(pref)
       }
       const result = {
         alias,
         dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
         optional: Boolean(opts.optional || alias && !!opts.optionalDependencies[alias]),
-        pinnedVersion,
         prevPref: alias && opts.currentPrefs[alias],
       }
       if (pref) {
@@ -63,8 +57,6 @@ export function parseWantedDependencies (
         }
       }
       if (alias && opts.overrides?.[alias]) {
-        const pref = opts.overrides?.[alias]
-        result.pinnedVersion = whichVersionIsPinned(pref)
         return {
           ...result,
           pref: opts.overrides[alias],
