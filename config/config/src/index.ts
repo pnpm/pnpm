@@ -337,9 +337,10 @@ export async function getConfig (opts: {
   if (!opts.ignoreLocalSettings) {
     pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
     pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
+    let localWorkspacePatterns = []
     if (pnpmConfig.rootProjectManifest != null) {
-      if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
-        warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
+      for (const p of pnpmConfig.rootProjectManifest?.workspaces ?? []) {
+        localWorkspacePatterns.push(path.resolve(pnpmConfig.workspaceDir, p))
       }
       if (pnpmConfig.rootProjectManifest.packageManager) {
         pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
@@ -351,8 +352,10 @@ export async function getConfig (opts: {
 
     if (pnpmConfig.workspaceDir != null) {
       const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
+      for (const p of workspaceManifest?.packages) {
+        localWorkspacePatterns.push(p)
+      }
 
-      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
       if (workspaceManifest) {
         const newSettings = Object.assign(getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest), configFromCliOpts)
         for (const [key, value] of Object.entries(newSettings)) {
@@ -363,6 +366,8 @@ export async function getConfig (opts: {
         pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
       }
     }
+
+    pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? localWorkspacePatterns.length ? localWorkspacePatterns : ['.']
   }
   if (opts.cliOptions['save-peer']) {
     if (opts.cliOptions['save-prod']) {
