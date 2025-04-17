@@ -1,5 +1,5 @@
 ---
-"@pnpm/deps.status": patch
+"@pnpm/deps.status": minor
 "pnpm": patch
 ---
 
