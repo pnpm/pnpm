@@ -476,7 +476,7 @@ export async function mutateModules (
         includeDirect: opts.includeDirect,
         nodeExecPath: opts.nodeExecPath,
       })
-        .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
+        .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
 
       if (ctx.wantedLockfile?.importers) {
         forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepPrefSame)
@@ -898,7 +898,7 @@ export type ImporterToUpdate = {
   pruneDirectDependencies: boolean
   removePackages?: string[]
   updatePackageManifest: boolean
-  wantedDependencies: Array<WantedDependency & { isNew?: boolean, updateSpec?: boolean, preserveNonSemverVersionSpec?: boolean }>
+  wantedDependencies: Array<WantedDependency & { isNew?: boolean, updateSpec?: boolean }>
 } & DependenciesMutation
 
 export interface UpdatedProject {

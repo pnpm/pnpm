@@ -17,6 +17,7 @@ export interface WantedDependency {
   pinnedVersion?: PinnedVersion
   nodeExecPath?: string
   updateSpec?: boolean
+  prevPref?: string
 }
 
 export function getWantedDependencies (
@@ -74,6 +75,7 @@ function getWantedDependenciesFromGivenSet (
       nodeExecPath: opts.nodeExecPath ?? opts.dependenciesMeta[alias]?.node,
       pinnedVersion: whichVersionIsPinned(pref),
       pref,
+      prevPref: pref,
     }
   })
 }

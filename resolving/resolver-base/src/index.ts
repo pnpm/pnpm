@@ -105,6 +105,7 @@ export interface ResolveOptions {
 
 export type WantedDependency = {
   injected?: boolean
+  prevPref?: string
 } & ({
   alias?: string
   pref: string

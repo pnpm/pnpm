@@ -43,6 +43,9 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../packages/which-version-is-pinned"
+    },
+    {
       "path": "../../workspace/resolve-workspace-range"
     },
     {

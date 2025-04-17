@@ -48,6 +48,7 @@ export function parseWantedDependencies (
         dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
         optional: Boolean(opts.optional || alias && !!opts.optionalDependencies[alias]),
         pinnedVersion,
+        prevPref: alias && opts.currentPrefs[alias],
       }
       if (pref) {
         return {
@@ -62,6 +63,8 @@ export function parseWantedDependencies (
         }
       }
       if (alias && opts.overrides?.[alias]) {
+        const pref = opts.overrides?.[alias]
+        result.pinnedVersion = whichVersionIsPinned(pref)
         return {
           ...result,
           pref: opts.overrides[alias],

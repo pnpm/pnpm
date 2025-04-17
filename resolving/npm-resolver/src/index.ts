@@ -18,6 +18,7 @@ import {
   type WorkspacePackagesByVersion,
   type WorkspaceResolveResult,
 } from '@pnpm/resolver-base'
+import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
 import { type Registries } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
@@ -25,6 +26,7 @@ import pMemoize from 'p-memoize'
 import clone from 'ramda/src/clone'
 import semver from 'semver'
 import ssri from 'ssri'
+import versionSelectorType from 'version-selector-type'
 import {
   type PackageInRegistry,
   type PackageMeta,
@@ -159,6 +161,7 @@ async function resolveNpm (
       injectWorkspacePackages: opts.injectWorkspacePackages,
       update: Boolean(opts.update),
       saveWorkspaceProtocol: ctx.saveWorkspaceProtocol !== false ? ctx.saveWorkspaceProtocol : true,
+      calcSpecifierTemplate: opts.calcSpecifierTemplate,
     })
     if (resolvedFromWorkspace != null) {
       return resolvedFromWorkspace
@@ -185,13 +188,14 @@ async function resolveNpm (
   } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {
       try {
-        return tryResolveFromWorkspacePackages(workspacePackages, spec, {
+        return tryResolveFromWorkspacePackages(workspacePackages, wantedDependency, spec, {
           wantedDependency,
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           update: Boolean(opts.update),
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
+          calcSpecifierTemplate: opts.calcSpecifierTemplate,
         })
       } catch {
         // ignore
@@ -204,13 +208,14 @@ async function resolveNpm (
   if (pickedPackage == null) {
     if ((workspacePackages != null) && opts.projectDir) {
       try {
-        return tryResolveFromWorkspacePackages(workspacePackages, spec, {
+        return tryResolveFromWorkspacePackages(workspacePackages, wantedDependency, spec, {
           wantedDependency,
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           update: Boolean(opts.update),
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
+          calcSpecifierTemplate: opts.calcSpecifierTemplate,
         })
       } catch {
         // ignore
@@ -224,11 +229,12 @@ async function resolveNpm (
     const matchedPkg = workspacePkgsMatchingName.get(pickedPackage.version)
     if (matchedPkg) {
       return {
-        ...resolveFromLocalPackage(matchedPkg, spec.normalizedPref, {
+        ...resolveFromLocalPackage(matchedPkg, wantedDependency, spec, {
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
+          calcSpecifierTemplate: opts.calcSpecifierTemplate,
         }),
         latest: meta['dist-tags'].latest,
       }
@@ -236,11 +242,12 @@ async function resolveNpm (
     const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
     if (localVersion && (semver.gt(localVersion, pickedPackage.version) || opts.preferWorkspacePackages)) {
       return {
-        ...resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec.normalizedPref, {
+        ...resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, wantedDependency, spec, {
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
+          calcSpecifierTemplate: opts.calcSpecifierTemplate,
         }),
         latest: meta['dist-tags'].latest,
       }
@@ -260,12 +267,15 @@ async function resolveNpm (
     resolution,
     resolvedVia: 'npm-registry',
     publishedAt: meta.time?.[pickedPackage.version],
-    specifierTemplate: opts.calcSpecifierTemplate ? calcSpecifierTemplate(wantedDependency.alias, spec) : undefined,
+    specifierTemplate: opts.calcSpecifierTemplate ? calcSpecifierTemplate(wantedDependency, spec) : undefined,
   }
 }
 
-function calcSpecifierTemplate (alias: string | undefined, spec: RegistryPackageSpec): string {
-  if (!alias || spec.name === alias) return '<range>'
+function calcSpecifierTemplate (wantedDependency: WantedDependency, spec: RegistryPackageSpec): string {
+  if (wantedDependency.prevPref === wantedDependency.pref && wantedDependency.prevPref && versionSelectorType(wantedDependency.prevPref)?.type === 'tag') {
+    return wantedDependency.prevPref
+  }
+  if (!wantedDependency.alias || spec.name === wantedDependency.alias) return '<range>'
   return `npm:${spec.name}@<range>`
 }
 
@@ -280,6 +290,7 @@ function tryResolveFromWorkspace (
     injectWorkspacePackages?: boolean
     update?: boolean
     saveWorkspaceProtocol?: boolean | 'rolling'
+    calcSpecifierTemplate?: boolean
   }
 ): WorkspaceResolveResult | null {
   if (!wantedDependency.pref?.startsWith('workspace:')) {
@@ -295,18 +306,20 @@ function tryResolveFromWorkspace (
   if (!opts.projectDir) {
     throw new Error('Cannot resolve package from workspace because opts.projectDir is not defined')
   }
-  return tryResolveFromWorkspacePackages(opts.workspacePackages, spec, {
+  return tryResolveFromWorkspacePackages(opts.workspacePackages, wantedDependency, spec, {
     wantedDependency,
     projectDir: opts.projectDir,
     hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
     lockfileDir: opts.lockfileDir,
     update: opts.update,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+    calcSpecifierTemplate: opts.calcSpecifierTemplate,
   })
 }
 
 function tryResolveFromWorkspacePackages (
   workspacePackages: WorkspacePackages,
+  wantedDependency: WantedDependency,
   spec: RegistryPackageSpec,
   opts: {
     wantedDependency: WantedDependency
@@ -315,6 +328,7 @@ function tryResolveFromWorkspacePackages (
     lockfileDir?: string
     update?: boolean
     saveWorkspaceProtocol?: boolean | 'rolling'
+    calcSpecifierTemplate?: boolean
   }
 ): WorkspaceResolveResult {
   const workspacePkgsMatchingName = workspacePackages.get(spec.name)
@@ -337,7 +351,7 @@ function tryResolveFromWorkspacePackages (
       `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${opts.wantedDependency.alias ?? ''}@${opts.wantedDependency.pref ?? ''} inside the workspace`
     )
   }
-  return resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec.normalizedPref, opts)
+  return resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, wantedDependency, spec, opts)
 }
 
 function pickMatchingLocalVersionOrNull (
@@ -360,12 +374,14 @@ function pickMatchingLocalVersionOrNull (
 
 function resolveFromLocalPackage (
   localPackage: WorkspacePackage,
-  normalizedPref: string | undefined,
+  wantedDependency: WantedDependency,
+  spec: RegistryPackageSpec,
   opts: {
     hardLinkLocalPackages?: boolean
     projectDir: string
     lockfileDir?: string
     saveWorkspaceProtocol?: boolean | 'rolling'
+    calcSpecifierTemplate?: boolean
   }
 ): WorkspaceResolveResult {
   let id!: PkgResolutionId
@@ -381,14 +397,36 @@ function resolveFromLocalPackage (
   return {
     id,
     manifest: clone(localPackage.manifest),
-    normalizedPref,
+    normalizedPref: spec.normalizedPref,
     resolution: {
       directory,
       type: 'directory',
     },
     resolvedVia: 'workspace',
-    specifierTemplate: opts.saveWorkspaceProtocol ? 'workspace:<range>' : '<range>',
+    specifierTemplate: opts.calcSpecifierTemplate
+      ? calcSpecifierTemplateForWorkspaceDep(wantedDependency, spec, opts.saveWorkspaceProtocol)
+      : undefined,
   }
+}
+
+function calcSpecifierTemplateForWorkspaceDep (wantedDependency: WantedDependency, spec: RegistryPackageSpec, saveWorkspaceProtocol?: boolean | 'rolling'): string {
+  if (!saveWorkspaceProtocol && !wantedDependency.pref?.startsWith('workspace:')) {
+    return calcSpecifierTemplate(wantedDependency, spec)
+  }
+  if (saveWorkspaceProtocol === 'rolling') {
+    const pref = wantedDependency.prevPref ?? wantedDependency.pref
+    if (pref) {
+      if (['workspace:*', 'workspace:^', 'workspace:~'].includes(pref)) return pref
+      const pinnedVersion = whichVersionIsPinned(pref)
+      switch (pinnedVersion) {
+      case 'major': return 'workspace:^'
+      case 'minor': return 'workspace:~'
+      case 'patch': return 'workspace:*'
+      }
+    }
+    return 'workspace:^'
+  }
+  return 'workspace:<range>'
 }
 
 function resolveLocalPackageDir (localPackage: WorkspacePackage): string {

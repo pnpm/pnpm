@@ -23,6 +23,7 @@ export function whichVersionIsPinned (spec: string): PinnedVersion | undefined {
   case undefined:
     if (versionObject.patch) return 'patch'
     if (versionObject.minor) return 'minor'
+    if (versionObject.major) return 'major'
   }
   return undefined
 }
