@@ -361,6 +361,7 @@ test('overwriting (magic-hook@2.0.0 and @0.1.0)', async () => {
 test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@3.0.0'], testDefaults({ save: true }))
+  expect(manifest.dependencies?.['is-positive']).toBe('3.0.0')
 
   project.storeHas('is-positive', '3.0.0')
 

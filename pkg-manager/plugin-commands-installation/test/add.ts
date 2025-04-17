@@ -64,7 +64,7 @@ test('installing with "workspace:" should work even if link-workspace-packages i
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:2.0.0' })
 
   projects['project-1'].has('project-2')
 })
@@ -91,7 +91,7 @@ test('installing with "workspace:" should work even if link-workspace-packages i
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^' })
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:*' })
 
   projects['project-1'].has('project-2')
 })
@@ -119,7 +119,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:2.0.0' })
 
   projects['project-1'].has('project-2')
 })
@@ -208,7 +208,7 @@ test('installing with "workspace=true" with linkWorkspacePackages on and saveWor
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': '^2.0.0' })
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:2.0.0' })
 
   projects['project-1'].has('project-2')
 })

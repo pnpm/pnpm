@@ -68,6 +68,7 @@ export interface ResolverFactoryOptions {
   retry?: RetryTimeoutOptions
   timeout?: number
   registries: Registries
+  saveWorkspaceProtocol?: boolean | 'rolling'
 }
 
 export type NpmResolver = (wantedDependency: WantedDependency, opts: ResolveFromNpmOptions) => Promise<ResolveResult | null>
@@ -105,6 +106,7 @@ export function createNpmResolver (
         cacheDir: opts.cacheDir,
       }),
       registries: opts.registries,
+      saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     }),
     clearCache: () => {
       metaCache.clear()
@@ -137,6 +139,7 @@ async function resolveNpm (
     pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
     getAuthHeaderValueByURI: (registry: string) => string | undefined
     registries: Registries
+    saveWorkspaceProtocol?: boolean | 'rolling'
   },
   wantedDependency: WantedDependency,
   opts: ResolveFromNpmOptions
@@ -155,6 +158,7 @@ async function resolveNpm (
       workspacePackages: opts.workspacePackages,
       injectWorkspacePackages: opts.injectWorkspacePackages,
       update: Boolean(opts.update),
+      saveWorkspaceProtocol: ctx.saveWorkspaceProtocol !== false ? ctx.saveWorkspaceProtocol : true,
     })
     if (resolvedFromWorkspace != null) {
       return resolvedFromWorkspace
@@ -187,6 +191,7 @@ async function resolveNpm (
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           update: Boolean(opts.update),
+          saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
         })
       } catch {
         // ignore
@@ -205,6 +210,7 @@ async function resolveNpm (
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           update: Boolean(opts.update),
+          saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
         })
       } catch {
         // ignore
@@ -222,6 +228,7 @@ async function resolveNpm (
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
+          saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
         }),
         latest: meta['dist-tags'].latest,
       }
@@ -233,6 +240,7 @@ async function resolveNpm (
           projectDir: opts.projectDir,
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
+          saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
         }),
         latest: meta['dist-tags'].latest,
       }
@@ -271,6 +279,7 @@ function tryResolveFromWorkspace (
     workspacePackages?: WorkspacePackages
     injectWorkspacePackages?: boolean
     update?: boolean
+    saveWorkspaceProtocol?: boolean | 'rolling'
   }
 ): WorkspaceResolveResult | null {
   if (!wantedDependency.pref?.startsWith('workspace:')) {
@@ -292,6 +301,7 @@ function tryResolveFromWorkspace (
     hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
     lockfileDir: opts.lockfileDir,
     update: opts.update,
+    saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
   })
 }
 
@@ -304,6 +314,7 @@ function tryResolveFromWorkspacePackages (
     projectDir: string
     lockfileDir?: string
     update?: boolean
+    saveWorkspaceProtocol?: boolean | 'rolling'
   }
 ): WorkspaceResolveResult {
   const workspacePkgsMatchingName = workspacePackages.get(spec.name)
@@ -354,6 +365,7 @@ function resolveFromLocalPackage (
     hardLinkLocalPackages?: boolean
     projectDir: string
     lockfileDir?: string
+    saveWorkspaceProtocol?: boolean | 'rolling'
   }
 ): WorkspaceResolveResult {
   let id!: PkgResolutionId
@@ -375,7 +387,7 @@ function resolveFromLocalPackage (
       type: 'directory',
     },
     resolvedVia: 'workspace',
-    specifierTemplate: 'workspace:<range>',
+    specifierTemplate: opts.saveWorkspaceProtocol ? 'workspace:<range>' : '<range>',
   }
 }
 

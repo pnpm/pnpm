@@ -40,6 +40,8 @@ export function parseWantedDependencies (
       if (alias && opts.currentPrefs[alias]) {
         pref ??= opts.currentPrefs[alias]
         pinnedVersion = whichVersionIsPinned(opts.currentPrefs[alias])
+      } else if (pref) {
+        pinnedVersion = whichVersionIsPinned(pref)
       }
       const result = {
         alias,

@@ -95,16 +95,6 @@ function resolvedDirectDepToSpecObject (
   } else if (normalizedPref) {
     pref = normalizedPref
   } else {
-    const shouldUseWorkspaceProtocol = resolution.type === 'directory' &&
-      (
-        Boolean(opts.saveWorkspaceProtocol) ||
-        (opts.preserveWorkspaceProtocol && currentPref.startsWith('workspace:'))
-      ) &&
-      opts.pinnedVersion !== 'none'
-
-    specifierTemplate = !shouldUseWorkspaceProtocol && specifierTemplate?.startsWith('workspace:')
-      ? specifierTemplate.replace(/^workspace:/, '')
-      : specifierTemplate!
     if (isNew === true) {
       pref = getPrefPreferSpecifiedSpec({
         alias,
@@ -112,7 +102,7 @@ function resolvedDirectDepToSpecObject (
         pinnedVersion: opts.pinnedVersion,
         currentPref,
         version,
-        rolling: shouldUseWorkspaceProtocol && opts.saveWorkspaceProtocol === 'rolling',
+        rolling: opts.saveWorkspaceProtocol === 'rolling',
         specifierTemplate: specifierTemplate!,
       })
     } else {
@@ -122,17 +112,10 @@ function resolvedDirectDepToSpecObject (
         pinnedVersion: opts.pinnedVersion,
         currentPref,
         version,
-        rolling: shouldUseWorkspaceProtocol && opts.saveWorkspaceProtocol === 'rolling',
+        rolling: opts.saveWorkspaceProtocol === 'rolling',
         preserveNonSemverVersionSpec,
         specifierTemplate: specifierTemplate!,
       })
-    }
-    if (
-      shouldUseWorkspaceProtocol &&
-      !pref.startsWith('workspace:')
-    ) {
-      pref = pref.replace(/^npm:/, '')
-      pref = `workspace:${pref}`
     }
   }
   return {
@@ -184,7 +167,7 @@ function getPrefPreferSpecifiedSpec (
   if (semver.parse(opts.version)?.prerelease.length) {
     return `${prefix}${opts.version}`
   }
-  return `${prefix}${createVersionSpec(opts.version, { pinnedVersion: opts.pinnedVersion, rolling: opts.rolling })}`
+  return `${prefix}${createVersionSpec(opts.version, { pinnedVersion: opts.pinnedVersion, rolling: prefix.startsWith('workspace:') && opts.rolling })}`
 }
 
 function getPrefPreferSpecifiedExoticSpec (
@@ -205,7 +188,7 @@ function getPrefPreferSpecifiedExoticSpec (
   if (specWithoutName.startsWith('workspace:')) {
     specWithoutName = specWithoutName.slice(10)
     if (specWithoutName === '*' || specWithoutName === '^' || specWithoutName === '~') {
-      return specWithoutName
+      return opts.currentPref
     }
   }
   const selector = versionSelectorType(specWithoutName)
@@ -220,5 +203,5 @@ function getPrefPreferSpecifiedExoticSpec (
     return `${prefix}${opts.version}`
   }
 
-  return `${prefix}${createVersionSpec(opts.version, { pinnedVersion: opts.pinnedVersion, rolling: opts.rolling })}`
+  return `${prefix}${createVersionSpec(opts.version, { pinnedVersion: opts.pinnedVersion, rolling: prefix.startsWith('workspace:') && opts.rolling })}`
 }
