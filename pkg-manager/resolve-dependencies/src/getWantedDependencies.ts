@@ -6,8 +6,6 @@ import {
   type ProjectManifest,
 } from '@pnpm/types'
 
-export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
-
 export interface WantedDependency {
   alias: string
   pref: string // package reference
@@ -15,7 +13,7 @@ export interface WantedDependency {
   optional: boolean
   nodeExecPath?: string
   updateSpec?: boolean
-  prevPref?: string
+  prevSpecifier?: string
 }
 
 export function getWantedDependencies (
@@ -72,7 +70,7 @@ function getWantedDependenciesFromGivenSet (
       optional: depType === 'optional',
       nodeExecPath: opts.nodeExecPath ?? opts.dependenciesMeta[alias]?.node,
       pref,
-      prevPref: pref,
+      prevSpecifier: pref,
     }
   })
 }

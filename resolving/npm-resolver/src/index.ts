@@ -7,7 +7,6 @@ import {
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { createVersionSpec } from '@pnpm/manifest-utils'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
   type PkgResolutionId,
@@ -19,8 +18,8 @@ import {
   type WorkspacePackagesByVersion,
   type WorkspaceResolveResult,
 } from '@pnpm/resolver-base'
-import { whichVersionIsPinned, type PinnedVersion } from '@pnpm/which-version-is-pinned'
-import { type Registries } from '@pnpm/types'
+import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
+import { type Registries, type PinnedVersion } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'
@@ -266,6 +265,15 @@ async function resolveNpm (
     integrity: getIntegrity(pickedPackage.dist),
     tarball: pickedPackage.dist.tarball,
   }
+  let specifier: string | undefined
+  if (opts.calcSpecifier) {
+    specifier = spec.normalizedPref ?? calcSpecifier({
+      wantedDependency,
+      spec,
+      version: pickedPackage.version,
+      pinnedVersion: opts.pinnedVersion,
+    })
+  }
   return {
     id,
     latest: meta['dist-tags'].latest,
@@ -273,13 +281,23 @@ async function resolveNpm (
     resolution,
     resolvedVia: 'npm-registry',
     publishedAt: meta.time?.[pickedPackage.version],
-    specifier: opts.calcSpecifier ? (spec.normalizedPref ?? calcSpecifier(wantedDependency, spec, pickedPackage.version, opts.pinnedVersion)) : undefined,
+    specifier,
   }
 }
 
-function calcSpecifier (wantedDependency: WantedDependency, spec: RegistryPackageSpec, version: string, pinnedVersion?: PinnedVersion): string {
-  if (wantedDependency.prevPref === wantedDependency.pref && wantedDependency.prevPref && versionSelectorType(wantedDependency.prevPref)?.type === 'tag') {
-    return wantedDependency.prevPref
+function calcSpecifier ({
+  wantedDependency,
+  spec,
+  version,
+  pinnedVersion,
+}: {
+  wantedDependency: WantedDependency
+  spec: RegistryPackageSpec
+  version: string
+  pinnedVersion?: PinnedVersion
+}): string {
+  if (wantedDependency.prevSpecifier === wantedDependency.pref && wantedDependency.prevSpecifier && versionSelectorType(wantedDependency.prevSpecifier)?.type === 'tag') {
+    return wantedDependency.prevSpecifier
   }
   const range = calcRange(version, wantedDependency, pinnedVersion)
   if (!wantedDependency.alias || spec.name === wantedDependency.alias) return range
@@ -291,7 +309,7 @@ function calcRange (version: string, wantedDependency: WantedDependency, pinnedV
     return version
   }
   return createVersionSpec(version, {
-    pinnedVersion: (wantedDependency.prevPref ? whichVersionIsPinned(wantedDependency.prevPref) : undefined) ??
+    pinnedVersion: (wantedDependency.prevSpecifier ? whichVersionIsPinned(wantedDependency.prevSpecifier) : undefined) ??
       (wantedDependency.pref ? whichVersionIsPinned(wantedDependency.pref) : undefined) ??
       pinnedVersion,
   })
@@ -416,6 +434,16 @@ function resolveFromLocalPackage (
     directory = localPackageDir
     id = `link:${normalize(path.relative(opts.projectDir, localPackageDir))}` as PkgResolutionId
   }
+  let specifier: string | undefined
+  if (opts.calcSpecifier) {
+    specifier = spec.normalizedPref ?? calcSpecifierForWorkspaceDep({
+      wantedDependency,
+      spec,
+      saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+      version: localPackage.manifest.version,
+      pinnedVersion: opts.pinnedVersion,
+    })
+  }
   return {
     id,
     manifest: clone(localPackage.manifest),
@@ -424,19 +452,29 @@ function resolveFromLocalPackage (
       type: 'directory',
     },
     resolvedVia: 'workspace',
-    specifier: opts.calcSpecifier
-      ? (spec.normalizedPref ?? calcSpecifierForWorkspaceDep(wantedDependency, spec, opts.saveWorkspaceProtocol, localPackage.manifest.version, opts.pinnedVersion))
-      : undefined,
+    specifier,
   }
 }
 
-function calcSpecifierForWorkspaceDep (wantedDependency: WantedDependency, spec: RegistryPackageSpec, saveWorkspaceProtocol: boolean | 'rolling' | undefined, version: string, pinnedVersion?: PinnedVersion): string {
+function calcSpecifierForWorkspaceDep ({
+  wantedDependency,
+  spec,
+  saveWorkspaceProtocol,
+  version,
+  pinnedVersion,
+}: {
+  wantedDependency: WantedDependency
+  spec: RegistryPackageSpec
+  saveWorkspaceProtocol: boolean | 'rolling' | undefined
+  version: string
+  pinnedVersion?: PinnedVersion
+}): string {
   if (!saveWorkspaceProtocol && !wantedDependency.pref?.startsWith('workspace:')) {
-    return calcSpecifier(wantedDependency, spec, version, pinnedVersion)
+    return calcSpecifier({ wantedDependency, spec, version, pinnedVersion })
   }
   const prefix = (!wantedDependency.alias || spec.name === wantedDependency.alias) ? 'workspace:' : `workspace:${spec.name}@`
   if (saveWorkspaceProtocol === 'rolling') {
-    const pref = wantedDependency.prevPref ?? wantedDependency.pref
+    const pref = wantedDependency.prevSpecifier ?? wantedDependency.pref
     if (pref) {
       if ([`${prefix}*`, `${prefix}^`, `${prefix}~`].includes(pref)) return pref
       const pinnedVersion = whichVersionIsPinned(pref)
@@ -451,7 +489,7 @@ function calcSpecifierForWorkspaceDep (wantedDependency: WantedDependency, spec:
   const range = semver.parse(version)?.prerelease.length
     ? version
     : createVersionSpec(version, {
-      pinnedVersion: (wantedDependency.prevPref ? whichVersionIsPinned(wantedDependency.prevPref) : undefined) ?? pinnedVersion,
+      pinnedVersion: (wantedDependency.prevSpecifier ? whichVersionIsPinned(wantedDependency.prevSpecifier) : undefined) ?? pinnedVersion,
     })
   return `${prefix}${range}`
 }
@@ -488,4 +526,21 @@ function getIntegrity (dist: {
     throw new PnpmError('INVALID_TARBALL_INTEGRITY', `Tarball "${dist.tarball}" has invalid shasum specified in its metadata: ${dist.shasum}`)
   }
   return integrity.toString()
+}
+
+function createVersionSpec (version: string | undefined, opts: { pinnedVersion?: PinnedVersion, rolling?: boolean }): string {
+  switch (opts.pinnedVersion ?? 'major') {
+  case 'none':
+  case 'major':
+    if (opts.rolling) return '^'
+    return !version ? '*' : `^${version}`
+  case 'minor':
+    if (opts.rolling) return '~'
+    return !version ? '*' : `~${version}`
+  case 'patch':
+    if (opts.rolling) return '*'
+    return !version ? '*' : `${version}`
+  default:
+    throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${opts.pinnedVersion ?? 'undefined'}'`)
+  }
 }

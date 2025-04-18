@@ -42,7 +42,7 @@ export function parseWantedDependencies (
         alias,
         dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
         optional: Boolean(opts.optional || alias && !!opts.optionalDependencies[alias]),
-        prevPref: alias && opts.currentPrefs[alias],
+        prevSpecifier: alias && opts.currentPrefs[alias],
       }
       if (pref) {
         return {

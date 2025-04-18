@@ -4252,6 +4252,9 @@ importers:
 
   packages/which-version-is-pinned:
     dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../types
       semver-utils:
         specifier: 'catalog:'
         version: 1.1.4
@@ -6773,9 +6776,6 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
-      '@pnpm/manifest-utils':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/manifest-utils
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package

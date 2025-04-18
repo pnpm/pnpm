@@ -30,6 +30,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/types": "workspace:*",
     "semver-utils": "catalog:"
   },
   "devDependencies": {

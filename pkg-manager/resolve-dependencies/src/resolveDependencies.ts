@@ -38,11 +38,11 @@ import {
   type ReadPackageHook,
   type Registries,
   type PkgIdWithPatchHash,
+  type PinnedVersion,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import { type PatchInfo } from '@pnpm/patching.types'
-import { type PinnedVersion } from '@pnpm/manifest-utils'
 import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import pDefer from 'p-defer'

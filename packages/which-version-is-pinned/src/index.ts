@@ -1,10 +1,5 @@
+import { type PinnedVersion } from '@pnpm/types'
 import { parseRange } from 'semver-utils'
-
-export type PinnedVersion =
-  | 'none'
-  | 'patch'
-  | 'minor'
-  | 'major'
 
 export function whichVersionIsPinned (spec: string): PinnedVersion | undefined {
   const isWorkspaceProtocol = spec.startsWith('workspace:')

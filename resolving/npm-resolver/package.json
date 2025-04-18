@@ -38,7 +38,6 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
-    "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/resolve-workspace-range": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",

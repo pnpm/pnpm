@@ -7,6 +7,7 @@ import { type StoreController } from '@pnpm/store-controller-types'
 import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
+  type PinnedVersion,
   type PkgResolutionId,
   type ProjectManifest,
   type ProjectId,
@@ -15,7 +16,6 @@ import {
   type ProjectRootDir,
 } from '@pnpm/types'
 import partition from 'ramda/src/partition'
-import { type PinnedVersion } from '@pnpm/manifest-utils'
 import zipObj from 'ramda/src/zipObj'
 import { type WantedDependency } from './getNonDevWantedDependencies'
 import { type NodeId, nextNodeId } from './nextNodeId'
