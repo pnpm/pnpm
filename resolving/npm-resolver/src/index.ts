@@ -18,7 +18,6 @@ import {
   type WorkspacePackagesByVersion,
   type WorkspaceResolveResult,
 } from '@pnpm/resolver-base'
-import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
 import { type Registries, type PinnedVersion } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
@@ -40,6 +39,7 @@ import {
 } from './parsePref'
 import { fromRegistry, RegistryResponseError } from './fetch'
 import { workspacePrefToNpm } from './workspacePrefToNpm'
+import { whichVersionIsPinned } from './whichVersionIsPinned'
 
 export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta

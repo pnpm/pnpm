@@ -42,7 +42,6 @@
     "@pnpm/resolve-workspace-range": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/which-version-is-pinned": "workspace:*",
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@zkochan/retry": "catalog:",
     "encode-registry": "catalog:",
@@ -56,6 +55,7 @@
     "ramda": "catalog:",
     "rename-overwrite": "catalog:",
     "semver": "catalog:",
+    "semver-utils": "catalog:",
     "ssri": "catalog:",
     "version-selector-type": "catalog:"
   },

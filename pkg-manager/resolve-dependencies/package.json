@@ -51,7 +51,6 @@
     "@pnpm/semver.peer-range": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/which-version-is-pinned": "workspace:*",
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@yarnpkg/core": "catalog:",
     "filenamify": "catalog:",
