@@ -24,9 +24,9 @@ export async function updateProjectManifest (
       return {
         alias: rdd.alias,
         nodeExecPath: wantedDep.nodeExecPath,
-        peer: importer['peer'],
+        peer: importer.peer,
         pref: rdd.catalogLookup?.userSpecifiedPref ?? rdd.specifier ?? wantedDep.pref,
-        saveType: importer['targetDependenciesField'],
+        saveType: importer.targetDependenciesField,
       }
     })
   for (const pkgToInstall of importer.wantedDependencies) {
