@@ -2,6 +2,7 @@ import {
   type ProjectRootDir,
   type DependencyManifest,
   type PkgResolutionId,
+  type PinnedVersion,
 } from '@pnpm/types'
 
 export { type PkgResolutionId }
@@ -42,9 +43,9 @@ export interface ResolveResult {
   latest?: string
   publishedAt?: string
   manifest?: DependencyManifest
-  normalizedPref?: string // is null for npm-hosted dependencies
   resolution: Resolution
   resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'workspace' | 'url' | string
+  specifier?: string
 }
 
 /**
@@ -99,10 +100,13 @@ export interface ResolveOptions {
   workspacePackages?: WorkspacePackages
   update?: false | 'compatible' | 'latest'
   injectWorkspacePackages?: boolean
+  calcSpecifier?: boolean
+  pinnedVersion?: PinnedVersion
 }
 
 export type WantedDependency = {
   injected?: boolean
+  prevSpecifier?: string
 } & ({
   alias?: string
   pref: string

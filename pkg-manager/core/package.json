@@ -102,7 +102,6 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/which-version-is-pinned": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "ci-info": "catalog:",
     "enquirer": "catalog:",

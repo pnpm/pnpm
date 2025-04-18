@@ -16,7 +16,7 @@ export async function resolveFromTarball (
 
   return {
     id: resolvedUrl as PkgResolutionId,
-    normalizedPref: resolvedUrl,
+    specifier: resolvedUrl,
     resolution: {
       tarball: resolvedUrl,
     },

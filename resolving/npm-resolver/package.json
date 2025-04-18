@@ -55,6 +55,7 @@
     "ramda": "catalog:",
     "rename-overwrite": "catalog:",
     "semver": "catalog:",
+    "semver-utils": "catalog:",
     "ssri": "catalog:",
     "version-selector-type": "catalog:"
   },

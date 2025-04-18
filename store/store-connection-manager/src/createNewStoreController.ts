@@ -37,6 +37,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'registries'
 | 'registrySupportsTimeField'
 | 'resolutionMode'
+| 'saveWorkspaceProtocol'
 | 'strictSsl'
 | 'unsafePerm'
 | 'userAgent'
@@ -90,6 +91,7 @@ export async function createNewStoreController (
     gitShallowHosts: opts.gitShallowHosts,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
     includeOnlyPackageFiles: !opts.deployAllFiles,
+    saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {

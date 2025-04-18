@@ -4250,16 +4250,6 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  packages/which-version-is-pinned:
-    dependencies:
-      semver-utils:
-        specifier: 'catalog:'
-        version: 1.1.4
-    devDependencies:
-      '@pnpm/which-version-is-pinned':
-        specifier: workspace:*
-        version: 'link:'
-
   patching/apply-patch:
     dependencies:
       '@pnpm/error':
@@ -4638,9 +4628,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@pnpm/which-version-is-pinned':
-        specifier: workspace:*
-        version: link:../../packages/which-version-is-pinned
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
@@ -5786,9 +5773,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@pnpm/which-version-is-pinned':
-        specifier: workspace:*
-        version: link:../../packages/which-version-is-pinned
       '@pnpm/workspace.spec-parser':
         specifier: workspace:*
         version: link:../../workspace/spec-parser
@@ -6824,6 +6808,9 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.7.1
+      semver-utils:
+        specifier: 'catalog:'
+        version: 1.1.4
       ssri:
         specifier: 'catalog:'
         version: 10.0.5

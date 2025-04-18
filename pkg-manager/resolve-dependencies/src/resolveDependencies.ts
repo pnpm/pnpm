@@ -38,6 +38,7 @@ import {
   type ReadPackageHook,
   type Registries,
   type PkgIdWithPatchHash,
+  type PinnedVersion,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
@@ -110,9 +111,9 @@ export interface LinkedDependency {
   pkgId: PkgResolutionId
   version: string
   name: string
-  normalizedPref?: string
   alias: string
   catalogLookup?: CatalogLookupMetadata
+  specifier?: string
 }
 
 export interface PendingNode {
@@ -192,7 +193,6 @@ export type PkgAddress = {
   resolvedVia?: string
   nodeId: NodeId
   pkgId: PkgResolutionId
-  normalizedPref?: string // is returned only for root dependencies
   installable: boolean
   pkg: PackageManifest
   version?: string
@@ -203,6 +203,7 @@ export type PkgAddress = {
   publishedAt?: string
   catalogLookup?: CatalogLookupMetadata
   optional: boolean
+  specifier?: string
 } & ({
   isLinkedDependency: true
   version: string
@@ -274,6 +275,7 @@ interface ResolvedDependenciesOptions {
   prefix: string
   supportedArchitectures?: SupportedArchitectures
   updateToLatest?: boolean
+  pinnedVersion?: PinnedVersion
 }
 
 interface PostponedResolutionOpts {
@@ -406,6 +408,7 @@ export interface ImporterToResolve {
   parentPkgAliases: ParentPkgAliases
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>
   options: ImporterToResolveOptions
+  pinnedVersion?: PinnedVersion
 }
 
 interface ResolveDependenciesOfImportersResult {
@@ -570,6 +573,7 @@ async function resolveDependenciesOfImporterDependency (
       updateToLatest: catalogLookup != null
         ? false
         : importer.options.updateToLatest,
+      pinnedVersion: importer.pinnedVersion,
     },
     extendedWantedDep
   )
@@ -821,6 +825,7 @@ async function resolveDependenciesOfDependency (
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
     parentIds: options.parentIds,
+    pinnedVersion: options.pinnedVersion,
   }
 
   // The catalog protocol is normally replaced when resolving the dependencies
@@ -1208,6 +1213,7 @@ interface ResolveDependencyOptions {
   updateDepth: number
   updateMatching?: UpdateMatchingFunction
   supportedArchitectures?: SupportedArchitectures
+  pinnedVersion?: PinnedVersion
 }
 
 type ResolveDependencyResult = PkgAddress | LinkedDependency | null
@@ -1252,7 +1258,8 @@ async function resolveDependency (
     }
   }
   try {
-    if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`)) {
+    const calcSpecifier = options.currentDepth === 0
+    if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifier) {
       wantedDependency.pref = replaceVersionInPref(wantedDependency.pref, currentPkg.version)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
@@ -1288,6 +1295,8 @@ async function resolveDependency (
         return err
       },
       injectWorkspacePackages: ctx.injectWorkspacePackages,
+      calcSpecifier,
+      pinnedVersion: options.pinnedVersion,
     })
   } catch (err: any) { // eslint-disable-line
     const wantedDependencyDetails = {
@@ -1346,11 +1355,11 @@ async function resolveDependency (
       dev: wantedDependency.dev,
       isLinkedDependency: true,
       name: pkgResponse.body.manifest.name,
-      normalizedPref: pkgResponse.body.normalizedPref,
       optional: wantedDependency.optional,
       pkgId: pkgResponse.body.id,
       resolution: pkgResponse.body.resolution,
       version: pkgResponse.body.manifest.version,
+      specifier: pkgResponse.body.specifier,
     }
   }
 
@@ -1562,7 +1571,7 @@ async function resolveDependency (
     resolvedVia: pkgResponse.body.resolvedVia,
     isNew,
     nodeId,
-    normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
+    specifier: pkgResponse.body.specifier,
     missingPeersOfChildren,
     pkgId: pkgResponse.body.id,
     rootDir,
