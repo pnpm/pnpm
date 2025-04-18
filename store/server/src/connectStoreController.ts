@@ -13,7 +13,7 @@ import pLimit from 'p-limit'
 import pShare from 'promise-share'
 import { v4 as uuidv4 } from 'uuid'
 
-export type StoreServerController = StoreController & {
+export interface StoreServerController extends StoreController {
   stop: () => Promise<void>
 }
 

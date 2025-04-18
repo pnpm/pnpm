@@ -255,7 +255,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
   } as StrictInstallOptions
 }
 
-export type ProcessedInstallOptions = StrictInstallOptions & {
+export interface ProcessedInstallOptions extends StrictInstallOptions {
   readPackageHook?: ReadPackageHook
   parsedOverrides: VersionOverride[]
 }

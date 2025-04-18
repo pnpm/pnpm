@@ -1,7 +1,7 @@
 import { BreakingChangeError } from './BreakingChangeError'
 import { type ErrorRelatedSources } from './ErrorRelatedSources'
 
-export type ModulesBreakingChangeErrorOptions = ErrorRelatedSources & {
+export interface ModulesBreakingChangeErrorOptions extends ErrorRelatedSources {
   modulesPath: string
 }
 
