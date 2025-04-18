@@ -15,7 +15,7 @@ export interface AuditNode {
   dev: boolean
 }
 
-export type AuditTree = AuditNode & {
+export interface AuditTree extends AuditNode {
   name?: string
   install: string[]
   remove: string[]
