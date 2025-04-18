@@ -1074,3 +1074,17 @@ test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async
   expect(config.publicHoistPattern).toStrictEqual(['*'])
   expect(config.rawConfig['shamefully-hoist']).toBe(true)
 })
+
+test('when dangerouslyAllowAllBuilds is set to true neverBuiltDependencies is set to an empty array', async () => {
+  const { config } = await getConfig({
+    cliOptions: {
+      'dangerously-allow-all-builds': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.neverBuiltDependencies).toStrictEqual([])
+})

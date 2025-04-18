@@ -121,6 +121,7 @@ export async function getConfig (opts: {
     'auto-install-peers': true,
     bail: true,
     color: 'auto',
+    'dangerously-allow-all-builds': false,
     'deploy-all-files': false,
     'dedupe-peer-dependents': true,
     'dedupe-direct-deps': false,
@@ -514,6 +515,10 @@ export async function getConfig (opts: {
   } else {
     pnpmConfig.production = true
     pnpmConfig.dev = true
+  }
+
+  if (pnpmConfig.dangerouslyAllowAllBuilds) {
+    pnpmConfig.neverBuiltDependencies = []
   }
 
   transformPathKeys(pnpmConfig, os.homedir())
