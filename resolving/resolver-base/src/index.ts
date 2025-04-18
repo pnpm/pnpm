@@ -2,6 +2,7 @@ import {
   type ProjectRootDir,
   type DependencyManifest,
   type PkgResolutionId,
+  type PinnedVersion,
 } from '@pnpm/types'
 
 export { type PkgResolutionId }
@@ -100,10 +101,7 @@ export interface ResolveOptions {
   update?: false | 'compatible' | 'latest'
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
-  pinnedVersion?: | 'none'
-  | 'patch'
-  | 'minor'
-  | 'major'
+  pinnedVersion?: PinnedVersion
 }
 
 export type WantedDependency = {

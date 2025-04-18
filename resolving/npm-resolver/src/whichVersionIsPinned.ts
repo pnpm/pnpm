@@ -2,13 +2,15 @@ import { type PinnedVersion } from '@pnpm/types'
 import { parseRange } from 'semver-utils'
 
 export function whichVersionIsPinned (spec: string): PinnedVersion | undefined {
-  const isWorkspaceProtocol = spec.startsWith('workspace:')
-  if (isWorkspaceProtocol) spec = spec.slice('workspace:'.length)
-  if (spec === '*') return isWorkspaceProtocol ? 'patch' : 'none'
-  if (spec.startsWith('npm:')) {
-    const index = spec.lastIndexOf('@')
+  const colonIndex = spec.indexOf(':')
+  if (colonIndex !== -1) {
+    spec = spec.substring(colonIndex + 1)
+  }
+  const index = spec.lastIndexOf('@')
+  if (index !== -1) {
     spec = spec.slice(index + 1)
   }
+  if (spec === '*') return 'none'
   const parsedRange = parseRange(spec)
   if (parsedRange.length !== 1) return undefined
   const versionObject = parsedRange[0]

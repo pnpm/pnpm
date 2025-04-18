@@ -17,6 +17,7 @@ import {
   type SupportedArchitectures,
   type DependencyManifest,
   type PackageManifest,
+  type PinnedVersion,
 } from '@pnpm/types'
 
 export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync }
@@ -132,10 +133,7 @@ export interface RequestPackageOptions {
   onFetchError?: OnFetchError
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
-  pinnedVersion?: | 'none'
-  | 'patch'
-  | 'minor'
-  | 'major'
+  pinnedVersion?: PinnedVersion
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>

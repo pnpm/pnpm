@@ -476,12 +476,13 @@ function calcSpecifierForWorkspaceDep ({
   if (saveWorkspaceProtocol === 'rolling') {
     const specifier = wantedDependency.prevSpecifier ?? wantedDependency.pref
     if (specifier) {
-      if ([`${prefix}*`, `${prefix}^`, `${prefix}~`].includes(specifier)) return specifier
+      if (new RegExp(`^${prefix}[*^~]$`).test(specifier)) return specifier
       const pinnedVersion = whichVersionIsPinned(specifier)
       switch (pinnedVersion) {
       case 'major': return `${prefix}^`
       case 'minor': return `${prefix}~`
-      case 'patch': return `${prefix}*`
+      case 'patch':
+      case 'none': return `${prefix}*`
       }
     }
     return `${prefix}^`
