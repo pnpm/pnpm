@@ -111,10 +111,9 @@ export interface LinkedDependency {
   pkgId: PkgResolutionId
   version: string
   name: string
-  normalizedPref?: string
   alias: string
   catalogLookup?: CatalogLookupMetadata
-  specifierTemplate?: string
+  specifier?: string
 }
 
 export interface PendingNode {
@@ -194,7 +193,6 @@ export type PkgAddress = {
   resolvedVia?: string
   nodeId: NodeId
   pkgId: PkgResolutionId
-  normalizedPref?: string // is returned only for root dependencies
   installable: boolean
   pkg: PackageManifest
   version?: string
@@ -205,7 +203,7 @@ export type PkgAddress = {
   publishedAt?: string
   catalogLookup?: CatalogLookupMetadata
   optional: boolean
-  specifierTemplate?: string
+  specifier?: string
 } & ({
   isLinkedDependency: true
   version: string
@@ -1260,8 +1258,8 @@ async function resolveDependency (
     }
   }
   try {
-    const calcSpecifierTemplate = options.currentDepth === 0
-    if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifierTemplate) {
+    const calcSpecifier = options.currentDepth === 0
+    if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifier) {
       wantedDependency.pref = replaceVersionInPref(wantedDependency.pref, currentPkg.version)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
@@ -1297,7 +1295,7 @@ async function resolveDependency (
         return err
       },
       injectWorkspacePackages: ctx.injectWorkspacePackages,
-      calcSpecifierTemplate,
+      calcSpecifier,
       pinnedVersion: options.pinnedVersion,
     })
   } catch (err: any) { // eslint-disable-line
@@ -1357,12 +1355,11 @@ async function resolveDependency (
       dev: wantedDependency.dev,
       isLinkedDependency: true,
       name: pkgResponse.body.manifest.name,
-      normalizedPref: pkgResponse.body.normalizedPref,
       optional: wantedDependency.optional,
       pkgId: pkgResponse.body.id,
       resolution: pkgResponse.body.resolution,
       version: pkgResponse.body.manifest.version,
-      specifierTemplate: pkgResponse.body.specifierTemplate,
+      specifier: pkgResponse.body.specifier,
     }
   }
 
@@ -1574,8 +1571,7 @@ async function resolveDependency (
     resolvedVia: pkgResponse.body.resolvedVia,
     isNew,
     nodeId,
-    normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
-    specifierTemplate: pkgResponse.body.specifierTemplate,
+    specifier: pkgResponse.body.specifier,
     missingPeersOfChildren,
     pkgId: pkgResponse.body.id,
     rootDir,

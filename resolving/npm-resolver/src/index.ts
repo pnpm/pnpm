@@ -128,7 +128,7 @@ export type ResolveFromNpmOptions = {
   preferWorkspacePackages?: boolean
   update?: false | 'compatible' | 'latest'
   injectWorkspacePackages?: boolean
-  calcSpecifierTemplate?: boolean
+  calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
 } & ({
   projectDir?: string
@@ -163,7 +163,7 @@ async function resolveNpm (
       injectWorkspacePackages: opts.injectWorkspacePackages,
       update: Boolean(opts.update),
       saveWorkspaceProtocol: ctx.saveWorkspaceProtocol !== false ? ctx.saveWorkspaceProtocol : true,
-      calcSpecifierTemplate: opts.calcSpecifierTemplate,
+      calcSpecifier: opts.calcSpecifier,
       pinnedVersion: opts.pinnedVersion,
     })
     if (resolvedFromWorkspace != null) {
@@ -198,7 +198,7 @@ async function resolveNpm (
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           update: Boolean(opts.update),
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
-          calcSpecifierTemplate: opts.calcSpecifierTemplate,
+          calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,
         })
       } catch {
@@ -219,7 +219,7 @@ async function resolveNpm (
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           update: Boolean(opts.update),
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
-          calcSpecifierTemplate: opts.calcSpecifierTemplate,
+          calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,
         })
       } catch {
@@ -239,7 +239,7 @@ async function resolveNpm (
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
-          calcSpecifierTemplate: opts.calcSpecifierTemplate,
+          calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,
         }),
         latest: meta['dist-tags'].latest,
@@ -253,7 +253,7 @@ async function resolveNpm (
           lockfileDir: opts.lockfileDir,
           hardLinkLocalPackages: opts.injectWorkspacePackages === true || wantedDependency.injected,
           saveWorkspaceProtocol: ctx.saveWorkspaceProtocol,
-          calcSpecifierTemplate: opts.calcSpecifierTemplate,
+          calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,
         }),
         latest: meta['dist-tags'].latest,
@@ -270,15 +270,14 @@ async function resolveNpm (
     id,
     latest: meta['dist-tags'].latest,
     manifest: pickedPackage,
-    normalizedPref: spec.normalizedPref,
     resolution,
     resolvedVia: 'npm-registry',
     publishedAt: meta.time?.[pickedPackage.version],
-    specifierTemplate: opts.calcSpecifierTemplate ? calcSpecifierTemplate(wantedDependency, spec, pickedPackage.version, opts.pinnedVersion) : undefined,
+    specifier: opts.calcSpecifier ? (spec.normalizedPref ?? calcSpecifier(wantedDependency, spec, pickedPackage.version, opts.pinnedVersion)) : undefined,
   }
 }
 
-function calcSpecifierTemplate (wantedDependency: WantedDependency, spec: RegistryPackageSpec, version: string, pinnedVersion?: PinnedVersion): string {
+function calcSpecifier (wantedDependency: WantedDependency, spec: RegistryPackageSpec, version: string, pinnedVersion?: PinnedVersion): string {
   if (wantedDependency.prevPref === wantedDependency.pref && wantedDependency.prevPref && versionSelectorType(wantedDependency.prevPref)?.type === 'tag') {
     return wantedDependency.prevPref
   }
@@ -309,7 +308,7 @@ function tryResolveFromWorkspace (
     injectWorkspacePackages?: boolean
     update?: boolean
     saveWorkspaceProtocol?: boolean | 'rolling'
-    calcSpecifierTemplate?: boolean
+    calcSpecifier?: boolean
     pinnedVersion?: PinnedVersion
   }
 ): WorkspaceResolveResult | null {
@@ -333,7 +332,7 @@ function tryResolveFromWorkspace (
     lockfileDir: opts.lockfileDir,
     update: opts.update,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
-    calcSpecifierTemplate: opts.calcSpecifierTemplate,
+    calcSpecifier: opts.calcSpecifier,
     pinnedVersion: opts.pinnedVersion,
   })
 }
@@ -349,7 +348,7 @@ function tryResolveFromWorkspacePackages (
     lockfileDir?: string
     update?: boolean
     saveWorkspaceProtocol?: boolean | 'rolling'
-    calcSpecifierTemplate?: boolean
+    calcSpecifier?: boolean
     pinnedVersion?: PinnedVersion
   }
 ): WorkspaceResolveResult {
@@ -403,7 +402,7 @@ function resolveFromLocalPackage (
     projectDir: string
     lockfileDir?: string
     saveWorkspaceProtocol?: boolean | 'rolling'
-    calcSpecifierTemplate?: boolean
+    calcSpecifier?: boolean
     pinnedVersion?: PinnedVersion
   }
 ): WorkspaceResolveResult {
@@ -420,21 +419,20 @@ function resolveFromLocalPackage (
   return {
     id,
     manifest: clone(localPackage.manifest),
-    normalizedPref: spec.normalizedPref,
     resolution: {
       directory,
       type: 'directory',
     },
     resolvedVia: 'workspace',
-    specifierTemplate: opts.calcSpecifierTemplate
-      ? calcSpecifierTemplateForWorkspaceDep(wantedDependency, spec, opts.saveWorkspaceProtocol, localPackage.manifest.version, opts.pinnedVersion)
+    specifier: opts.calcSpecifier
+      ? (spec.normalizedPref ?? calcSpecifierForWorkspaceDep(wantedDependency, spec, opts.saveWorkspaceProtocol, localPackage.manifest.version, opts.pinnedVersion))
       : undefined,
   }
 }
 
-function calcSpecifierTemplateForWorkspaceDep (wantedDependency: WantedDependency, spec: RegistryPackageSpec, saveWorkspaceProtocol: boolean | 'rolling' | undefined, version: string, pinnedVersion?: PinnedVersion): string {
+function calcSpecifierForWorkspaceDep (wantedDependency: WantedDependency, spec: RegistryPackageSpec, saveWorkspaceProtocol: boolean | 'rolling' | undefined, version: string, pinnedVersion?: PinnedVersion): string {
   if (!saveWorkspaceProtocol && !wantedDependency.pref?.startsWith('workspace:')) {
-    return calcSpecifierTemplate(wantedDependency, spec, version, pinnedVersion)
+    return calcSpecifier(wantedDependency, spec, version, pinnedVersion)
   }
   const prefix = (!wantedDependency.alias || spec.name === wantedDependency.alias) ? 'workspace:' : `workspace:${spec.name}@`
   if (saveWorkspaceProtocol === 'rolling') {

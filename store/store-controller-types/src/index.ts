@@ -131,7 +131,7 @@ export interface RequestPackageOptions {
   supportedArchitectures?: SupportedArchitectures
   onFetchError?: OnFetchError
   injectWorkspacePackages?: boolean
-  calcSpecifierTemplate?: boolean
+  calcSpecifier?: boolean
   pinnedVersion?: | 'none'
   | 'patch'
   | 'minor'
@@ -149,8 +149,7 @@ export interface PackageResponse {
     resolution: Resolution
     manifest?: PackageManifest
     id: PkgResolutionId
-    normalizedPref?: string
-    specifierTemplate?: string
+    specifier?: string
     updated: boolean
     publishedAt?: string
     resolvedVia?: string

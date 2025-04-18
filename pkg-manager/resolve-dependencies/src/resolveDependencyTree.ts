@@ -53,9 +53,8 @@ export interface ResolvedDirectDependency {
   pkgId: PkgResolutionId
   version: string
   name: string
-  normalizedPref?: string
   catalogLookup?: CatalogLookupMetadata
-  specifierTemplate?: string
+  specifier?: string
 }
 
 /**
@@ -263,12 +262,11 @@ export async function resolveDependencyTree<T> (
             catalogLookup: dep.catalogLookup,
             dev: resolvedPackage.dev,
             name: resolvedPackage.name,
-            normalizedPref: dep.normalizedPref,
             optional: resolvedPackage.optional,
             pkgId: resolvedPackage.id,
             resolution: resolvedPackage.resolution,
             version: resolvedPackage.version,
-            specifierTemplate: dep.specifierTemplate,
+            specifier: dep.specifier,
           }
         }),
       directNodeIdsByAlias: new Map(directNonLinkedDeps.map(({ alias, nodeId }) => [alias, nodeId])),
@@ -343,12 +341,12 @@ function buildTree (
 function dedupeSameAliasDirectDeps (directDeps: Array<PkgAddress | LinkedDependency>, wantedDependencies: Array<WantedDependency & { isNew?: boolean }>): Array<PkgAddress | LinkedDependency> {
   const deps = new Map<string, PkgAddress | LinkedDependency>()
   for (const directDep of directDeps) {
-    const { alias, normalizedPref } = directDep
+    const { alias, specifier } = directDep
     if (!deps.has(alias)) {
       deps.set(alias, directDep)
     } else {
       const wantedDep = wantedDependencies.find(dep =>
-        dep.alias ? dep.alias === alias : dep.pref === normalizedPref
+        dep.alias ? dep.alias === alias : dep.pref === specifier
       )
       if (wantedDep?.isNew) {
         deps.set(alias, directDep)

@@ -42,10 +42,9 @@ export interface ResolveResult {
   latest?: string
   publishedAt?: string
   manifest?: DependencyManifest
-  normalizedPref?: string // is null for npm-hosted dependencies
   resolution: Resolution
   resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'workspace' | 'url' | string
-  specifierTemplate?: string
+  specifier?: string
 }
 
 /**
@@ -100,7 +99,7 @@ export interface ResolveOptions {
   workspacePackages?: WorkspacePackages
   update?: false | 'compatible' | 'latest'
   injectWorkspacePackages?: boolean
-  calcSpecifierTemplate?: boolean
+  calcSpecifier?: boolean
   pinnedVersion?: | 'none'
   | 'patch'
   | 'minor'

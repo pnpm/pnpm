@@ -15,7 +15,7 @@ import { parsePref, type WantedLocalDependency } from './parsePref'
 export type { WantedLocalDependency }
 
 export interface ResolveFromLocalResult extends ResolveResult {
-  normalizedPref: string
+  specifier: string
   resolution: TarballResolution | DirectoryResolution
   manifest?: DependencyManifest
 }
@@ -35,7 +35,7 @@ export async function resolveFromLocal (
   if (spec.type === 'file') {
     return {
       id: spec.id,
-      normalizedPref: spec.normalizedPref,
+      specifier: spec.normalizedPref,
       resolution: {
         integrity: await getTarballIntegrity(spec.fetchSpec),
         tarball: spec.id,
@@ -84,7 +84,7 @@ export async function resolveFromLocal (
   return {
     id: spec.id,
     manifest: localDependencyManifest,
-    normalizedPref: spec.normalizedPref,
+    specifier: spec.normalizedPref,
     resolution: {
       directory: spec.dependencyPath,
       type: 'directory',
