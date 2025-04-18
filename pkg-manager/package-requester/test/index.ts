@@ -1022,9 +1022,9 @@ test('the version in the bundled manifest should be normalized', async () => {
     preferredVersions: {},
     projectDir: tempy.directory(),
   })
-  expect((await pkgResponse.fetching!()).bundledManifest).toStrictEqual(expect.objectContaining({
+  expect((await pkgResponse.fetching!()).bundledManifest).toMatchObject({
     version: '1.2.1',
-  }))
+  })
 })
 
 test('should skip store integrity check and resolve manifest if fetchRawManifest is true', async () => {
@@ -1085,9 +1085,9 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
 
     await fetchResult.fetching()
 
-    expect((await fetchResult.fetching!()).bundledManifest).toStrictEqual(expect.objectContaining({
+    expect((await fetchResult.fetching!()).bundledManifest).toMatchObject({
       name: 'is-positive',
       version: '1.0.0',
-    }))
+    })
   }
 })

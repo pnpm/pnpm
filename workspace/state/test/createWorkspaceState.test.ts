@@ -20,11 +20,11 @@ test('createWorkspaceState() on empty list', () => {
         injectWorkspacePackages: false,
       },
     })
-  ).toStrictEqual(expect.objectContaining({
+  ).toMatchObject({
     projects: {},
     pnpmfileExists: true,
     lastValidatedTimestamp: expect.any(Number),
-  }))
+  })
 })
 
 test('createWorkspaceState() on non-empty list', () => {
@@ -57,7 +57,7 @@ test('createWorkspaceState() on non-empty list', () => {
       pnpmfileExists: false,
       filteredInstall: false,
     })
-  ).toStrictEqual(expect.objectContaining({
+  ).toMatchObject({
     settings: expect.objectContaining({
       catalogs: {
         default: {
@@ -73,5 +73,5 @@ test('createWorkspaceState() on non-empty list', () => {
       [path.resolve('packages/d')]: {},
     },
     pnpmfileExists: false,
-  }))
+  })
 })
