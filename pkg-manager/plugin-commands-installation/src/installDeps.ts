@@ -291,9 +291,7 @@ when running add/update with the --workspace option')
   }
 
   if (opts.update && opts.latest && (!params || (params.length === 0))) {
-    const filteredDeps = filterDependenciesByType(manifest, includeDirect)
-    params = Object
-      .keys(filteredDeps)
+    params = Object.keys(filterDependenciesByType(manifest, includeDirect))
   }
   if (opts.workspace) {
     if (!params || (params.length === 0)) {
