@@ -518,6 +518,9 @@ export async function getConfig (opts: {
   }
 
   if (pnpmConfig.dangerouslyAllowAllBuilds) {
+    if (pnpmConfig.neverBuiltDependencies && pnpmConfig.neverBuiltDependencies.length > 0) {
+      warnings.push('You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.')
+    }
     pnpmConfig.neverBuiltDependencies = []
   }
 
