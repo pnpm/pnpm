@@ -2,7 +2,7 @@ import path from 'path'
 import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
-import * as jsr from '@pnpm/jsr-specs'
+import { parseJsrSpecifier } from '@pnpm/jsr-specs'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import omit from 'ramda/src/omit'
@@ -181,14 +181,11 @@ async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec:
 }
 
 async function replaceJsrProtocol (depName: string, depSpec: string): Promise<string> {
-  const spec = jsr.parseJsrSpecifier(depSpec)
+  const spec = parseJsrSpecifier(depSpec, depName)
   if (spec == null) {
     return depSpec
   }
-  if (spec.npmPkgName != null) {
-    return createNpmAliasedSpecifier(spec.npmPkgName, spec.pref)
-  }
-  return createNpmAliasedSpecifier(jsr.jsrToNpmPackageName(depName), spec.pref)
+  return createNpmAliasedSpecifier(spec.npmPkgName, spec.pref)
 }
 
 function createNpmAliasedSpecifier (npmPkgName: string, pref?: string): string {

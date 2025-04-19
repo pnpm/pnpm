@@ -1,4 +1,4 @@
-import * as jsr from '@pnpm/jsr-specs'
+import { parseJsrSpecifier } from '@pnpm/jsr-specs'
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
 import getVersionSelectorType from 'version-selector-type'
 
@@ -60,20 +60,16 @@ export function parseJsrPref (
   alias: string | undefined,
   defaultTag: string
 ): JsrRegistryPackageSpec | null {
-  const spec = jsr.parseJsrSpecifier(pref)
-  if (spec == null) return null
-
-  const name = spec.npmPkgName ?? (alias ? jsr.jsrToNpmPackageName(alias) : undefined)
-
-  if (name == null) return null
+  const spec = parseJsrSpecifier(pref, alias)
+  if (!spec?.npmPkgName) return null
 
   const selector = getVersionSelectorType(spec.pref ?? defaultTag)
   if (selector == null) return null
 
   return {
     fetchSpec: selector.normalized,
-    name,
+    name: spec.npmPkgName,
     type: selector.type,
-    jsrPkgName: spec.jsrPkgName ?? alias!,
+    jsrPkgName: spec.jsrPkgName,
   }
 }
