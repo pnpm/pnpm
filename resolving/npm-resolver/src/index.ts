@@ -81,7 +81,7 @@ export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: ResolverFactoryOptions
-): { resolveFromNpm: NpmResolver, clearCache: () => void } {
+): { resolveFromNpm: NpmResolver, resolveFromJsr: NpmResolver, clearCache: () => void } {
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
@@ -97,21 +97,23 @@ export function createNpmResolver (
     max: 10000,
     ttl: 120 * 1000, // 2 minutes
   })
-  return {
-    resolveFromNpm: resolveNpm.bind(null, {
-      getAuthHeaderValueByURI: getAuthHeader,
-      pickPackage: pickPackage.bind(null, {
-        fetch,
-        filterMetadata: opts.filterMetadata,
-        metaCache,
-        metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : ABBREVIATED_META_DIR,
-        offline: opts.offline,
-        preferOffline: opts.preferOffline,
-        cacheDir: opts.cacheDir,
-      }),
-      registries: opts.registries,
-      saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+  const ctx = {
+    getAuthHeaderValueByURI: getAuthHeader,
+    pickPackage: pickPackage.bind(null, {
+      fetch,
+      filterMetadata: opts.filterMetadata,
+      metaCache,
+      metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : ABBREVIATED_META_DIR,
+      offline: opts.offline,
+      preferOffline: opts.preferOffline,
+      cacheDir: opts.cacheDir,
     }),
+    registries: opts.registries,
+    saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+  }
+  return {
+    resolveFromNpm: resolveNpm.bind(null, ctx),
+    resolveFromJsr: resolveJsr.bind(null, ctx),
     clearCache: () => {
       metaCache.clear()
     },
@@ -178,10 +180,7 @@ async function resolveNpm (
   const spec = wantedDependency.pref
     ? parsePref(wantedDependency.pref, wantedDependency.alias, defaultTag, registry)
     : defaultTagForAlias(wantedDependency.alias!, defaultTag)
-
-  if (spec == null) {
-    return tryResolveFromJsr(ctx, wantedDependency, opts, defaultTag)
-  }
+  if (spec == null) return null
 
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
   let pickResult!: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
@@ -295,13 +294,13 @@ async function resolveNpm (
   }
 }
 
-async function tryResolveFromJsr (
+async function resolveJsr (
   ctx: ResolveFromNpmContext,
   wantedDependency: WantedDependency,
-  opts: Omit<ResolveFromNpmOptions, 'registry'>,
-  defaultTag: string
+  opts: Omit<ResolveFromNpmOptions, 'registry'>
 ): Promise<ResolveResult | null> {
   if (!wantedDependency.pref) return null
+  const defaultTag = opts.defaultTag ?? 'latest'
 
   const registry = ctx.registries['@jsr']! // '@jsr' is always defined
   const spec = parseJsrPref(wantedDependency.pref, wantedDependency.alias, defaultTag)

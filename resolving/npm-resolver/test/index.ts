@@ -16,6 +16,7 @@ import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import omit from 'ramda/src/omit'
 import tempy from 'tempy'
+import { delay, retryLoadJsonFile } from './utils'
 
 const f = fixtures(__dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -26,8 +27,6 @@ const isPositiveBrokenMeta = loadJsonFile.sync<any>(f.find('is-positive-broken.j
 const sindresorhusIsMeta = loadJsonFile.sync<any>(f.find('sindresorhus-is.json'))
 const jsonMeta = loadJsonFile.sync<any>(f.find('JSON.json'))
 const brokenIntegrity = loadJsonFile.sync<any>(f.find('broken-integrity.json'))
-const jsrRusGreetMeta = loadJsonFile.sync<any>(f.find('jsr-rus-greet.json'))
-const jsrLucaCasesMeta = loadJsonFile.sync<any>(f.find('jsr-luca-cases.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const registries = {
@@ -35,28 +34,9 @@ const registries = {
   '@jsr': 'https://npm.jsr.io/',
 } satisfies Registries
 
-const delay = async (time: number) => new Promise<void>((resolve) => setTimeout(() => {
-  resolve()
-}, time))
-
 const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
-
-async function retryLoadJsonFile<T> (filePath: string) {
-  let retry = 0
-  /* eslint-disable no-await-in-loop */
-  while (true) {
-    await delay(500)
-    try {
-      return await loadJsonFile<T>(filePath)
-    } catch (err: any) { // eslint-disable-line
-      if (retry > 2) throw err
-      retry++
-    }
-  }
-  /* eslint-enable no-await-in-loop */
-}
 
 afterEach(() => {
   nock.cleanAll()
@@ -140,106 +120,6 @@ test('resolveFromNpm() should save metadata to a unique file when the package na
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
   expect(meta['dist-tags']).toBeTruthy()
-})
-
-test('resolveFromNpm() on jsr', async () => {
-  const slash = '%2F'
-  nock(registries.default)
-    .get(`/@jsr${slash}rus__greet`)
-    .reply(404)
-    .get(`/@jsr${slash}luca__cases`)
-    .reply(404)
-  nock(registries['@jsr'])
-    .get(`/@jsr${slash}rus__greet`)
-    .reply(200, jsrRusGreetMeta)
-    .get(`/@jsr${slash}luca__cases`)
-    .reply(200, jsrLucaCasesMeta)
-
-  const cacheDir = tempy.directory()
-  const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir,
-    registries,
-  })
-  const resolveResult = await resolveFromNpm({ alias: '@rus/greet', pref: 'jsr:0.0.3' }, { calcSpecifier: true })
-
-  expect(resolveResult).toMatchObject({
-    resolvedVia: 'jsr-registry',
-    id: '@jsr/rus__greet@0.0.3',
-    latest: '0.0.3',
-    manifest: {
-      name: '@jsr/rus__greet',
-      version: '0.0.3',
-    },
-    resolution: {
-      integrity: expect.any(String),
-      tarball: 'https://npm.jsr.io/~/11/@jsr/rus__greet/0.0.3.tgz',
-    },
-    specifier: 'jsr:0.0.3',
-  })
-
-  // The resolve function does not wait for the package meta cache file to be saved
-  // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'npm.jsr.io/@jsr/rus__greet.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(meta).toMatchObject({
-    name: expect.any(String),
-    versions: expect.any(Object),
-    'dist-tags': expect.any(Object),
-  })
-})
-
-test('resolveFromNpm() on jsr with alias renaming', async () => {
-  const slash = '%2F'
-  nock(registries.default)
-    .get(`/@jsr${slash}rus__greet`)
-    .reply(404)
-    .get(`/@jsr${slash}luca__cases`)
-    .reply(404)
-  nock(registries['@jsr'])
-    .get(`/@jsr${slash}rus__greet`)
-    .reply(200, jsrRusGreetMeta)
-    .get(`/@jsr${slash}luca__cases`)
-    .reply(200, jsrLucaCasesMeta)
-
-  const cacheDir = tempy.directory()
-  const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir,
-    registries,
-  })
-  const resolveResult = await resolveFromNpm({ alias: 'greet', pref: 'jsr:@rus/greet@0.0.3' }, {})
-
-  expect(resolveResult).toMatchObject({
-    resolvedVia: 'jsr-registry',
-    id: '@jsr/rus__greet@0.0.3',
-    latest: '0.0.3',
-    manifest: {
-      name: '@jsr/rus__greet',
-      version: '0.0.3',
-    },
-    resolution: {
-      integrity: expect.any(String),
-      tarball: 'https://npm.jsr.io/~/11/@jsr/rus__greet/0.0.3.tgz',
-    },
-  })
-
-  // The resolve function does not wait for the package meta cache file to be saved
-  // so we must delay for a bit in order to read it
-  const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'npm.jsr.io/@jsr/rus__greet.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
-  expect(meta).toMatchObject({
-    name: expect.any(String),
-    versions: expect.any(Object),
-    'dist-tags': expect.any(Object),
-  })
-})
-
-test('resolveFromNpm() on jsr with packages without scope', async () => {
-  const cacheDir = tempy.directory()
-  const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir,
-    registries,
-  })
-  await expect(resolveFromNpm({ alias: 'greet', pref: 'jsr:0.0.3' }, {})).rejects.toMatchObject({
-    code: 'ERR_PNPM_MISSING_JSR_PACKAGE_SCOPE',
-  })
 })
 
 test('relative workspace protocol is skipped', async () => {
