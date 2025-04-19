@@ -185,14 +185,16 @@ async function replaceJsrProtocol (depName: string, depSpec: string): Promise<st
   if (spec == null) {
     return depSpec
   }
-
-  if (spec.scope != null) {
-    return jsr.jsrToNpmSpecifier(spec)
+  if (spec.npmPkgName != null) {
+    return createNpmAliasedSpecifier(spec.npmPkgName, spec.pref)
   }
+  return createNpmAliasedSpecifier(jsr.jsrToNpmPackageName(depName), spec.pref)
+}
 
-  const jsrPackageName = jsr.parseJsrPackageName(depName)
-  return jsr.jsrToNpmSpecifier({
-    ...jsrPackageName,
-    pref: spec.pref,
-  })
+function createNpmAliasedSpecifier (npmPkgName: string, pref?: string): string {
+  let npmSpecifier = `npm:${npmPkgName}`
+  if (pref) {
+    npmSpecifier += `@${pref}`
+  }
+  return npmSpecifier
 }

@@ -63,18 +63,7 @@ export function parseJsrPref (
   const spec = jsr.parseJsrSpecifier(pref)
   if (spec == null) return null
 
-  let name: string | undefined
-
-  if (spec.scope != null) {
-    // syntax: jsr:@<scope>/<name>[@<spec>]
-    name = jsr.jsrToNpmPackageName(spec)
-  } else if (alias != null) {
-    // syntax: jsr:<spec>
-    const parsed = jsr.parseJsrPackageName(alias)
-    if (parsed != null) {
-      name = jsr.jsrToNpmPackageName(parsed)
-    }
-  }
+  const name = spec.npmPkgName ?? (alias ? jsr.jsrToNpmPackageName(alias) : undefined)
 
   if (name == null) return null
 
@@ -85,6 +74,6 @@ export function parseJsrPref (
     fetchSpec: selector.normalized,
     name,
     type: selector.type,
-    jsrPkgName: spec.scope ? `@${spec.scope}/${spec.name}` : alias!,
+    jsrPkgName: spec.jsrPkgName ?? alias!,
   }
 }

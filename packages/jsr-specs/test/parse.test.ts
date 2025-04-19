@@ -1,5 +1,4 @@
-import { parseJsrSpecifier, parseJsrPackageName } from '../src/parse'
-import { type JsrSpec, type ParsedJsrPackageName } from '../src/types'
+import { parseJsrSpecifier, type JsrSpec } from '../src/parse'
 
 describe('parseJsrSpecifier', () => {
   test('skips on non-jsr prefs', () => {
@@ -20,13 +19,13 @@ describe('parseJsrSpecifier', () => {
   })
 
   test('succeeds on jsr prefs that only specify scope and name (jsr:@<scope>/<name>)', () => {
-    expect(parseJsrSpecifier('jsr:@foo/bar')).toStrictEqual({ scope: 'foo', name: 'bar' } as JsrSpec)
+    expect(parseJsrSpecifier('jsr:@foo/bar')).toStrictEqual({ jsrPkgName: '@foo/bar', npmPkgName: '@jsr/foo__bar' } as JsrSpec)
   })
 
   test('succeeds on jsr prefs that specify scopes, names, and versions/ranges/tags (jsr:@<scope>/<name>@<spec>)', () => {
-    expect(parseJsrSpecifier('jsr:@foo/bar@^1.0.0')).toStrictEqual({ scope: 'foo', name: 'bar', pref: '^1.0.0' } as JsrSpec)
-    expect(parseJsrSpecifier('jsr:@foo/bar@1.0.0')).toStrictEqual({ scope: 'foo', name: 'bar', pref: '1.0.0' } as JsrSpec)
-    expect(parseJsrSpecifier('jsr:@foo/bar@latest')).toStrictEqual({ scope: 'foo', name: 'bar', pref: 'latest' } as JsrSpec)
+    expect(parseJsrSpecifier('jsr:@foo/bar@^1.0.0')).toStrictEqual({ jsrPkgName: '@foo/bar', npmPkgName: '@jsr/foo__bar', pref: '^1.0.0' } as JsrSpec)
+    expect(parseJsrSpecifier('jsr:@foo/bar@1.0.0')).toStrictEqual({ jsrPkgName: '@foo/bar', npmPkgName: '@jsr/foo__bar', pref: '1.0.0' } as JsrSpec)
+    expect(parseJsrSpecifier('jsr:@foo/bar@latest')).toStrictEqual({ jsrPkgName: '@foo/bar', npmPkgName: '@jsr/foo__bar', pref: 'latest' } as JsrSpec)
   })
 
   test('errors on jsr prefs that contain names without scopes', () => {
@@ -40,24 +39,6 @@ describe('parseJsrSpecifier', () => {
       code: 'ERR_PNPM_INVALID_JSR_PACKAGE_NAME',
     }))
     expect(() => parseJsrSpecifier('jsr:@foo')).toThrow(expect.objectContaining({
-      code: 'ERR_PNPM_INVALID_JSR_PACKAGE_NAME',
-    }))
-  })
-})
-
-describe('parseJsrPackageName', () => {
-  test('succeeds on names with scopes', () => {
-    expect(parseJsrPackageName('@foo/bar')).toStrictEqual({ scope: 'foo', name: 'bar' } as ParsedJsrPackageName)
-  })
-
-  test('errors on names without scopes', () => {
-    expect(() => parseJsrPackageName('bar')).toThrow(expect.objectContaining({
-      code: 'ERR_PNPM_MISSING_JSR_PACKAGE_SCOPE',
-    }))
-  })
-
-  test('errors on scopes without names', () => {
-    expect(() => parseJsrPackageName('@foo')).toThrow(expect.objectContaining({
       code: 'ERR_PNPM_INVALID_JSR_PACKAGE_NAME',
     }))
   })
