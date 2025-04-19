@@ -358,7 +358,7 @@ function calcJsrSpecifier ({
 }): string {
   const range = calcRange(version, wantedDependency, defaultPinnedVersion)
   if (spec.jsrPkgName === wantedDependency.alias) return `jsr:${range}`
-  return `jsr:${spec.name}@${range}`
+  return `jsr:${spec.jsrPkgName}@${range}`
 }
 
 function calcSpecifier ({

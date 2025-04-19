@@ -111,7 +111,7 @@ test('pnpm add jsr:@<scope>/<name>@<pref>', async () => {
 
   expect(loadJsonFile('package.json')).toMatchObject({
     dependencies: {
-      '@pnpm-e2e/foo': 'jsr:0.1',
+      '@pnpm-e2e/foo': 'jsr:~0.1.0',
     },
   } as ProjectManifest)
 
@@ -120,7 +120,7 @@ test('pnpm add jsr:@<scope>/<name>@<pref>', async () => {
       '.': {
         dependencies: {
           '@pnpm-e2e/foo': {
-            specifier: 'jsr:0.1',
+            specifier: 'jsr:~0.1.0',
             version: '@jsr/pnpm-e2e__foo@0.1.0',
           },
         },
@@ -189,7 +189,7 @@ test('pnpm add <alias>@jsr:@<scope>/<name>@<pref>', async () => {
 
   expect(loadJsonFile('package.json')).toMatchObject({
     dependencies: {
-      'foo-from-jsr': 'jsr:@pnpm-e2e/foo@0.1',
+      'foo-from-jsr': 'jsr:@pnpm-e2e/foo@~0.1.0',
     },
   } as ProjectManifest)
 
@@ -198,7 +198,7 @@ test('pnpm add <alias>@jsr:@<scope>/<name>@<pref>', async () => {
       '.': {
         dependencies: {
           'foo-from-jsr': {
-            specifier: 'jsr:@pnpm-e2e/foo@0.1',
+            specifier: 'jsr:@pnpm-e2e/foo@~0.1.0',
             version: '@jsr/pnpm-e2e__foo@0.1.0',
           },
         },
