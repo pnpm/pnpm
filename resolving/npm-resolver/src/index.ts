@@ -175,7 +175,6 @@ async function resolveNpm (
       return resolvedFromWorkspace
     }
   }
-
   const workspacePackages = opts.alwaysTryWorkspacePackages !== false ? opts.workspacePackages : undefined
   const spec = wantedDependency.pref
     ? parsePref(wantedDependency.pref, wantedDependency.alias, defaultTag, registry)

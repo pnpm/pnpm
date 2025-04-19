@@ -1,35 +1,35 @@
 import { PnpmError } from '@pnpm/error'
 import { type JsrSpec, type JsrSpecWithAlias, type ParsedJsrPackageName } from './types'
 
-export function parseJsrPref (pref: string): JsrSpec | null {
-  if (!pref.startsWith('jsr:')) return null
+export function parseJsrSpecifier (rawSpecifier: string): JsrSpec | null {
+  if (!rawSpecifier.startsWith('jsr:')) return null
 
-  pref = pref.slice('jsr:'.length)
+  rawSpecifier = rawSpecifier.slice('jsr:'.length)
 
   // syntax: jsr:@<scope>/<name>[@<spec>]
-  if (pref.startsWith('@')) {
-    pref = pref.slice('@'.length)
+  if (rawSpecifier.startsWith('@')) {
+    rawSpecifier = rawSpecifier.slice('@'.length)
 
-    const index = pref.lastIndexOf('@')
+    const index = rawSpecifier.lastIndexOf('@')
 
     // syntax: jsr:@<scope>/<name>
     if (index === -1) {
-      return scopeAndName(pref)
+      return scopeAndName(rawSpecifier)
     }
 
     // syntax: jsr:@<scope>/<name>@<spec>
-    const result: JsrSpecWithAlias = scopeAndName(pref.slice(0, index))
-    result.pref = pref.slice(index + '@'.length)
+    const result: JsrSpecWithAlias = scopeAndName(rawSpecifier.slice(0, index))
+    result.pref = rawSpecifier.slice(index + '@'.length)
     return result
   }
 
   // syntax: jsr:<name>@<spec> (invalid)
-  if (pref.includes('@')) {
+  if (rawSpecifier.includes('@')) {
     throw new PnpmError('MISSING_JSR_PACKAGE_SCOPE', 'Package names from JSR must have a scope')
   }
 
   // syntax: jsr:<spec>
-  return { pref: pref }
+  return { pref: rawSpecifier }
 }
 
 export function parseJsrPackageName (fullName: string): ParsedJsrPackageName {

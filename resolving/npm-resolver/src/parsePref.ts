@@ -60,19 +60,19 @@ export function parseJsrPref (
   alias: string | undefined,
   defaultTag: string
 ): JsrRegistryPackageSpec | null {
-  const spec = jsr.parseJsrPref(pref)
+  const spec = jsr.parseJsrSpecifier(pref)
   if (spec == null) return null
 
   let name: string | undefined
 
   if (spec.scope != null) {
     // syntax: jsr:@<scope>/<name>[@<spec>]
-    name = jsr.createNpmPackageName(spec)
+    name = jsr.jsrToNpmPackageName(spec)
   } else if (alias != null) {
     // syntax: jsr:<spec>
     const parsed = jsr.parseJsrPackageName(alias)
     if (parsed != null) {
-      name = jsr.createNpmPackageName(parsed)
+      name = jsr.jsrToNpmPackageName(parsed)
     }
   }
 

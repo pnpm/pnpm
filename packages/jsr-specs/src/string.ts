@@ -1,17 +1,13 @@
 import { type JsrSpecWithAlias, type ParsedJsrPackageName } from './types'
 
-export function createJsrPackageName ({ scope, name }: ParsedJsrPackageName): string {
-  return `@${scope}/${name}`
-}
-
-export function createNpmPref (jsr: JsrSpecWithAlias): string {
-  let pref = `npm:${createNpmPackageName(jsr)}`
+export function jsrToNpmSpecifier (jsr: JsrSpecWithAlias): string {
+  let npmSpecifier = `npm:${jsrToNpmPackageName(jsr)}`
   if (jsr.pref) {
-    pref += `@${jsr.pref}`
+    npmSpecifier += `@${jsr.pref}`
   }
-  return pref
+  return npmSpecifier
 }
 
-export function createNpmPackageName ({ scope, name }: ParsedJsrPackageName): string {
+export function jsrToNpmPackageName ({ scope, name }: ParsedJsrPackageName): string {
   return `@jsr/${scope}__${name}`
 }
