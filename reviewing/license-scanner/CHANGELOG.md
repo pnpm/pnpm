@@ -1,5 +1,14 @@
 # @pnpm/license-scanner
 
+## 1001.0.14
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@1000.1.5
+- @pnpm/lockfile.utils@1001.0.9
+- @pnpm/store.cafs@1000.0.10
+- @pnpm/lockfile.fs@1001.1.10
+
 ## 1001.0.13
 
 ### Patch Changes

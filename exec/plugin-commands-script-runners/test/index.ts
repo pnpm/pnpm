@@ -550,9 +550,9 @@ onlyOnWindows('pnpm shows error if script-shell is .cmd', async () => {
     }, ['build'])
   }
 
-  await expect(runScript).rejects.toEqual(expect.objectContaining({
+  await expect(runScript).rejects.toMatchObject({
     code: 'ERR_PNPM_INVALID_SCRIPT_SHELL_WINDOWS',
-  }))
+  })
 })
 
 test('pnpm run with RegExp script selector should work', async () => {
@@ -712,10 +712,10 @@ test('pnpm run with slightly incorrect command suggests correct one', async () =
     pnpmHomeDir: '',
     rawConfig: {},
     workspaceConcurrency: 1,
-  }, ['buil'])).rejects.toEqual(expect.objectContaining({
+  }, ['buil'])).rejects.toMatchObject({
     code: 'ERR_PNPM_NO_SCRIPT',
     hint: 'Command "buil" not found. Did you mean "pnpm run build"?',
-  }))
+  })
 })
 
 test('pnpm run with custom node-options', async () => {

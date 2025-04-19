@@ -1,5 +1,12 @@
 # @pnpm/fetcher-base
 
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+
 ## 1000.0.8
 
 ### Patch Changes

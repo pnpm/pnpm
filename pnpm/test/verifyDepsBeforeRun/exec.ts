@@ -165,7 +165,7 @@ test('multi-project workspace', async () => {
   // pnpm install should create a packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual(expect.objectContaining({
+    expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
       pnpmfileExists: false,
       filteredInstall: false,
@@ -174,7 +174,7 @@ test('multi-project workspace', async () => {
         [path.resolve('foo')]: { name: 'foo', version: '0.0.0' },
         [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
       },
-    }))
+    })
   }
 
   // should be able to execute a command in root after dependencies have been installed
@@ -320,7 +320,7 @@ test('multi-project workspace', async () => {
   // pnpm install should update the packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual(expect.objectContaining({
+    expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
       pnpmfileExists: false,
       filteredInstall: false,
@@ -330,7 +330,7 @@ test('multi-project workspace', async () => {
         [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
         [path.resolve('baz')]: { name: 'baz' },
       },
-    }))
+    })
   }
 
   // should be able to execute a command after projects list have been updated

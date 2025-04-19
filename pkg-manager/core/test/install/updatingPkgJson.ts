@@ -27,14 +27,14 @@ test("don't override existing spec in package.json on named installation", async
       sec: 'sindresorhus/sec#main',
     },
   }, ['is-positive'], testDefaults())
-  manifest = (await addDependenciesToPackage(manifest, ['is-negative'], testDefaults())).updatedManifest
+  manifest = (await addDependenciesToPackage(manifest, ['is-negative@latest'], testDefaults())).updatedManifest
   manifest = (await addDependenciesToPackage(manifest, ['sec'], testDefaults())).updatedManifest
 
   expect(project.requireModule('is-positive/package.json').version).toBe('2.0.0')
-  expect(project.requireModule('is-negative/package.json').version).toBe('1.0.1')
+  expect(project.requireModule('is-negative/package.json').version).toBe('2.1.0')
 
   expect(manifest.dependencies).toStrictEqual({
-    'is-negative': '^1.0.1',
+    'is-negative': '^2.1.0',
     'is-positive': '^2.0.0',
     sec: 'sindresorhus/sec#main',
   })

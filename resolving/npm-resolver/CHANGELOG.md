@@ -1,5 +1,17 @@
 # @pnpm/npm-resolver
 
+## 1003.0.0
+
+### Major Changes
+
+- 81f441c: `updateToLatest` replaced with `update` field.
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/crypto.hash@1000.1.1
+
 ## 1002.0.0
 
 ### Major Changes

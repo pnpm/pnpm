@@ -44,7 +44,7 @@ describe('cache view', () => {
       storeDir,
     }, ['view', 'is-negative'])
 
-    expect(JSON.parse(result!)).toEqual(expect.objectContaining({
+    expect(JSON.parse(result!)).toMatchObject({
       [`localhost:${REGISTRY_MOCK_PORT}`]: expect.objectContaining({
         cachedVersions: ['2.1.0'],
         nonCachedVersions: [
@@ -65,7 +65,7 @@ describe('cache view', () => {
           '2.0.2',
         ],
       }),
-    }))
+    })
   })
   test('lists metadata for requested package from specified registry', async () => {
     const result = await cache.handler({
@@ -77,7 +77,7 @@ describe('cache view', () => {
       storeDir,
     }, ['view', 'is-negative'])
 
-    expect(JSON.parse(result!)).toEqual(expect.objectContaining({
+    expect(JSON.parse(result!)).toMatchObject({
       'registry.npmjs.org': expect.objectContaining({
         cachedVersions: ['2.1.0'],
         nonCachedVersions: [
@@ -88,7 +88,7 @@ describe('cache view', () => {
           '2.0.2',
         ],
       }),
-    }))
+    })
   })
 
   test('lists all metadata for requested package should specify a package name', async () => {

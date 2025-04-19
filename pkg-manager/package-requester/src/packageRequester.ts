@@ -161,7 +161,7 @@ async function resolveAndFetch (
 ): Promise<PackageResponse> {
   let latest: string | undefined
   let manifest: DependencyManifest | undefined
-  let normalizedPref: string | undefined
+  let specifier: string | undefined
   let resolution = options.currentPkg?.resolution as Resolution
   let pkgId = options.currentPkg?.id
   const skipResolution = resolution && !options.update
@@ -188,6 +188,8 @@ async function resolveAndFetch (
       workspacePackages: options.workspacePackages,
       update: options.update,
       injectWorkspacePackages: options.injectWorkspacePackages,
+      calcSpecifier: options.calcSpecifier,
+      pinnedVersion: options.pinnedVersion,
     }), { priority: options.downloadPriority })
 
     manifest = resolveResult.manifest
@@ -206,7 +208,7 @@ async function resolveAndFetch (
     updated = pkgId !== resolveResult.id || !resolution || forceFetch
     resolution = resolveResult.resolution
     pkgId = resolveResult.id
-    normalizedPref = resolveResult.normalizedPref
+    specifier = resolveResult.specifier
   }
 
   const id = pkgId!
@@ -220,10 +222,10 @@ async function resolveAndFetch (
         id,
         isLocal: true,
         manifest,
-        normalizedPref,
         resolution: resolution as DirectoryResolution,
         resolvedVia,
         updated,
+        specifier,
       },
     }
   }
@@ -252,7 +254,7 @@ async function resolveAndFetch (
         isInstallable: isInstallable ?? undefined,
         latest,
         manifest,
-        normalizedPref,
+        specifier,
         resolution,
         resolvedVia,
         updated,
@@ -288,7 +290,7 @@ async function resolveAndFetch (
       isInstallable: isInstallable ?? undefined,
       latest,
       manifest,
-      normalizedPref,
+      specifier,
       resolution,
       resolvedVia,
       updated,

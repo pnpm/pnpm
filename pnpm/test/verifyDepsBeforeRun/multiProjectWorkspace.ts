@@ -90,7 +90,7 @@ test('single dependency', async () => {
   // pnpm install should create a packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual(expect.objectContaining({
+    expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
       pnpmfileExists: false,
       filteredInstall: false,
@@ -99,7 +99,7 @@ test('single dependency', async () => {
         [path.resolve('foo')]: { name: 'foo', version: '0.0.0' },
         [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
       },
-    }))
+    })
   }
 
   // should be able to execute a script in root after dependencies have been installed
@@ -259,7 +259,7 @@ test('single dependency', async () => {
   // pnpm install should update the packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual(expect.objectContaining({
+    expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
       pnpmfileExists: false,
       filteredInstall: false,
@@ -269,7 +269,7 @@ test('single dependency', async () => {
         [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
         [path.resolve('baz')]: { name: 'baz' },
       },
-    }))
+    })
   }
 
   // should be able to execute a script after projects list have been updated
@@ -381,7 +381,7 @@ test('multiple lockfiles', async () => {
   // pnpm install should create a packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual(expect.objectContaining({
+    expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
       pnpmfileExists: false,
       filteredInstall: false,
@@ -390,7 +390,7 @@ test('multiple lockfiles', async () => {
         [path.resolve('foo')]: { name: 'foo', version: '0.0.0' },
         [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
       },
-    }))
+    })
   }
 
   // should be able to execute a script in root after dependencies have been installed
@@ -545,7 +545,7 @@ test('multiple lockfiles', async () => {
   // pnpm install should update the packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual(expect.objectContaining({
+    expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
       pnpmfileExists: false,
       filteredInstall: false,
@@ -555,7 +555,7 @@ test('multiple lockfiles', async () => {
         [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
         [path.resolve('baz')]: { name: 'baz' },
       },
-    }))
+    })
   }
 
   // should be able to execute a script after projects list have been updated
@@ -692,7 +692,7 @@ test('no dependencies', async () => {
   // pnpm install should create a packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual(expect.objectContaining({
+    expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
       pnpmfileExists: false,
       filteredInstall: false,
@@ -701,7 +701,7 @@ test('no dependencies', async () => {
         [path.resolve('foo')]: { name: 'foo', version: '0.0.0' },
         [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
       },
-    }))
+    })
   }
 
   // should be able to execute a script after `pnpm install`

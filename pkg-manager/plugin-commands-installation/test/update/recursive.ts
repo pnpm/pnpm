@@ -439,6 +439,7 @@ test('recursive update with aliased workspace dependency (#7975)', async () => {
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
+    saveWorkspaceProtocol: 'rolling',
   })
 
   projects['project-1'].has('pkg')

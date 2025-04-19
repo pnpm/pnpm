@@ -9,7 +9,6 @@ import {
 import {
   getAllDependenciesFromManifest,
   getSpecFromPackageManifest,
-  type PinnedVersion,
 } from '@pnpm/manifest-utils'
 import { verifyPatches } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -18,6 +17,7 @@ import {
   DEPENDENCIES_FIELDS,
   type DependencyManifest,
   type PeerDependencyIssuesByProjects,
+  type PinnedVersion,
   type ProjectManifest,
   type ProjectId,
   type ProjectRootDir,

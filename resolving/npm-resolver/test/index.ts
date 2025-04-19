@@ -77,10 +77,11 @@ test('resolveFromNpm()', async () => {
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {})
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, { calcSpecifier: true })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
+  expect(resolveResult!.specifier).toBe('1.0.0')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
@@ -159,7 +160,7 @@ test('resolveFromNpm() on jsr', async () => {
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: '@rus/greet', pref: 'jsr:0.0.3' }, {})
+  const resolveResult = await resolveFromNpm({ alias: '@rus/greet', pref: 'jsr:0.0.3' }, { calcSpecifier: true })
 
   expect(resolveResult).toMatchObject({
     resolvedVia: 'jsr-registry',
@@ -173,6 +174,7 @@ test('resolveFromNpm() on jsr', async () => {
       integrity: expect.any(String),
       tarball: 'https://npm.jsr.io/~/11/@jsr/rus__greet/0.0.3.tgz',
     },
+    specifier: 'jsr:0.0.3',
   })
 
   // The resolve function does not wait for the package meta cache file to be saved
@@ -375,8 +377,10 @@ test('can resolve aliased dependency w/o version specifier to default tag', asyn
   })
   const resolveResult = await resolveFromNpm({ alias: 'positive', pref: 'npm:is-positive' }, {
     defaultTag: 'stable',
+    calcSpecifier: true,
   })
   expect(resolveResult!.id).toBe('is-positive@3.0.0')
+  expect(resolveResult!.specifier).toBe('npm:is-positive@^3.0.0')
 })
 
 test('can resolve aliased scoped dependency', async () => {
@@ -1042,7 +1046,12 @@ test('resolve when tarball URL is requested from the registry', async () => {
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: `${registries.default}is-positive/-/is-positive-1.0.0.tgz` }, {})
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    pref: `${registries.default}is-positive/-/is-positive-1.0.0.tgz`,
+  }, {
+    calcSpecifier: true,
+  })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
@@ -1054,7 +1063,7 @@ test('resolve when tarball URL is requested from the registry', async () => {
   expect(resolveResult!.manifest).toBeTruthy()
   expect(resolveResult!.manifest!.name).toBe('is-positive')
   expect(resolveResult!.manifest!.version).toBe('1.0.0')
-  expect(resolveResult!.normalizedPref).toBe(`${registries.default}is-positive/-/is-positive-1.0.0.tgz`)
+  expect(resolveResult!.specifier).toBe(`${registries.default}is-positive/-/is-positive-1.0.0.tgz`)
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
@@ -1074,7 +1083,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ pref: `${registries.default}is-positive/-/is-positive-1.0.0.tgz` }, {})
+  const resolveResult = await resolveFromNpm({ pref: `${registries.default}is-positive/-/is-positive-1.0.0.tgz` }, { calcSpecifier: true })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
@@ -1086,7 +1095,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
   expect(resolveResult!.manifest).toBeTruthy()
   expect(resolveResult!.manifest!.name).toBe('is-positive')
   expect(resolveResult!.manifest!.version).toBe('1.0.0')
-  expect(resolveResult!.normalizedPref).toBe(`${registries.default}is-positive/-/is-positive-1.0.0.tgz`)
+  expect(resolveResult!.specifier).toBe(`${registries.default}is-positive/-/is-positive-1.0.0.tgz`)
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it

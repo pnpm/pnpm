@@ -36,3 +36,9 @@ export type PkgIdWithPatchHash = string & { __brand: 'PkgIdWithPatchHash' }
 export type DepPath = string & { __brand: 'DepPath' }
 
 export type ProjectId = string & { __brand: 'ProjectId' }
+
+export type PinnedVersion =
+  | 'none'
+  | 'patch'
+  | 'minor'
+  | 'major'

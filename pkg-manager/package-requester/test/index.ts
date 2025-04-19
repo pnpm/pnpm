@@ -62,7 +62,7 @@ test('request package', async () => {
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest?.name).toBe('is-positive')
-  expect(!pkgResponse.body.normalizedPref).toBeTruthy()
+  expect(!pkgResponse.body.specifier).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
@@ -103,7 +103,7 @@ test('request package but skip fetching', async () => {
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest?.name).toBe('is-positive')
-  expect(!pkgResponse.body.normalizedPref).toBeTruthy()
+  expect(!pkgResponse.body.specifier).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
@@ -155,7 +155,7 @@ test('request package but skip fetching, when resolution is already available', 
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest.name).toBe('is-positive')
-  expect(!pkgResponse.body.normalizedPref).toBeTruthy()
+  expect(!pkgResponse.body.specifier).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
@@ -1022,9 +1022,9 @@ test('the version in the bundled manifest should be normalized', async () => {
     preferredVersions: {},
     projectDir: tempy.directory(),
   })
-  expect((await pkgResponse.fetching!()).bundledManifest).toStrictEqual(expect.objectContaining({
+  expect((await pkgResponse.fetching!()).bundledManifest).toMatchObject({
     version: '1.2.1',
-  }))
+  })
 })
 
 test('should skip store integrity check and resolve manifest if fetchRawManifest is true', async () => {
@@ -1085,9 +1085,9 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
 
     await fetchResult.fetching()
 
-    expect((await fetchResult.fetching!()).bundledManifest).toStrictEqual(expect.objectContaining({
+    expect((await fetchResult.fetching!()).bundledManifest).toMatchObject({
       name: 'is-positive',
       version: '1.0.0',
-    }))
+    })
   }
 })

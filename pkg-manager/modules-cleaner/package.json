@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "1001.0.10",
+  "version": "1001.0.11",
   "description": "Exports util functions to clean up node_modules",
   "keywords": [
     "pnpm",

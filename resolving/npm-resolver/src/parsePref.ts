@@ -9,6 +9,10 @@ export interface RegistryPackageSpec {
   normalizedPref?: string
 }
 
+export interface JsrRegistryPackageSpec extends RegistryPackageSpec {
+  jsrPkgName: string
+}
+
 export function parsePref (
   pref: string,
   alias: string | undefined,
@@ -55,7 +59,7 @@ export function parseJsrPref (
   pref: string,
   alias: string | undefined,
   defaultTag: string
-): RegistryPackageSpec | null {
+): JsrRegistryPackageSpec | null {
   const spec = jsr.parseJsrPref(pref)
   if (spec == null) return null
 
@@ -81,5 +85,6 @@ export function parseJsrPref (
     fetchSpec: selector.normalized,
     name,
     type: selector.type,
+    jsrPkgName: spec.scope ? `@${spec.scope}/${spec.name}` : alias!,
   }
 }

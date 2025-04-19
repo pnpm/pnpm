@@ -5,7 +5,10 @@ import { globalWarn } from '@pnpm/logger'
 import { checkDepsStatus, type CheckDepsStatusOptions, type WorkspaceStateSettings } from '@pnpm/deps.status'
 import { prompt } from 'enquirer'
 
-export type RunDepsStatusCheckOptions = CheckDepsStatusOptions & { dir: string, verifyDepsBeforeRun?: VerifyDepsBeforeRun }
+export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions {
+  dir: string
+  verifyDepsBeforeRun?: VerifyDepsBeforeRun
+}
 
 export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Promise<void> {
   // the following flags are always the default values during `pnpm run` and `pnpm exec`,

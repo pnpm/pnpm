@@ -1,5 +1,13 @@
 # @pnpm/local-resolver
 
+## 1000.0.12
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/crypto.hash@1000.1.1
+
 ## 1000.0.11
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # pnpm
 
+## 10.8.1
+
+### Patch Changes
+
+- Removed bright white highlighting, which didn't look good on some light themes [#9389](https://github.com/pnpm/pnpm/pull/9389).
+- If there is no pnpm related configuration in `package.json`, `onlyBuiltDependencies` will be written to `pnpm-workspace.yaml` file [#9404](https://github.com/pnpm/pnpm/pull/9404).
+
 ## 10.8.0
 
 ### Minor Changes
@@ -16,6 +23,7 @@
     },
   };
   ```
+
 - Now you can use the `pnpm add` command with the `--config` flag to install new configurational dependencies [#9377](https://github.com/pnpm/pnpm/pull/9377).
 
 ### Patch Changes

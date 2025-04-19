@@ -1,5 +1,13 @@
 # @pnpm/deps.graph-builder
 
+## 1002.0.2
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.9
+- @pnpm/store-controller-types@1002.0.1
+- @pnpm/lockfile.fs@1001.1.10
+
 ## 1002.0.1
 
 ### Patch Changes

@@ -7,6 +7,7 @@ import { type StoreController } from '@pnpm/store-controller-types'
 import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
+  type PinnedVersion,
   type PkgResolutionId,
   type ProjectManifest,
   type ProjectId,
@@ -52,8 +53,8 @@ export interface ResolvedDirectDependency {
   pkgId: PkgResolutionId
   version: string
   name: string
-  normalizedPref?: string
   catalogLookup?: CatalogLookupMetadata
+  specifier?: string
 }
 
 /**
@@ -92,6 +93,7 @@ export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
   wantedDependencies: Array<WantedDepExtraProps & WantedDependency & { updateDepth: number }>
+  pinnedVersion?: PinnedVersion
 }
 
 export interface ResolveDependenciesOptions {
@@ -226,6 +228,7 @@ export async function resolveDependencyTree<T> (
       preferredVersions: importer.preferredVersions ?? {},
       wantedDependencies: importer.wantedDependencies,
       options: resolveOpts,
+      pinnedVersion: importer.pinnedVersion,
     }
   })
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)
@@ -259,11 +262,11 @@ export async function resolveDependencyTree<T> (
             catalogLookup: dep.catalogLookup,
             dev: resolvedPackage.dev,
             name: resolvedPackage.name,
-            normalizedPref: dep.normalizedPref,
             optional: resolvedPackage.optional,
             pkgId: resolvedPackage.id,
             resolution: resolvedPackage.resolution,
             version: resolvedPackage.version,
+            specifier: dep.specifier,
           }
         }),
       directNodeIdsByAlias: new Map(directNonLinkedDeps.map(({ alias, nodeId }) => [alias, nodeId])),
@@ -338,12 +341,12 @@ function buildTree (
 function dedupeSameAliasDirectDeps (directDeps: Array<PkgAddress | LinkedDependency>, wantedDependencies: Array<WantedDependency & { isNew?: boolean }>): Array<PkgAddress | LinkedDependency> {
   const deps = new Map<string, PkgAddress | LinkedDependency>()
   for (const directDep of directDeps) {
-    const { alias, normalizedPref } = directDep
+    const { alias, specifier } = directDep
     if (!deps.has(alias)) {
       deps.set(alias, directDep)
     } else {
       const wantedDep = wantedDependencies.find(dep =>
-        dep.alias ? dep.alias === alias : dep.pref === normalizedPref
+        dep.alias ? dep.alias === alias : dep.pref === specifier
       )
       if (wantedDep?.isNew) {
         deps.set(alias, directDep)

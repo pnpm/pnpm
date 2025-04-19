@@ -1,5 +1,13 @@
 # @pnpm/directory-fetcher
 
+## 1000.1.5
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/fetcher-base@1000.0.9
+
 ## 1000.1.4
 
 ### Patch Changes

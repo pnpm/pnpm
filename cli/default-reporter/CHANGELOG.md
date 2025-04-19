@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 1001.4.1
+
+### Patch Changes
+
+- 43bd37f: Removed bright white highlighting, which didn't look good on some light themes [#9389](https://github.com/pnpm/pnpm/pull/9389).
+  - @pnpm/config@1002.7.2
+
 ## 1001.4.0
 
 ### Minor Changes

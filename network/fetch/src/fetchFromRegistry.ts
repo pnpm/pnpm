@@ -10,7 +10,7 @@ const ABBREVIATED_DOC = 'application/vnd.npm.install-v1+json; q=1.0, application
 const JSON_DOC = 'application/json'
 const MAX_FOLLOWED_REDIRECTS = 20
 
-export type FetchWithAgentOptions = RequestInit & {
+export interface FetchWithAgentOptions extends RequestInit {
   agentOptions: AgentOptions
 }
 

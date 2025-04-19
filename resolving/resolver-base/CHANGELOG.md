@@ -1,5 +1,11 @@
 # @pnpm/resolver-base
 
+## 1002.0.0
+
+### Major Changes
+
+- 81f441c: `updateToLatest` replaced with `update` field.
+
 ## 1001.0.0
 
 ### Major Changes

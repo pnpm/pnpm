@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.20
+
+### Patch Changes
+
+- Updated dependencies [032fff8]
+- Updated dependencies [4d95e93]
+  - @pnpm/fs.indexed-pkg-importer@1000.1.5
+  - @pnpm/plugin-commands-installation@1003.0.1
+  - @pnpm/directory-fetcher@1000.1.5
+  - @pnpm/cli-utils@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.10
+  - @pnpm/config@1002.7.2
+
 ## 1001.1.19
 
 ### Patch Changes

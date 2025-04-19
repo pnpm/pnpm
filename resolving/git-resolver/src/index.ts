@@ -63,7 +63,7 @@ export function createGitResolver (
 
     return {
       id,
-      normalizedPref: parsedSpec.normalizedPref,
+      specifier: parsedSpec.normalizedPref,
       resolution,
       resolvedVia: 'git-repository',
     }
