@@ -5425,9 +5425,6 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
-      '@pnpm/jsr-specs':
-        specifier: workspace:*
-        version: link:../../packages/jsr-specs
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
