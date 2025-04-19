@@ -32,8 +32,8 @@
   "dependencies": {
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/jsr-specs": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
     "p-map-values": "catalog:",
     "ramda": "catalog:"

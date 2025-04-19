@@ -4039,16 +4039,6 @@ importers:
         specifier: 'catalog:'
         version: 1.0.1
 
-  packages/jsr-specs:
-    dependencies:
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../error
-    devDependencies:
-      '@pnpm/jsr-specs':
-        specifier: workspace:*
-        version: 'link:'
-
   packages/logger:
     dependencies:
       bole:
@@ -5859,12 +5849,12 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/jsr-specs':
-        specifier: workspace:*
-        version: link:../../packages/jsr-specs
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../read-project-manifest
+      '@pnpm/resolving.jsr-specifier-parser':
+        specifier: workspace:*
+        version: link:../../resolving/jsr-specifier-parser
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -6719,6 +6709,16 @@ importers:
         specifier: 'catalog:'
         version: 1.0.2
 
+  resolving/jsr-specifier-parser:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+    devDependencies:
+      '@pnpm/resolving.jsr-specifier-parser':
+        specifier: workspace:*
+        version: 'link:'
+
   resolving/local-resolver:
     dependencies:
       '@pnpm/crypto.hash':
@@ -6770,9 +6770,6 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
-      '@pnpm/jsr-specs':
-        specifier: workspace:*
-        version: link:../../packages/jsr-specs
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
@@ -6782,6 +6779,9 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
+      '@pnpm/resolving.jsr-specifier-parser':
+        specifier: workspace:*
+        version: link:../jsr-specifier-parser
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types

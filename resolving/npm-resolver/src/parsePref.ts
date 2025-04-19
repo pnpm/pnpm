@@ -1,4 +1,4 @@
-import { parseJsrSpecifier } from '@pnpm/jsr-specs'
+import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
 import getVersionSelectorType from 'version-selector-type'
 

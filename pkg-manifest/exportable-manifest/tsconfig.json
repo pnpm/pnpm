@@ -25,10 +25,10 @@
       "path": "../../packages/error"
     },
     {
-      "path": "../../packages/jsr-specs"
+      "path": "../../packages/types"
     },
     {
-      "path": "../../packages/types"
+      "path": "../../resolving/jsr-specifier-parser"
     },
     {
       "path": "../read-project-manifest"

@@ -1,5 +1,5 @@
 ---
-"@pnpm/jsr-specs": major
+"@pnpm/resolving.jsr-specifier-parser": major
 ---
 
 Initial release.

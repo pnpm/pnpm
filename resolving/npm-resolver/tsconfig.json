@@ -37,9 +37,6 @@
       "path": "../../packages/error"
     },
     {
-      "path": "../../packages/jsr-specs"
-    },
-    {
       "path": "../../packages/logger"
     },
     {
@@ -50,6 +47,9 @@
     },
     {
       "path": "../../workspace/spec-parser"
+    },
+    {
+      "path": "../jsr-specifier-parser"
     },
     {
       "path": "../resolver-base"
