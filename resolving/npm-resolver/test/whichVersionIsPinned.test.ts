@@ -11,6 +11,8 @@ test.each([
   ['npm:foo@^1.0.0', 'major'],
   ['npm:@foo/foo@^1.0.0', 'major'],
   ['npm:@pnpm.e2e/qar@100.0.0', 'patch'],
+  ['jsr:@foo/foo@1.0.0', 'patch'],
+  ['jsr:foo@^1.0.0', 'major'],
 ])('whichVersionIsPinned()', (spec, expectedResult) => {
   expect(whichVersionIsPinned(spec)).toEqual(expectedResult)
 })

@@ -28,6 +28,9 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../resolving/jsr-specifier-parser"
+    },
+    {
       "path": "../read-project-manifest"
     }
   ]

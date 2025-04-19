@@ -16,6 +16,7 @@ import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import omit from 'ramda/src/omit'
 import tempy from 'tempy'
+import { delay, retryLoadJsonFile } from './utils'
 
 const f = fixtures(__dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -28,32 +29,14 @@ const jsonMeta = loadJsonFile.sync<any>(f.find('JSON.json'))
 const brokenIntegrity = loadJsonFile.sync<any>(f.find('broken-integrity.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-const registries: Registries = {
+const registries = {
   default: 'https://registry.npmjs.org/',
-}
-
-const delay = async (time: number) => new Promise<void>((resolve) => setTimeout(() => {
-  resolve()
-}, time))
+  '@jsr': 'https://npm.jsr.io/',
+} satisfies Registries
 
 const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
-
-async function retryLoadJsonFile<T> (filePath: string) {
-  let retry = 0
-  /* eslint-disable no-await-in-loop */
-  while (true) {
-    await delay(500)
-    try {
-      return await loadJsonFile<T>(filePath)
-    } catch (err: any) { // eslint-disable-line
-      if (retry > 2) throw err
-      retry++
-    }
-  }
-  /* eslint-enable no-await-in-loop */
-}
 
 afterEach(() => {
   nock.cleanAll()

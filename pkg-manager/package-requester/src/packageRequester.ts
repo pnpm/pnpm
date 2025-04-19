@@ -162,6 +162,7 @@ async function resolveAndFetch (
   let latest: string | undefined
   let manifest: DependencyManifest | undefined
   let specifier: string | undefined
+  let alias: string | undefined
   let resolution = options.currentPkg?.resolution as Resolution
   let pkgId = options.currentPkg?.id
   const skipResolution = resolution && !options.update
@@ -209,6 +210,7 @@ async function resolveAndFetch (
     resolution = resolveResult.resolution
     pkgId = resolveResult.id
     specifier = resolveResult.specifier
+    alias = resolveResult.alias
   }
 
   const id = pkgId!
@@ -226,6 +228,7 @@ async function resolveAndFetch (
         resolvedVia,
         updated,
         specifier,
+        alias,
       },
     }
   }
@@ -259,6 +262,7 @@ async function resolveAndFetch (
         resolvedVia,
         updated,
         publishedAt,
+        alias,
       },
     }
   }
@@ -295,6 +299,7 @@ async function resolveAndFetch (
       resolvedVia,
       updated,
       publishedAt,
+      alias,
     },
     fetching: fetchResult.fetching,
     filesIndexFile: fetchResult.filesIndexFile,
