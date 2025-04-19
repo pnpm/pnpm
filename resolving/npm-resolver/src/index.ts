@@ -342,6 +342,7 @@ async function tryResolveFromJsr (
     resolution,
     resolvedVia: 'jsr-registry',
     publishedAt: meta.time?.[pickedPackage.version],
+    alias: spec.jsrPkgName,
   }
 }
 
@@ -357,7 +358,7 @@ function calcJsrSpecifier ({
   defaultPinnedVersion?: PinnedVersion
 }): string {
   const range = calcRange(version, wantedDependency, defaultPinnedVersion)
-  if (spec.jsrPkgName === wantedDependency.alias) return `jsr:${range}`
+  if (!wantedDependency.alias || spec.jsrPkgName === wantedDependency.alias) return `jsr:${range}`
   return `jsr:${spec.jsrPkgName}@${range}`
 }
 

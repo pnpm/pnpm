@@ -43,9 +43,6 @@
       "path": "../../packages/error"
     },
     {
-      "path": "../../packages/jsr-specs"
-    },
-    {
       "path": "../../packages/logger"
     },
     {

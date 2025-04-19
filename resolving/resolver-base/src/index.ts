@@ -46,6 +46,7 @@ export interface ResolveResult {
   resolution: Resolution
   resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'workspace' | 'url' | string
   specifier?: string
+  alias?: string
 }
 
 /**

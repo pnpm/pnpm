@@ -5744,9 +5744,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/jsr-specs':
-        specifier: workspace:*
-        version: link:../../packages/jsr-specs
       '@pnpm/lockfile.preferred-versions':
         specifier: workspace:*
         version: link:../../lockfile/preferred-versions
