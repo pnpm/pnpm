@@ -3,7 +3,8 @@ import { PnpmError } from '@pnpm/error'
 export interface JsrSpec {
   jsrPkgName: string
   npmPkgName: string
-  pref?: string
+  // A versionSelector may be a semver range (e.g. ^1.0.0), exact version (e.g. 2.3.4), or a dist-tag (e.g. "latest").
+  versionSelector?: string
 }
 
 export function parseJsrSpecifier (rawSpecifier: string, alias?: string): JsrSpec | null {
@@ -28,7 +29,7 @@ export function parseJsrSpecifier (rawSpecifier: string, alias?: string): JsrSpe
     return {
       jsrPkgName,
       npmPkgName: jsrToNpmPackageName(jsrPkgName),
-      pref: rawSpecifier.substring(index + '@'.length),
+      versionSelector: rawSpecifier.substring(index + '@'.length),
     }
   }
 
@@ -43,7 +44,7 @@ export function parseJsrSpecifier (rawSpecifier: string, alias?: string): JsrSpe
 
   // syntax: jsr:<spec>
   return {
-    pref: rawSpecifier,
+    versionSelector: rawSpecifier,
     jsrPkgName: alias,
     npmPkgName: jsrToNpmPackageName(alias),
   }

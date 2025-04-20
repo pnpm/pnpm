@@ -34,7 +34,7 @@ import {
   pickPackage,
 } from './pickPackage'
 import {
-  parseJsrPref,
+  parseJsrSpecifierToRegistryPackageSpec,
   parsePref,
   type JsrRegistryPackageSpec,
   type RegistryPackageSpec,
@@ -302,7 +302,7 @@ async function resolveJsr (
   const defaultTag = opts.defaultTag ?? 'latest'
 
   const registry = ctx.registries['@jsr']! // '@jsr' is always defined
-  const spec = parseJsrPref(wantedDependency.pref, wantedDependency.alias, defaultTag)
+  const spec = parseJsrSpecifierToRegistryPackageSpec(wantedDependency.pref, wantedDependency.alias, defaultTag)
   if (spec == null) return null
 
   const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
