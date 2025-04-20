@@ -242,7 +242,10 @@ export async function getConfig (opts: {
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   pnpmConfig.rawConfig = Object.assign.apply(Object, [
-    { registry: 'https://registry.npmjs.org/' },
+    {
+      registry: 'https://registry.npmjs.org/',
+      '@jsr:registry': 'https://npm.jsr.io/',
+    },
     ...[...npmConfig.list].reverse(),
     cliOptions,
     { 'user-agent': pnpmConfig.userAgent },

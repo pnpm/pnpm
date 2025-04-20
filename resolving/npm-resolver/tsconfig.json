@@ -49,6 +49,9 @@
       "path": "../../workspace/spec-parser"
     },
     {
+      "path": "../jsr-specifier-parser"
+    },
+    {
       "path": "../resolver-base"
     }
   ]

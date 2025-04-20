@@ -155,6 +155,7 @@ export interface PackageResponse {
     // If latest does not equal the version of the
     // resolved package, it is out-of-date.
     latest?: string
+    alias?: string
   } & (
     {
       isLocal: true

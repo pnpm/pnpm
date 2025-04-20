@@ -24,11 +24,12 @@ export function createResolver (
   getAuthHeader: GetAuthHeader,
   pnpmOpts: ResolverFactoryOptions
 ): { resolve: ResolveFunction, clearCache: () => void } {
-  const { resolveFromNpm, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
+  const { resolveFromNpm, resolveFromJsr, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
   const resolveFromGit = createGitResolver(pnpmOpts)
   return {
     resolve: async (wantedDependency, opts) => {
       const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
+        await resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.pref && (
           await resolveFromTarball(fetchFromRegistry, wantedDependency as { pref: string }) ??
           await resolveFromGit(wantedDependency as { pref: string }) ??

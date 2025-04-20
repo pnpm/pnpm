@@ -34,7 +34,9 @@ import {
   pickPackage,
 } from './pickPackage'
 import {
+  parseJsrSpecifierToRegistryPackageSpec,
   parsePref,
+  type JsrRegistryPackageSpec,
   type RegistryPackageSpec,
 } from './parsePref'
 import { fromRegistry, RegistryResponseError } from './fetch'
@@ -79,7 +81,7 @@ export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: ResolverFactoryOptions
-): { resolveFromNpm: NpmResolver, clearCache: () => void } {
+): { resolveFromNpm: NpmResolver, resolveFromJsr: NpmResolver, clearCache: () => void } {
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
@@ -95,25 +97,34 @@ export function createNpmResolver (
     max: 10000,
     ttl: 120 * 1000, // 2 minutes
   })
-  return {
-    resolveFromNpm: resolveNpm.bind(null, {
-      getAuthHeaderValueByURI: getAuthHeader,
-      pickPackage: pickPackage.bind(null, {
-        fetch,
-        filterMetadata: opts.filterMetadata,
-        metaCache,
-        metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : ABBREVIATED_META_DIR,
-        offline: opts.offline,
-        preferOffline: opts.preferOffline,
-        cacheDir: opts.cacheDir,
-      }),
-      registries: opts.registries,
-      saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+  const ctx = {
+    getAuthHeaderValueByURI: getAuthHeader,
+    pickPackage: pickPackage.bind(null, {
+      fetch,
+      filterMetadata: opts.filterMetadata,
+      metaCache,
+      metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : ABBREVIATED_META_DIR,
+      offline: opts.offline,
+      preferOffline: opts.preferOffline,
+      cacheDir: opts.cacheDir,
     }),
+    registries: opts.registries,
+    saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+  }
+  return {
+    resolveFromNpm: resolveNpm.bind(null, ctx),
+    resolveFromJsr: resolveJsr.bind(null, ctx),
     clearCache: () => {
       metaCache.clear()
     },
   }
+}
+
+export interface ResolveFromNpmContext {
+  pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
+  getAuthHeaderValueByURI: (registry: string) => string | undefined
+  registries: Registries
+  saveWorkspaceProtocol?: boolean | 'rolling'
 }
 
 export type ResolveFromNpmOptions = {
@@ -138,12 +149,7 @@ export type ResolveFromNpmOptions = {
 })
 
 async function resolveNpm (
-  ctx: {
-    pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
-    getAuthHeaderValueByURI: (registry: string) => string | undefined
-    registries: Registries
-    saveWorkspaceProtocol?: boolean | 'rolling'
-  },
+  ctx: ResolveFromNpmContext,
   wantedDependency: WantedDependency,
   opts: ResolveFromNpmOptions
 ): Promise<ResolveResult | null> {
@@ -285,6 +291,73 @@ async function resolveNpm (
     publishedAt: meta.time?.[pickedPackage.version],
     specifier,
   }
+}
+
+async function resolveJsr (
+  ctx: ResolveFromNpmContext,
+  wantedDependency: WantedDependency,
+  opts: Omit<ResolveFromNpmOptions, 'registry'>
+): Promise<ResolveResult | null> {
+  if (!wantedDependency.pref) return null
+  const defaultTag = opts.defaultTag ?? 'latest'
+
+  const registry = ctx.registries['@jsr']! // '@jsr' is always defined
+  const spec = parseJsrSpecifierToRegistryPackageSpec(wantedDependency.pref, wantedDependency.alias, defaultTag)
+  if (spec == null) return null
+
+  const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
+  const { meta, pickedPackage } = await ctx.pickPackage(spec, {
+    pickLowestVersion: opts.pickLowestVersion,
+    publishedBy: opts.publishedBy,
+    authHeaderValue,
+    dryRun: opts.dryRun === true,
+    preferredVersionSelectors: opts.preferredVersions?.[spec.name],
+    registry,
+    updateToLatest: opts.update === 'latest',
+  })
+
+  if (pickedPackage == null) {
+    throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
+  }
+
+  const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
+  const resolution = {
+    integrity: getIntegrity(pickedPackage.dist),
+    tarball: pickedPackage.dist.tarball,
+  }
+  return {
+    id,
+    latest: meta['dist-tags'].latest,
+    manifest: pickedPackage,
+    specifier: opts.calcSpecifier
+      ? calcJsrSpecifier({
+        wantedDependency,
+        spec,
+        version: pickedPackage.version,
+        defaultPinnedVersion: opts.pinnedVersion,
+      })
+      : undefined,
+    resolution,
+    resolvedVia: 'jsr-registry',
+    publishedAt: meta.time?.[pickedPackage.version],
+    alias: spec.jsrPkgName,
+  }
+}
+
+function calcJsrSpecifier ({
+  wantedDependency,
+  spec,
+  version,
+  defaultPinnedVersion,
+}: {
+  wantedDependency: WantedDependency
+  spec: JsrRegistryPackageSpec
+  version: string
+  defaultPinnedVersion?: PinnedVersion
+}): string {
+  const range = calcRange(version, wantedDependency, defaultPinnedVersion)
+  if (!wantedDependency.alias || spec.jsrPkgName === wantedDependency.alias) return `jsr:${range}`
+  return `jsr:${spec.jsrPkgName}@${range}`
 }
 
 function calcSpecifier ({

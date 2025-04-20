@@ -1,3 +1,4 @@
+import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
 import getVersionSelectorType from 'version-selector-type'
 
@@ -48,4 +49,27 @@ export function parsePref (
     }
   }
   return null
+}
+
+export interface JsrRegistryPackageSpec extends RegistryPackageSpec {
+  jsrPkgName: string
+}
+
+export function parseJsrSpecifierToRegistryPackageSpec (
+  rawSpecifier: string,
+  alias: string | undefined,
+  defaultTag: string
+): JsrRegistryPackageSpec | null {
+  const spec = parseJsrSpecifier(rawSpecifier, alias)
+  if (!spec?.npmPkgName) return null
+
+  const selector = getVersionSelectorType(spec.versionSelector ?? defaultTag)
+  if (selector == null) return null
+
+  return {
+    fetchSpec: selector.normalized,
+    name: spec.npmPkgName,
+    type: selector.type,
+    jsrPkgName: spec.jsrPkgName,
+  }
 }

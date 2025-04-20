@@ -1351,7 +1351,7 @@ async function resolveDependency (
       throw new PnpmError('MISSING_PACKAGE_JSON', `Can't install ${wantedDependency.pref}: Missing package.json file`)
     }
     return {
-      alias: wantedDependency.alias || pkgResponse.body.manifest.name || path.basename(pkgResponse.body.resolution.directory),
+      alias: wantedDependency.alias ?? pkgResponse.body.alias ?? pkgResponse.body.manifest.name ?? path.basename(pkgResponse.body.resolution.directory),
       dev: wantedDependency.dev,
       isLinkedDependency: true,
       name: pkgResponse.body.manifest.name,
@@ -1527,7 +1527,7 @@ async function resolveDependency (
       ctx.dependenciesTree.get(nodeId)!.depth = Math.min(ctx.dependenciesTree.get(nodeId)!.depth, options.currentDepth)
     } else {
       ctx.pendingNodes.push({
-        alias: wantedDependency.alias || pkg.name,
+        alias: wantedDependency.alias ?? pkgResponse.body.alias ?? pkg.name,
         depth: options.currentDepth,
         parentIds: options.parentIds,
         installable,
@@ -1566,7 +1566,7 @@ async function resolveDependency (
     }
   }
   return {
-    alias: wantedDependency.alias || pkg.name,
+    alias: wantedDependency.alias ?? pkgResponse.body.alias ?? pkg.name,
     depIsLinked,
     resolvedVia: pkgResponse.body.resolvedVia,
     isNew,
