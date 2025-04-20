@@ -12,7 +12,7 @@ describe('parseJsrSpecifier', () => {
     expect(parseJsrSpecifier('workspace:*')).toBeNull()
   })
 
-  test('succeeds on jsr specifiers that only specify versions/ranges/tags (jsr:<spec>)', () => {
+  test('succeeds on jsr specifiers that only specify versions/ranges/tags (jsr:<version_selector>)', () => {
     expect(parseJsrSpecifier('jsr:^1.0.0', '@foo/bar')).toStrictEqual({ versionSelector: '^1.0.0', jsrPkgName: '@foo/bar', npmPkgName: '@jsr/foo__bar' } as JsrSpec)
     expect(parseJsrSpecifier('jsr:1.0.0', '@foo/bar')).toStrictEqual({ versionSelector: '1.0.0', jsrPkgName: '@foo/bar', npmPkgName: '@jsr/foo__bar' } as JsrSpec)
     expect(parseJsrSpecifier('jsr:latest', '@foo/bar')).toStrictEqual({ versionSelector: 'latest', jsrPkgName: '@foo/bar', npmPkgName: '@jsr/foo__bar' } as JsrSpec)
@@ -22,7 +22,7 @@ describe('parseJsrSpecifier', () => {
     expect(parseJsrSpecifier('jsr:@foo/bar')).toStrictEqual({ jsrPkgName: '@foo/bar', npmPkgName: '@jsr/foo__bar' } as JsrSpec)
   })
 
-  test('succeeds on jsr specifiers that specify scopes, names, and versions/ranges/tags (jsr:@<scope>/<name>@<spec>)', () => {
+  test('succeeds on jsr specifiers that specify scopes, names, and versions/ranges/tags (jsr:@<scope>/<name>@<version_selector>)', () => {
     expect(parseJsrSpecifier('jsr:@foo/bar@^1.0.0')).toStrictEqual({ jsrPkgName: '@foo/bar', npmPkgName: '@jsr/foo__bar', versionSelector: '^1.0.0' } as JsrSpec)
     expect(parseJsrSpecifier('jsr:@foo/bar@1.0.0')).toStrictEqual({ jsrPkgName: '@foo/bar', npmPkgName: '@jsr/foo__bar', versionSelector: '1.0.0' } as JsrSpec)
     expect(parseJsrSpecifier('jsr:@foo/bar@latest')).toStrictEqual({ jsrPkgName: '@foo/bar', npmPkgName: '@jsr/foo__bar', versionSelector: 'latest' } as JsrSpec)

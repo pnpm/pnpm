@@ -12,7 +12,7 @@ export function parseJsrSpecifier (rawSpecifier: string, alias?: string): JsrSpe
 
   rawSpecifier = rawSpecifier.substring('jsr:'.length)
 
-  // syntax: jsr:@<scope>/<name>[@<spec>]
+  // syntax: jsr:@<scope>/<name>[@<version_selector>]
   if (rawSpecifier.startsWith('@')) {
     const index = rawSpecifier.lastIndexOf('@')
 
@@ -24,7 +24,7 @@ export function parseJsrSpecifier (rawSpecifier: string, alias?: string): JsrSpe
       }
     }
 
-    // syntax: jsr:@<scope>/<name>@<spec>
+    // syntax: jsr:@<scope>/<name>@<version_selector>
     const jsrPkgName = rawSpecifier.substring(0, index)
     return {
       jsrPkgName,
@@ -33,7 +33,7 @@ export function parseJsrSpecifier (rawSpecifier: string, alias?: string): JsrSpe
     }
   }
 
-  // syntax: jsr:<name>@<spec> (invalid)
+  // syntax: jsr:<name>@<version_selector> (invalid)
   if (rawSpecifier.includes('@')) {
     throw new PnpmError('MISSING_JSR_PACKAGE_SCOPE', 'Package names from JSR must have a scope')
   }
