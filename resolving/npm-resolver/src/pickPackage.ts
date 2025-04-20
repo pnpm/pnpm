@@ -15,7 +15,7 @@ import semver from 'semver'
 import renameOverwrite from 'rename-overwrite'
 import { toRaw } from './toRaw'
 import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange } from './pickPackageFromMeta'
-import { type RegistryPackageSpec } from './parsePref'
+import { type RegistryPackageSpec } from './parseBareSpecifier'
 
 export interface PackageMeta {
   name: string

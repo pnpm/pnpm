@@ -147,7 +147,7 @@ export interface PackageResponse {
     resolution: Resolution
     manifest?: PackageManifest
     id: PkgResolutionId
-    specifier?: string
+    normalizedBareSpecifier?: string
     updated: boolean
     publishedAt?: string
     resolvedVia?: string

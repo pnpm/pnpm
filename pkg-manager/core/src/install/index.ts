@@ -390,7 +390,7 @@ export async function mutateModules (
         throw new LockfileConfigMismatchError(outdatedLockfileSettingName!)
       }
     }
-    const _isWantedDepPrefSame = isWantedDepPrefSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
+    const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
@@ -479,7 +479,7 @@ export async function mutateModules (
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
 
       if (ctx.wantedLockfile?.importers) {
-        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepPrefSame)
+        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepBareSpecifierSame)
       }
       if (opts.ignoreScripts && project.manifest?.scripts &&
         (project.manifest.scripts.preinstall ||
@@ -498,7 +498,7 @@ export async function mutateModules (
     }
 
     async function installSome (project: any) { // eslint-disable-line
-      const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromManifest(project.manifest)
+      const currentBareSpecifiers = opts.ignoreCurrentSpecifiers ? {} : getAllDependenciesFromManifest(project.manifest)
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies || {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies || {}
       if (preferredSpecs == null) {
@@ -512,7 +512,7 @@ export async function mutateModules (
       }
       const wantedDeps = parseWantedDependencies(project.dependencySelectors, {
         allowNew: project.allowNew !== false,
-        currentPrefs,
+        currentBareSpecifiers,
         defaultTag: opts.tag,
         dev: project.targetDependenciesField === 'devDependencies',
         devDependencies,
@@ -526,7 +526,7 @@ export async function mutateModules (
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
-        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentPrefs[wantedDep.alias], updateSpec: true, nodeExecPath: opts.nodeExecPath })),
+        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true, nodeExecPath: opts.nodeExecPath })),
       })
     }
 
@@ -770,14 +770,14 @@ function pkgHasDependencies (manifest: ProjectManifest): boolean {
 function forgetResolutionsOfPrevWantedDeps (
   importer: ProjectSnapshot,
   wantedDeps: WantedDependency[],
-  isWantedDepPrefSame: (alias: string, prevPref: string | undefined, nextPref: string) => boolean
+  isWantedDepBareSpecifierSame: (alias: string, prevBareSpecifier: string | undefined, nextBareSpecifier: string) => boolean
 ): void {
   if (!importer.specifiers) return
   importer.dependencies = importer.dependencies ?? {}
   importer.devDependencies = importer.devDependencies ?? {}
   importer.optionalDependencies = importer.optionalDependencies ?? {}
-  for (const { alias, pref } of wantedDeps) {
-    if (alias && !isWantedDepPrefSame(alias, importer.specifiers[alias], pref)) {
+  for (const { alias, bareSpecifier } of wantedDeps) {
+    if (alias && !isWantedDepBareSpecifierSame(alias, importer.specifiers[alias], bareSpecifier)) {
       if (!importer.dependencies[alias]?.startsWith('link:')) {
         delete importer.dependencies[alias]
       }
@@ -809,31 +809,31 @@ function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): 
 }
 
 /**
- * Check if a wanted pref is the same.
+ * Check if a wanted bareSpecifier is the same.
  *
  * It would be different if the user modified a dependency in package.json or a
  * catalog entry in pnpm-workspace.yaml. This is normally a simple check to see
  * if the specifier strings match, but catalogs make this more involved since we
  * also have to check if the catalog config in pnpm-workspace.yaml is the same.
  */
-function isWantedDepPrefSame (
+function isWantedDepBareSpecifierSame (
   prevCatalogs: CatalogSnapshots | undefined,
   catalogsConfig: Catalogs | undefined,
   alias: string,
-  prevPref: string | undefined,
-  nextPref: string
+  prevBareSpecifier: string | undefined,
+  nextBareSpecifier: string
 ): boolean {
-  if (prevPref !== nextPref) {
+  if (prevBareSpecifier !== nextBareSpecifier) {
     return false
   }
 
   // When pnpm catalogs are used, the specifiers can be the same (e.g.
   // "catalog:default"), but the wanted versions for the dependency can be
   // different after resolution if the catalog config was just edited.
-  const catalogName = parseCatalogProtocol(prevPref)
+  const catalogName = parseCatalogProtocol(prevBareSpecifier)
 
   // If there's no catalog name, the catalog protocol was not used and we
-  // can assume the pref is the same since prevPref and nextPref match.
+  // can assume the bareSpecifier is the same since prevBareSpecifier and nextBareSpecifier match.
   if (catalogName === null) {
     return true
   }
@@ -1447,7 +1447,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           nodeExecPath: opts.nodeExecPath,
           injectWorkspacePackages: opts.injectWorkspacePackages,
         }
-        const _isWantedDepPrefSame = isWantedDepPrefSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
+        const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
         for (const project of allProjectsLocatedInsideWorkspace) {
           if (!newProjects.some(({ rootDir }) => rootDir === project.rootDir)) {
             // This code block mirrors the installCase() function in
@@ -1455,7 +1455,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
             // deduplicate code.
             const wantedDependencies = getWantedDependencies(project.manifest, getWantedDepsOpts)
               .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
-            forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepPrefSame)
+            forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepBareSpecifierSame)
             newProjects.push({
               mutation: 'install',
               ...project,

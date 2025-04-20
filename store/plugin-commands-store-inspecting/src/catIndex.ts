@@ -53,7 +53,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
   }
 
   const wantedDependency = params[0]
-  const { alias, pref } = parseWantedDependency(wantedDependency) || {}
+  const { alias, bareSpecifier } = parseWantedDependency(wantedDependency) || {}
 
   if (!alias) {
     throw new PnpmError(
@@ -72,7 +72,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
     authConfig: opts.rawConfig,
   })
   const pkgSnapshot = await resolve(
-    { alias, pref },
+    { alias, bareSpecifier },
     {
       lockfileDir: opts.lockfileDir ?? opts.dir,
       preferredVersions: {},
@@ -83,7 +83,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
   const filesIndexFile = getIndexFilePathInCafs(
     storeDir,
     (pkgSnapshot.resolution as TarballResolution).integrity!.toString(),
-    `${alias}@${pref}`
+    `${alias}@${bareSpecifier}`
   )
   try {
     const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)

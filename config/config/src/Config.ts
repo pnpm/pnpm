@@ -92,7 +92,7 @@ export interface Config extends OptionsFromRootManifest {
   sideEffectsCacheWrite?: boolean
   shamefullyHoist?: boolean
   dev?: boolean
-  ignoreCurrentPrefs?: boolean
+  ignoreCurrentSpecifiers?: boolean
   recursive?: boolean
   enablePrePostScripts?: boolean
   useNodeVersion?: string

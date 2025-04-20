@@ -47,7 +47,7 @@ test('request package', async () => {
   expect(typeof requestPackage).toBe('function')
 
   const projectDir = tempy.directory()
-  const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
     downloadPriority: 0,
     lockfileDir: projectDir,
     preferredVersions: {},
@@ -62,7 +62,7 @@ test('request package', async () => {
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest?.name).toBe('is-positive')
-  expect(!pkgResponse.body.specifier).toBeTruthy()
+  expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
@@ -88,7 +88,7 @@ test('request package but skip fetching', async () => {
   expect(typeof requestPackage).toBe('function')
 
   const projectDir = tempy.directory()
-  const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
     downloadPriority: 0,
     lockfileDir: projectDir,
     preferredVersions: {},
@@ -103,7 +103,7 @@ test('request package but skip fetching', async () => {
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest?.name).toBe('is-positive')
-  expect(!pkgResponse.body.specifier).toBeTruthy()
+  expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
@@ -127,7 +127,7 @@ test('request package but skip fetching, when resolution is already available', 
   expect(typeof requestPackage).toBe('function')
 
   const projectDir = tempy.directory()
-  const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
     currentPkg: {
       id: 'is-positive@1.0.0' as PkgResolutionId,
       resolution: {
@@ -155,7 +155,7 @@ test('request package but skip fetching, when resolution is already available', 
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest.name).toBe('is-positive')
-  expect(!pkgResponse.body.specifier).toBeTruthy()
+  expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
@@ -170,7 +170,7 @@ test('refetch local tarball if its integrity has changed', async () => {
   const tarballRelativePath = path.relative(projectDir, tarballPath)
   f.copy('pnpm-package-requester-0.8.1.tgz', tarballPath)
   const tarball = `file:${tarballRelativePath}`
-  const wantedPackage = { pref: tarball }
+  const wantedPackage = { bareSpecifier: tarball }
   const storeDir = tempy.directory()
   const cafs = createCafsStore(storeDir)
   const pkgId = `file:${normalize(tarballRelativePath)}`
@@ -277,7 +277,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   const tarballPath = path.join(projectDir, 'tarball.tgz')
   f.copy('pnpm-package-requester-0.8.1.tgz', tarballPath)
   const tarball = `file:${tarballPath}`
-  const wantedPackage = { pref: tarball }
+  const wantedPackage = { bareSpecifier: tarball }
   const storeDir = path.join(projectDir, 'store')
   const cafs = createCafsStore(storeDir)
   const requestPackageOpts = {
@@ -572,7 +572,7 @@ test('always return a package manifest in the response', async () => {
   const projectDir = tempy.directory()
 
   {
-    const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
+    const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
       downloadPriority: 0,
       lockfileDir: projectDir,
       preferredVersions: {},
@@ -584,7 +584,7 @@ test('always return a package manifest in the response', async () => {
   }
 
   {
-    const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
+    const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
       currentPkg: {
         id: 'is-positive@1.0.0' as PkgResolutionId,
         resolution: {
@@ -766,7 +766,7 @@ test('do not fetch an optional package that is not installable', async () => {
   expect(typeof requestPackage).toBe('function')
 
   const projectDir = tempy.directory()
-  const pkgResponse = await requestPackage({ alias: '@pnpm.e2e/not-compatible-with-any-os', optional: true, pref: '*' }, {
+  const pkgResponse = await requestPackage({ alias: '@pnpm.e2e/not-compatible-with-any-os', optional: true, bareSpecifier: '*' }, {
     downloadPriority: 0,
     lockfileDir: projectDir,
     preferredVersions: {},
@@ -804,7 +804,7 @@ test('fetch a git package without a package.json', async () => {
   const projectDir = tempy.directory()
 
   {
-    const pkgResponse = await requestPackage({ alias: 'camelcase', pref: `${repo}#${commit}` }, {
+    const pkgResponse = await requestPackage({ alias: 'camelcase', bareSpecifier: `${repo}#${commit}` }, {
       downloadPriority: 0,
       lockfileDir: projectDir,
       preferredVersions: {},
@@ -835,7 +835,7 @@ test('throw exception if the package data in the store differs from the expected
     })
 
     const projectDir = tempy.directory()
-    pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
+    pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
       downloadPriority: 0,
       lockfileDir: projectDir,
       preferredVersions: {},
@@ -971,7 +971,7 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
     })
 
     const projectDir = tempy.directory()
-    const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '3.1.0' }, {
+    const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '3.1.0' }, {
       downloadPriority: 0,
       lockfileDir: projectDir,
       preferredVersions: {},
@@ -989,7 +989,7 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
     virtualStoreDirMaxLength: 120,
   })
   const projectDir = tempy.directory()
-  const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '3.1.0' }, {
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '3.1.0' }, {
     downloadPriority: 0,
     lockfileDir: tempy.directory(),
     preferredVersions: {},
@@ -1016,7 +1016,7 @@ test('the version in the bundled manifest should be normalized', async () => {
     virtualStoreDirMaxLength: 120,
   })
 
-  const pkgResponse = await requestPackage({ alias: 'react-terminal', pref: '1.2.1' }, {
+  const pkgResponse = await requestPackage({ alias: 'react-terminal', bareSpecifier: '1.2.1' }, {
     downloadPriority: 0,
     lockfileDir: tempy.directory(),
     preferredVersions: {},
@@ -1046,7 +1046,7 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
 
     const projectDir = tempy.directory()
 
-    pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
+    pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
       downloadPriority: 0,
       lockfileDir: projectDir,
       preferredVersions: {},

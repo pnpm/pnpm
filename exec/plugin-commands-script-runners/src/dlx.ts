@@ -87,10 +87,10 @@ export async function handler (
   })
   const resolvedPkgAliases: string[] = []
   const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {
-    const { alias, pref } = parseWantedDependency(pkg) || {}
+    const { alias, bareSpecifier } = parseWantedDependency(pkg) || {}
     if (alias == null) return pkg
     resolvedPkgAliases.push(alias)
-    const resolved = await resolve({ alias, pref }, {
+    const resolved = await resolve({ alias, bareSpecifier }, {
       lockfileDir: opts.lockfileDir ?? opts.dir,
       preferredVersions: {},
       projectDir: opts.dir,

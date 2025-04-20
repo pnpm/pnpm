@@ -470,12 +470,12 @@ function reportSpecNotSupportedByAnyResolverError (err: Error, logObj: Log): Err
   // protocol is meant to be replaced before it's passed to any of the real
   // resolvers.
   //
-  // If this kind of error is thrown, and the dependency pref is using the
+  // If this kind of error is thrown, and the dependency bareSpecifier is using the
   // catalog protocol it's most likely because we're trying to install an out of
   // repo dependency that was published incorrectly. For example, it may be been
   // mistakenly published with 'npm publish' instead of 'pnpm publish'. Report a
   // more clear error in this case.
-  if (logObj.package?.pref?.startsWith('catalog:')) {
+  if (logObj.package?.bareSpecifier?.startsWith('catalog:')) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return reportExternalCatalogProtocolError(err, logObj as any)
   }

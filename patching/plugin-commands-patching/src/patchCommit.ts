@@ -74,7 +74,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   if (!applyToAll) {
     gitTarballUrl = await getGitTarballUrlFromLockfile({
       alias: patchedPkgManifest.name,
-      pref: patchedPkgManifest.version,
+      bareSpecifier: patchedPkgManifest.version,
     }, {
       lockfileDir,
       modulesDir: opts.modulesDir,

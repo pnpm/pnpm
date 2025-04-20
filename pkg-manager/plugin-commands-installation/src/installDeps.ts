@@ -61,7 +61,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'global'
 | 'globalPnpmfile'
 | 'hooks'
-| 'ignoreCurrentPrefs'
+| 'ignoreCurrentSpecifiers'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'optimisticRepeatInstall'

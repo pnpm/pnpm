@@ -1,7 +1,7 @@
 import { type TarballResolution, type GitResolution, type ResolveResult, type PkgResolutionId } from '@pnpm/resolver-base'
 import git from 'graceful-git'
 import semver from 'semver'
-import { parsePref, type HostedPackageSpec } from './parsePref'
+import { parseBareSpecifier, type HostedPackageSpec } from './parseBareSpecifier'
 import { createGitHostedPkgId } from './createGitHostedPkgId'
 import { type AgentOptions } from '@pnpm/network.agent'
 
@@ -10,21 +10,21 @@ export { createGitHostedPkgId }
 export type { HostedPackageSpec }
 
 export type GitResolver = (wantedDependency: {
-  pref: string
+  bareSpecifier: string
 }) => Promise<ResolveResult | null>
 
 export function createGitResolver (
   opts: AgentOptions
 ): GitResolver {
   return async function resolveGit (wantedDependency): Promise<ResolveResult | null> {
-    const parsedSpec = await parsePref(wantedDependency.pref, opts)
+    const parsedSpec = await parseBareSpecifier(wantedDependency.bareSpecifier, opts)
 
     if (parsedSpec == null) return null
 
-    const pref = parsedSpec.gitCommittish == null || parsedSpec.gitCommittish === ''
+    const bareSpecifier = parsedSpec.gitCommittish == null || parsedSpec.gitCommittish === ''
       ? 'HEAD'
       : parsedSpec.gitCommittish
-    const commit = await resolveRef(parsedSpec.fetchSpec, pref, parsedSpec.gitRange)
+    const commit = await resolveRef(parsedSpec.fetchSpec, bareSpecifier, parsedSpec.gitRange)
     let resolution
 
     if ((parsedSpec.hosted != null) && !isSsh(parsedSpec.fetchSpec)) {
@@ -63,7 +63,7 @@ export function createGitResolver (
 
     return {
       id,
-      specifier: parsedSpec.normalizedPref,
+      normalizedBareSpecifier: parsedSpec.normalizedBareSpecifier,
       resolution,
       resolvedVia: 'git-repository',
     }

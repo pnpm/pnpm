@@ -294,7 +294,7 @@ export async function getConfig (opts: {
     }
     pnpmConfig.save = true
     pnpmConfig.allowNew = true
-    pnpmConfig.ignoreCurrentPrefs = true
+    pnpmConfig.ignoreCurrentSpecifiers = true
     pnpmConfig.saveProd = true
     pnpmConfig.saveDev = false
     pnpmConfig.saveOptional = false

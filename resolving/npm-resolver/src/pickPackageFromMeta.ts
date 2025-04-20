@@ -2,7 +2,7 @@ import { PnpmError } from '@pnpm/error'
 import { type VersionSelectors } from '@pnpm/resolver-base'
 import semver from 'semver'
 import util from 'util'
-import { type RegistryPackageSpec } from './parsePref'
+import { type RegistryPackageSpec } from './parseBareSpecifier'
 import { type PackageInRegistry, type PackageMeta } from './pickPackage'
 
 export type PickVersionByVersionRange = (

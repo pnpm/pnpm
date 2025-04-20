@@ -45,7 +45,7 @@ export interface ResolveResult {
   manifest?: DependencyManifest
   resolution: Resolution
   resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'workspace' | 'url' | string
-  specifier?: string
+  normalizedBareSpecifier?: string
   alias?: string
 }
 
@@ -110,10 +110,10 @@ export type WantedDependency = {
   prevSpecifier?: string
 } & ({
   alias?: string
-  pref: string
+  bareSpecifier: string
 } | {
   alias: string
-  pref?: string
+  bareSpecifier?: string
 })
 
 export type ResolveFunction = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<ResolveResult>

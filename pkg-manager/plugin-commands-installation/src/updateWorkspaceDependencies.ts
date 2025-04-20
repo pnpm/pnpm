@@ -23,8 +23,8 @@ export function createWorkspaceSpecs (specs: string[], workspacePackages: Worksp
     const parsed = parseWantedDependency(spec)
     if (!parsed.alias) throw new PnpmError('NO_PKG_NAME_IN_SPEC', `Cannot update/install from workspace through "${spec}"`)
     if (!workspacePackages.has(parsed.alias)) throw new PnpmError('WORKSPACE_PACKAGE_NOT_FOUND', `"${parsed.alias}" not found in the workspace`)
-    if (!parsed.pref) return `${parsed.alias}@workspace:*`
-    if (parsed.pref.startsWith('workspace:')) return spec
-    return `${parsed.alias}@workspace:${parsed.pref}`
+    if (!parsed.bareSpecifier) return `${parsed.alias}@workspace:*`
+    if (parsed.bareSpecifier.startsWith('workspace:')) return spec
+    return `${parsed.alias}@workspace:${parsed.bareSpecifier}`
   })
 }

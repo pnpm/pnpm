@@ -92,7 +92,7 @@ export interface StrictInstallOptions {
   strictPeerDependencies: boolean
   include: IncludedDependencies
   includeDirect: IncludedDependencies
-  ignoreCurrentPrefs: boolean
+  ignoreCurrentSpecifiers: boolean
   ignoreScripts: boolean
   childConcurrency: number
   userAgent: string
@@ -186,7 +186,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     hoistPattern: undefined,
     publicHoistPattern: undefined,
     hooks: {},
-    ignoreCurrentPrefs: false,
+    ignoreCurrentSpecifiers: false,
     ignoreDepScripts: false,
     ignoreScripts: false,
     include: {

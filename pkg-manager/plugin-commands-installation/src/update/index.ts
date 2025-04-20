@@ -299,7 +299,7 @@ async function update (
     ...opts,
     allowNew: false,
     depth,
-    ignoreCurrentPrefs: false,
+    ignoreCurrentSpecifiers: false,
     includeDirect,
     include,
     update: true,

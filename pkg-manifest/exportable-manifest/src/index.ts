@@ -75,12 +75,12 @@ export type PublishDependencyConverter = (
 
 function combineConverters (...converters: readonly PublishDependencyConverter[]): PublishDependencyConverter {
   return async (depName, depSpec, dir, modulesDir) => {
-    let pref = depSpec
+    let bareSpecifier = depSpec
     for (const converter of converters) {
       // eslint-disable-next-line no-await-in-loop
-      pref = await converter(depName, pref, dir, modulesDir)
+      bareSpecifier = await converter(depName, bareSpecifier, dir, modulesDir)
     }
-    return pref
+    return bareSpecifier
   }
 }
 
@@ -114,12 +114,12 @@ async function readAndCheckManifest (depName: string, dependencyDir: string): Pr
   return manifest
 }
 
-function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string, pref: string): string {
-  const result = catalogResolver({ alias, pref })
+function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string, bareSpecifier: string): string {
+  const result = catalogResolver({ alias, bareSpecifier })
 
   switch (result.type) {
   case 'found': return result.resolution.specifier
-  case 'unused': return pref
+  case 'unused': return bareSpecifier
   case 'misconfiguration': throw result.error
   }
 }

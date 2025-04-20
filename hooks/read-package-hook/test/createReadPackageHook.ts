@@ -32,7 +32,7 @@ test('createReadPackageHook() runs the custom hook before the version overrider'
         targetPkg: {
           name: 'react',
         },
-        newPref: '16',
+        newBareSpecifier: '16',
       },
     ],
   })

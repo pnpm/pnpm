@@ -161,7 +161,7 @@ async function resolveAndFetch (
 ): Promise<PackageResponse> {
   let latest: string | undefined
   let manifest: DependencyManifest | undefined
-  let specifier: string | undefined
+  let normalizedBareSpecifier: string | undefined
   let alias: string | undefined
   let resolution = options.currentPkg?.resolution as Resolution
   let pkgId = options.currentPkg?.id
@@ -209,7 +209,7 @@ async function resolveAndFetch (
     updated = pkgId !== resolveResult.id || !resolution || forceFetch
     resolution = resolveResult.resolution
     pkgId = resolveResult.id
-    specifier = resolveResult.specifier
+    normalizedBareSpecifier = resolveResult.normalizedBareSpecifier
     alias = resolveResult.alias
   }
 
@@ -217,7 +217,7 @@ async function resolveAndFetch (
 
   if (resolution.type === 'directory' && !id.startsWith('file:')) {
     if (manifest == null) {
-      throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''}`)
+      throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`)
     }
     return {
       body: {
@@ -227,7 +227,7 @@ async function resolveAndFetch (
         resolution: resolution as DirectoryResolution,
         resolvedVia,
         updated,
-        specifier,
+        normalizedBareSpecifier,
         alias,
       },
     }
@@ -257,7 +257,7 @@ async function resolveAndFetch (
         isInstallable: isInstallable ?? undefined,
         latest,
         manifest,
-        specifier,
+        normalizedBareSpecifier,
         resolution,
         resolvedVia,
         updated,
@@ -294,7 +294,7 @@ async function resolveAndFetch (
       isInstallable: isInstallable ?? undefined,
       latest,
       manifest,
-      specifier,
+      normalizedBareSpecifier,
       resolution,
       resolvedVia,
       updated,

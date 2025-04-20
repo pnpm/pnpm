@@ -15,11 +15,11 @@ export function createPackageExtender (
   const extensionsByPkgName: ExtensionsByPkgName = new Map()
   for (const selector in packageExtensions) {
     const packageExtension = packageExtensions[selector]
-    const { alias, pref } = parseWantedDependency(selector)
+    const { alias, bareSpecifier } = parseWantedDependency(selector)
     if (!extensionsByPkgName.has(alias!)) {
       extensionsByPkgName.set(alias!, [])
     }
-    extensionsByPkgName.get(alias!)!.push({ packageExtension, range: pref })
+    extensionsByPkgName.get(alias!)!.push({ packageExtension, range: bareSpecifier })
   }
   return extendPkgHook.bind(null, extensionsByPkgName) as ReadPackageHook
 }

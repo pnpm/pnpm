@@ -51,7 +51,7 @@ test('server', async () => {
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
   const projectDir = process.cwd()
   const response = await storeCtrl.requestPackage(
-    { alias: 'is-positive', pref: '1.0.0' },
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
     {
       downloadPriority: 0,
       lockfileDir: projectDir,
@@ -128,7 +128,7 @@ test('server errors should arrive to the client', async () => {
   try {
     const projectDir = process.cwd()
     await storeCtrl.requestPackage(
-      { alias: 'not-an-existing-package', pref: '1.0.0' },
+      { alias: 'not-an-existing-package', bareSpecifier: '1.0.0' },
       {
         downloadPriority: 0,
         lockfileDir: projectDir,

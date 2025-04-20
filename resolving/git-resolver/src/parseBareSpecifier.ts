@@ -15,7 +15,7 @@ export interface HostedPackageSpec {
     committish: string
     tarball: () => string | undefined
   }
-  normalizedPref: string
+  normalizedBareSpecifier: string
   gitCommittish: string | null
   gitRange?: string
   path?: string
@@ -32,23 +32,23 @@ const gitProtocols = new Set([
   'ssh',
 ])
 
-export async function parsePref (pref: string, opts: AgentOptions): Promise<HostedPackageSpec | null> {
-  const hosted = HostedGit.fromUrl(pref)
+export async function parseBareSpecifier (bareSpecifier: string, opts: AgentOptions): Promise<HostedPackageSpec | null> {
+  const hosted = HostedGit.fromUrl(bareSpecifier)
   if (hosted != null) {
     return fromHostedGit(hosted, opts)
   }
-  const colonsPos = pref.indexOf(':')
+  const colonsPos = bareSpecifier.indexOf(':')
   if (colonsPos === -1) return null
-  const protocol = pref.slice(0, colonsPos)
+  const protocol = bareSpecifier.slice(0, colonsPos)
   if (protocol && gitProtocols.has(protocol.toLocaleLowerCase())) {
-    const correctPref = correctUrl(pref)
-    const url = new URL(correctPref)
+    const correctBareSpecifier = correctUrl(bareSpecifier)
+    const url = new URL(correctBareSpecifier)
     if (!url?.protocol) return null
 
     const hash = (url.hash?.length > 1) ? decodeURIComponent(url.hash.slice(1)) : null
     return {
       fetchSpec: urlToFetchSpec(url),
-      normalizedPref: pref,
+      normalizedBareSpecifier: bareSpecifier,
       ...parseGitParams(hash),
     }
   }
@@ -88,7 +88,7 @@ async function fromHostedGit (hosted: any, agentOptions: AgentOptions): Promise<
             _fill: hosted._fill,
             tarball: undefined,
           },
-          normalizedPref: `git+${httpsUrl}`,
+          normalizedBareSpecifier: `git+${httpsUrl}`,
           ...parseGitParams(hosted.committish),
         }
       } else {
@@ -122,7 +122,7 @@ async function fromHostedGit (hosted: any, agentOptions: AgentOptions): Promise<
       _fill: hosted._fill,
       tarball: hosted.tarball,
     },
-    normalizedPref: hosted.shortcut(),
+    normalizedBareSpecifier: hosted.shortcut(),
     ...parseGitParams(hosted.committish),
   }
 }

@@ -46,8 +46,8 @@ export function renderPeerIssues (
         if (currentParentPkg && allowedVersionsByParentPkgName[peerName]?.[currentParentPkg.name]) {
           const allowedVersionsByParent: Record<string, string[]> = {}
           for (const { targetPkg, parentPkg, ranges } of allowedVersionsByParentPkgName[peerName][currentParentPkg.name]) {
-            if (!parentPkg.pref || currentParentPkg.version &&
-              (isSubRange(parentPkg.pref, currentParentPkg.version) || semver.satisfies(currentParentPkg.version, parentPkg.pref))) {
+            if (!parentPkg.bareSpecifier || currentParentPkg.version &&
+              (isSubRange(parentPkg.bareSpecifier, currentParentPkg.version) || semver.satisfies(currentParentPkg.version, parentPkg.bareSpecifier))) {
               allowedVersionsByParent[targetPkg.name] = ranges
             }
           }
@@ -153,8 +153,8 @@ function parseAllowedVersions (allowedVersions: Record<string, string>): ParsedA
   const overrides = tryParseAllowedVersions(allowedVersions)
   const allowedVersionsMatchAll: Record<string, string[]> = {}
   const allowedVersionsByParentPkgName: AllowedVersionsByParentPkgName = {}
-  for (const { parentPkg, targetPkg, newPref } of overrides) {
-    const ranges = parseVersions(newPref)
+  for (const { parentPkg, targetPkg, newBareSpecifier } of overrides) {
+    const ranges = parseVersions(newBareSpecifier)
     if (!parentPkg) {
       allowedVersionsMatchAll[targetPkg.name] = ranges
       continue

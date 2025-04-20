@@ -8,7 +8,7 @@ import {
 
 export interface WantedDependency {
   alias: string
-  pref: string // package reference
+  bareSpecifier: string // package reference
   dev: boolean
   optional: boolean
   nodeExecPath?: string
@@ -57,7 +57,7 @@ function getWantedDependenciesFromGivenSet (
   }
 ): WantedDependency[] {
   if (!deps) return []
-  return Object.entries(deps).map(([alias, pref]) => {
+  return Object.entries(deps).map(([alias, bareSpecifier]) => {
     let depType
     if (opts.optionalDependencies[alias] != null) depType = 'optional'
     else if (opts.dependencies[alias] != null) depType = 'prod'
@@ -69,8 +69,8 @@ function getWantedDependenciesFromGivenSet (
       injected: opts.dependenciesMeta[alias]?.injected,
       optional: depType === 'optional',
       nodeExecPath: opts.nodeExecPath ?? opts.dependenciesMeta[alias]?.node,
-      pref,
-      prevSpecifier: pref,
+      bareSpecifier,
+      prevSpecifier: bareSpecifier,
     }
   })
 }
