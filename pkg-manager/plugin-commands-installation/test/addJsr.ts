@@ -100,7 +100,7 @@ test('pnpm add jsr:@<scope>/<name>@latest', async () => {
   } as Partial<LockfileFile>)
 })
 
-test('pnpm add jsr:@<scope>/<name>@<pref>', async () => {
+test('pnpm add jsr:@<scope>/<name>@<version_selector>', async () => {
   const project = prepare({
     name: 'test-add-jsr',
     version: '0.0.0',
@@ -178,7 +178,7 @@ test('pnpm add <alias>@jsr:@<scope>/<name>', async () => {
   } as Partial<LockfileFile>)
 })
 
-test('pnpm add <alias>@jsr:@<scope>/<name>@<pref>', async () => {
+test('pnpm add <alias>@jsr:@<scope>/<name>@<version_selector>', async () => {
   const project = prepare({
     name: 'test-add-jsr',
     version: '0.0.0',
