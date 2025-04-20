@@ -65,7 +65,7 @@ test('resolveFromJsr() on jsr', async () => {
       integrity: expect.any(String),
       tarball: 'https://npm.jsr.io/~/11/@jsr/rus__greet/0.0.3.tgz',
     },
-    specifier: 'jsr:0.0.3',
+    normalizedBareSpecifier: 'jsr:0.0.3',
   })
 
   // The resolve function does not wait for the package meta cache file to be saved
