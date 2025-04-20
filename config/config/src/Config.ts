@@ -218,6 +218,7 @@ export interface Config extends OptionsFromRootManifest {
   strictDepBuilds: boolean
   syncInjectedDepsAfterScripts?: string[]
   initPackageManager: boolean
+  dangerouslyAllowAllBuilds: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

@@ -9,6 +9,7 @@ export const types = Object.assign({
   'merge-git-branch-lockfiles-branch-pattern': Array,
   color: ['always', 'auto', 'never'],
   'config-dir': String,
+  'dangerously-allow-all-builds': Boolean,
   'deploy-all-files': Boolean,
   'dedupe-peer-dependents': Boolean,
   'dedupe-direct-deps': Boolean,

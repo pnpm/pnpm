@@ -25,6 +25,7 @@ import { parseUpdateParam } from '../recursive'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
+    'dangerously-allow-all-builds',
     'depth',
     'dev',
     'engine-strict',

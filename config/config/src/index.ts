@@ -121,6 +121,7 @@ export async function getConfig (opts: {
     'auto-install-peers': true,
     bail: true,
     color: 'auto',
+    'dangerously-allow-all-builds': false,
     'deploy-all-files': false,
     'dedupe-peer-dependents': true,
     'dedupe-direct-deps': false,
@@ -517,6 +518,13 @@ export async function getConfig (opts: {
   } else {
     pnpmConfig.production = true
     pnpmConfig.dev = true
+  }
+
+  if (pnpmConfig.dangerouslyAllowAllBuilds) {
+    if (pnpmConfig.neverBuiltDependencies && pnpmConfig.neverBuiltDependencies.length > 0) {
+      warnings.push('You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.')
+    }
+    pnpmConfig.neverBuiltDependencies = []
   }
 
   transformPathKeys(pnpmConfig, os.homedir())
