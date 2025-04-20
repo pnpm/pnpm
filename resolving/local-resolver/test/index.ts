@@ -10,7 +10,7 @@ const TEST_DIR = path.dirname(require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-local
 test('resolve directory', async () => {
   const resolveResult = await resolveFromLocal({ bareSpecifier: '..' }, { projectDir: __dirname })
   expect(resolveResult!.id).toEqual('link:..')
-  expect(resolveResult!.specifier).toEqual('link:..')
+  expect(resolveResult!.normalizedBareSpecifier).toEqual('link:..')
   expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
   expect((resolveResult!.resolution as DirectoryResolution).directory).toEqual(normalize(path.join(__dirname, '..')))
   expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
@@ -21,7 +21,7 @@ test('resolve directory specified using absolute path', async () => {
   const normalizedLinkedDir = normalize(linkedDir)
   const resolveResult = await resolveFromLocal({ bareSpecifier: `link:${linkedDir}` }, { projectDir: __dirname })
   expect(resolveResult!.id).toEqual('link:..')
-  expect(resolveResult!.specifier).toEqual(`link:${normalizedLinkedDir}`)
+  expect(resolveResult!.normalizedBareSpecifier).toEqual(`link:${normalizedLinkedDir}`)
   expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
   expect((resolveResult!.resolution as DirectoryResolution).directory).toEqual(normalizedLinkedDir)
   expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
@@ -30,7 +30,7 @@ test('resolve directory specified using absolute path', async () => {
 test('resolve injected directory', async () => {
   const resolveResult = await resolveFromLocal({ injected: true, bareSpecifier: '..' }, { projectDir: __dirname })
   expect(resolveResult!.id).toEqual('file:..')
-  expect(resolveResult!.specifier).toEqual('file:..')
+  expect(resolveResult!.normalizedBareSpecifier).toEqual('file:..')
   expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
   expect((resolveResult!.resolution as DirectoryResolution).directory).toEqual('..')
   expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
@@ -39,7 +39,7 @@ test('resolve injected directory', async () => {
 test('resolve workspace directory', async () => {
   const resolveResult = await resolveFromLocal({ bareSpecifier: 'workspace:..' }, { projectDir: __dirname })
   expect(resolveResult!.id).toEqual('link:..')
-  expect(resolveResult!.specifier).toEqual('link:..')
+  expect(resolveResult!.normalizedBareSpecifier).toEqual('link:..')
   expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
   expect((resolveResult!.resolution as DirectoryResolution).directory).toEqual(normalize(path.join(__dirname, '..')))
   expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
@@ -48,7 +48,7 @@ test('resolve workspace directory', async () => {
 test('resolve directory specified using the file: protocol', async () => {
   const resolveResult = await resolveFromLocal({ bareSpecifier: 'file:..' }, { projectDir: __dirname })
   expect(resolveResult!.id).toEqual('file:..')
-  expect(resolveResult!.specifier).toEqual('file:..')
+  expect(resolveResult!.normalizedBareSpecifier).toEqual('file:..')
   expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
   expect((resolveResult!.resolution as DirectoryResolution).directory).toEqual('..')
   expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
@@ -57,7 +57,7 @@ test('resolve directory specified using the file: protocol', async () => {
 test('resolve directory specified using the link: protocol', async () => {
   const resolveResult = await resolveFromLocal({ bareSpecifier: 'link:..' }, { projectDir: __dirname })
   expect(resolveResult!.id).toEqual('link:..')
-  expect(resolveResult!.specifier).toEqual('link:..')
+  expect(resolveResult!.normalizedBareSpecifier).toEqual('link:..')
   expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
   expect((resolveResult!.resolution as DirectoryResolution).directory).toEqual(normalize(path.join(__dirname, '..')))
   expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
@@ -69,7 +69,7 @@ test('resolve file', async () => {
 
   expect(resolveResult).toEqual({
     id: 'file:pnpm-local-resolver-0.1.1.tgz',
-    specifier: 'file:pnpm-local-resolver-0.1.1.tgz',
+    normalizedBareSpecifier: 'file:pnpm-local-resolver-0.1.1.tgz',
     resolution: {
       integrity: 'sha512-UHd2zKRT/w70KKzFlj4qcT81A1Q0H7NM9uKxLzIZ/VZqJXzt5Hnnp2PYPb5Ezq/hAamoYKIn5g7fuv69kP258w==',
       tarball: 'file:pnpm-local-resolver-0.1.1.tgz',
@@ -87,7 +87,7 @@ test("resolve file when lockfile directory differs from the package's dir", asyn
 
   expect(resolveResult).toEqual({
     id: 'file:tgz/pnpm-local-resolver-0.1.1.tgz',
-    specifier: 'file:pnpm-local-resolver-0.1.1.tgz',
+    normalizedBareSpecifier: 'file:pnpm-local-resolver-0.1.1.tgz',
     resolution: {
       integrity: 'sha512-UHd2zKRT/w70KKzFlj4qcT81A1Q0H7NM9uKxLzIZ/VZqJXzt5Hnnp2PYPb5Ezq/hAamoYKIn5g7fuv69kP258w==',
       tarball: 'file:tgz/pnpm-local-resolver-0.1.1.tgz',
@@ -102,7 +102,7 @@ test('resolve tarball specified with file: protocol', async () => {
 
   expect(resolveResult).toEqual({
     id: 'file:pnpm-local-resolver-0.1.1.tgz',
-    specifier: 'file:pnpm-local-resolver-0.1.1.tgz',
+    normalizedBareSpecifier: 'file:pnpm-local-resolver-0.1.1.tgz',
     resolution: {
       integrity: 'sha512-UHd2zKRT/w70KKzFlj4qcT81A1Q0H7NM9uKxLzIZ/VZqJXzt5Hnnp2PYPb5Ezq/hAamoYKIn5g7fuv69kP258w==',
       tarball: 'file:pnpm-local-resolver-0.1.1.tgz',
