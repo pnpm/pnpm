@@ -17,7 +17,7 @@ export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig'>
 
 export function createManifestGetter (
   opts: ManifestGetterOptions
-): (packageName: string, pref: string) => Promise<DependencyManifest | null> {
+): (packageName: string, bareSpecifier: string) => Promise<DependencyManifest | null> {
   const { resolve } = createResolver({ ...opts, authConfig: opts.rawConfig })
   return getManifest.bind(null, resolve, opts)
 }
@@ -26,9 +26,9 @@ export async function getManifest (
   resolve: ResolveFunction,
   opts: GetManifestOpts,
   packageName: string,
-  pref: string
+  bareSpecifier: string
 ): Promise<DependencyManifest | null> {
-  const resolution = await resolve({ alias: packageName, pref }, {
+  const resolution = await resolve({ alias: packageName, bareSpecifier }, {
     lockfileDir: opts.lockfileDir,
     preferredVersions: {},
     projectDir: opts.dir,

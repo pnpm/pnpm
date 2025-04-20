@@ -6,29 +6,29 @@ export interface RegistryPackageSpec {
   type: 'tag' | 'version' | 'range'
   name: string
   fetchSpec: string
-  normalizedPref?: string
+  normalizedBareSpecifier?: string
 }
 
-export function parsePref (
-  pref: string,
+export function parseBareSpecifier (
+  bareSpecifier: string,
   alias: string | undefined,
   defaultTag: string,
   registry: string
 ): RegistryPackageSpec | null {
   let name = alias
-  if (pref.startsWith('npm:')) {
-    pref = pref.slice(4)
-    const index = pref.lastIndexOf('@')
+  if (bareSpecifier.startsWith('npm:')) {
+    bareSpecifier = bareSpecifier.slice(4)
+    const index = bareSpecifier.lastIndexOf('@')
     if (index < 1) {
-      name = pref
-      pref = defaultTag
+      name = bareSpecifier
+      bareSpecifier = defaultTag
     } else {
-      name = pref.slice(0, index)
-      pref = pref.slice(index + 1)
+      name = bareSpecifier.slice(0, index)
+      bareSpecifier = bareSpecifier.slice(index + 1)
     }
   }
   if (name) {
-    const selector = getVersionSelectorType(pref)
+    const selector = getVersionSelectorType(bareSpecifier)
     if (selector != null) {
       return {
         fetchSpec: selector.normalized,
@@ -37,13 +37,13 @@ export function parsePref (
       }
     }
   }
-  if (pref.startsWith(registry)) {
-    const pkg = parseNpmTarballUrl(pref)
+  if (bareSpecifier.startsWith(registry)) {
+    const pkg = parseNpmTarballUrl(bareSpecifier)
     if (pkg != null) {
       return {
         fetchSpec: pkg.version,
         name: pkg.name,
-        normalizedPref: pref,
+        normalizedBareSpecifier: bareSpecifier,
         type: 'version',
       }
     }

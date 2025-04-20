@@ -59,14 +59,14 @@ export async function handler (
   }
   const { resolve } = createResolver({ ...opts, authConfig: opts.rawConfig })
   const pkgName = 'pnpm'
-  const pref = params[0] ?? 'latest'
-  const resolution = await resolve({ alias: pkgName, pref }, {
+  const bareSpecifier = params[0] ?? 'latest'
+  const resolution = await resolve({ alias: pkgName, bareSpecifier }, {
     lockfileDir: opts.lockfileDir ?? opts.dir,
     preferredVersions: {},
     projectDir: opts.dir,
   })
   if (!resolution?.manifest) {
-    throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${pref}" version of pnpm`)
+    throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${bareSpecifier}" version of pnpm`)
   }
 
   if (opts.wantedPackageManager?.name === packageManager.name && opts.managePackageManagerVersions) {
@@ -80,7 +80,7 @@ export async function handler (
     }
   }
   if (resolution.manifest.version === packageManager.version) {
-    return `The currently active ${packageManager.name} v${packageManager.version} is already "${pref}" and doesn't need an update`
+    return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
   }
 
   const { baseDir, alreadyExisted } = await installPnpmToTools(resolution.manifest.version, opts)
@@ -90,6 +90,6 @@ export async function handler (
     }
   )
   return alreadyExisted
-    ? `The ${pref} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
+    ? `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
     : undefined
 }

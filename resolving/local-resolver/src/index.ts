@@ -10,7 +10,7 @@ import {
 } from '@pnpm/resolver-base'
 import { type DependencyManifest } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
-import { parsePref, type WantedLocalDependency } from './parsePref'
+import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier'
 
 export type { WantedLocalDependency }
 
@@ -30,12 +30,12 @@ export async function resolveFromLocal (
     projectDir: string
   }
 ): Promise<ResolveFromLocalResult | null> {
-  const spec = parsePref(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir)
+  const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir)
   if (spec == null) return null
   if (spec.type === 'file') {
     return {
       id: spec.id,
-      specifier: spec.normalizedPref,
+      specifier: spec.normalizedBareSpecifier,
       resolution: {
         integrity: await getTarballIntegrity(spec.fetchSpec),
         tarball: spec.id,
@@ -84,7 +84,7 @@ export async function resolveFromLocal (
   return {
     id: spec.id,
     manifest: localDependencyManifest,
-    specifier: spec.normalizedPref,
+    specifier: spec.normalizedBareSpecifier,
     resolution: {
       directory: spec.dependencyPath,
       type: 'directory',

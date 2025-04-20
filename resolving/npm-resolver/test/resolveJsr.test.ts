@@ -51,7 +51,7 @@ test('resolveFromJsr() on jsr', async () => {
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromJsr({ alias: '@rus/greet', pref: 'jsr:0.0.3' }, { calcSpecifier: true })
+  const resolveResult = await resolveFromJsr({ alias: '@rus/greet', bareSpecifier: 'jsr:0.0.3' }, { calcSpecifier: true })
 
   expect(resolveResult).toMatchObject({
     resolvedVia: 'jsr-registry',
@@ -96,7 +96,7 @@ test('resolveFromJsr() on jsr with alias renaming', async () => {
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromJsr({ alias: 'greet', pref: 'jsr:@rus/greet@0.0.3' }, {})
+  const resolveResult = await resolveFromJsr({ alias: 'greet', bareSpecifier: 'jsr:@rus/greet@0.0.3' }, {})
 
   expect(resolveResult).toMatchObject({
     resolvedVia: 'jsr-registry',
@@ -128,7 +128,7 @@ test('resolveFromJsr() on jsr with packages without scope', async () => {
     cacheDir,
     registries,
   })
-  await expect(resolveFromJsr({ alias: 'greet', pref: 'jsr:0.0.3' }, {})).rejects.toMatchObject({
+  await expect(resolveFromJsr({ alias: 'greet', bareSpecifier: 'jsr:0.0.3' }, {})).rejects.toMatchObject({
     code: 'ERR_PNPM_MISSING_JSR_PACKAGE_SCOPE',
   })
 })

@@ -13,7 +13,7 @@ export function reportSkippedOptionalDependencies (
     map((log) => Rx.of({
       msg: `info: ${
         // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-        log.package.id || log.package.name && (`${log.package.name}@${log.package.version}`) || log.package.pref
+        log.package.id || log.package.name && (`${log.package.name}@${log.package.version}`) || log.package.bareSpecifier
       } is an optional dependency and failed compatibility check. Excluding it from installation.`,
     }))
   )

@@ -10,7 +10,7 @@ async function main () {
   const prefix = process.cwd()
   const storeCtrl = await connectStoreController({ remotePrefix: 'http://localhost:5813' })
   const response = await storeCtrl.requestPackage(
-    { alias: 'is-positive', pref: '1.0.0' },
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
     {
       downloadPriority: 0,
       offline: false,

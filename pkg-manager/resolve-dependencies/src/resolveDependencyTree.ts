@@ -54,7 +54,7 @@ export interface ResolvedDirectDependency {
   version: string
   name: string
   catalogLookup?: CatalogLookupMetadata
-  specifier?: string
+  normalizedBareSpecifier?: string
 }
 
 /**
@@ -66,7 +66,7 @@ export interface CatalogLookupMetadata {
   readonly specifier: string
 
   /**
-   * The catalog protocol pref the user wrote in package.json files or as a
+   * The catalog protocol bareSpecifier the user wrote in package.json files or as a
    * parameter to pnpm add. Ex: pnpm add foo@catalog:
    *
    * This will usually be 'catalog:<name>', but can simply be 'catalog:' if
@@ -74,7 +74,7 @@ export interface CatalogLookupMetadata {
    * catalogName field, which would be 'default' regardless of whether users
    * originally requested 'catalog:' or 'catalog:default'.
    */
-  readonly userSpecifiedPref: string
+  readonly userSpecifiedBareSpecifier: string
 }
 
 export interface Importer<WantedDepExtraProps> {
@@ -266,7 +266,7 @@ export async function resolveDependencyTree<T> (
             pkgId: resolvedPackage.id,
             resolution: resolvedPackage.resolution,
             version: resolvedPackage.version,
-            specifier: dep.specifier,
+            normalizedBareSpecifier: dep.normalizedBareSpecifier,
           }
         }),
       directNodeIdsByAlias: new Map(directNonLinkedDeps.map(({ alias, nodeId }) => [alias, nodeId])),
@@ -341,12 +341,12 @@ function buildTree (
 function dedupeSameAliasDirectDeps (directDeps: Array<PkgAddress | LinkedDependency>, wantedDependencies: Array<WantedDependency & { isNew?: boolean }>): Array<PkgAddress | LinkedDependency> {
   const deps = new Map<string, PkgAddress | LinkedDependency>()
   for (const directDep of directDeps) {
-    const { alias, specifier } = directDep
+    const { alias, normalizedBareSpecifier } = directDep
     if (!deps.has(alias)) {
       deps.set(alias, directDep)
     } else {
       const wantedDep = wantedDependencies.find(dep =>
-        dep.alias ? dep.alias === alias : dep.pref === specifier
+        dep.alias ? dep.alias === alias : dep.bareSpecifier === normalizedBareSpecifier
       )
       if (wantedDep?.isNew) {
         deps.set(alias, directDep)

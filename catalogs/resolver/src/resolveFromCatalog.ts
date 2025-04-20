@@ -3,7 +3,7 @@ import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type Catalogs } from '@pnpm/catalogs.types'
 
 export interface WantedDependency {
-  readonly pref: string
+  readonly bareSpecifier: string
   readonly alias: string
 }
 
@@ -58,7 +58,7 @@ export interface CatalogResolutionUnused {
 }
 
 export function resolveFromCatalog (catalogs: Catalogs, wantedDependency: WantedDependency): CatalogResolutionResult {
-  const catalogName = parseCatalogProtocol(wantedDependency.pref)
+  const catalogName = parseCatalogProtocol(wantedDependency.bareSpecifier)
 
   if (catalogName == null) {
     return { type: 'unused' }

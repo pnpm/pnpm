@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/workspace.spec-parser",
   "version": "1000.0.0",
-  "description": "Parse and stringify workspace pref",
+  "description": "Parse and stringify workspace specifier",
   "keywords": [
     "pnpm",
     "pnpm10"

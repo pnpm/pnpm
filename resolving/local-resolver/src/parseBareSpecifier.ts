@@ -15,37 +15,37 @@ export interface LocalPackageSpec {
   fetchSpec: string
   id: PkgResolutionId
   type: 'directory' | 'file'
-  normalizedPref: string
+  normalizedBareSpecifier: string
 }
 
 export interface WantedLocalDependency {
-  pref: string
+  bareSpecifier: string
   injected?: boolean
 }
 
-export function parsePref (
+export function parseBareSpecifier (
   wd: WantedLocalDependency,
   projectDir: string,
   lockfileDir: string
 ): LocalPackageSpec | null {
-  if (wd.pref.startsWith('link:') || wd.pref.startsWith('workspace:')) {
+  if (wd.bareSpecifier.startsWith('link:') || wd.bareSpecifier.startsWith('workspace:')) {
     return fromLocal(wd, projectDir, lockfileDir, 'directory')
   }
-  if (wd.pref.endsWith('.tgz') ||
-    wd.pref.endsWith('.tar.gz') ||
-    wd.pref.endsWith('.tar') ||
-    wd.pref.includes(path.sep) ||
-    wd.pref.startsWith('file:') ||
-    isFilespec.test(wd.pref)
+  if (wd.bareSpecifier.endsWith('.tgz') ||
+    wd.bareSpecifier.endsWith('.tar.gz') ||
+    wd.bareSpecifier.endsWith('.tar') ||
+    wd.bareSpecifier.includes(path.sep) ||
+    wd.bareSpecifier.startsWith('file:') ||
+    isFilespec.test(wd.bareSpecifier)
   ) {
-    const type = isFilename.test(wd.pref) ? 'file' : 'directory'
+    const type = isFilename.test(wd.bareSpecifier) ? 'file' : 'directory'
     return fromLocal(wd, projectDir, lockfileDir, type)
   }
-  if (wd.pref.startsWith('path:')) {
+  if (wd.bareSpecifier.startsWith('path:')) {
     const err = new PnpmError('PATH_IS_UNSUPPORTED_PROTOCOL', 'Local dependencies via `path:` protocol are not supported. ' +
       'Use the `link:` protocol for folder dependencies and `file:` for local tarballs')
     // @ts-expect-error
-    err['pref'] = wd.pref
+    err['bareSpecifier'] = wd.bareSpecifier
     // @ts-expect-error
     err['protocol'] = 'path:'
 
@@ -55,35 +55,35 @@ export function parsePref (
 }
 
 function fromLocal (
-  { pref, injected }: WantedLocalDependency,
+  { bareSpecifier, injected }: WantedLocalDependency,
   projectDir: string,
   lockfileDir: string,
   type: 'file' | 'directory'
 ): LocalPackageSpec {
-  const spec = pref.replace(/\\/g, '/')
+  const spec = bareSpecifier.replace(/\\/g, '/')
     .replace(/^(?:file|link|workspace):\/*([A-Z]:)/i, '$1') // drive name paths on windows
     .replace(/^(?:file|link|workspace):(?:\/*([~./]))?/, '$1')
 
   let protocol!: string
-  if (pref.startsWith('file:')) {
+  if (bareSpecifier.startsWith('file:')) {
     protocol = 'file:'
-  } else if (pref.startsWith('link:')) {
+  } else if (bareSpecifier.startsWith('link:')) {
     protocol = 'link:'
   } else {
     protocol = type === 'directory' && !injected ? 'link:' : 'file:'
   }
   let fetchSpec!: string
-  let normalizedPref!: string
+  let normalizedBareSpecifier!: string
   if (/^~\//.test(spec)) {
     // this is needed for windows and for file:~/foo/bar
     fetchSpec = resolvePath(os.homedir(), spec.slice(2))
-    normalizedPref = `${protocol}${spec}`
+    normalizedBareSpecifier = `${protocol}${spec}`
   } else {
     fetchSpec = resolvePath(projectDir, spec)
     if (isAbsolute(spec)) {
-      normalizedPref = `${protocol}${spec}`
+      normalizedBareSpecifier = `${protocol}${spec}`
     } else {
-      normalizedPref = `${protocol}${path.relative(projectDir, fetchSpec)}`
+      normalizedBareSpecifier = `${protocol}${path.relative(projectDir, fetchSpec)}`
     }
   }
 
@@ -101,7 +101,7 @@ function fromLocal (
     dependencyPath,
     fetchSpec,
     id,
-    normalizedPref,
+    normalizedBareSpecifier,
     type,
   }
 }

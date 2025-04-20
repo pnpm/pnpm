@@ -14,7 +14,7 @@ import {
 } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import { parsePref } from '@pnpm/npm-resolver'
+import { parseBareSpecifier } from '@pnpm/npm-resolver'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import {
   type DependenciesField,
@@ -132,12 +132,12 @@ export async function outdated (
           const { name: packageName } = nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot)
           const name = dp.parse(relativeDepPath).name ?? packageName
 
-          const pref = _replaceCatalogProtocolIfNecessary({ alias, pref: allDeps[alias] })
+          const bareSpecifier = _replaceCatalogProtocolIfNecessary({ alias, bareSpecifier: allDeps[alias] })
           // If the npm resolve parser cannot parse the spec of the dependency,
           // it means that the package is not from a npm-compatible registry.
           // In that case, we can't check whether the package is up-to-date
           if (
-            parsePref(pref, alias, 'latest', pickRegistryForPackage(opts.registries, name)) == null
+            parseBareSpecifier(bareSpecifier, alias, 'latest', pickRegistryForPackage(opts.registries, name)) == null
           ) {
             if (current !== wanted) {
               outdated.push({
@@ -155,7 +155,7 @@ export async function outdated (
 
           const latestManifest = await opts.getLatestManifest(
             name,
-            opts.compatible ? (pref ?? 'latest') : 'latest'
+            opts.compatible ? (bareSpecifier ?? 'latest') : 'latest'
           )
 
           if (latestManifest == null) return
@@ -205,7 +205,7 @@ function isEmpty (obj: object): boolean {
 
 function replaceCatalogProtocolIfNecessary (catalogs: Catalogs, wantedDependency: WantedDependency) {
   return matchCatalogResolveResult(resolveFromCatalog(catalogs, wantedDependency), {
-    unused: () => wantedDependency.pref,
+    unused: () => wantedDependency.bareSpecifier,
     found: (found: CatalogResolutionFound) => found.resolution.specifier,
     misconfiguration: (misconfiguration) => {
       throw misconfiguration.error
