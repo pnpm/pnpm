@@ -613,8 +613,8 @@ catalogs:
       specifier: ^2.1.1
       version: 2.1.1
     tinyglobby:
-      specifier: ^0.2.12
-      version: 0.2.12
+      specifier: ^0.2.13
+      version: 0.2.13
     touch:
       specifier: 3.1.0
       version: 3.1.0
@@ -1113,7 +1113,7 @@ importers:
         version: 3.0.1
       tinyglobby:
         specifier: 'catalog:'
-        version: 0.2.12
+        version: 0.2.13
     devDependencies:
       '@pnpm/cache.api':
         specifier: workspace:*
@@ -3019,7 +3019,7 @@ importers:
         version: 2.1.0
       tinyglobby:
         specifier: 'catalog:'
-        version: 0.2.12
+        version: 0.2.13
     devDependencies:
       '@pnpm/fs.find-packages':
         specifier: workspace:*
@@ -4397,7 +4397,7 @@ importers:
         version: 2.1.1
       tinyglobby:
         specifier: 'catalog:'
-        version: 0.2.12
+        version: 0.2.13
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -5244,7 +5244,7 @@ importers:
         version: 1.2.0
       tinyglobby:
         specifier: 'catalog:'
-        version: 0.2.12
+        version: 0.2.13
     devDependencies:
       '@pnpm/package-bins':
         specifier: workspace:*
@@ -6566,7 +6566,7 @@ importers:
         version: 1.0.1
       tinyglobby:
         specifier: 'catalog:'
-        version: 0.2.12
+        version: 0.2.13
       validate-npm-package-name:
         specifier: 'catalog:'
         version: 5.0.0
@@ -11514,6 +11514,14 @@ packages:
       picomatch:
         optional: true
 
+  fdir@6.4.4:
+    resolution: {integrity: sha512-1NZP+GK4GfuAv3PqKvxQRDMjdSRZjnkq7KfhlNrCNNlZ0ygQFpebfrnfnq/W7fpUnAv9aGWmY1zKx7FYL3gwhg==}
+    peerDependencies:
+      picomatch: ^3 || ^4
+    peerDependenciesMeta:
+      picomatch:
+        optional: true
+
   fetch-blob@2.1.2:
     resolution: {integrity: sha512-YKqtUDwqLyfyMnmbw8XD6Q8j9i/HggKtPEI+pZ1+8bvheBu78biSmNaXWusx1TauGqtUUGx/cBb1mKdq2rLYow==}
     engines: {node: ^10.17.0 || >=12.3.0}
@@ -14415,6 +14423,10 @@ packages:
 
   tinyglobby@0.2.12:
     resolution: {integrity: sha512-qkf4trmKSIiMTs/E63cxH+ojC2unam7rJ0WrauAzpT3ECNTxGRMlaXxVbfxMUC/w0LaYk6jQ4y/nGR9uBO3tww==}
+    engines: {node: '>=12.0.0'}
+
+  tinyglobby@0.2.13:
+    resolution: {integrity: sha512-mEwzpUgrLySlveBwEVDMKk5B57bhLPYovRfPAXD5gA/98Opn0rCDj3GtLwFvCvH5RK9uPCExUROW5NjDwvqkxw==}
     engines: {node: '>=12.0.0'}
 
   tinylogic@2.0.0:
@@ -18936,6 +18948,10 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.2
 
+  fdir@6.4.4(picomatch@4.0.2):
+    optionalDependencies:
+      picomatch: 4.0.2
+
   fetch-blob@2.1.2: {}
 
   figures@2.0.0:
@@ -22243,6 +22259,11 @@ snapshots:
   tinyglobby@0.2.12:
     dependencies:
       fdir: 6.4.3(picomatch@4.0.2)
+      picomatch: 4.0.2
+
+  tinyglobby@0.2.13:
+    dependencies:
+      fdir: 6.4.4(picomatch@4.0.2)
       picomatch: 4.0.2
 
   tinylogic@2.0.0: {}

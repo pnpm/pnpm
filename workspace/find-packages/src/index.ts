@@ -30,6 +30,8 @@ export async function findWorkspacePackages (
   workspaceRoot: string,
   opts?: FindWorkspacePackagesOpts
 ): Promise<Project[]> {
+  // eslint-disable-next-line no-debugger
+  debugger
   const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
   for (const pkg of pkgs) {
     packageIsInstallable(pkg.rootDir, pkg.manifest, {
