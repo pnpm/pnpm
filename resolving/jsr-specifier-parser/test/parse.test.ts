@@ -1,4 +1,4 @@
-import { parseJsrSpecifier, type JsrSpec } from '@pnpm/jsr-specs'
+import { parseJsrSpecifier, type JsrSpec } from '@pnpm/resolving.jsr-specifier-parser'
 
 describe('parseJsrSpecifier', () => {
   test('skips on non-jsr prefs', () => {
@@ -13,9 +13,9 @@ describe('parseJsrSpecifier', () => {
   })
 
   test('succeeds on jsr prefs that only specify versions/ranges/tags (jsr:<spec>)', () => {
-    expect(parseJsrSpecifier('jsr:^1.0.0')).toStrictEqual({ pref: '^1.0.0' } as JsrSpec)
-    expect(parseJsrSpecifier('jsr:1.0.0')).toStrictEqual({ pref: '1.0.0' } as JsrSpec)
-    expect(parseJsrSpecifier('jsr:latest')).toStrictEqual({ pref: 'latest' } as JsrSpec)
+    expect(parseJsrSpecifier('jsr:^1.0.0', '@foo/bar')).toStrictEqual({ pref: '^1.0.0', jsrPkgName: '@foo/bar', npmPkgName: '@jsr/foo__bar' } as JsrSpec)
+    expect(parseJsrSpecifier('jsr:1.0.0', '@foo/bar')).toStrictEqual({ pref: '1.0.0', jsrPkgName: '@foo/bar', npmPkgName: '@jsr/foo__bar' } as JsrSpec)
+    expect(parseJsrSpecifier('jsr:latest', '@foo/bar')).toStrictEqual({ pref: 'latest', jsrPkgName: '@foo/bar', npmPkgName: '@jsr/foo__bar' } as JsrSpec)
   })
 
   test('succeeds on jsr prefs that only specify scope and name (jsr:@<scope>/<name>)', () => {
