@@ -11,7 +11,7 @@ test('tarball from npm registry', async () => {
 
   expect(resolutionResult).toStrictEqual({
     id: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
-    specifier: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
+    normalizedBareSpecifier: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
     resolution: {
       tarball: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
     },
@@ -26,7 +26,7 @@ test('tarball from URL that contain port number', async () => {
 
   expect(resolutionResult).toStrictEqual({
     id: 'http://buildserver.mycompany.com:81/my-private-package-0.1.6.tgz',
-    specifier: 'http://buildserver.mycompany.com:81/my-private-package-0.1.6.tgz',
+    normalizedBareSpecifier: 'http://buildserver.mycompany.com:81/my-private-package-0.1.6.tgz',
     resolution: {
       tarball: 'http://buildserver.mycompany.com:81/my-private-package-0.1.6.tgz',
     },
@@ -39,7 +39,7 @@ test('tarball not from npm registry', async () => {
 
   expect(resolutionResult).toStrictEqual({
     id: 'https://codeload.github.com/hegemonic/taffydb/legacy.tar.gz/refs/heads/master',
-    specifier: 'https://codeload.github.com/hegemonic/taffydb/legacy.tar.gz/refs/heads/master',
+    normalizedBareSpecifier: 'https://codeload.github.com/hegemonic/taffydb/legacy.tar.gz/refs/heads/master',
     resolution: {
       tarball: 'https://codeload.github.com/hegemonic/taffydb/legacy.tar.gz/refs/heads/master',
     },
@@ -52,7 +52,7 @@ test('tarballs from GitHub (is-negative)', async () => {
 
   expect(resolutionResult).toStrictEqual({
     id: 'https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
-    specifier: 'https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
+    normalizedBareSpecifier: 'https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
     resolution: {
       tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
     },
