@@ -3189,6 +3189,9 @@ importers:
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
 
   hooks/read-package-hook:
     dependencies:

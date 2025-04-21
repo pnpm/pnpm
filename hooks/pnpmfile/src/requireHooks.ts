@@ -3,6 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import { hookLogger } from '@pnpm/core-loggers'
 import { createHashFromFile } from '@pnpm/crypto.hash'
 import pathAbsolute from 'path-absolute'
+import { type ResolveFunction } from '@pnpm/resolver-base'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
 import { getPnpmfilePath } from './getPnpmfilePath'
@@ -24,6 +25,7 @@ export interface CookedHooks {
   updateConfig?: Hooks['updateConfig']
   importPackage?: ImportIndexedPackageAsync
   fetchers?: CustomFetchers
+  resolver?: ResolveFunction
   calculatePnpmfileChecksum?: () => Promise<string | undefined>
 }
 
@@ -81,6 +83,7 @@ export function requireHooks (
     : undefined
 
   cookedHooks.fetchers = globalHooks.fetchers
+  cookedHooks.resolver = globalHooks.resolver
   if (hooks.updateConfig != null) {
     const updateConfig = hooks.updateConfig
     cookedHooks.updateConfig = (config) => {

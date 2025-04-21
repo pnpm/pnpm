@@ -16,13 +16,16 @@ export type {
   PackageMeta,
   PackageMetaCache,
   ResolveFunction,
-  ResolverFactoryOptions,
+}
+
+export interface CreateResolverOptions extends ResolverFactoryOptions {
+  customResolver?: ResolveFunction
 }
 
 export function createResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
-  pnpmOpts: ResolverFactoryOptions
+  pnpmOpts: CreateResolverOptions
 ): { resolve: ResolveFunction, clearCache: () => void } {
   const { resolveFromNpm, resolveFromJsr, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
   const resolveFromGit = createGitResolver(pnpmOpts)
@@ -34,7 +37,8 @@ export function createResolver (
           await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
           await resolveFromGit(wantedDependency as { bareSpecifier: string }) ??
           await resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)
-        ))
+        )) ??
+        pnpmOpts.customResolver?.(wantedDependency, opts)
       if (!resolution) {
         throw new PnpmError(
           'SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER',
