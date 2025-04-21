@@ -74,16 +74,16 @@ export function requireHooks (
 
   // `importPackage`, `preResolution` and `fetchers` can only be defined via a global pnpmfile
 
-  cookedHooks.importPackage = globalHooks.importPackage
+  cookedHooks.importPackage = hooks.importPackage ?? globalHooks.importPackage
 
-  const preResolutionHook = globalHooks.preResolution
+  const preResolutionHook = hooks.preResolution ?? globalHooks.preResolution
 
   cookedHooks.preResolution = preResolutionHook
     ? (ctx: PreResolutionHookContext) => preResolutionHook(ctx, createPreResolutionHookLogger(prefix))
     : undefined
 
-  cookedHooks.fetchers = globalHooks.fetchers
-  cookedHooks.resolver = globalHooks.resolver
+  cookedHooks.fetchers = hooks?.fetchers ?? globalHooks.fetchers
+  cookedHooks.resolver = hooks?.resolver ?? globalHooks.resolver
   if (hooks.updateConfig != null) {
     const updateConfig = hooks.updateConfig
     cookedHooks.updateConfig = (config) => {
