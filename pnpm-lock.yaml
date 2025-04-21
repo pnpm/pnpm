@@ -202,8 +202,8 @@ catalogs:
       specifier: ^4.0.8
       version: 4.0.8
     '@zkochan/cmd-shim':
-      specifier: ^6.0.0
-      version: 6.0.0
+      specifier: ^7.0.0
+      version: 7.0.0
     '@zkochan/diable':
       specifier: ^1.0.2
       version: 1.0.2
@@ -2152,7 +2152,7 @@ importers:
         version: link:../../packages/types
       '@zkochan/cmd-shim':
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 7.0.0
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -5097,7 +5097,7 @@ importers:
         version: link:../../packages/types
       '@zkochan/cmd-shim':
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 7.0.0
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -10105,9 +10105,9 @@ packages:
     resolution: {integrity: sha512-MRUN24GOMTa14zkZ4Jd1BPmlagbk10+C6gegE5FgxzTVqiYMcm3KD+2qJs6OmlpEhqUKmm4pu/oTdn0KcMqbXg==}
     engines: {node: '>=10'}
 
-  '@zkochan/cmd-shim@6.0.0':
-    resolution: {integrity: sha512-kLBj0hJjqIw/KkIs8tvFaG1AY/yX2iUJqj47Jgoo5WoeQJd552ijJsj4GAOQnmyfoFLLEKZ+aSYfCpMjyg2hJw==}
-    engines: {node: '>=14.6'}
+  '@zkochan/cmd-shim@7.0.0':
+    resolution: {integrity: sha512-E5mgrRS8Kk80n19Xxmrx5qO9UG03FyZd8Me5gxYi++VPZsOv8+OsclA+0Fth4KTDCrQ/FkJryNFKJ6/642lo4g==}
+    engines: {node: '>=18.12'}
 
   '@zkochan/diable@1.0.2':
     resolution: {integrity: sha512-LvXkwkWyrsRulnXVfp0BfuEQqV6I2j0l3kQwvBHKFMI6Sg5j2GrUCLsEKqYB3jlxM+0ofScvlE4vB6knevdBmg==}
@@ -17300,7 +17300,7 @@ snapshots:
       widest-line: 3.1.0
       wrap-ansi: 7.0.0
 
-  '@zkochan/cmd-shim@6.0.0':
+  '@zkochan/cmd-shim@7.0.0':
     dependencies:
       cmd-extension: 1.0.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
