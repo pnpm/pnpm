@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-env
 
+## 1000.0.23
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/fetch@1000.2.1
+  - @pnpm/remove-bins@1000.0.9
+  - @pnpm/node.fetcher@1000.0.15
+  - @pnpm/node.resolver@1000.0.15
+  - @pnpm/env.system-node-version@1000.0.7
+
 ## 1000.0.22
 
 ### Patch Changes

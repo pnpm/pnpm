@@ -1,5 +1,51 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+
+### Patch Changes
+
+- Updated dependencies [3cf337b]
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [5b73df1]
+- Updated dependencies [3cf337b]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/deps.status@1002.1.0
+  - @pnpm/config@1003.0.0
+  - @pnpm/parse-wanted-dependency@1001.0.0
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/core@1008.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/manifest-utils@1001.0.0
+  - @pnpm/store-connection-manager@1002.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/plugin-commands-env@1000.0.23
+  - @pnpm/plugin-commands-rebuild@1002.0.12
+  - @pnpm/workspace.state@1001.1.18
+  - @pnpm/config.deps-installer@1000.0.2
+  - @pnpm/package-store@1002.0.2
+  - @pnpm/pnpmfile@1001.1.2
+  - @pnpm/get-context@1001.0.13
+  - @pnpm/outdated@1001.0.17
+  - @pnpm/workspace.pkgs-graph@1000.0.13
+  - @pnpm/config.config-writer@1000.0.3
+  - @pnpm/pick-registry-for-package@1000.0.7
+  - @pnpm/dedupe.check@1001.0.7
+  - @pnpm/lockfile.types@1001.0.7
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.10
+  - @pnpm/write-project-manifest@1000.0.7
+  - @pnpm/filter-workspace-packages@1000.0.22
+  - @pnpm/workspace.find-packages@1000.0.22
+  - @pnpm/sort-packages@1000.0.7
+
 ## 1003.0.1
 
 ### Patch Changes

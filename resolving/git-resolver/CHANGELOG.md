@@ -1,5 +1,20 @@
 # @pnpm/git-resolver
 
+## 1001.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+- 5b73df1: Renamed `normalizedPref` to `specifiers`.
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/fetch@1000.2.1
+
 ## 1000.0.11
 
 ### Patch Changes

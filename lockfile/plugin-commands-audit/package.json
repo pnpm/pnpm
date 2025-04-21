@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-audit",
-  "version": "1002.0.3",
+  "version": "1002.0.4",
   "description": "pnpm commands for dependencies audit",
   "keywords": [
     "pnpm",

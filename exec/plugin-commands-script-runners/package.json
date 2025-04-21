@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "1000.2.11",
+  "version": "1000.2.12",
   "description": "Commands for running scripts",
   "keywords": [
     "pnpm",

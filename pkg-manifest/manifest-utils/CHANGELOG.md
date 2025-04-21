@@ -1,5 +1,18 @@
 # @pnpm/manifest-utils
 
+## 1001.0.0
+
+### Major Changes
+
+- 5b73df1: Moved out `createVersionSpec` to `@pnpm/npm-resolver`.
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/types@1000.5.0
+
 ## 1000.0.8
 
 ### Patch Changes

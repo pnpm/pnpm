@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.cafs",
-  "version": "1000.0.10",
+  "version": "1000.0.11",
   "description": "A content-addressable filesystem for the packages storage",
   "keywords": [
     "pnpm",

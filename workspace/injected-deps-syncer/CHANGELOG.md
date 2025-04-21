@@ -1,5 +1,14 @@
 # @pnpm/workspace.injected-deps-syncer
 
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+  - @pnpm/logger@1001.0.0
+  - @pnpm/directory-fetcher@1000.1.6
+  - @pnpm/modules-yaml@1000.3.2
+
 ## 1000.0.6
 
 ### Patch Changes

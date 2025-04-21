@@ -1,5 +1,28 @@
 # @pnpm/outdated
 
+## 1001.0.17
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/parse-overrides@1001.0.0
+  - @pnpm/npm-resolver@1004.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/manifest-utils@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/hooks.read-package-hook@1000.0.9
+  - @pnpm/client@1000.0.16
+  - @pnpm/catalogs.resolver@1000.0.3
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/pick-registry-for-package@1000.0.7
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/dependency-path@1000.0.8
+  - @pnpm/modules-yaml@1000.3.2
+
 ## 1001.0.16
 
 ### Patch Changes

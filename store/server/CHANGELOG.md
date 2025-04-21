@@ -1,5 +1,18 @@
 # @pnpm/server
 
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/fetch@1000.2.1
+
 ## 1001.0.1
 
 ### Patch Changes

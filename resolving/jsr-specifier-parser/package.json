@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.jsr-specifier-parser",
-  "version": "1000.0.0-0",
+  "version": "1000.0.0",
   "description": "Parser of jsr specifiers",
   "keywords": [
     "pnpm",

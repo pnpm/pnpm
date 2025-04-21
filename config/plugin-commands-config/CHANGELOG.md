@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-config
 
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+  - @pnpm/config@1003.0.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/workspace.manifest-writer@1000.1.2
+
 ## 1000.1.3
 
 ### Patch Changes

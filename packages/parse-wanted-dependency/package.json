@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/parse-wanted-dependency",
-  "version": "1000.0.0",
+  "version": "1001.0.0",
   "description": "Parse dependency specifier",
   "keywords": [
     "pnpm",

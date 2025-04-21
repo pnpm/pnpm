@@ -1,5 +1,33 @@
 # @pnpm/deps.status
 
+## 1002.1.0
+
+### Minor Changes
+
+- 3cf337b: Fix a false negative in `verify-deps-before-run` when `node-linker` is `hoisted` and there is a workspace package without dependencies and `node_modules` directory [#9424](https://github.com/pnpm/pnpm/issues/9424).
+- 3cf337b: Explicitly drop `verify-deps-before-run` support for `node-linker=pnp`. Combining `verify-deps-before-run` and `node-linker=pnp` will now print a warning.
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/parse-overrides@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/workspace.state@1001.1.18
+  - @pnpm/pnpmfile@1001.1.2
+  - @pnpm/lockfile.verification@1001.1.6
+  - @pnpm/get-context@1001.0.13
+  - @pnpm/lockfile.settings-checker@1001.0.8
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/workspace.find-packages@1000.0.22
+  - @pnpm/workspace.read-manifest@1000.1.4
+
 ## 1002.0.11
 
 ### Patch Changes

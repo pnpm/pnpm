@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 1000.5.0
+
+### Minor Changes
+
+- 5b73df1: Added `PinnedVersion`.
+
 ## 1000.4.0
 
 ### Minor Changes

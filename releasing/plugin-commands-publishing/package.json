@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-publishing",
-  "version": "1000.1.20",
+  "version": "1000.1.21",
   "description": "The pack and publish commands of pnpm",
   "keywords": [
     "pnpm",

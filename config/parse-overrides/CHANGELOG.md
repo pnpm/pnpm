@@ -1,5 +1,17 @@
 # @pnpm/parse-overrides
 
+## 1001.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+  - @pnpm/parse-wanted-dependency@1001.0.0
+  - @pnpm/catalogs.resolver@1000.0.3
+
 ## 1000.0.2
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/patching.config
 
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+  - @pnpm/logger@1001.0.0
+  - @pnpm/dependency-path@1000.0.8
+
 ## 1001.0.1
 
 ### Patch Changes

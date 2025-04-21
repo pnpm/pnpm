@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/types",
-  "version": "1000.4.0",
+  "version": "1000.5.0",
   "description": "Basic types used by pnpm",
   "keywords": [
     "pnpm",

@@ -1,5 +1,16 @@
 # @pnpm/tarball-fetcher
 
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/fetcher-base@1000.0.10
+  - @pnpm/prepare-package@1000.0.13
+  - @pnpm/worker@1000.1.5
+
 ## 1001.0.4
 
 ### Patch Changes
