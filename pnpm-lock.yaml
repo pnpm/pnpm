@@ -11988,8 +11988,8 @@ packages:
     resolution: {integrity: sha512-T1gkAiYYDWYx3V5Bmyu7HcfcvL7mUrTWiM6yOfa3PIphViJ/gFPbvidQ+veqSOHci/PxBcDabeUNCzpOODJZig==}
     engines: {node: '>= 14'}
 
-  http-proxy-middleware@2.0.7:
-    resolution: {integrity: sha512-fgVY8AV7qU7z/MmXJ/rxwbrtQH4jBQ9m7kp3llF0liB7glmFeVZFBepQb32T3y8n8k2+AEYuMPCpinYW+/CuRA==}
+  http-proxy-middleware@2.0.9:
+    resolution: {integrity: sha512-c1IyJYLYppU574+YI7R4QyX2ystMtVXZwIdzazUIPIJsHuWNd+mho2j+bKoHftndicGj9yh+xjd+l0yj7VeT1Q==}
     engines: {node: '>=12.0.0'}
     peerDependencies:
       '@types/express': ^4.17.13
@@ -19478,7 +19478,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  http-proxy-middleware@2.0.7:
+  http-proxy-middleware@2.0.9:
     dependencies:
       '@types/http-proxy': 1.17.16
       http-proxy: 1.18.1
@@ -19526,7 +19526,7 @@ snapshots:
   https-proxy-server-express@0.1.2:
     dependencies:
       express: 4.21.2
-      http-proxy-middleware: 2.0.7
+      http-proxy-middleware: 2.0.9
     transitivePeerDependencies:
       - '@types/express'
       - debug
