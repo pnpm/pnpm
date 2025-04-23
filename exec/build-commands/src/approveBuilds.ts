@@ -1,5 +1,5 @@
 import { type Config } from '@pnpm/config'
-import { globalInfo } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { type StrictModules, writeModulesManifest } from '@pnpm/modules-yaml'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { type PnpmSettings } from '@pnpm/types'
@@ -124,6 +124,8 @@ Do you approve?`,
     if (!confirmed.build) {
       return
     }
+  } else {
+    globalWarn('All packages are added to ignoredBuiltDependencies.')
   }
   await writeSettings({
     ...opts,
