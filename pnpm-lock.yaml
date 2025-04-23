@@ -43,8 +43,8 @@ catalogs:
       specifier: 3.0.0
       version: 3.0.0
     '@pnpm/npm-lifecycle':
-      specifier: ^1000.0.2
-      version: 1000.0.2
+      specifier: ^1000.0.3
+      version: 1000.0.3
     '@pnpm/npm-package-arg':
       specifier: ^1.0.0
       version: 1.0.0
@@ -2378,7 +2378,7 @@ importers:
         version: link:../../pkg-manager/link-bins
       '@pnpm/npm-lifecycle':
         specifier: 'catalog:'
-        version: 1000.0.2(typanion@3.14.0)
+        version: 1000.0.3(typanion@3.14.0)
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -9499,8 +9499,8 @@ packages:
     resolution: {integrity: sha512-LdFkv/+4ONkQ9ZyE8ihC2L2RcPjvNcOTQq6pvvvZp8KeDYATCJeJX7gpHZF3Bx1XvUSU35dyF9Q9dS+JShtOFA==}
     engines: {node: '>=12'}
 
-  '@pnpm/npm-lifecycle@1000.0.2':
-    resolution: {integrity: sha512-+MID5PrMc0hZyIG4GBkNt2a0BG50wX94IS+3Md/FTUJ+H0+BMkdkUGJJbbQhdIPxQD1eAhm+a/3bZuAhnuCNVA==}
+  '@pnpm/npm-lifecycle@1000.0.3':
+    resolution: {integrity: sha512-8jcBrJfg+BBwFiAzUZRcrgfUWI1ofv5fP0Q4w4h1/jT6VA8q0NwrSP/LQ/4KIYFKDgzD0sFRVza+y9SwNqkkbA==}
     engines: {node: '>=18.12'}
 
   '@pnpm/npm-package-arg@1.0.0':
@@ -16453,10 +16453,11 @@ snapshots:
       '@pnpm/network.ca-file': 1.0.2
       config-chain: 1.1.13
 
-  '@pnpm/npm-lifecycle@1000.0.2(typanion@3.14.0)':
+  '@pnpm/npm-lifecycle@1000.0.3(typanion@3.14.0)':
     dependencies:
       '@pnpm/byline': 1.0.0
       '@pnpm/error': 1000.0.2
+      '@yarnpkg/fslib': 3.1.2
       '@yarnpkg/shell': 4.0.0(typanion@3.14.0)
       node-gyp: 11.1.0
       resolve-from: 5.0.0
