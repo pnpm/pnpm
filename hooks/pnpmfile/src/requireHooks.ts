@@ -82,8 +82,8 @@ export function requireHooks (
     ? (ctx: PreResolutionHookContext) => preResolutionHook(ctx, createPreResolutionHookLogger(prefix))
     : undefined
 
-  cookedHooks.fetchers = hooks?.fetchers ?? globalHooks.fetchers
-  cookedHooks.resolver = hooks?.resolver ?? globalHooks.resolver
+  cookedHooks.fetchers = hooks.fetchers ?? globalHooks.fetchers
+  cookedHooks.resolver = hooks.resolver ?? globalHooks.resolver
   if (hooks.updateConfig != null) {
     const updateConfig = hooks.updateConfig
     cookedHooks.updateConfig = (config) => {

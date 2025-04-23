@@ -202,8 +202,8 @@ catalogs:
       specifier: ^4.0.8
       version: 4.0.8
     '@zkochan/cmd-shim':
-      specifier: ^6.0.0
-      version: 6.0.0
+      specifier: ^7.0.0
+      version: 7.0.0
     '@zkochan/diable':
       specifier: ^1.0.2
       version: 1.0.2
@@ -2152,7 +2152,7 @@ importers:
         version: link:../../packages/types
       '@zkochan/cmd-shim':
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 7.0.0
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -5100,7 +5100,7 @@ importers:
         version: link:../../packages/types
       '@zkochan/cmd-shim':
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 7.0.0
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -10108,9 +10108,9 @@ packages:
     resolution: {integrity: sha512-MRUN24GOMTa14zkZ4Jd1BPmlagbk10+C6gegE5FgxzTVqiYMcm3KD+2qJs6OmlpEhqUKmm4pu/oTdn0KcMqbXg==}
     engines: {node: '>=10'}
 
-  '@zkochan/cmd-shim@6.0.0':
-    resolution: {integrity: sha512-kLBj0hJjqIw/KkIs8tvFaG1AY/yX2iUJqj47Jgoo5WoeQJd552ijJsj4GAOQnmyfoFLLEKZ+aSYfCpMjyg2hJw==}
-    engines: {node: '>=14.6'}
+  '@zkochan/cmd-shim@7.0.0':
+    resolution: {integrity: sha512-E5mgrRS8Kk80n19Xxmrx5qO9UG03FyZd8Me5gxYi++VPZsOv8+OsclA+0Fth4KTDCrQ/FkJryNFKJ6/642lo4g==}
+    engines: {node: '>=18.12'}
 
   '@zkochan/diable@1.0.2':
     resolution: {integrity: sha512-LvXkwkWyrsRulnXVfp0BfuEQqV6I2j0l3kQwvBHKFMI6Sg5j2GrUCLsEKqYB3jlxM+0ofScvlE4vB6knevdBmg==}
@@ -11991,8 +11991,8 @@ packages:
     resolution: {integrity: sha512-T1gkAiYYDWYx3V5Bmyu7HcfcvL7mUrTWiM6yOfa3PIphViJ/gFPbvidQ+veqSOHci/PxBcDabeUNCzpOODJZig==}
     engines: {node: '>= 14'}
 
-  http-proxy-middleware@2.0.7:
-    resolution: {integrity: sha512-fgVY8AV7qU7z/MmXJ/rxwbrtQH4jBQ9m7kp3llF0liB7glmFeVZFBepQb32T3y8n8k2+AEYuMPCpinYW+/CuRA==}
+  http-proxy-middleware@2.0.9:
+    resolution: {integrity: sha512-c1IyJYLYppU574+YI7R4QyX2ystMtVXZwIdzazUIPIJsHuWNd+mho2j+bKoHftndicGj9yh+xjd+l0yj7VeT1Q==}
     engines: {node: '>=12.0.0'}
     peerDependencies:
       '@types/express': ^4.17.13
@@ -17303,7 +17303,7 @@ snapshots:
       widest-line: 3.1.0
       wrap-ansi: 7.0.0
 
-  '@zkochan/cmd-shim@6.0.0':
+  '@zkochan/cmd-shim@7.0.0':
     dependencies:
       cmd-extension: 1.0.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -19481,7 +19481,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  http-proxy-middleware@2.0.7:
+  http-proxy-middleware@2.0.9:
     dependencies:
       '@types/http-proxy': 1.17.16
       http-proxy: 1.18.1
@@ -19529,7 +19529,7 @@ snapshots:
   https-proxy-server-express@0.1.2:
     dependencies:
       express: 4.21.2
-      http-proxy-middleware: 2.0.7
+      http-proxy-middleware: 2.0.9
     transitivePeerDependencies:
       - '@types/express'
       - debug
