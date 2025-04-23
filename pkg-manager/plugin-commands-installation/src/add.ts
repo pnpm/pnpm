@@ -117,6 +117,10 @@ export function help (): string {
             name: '--save-peer',
           },
           {
+            description: 'Save package to the catalog entry',
+            name: '--save-catalog',
+          },
+          {
             description: 'Install exact version',
             name: '--[no-]save-exact',
             shortAlias: '-E',
