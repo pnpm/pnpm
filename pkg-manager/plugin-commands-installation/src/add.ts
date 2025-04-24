@@ -51,6 +51,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'public-hoist-pattern',
     'registry',
     'reporter',
+    'save-catalog',
     'save-dev',
     'save-exact',
     'save-optional',
