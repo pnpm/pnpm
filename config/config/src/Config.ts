@@ -52,7 +52,7 @@ export interface Config extends OptionsFromRootManifest {
   saveDev?: boolean
   saveOptional?: boolean
   savePeer?: boolean
-  saveCatalog?: boolean | string // `true` targets `catalog:`, `string` targets `catalog:<string>`
+  saveCatalog?: boolean
   saveWorkspaceProtocol?: boolean | 'rolling'
   lockfileIncludeTarballUrl?: boolean
   scriptShell?: string
