@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*",
+    "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/workspace.read-manifest": "workspace:*",
     "ramda": "catalog:",
     "write-yaml-file": "catalog:"

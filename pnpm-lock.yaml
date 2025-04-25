@@ -8270,6 +8270,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
+      '@pnpm/object.key-sorting':
+        specifier: workspace:*
+        version: link:../../object/key-sorting
       '@pnpm/workspace.read-manifest':
         specifier: workspace:*
         version: link:../read-manifest
