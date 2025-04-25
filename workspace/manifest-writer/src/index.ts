@@ -4,7 +4,7 @@ import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.r
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import writeYamlFile from 'write-yaml-file'
 import equals from 'ramda/src/equals'
-import { sortDirectKeys } from '@pnpm/object.key-sorting'
+import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 
 export async function updateWorkspaceManifest (dir: string, updatedFields: Partial<WorkspaceManifest>): Promise<void> {
   let manifest = await readWorkspaceManifest(dir) ?? {} as WorkspaceManifest
@@ -27,7 +27,10 @@ export async function updateWorkspaceManifest (dir: string, updatedFields: Parti
     await fs.promises.rm(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
     return
   }
-  manifest = sortDirectKeys(manifest)
+  manifest = sortKeysByPriority({
+    priority: { packages: 0 },
+    deep: false,
+  }, manifest)
   await writeYamlFile(path.join(dir, WORKSPACE_MANIFEST_FILENAME), manifest, {
     lineWidth: -1, // This is setting line width to never wrap
     blankLines: true,
