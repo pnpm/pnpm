@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.0.1
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+- Updated dependencies [e5c58f0]
+- Updated dependencies [7c7f0d6]
+  - @pnpm/plugin-commands-env@1000.0.24
+  - @pnpm/pnpmfile@1001.2.0
+  - @pnpm/common-cli-options-help@1000.0.1
+  - @pnpm/plugin-commands-rebuild@1002.0.13
+  - @pnpm/core@1008.0.1
+  - @pnpm/config.config-writer@1000.0.4
+  - @pnpm/cli-utils@1000.1.3
+  - @pnpm/config@1003.0.1
+  - @pnpm/deps.status@1002.1.1
+  - @pnpm/config.deps-installer@1000.0.3
+  - @pnpm/workspace.find-packages@1000.0.23
+  - @pnpm/store-connection-manager@1002.0.1
+  - @pnpm/workspace.state@1001.1.19
+  - @pnpm/filter-workspace-packages@1000.0.23
+  - @pnpm/outdated@1001.0.18
+  - @pnpm/package-store@1002.0.2
+
 ## 1004.0.0
 
 ### Major Changes

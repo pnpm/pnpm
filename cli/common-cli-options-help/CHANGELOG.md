@@ -1,5 +1,11 @@
 # @pnpm/common-cli-options-help
 
+## 1000.0.1
+
+### Patch Changes
+
+- 7c7f0d6: Fixed a mistake in the description of the `--reporter=silent` option.
+
 ## 2.0.0
 
 ### Major Changes

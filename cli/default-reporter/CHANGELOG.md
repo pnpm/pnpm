@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 1001.4.3
+
+### Patch Changes
+
+- @pnpm/config@1003.0.1
+
 ## 1001.4.2
 
 ### Patch Changes

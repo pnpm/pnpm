@@ -1,5 +1,13 @@
 # @pnpm/exec.build-commands
 
+## 1001.0.13
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@1002.0.13
+- @pnpm/config.config-writer@1000.0.4
+- @pnpm/config@1003.0.1
+
 ## 1001.0.12
 
 ### Patch Changes

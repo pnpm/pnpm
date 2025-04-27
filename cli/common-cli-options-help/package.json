@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/common-cli-options-help",
-  "version": "1000.0.0",
+  "version": "1000.0.1",
   "description": "Help for some common CLI options",
   "keywords": [
     "pnpm",

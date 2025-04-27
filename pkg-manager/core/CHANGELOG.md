@@ -1,5 +1,17 @@
 # @pnpm/core
 
+## 1008.0.1
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+  - @pnpm/link-bins@1000.0.12
+  - @pnpm/build-modules@1000.3.4
+  - @pnpm/lifecycle@1001.0.13
+  - @pnpm/headless@1004.0.3
+  - @pnpm/hoist@1001.0.14
+  - @pnpm/package-requester@1004.0.0
+
 ## 1008.0.0
 
 ### Major Changes

@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 1000.0.12
+
+### Patch Changes
+
+- fa1e69b: Fix command shim generation in Cygwin/MSYS2/MinGW envs [#9442](https://github.com/pnpm/pnpm/issues/9442).
+
 ## 1000.0.11
 
 ### Patch Changes
