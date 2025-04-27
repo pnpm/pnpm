@@ -13,7 +13,10 @@ import { parseRawConfig } from './utils'
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes (): Record<string, unknown> {
-  return {}
+  return {
+    module: Boolean,
+    m: Boolean,
+  }
 }
 
 export const commandNames = ['init']
@@ -55,6 +58,12 @@ export async function handler (
     author: '',
     license: 'ISC',
   }
+
+  // Add "type": "module" if --module or -m is passed
+  if (opts.cliOptions.module || opts.cliOptions.m) {
+    manifest.type = 'module'
+  }
+
   const config = await parseRawConfig(opts.rawConfig)
   const packageJson = { ...manifest, ...config }
   if (opts.initPackageManager) {
