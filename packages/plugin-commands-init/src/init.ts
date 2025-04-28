@@ -59,7 +59,7 @@ export async function handler (
   }
 
   // Add "type" based on --init-type value
-  const initType = opts.cliOptions['init-type']
+  const initType = opts.cliOptions['init-type'] || opts.rawConfig['init-type'];
   if (initType === 'module' || initType === 'commonjs') {
     manifest.type = initType
   } else if (initType) {
