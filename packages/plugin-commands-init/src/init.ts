@@ -14,8 +14,7 @@ export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
-    module: Boolean,
-    m: Boolean,
+    'init-type': String,
   }
 }
 
@@ -59,9 +58,12 @@ export async function handler (
     license: 'ISC',
   }
 
-  // Add "type": "module" if --module or -m is passed
-  if (opts.cliOptions.module || opts.cliOptions.m) {
-    manifest.type = 'module'
+  // Add "type" based on --init-type value
+  const initType = opts.cliOptions['init-type']
+  if (initType === 'module' || initType === 'commonjs') {
+    manifest.type = initType
+  } else if (initType) {
+    throw new PnpmError('INVALID_INIT_TYPE', `Invalid value for --init-type: ${initType}. Allowed values are "module" or "commonjs".`)
   }
 
   const config = await parseRawConfig(opts.rawConfig)
