@@ -39,18 +39,18 @@ export async function updateWorkspaceManifest (dir: string, updatedFields: Parti
   await writeManifestFile(dir, manifest)
 }
 
-export async function addDefaultCatalog (workspaceDir: string, name: string, spec: string): Promise<void> {
+export async function addDefaultCatalog (workspaceDir: string, dependencies: Record<string, string>): Promise<void> {
   const manifest: WorkspaceManifest = await readWorkspaceManifest(workspaceDir) ?? {
     packages: [],
   }
 
-  let catalog: Record<string, string> | undefined = manifest.catalog ?? manifest.catalogs?.default
-  if (catalog == null) {
-    catalog = {}
-    manifest.catalog = catalog
-  }
+  const targetCatalog: Record<string, string> | undefined = manifest.catalog ?? manifest.catalogs?.default
 
-  catalog[name] = spec
+  if (targetCatalog == null) {
+    manifest.catalog = dependencies
+  } else {
+    Object.assign(targetCatalog, dependencies)
+  }
 
   await writeManifestFile(workspaceDir, manifest)
 }
