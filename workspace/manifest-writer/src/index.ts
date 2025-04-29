@@ -39,7 +39,7 @@ export async function updateWorkspaceManifest (dir: string, updatedFields: Parti
   await writeManifestFile(dir, manifest)
 }
 
-export async function addDefaultCatalog (workspaceDir: string, dependencies: Record<string, string>): Promise<void> {
+export async function addDefaultCatalogs (workspaceDir: string, dependencies: Record<string, string>): Promise<void> {
   const manifest: WorkspaceManifest = await readWorkspaceManifest(workspaceDir) ?? {
     packages: [],
   }
