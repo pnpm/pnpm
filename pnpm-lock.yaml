@@ -30,6 +30,9 @@ catalogs:
     '@pnpm/log.group':
       specifier: 3.0.1
       version: 3.0.1
+    '@pnpm/logger':
+      specifier: '>=1001.0.0 <1002.0.0'
+      version: 1001.0.0
     '@pnpm/meta-updater':
       specifier: 2.0.5
       version: 2.0.5
@@ -1479,8 +1482,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/git-utils
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../matcher
@@ -1604,8 +1607,8 @@ importers:
         specifier: workspace:*
         version: link:../../network/fetch
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header
@@ -1994,8 +1997,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/verification
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides
@@ -2246,8 +2249,8 @@ importers:
         specifier: workspace:*
         version: link:../../config/config-writer
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
@@ -4281,8 +4284,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/error
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/patching.types':
         specifier: workspace:*
         version: link:../types
@@ -8009,8 +8012,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -9458,6 +9461,10 @@ packages:
 
   '@pnpm/logger@1000.0.0':
     resolution: {integrity: sha512-v5WO9L4pT7ZjZpf7a/a3H3Xj59JPHNMFJwRS7m/01VMWrKjs89CdVIE5e/N6DwuzP750j0iKozTw6UrCVEfQjA==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/logger@1001.0.0':
+    resolution: {integrity: sha512-nj80XtTHHt7T+b5stLWszzd166MbGx4eTOu9+6h6RdelKMlSWhrb7KUb0j90tYk+yoGx8TeMVdJCaoBnkLp8xw==}
     engines: {node: '>=18.12'}
 
   '@pnpm/manifest-utils@1000.0.6':
@@ -16384,6 +16391,11 @@ snapshots:
       ci-info: 3.9.0
 
   '@pnpm/logger@1000.0.0':
+    dependencies:
+      bole: 5.0.17
+      ndjson: 2.0.0
+
+  '@pnpm/logger@1001.0.0':
     dependencies:
       bole: 5.0.17
       ndjson: 2.0.0

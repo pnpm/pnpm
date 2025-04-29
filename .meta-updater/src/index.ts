@@ -90,7 +90,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         }
       }
       if (manifest.peerDependencies?.['@pnpm/logger'] != null) {
-        manifest.peerDependencies['@pnpm/logger'] = `>=5.1.0 <${smallestAllowedLibVersion + 1}.0.0`
+        manifest.peerDependencies['@pnpm/logger'] = 'catalog:'
       }
       if (manifest.name !== '@pnpm/make-dedicated-lockfile' && manifest.name !== '@pnpm/mount-modules') {
         for (const depType of ['dependencies', 'optionalDependencies'] as const) {
