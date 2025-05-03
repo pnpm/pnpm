@@ -1210,7 +1210,7 @@ interface ResolveDependencyOptions {
   proceed: boolean
   publishedBy?: Date
   pickLowestVersion?: boolean
-  saveCatalog?: boolean
+  saveCatalogAliases?: string[]
   update: false | 'compatible' | 'latest'
   updateDepth: number
   updateMatching?: UpdateMatchingFunction
@@ -1570,7 +1570,7 @@ async function resolveDependency (
 
   let normalizedBareSpecifier = pkgResponse.body.normalizedBareSpecifier
   let catalogSpecifier: string | undefined
-  if (options.saveCatalog && normalizedBareSpecifier) {
+  if (normalizedBareSpecifier && options.currentDepth === 0 && options.saveCatalogAliases?.includes(wantedDependency.alias)) {
     catalogSpecifier = normalizedBareSpecifier
     normalizedBareSpecifier = 'catalog:'
   }
