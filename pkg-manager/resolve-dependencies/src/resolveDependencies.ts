@@ -187,6 +187,7 @@ interface MissingPeersOfChildren {
 
 export type PkgAddress = {
   alias: string
+  catalogSpecifier?: string
   depIsLinked: boolean
   isNew: boolean
   isLinkedDependency?: false
@@ -1209,6 +1210,7 @@ interface ResolveDependencyOptions {
   proceed: boolean
   publishedBy?: Date
   pickLowestVersion?: boolean
+  saveCatalog?: boolean
   update: false | 'compatible' | 'latest'
   updateDepth: number
   updateMatching?: UpdateMatchingFunction
@@ -1565,13 +1567,22 @@ async function resolveDependency (
       }
     }
   }
+
+  let normalizedBareSpecifier = pkgResponse.body.normalizedBareSpecifier
+  let catalogSpecifier: string | undefined
+  if (options.saveCatalog && normalizedBareSpecifier) {
+    catalogSpecifier = normalizedBareSpecifier
+    normalizedBareSpecifier = 'catalog:'
+  }
+
   return {
     alias: wantedDependency.alias ?? pkgResponse.body.alias ?? pkg.name,
+    catalogSpecifier,
     depIsLinked,
     resolvedVia: pkgResponse.body.resolvedVia,
     isNew,
     nodeId,
-    normalizedBareSpecifier: pkgResponse.body.normalizedBareSpecifier,
+    normalizedBareSpecifier,
     missingPeersOfChildren,
     pkgId: pkgResponse.body.id,
     rootDir,
