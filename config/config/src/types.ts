@@ -46,6 +46,7 @@ export const types = Object.assign({
   'optimistic-repeat-install': Boolean,
   'include-workspace-root': Boolean,
   'init-package-manager': Boolean,
+  'init-type': ['commonjs', 'module'],
   'inject-workspace-packages': Boolean,
   'legacy-dir-filtering': Boolean,
   'link-workspace-packages': [Boolean, 'deep'],
