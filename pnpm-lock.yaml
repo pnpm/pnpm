@@ -2312,6 +2312,9 @@ importers:
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers

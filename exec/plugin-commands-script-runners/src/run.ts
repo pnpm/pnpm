@@ -8,7 +8,7 @@ import {
 import { type CompletionFunc } from '@pnpm/command'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types as allTypes } from '@pnpm/config'
+import { type Config, types as allTypes, getWorkspaceConcurrency } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import {
@@ -264,7 +264,7 @@ so you may run "pnpm -w run ${scriptName}"`,
       hint: buildCommandNotFoundHint(scriptName, manifest.scripts),
     })
   }
-  const concurrency = opts.workspaceConcurrency ?? 4
+  const concurrency = getWorkspaceConcurrency(opts.workspaceConcurrency)
 
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
