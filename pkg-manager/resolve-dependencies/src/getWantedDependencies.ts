@@ -12,6 +12,7 @@ export interface WantedDependency {
   dev: boolean
   optional: boolean
   nodeExecPath?: string
+  source?: 'cli-param'
   updateSpec?: boolean
   prevSpecifier?: string
 }

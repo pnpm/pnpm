@@ -520,6 +520,7 @@ export async function mutateModules (
         optionalDependencies,
         updateWorkspaceDependencies: project.update,
         preferredSpecs,
+        source: 'cli-param',
         overrides: opts.overrides,
         defaultCatalog: opts.catalogs?.default,
       })
@@ -1059,7 +1060,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
       registries: ctx.registries,
       resolutionMode: opts.resolutionMode,
-      saveCatalogAliases: opts.saveCatalogAliases,
+      saveCatalog: opts.saveCatalog,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
       tag: opts.tag,

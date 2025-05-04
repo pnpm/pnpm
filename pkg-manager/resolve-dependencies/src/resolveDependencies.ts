@@ -172,7 +172,7 @@ export interface ResolutionContext {
   workspacePackages?: WorkspacePackages
   missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { depth: number, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
-  saveCatalogAliases?: string[]
+  saveCatalog?: boolean
 }
 
 export type MissingPeers = Record<string, { range: string, optional: boolean }>
@@ -1570,7 +1570,7 @@ async function resolveDependency (
 
   let normalizedBareSpecifier = pkgResponse.body.normalizedBareSpecifier
   let catalogSpecifier: string | undefined
-  if (normalizedBareSpecifier && options.currentDepth === 0 && ctx.saveCatalogAliases?.includes(wantedDependency.alias)) {
+  if (ctx.saveCatalog && wantedDependency.source === 'cli-param') {
     catalogSpecifier = normalizedBareSpecifier
     normalizedBareSpecifier = 'catalog:'
   }

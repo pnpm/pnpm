@@ -16,6 +16,7 @@ export function parseWantedDependencies (
     overrides?: Record<string, string>
     updateWorkspaceDependencies?: boolean
     preferredSpecs?: Record<string, string>
+    source?: WantedDependency['source']
     defaultCatalog?: Catalog
   }
 ): WantedDependency[] {
@@ -65,6 +66,7 @@ export function parseWantedDependencies (
       return {
         ...result,
         bareSpecifier: opts.defaultTag,
+        source: opts.source,
       }
     })
     .filter((wd) => wd !== null) as WantedDependency[]
