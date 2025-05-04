@@ -155,6 +155,7 @@ export async function getConfig (opts: {
     'ignore-workspace-root-check': false,
     'optimistic-repeat-install': false,
     'init-package-manager': true,
+    'init-type': 'commonjs',
     'inject-workspace-packages': false,
     'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
