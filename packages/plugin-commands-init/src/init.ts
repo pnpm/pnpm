@@ -22,7 +22,21 @@ export const commandNames = ['init']
 export function help (): string {
   return renderHelp({
     description: 'Create a package.json file',
-    descriptionLists: [],
+    descriptionLists: [
+      {
+        title: 'Options',
+        list: [
+          {
+            description: 'Initialize a package.json file with the specified type',
+            name: '--init-type <type>',
+          },
+          {
+            description: 'Add the package manager to the package.json file',
+            name: '--init-package-manager',
+          },
+        ],
+      },
+    ],
     url: docsUrl('init'),
     usages: ['pnpm init'],
   })
