@@ -394,6 +394,7 @@ export async function resolveRootDependencies (
 }
 
 interface ResolvedDependenciesResult {
+  newDefaultCatalogs?: Record<string, string>
   pkgAddresses: Array<PkgAddress | LinkedDependency>
   resolvingPeers: Promise<PeersResolutionResult>
 }
@@ -665,12 +666,17 @@ export async function resolveDependencies (
   ))
   const newPreferredVersions = Object.create(preferredVersions) as PreferredVersions
   const currentParentPkgAliases: Record<string, PkgAddress | true> = {}
+  let newDefaultCatalogs: Record<string, string> | undefined
   for (const pkgAddress of pkgAddresses) {
     if (currentParentPkgAliases[pkgAddress.alias] !== true) {
       currentParentPkgAliases[pkgAddress.alias] = pkgAddress
     }
     if (pkgAddress.updated) {
       ctx.updatedSet.add(pkgAddress.alias)
+    }
+    if (pkgAddress.catalogSpecifier != null) {
+      newDefaultCatalogs ??= {}
+      newDefaultCatalogs[pkgAddress.alias] = pkgAddress.catalogSpecifier
     }
     const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
     if (!resolvedPackage) continue // This will happen only with linked dependencies
@@ -703,6 +709,7 @@ export async function resolveDependencies (
     }
   }
   return {
+    newDefaultCatalogs,
     pkgAddresses,
     resolvingPeers: startResolvingPeers({
       childrenResults,
