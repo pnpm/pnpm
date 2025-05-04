@@ -18,6 +18,7 @@ import { runScriptsIfPresent } from './publish'
 import chalk from 'chalk'
 import validateNpmPackageName from 'validate-npm-package-name'
 import pFilter from 'p-filter'
+import pLimit from 'p-limit'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { sortPackages } from '@pnpm/sort-packages'
 import { logger } from '@pnpm/logger'
@@ -80,15 +81,25 @@ export function help (): string {
   })
 }
 
-export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs' | 'ignoreScripts' | 'rawConfig' | 'embedReadme' | 'packGzipLevel' | 'nodeLinker'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'selectedProjectsGraph'>> & {
+export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs'
+| 'ignoreScripts'
+| 'rawConfig'
+| 'embedReadme'
+| 'packGzipLevel'
+| 'nodeLinker'
+> & Partial<Pick<Config, 'extraBinPaths'
+| 'extraEnv'
+| 'recursive'
+| 'selectedProjectsGraph'
+| 'workspaceConcurrency'
+| 'workspaceDir'
+>> & {
   argv: {
     original: string[]
   }
   engineStrict?: boolean
   packDestination?: string
   out?: string
-  recursive?: boolean
-  workspaceDir?: string
   json?: boolean
   unicode?: boolean
 }
@@ -106,9 +117,7 @@ export async function handler (opts: PackOptions): Promise<string> {
   if (opts.recursive) {
     const selectedProjectsGraph = opts.selectedProjectsGraph as ProjectsGraph
     const pkgs = Object.values(selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    const pkgsToPack = await pFilter(pkgs, async (pkg) => {
-      return Boolean(pkg.manifest.name && pkg.manifest.version)
-    })
+    const pkgsToPack = await pFilter(pkgs, pkg => Boolean(pkg.manifest.name && pkg.manifest.version))
 
     const packedPkgDirs = new Set<ProjectRootDir>(pkgsToPack.map(({ rootDir }) => rootDir))
 
@@ -121,20 +130,23 @@ export async function handler (opts: PackOptions): Promise<string> {
 
     const chunks = sortPackages(selectedProjectsGraph)
 
+    const limitPack = pLimit(opts.workspaceConcurrency ?? 4)
     for (const chunk of chunks) {
-      for (const pkgDir of chunk) {
-        if (!packedPkgDirs.has(pkgDir)) continue
-        const pkg = selectedProjectsGraph[pkgDir].package
-        // eslint-disable-next-line no-await-in-loop
-        const packResult = await api({
-          ...opts,
-          dir: pkg.rootDir,
-          // set the packDestination to the current dir if out and packDestination are not set
-          out: opts.out ? path.join(opts.dir, opts.out) : undefined,
-          packDestination: !opts.out ? path.join(opts.dir, opts.packDestination ?? '.') : undefined,
+      // eslint-disable-next-line no-await-in-loop
+      await Promise.all(chunk.map(pkgDir =>
+        limitPack(async () => {
+          if (!packedPkgDirs.has(pkgDir)) return
+          const pkg = selectedProjectsGraph[pkgDir].package
+          const packResult = await api({
+            ...opts,
+            dir: pkg.rootDir,
+            // set the packDestination to the current dir if out and packDestination are not set
+            out: opts.out ? path.join(opts.dir, opts.out) : undefined,
+            packDestination: !opts.out ? path.join(opts.dir, opts.packDestination ?? '.') : undefined,
+          })
+          packedPackages.push(toPackResultJson(packResult))
         })
-        packedPackages.push(toPackResultJson(packResult))
-      }
+      ))
     }
   } else {
     const packResult = await api(opts)
