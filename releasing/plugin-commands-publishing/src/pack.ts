@@ -8,7 +8,7 @@ import { readProjectManifest } from '@pnpm/cli-utils'
 import { createExportableManifest } from '@pnpm/exportable-manifest'
 import { packlist } from '@pnpm/fs.packlist'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { type ProjectManifest, type ProjectRootDir, type ProjectsGraph, type DependencyManifest } from '@pnpm/types'
+import { type ProjectManifest, type Project, type ProjectRootDir, type ProjectsGraph, type DependencyManifest } from '@pnpm/types'
 import { glob } from 'tinyglobby'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
@@ -17,7 +17,6 @@ import tar from 'tar-stream'
 import { runScriptsIfPresent } from './publish'
 import chalk from 'chalk'
 import validateNpmPackageName from 'validate-npm-package-name'
-import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { sortPackages } from '@pnpm/sort-packages'
@@ -116,9 +115,12 @@ export async function handler (opts: PackOptions): Promise<string> {
 
   if (opts.recursive) {
     const selectedProjectsGraph = opts.selectedProjectsGraph as ProjectsGraph
-    const pkgs = Object.values(selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    const pkgsToPack = await pFilter(pkgs, pkg => Boolean(pkg.manifest.name && pkg.manifest.version))
-
+    const pkgsToPack: Project[] = []
+    for (const { package: pkg } of Object.values(selectedProjectsGraph)) {
+      if (pkg.manifest.name && pkg.manifest.version) {
+        pkgsToPack.push(pkg)
+      }
+    }
     const packedPkgDirs = new Set<ProjectRootDir>(pkgsToPack.map(({ rootDir }) => rootDir))
 
     if (packedPkgDirs.size === 0) {
