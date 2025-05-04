@@ -64,6 +64,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 | 'save'
+| 'saveCatalog'
 | 'saveDev'
 | 'saveExact'
 | 'saveOptional'
