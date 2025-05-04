@@ -140,6 +140,7 @@ export interface ResolutionContext {
   allPreferredVersions?: PreferredVersions
   appliedPatches: Set<string>
   updatedSet: Set<string>
+  addNewDefaultCatalog: (pkgAddress: Pick<PkgAddress, 'alias' | 'catalogSpecifier'>) => void
   catalogResolver: CatalogResolver
   defaultTag: string
   dryRun: boolean
@@ -394,7 +395,6 @@ export async function resolveRootDependencies (
 }
 
 interface ResolvedDependenciesResult {
-  newDefaultCatalogs?: Record<string, string>
   pkgAddresses: Array<PkgAddress | LinkedDependency>
   resolvingPeers: Promise<PeersResolutionResult>
 }
@@ -666,7 +666,6 @@ export async function resolveDependencies (
   ))
   const newPreferredVersions = Object.create(preferredVersions) as PreferredVersions
   const currentParentPkgAliases: Record<string, PkgAddress | true> = {}
-  let newDefaultCatalogs: Record<string, string> | undefined
   for (const pkgAddress of pkgAddresses) {
     if (currentParentPkgAliases[pkgAddress.alias] !== true) {
       currentParentPkgAliases[pkgAddress.alias] = pkgAddress
@@ -674,10 +673,7 @@ export async function resolveDependencies (
     if (pkgAddress.updated) {
       ctx.updatedSet.add(pkgAddress.alias)
     }
-    if (pkgAddress.catalogSpecifier != null) {
-      newDefaultCatalogs ??= {}
-      newDefaultCatalogs[pkgAddress.alias] = pkgAddress.catalogSpecifier
-    }
+    ctx.addNewDefaultCatalog(pkgAddress)
     const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
     if (!resolvedPackage) continue // This will happen only with linked dependencies
     if (!Object.prototype.hasOwnProperty.call(newPreferredVersions, resolvedPackage.name)) {
@@ -709,7 +705,6 @@ export async function resolveDependencies (
     }
   }
   return {
-    newDefaultCatalogs,
     pkgAddresses,
     resolvingPeers: startResolvingPeers({
       childrenResults,

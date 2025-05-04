@@ -97,7 +97,6 @@ export interface ResolveDependenciesResult {
     [pkgId: string]: string
   }
   linkedDependenciesByProjectId: Record<string, LinkedDependency[]>
-  newDefaultCatalogs?: Record<string, string>
   newLockfile: LockfileObject
   peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   waitTillAllFetchingsFinish: () => Promise<void>
