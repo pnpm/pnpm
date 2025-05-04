@@ -929,7 +929,6 @@ type InstallFunction = (
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
     pruneVirtualStore: boolean
-    saveCatalogAliases?: string[]
     scriptsOpts: RunLifecycleHooksConcurrentlyOptions
     currentLockfileIsUpToDate: boolean
     hoistWorkspacePackages?: boolean
