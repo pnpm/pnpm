@@ -106,6 +106,7 @@ test('getOptionsFromRootManifest() should derive allowUnusedPatches from allowNo
     },
   })).toStrictEqual({
     allowUnusedPatches: false,
+    overrides: {},
   })
 
   expect(getOptionsFromRootManifest(process.cwd(), {
@@ -114,6 +115,7 @@ test('getOptionsFromRootManifest() should derive allowUnusedPatches from allowNo
     },
   })).toStrictEqual({
     allowUnusedPatches: true,
+    overrides: {},
   })
 })
 
@@ -125,6 +127,7 @@ test('allowUnusedPatches should override allowNonAppliedPatches', () => {
     },
   })).toStrictEqual({
     allowUnusedPatches: false,
+    overrides: {},
   })
 
   expect(getOptionsFromRootManifest(process.cwd(), {
@@ -134,6 +137,7 @@ test('allowUnusedPatches should override allowNonAppliedPatches', () => {
     },
   })).toStrictEqual({
     allowUnusedPatches: false,
+    overrides: {},
   })
 
   expect(getOptionsFromRootManifest(process.cwd(), {
@@ -143,6 +147,7 @@ test('allowUnusedPatches should override allowNonAppliedPatches', () => {
     },
   })).toStrictEqual({
     allowUnusedPatches: false,
+    overrides: {},
   })
 
   expect(getOptionsFromRootManifest(process.cwd(), {
@@ -152,6 +157,7 @@ test('allowUnusedPatches should override allowNonAppliedPatches', () => {
     },
   })).toStrictEqual({
     allowUnusedPatches: false,
+    overrides: {},
   })
 })
 
