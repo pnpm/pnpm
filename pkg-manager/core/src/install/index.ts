@@ -929,6 +929,7 @@ type InstallFunction = (
     updateLockfileMinorVersion: boolean
     preferredVersions?: PreferredVersions
     pruneVirtualStore: boolean
+    saveCatalogAliases?: string[]
     scriptsOpts: RunLifecycleHooksConcurrentlyOptions
     currentLockfileIsUpToDate: boolean
     hoistWorkspacePackages?: boolean
@@ -1059,6 +1060,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
       registries: ctx.registries,
       resolutionMode: opts.resolutionMode,
+      saveCatalogAliases: opts.saveCatalogAliases,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
       tag: opts.tag,
