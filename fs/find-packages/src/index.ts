@@ -74,17 +74,7 @@ function normalizePatterns (patterns: readonly string[]): string[] {
     if (pattern.startsWith('!/')) {
       pattern = `!${pattern.substring(2)}`
     }
-    // We should add separate pattern for each extension
-    // for some reason, fast-glob is buggy with /package.{json,yaml,json5} pattern
-    normalizedPatterns.push(
-      pattern.replace(/\/?$/, '/package.json')
-    )
-    normalizedPatterns.push(
-      pattern.replace(/\/?$/, '/package.json5')
-    )
-    normalizedPatterns.push(
-      pattern.replace(/\/?$/, '/package.yaml')
-    )
+    normalizedPatterns.push(pattern.replace(/\/?$/, '/package.{json,yaml,json5}'))
   }
   return normalizedPatterns
 }
