@@ -1,6 +1,7 @@
 import path from 'path'
 import { add } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
+import { type LockfileFile } from '@pnpm/lockfile.types'
 import { sync as loadJsonFile } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils'
@@ -43,4 +44,22 @@ test('saveCatalog creates new workspace manifest if there was not one', async ()
       '@pnpm.e2e/foo': '^2.0.0',
     },
   })
+
+  expect(project.readLockfile()).toMatchObject({
+    importers: {
+      '.': {
+        dependencies: {
+          '@pnpm.e2e/foo': {
+            specifier: 'catalog:',
+            version: '2.0.0',
+          },
+        },
+      },
+    },
+    packages: {
+      '@pnpm.e2e/foo@2.0.0': {
+        resolution: expect.anything(),
+      },
+    },
+  } as Partial<LockfileFile>)
 })
