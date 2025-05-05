@@ -24,7 +24,7 @@ const createOptions = () => ({
   recursive: true,
 } satisfies Partial<add.AddCommandOptions>)
 
-test('saveCatalog creates new workspace manifest if there was not one', async () => {
+test('saveCatalog creates new workspace manifest with the new catalogs', async () => {
   const project = prepare({
     name: 'test-save-catalog',
     version: '0.0.0',
