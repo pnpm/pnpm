@@ -1,5 +1,11 @@
 # @pnpm/pnpmfile
 
+## 1001.2.0
+
+### Minor Changes
+
+- e5c58f0: Allow loading the `preResolution`, `importPackage`, and `fetchers` hooks from local pnpmfile.
+
 ## 1001.1.2
 
 ### Patch Changes

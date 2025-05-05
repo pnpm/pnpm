@@ -124,6 +124,8 @@ Do you approve?`,
     if (!confirmed.build) {
       return
     }
+  } else {
+    globalInfo('All packages were added to ignoredBuiltDependencies.')
   }
   await writeSettings({
     ...opts,

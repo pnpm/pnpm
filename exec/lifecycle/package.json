@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lifecycle",
-  "version": "1001.0.12",
+  "version": "1001.0.13",
   "description": "Package lifecycle hook runner",
   "keywords": [
     "pnpm",
@@ -47,7 +47,7 @@
     "shell-quote": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": ">=5.1.0 <1001.0.0"
+    "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
     "@pnpm/lifecycle": "workspace:*",

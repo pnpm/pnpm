@@ -2,18 +2,19 @@ import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { packageManager } from '@pnpm/cli-meta'
-import { type Config, type UniversalOptions } from '@pnpm/config'
+import { types as allTypes, type Config, type UniversalOptions } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import { type ProjectManifest } from '@pnpm/types'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { parseRawConfig } from './utils'
 
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes (): Record<string, unknown> {
-  return {}
+  return pick(['init-type', 'init-package-manager'], allTypes)
 }
 
 export const commandNames = ['init']
@@ -28,7 +29,7 @@ export function help (): string {
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'rawConfig'> & Pick<Config, 'cliOptions'> & Partial<Pick<Config, 'initPackageManager'>>,
+  opts: Pick<UniversalOptions, 'rawConfig'> & Pick<Config, 'cliOptions'> & Partial<Pick<Config, 'initPackageManager' | 'initType'>>,
   params?: string[]
 ): Promise<string> {
   if (params?.length) {
@@ -55,6 +56,11 @@ export async function handler (
     author: '',
     license: 'ISC',
   }
+
+  if (opts.initType === 'module') {
+    manifest.type = opts.initType
+  }
+
   const config = await parseRawConfig(opts.rawConfig)
   const packageJson = { ...manifest, ...config }
   if (opts.initPackageManager) {

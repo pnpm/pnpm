@@ -30,6 +30,9 @@ catalogs:
     '@pnpm/log.group':
       specifier: 3.0.1
       version: 3.0.1
+    '@pnpm/logger':
+      specifier: '>=1001.0.0 <1002.0.0'
+      version: 1001.0.0
     '@pnpm/meta-updater':
       specifier: 2.0.5
       version: 2.0.5
@@ -43,8 +46,8 @@ catalogs:
       specifier: 3.0.0
       version: 3.0.0
     '@pnpm/npm-lifecycle':
-      specifier: ^1000.0.2
-      version: 1000.0.2
+      specifier: ^1000.0.4
+      version: 1000.0.4
     '@pnpm/npm-package-arg':
       specifier: ^1.0.0
       version: 1.0.0
@@ -1479,8 +1482,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/git-utils
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../matcher
@@ -1604,8 +1607,8 @@ importers:
         specifier: workspace:*
         version: link:../../network/fetch
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header
@@ -1994,8 +1997,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/verification
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides
@@ -2246,8 +2249,8 @@ importers:
         specifier: workspace:*
         version: link:../../config/config-writer
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
@@ -2378,7 +2381,7 @@ importers:
         version: link:../../pkg-manager/link-bins
       '@pnpm/npm-lifecycle':
         specifier: 'catalog:'
-        version: 1000.0.2(typanion@3.14.0)
+        version: 1000.0.4(typanion@3.14.0)
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -4159,6 +4162,9 @@ importers:
       camelcase-keys:
         specifier: 'catalog:'
         version: 6.2.2
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
@@ -4172,6 +4178,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
@@ -4281,8 +4290,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/error
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/patching.types':
         specifier: workspace:*
         version: link:../types
@@ -8012,8 +8021,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -8273,6 +8282,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
+      '@pnpm/object.key-sorting':
+        specifier: workspace:*
+        version: link:../../object/key-sorting
       '@pnpm/workspace.read-manifest':
         specifier: workspace:*
         version: link:../read-manifest
@@ -9460,6 +9472,10 @@ packages:
     resolution: {integrity: sha512-v5WO9L4pT7ZjZpf7a/a3H3Xj59JPHNMFJwRS7m/01VMWrKjs89CdVIE5e/N6DwuzP750j0iKozTw6UrCVEfQjA==}
     engines: {node: '>=18.12'}
 
+  '@pnpm/logger@1001.0.0':
+    resolution: {integrity: sha512-nj80XtTHHt7T+b5stLWszzd166MbGx4eTOu9+6h6RdelKMlSWhrb7KUb0j90tYk+yoGx8TeMVdJCaoBnkLp8xw==}
+    engines: {node: '>=18.12'}
+
   '@pnpm/manifest-utils@1000.0.6':
     resolution: {integrity: sha512-hHRb0HJQ6VgknkEgEs4FDho69QRETn64QurXm75i+pPuoYkI12vDPXkBmoJQfdHSsA23uGvtadjBueHLx608GQ==}
     engines: {node: '>=18.12'}
@@ -9502,8 +9518,8 @@ packages:
     resolution: {integrity: sha512-LdFkv/+4ONkQ9ZyE8ihC2L2RcPjvNcOTQq6pvvvZp8KeDYATCJeJX7gpHZF3Bx1XvUSU35dyF9Q9dS+JShtOFA==}
     engines: {node: '>=12'}
 
-  '@pnpm/npm-lifecycle@1000.0.2':
-    resolution: {integrity: sha512-+MID5PrMc0hZyIG4GBkNt2a0BG50wX94IS+3Md/FTUJ+H0+BMkdkUGJJbbQhdIPxQD1eAhm+a/3bZuAhnuCNVA==}
+  '@pnpm/npm-lifecycle@1000.0.4':
+    resolution: {integrity: sha512-sN7dG1UV7jZvMgH2C/qtvriq4PsDkJQekuAHWO3DCw4n9Ef5Edv5nNoyg5I288FFzDsEV963HpyVOqB7x94DNw==}
     engines: {node: '>=18.12'}
 
   '@pnpm/npm-package-arg@1.0.0':
@@ -16388,6 +16404,11 @@ snapshots:
       bole: 5.0.17
       ndjson: 2.0.0
 
+  '@pnpm/logger@1001.0.0':
+    dependencies:
+      bole: 5.0.17
+      ndjson: 2.0.0
+
   '@pnpm/manifest-utils@1000.0.6(@pnpm/logger@1000.0.0)':
     dependencies:
       '@pnpm/core-loggers': 1000.1.4(@pnpm/logger@1000.0.0)
@@ -16456,10 +16477,11 @@ snapshots:
       '@pnpm/network.ca-file': 1.0.2
       config-chain: 1.1.13
 
-  '@pnpm/npm-lifecycle@1000.0.2(typanion@3.14.0)':
+  '@pnpm/npm-lifecycle@1000.0.4(typanion@3.14.0)':
     dependencies:
       '@pnpm/byline': 1.0.0
       '@pnpm/error': 1000.0.2
+      '@yarnpkg/fslib': 3.1.2
       '@yarnpkg/shell': 4.0.0(typanion@3.14.0)
       node-gyp: 11.1.0
       resolve-from: 5.0.0

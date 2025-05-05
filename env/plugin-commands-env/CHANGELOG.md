@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-env
 
+## 1000.0.24
+
+### Patch Changes
+
+- fa1e69b: Fix command shim generation in Cygwin/MSYS2/MinGW envs [#9442](https://github.com/pnpm/pnpm/issues/9442).
+  - @pnpm/cli-utils@1000.1.3
+  - @pnpm/config@1003.0.1
+  - @pnpm/node.fetcher@1000.0.16
+  - @pnpm/node.resolver@1000.0.16
+
 ## 1000.0.23
 
 ### Patch Changes

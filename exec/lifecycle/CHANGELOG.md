@@ -1,5 +1,12 @@
 # @pnpm/lifecycle
 
+## 1001.0.13
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+  - @pnpm/link-bins@1000.0.12
+
 ## 1001.0.12
 
 ### Patch Changes

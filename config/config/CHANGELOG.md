@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 1003.0.1
+
+### Patch Changes
+
+- Updated dependencies [e5c58f0]
+  - @pnpm/pnpmfile@1001.2.0
+
 ## 1003.0.0
 
 ### Major Changes

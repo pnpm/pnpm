@@ -1,5 +1,16 @@
 # @pnpm/headless
 
+## 1004.0.3
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+  - @pnpm/link-bins@1000.0.12
+  - @pnpm/build-modules@1000.3.4
+  - @pnpm/lifecycle@1001.0.13
+  - @pnpm/hoist@1001.0.14
+  - @pnpm/package-requester@1004.0.0
+
 ## 1004.0.2
 
 ### Patch Changes

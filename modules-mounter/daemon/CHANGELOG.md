@@ -1,5 +1,11 @@
 # @pnpm/mount-modules
 
+## 1001.0.22
+
+### Patch Changes
+
+- @pnpm/config@1003.0.1
+
 ## 1001.0.21
 
 ### Patch Changes

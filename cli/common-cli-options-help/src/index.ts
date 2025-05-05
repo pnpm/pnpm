@@ -129,7 +129,7 @@ export const OUTPUT_OPTIONS = {
 
   list: [
     {
-      description: 'No output is logged to the console, except fatal errors',
+      description: 'No output is logged to the console, not even fatal errors',
       name: '--silent, --reporter silent',
       shortAlias: '-s',
     },

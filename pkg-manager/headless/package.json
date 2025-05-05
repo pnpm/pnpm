@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/headless",
-  "version": "1004.0.2",
+  "version": "1004.0.3",
   "description": "Fast installation using only pnpm-lock.yaml",
   "keywords": [
     "pnpm",
@@ -73,7 +73,7 @@
     "realpath-missing": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": ">=5.1.0 <1001.0.0",
+    "@pnpm/logger": "catalog:",
     "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {

@@ -1,5 +1,18 @@
 # pnpm
 
+## 10.10.0
+
+### Minor Changes
+
+- Allow loading the `preResolution`, `importPackage`, and `fetchers` hooks from local pnpmfile.
+
+### Patch Changes
+
+- Fix `cd` command, when `shellEmulator` is `true` [#7838](https://github.com/pnpm/pnpm/issues/7838).
+- Sort keys in `pnpm-workspace.yaml` [#9453](https://github.com/pnpm/pnpm/pull/9453).
+- Pass the `npm_package_json` environment variable to the executed scripts [#9452](https://github.com/pnpm/pnpm/issues/9452).
+- Fixed a mistake in the description of the `--reporter=silent` option.
+
 ## 10.9.0
 
 ### Minor Changes
