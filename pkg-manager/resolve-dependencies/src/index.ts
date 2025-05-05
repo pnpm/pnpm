@@ -93,6 +93,7 @@ export interface ImporterToResolve extends Importer<{
 export interface ResolveDependenciesResult {
   dependenciesByProjectId: DependenciesByProjectId
   dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
+  newDefaultCatalogs?: Record<string, string> | undefined
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -135,6 +136,7 @@ export async function resolveDependencies (
     appliedPatches,
     time,
     allPeerDepNames,
+    newDefaultCatalogs,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   opts.storeController.clearResolutionCache()
@@ -319,6 +321,7 @@ export async function resolveDependencies (
     dependenciesGraph,
     outdatedDependencies,
     linkedDependenciesByProjectId,
+    newDefaultCatalogs,
     newLockfile,
     peerDependencyIssuesByProjects,
     waitTillAllFetchingsFinish,

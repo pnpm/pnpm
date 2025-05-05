@@ -219,6 +219,7 @@ export async function mutateModulesInSingleProject (
 }
 
 export interface MutateModulesResult {
+  newDefaultCatalogs?: Record<string, string>
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
@@ -315,6 +316,7 @@ export async function mutateModules (
   }
 
   return {
+    newDefaultCatalogs: result.newDefaultCatalogs,
     updatedProjects: result.updatedProjects,
     stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     depsRequiringBuild: result.depsRequiringBuild,
@@ -322,6 +324,7 @@ export async function mutateModules (
   }
 
   interface InnerInstallResult {
+    readonly newDefaultCatalogs?: Record<string, string>
     readonly updatedProjects: UpdatedProject[]
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
@@ -549,6 +552,7 @@ export async function mutateModules (
     })
 
     return {
+      newDefaultCatalogs: result.newDefaultCatalogs,
       updatedProjects: result.projects,
       stats: result.stats,
       depsRequiringBuild: result.depsRequiringBuild,
@@ -910,6 +914,7 @@ export interface UpdatedProject {
 }
 
 interface InstallFunctionResult {
+  newDefaultCatalogs?: Record<string, string>
   newLockfile: LockfileObject
   projects: UpdatedProject[]
   stats?: InstallationResultStats
@@ -1024,6 +1029,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     dependenciesGraph,
     dependenciesByProjectId,
     linkedDependenciesByProjectId,
+    newDefaultCatalogs,
     newLockfile,
     outdatedDependencies,
     peerDependencyIssuesByProjects,
@@ -1418,6 +1424,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 
   return {
+    newDefaultCatalogs,
     newLockfile,
     projects: projects.map(({ id, manifest, rootDir }) => ({
       manifest,
