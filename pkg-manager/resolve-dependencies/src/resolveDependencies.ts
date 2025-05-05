@@ -140,7 +140,7 @@ export interface ResolutionContext {
   allPreferredVersions?: PreferredVersions
   appliedPatches: Set<string>
   updatedSet: Set<string>
-  addNewDefaultCatalog: (pkgAddress: Pick<PkgAddress, 'alias' | 'catalogSpecifier'>) => void
+  addNewDefaultCatalog: (alias: string, specifier: string) => void
   catalogResolver: CatalogResolver
   defaultTag: string
   dryRun: boolean
@@ -189,7 +189,6 @@ interface MissingPeersOfChildren {
 
 export type PkgAddress = {
   alias: string
-  catalogSpecifier?: string
   depIsLinked: boolean
   isNew: boolean
   isLinkedDependency?: false
@@ -673,7 +672,6 @@ export async function resolveDependencies (
     if (pkgAddress.updated) {
       ctx.updatedSet.add(pkgAddress.alias)
     }
-    ctx.addNewDefaultCatalog(pkgAddress)
     const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
     if (!resolvedPackage) continue // This will happen only with linked dependencies
     if (!Object.prototype.hasOwnProperty.call(newPreferredVersions, resolvedPackage.name)) {
@@ -1571,15 +1569,13 @@ async function resolveDependency (
   }
 
   let normalizedBareSpecifier = pkgResponse.body.normalizedBareSpecifier
-  let catalogSpecifier: string | undefined
-  if (ctx.saveCatalog && wantedDependency.source === 'cli-param') {
-    catalogSpecifier = normalizedBareSpecifier
+  if (ctx.saveCatalog && wantedDependency.source === 'cli-param' && normalizedBareSpecifier) {
+    ctx.addNewDefaultCatalog(wantedDependency.alias, normalizedBareSpecifier)
     normalizedBareSpecifier = 'catalog:'
   }
 
   return {
     alias: wantedDependency.alias ?? pkgResponse.body.alias ?? pkg.name,
-    catalogSpecifier,
     depIsLinked,
     resolvedVia: pkgResponse.body.resolvedVia,
     isNew,

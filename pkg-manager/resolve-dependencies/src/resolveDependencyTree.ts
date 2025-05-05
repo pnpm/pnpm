@@ -159,11 +159,9 @@ export async function resolveDependencyTree<T> (
     autoInstallPeers,
     autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch === true,
     allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
-    addNewDefaultCatalog (pkgAddress): void {
-      if (pkgAddress.catalogSpecifier != null) {
-        newDefaultCatalogs ??= {}
-        newDefaultCatalogs[pkgAddress.alias] = pkgAddress.catalogSpecifier
-      }
+    addNewDefaultCatalog (alias: string, specifier: string): void {
+      newDefaultCatalogs ??= {}
+      newDefaultCatalogs[alias] = specifier
     },
     catalogResolver: resolveFromCatalog.bind(null, opts.catalogs ?? {}),
     childrenByParentId: {} as ChildrenByParentId,
