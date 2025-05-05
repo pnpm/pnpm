@@ -194,6 +194,12 @@ export type MutateModulesOptions = InstallOptions & {
   } | InstallOptions['hooks']
 }
 
+export interface MutateModulesInSingleProjectResult {
+  newDefaultCatalogs: Record<string, string> | undefined
+  updatedProject: UpdatedProject
+  ignoredBuilds: string[] | undefined
+}
+
 export async function mutateModulesInSingleProject (
   project: MutatedProject & {
     binsDir?: string
@@ -202,7 +208,7 @@ export async function mutateModulesInSingleProject (
     modulesDir?: string
   },
   maybeOpts: Omit<MutateModulesOptions, 'allProjects'> & InstallMutationOptions
-): Promise<{ updatedProject: UpdatedProject, ignoredBuilds: string[] | undefined }> {
+): Promise<MutateModulesInSingleProjectResult> {
   const result = await mutateModules(
     [
       {
@@ -221,7 +227,11 @@ export async function mutateModulesInSingleProject (
       }],
     }
   )
-  return { updatedProject: result.updatedProjects[0], ignoredBuilds: result.ignoredBuilds }
+  return {
+    newDefaultCatalogs: result.newDefaultCatalogs,
+    updatedProject: result.updatedProjects[0],
+    ignoredBuilds: result.ignoredBuilds,
+  }
 }
 
 export interface MutateModulesResult {
