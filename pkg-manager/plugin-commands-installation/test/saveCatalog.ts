@@ -21,8 +21,6 @@ const createOptions = (): add.AddCommandOptions => ({
   dir: process.cwd(),
   cacheDir: path.resolve('cache'),
   storeDir: path.resolve('store'),
-  workspaceDir: process.cwd(),
-  recursive: true,
 })
 
 test('saveCatalog creates new workspace manifest with the new catalogs', async () => {
