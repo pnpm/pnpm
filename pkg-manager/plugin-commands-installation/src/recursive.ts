@@ -286,15 +286,13 @@ export async function recursive (
       storeController: store.ctrl,
     })
     if (opts.save !== false) {
-      await Promise.all(
-        mutatedPkgs
-          .map(async ({ originalManifest, manifest, rootDir }) => {
-            return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
-          })
-      )
+      const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
+        return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
+      })
       if (newDefaultCatalogs) {
-        await addDefaultCatalogs(opts.workspaceDir, newDefaultCatalogs)
+        promises.push(addDefaultCatalogs(opts.workspaceDir, newDefaultCatalogs))
       }
+      await Promise.all(promises)
     }
     if (opts.strictDepBuilds && ignoredBuilds?.length) {
       throw new IgnoredBuildsError(ignoredBuilds)
@@ -404,10 +402,10 @@ export async function recursive (
           }
         )
         if (opts.save !== false) {
-          await writeProjectManifest(newManifest)
-          if (newDefaultCatalogs) {
-            await addDefaultCatalogs(opts.workspaceDir, newDefaultCatalogs)
-          }
+          await Promise.all([
+            writeProjectManifest(newManifest),
+            newDefaultCatalogs && addDefaultCatalogs(opts.workspaceDir, newDefaultCatalogs),
+          ])
         }
         if (opts.strictDepBuilds && ignoredBuilds?.length) {
           throw new IgnoredBuildsError(ignoredBuilds)
