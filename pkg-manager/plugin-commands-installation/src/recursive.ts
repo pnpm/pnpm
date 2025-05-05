@@ -346,7 +346,13 @@ export async function recursive (
           & Project
           & Pick<Config, 'bin'>
           & { pinnedVersion: 'major' | 'minor' | 'patch' }
-        type ActionResult = { updatedManifest: ProjectManifest, ignoredBuilds: string[] | undefined }
+
+        interface ActionResult {
+          newDefaultCatalogs?: Record<string, string>
+          updatedManifest: ProjectManifest
+          ignoredBuilds: string[] | undefined
+        }
+
         type ActionFunction = (manifest: PackageManifest | ProjectManifest, opts: ActionOpts) => Promise<ActionResult>
 
         let action: ActionFunction
@@ -360,7 +366,11 @@ export async function recursive (
                 rootDir,
               },
             ], opts)
-            return { updatedManifest: mutationResult.updatedProjects[0].manifest, ignoredBuilds: mutationResult.ignoredBuilds }
+            return {
+              newDefaultCatalogs: undefined, // there's no reason to add new catalogs on `pnpm remove`
+              updatedManifest: mutationResult.updatedProjects[0].manifest,
+              ignoredBuilds: mutationResult.ignoredBuilds,
+            }
           }
           break
         default:
