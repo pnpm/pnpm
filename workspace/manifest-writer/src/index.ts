@@ -21,7 +21,7 @@ async function writeManifestFile (dir: string, manifest: WorkspaceManifest): Pro
 }
 
 export async function updateWorkspaceManifest (dir: string, updatedFields: Partial<WorkspaceManifest>): Promise<void> {
-  let manifest = await readWorkspaceManifest(dir) ?? {} as WorkspaceManifest
+  const manifest = await readWorkspaceManifest(dir) ?? {} as WorkspaceManifest
   let shouldBeUpdated = false
   for (const [key, value] of Object.entries(updatedFields)) {
     if (!equals(manifest[key as keyof WorkspaceManifest], value)) {
