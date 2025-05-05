@@ -8,7 +8,7 @@ import { sync as readYamlFile } from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 
 // This must be a function because some of its values depend on CWD
-const createOptions = () => ({
+const createOptions = (): add.AddCommandOptions => ({
   ...DEFAULT_OPTS,
   rawConfig: {
     ...DEFAULT_OPTS.rawConfig,
@@ -23,7 +23,7 @@ const createOptions = () => ({
   storeDir: path.resolve('store'),
   workspaceDir: process.cwd(),
   recursive: true,
-} satisfies Partial<add.AddCommandOptions>)
+})
 
 test('saveCatalog creates new workspace manifest with the new catalogs', async () => {
   const project = prepare({
