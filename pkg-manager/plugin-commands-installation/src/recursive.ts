@@ -381,7 +381,7 @@ export async function recursive (
         }
 
         const localConfig = await memReadLocalConfig(rootDir)
-        const { updatedManifest: newManifest, ignoredBuilds } = await action(
+        const { newDefaultCatalogs, updatedManifest: newManifest, ignoredBuilds } = await action(
           manifest,
           {
             ...installOpts,
@@ -405,6 +405,9 @@ export async function recursive (
         )
         if (opts.save !== false) {
           await writeProjectManifest(newManifest)
+          if (newDefaultCatalogs) {
+            await addDefaultCatalogs(opts.workspaceDir, newDefaultCatalogs)
+          }
         }
         if (opts.strictDepBuilds && ignoredBuilds?.length) {
           throw new IgnoredBuildsError(ignoredBuilds)
