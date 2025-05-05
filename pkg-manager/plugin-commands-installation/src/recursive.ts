@@ -336,7 +336,12 @@ export async function recursive (
           & Project
           & Pick<Config, 'bin'>
           & { pinnedVersion: 'major' | 'minor' | 'patch' }
-        type ActionResult = { updatedManifest: ProjectManifest, ignoredBuilds: string[] | undefined }
+
+        interface ActionResult {
+          updatedManifest: ProjectManifest
+          ignoredBuilds: string[] | undefined
+        }
+
         type ActionFunction = (manifest: PackageManifest | ProjectManifest, opts: ActionOpts) => Promise<ActionResult>
 
         let action: ActionFunction
@@ -356,7 +361,7 @@ export async function recursive (
         default:
           action = currentInput.length === 0
             ? install
-            : async (manifest, opts) => addDependenciesToPackage(manifest, currentInput, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+            : async (manifest, opts) => addDependenciesToPackage(manifest, currentInput, opts)
           break
         }
 
