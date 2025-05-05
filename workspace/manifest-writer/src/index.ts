@@ -6,7 +6,7 @@ import writeYamlFile from 'write-yaml-file'
 import equals from 'ramda/src/equals'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 
-async function writeManifestFile (dir: string, manifest: WorkspaceManifest): Promise<void> {
+async function writeManifestFile (dir: string, manifest: Partial<WorkspaceManifest>): Promise<void> {
   manifest = sortKeysByPriority({
     priority: { packages: 0 },
     deep: false,
@@ -45,9 +45,7 @@ export async function updateWorkspaceManifest (dir: string, updatedFields: Parti
 }
 
 export async function addDefaultCatalogs (workspaceDir: string, dependencies: Record<string, string>): Promise<void> {
-  const manifest: WorkspaceManifest = await readWorkspaceManifest(workspaceDir) ?? {
-    packages: [],
-  }
+  const manifest: Partial<WorkspaceManifest> = await readWorkspaceManifest(workspaceDir) ?? {}
 
   const targetCatalog: Record<string, string> | undefined = manifest.catalog ?? manifest.catalogs?.default
 
