@@ -142,9 +142,8 @@ export async function handler (opts: PackOptions): Promise<string> {
           const packResult = await api({
             ...opts,
             dir: pkg.rootDir,
-            // set the packDestination to the current dir if out and packDestination are not set
-            out: opts.out ? path.join(opts.dir, opts.out) : undefined,
-            packDestination: !opts.out ? path.join(opts.dir, opts.packDestination ?? '.') : undefined,
+            out: opts.out ? path.resolve(opts.dir, opts.out) : undefined,
+            packDestination: !opts.out ? path.resolve(opts.dir, opts.packDestination ?? '.') : undefined,
           })
           packedPackages.push(toPackResultJson(packResult))
         })
