@@ -24,6 +24,7 @@ import {
   type ProjectRootDir,
   type ProjectRootDirRealPath,
 } from '@pnpm/types'
+import { addDefaultCatalogs } from '@pnpm/workspace.manifest-writer'
 import {
   addDependenciesToPackage,
   install,
@@ -271,7 +272,11 @@ export async function recursive (
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies of any of the projects.')
     }
-    const { updatedProjects: mutatedPkgs, ignoredBuilds } = await mutateModules(mutatedImporters, {
+    const {
+      newDefaultCatalogs,
+      updatedProjects: mutatedPkgs,
+      ignoredBuilds,
+    } = await mutateModules(mutatedImporters, {
       ...installOpts,
       storeController: store.ctrl,
     })
@@ -282,6 +287,9 @@ export async function recursive (
             return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
           })
       )
+      if (newDefaultCatalogs) {
+        await addDefaultCatalogs(opts.workspaceDir, newDefaultCatalogs)
+      }
     }
     if (opts.strictDepBuilds && ignoredBuilds?.length) {
       throw new IgnoredBuildsError(ignoredBuilds)

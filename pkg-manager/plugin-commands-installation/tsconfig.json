@@ -121,6 +121,9 @@
       "path": "../../workspace/find-workspace-dir"
     },
     {
+      "path": "../../workspace/manifest-writer"
+    },
+    {
       "path": "../../workspace/pkgs-graph"
     },
     {
