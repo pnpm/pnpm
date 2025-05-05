@@ -376,7 +376,7 @@ export async function recursive (
         default:
           action = currentInput.length === 0
             ? install
-            : async (manifest, opts) => addDependenciesToPackage(manifest, currentInput, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+            : async (manifest, opts) => addDependenciesToPackage(manifest, currentInput, opts)
           break
         }
 
