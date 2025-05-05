@@ -302,6 +302,8 @@ export async function recursive (
 
   const pkgPaths = (Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()
 
+  let newDefaultCatalogs: Record<string, string> | undefined
+
   const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
   await Promise.all(pkgPaths.map(async (rootDir) =>
     limitInstallation(async () => {
@@ -379,7 +381,11 @@ export async function recursive (
         }
 
         const localConfig = await memReadLocalConfig(rootDir)
-        const { newDefaultCatalogs, updatedManifest: newManifest, ignoredBuilds } = await action(
+        const {
+          newDefaultCatalogs: newDefaultCatalogsAddition,
+          updatedManifest: newManifest,
+          ignoredBuilds,
+        } = await action(
           manifest,
           {
             ...installOpts,
@@ -402,10 +408,11 @@ export async function recursive (
           }
         )
         if (opts.save !== false) {
-          await Promise.all([
-            writeProjectManifest(newManifest),
-            newDefaultCatalogs && addDefaultCatalogs(opts.workspaceDir, newDefaultCatalogs),
-          ])
+          await writeProjectManifest(newManifest)
+          if (newDefaultCatalogsAddition) {
+            newDefaultCatalogs ??= {}
+            Object.assign(newDefaultCatalogs, newDefaultCatalogsAddition)
+          }
         }
         if (opts.strictDepBuilds && ignoredBuilds?.length) {
           throw new IgnoredBuildsError(ignoredBuilds)
@@ -429,6 +436,10 @@ export async function recursive (
       }
     })
   ))
+
+  if (newDefaultCatalogs) {
+    await addDefaultCatalogs(opts.workspaceDir, newDefaultCatalogs)
+  }
 
   if (
     !opts.lockfileOnly && !opts.ignoreScripts && (
