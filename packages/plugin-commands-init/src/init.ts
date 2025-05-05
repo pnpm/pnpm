@@ -27,11 +27,11 @@ export function help (): string {
         title: 'Options',
         list: [
           {
-            description: 'Initialize a package.json file with the specified type',
-            name: '--init-type <type>',
+            description: 'Set the module system for the package. "commonjs" is used by default.',
+            name: '--init-type <commonjs|module>',
           },
           {
-            description: 'Add the package manager to the package.json file',
+            description: 'Pin the project to the current pnpm version by adding a "packageManager" field to package.json',
             name: '--init-package-manager',
           },
         ],
