@@ -1,6 +1,7 @@
+import fs from 'fs'
 import path from 'path'
 import { add } from '@pnpm/plugin-commands-installation'
-import { prepare } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type LockfileFile } from '@pnpm/lockfile.types'
 import { sync as loadJsonFile } from 'load-json-file'
@@ -140,4 +141,37 @@ test('saveCatalog works with different protocols', async () => {
       },
     },
   } as Partial<LockfileFile>)
+})
+
+test('saveCatalog does not work with local dependencies', async () => {
+  preparePackages([
+    {
+      name: 'local-dep',
+      version: '0.1.2-local',
+      private: true,
+    },
+    {
+      name: 'main',
+      version: '0.0.0',
+      private: true,
+    },
+  ])
+
+  process.chdir('main')
+
+  await add.handler(createOptions(), ['../local-dep'])
+
+  expect(loadJsonFile('package.json')).toStrictEqual({
+    name: 'main',
+    version: '0.0.0',
+    private: true,
+    dependencies: {
+      'local-dep': 'link:../local-dep',
+    },
+  })
+
+  expect(fs.existsSync('pnpm-workspace.yaml')).toBe(false)
+
+  expect(readYamlFile('pnpm-lock.yaml')).not.toHaveProperty(['catalog'])
+  expect(readYamlFile('pnpm-lock.yaml')).not.toHaveProperty(['catalogs'])
 })
