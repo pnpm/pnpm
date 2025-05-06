@@ -59,6 +59,8 @@ export async function addDefaultCatalogs (
     targetCatalog[alias] = newDefaultCatalogs[alias].specifier
   }
 
+  if (targetCatalog == null) return
+
   if (targetCatalogWasNil) {
     manifest.catalog = targetCatalog
   }
