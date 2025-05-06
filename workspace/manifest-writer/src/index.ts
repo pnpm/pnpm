@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { type ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import writeYamlFile from 'write-yaml-file'
@@ -44,15 +45,22 @@ export async function updateWorkspaceManifest (dir: string, updatedFields: Parti
   await writeManifestFile(dir, manifest)
 }
 
-export async function addDefaultCatalogs (workspaceDir: string, dependencies: Record<string, string>): Promise<void> {
+export async function addDefaultCatalogs (
+  workspaceDir: string,
+  newDefaultCatalogs: Record<string, Pick<ResolvedCatalogEntry, 'specifier'>>
+): Promise<void> {
   const manifest: Partial<WorkspaceManifest> = await readWorkspaceManifest(workspaceDir) ?? {}
 
-  const targetCatalog: Record<string, string> | undefined = manifest.catalog ?? manifest.catalogs?.default
+  let targetCatalog: Record<string, string> | undefined = manifest.catalog ?? manifest.catalogs?.default
+  const targetCatalogWasNil = targetCatalog == null
 
-  if (targetCatalog == null) {
-    manifest.catalog = dependencies
-  } else {
-    Object.assign(targetCatalog, dependencies)
+  for (const alias in newDefaultCatalogs) {
+    targetCatalog ??= {}
+    targetCatalog[alias] = newDefaultCatalogs[alias].specifier
+  }
+
+  if (targetCatalogWasNil) {
+    manifest.catalog = targetCatalog
   }
 
   await writeManifestFile(workspaceDir, manifest)

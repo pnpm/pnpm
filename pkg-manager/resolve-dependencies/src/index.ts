@@ -5,6 +5,7 @@ import {
 import {
   type LockfileObject,
   type ProjectSnapshot,
+  type ResolvedCatalogEntry,
 } from '@pnpm/lockfile.types'
 import {
   getAllDependenciesFromManifest,
@@ -93,7 +94,7 @@ export interface ImporterToResolve extends Importer<{
 export interface ResolveDependenciesResult {
   dependenciesByProjectId: DependenciesByProjectId
   dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
-  newDefaultCatalogs?: Record<string, string> | undefined
+  newDefaultCatalogs?: Record<string, ResolvedCatalogEntry> | undefined
   outdatedDependencies: {
     [pkgId: string]: string
   }

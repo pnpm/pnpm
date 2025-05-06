@@ -1,6 +1,6 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
-import { type LockfileObject } from '@pnpm/lockfile.types'
+import { type LockfileObject, type ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import { type PatchGroupRecord } from '@pnpm/patching.config'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
@@ -137,7 +137,7 @@ export interface ResolveDependenciesOptions {
 export interface ResolveDependencyTreeResult {
   allPeerDepNames: Set<string>
   dependenciesTree: DependenciesTree<ResolvedPackage>
-  newDefaultCatalogs?: Record<string, string>
+  newDefaultCatalogs?: Record<string, ResolvedCatalogEntry>
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -154,14 +154,14 @@ export async function resolveDependencyTree<T> (
 ): Promise<ResolveDependencyTreeResult> {
   const wantedToBeSkippedPackageIds = new Set<PkgResolutionId>()
   const autoInstallPeers = opts.autoInstallPeers === true
-  let newDefaultCatalogs: Record<string, string> | undefined
+  let newDefaultCatalogs: Record<string, ResolvedCatalogEntry> | undefined
   const ctx: ResolutionContext = {
     autoInstallPeers,
     autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch === true,
     allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
-    addNewDefaultCatalog (alias: string, specifier: string): void {
+    addNewDefaultCatalog (alias: string, entry: ResolvedCatalogEntry): void {
       newDefaultCatalogs ??= {}
-      newDefaultCatalogs[alias] = specifier
+      newDefaultCatalogs[alias] = entry
     },
     catalogResolver: resolveFromCatalog.bind(null, opts.catalogs ?? {}),
     childrenByParentId: {} as ChildrenByParentId,

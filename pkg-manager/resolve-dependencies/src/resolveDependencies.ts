@@ -9,6 +9,7 @@ import { PnpmError } from '@pnpm/error'
 import {
   type LockfileObject,
   type PackageSnapshot,
+  type ResolvedCatalogEntry,
   type ResolvedDependencies,
 } from '@pnpm/lockfile.types'
 import {
@@ -140,7 +141,7 @@ export interface ResolutionContext {
   allPreferredVersions?: PreferredVersions
   appliedPatches: Set<string>
   updatedSet: Set<string>
-  addNewDefaultCatalog: (alias: string, specifier: string) => void
+  addNewDefaultCatalog: (alias: string, entry: ResolvedCatalogEntry) => void
   catalogResolver: CatalogResolver
   defaultTag: string
   dryRun: boolean
@@ -1569,8 +1570,12 @@ async function resolveDependency (
   }
 
   let normalizedBareSpecifier = pkgResponse.body.normalizedBareSpecifier
-  if (ctx.saveCatalog && wantedDependency.source === 'cli-param' && normalizedBareSpecifier) {
-    ctx.addNewDefaultCatalog(wantedDependency.alias, normalizedBareSpecifier)
+  const resolvedPkg = ctx.resolvedPkgsById[pkgResponse.body.id]
+  if (ctx.saveCatalog && wantedDependency.source === 'cli-param' && normalizedBareSpecifier && resolvedPkg != null) {
+    ctx.addNewDefaultCatalog(wantedDependency.alias, {
+      specifier: normalizedBareSpecifier,
+      version: resolvedPkg.version,
+    })
     normalizedBareSpecifier = 'catalog:'
   }
 

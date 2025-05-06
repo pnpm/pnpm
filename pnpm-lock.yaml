@@ -8282,6 +8282,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../../object/key-sorting

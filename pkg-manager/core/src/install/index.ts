@@ -38,6 +38,7 @@ import {
   writeWantedLockfile,
   cleanGitBranchLockfiles,
   type CatalogSnapshots,
+  type ResolvedCatalogEntry,
 } from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { extendProjectsWithTargetDirs } from '@pnpm/lockfile.utils'
@@ -142,7 +143,7 @@ type Opts = Omit<InstallOptions, 'allProjects'> & {
 } & InstallMutationOptions
 
 export interface InstallResult {
-  newDefaultCatalogs: Record<string, string> | undefined
+  newDefaultCatalogs: Record<string, ResolvedCatalogEntry> | undefined
   updatedManifest: ProjectManifest
   ignoredBuilds: string[] | undefined
 }
@@ -195,7 +196,7 @@ export type MutateModulesOptions = InstallOptions & {
 }
 
 export interface MutateModulesInSingleProjectResult {
-  newDefaultCatalogs: Record<string, string> | undefined
+  newDefaultCatalogs: Record<string, ResolvedCatalogEntry> | undefined
   updatedProject: UpdatedProject
   ignoredBuilds: string[] | undefined
 }
@@ -235,7 +236,7 @@ export async function mutateModulesInSingleProject (
 }
 
 export interface MutateModulesResult {
-  newDefaultCatalogs?: Record<string, string>
+  newDefaultCatalogs?: Record<string, ResolvedCatalogEntry>
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
@@ -340,7 +341,7 @@ export async function mutateModules (
   }
 
   interface InnerInstallResult {
-    readonly newDefaultCatalogs?: Record<string, string>
+    readonly newDefaultCatalogs?: Record<string, ResolvedCatalogEntry>
     readonly updatedProjects: UpdatedProject[]
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
@@ -930,7 +931,7 @@ export interface UpdatedProject {
 }
 
 interface InstallFunctionResult {
-  newDefaultCatalogs?: Record<string, string>
+  newDefaultCatalogs?: Record<string, ResolvedCatalogEntry>
   newLockfile: LockfileObject
   projects: UpdatedProject[]
   stats?: InstallationResultStats

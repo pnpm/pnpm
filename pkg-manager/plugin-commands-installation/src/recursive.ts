@@ -12,6 +12,7 @@ import {
 } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+import { type ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { createMatcherWithIndex } from '@pnpm/matcher'
@@ -302,7 +303,7 @@ export async function recursive (
 
   const pkgPaths = (Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()
 
-  let newDefaultCatalogs: Record<string, string> | undefined
+  let newDefaultCatalogs: Record<string, ResolvedCatalogEntry> | undefined
 
   const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
   await Promise.all(pkgPaths.map(async (rootDir) =>
@@ -348,7 +349,7 @@ export async function recursive (
           & { pinnedVersion: 'major' | 'minor' | 'patch' }
 
         interface ActionResult {
-          newDefaultCatalogs?: Record<string, string>
+          newDefaultCatalogs?: Record<string, ResolvedCatalogEntry>
           updatedManifest: ProjectManifest
           ignoredBuilds: string[] | undefined
         }
