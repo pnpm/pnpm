@@ -240,7 +240,6 @@ export async function handler (
     if (opts.allowBuild.length === 1 && opts.allowBuild[0] === 'true') {
       throw new PnpmError('ALLOW_BUILD_MISSING_PACKAGE', 'The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
     }
-    console.warn('The --allow-build flag is deprecated. Use the --only-builtin-dependencies flag instead.', opts.allowBuild)
     if (opts.rootProjectManifest?.pnpm?.ignoredBuiltDependencies?.length) {
       const overlapDependencies = opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.filter((dep) => opts.allowBuild?.includes(dep))
       if (overlapDependencies.length) {
