@@ -35,10 +35,10 @@ export function rcOptionsTypes (): Record<string, unknown> {
 
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
-    'pack-destination': String,
     out: String,
     recursive: Boolean,
     ...pick([
+      'pack-destination',
       'pack-gzip-level',
       'json',
     ], allTypes),
