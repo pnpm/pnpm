@@ -1581,7 +1581,7 @@ async function resolveDependency (
   }
 
   return {
-    alias: wantedDependency.alias ?? pkgResponse.body.alias ?? pkg.name,
+    alias,
     depIsLinked,
     resolvedVia: pkgResponse.body.resolvedVia,
     isNew,
@@ -1591,7 +1591,7 @@ async function resolveDependency (
     pkgId: pkgResponse.body.id,
     rootDir,
     missingPeers: getMissingPeers(pkg),
-    optional: ctx.resolvedPkgsById[pkgResponse.body.id].optional,
+    optional: resolvedPkg.optional,
 
     // Next fields are actually only needed when isNew = true
     installable,
