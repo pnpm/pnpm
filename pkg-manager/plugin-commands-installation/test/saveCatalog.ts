@@ -35,19 +35,15 @@ test('saveCatalog creates new workspace manifest with the new catalogs', async (
 
   await add.handler(createOptions(), ['@pnpm.e2e/foo'])
 
-  expect(loadJsonFile('package.json')).toMatchObject({
-    dependencies: {
-      '@pnpm.e2e/foo': 'catalog:',
-    },
+  expect(loadJsonFile('package.json')).toHaveProperty(['dependencies'], {
+    '@pnpm.e2e/foo': 'catalog:',
   })
 
-  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
-    catalog: {
-      '@pnpm.e2e/foo': '^100.1.0',
-    },
+  expect(readYamlFile('pnpm-workspace.yaml')).toHaveProperty(['catalog'], {
+    '@pnpm.e2e/foo': '^100.1.0',
   })
 
-  expect(project.readLockfile()).toMatchObject({
+  expect(project.readLockfile()).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         '@pnpm.e2e/foo': {
@@ -71,7 +67,7 @@ test('saveCatalog creates new workspace manifest with the new catalogs', async (
         resolution: expect.anything(),
       },
     },
-  } as Partial<LockfileFile>)
+  } as Partial<LockfileFile>))
 })
 
 test('saveCatalog works with different protocols', async () => {
@@ -89,23 +85,19 @@ test('saveCatalog works with different protocols', async () => {
     'github:kevva/is-positive#97edff6',
   ])
 
-  expect(loadJsonFile('package.json')).toMatchObject({
-    dependencies: {
-      '@pnpm.e2e/foo': 'catalog:',
-      '@rus/greet': 'catalog:',
-      'is-positive': 'catalog:',
-    },
+  expect(loadJsonFile('package.json')).toHaveProperty(['dependencies'], {
+    '@pnpm.e2e/foo': 'catalog:',
+    '@rus/greet': 'catalog:',
+    'is-positive': 'catalog:',
   })
 
-  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
-    catalog: {
-      '@pnpm.e2e/foo': '100.1.0',
-      '@rus/greet': 'jsr:0.0.3',
-      'is-positive': 'github:kevva/is-positive#97edff6',
-    },
+  expect(readYamlFile('pnpm-workspace.yaml')).toHaveProperty(['catalog'], {
+    '@pnpm.e2e/foo': '100.1.0',
+    '@rus/greet': 'jsr:0.0.3',
+    'is-positive': 'github:kevva/is-positive#97edff6',
   })
 
-  expect(project.readLockfile()).toMatchObject({
+  expect(project.readLockfile()).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         '@pnpm.e2e/foo': {
@@ -140,7 +132,7 @@ test('saveCatalog works with different protocols', async () => {
         },
       },
     },
-  } as Partial<LockfileFile>)
+  } as Partial<LockfileFile>))
 })
 
 test('saveCatalog does not work with local dependencies', async () => {
