@@ -88,6 +88,19 @@ test('--save-catalog adds catalogs to the manifest of a single package workspace
       '@pnpm.e2e/foo@100.1.0': expect.anything(),
     },
   } as Partial<LockfileFile>))
+  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+    catalog: {
+      '@pnpm.e2e/bar': '^100.1.0',
+      '@pnpm.e2e/foo': '^100.1.0',
+    },
+  })
+  expect(loadJsonFile('package.json')).toStrictEqual({
+    ...manifest,
+    dependencies: {
+      ...manifest.dependencies,
+      '@pnpm.e2e/foo': 'catalog:',
+    },
+  })
 })
 
 test('--save-catalog adds catalogs to the manifest of a shared lockfile workspace', async () => {
