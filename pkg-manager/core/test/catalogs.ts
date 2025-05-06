@@ -344,7 +344,7 @@ test('lockfile catalog snapshots do not contain stale references on --filter', a
     },
   })
 
-  expect(readLockfile()).toMatchObject({
+  expect(readLockfile()).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         'is-positive': { specifier: '=3.1.0', version: '3.1.0' },
@@ -361,7 +361,7 @@ test('lockfile catalog snapshots do not contain stale references on --filter', a
         },
       }),
     }),
-  })
+  }))
 
   // is-positive was not updated because only dependencies of project1 were.
   const pathToIsPositivePkgJson = path.join(options.allProjects[1].rootDir!, 'node_modules/is-positive/package.json')
@@ -431,7 +431,7 @@ test('dedupe-peer-dependents=false with --filter does not erase catalog snapshot
 
   // The catalogs snapshot section was erased in the bug report from
   // https://github.com/pnpm/pnpm/issues/9112 when dedupe-peer-dependents=false.
-  expect(readLockfile()).toMatchObject({
+  expect(readLockfile()).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
         'is-positive': { specifier: '^1.0.0', version: '1.0.0' },
@@ -445,7 +445,7 @@ test('dedupe-peer-dependents=false with --filter does not erase catalog snapshot
         },
       }),
     }),
-  })
+  }))
 })
 
 // Regression test for https://github.com/pnpm/pnpm/issues/8639
@@ -572,13 +572,13 @@ test('catalog resolutions should be consistent', async () => {
 
   // At this point, both 3.0.0 and 3.1.0 should be in the lockfile, but the
   // catalog entry still resolves to 3.0.0.
-  expect(readLockfile()).toMatchObject({
+  expect(readLockfile()).toStrictEqual(expect.objectContaining({
     catalogs: { default: { 'is-positive': { specifier: '^3.0.0', version: '3.0.0' } } },
     packages: expect.objectContaining({
-      'is-positive@3.0.0': expect.objectContaining({}),
-      'is-positive@3.1.0': expect.objectContaining({}),
+      'is-positive@3.0.0': expect.any(Object),
+      'is-positive@3.1.0': expect.any(Object),
     }),
-  })
+  }))
 
   // Adding a new catalog dependency. It should resolve to 3.0.0 instead of 3.1.0, despite resolution-mode=highest.
   projects['project3' as ProjectId].dependencies = {
@@ -589,11 +589,11 @@ test('catalog resolutions should be consistent', async () => {
   // Expect all projects using the catalog specifier (e.g. project1 and project3) to resolve to the same version.
   expect(readLockfile()).toMatchObject({
     catalogs: { default: { 'is-positive': { specifier: '^3.0.0', version: '3.0.0' } } },
-    importers: expect.objectContaining({
-      project1: expect.objectContaining({ dependencies: { 'is-positive': { specifier: 'catalog:', version: '3.0.0' } } }),
-      project2: expect.objectContaining({ dependencies: { 'is-positive': { specifier: '3.1.0', version: '3.1.0' } } }),
-      project3: expect.objectContaining({ dependencies: { 'is-positive': { specifier: 'catalog:', version: '3.0.0' } } }),
-    }),
+    importers: {
+      project1: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '3.0.0' } } },
+      project2: { dependencies: { 'is-positive': { specifier: '3.1.0', version: '3.1.0' } } },
+      project3: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '3.0.0' } } },
+    },
   })
 })
 
@@ -641,10 +641,10 @@ test('catalog entry using npm alias can be reused', async () => {
 
   expect(readLockfile()).toMatchObject({
     catalogs: { default: { '@pnpm.test/is-positive-alias': { specifier: 'npm:is-positive@1.0.0', version: '1.0.0' } } },
-    importers: expect.objectContaining({
-      project1: expect.objectContaining({ dependencies: { '@pnpm.test/is-positive-alias': { specifier: 'catalog:', version: 'is-positive@1.0.0' } } }),
-      project2: expect.objectContaining({ dependencies: { '@pnpm.test/is-positive-alias': { specifier: 'catalog:', version: 'is-positive@1.0.0' } } }),
-    }),
+    importers: {
+      project1: { dependencies: { '@pnpm.test/is-positive-alias': { specifier: 'catalog:', version: 'is-positive@1.0.0' } } },
+      project2: { dependencies: { '@pnpm.test/is-positive-alias': { specifier: 'catalog:', version: 'is-positive@1.0.0' } } },
+    },
   })
 })
 
@@ -902,7 +902,7 @@ describe('add', () => {
     })
     expect(readLockfile()).toMatchObject({
       catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
-      packages: { 'is-positive@1.0.0': expect.objectContaining({}) },
+      packages: { 'is-positive@1.0.0': expect.any(Object) },
     })
   })
 
@@ -932,7 +932,7 @@ describe('add', () => {
     })
     expect(readLockfile()).toMatchObject({
       catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
-      packages: { 'is-positive@1.0.0': expect.objectContaining({}) },
+      packages: { 'is-positive@1.0.0': expect.any(Object) },
     })
   })
 
@@ -962,7 +962,7 @@ describe('add', () => {
     })
     expect(readLockfile()).toMatchObject({
       catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
-      packages: { 'is-positive@1.0.0': expect.objectContaining({}) },
+      packages: { 'is-positive@1.0.0': expect.any(Object) },
     })
   })
 
@@ -990,8 +990,8 @@ describe('add', () => {
         'is-positive': '2.0.0',
       },
     })
-    expect(readLockfile()).toMatchObject({
-      packages: { 'is-positive@2.0.0': expect.objectContaining({}) },
+    expect(readLockfile().packages).toStrictEqual({
+      'is-positive@2.0.0': expect.any(Object),
     })
   })
 })
@@ -1094,7 +1094,7 @@ describe('update', () => {
     // The lockfile should only contain 1.0.0 and not 1.3.0 (or a later version).
     expect(readLockfile()).toMatchObject({
       catalogs: { default: { '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' } } },
-      packages: { '@pnpm.e2e/foo@1.0.0': expect.objectContaining({}) },
+      packages: { '@pnpm.e2e/foo@1.0.0': expect.any(Object) },
     })
   })
 
