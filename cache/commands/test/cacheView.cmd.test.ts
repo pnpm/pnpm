@@ -45,7 +45,7 @@ describe('cache view', () => {
     }, ['view', 'is-negative'])
 
     expect(JSON.parse(result!)).toMatchObject({
-      [`localhost:${REGISTRY_MOCK_PORT}`]: expect.objectContaining({
+      [`localhost:${REGISTRY_MOCK_PORT}`]: {
         cachedVersions: ['2.1.0'],
         nonCachedVersions: [
           '1.0.0',
@@ -54,8 +54,8 @@ describe('cache view', () => {
           '2.0.1',
           '2.0.2',
         ],
-      }),
-      'registry.npmjs.org': expect.objectContaining({
+      },
+      'registry.npmjs.org': {
         cachedVersions: ['2.1.0'],
         nonCachedVersions: [
           '1.0.0',
@@ -64,7 +64,7 @@ describe('cache view', () => {
           '2.0.1',
           '2.0.2',
         ],
-      }),
+      },
     })
   })
   test('lists metadata for requested package from specified registry', async () => {
@@ -78,7 +78,7 @@ describe('cache view', () => {
     }, ['view', 'is-negative'])
 
     expect(JSON.parse(result!)).toMatchObject({
-      'registry.npmjs.org': expect.objectContaining({
+      'registry.npmjs.org': {
         cachedVersions: ['2.1.0'],
         nonCachedVersions: [
           '1.0.0',
@@ -87,7 +87,7 @@ describe('cache view', () => {
           '2.0.1',
           '2.0.2',
         ],
-      }),
+      },
     })
   })
 
