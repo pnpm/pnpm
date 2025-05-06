@@ -72,3 +72,73 @@ test('saveCatalog creates new workspace manifest with the new catalogs', async (
     },
   } as Partial<LockfileFile>)
 })
+
+test.skip('saveCatalog works with different protocols', async () => {
+  const project = prepare({
+    name: 'test-save-catalog',
+    version: '0.0.0',
+    private: true,
+  })
+
+  const options = createOptions()
+  options.registries['@jsr'] = options.rawConfig['@jsr:registry'] = 'https://npm.jsr.io/'
+  await add.handler(options, [
+    '@pnpm.e2e/foo@100.1.0',
+    'jsr:@rus/greet@0.0.3',
+    'github:kevva/is-positive#97edff6',
+  ])
+
+  expect(loadJsonFile('package.json')).toMatchObject({
+    dependencies: {
+      '@pnpm.e2e/foo': 'catalog:',
+      '@rus/greet': 'catalog:',
+      'is-positive': 'catalog:',
+    },
+  })
+
+  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+    catalog: {
+      '@pnpm.e2e/foo': '100.1.0',
+      '@rus/greet': 'jsr:0.0.3',
+      'is-positive': 'github:kevva/is-positive#97edff6',
+    },
+  })
+
+  expect(project.readLockfile()).toMatchObject({
+    catalogs: {
+      default: {
+        '@pnpm.e2e/foo': {
+          specifier: '100.1.0',
+          version: '100.1.0',
+        },
+        '@rus/greet': {
+          specifier: 'jsr:0.0.3',
+          version: 'TODO',
+        },
+        'is-positive': {
+          specifier: 'github:kevva/is-positive#97edff6',
+          version: 'TODO',
+        },
+      },
+    },
+    importers: {
+      '.': {
+        dependencies: {
+          '@pnpm.e2e/foo': {
+            specifier: 'catalog:',
+            version: '100.1.0',
+          },
+          '@rus/greet': {
+            specifier: 'catalog:',
+            version: 'TODO',
+          },
+        },
+      },
+    },
+    packages: {
+      // '@pnpm.e2e/foo@100.1.0': {
+      //   resolution: expect.anything(),
+      // },
+    },
+  } as Partial<LockfileFile>)
+})
