@@ -73,7 +73,7 @@ test('saveCatalog creates new workspace manifest with the new catalogs', async (
   } as Partial<LockfileFile>)
 })
 
-test.skip('saveCatalog works with different protocols', async () => {
+test('saveCatalog works with different protocols', async () => {
   const project = prepare({
     name: 'test-save-catalog',
     version: '0.0.0',
@@ -113,11 +113,11 @@ test.skip('saveCatalog works with different protocols', async () => {
         },
         '@rus/greet': {
           specifier: 'jsr:0.0.3',
-          version: 'TODO',
+          version: '0.0.3',
         },
         'is-positive': {
           specifier: 'github:kevva/is-positive#97edff6',
-          version: 'TODO',
+          version: '3.1.0',
         },
       },
     },
@@ -130,15 +130,14 @@ test.skip('saveCatalog works with different protocols', async () => {
           },
           '@rus/greet': {
             specifier: 'catalog:',
-            version: 'TODO',
+            version: '@jsr/rus__greet@0.0.3',
+          },
+          'is-positive': {
+            specifier: 'catalog:',
+            version: 'https://codeload.github.com/kevva/is-positive/tar.gz/97edff6',
           },
         },
       },
-    },
-    packages: {
-      // '@pnpm.e2e/foo@100.1.0': {
-      //   resolution: expect.anything(),
-      // },
     },
   } as Partial<LockfileFile>)
 })

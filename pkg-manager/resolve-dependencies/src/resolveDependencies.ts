@@ -1571,8 +1571,9 @@ async function resolveDependency (
 
   let normalizedBareSpecifier = pkgResponse.body.normalizedBareSpecifier
   const resolvedPkg = ctx.resolvedPkgsById[pkgResponse.body.id]
-  if (ctx.saveCatalog && wantedDependency.source === 'cli-param' && normalizedBareSpecifier && resolvedPkg != null) {
-    ctx.addNewDefaultCatalog(wantedDependency.alias, {
+  const alias = wantedDependency.alias ?? pkgResponse.body.alias ?? pkg.name
+  if (alias && ctx.saveCatalog && wantedDependency.source === 'cli-param' && normalizedBareSpecifier && resolvedPkg != null) {
+    ctx.addNewDefaultCatalog(alias, {
       specifier: normalizedBareSpecifier,
       version: resolvedPkg.version,
     })

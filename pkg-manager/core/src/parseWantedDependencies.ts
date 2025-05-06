@@ -44,7 +44,8 @@ export function parseWantedDependencies (
         dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
         optional: Boolean(opts.optional || alias && !!opts.optionalDependencies[alias]),
         prevSpecifier: alias && opts.currentBareSpecifiers[alias],
-      }
+        source: opts.source,
+      } satisfies Partial<WantedDependency>
       if (bareSpecifier) {
         return {
           ...result,
@@ -66,7 +67,6 @@ export function parseWantedDependencies (
       return {
         ...result,
         bareSpecifier: opts.defaultTag,
-        source: opts.source,
       }
     })
     .filter((wd) => wd !== null) as WantedDependency[]
