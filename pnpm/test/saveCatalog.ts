@@ -196,3 +196,54 @@ test('--save-catalog adds catalogs to the manifest of a shared lockfile workspac
     },
   })
 })
+
+test('--save-catalog does not add local workspace dependency as a catalog', async () => {
+  const manifests: ProjectManifest[] = [
+    {
+      name: 'project-0',
+      version: '0.0.0',
+    },
+    {
+      name: 'project-1',
+      version: '0.0.0',
+    },
+  ]
+
+  preparePackages(manifests)
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['project-0', 'project-1'],
+  })
+
+  await execPnpm(['install'])
+  expect(readYamlFile('pnpm-lock.yaml')).toMatchObject({
+    importers: {
+      'project-0': {},
+      'project-1': {},
+    },
+  } as Partial<LockfileFile>)
+
+  await execPnpm(['--filter=project-1', 'add', ...SAVE_CATALOG, 'project-0@workspace:*'])
+  expect(readYamlFile('pnpm-lock.yaml')).toMatchObject({
+    importers: {
+      'project-0': {},
+      'project-1': {
+        dependencies: {
+          'project-0': {
+            specifier: 'workspace:*',
+            version: 'link:../project-0',
+          },
+        },
+      },
+    },
+  } as Partial<LockfileFile>)
+  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+    packages: ['project-0', 'project-1'],
+  })
+  expect(loadJsonFile('project-1/package.json')).toStrictEqual({
+    ...manifests[1],
+    dependencies: {
+      'project-0': 'workspace:*',
+    },
+  })
+})
