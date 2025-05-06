@@ -323,6 +323,7 @@ test('--save-catalog adds catalogs to the manifest of a multi-lockfile workspace
     expect(loadJsonFile('project-1/package.json')).toStrictEqual({
       ...manifests[1],
       dependencies: {
+        ...manifests[1].dependencies,
         '@pnpm.e2e/foo': 'catalog:',
       },
     })
