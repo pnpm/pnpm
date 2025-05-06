@@ -307,6 +307,10 @@ export async function resolveDependencies (
   }
 
   newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
+  for (const alias in newDefaultCatalogs) {
+    newLockfile.catalogs.default ??= {}
+    newLockfile.catalogs.default[alias] = newDefaultCatalogs[alias]
+  }
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {

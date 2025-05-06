@@ -47,14 +47,14 @@ test('saveCatalog creates new workspace manifest with the new catalogs', async (
   })
 
   expect(project.readLockfile()).toMatchObject({
-    // catalogs: {
-    //   default: {
-    //     '@pnpm.e2e/foo': {
-    //       specifier: '^100.1.0',
-    //       version: '100.1.0',
-    //     },
-    //   },
-    // },
+    catalogs: {
+      default: {
+        '@pnpm.e2e/foo': {
+          specifier: '^100.1.0',
+          version: '100.1.0',
+        },
+      },
+    },
     importers: {
       '.': {
         dependencies: {

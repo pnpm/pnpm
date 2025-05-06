@@ -63,10 +63,10 @@ test('--save-catalog adds catalogs to the manifest of a single package workspace
           specifier: '^100.1.0',
           version: '100.1.0',
         },
-        // '@pnpm.e2e/foo': {
-        //   specifier: '^100.1.0',
-        //   version: '100.1.0',
-        // },
+        '@pnpm.e2e/foo': {
+          specifier: '^100.1.0',
+          version: '100.1.0',
+        },
       },
     },
     importers: {
@@ -152,10 +152,10 @@ test('--save-catalog adds catalogs to the manifest of a shared lockfile workspac
           specifier: '^100.1.0',
           version: '100.1.0',
         },
-        // '@pnpm.e2e/foo': {
-        //   specifier: '^100.1.0',
-        //   version: '100.1.0',
-        // },
+        '@pnpm.e2e/foo': {
+          specifier: '^100.1.0',
+          version: '100.1.0',
+        },
       },
     },
     importers: {
