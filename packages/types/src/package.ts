@@ -135,6 +135,11 @@ export type AllowedDeprecatedVersions = Record<string, string>
 
 export type ConfigDependencies = Record<string, string>
 
+export interface AuditConfig {
+  ignoreCves?: string[]
+  ignoreGhsas?: string[]
+}
+
 export interface PnpmSettings {
   configDependencies?: ConfigDependencies
   neverBuiltDependencies?: string[]
@@ -153,10 +158,7 @@ export interface PnpmSettings {
   updateConfig?: {
     ignoreDependencies?: string[]
   }
-  auditConfig?: {
-    ignoreCves?: string[]
-    ignoreGhsas?: string[]
-  }
+  auditConfig?: AuditConfig
   requiredScripts?: string[]
   supportedArchitectures?: SupportedArchitectures
   executionEnv?: ExecutionEnv

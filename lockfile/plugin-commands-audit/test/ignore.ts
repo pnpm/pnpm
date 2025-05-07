@@ -1,10 +1,8 @@
 import path from 'path'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type ProjectManifest } from '@pnpm/types'
 import { audit } from '@pnpm/plugin-commands-audit'
-import { readProjectManifest } from '@pnpm/read-project-manifest'
-import loadJsonFile from 'load-json-file'
 import nock from 'nock'
+import { sync as readYamlFile } from 'read-yaml-file'
 import * as responses from './utils/responses'
 
 const f = fixtures(__dirname)
@@ -37,8 +35,8 @@ test('ignores are added for vulnerable dependencies with no resolutions', async 
   expect(exitCode).toBe(0)
   expect(output).toContain('2 new ignores were added to package.json')
 
-  const manifest = loadJsonFile.sync<ProjectManifest>(path.join(tmp, 'package.json'))
-  const cveList = manifest.pnpm?.auditConfig?.ignoreCves
+  const manifest = readYamlFile<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
+  const cveList = manifest.auditConfig?.ignoreCves
   expect(cveList?.length).toBe(2)
   expect(cveList).toStrictEqual(expect.arrayContaining(['CVE-2017-16115', 'CVE-2017-16024']))
 })
@@ -75,23 +73,15 @@ test('Ignored CVEs are not duplicated', async () => {
     'CVE-2017-16024',
   ]
 
-  {
-    const { manifest, writeProjectManifest } = await readProjectManifest(tmp)
-    manifest.pnpm = {
-      ...manifest.pnpm,
-      auditConfig: {
-        ignoreCves: existingCves,
-      },
-    }
-    await writeProjectManifest(manifest)
-  }
-
   nock(registries.default)
     .post('/-/npm/v1/security/audits')
     .reply(200, responses.ALL_VULN_RESP)
 
   const { exitCode, output } = await audit.handler({
     auditLevel: 'moderate',
+    auditConfig: {
+      ignoreCves: existingCves,
+    },
     dir: tmp,
     rootProjectManifestDir: tmp,
     fix: false,
@@ -104,6 +94,6 @@ test('Ignored CVEs are not duplicated', async () => {
   expect(exitCode).toBe(0)
   expect(output).toBe('No new ignores were added')
 
-  const manifest = loadJsonFile.sync<ProjectManifest>(path.join(tmp, 'package.json'))
-  expect(manifest.pnpm?.auditConfig?.ignoreCves).toStrictEqual(expect.arrayContaining(existingCves))
+  const manifest = readYamlFile<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
+  expect(manifest.auditConfig?.ignoreCves).toStrictEqual(expect.arrayContaining(existingCves))
 })

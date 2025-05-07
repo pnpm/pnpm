@@ -221,7 +221,15 @@ ${JSON.stringify(newOverrides, null, 2)}`,
     }
   }
   if (opts.ignoreVulnerabilities !== undefined) {
-    const newIgnores = await ignore(opts.dir, opts.ignoreVulnerabilities, auditReport)
+    const newIgnores = await ignore({
+      auditConfig: opts.auditConfig,
+      auditReport,
+      commaDelimList: opts.ignoreVulnerabilities,
+      dir: opts.dir,
+      rootProjectManifest: opts.rootProjectManifest,
+      rootProjectManifestDir: opts.rootProjectManifestDir,
+      workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    })
     if (newIgnores.length === 0) {
       return {
         exitCode: 0,
