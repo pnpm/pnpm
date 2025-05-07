@@ -240,14 +240,13 @@ ${JSON.stringify(newOverrides, null, 2)}`,
     if (newIgnores.length === 0) {
       return {
         exitCode: 0,
-        output: 'No new ignores were added',
+        output: 'No new vulnerabilities were ignored',
       }
     }
     return {
       exitCode: 0,
-      output: `${newIgnores.length} new ignores were added to package.json.
-The added ignores:
-${JSON.stringify(newIgnores, null, 2)}`,
+      output: `${newIgnores.length} new vulnerabilities were ignored:
+${newIgnores.join('\n')}`,
     }
   }
   const vulnerabilities = auditReport.metadata.vulnerabilities

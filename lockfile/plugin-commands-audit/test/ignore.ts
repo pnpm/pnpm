@@ -33,7 +33,7 @@ test('ignores are added for vulnerable dependencies with no resolutions', async 
   })
 
   expect(exitCode).toBe(0)
-  expect(output).toContain('2 new ignores were added to package.json')
+  expect(output).toContain('2 new vulnerabilities were ignored')
 
   const manifest = readYamlFile<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
   const cveList = manifest.auditConfig?.ignoreCves
@@ -61,7 +61,7 @@ test('no ignores are added if no vulnerabilities are found', async () => {
   })
 
   expect(exitCode).toBe(0)
-  expect(output).toBe('No new ignores were added')
+  expect(output).toBe('No new vulnerabilities were ignored')
 })
 
 test('ignored CVEs are not duplicated', async () => {
@@ -92,7 +92,7 @@ test('ignored CVEs are not duplicated', async () => {
     ignoreUnfixable: true,
   })
   expect(exitCode).toBe(0)
-  expect(output).toBe('No new ignores were added')
+  expect(output).toBe('No new vulnerabilities were ignored')
 
   const manifest = readYamlFile<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
   expect(manifest.auditConfig?.ignoreCves).toStrictEqual(expect.arrayContaining(existingCves))
