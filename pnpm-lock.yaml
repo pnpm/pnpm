@@ -6561,6 +6561,9 @@ importers:
       p-filter:
         specifier: 'catalog:'
         version: 2.1.0
+      p-limit:
+        specifier: 'catalog:'
+        version: 3.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -14820,6 +14823,7 @@ packages:
   verdaccio@5.20.1:
     resolution: {integrity: sha512-zKQXYubQOfl2w09gO9BR7U9ZZkFPPby8tvV+na86/2vGZnY79kNSVnSbK8CM1bpJHTCQ80AGsmIGovg2FgXhdQ==}
     engines: {node: '>=12.18'}
+    deprecated: this version is deprecated, please migrate to 6.x versions
     hasBin: true
 
   verror@1.10.0:

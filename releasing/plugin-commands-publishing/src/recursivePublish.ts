@@ -7,6 +7,7 @@ import { type ResolveFunction } from '@pnpm/resolver-base'
 import { sortPackages } from '@pnpm/sort-packages'
 import { type Registries, type ProjectRootDir } from '@pnpm/types'
 import pFilter from 'p-filter'
+import pLimit from 'p-limit'
 import pick from 'ramda/src/pick'
 import writeJsonFile from 'write-json-file'
 import { publish } from './publish'
@@ -20,6 +21,7 @@ export type PublishRecursiveOpts = Required<Pick<Config,
 | 'rawConfig'
 | 'registries'
 | 'workspaceDir'
+| 'workspaceConcurrency'
 >> &
 Partial<Pick<Config,
 | 'tag'
@@ -103,37 +105,41 @@ export async function recursivePublish (
       appendedArgs.push(`--otp=${opts.cliOptions['otp'] as string}`)
     }
     const chunks = sortPackages(opts.selectedProjectsGraph)
+    const limitPublish = pLimit(opts.workspaceConcurrency ?? 4)
     const tag = opts.tag ?? 'latest'
     for (const chunk of chunks) {
-      // NOTE: It should be possible to publish these packages concurrently.
-      // However, looks like that requires too much resources for some CI envs.
-      // See related issue: https://github.com/pnpm/pnpm/issues/6968
-      for (const pkgDir of chunk) {
-        if (!publishedPkgDirs.has(pkgDir)) continue
-        const pkg = opts.selectedProjectsGraph[pkgDir].package
-        const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registries, pkg.manifest.name!)
-        // eslint-disable-next-line no-await-in-loop
-        const publishResult = await publish({
-          ...opts,
-          dir: pkg.rootDir,
-          argv: {
-            original: [
-              'publish',
-              '--tag',
-              tag,
-              '--registry',
-              registry,
-              ...appendedArgs,
-            ],
-          },
-          gitChecks: false,
-          recursive: false,
-        }, [pkg.rootDir])
-        if (publishResult?.manifest != null) {
-          publishedPackages.push(pick(['name', 'version'], publishResult.manifest))
-        } else if (publishResult?.exitCode) {
-          return { exitCode: publishResult.exitCode }
-        }
+      // eslint-disable-next-line no-await-in-loop
+      const publishResults = await Promise.all(chunk.map(pkgDir =>
+        limitPublish(async () => {
+          if (!publishedPkgDirs.has(pkgDir)) return
+          const pkg = opts.selectedProjectsGraph[pkgDir].package
+          const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registries, pkg.manifest.name!)
+
+          const publishResult = await publish({
+            ...opts,
+            dir: pkg.rootDir,
+            argv: {
+              original: [
+                'publish',
+                '--tag',
+                tag,
+                '--registry',
+                registry,
+                ...appendedArgs,
+              ],
+            },
+            gitChecks: false,
+            recursive: false,
+          }, [pkg.rootDir])
+          if (publishResult?.manifest != null) {
+            publishedPackages.push(pick(['name', 'version'], publishResult.manifest))
+          }
+          return publishResult
+        })
+      ))
+      const failedPublish = publishResults.find((result) => result?.exitCode)
+      if (failedPublish) {
+        return { exitCode: failedPublish.exitCode! }
       }
     }
   }
