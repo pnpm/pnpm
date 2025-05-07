@@ -1,5 +1,6 @@
 ---
 "@pnpm/plugin-commands-audit": minor
+"pnpm": minor
 ---
 
 Add --ignore-vulnerabilities flag, which can be used to automate the ignoring of CVE's with no resolution
