@@ -388,3 +388,99 @@ test('--save-catalog does not add local workspace dependency as a catalog', asyn
     })
   }
 })
+
+test('--save-catalog does not affect new dependencies from package.json', async () => {
+  const manifest: ProjectManifest = {
+    name: 'test-save-catalog',
+    version: '0.0.0',
+    private: true,
+    dependencies: {
+      '@pnpm.e2e/pkg-a': 'catalog:',
+    },
+  }
+
+  const project = prepare(manifest)
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    catalog: {
+      '@pnpm.e2e/pkg-a': '1.0.0',
+    },
+  })
+
+  // initialize the lockfile
+  await execPnpm(['install'])
+  expect(project.readLockfile()).toStrictEqual(expect.objectContaining({
+    catalogs: {
+      default: {
+        '@pnpm.e2e/pkg-a': {
+          specifier: '1.0.0',
+          version: '1.0.0',
+        },
+      },
+    },
+    importers: {
+      '.': {
+        dependencies: {
+          '@pnpm.e2e/pkg-a': {
+            specifier: 'catalog:',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+  } as Partial<LockfileFile>))
+
+  // add a new dependency to package.json by editing it
+  project.writePackageJson({
+    ...manifest,
+    dependencies: {
+      ...manifest.dependencies,
+      '@pnpm.e2e/pkg-b': '*',
+    },
+  } as ProjectManifest)
+
+  // add a new dependency by running `pnpm add --save-catalog`
+  await execPnpm(['add', ...SAVE_CATALOG, '@pnpm.e2e/pkg-c'])
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.catalogs).toStrictEqual({
+    default: {
+      '@pnpm.e2e/pkg-a': {
+        specifier: '1.0.0',
+        version: '1.0.0',
+      },
+      '@pnpm.e2e/pkg-c': {
+        specifier: '^1.0.0',
+        version: '1.0.0',
+      },
+    },
+  } as LockfileFile['catalogs'])
+  expect(lockfile.catalogs.default).not.toHaveProperty(['@pnpm.e2e/pkg-b'])
+  expect(lockfile.importers).toStrictEqual({
+    '.': {
+      dependencies: {
+        '@pnpm.e2e/pkg-a': {
+          specifier: 'catalog:',
+          version: '1.0.0',
+        },
+        '@pnpm.e2e/pkg-b': {
+          specifier: '*', // unaffected by `pnpm add --save-catalog`
+          version: '1.0.0',
+        },
+        '@pnpm.e2e/pkg-c': {
+          specifier: 'catalog:', // created by `pnpm add --save-catalog`
+          version: '1.0.0',
+        },
+      },
+    },
+  } as LockfileFile['importers'])
+
+  expect(loadJsonFile('package.json')).toStrictEqual({
+    ...manifest,
+    dependencies: {
+      ...manifest.dependencies,
+      '@pnpm.e2e/pkg-b': '*', // unaffected by `pnpm add --save-catalog`
+      '@pnpm.e2e/pkg-c': 'catalog:', // created by `pnpm add --save-catalog`
+    },
+  } as ProjectManifest)
+})
