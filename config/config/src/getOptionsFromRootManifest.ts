@@ -28,19 +28,23 @@ export type OptionsFromRootManifest = {
   patchedDependencies?: Record<string, string>
   peerDependencyRules?: PeerDependencyRules
   supportedArchitectures?: SupportedArchitectures
-} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'updateConfig'>
+} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'executionEnv' | 'updateConfig'>
 
 export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
   const settings: OptionsFromRootManifest = getOptionsFromPnpmSettings(manifestDir, {
     ...pick([
-      'allowedDeprecatedVersions',
       'allowNonAppliedPatches',
       'allowUnusedPatches',
+      'allowedDeprecatedVersions',
+      'auditConfig',
+      'auditConfig',
       'auditConfig',
       'configDependencies',
+      'executionEnv',
+      'executionEnv',
+      'ignorePatchFailures',
       'ignoredBuiltDependencies',
       'ignoredOptionalDependencies',
-      'ignorePatchFailures',
       'neverBuiltDependencies',
       'onlyBuiltDependencies',
       'onlyBuiltDependenciesFile',
@@ -49,6 +53,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
       'patchedDependencies',
       'peerDependencyRules',
       'supportedArchitectures',
+      'updateConfig',
     ], manifest.pnpm ?? {}),
     // We read Yarn's resolutions field for compatibility
     // but we really replace the version specs to any other version spec, not only to exact versions,
