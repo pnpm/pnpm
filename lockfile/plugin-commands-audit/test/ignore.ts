@@ -25,6 +25,7 @@ test('ignores are added for vulnerable dependencies with no resolutions', async 
   const { exitCode, output } = await audit.handler({
     auditLevel: 'moderate',
     dir: tmp,
+    rootProjectManifestDir: tmp,
     fix: false,
     userConfig: {},
     rawConfig,
@@ -52,6 +53,7 @@ test('no ignores are added if no vulnerabilities are found', async () => {
   const { exitCode, output } = await audit.handler({
     auditLevel: 'moderate',
     dir: tmp,
+    rootProjectManifestDir: tmp,
     fix: false,
     userConfig: {},
     rawConfig,
@@ -91,6 +93,7 @@ test('Ignored CVEs are not duplicated', async () => {
   const { exitCode, output } = await audit.handler({
     auditLevel: 'moderate',
     dir: tmp,
+    rootProjectManifestDir: tmp,
     fix: false,
     userConfig: {},
     rawConfig,
