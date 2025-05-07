@@ -41,6 +41,32 @@ test('ignores are added for vulnerable dependencies with no resolutions', async 
   expect(cveList).toStrictEqual(expect.arrayContaining(['CVE-2017-16115', 'CVE-2017-16024']))
 })
 
+test('the specified vulnerabilities are ignored', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.ALL_VULN_RESP)
+
+  const { exitCode, output } = await audit.handler({
+    auditLevel: 'moderate',
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: false,
+    userConfig: {},
+    rawConfig,
+    registries,
+    virtualStoreDirMaxLength: 120,
+    ignore: ['CVE-2017-16115'],
+  })
+
+  expect(exitCode).toBe(0)
+  expect(output).toContain('1 new vulnerabilities were ignored')
+
+  const manifest = readYamlFile<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
+  expect(manifest.auditConfig?.ignoreCves).toStrictEqual(['CVE-2017-16115'])
+})
+
 test('no ignores are added if no vulnerabilities are found', async () => {
   const tmp = f.prepare('fixture')
 
