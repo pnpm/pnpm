@@ -1,12 +1,12 @@
 import fs from 'fs'
 import path from 'path'
 import { pack } from '@pnpm/plugin-commands-publishing'
-import { type PackResultJson } from '../src/pack'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import tar from 'tar'
 import chalk from 'chalk'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { type PackResultJson } from '../src/pack'
 import { DEFAULT_OPTS } from './utils'
 
 test('pack: package with package.json', async () => {

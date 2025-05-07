@@ -161,21 +161,16 @@ export async function handler (opts: PackOptions): Promise<string> {
   }
 
   if (opts.json) {
-    return packedPackages.length > 1 ? JSON.stringify(packedPackages, null, 2) : JSON.stringify(packedPackages[0], null, 2)
+    return JSON.stringify(packedPackages.length > 1 ? packedPackages : packedPackages[0], null, 2)
   }
 
-  const printPackResult = function (packResultJson: PackResultJson): string {
-    const { name, version, filename, files } = packResultJson
-    return `${opts.unicode ? '📦 ' : 'package:'} ${name}@${version}
+  return packedPackages.map(
+    ({ name, version, filename, files }) => `${opts.unicode ? '📦 ' : 'package:'} ${name}@${version}
 ${chalk.blueBright('Tarball Contents')}
-${files.map(file => file.path).join('\n')}
+${files.map(({ path }) => path).join('\n')}
 ${chalk.blueBright('Tarball Details')}
 ${filename}`
-  }
-
-  return packedPackages.length > 1
-    ? packedPackages.map(printPackResult).join('\n\n')
-    : printPackResult(packedPackages[0])
+  ).join('\n\n')
 }
 
 export async function api (opts: PackOptions): Promise<PackResult> {
