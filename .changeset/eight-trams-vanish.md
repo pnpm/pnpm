@@ -3,4 +3,4 @@
 "@pnpm/config": patch
 ---
 
-Get `pack-destination` configuration from npmrc
+Get `pack-destination` configuration from settings.

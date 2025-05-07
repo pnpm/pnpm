@@ -1,5 +1,8 @@
 ---
-"@pnpm/plugin-commands-publishing": patch
+"@pnpm/plugin-commands-publishing": minor
+"pnpm": minor
 ---
 
-feat(pack): add package filtering for pack command [#4351](https://github.com/pnpm/pnpm/issues/4351)
+Added support for recursively running pack in every project of a workspace [#4351](https://github.com/pnpm/pnpm/issues/4351).
+
+Now you can run `pnpm -r pack` to pack all packages in the workspace.
