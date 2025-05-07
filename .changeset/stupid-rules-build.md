@@ -3,13 +3,16 @@
 "pnpm": minor
 ---
 
-Add --ignore-vulnerabilities flag, which can be used to automate the ignoring of CVE's with no resolution
+Added two new flags to the `pnpm audit` command, `--ignore` and `--ignore-unfixable` [#8474](https://github.com/pnpm/pnpm/pull/8474).
 
-i.e
+Ignore all vulnerabilities that have no solution:
+
 ```shell
-> pnpm audit --ignore-vulnerabilities
+> pnpm audit --ignore-unfixable
 ```
-Provide a comma-delimited list of CVE's to ignore those specifically, even if they have a resolution.
+
+Provide a list of CVE's to ignore those specifically, even if they have a resolution.
+
 ```shell
-> pnpm audit --ignore-vulnerabilities CVE-2021-1234,CVE-2021-5678
+> pnpm audit --ignore=CVE-2021-1234 --ignore=CVE-2021-5678
 ```

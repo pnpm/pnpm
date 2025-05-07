@@ -29,7 +29,7 @@ test('ignores are added for vulnerable dependencies with no resolutions', async 
     rawConfig,
     registries,
     virtualStoreDirMaxLength: 120,
-    ignoreVulnerabilities: '',
+    ignoreUnfixable: true,
   })
 
   expect(exitCode).toBe(0)
@@ -57,14 +57,14 @@ test('no ignores are added if no vulnerabilities are found', async () => {
     rawConfig,
     registries,
     virtualStoreDirMaxLength: 120,
-    ignoreVulnerabilities: '',
+    ignoreUnfixable: true,
   })
 
   expect(exitCode).toBe(0)
   expect(output).toBe('No new ignores were added')
 })
 
-test('Ignored CVEs are not duplicated', async () => {
+test('ignored CVEs are not duplicated', async () => {
   const tmp = f.prepare('has-vulnerabilities')
   const existingCves = [
     'CVE-2019-10742',
@@ -89,7 +89,7 @@ test('Ignored CVEs are not duplicated', async () => {
     rawConfig,
     registries,
     virtualStoreDirMaxLength: 120,
-    ignoreVulnerabilities: '',
+    ignoreUnfixable: true,
   })
   expect(exitCode).toBe(0)
   expect(output).toBe('No new ignores were added')

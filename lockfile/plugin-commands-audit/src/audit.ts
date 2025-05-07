@@ -58,7 +58,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
     'audit-level': ['low', 'moderate', 'high', 'critical'],
     fix: Boolean,
     'ignore-registry-errors': Boolean,
-    'ignore-vulnerabilities': String,
+    ignore: [String, Array],
+    'ignore-unfixable': Boolean,
   }
 }
 
@@ -108,8 +109,12 @@ export function help (): string {
             name: '--ignore-registry-errors',
           },
           {
-            description: 'Ignore a vulnerability by CVE. If no args are passed, ignore all CVEs with no resolution. Provide a comma separated list to ignore specific vulnerabilities',
-            name: '--ignore-vulnerabilities <vulnerabilities>',
+            description: 'Ignore a vulnerability by CVE',
+            name: '--ignore <vulnerability>',
+          },
+          {
+            description: 'Ignore all CVEs with no resolution',
+            name: '--ignore-unfixable',
           },
         ],
       },
@@ -126,7 +131,8 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
   json?: boolean
   lockfileDir?: string
   registries: Registries
-  ignoreVulnerabilities?: string
+  ignore?: string[]
+  ignoreUnfixable?: boolean
 } & Pick<Config, 'auditConfig'
 | 'ca'
 | 'cert'
@@ -220,11 +226,12 @@ The added overrides:
 ${JSON.stringify(newOverrides, null, 2)}`,
     }
   }
-  if (opts.ignoreVulnerabilities !== undefined) {
+  if (opts.ignore !== undefined || opts.ignoreUnfixable) {
     const newIgnores = await ignore({
       auditConfig: opts.auditConfig,
       auditReport,
-      commaDelimList: opts.ignoreVulnerabilities,
+      ignore: opts.ignore,
+      ignoreUnfixable: opts.ignoreUnfixable === true,
       dir: opts.dir,
       rootProjectManifest: opts.rootProjectManifest,
       rootProjectManifestDir: opts.rootProjectManifestDir,
