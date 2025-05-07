@@ -14,7 +14,7 @@ import { testDefaults } from './../utils'
 test('uninstall package with no dependencies', async () => {
   const project = prepareEmpty()
 
-  let manifest = await addDependenciesToPackage(
+  let { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
     ['is-negative@2.1.0'],
     testDefaults({ save: true, nodeLinker: 'hoisted' })
@@ -26,7 +26,7 @@ test('uninstall package with no dependencies', async () => {
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ nodeLinker: 'hoisted', save: true, reporter }))).manifest
+  }, testDefaults({ nodeLinker: 'hoisted', save: true, reporter }))).updatedProject.manifest
 
   expect(reporter.calledWithMatch({
     initial: {
@@ -74,7 +74,7 @@ test('uninstall package with no dependencies', async () => {
 
 test('uninstall package with dependencies and do not touch other deps', async () => {
   const project = prepareEmpty()
-  let manifest = await addDependenciesToPackage(
+  let { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
     ['is-negative@2.1.0', 'camelcase-keys@3.0.0'],
     testDefaults({ nodeLinker: 'hoisted', save: true })
@@ -84,7 +84,7 @@ test('uninstall package with dependencies and do not touch other deps', async ()
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ nodeLinker: 'hoisted', pruneStore: true, save: true }))).manifest
+  }, testDefaults({ nodeLinker: 'hoisted', pruneStore: true, save: true }))).updatedProject.manifest
 
   project.storeHasNot('camelcase-keys', '3.0.0')
   project.hasNot('camelcase-keys')

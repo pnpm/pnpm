@@ -124,7 +124,7 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../packages/which-version-is-pinned"
+      "path": "../../patching/config"
     },
     {
       "path": "../../pkg-manifest/manifest-utils"
@@ -142,19 +142,16 @@
       "path": "../../store/cafs"
     },
     {
-      "path": "../../store/package-store"
-    },
-    {
       "path": "../../store/store-controller-types"
     },
     {
       "path": "../../store/store-path"
     },
     {
-      "path": "../../worker"
+      "path": "../../testing/temp-store"
     },
     {
-      "path": "../client"
+      "path": "../../worker"
     },
     {
       "path": "../direct-dep-linker"

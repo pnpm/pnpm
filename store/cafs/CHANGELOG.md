@@ -1,5 +1,109 @@
 # @pnpm/store.cafs
 
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/fetcher-base@1000.0.10
+
+## 1000.0.10
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.9
+- @pnpm/store-controller-types@1002.0.1
+
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [72cff38]
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/fetcher-base@1000.0.8
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.7
+- @pnpm/store-controller-types@1001.0.5
+
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.6
+- @pnpm/store-controller-types@1001.0.4
+
+## 1000.0.6
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.5
+- @pnpm/store-controller-types@1001.0.3
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.4
+- @pnpm/store-controller-types@1001.0.2
+
+## 1000.0.4
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.3
+- @pnpm/store-controller-types@1001.0.1
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.2
+- @pnpm/store-controller-types@1000.1.1
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/fetcher-base@1000.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- d433cb9: Some registries allow identical content to be published under different package names or versions. To accommodate this, index files in the store are now stored using both the content hash and package identifier.
+
+  This approach ensures that we can:
+
+  1. Validate that the integrity in the lockfile corresponds to the correct package,
+     which might not be the case after a poorly resolved Git conflict.
+  2. Allow the same content to be referenced by different packages or different versions of the same package.
+
+  Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
+  Related issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
+
+- 099e6af: Changed the structure of the index files in the store to store side effects cache information more efficiently. In the new version, side effects do not list all the files of the package but just the differences [#8636](https://github.com/pnpm/pnpm/pull/8636).
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.7
+- @pnpm/store-controller-types@18.1.6
+
 ## 4.0.2
 
 ### Patch Changes

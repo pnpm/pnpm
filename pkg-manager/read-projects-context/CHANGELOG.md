@@ -1,5 +1,134 @@
 # @pnpm/read-projects-context
 
+## 1000.0.14
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/logger@1001.0.0
+  - @pnpm/normalize-registries@1000.1.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/modules-yaml@1000.3.2
+
+## 1000.0.13
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.10
+
+## 1000.0.12
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/normalize-registries@1000.0.6
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/modules-yaml@1000.3.1
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [64f6b4f]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/modules-yaml@1000.3.0
+  - @pnpm/normalize-registries@1000.0.5
+  - @pnpm/lockfile.fs@1001.1.8
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [d612dcf]
+- Updated dependencies [d612dcf]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/lockfile.fs@1001.1.7
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.6
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/normalize-registries@1000.0.4
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/modules-yaml@1000.1.4
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/normalize-registries@1000.0.3
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/modules-yaml@1000.1.3
+
+## 1000.0.6
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.3
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/normalize-registries@1000.0.2
+  - @pnpm/modules-yaml@1000.1.2
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/normalize-registries@1000.0.1
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/modules-yaml@1000.1.1
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [4771813]
+  - @pnpm/modules-yaml@1000.1.0
+
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [3f0e4f0]
+  - @pnpm/lockfile.fs@1001.1.0
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [a76da0c]
+  - @pnpm/lockfile.fs@1001.0.0
+
+## 9.1.14
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1.0.6
+
 ## 9.1.13
 
 ### Patch Changes

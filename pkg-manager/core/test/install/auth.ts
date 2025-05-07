@@ -20,7 +20,7 @@ test('a package that need authentication', async () => {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
     registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
   }
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({}, {
     authConfig,
   }, {
     authConfig,
@@ -113,7 +113,7 @@ test('a scoped package that need authentication specific to scope', async () => 
   }, {
     authConfig,
   })
-  const manifest = await addDependenciesToPackage({}, ['@private/foo'], opts)
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@private/foo'], opts)
 
   project.has('@private/foo')
 
@@ -153,7 +153,7 @@ test('a scoped package that need legacy authentication specific to scope', async
   }, {
     authConfig,
   })
-  const manifest = await addDependenciesToPackage({}, ['@private/foo'], opts)
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@private/foo'], opts)
 
   project.has('@private/foo')
 
@@ -224,7 +224,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
     authConfig,
   })
 
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], opts)
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], opts)
 
   rimraf('node_modules')
   rimraf(path.join('..', '.registry'))

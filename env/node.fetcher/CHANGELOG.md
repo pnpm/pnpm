@@ -1,5 +1,146 @@
 # @pnpm/node.fetcher
 
+## 1000.0.16
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@1001.0.6
+
+## 1000.0.15
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@1000.0.12
+- @pnpm/fetcher-base@1000.0.10
+- @pnpm/pick-fetcher@1000.0.0
+- @pnpm/tarball-fetcher@1001.0.5
+
+## 1000.0.14
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.9
+- @pnpm/pick-fetcher@1000.0.0
+- @pnpm/create-cafs-store@1000.0.11
+- @pnpm/tarball-fetcher@1001.0.4
+
+## 1000.0.13
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.8
+- @pnpm/tarball-fetcher@1001.0.3
+- @pnpm/create-cafs-store@1000.0.10
+- @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.12
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.7
+- @pnpm/tarball-fetcher@1001.0.2
+- @pnpm/create-cafs-store@1000.0.9
+- @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.11
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.6
+- @pnpm/pick-fetcher@1000.0.0
+- @pnpm/tarball-fetcher@1001.0.1
+- @pnpm/create-cafs-store@1000.0.8
+
+## 1000.0.10
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@1001.0.0
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@1000.0.9
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.5
+- @pnpm/tarball-fetcher@1000.0.8
+- @pnpm/create-cafs-store@1000.0.7
+- @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@1000.0.6
+- @pnpm/fetcher-base@1000.0.4
+- @pnpm/tarball-fetcher@1000.0.7
+- @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.6
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@1000.0.6
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/error@1000.0.2
+- @pnpm/fetcher-base@1000.0.3
+- @pnpm/tarball-fetcher@1000.0.5
+- @pnpm/create-cafs-store@1000.0.5
+- @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.4
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@1000.0.4
+- @pnpm/tarball-fetcher@1000.0.4
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.2
+- @pnpm/tarball-fetcher@1000.0.3
+- @pnpm/create-cafs-store@1000.0.3
+- @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@1000.0.2
+- @pnpm/create-cafs-store@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [b0f3c71]
+  - @pnpm/fetching-types@1000.1.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/create-cafs-store@1000.0.1
+  - @pnpm/fetcher-base@1000.0.1
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/tarball-fetcher@1000.0.1
+
+## 4.0.17
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+- @pnpm/create-cafs-store@7.0.12
+- @pnpm/fetcher-base@16.0.7
+- @pnpm/tarball-fetcher@20.0.0
+
 ## 4.0.16
 
 ### Patch Changes

@@ -1,4 +1,4 @@
-import { type Lockfile, type PatchFile } from '@pnpm/lockfile.types'
+import { type LockfileObject, type PatchFile } from '@pnpm/lockfile.types'
 import equals from 'ramda/src/equals'
 
 export type ChangedField =
@@ -9,10 +9,11 @@ export type ChangedField =
   | 'settings.autoInstallPeers'
   | 'settings.excludeLinksFromLockfile'
   | 'settings.peersSuffixMaxLength'
+  | 'settings.injectWorkspacePackages'
   | 'pnpmfileChecksum'
 
 export function getOutdatedLockfileSetting (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   {
     overrides,
     packageExtensionsChecksum,
@@ -22,6 +23,7 @@ export function getOutdatedLockfileSetting (
     excludeLinksFromLockfile,
     peersSuffixMaxLength,
     pnpmfileChecksum,
+    injectWorkspacePackages,
   }: {
     overrides?: Record<string, string>
     packageExtensionsChecksum?: string
@@ -31,6 +33,7 @@ export function getOutdatedLockfileSetting (
     excludeLinksFromLockfile?: boolean
     peersSuffixMaxLength?: number
     pnpmfileChecksum?: string
+    injectWorkspacePackages?: boolean
   }
 ): ChangedField | null {
   if (!equals(lockfile.overrides ?? {}, overrides ?? {})) {
@@ -59,6 +62,9 @@ export function getOutdatedLockfileSetting (
   }
   if (lockfile.pnpmfileChecksum !== pnpmfileChecksum) {
     return 'pnpmfileChecksum'
+  }
+  if (Boolean(lockfile.settings?.injectWorkspacePackages) !== Boolean(injectWorkspacePackages)) {
+    return 'settings.injectWorkspacePackages'
   }
   return null
 }

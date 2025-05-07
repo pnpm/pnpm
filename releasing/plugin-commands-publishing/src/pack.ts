@@ -9,16 +9,16 @@ import { createExportableManifest } from '@pnpm/exportable-manifest'
 import { packlist } from '@pnpm/fs.packlist'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { type ProjectManifest, type DependencyManifest } from '@pnpm/types'
-import fg from 'fast-glob'
+import { glob } from 'tinyglobby'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import tar from 'tar-stream'
 import { runScriptsIfPresent } from './publish'
 import chalk from 'chalk'
+import validateNpmPackageName from 'validate-npm-package-name'
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
-const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: { cwd: string }) => Promise<string[]>
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {
@@ -32,6 +32,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     'pack-destination': String,
+    out: String,
     ...pick([
       'pack-gzip-level',
       'json',
@@ -58,6 +59,10 @@ export function help (): string {
             description: 'Prints the packed tarball and contents in the json format.',
             name: '--json',
           },
+          {
+            description: 'Customizes the output path for the tarball. Use `%s` and `%v` to include the package name and version, e.g., `%s.tgz` or `some-dir/%s-%v.tgz`. By default, the tarball is saved in the current working directory with the name `<package-name>-<version>.tgz`.',
+            name: '--out <path>',
+          },
         ],
       },
     ],
@@ -70,6 +75,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
   }
   engineStrict?: boolean
   packDestination?: string
+  out?: string
   workspaceDir?: string
   json?: boolean
 }
@@ -119,10 +125,27 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   if (!manifest.name) {
     throw new PnpmError('PACKAGE_NAME_NOT_FOUND', `Package name is not defined in the ${manifestFileName}.`)
   }
+  if (!validateNpmPackageName(manifest.name).validForOldPackages) {
+    throw new PnpmError('INVALID_PACKAGE_NAME', `Invalid package name "${manifest.name}".`)
+  }
   if (!manifest.version) {
     throw new PnpmError('PACKAGE_VERSION_NOT_FOUND', `Package version is not defined in the ${manifestFileName}.`)
   }
-  const tarballName = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
+  let tarballName: string
+  let packDestination: string | undefined
+  const normalizedName = manifest.name.replace('@', '').replace('/', '-')
+  if (opts.out) {
+    if (opts.packDestination) {
+      throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
+    }
+    const preparedOut = opts.out.replaceAll('%s', normalizedName).replaceAll('%v', manifest.version)
+    const parsedOut = path.parse(preparedOut)
+    packDestination = parsedOut.dir ? parsedOut.dir : opts.packDestination
+    tarballName = parsedOut.base
+  } else {
+    tarballName = `${normalizedName}-${manifest.version}.tgz`
+    packDestination = opts.packDestination
+  }
   const publishManifest = await createPublishManifest({
     projectDir: dir,
     modulesDir: path.join(opts.dir, 'node_modules'),
@@ -137,14 +160,14 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   })
   const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   // cspell:disable-next-line
-  if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(\..+)?/i.test(file))) {
-    const licenses = await findLicenses({ cwd: opts.workspaceDir })
+  if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(?:\..+)?/i.test(file))) {
+    const licenses = await glob([LICENSE_GLOB], { cwd: opts.workspaceDir, expandDirectories: false })
     for (const license of licenses) {
       filesMap[`package/${license}`] = path.join(opts.workspaceDir, license)
     }
   }
-  const destDir = opts.packDestination
-    ? (path.isAbsolute(opts.packDestination) ? opts.packDestination : path.join(dir, opts.packDestination ?? '.'))
+  const destDir = packDestination
+    ? (path.isAbsolute(packDestination) ? packDestination : path.join(dir, packDestination ?? '.'))
     : dir
   await fs.promises.mkdir(destDir, { recursive: true })
   await packPkg({
@@ -221,7 +244,7 @@ async function packPkg (opts: {
   await Promise.all(Object.entries(filesMap).map(async ([name, source]) => {
     const isExecutable = bins.some((bin) => path.relative(bin, source) === '')
     const mode = isExecutable ? 0o755 : 0o644
-    if (/^package\/package\.(json|json5|yaml)/.test(name)) {
+    if (/^package\/package\.(?:json|json5|yaml)$/.test(name)) {
       pack.entry({ mode, mtime, name: 'package/package.json' }, JSON.stringify(manifest, null, 2))
       return
     }

@@ -1,6 +1,6 @@
 import path from 'path'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { type Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { add, install, update } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
@@ -21,6 +21,7 @@ const DEFAULT_OPTIONS = {
   },
   bail: false,
   bin: 'node_modules/.bin',
+  excludeLinksFromLockfile: false,
   extraEnv: {},
   cliOptions: {},
   deployAllFiles: false,
@@ -32,6 +33,7 @@ const DEFAULT_OPTIONS = {
   lock: true,
   pnpmfile: '.pnpmfile.cjs',
   pnpmHomeDir: '',
+  preferWorkspacePackages: true,
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
   registries: {
@@ -264,7 +266,7 @@ test('interactive update of dev dependencies only', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
+  const lockfile = readYamlFile<LockfileObject>('pnpm-lock.yaml')
 
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
     'is-negative@1.0.1',

@@ -7,6 +7,7 @@ import {
   type SslConfig,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
+import { type OptionsFromRootManifest } from './getOptionsFromRootManifest'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 
@@ -17,7 +18,7 @@ export interface WantedPackageManager {
 
 export type VerifyDepsBeforeRun = 'install' | 'warn' | 'error' | 'prompt' | false
 
-export interface Config {
+export interface Config extends OptionsFromRootManifest {
   allProjects?: Project[]
   selectedProjectsGraph?: ProjectsGraph
   allProjectsGraph?: ProjectsGraph
@@ -45,6 +46,7 @@ export interface Config {
   ignoreScripts?: boolean
   ignoreCompatibilityDb?: boolean
   includeWorkspaceRoot?: boolean
+  optimisticRepeatInstall?: boolean
   save?: boolean
   saveProd?: boolean
   saveDev?: boolean
@@ -90,7 +92,7 @@ export interface Config {
   sideEffectsCacheWrite?: boolean
   shamefullyHoist?: boolean
   dev?: boolean
-  ignoreCurrentPrefs?: boolean
+  ignoreCurrentSpecifiers?: boolean
   recursive?: boolean
   enablePrePostScripts?: boolean
   useNodeVersion?: string
@@ -102,6 +104,7 @@ export interface Config {
   failedToLoadBuiltInConfig: boolean
   resolvePeersFromWorkspaceRoot?: boolean
   deployAllFiles?: boolean
+  forceLegacyDeploy?: boolean
   reporterHidePrefix?: boolean
 
   // proxy
@@ -148,6 +151,7 @@ export interface Config {
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
+  injectWorkspacePackages?: boolean
   preferWorkspacePackages: boolean
   reverse: boolean
   sort: boolean
@@ -199,6 +203,7 @@ export interface Config {
   dedupeDirectDeps?: boolean
   extendNodePath?: boolean
   gitBranchLockfile?: boolean
+  globalBinDir?: string
   globalDir?: string
   globalPkgDir: string
   lockfile?: boolean
@@ -210,6 +215,11 @@ export interface Config {
   peersSuffixMaxLength?: number
   strictStorePkgContentCheck: boolean
   managePackageManagerVersions: boolean
+  strictDepBuilds: boolean
+  syncInjectedDepsAfterScripts?: string[]
+  initPackageManager: boolean
+  initType: 'commonjs' | 'module'
+  dangerouslyAllowAllBuilds: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

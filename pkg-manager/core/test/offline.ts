@@ -17,7 +17,7 @@ test('offline installation fails when package meta not found in local registry m
 test('offline installation fails when package tarball not found in local registry mirror', async () => {
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive@3.0.0'], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@3.0.0'], testDefaults())
 
   rimraf('node_modules')
 
@@ -32,7 +32,7 @@ test('offline installation fails when package tarball not found in local registr
 test('successful offline installation', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive@3.0.0'], testDefaults({ save: true }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@3.0.0'], testDefaults({ save: true }))
 
   rimraf('node_modules')
 

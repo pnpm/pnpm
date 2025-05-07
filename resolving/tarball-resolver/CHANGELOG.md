@@ -1,5 +1,89 @@
 # @pnpm/tarball-resolver
 
+## 1002.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+- 5b73df1: Renamed `normalizedPref` to `specifiers`.
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+  - @pnpm/resolver-base@1003.0.0
+
+## 1001.0.8
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+
+## 1001.0.7
+
+### Patch Changes
+
+- Updated dependencies [72cff38]
+  - @pnpm/resolver-base@1001.0.0
+
+## 1001.0.6
+
+### Patch Changes
+
+- @pnpm/resolver-base@1000.2.1
+
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+
+## 1001.0.4
+
+### Patch Changes
+
+- @pnpm/resolver-base@1000.1.4
+
+## 1001.0.3
+
+### Patch Changes
+
+- @pnpm/resolver-base@1000.1.3
+
+## 1001.0.2
+
+### Patch Changes
+
+- @pnpm/resolver-base@1000.1.2
+
+## 1001.0.1
+
+### Patch Changes
+
+- @pnpm/resolver-base@1000.1.1
+
+## 1001.0.0
+
+### Major Changes
+
+- b0f3c71: Dependencies specified via a URL are now recorded in the lockfile using their final resolved URL. Thus, if the original URL redirects, the final redirect target will be saved in the lockfile [#8833](https://github.com/pnpm/pnpm/issues/8833).
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+- Updated dependencies [b0f3c71]
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/fetching-types@1000.1.0
+
+## 9.0.8
+
+### Patch Changes
+
+- 3be45b7: Fix `ERR_PNPM_TARBALL_EXTRACT` error while installing a dependency from GitHub having a slash in branch name [#7697](https://github.com/pnpm/pnpm/issues/7697).
+
 ## 9.0.7
 
 ### Patch Changes

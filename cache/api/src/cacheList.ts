@@ -1,6 +1,6 @@
 import fs from 'fs'
 import getRegistryName from 'encode-registry'
-import fastGlob from 'fast-glob'
+import { glob } from 'tinyglobby'
 
 export async function cacheListRegistries (opts: { cacheDir: string, registry?: string, registries?: boolean }): Promise<string> {
   return fs.readdirSync(opts.cacheDir).sort().join('\n')
@@ -14,8 +14,9 @@ export async function cacheList (opts: { cacheDir: string, registry?: string, re
 export async function findMetadataFiles (opts: { cacheDir: string, registry?: string }, filter: string[]): Promise<string[]> {
   const prefix = opts.registry ? `${getRegistryName(opts.registry)}` : '*'
   const patterns = filter.length ? filter.map((filter) => `${prefix}/${filter}.json`) : [`${prefix}/**`]
-  const metaFiles = await fastGlob(patterns, {
+  const metaFiles = await glob(patterns, {
     cwd: opts.cacheDir,
+    expandDirectories: false,
   })
   return metaFiles
 }

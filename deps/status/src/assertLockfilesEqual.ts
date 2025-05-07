@@ -1,8 +1,8 @@
 import { PnpmError } from '@pnpm/error'
-import { type Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import { equals } from 'ramda'
 
-export function assertLockfilesEqual (currentLockfile: Lockfile | null, wantedLockfile: Lockfile, wantedLockfileDir: string): void {
+export function assertLockfilesEqual (currentLockfile: LockfileObject | null, wantedLockfile: LockfileObject, wantedLockfileDir: string): void {
   if (!currentLockfile) {
     // make sure that no importer of wantedLockfile has any dependency
     for (const [name, snapshot] of Object.entries(wantedLockfile.importers)) {

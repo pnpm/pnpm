@@ -63,7 +63,7 @@ function refToRelativeOrThrow (reference: string, pkgName: string): DepPath {
  * workaround allowing test to do:
  *
  * ```ts
- * expect(node).toEqual(expect.objectContaining({ dependencies: undefined }))
+ * expect(node).toMatchObject({ dependencies: undefined })
  * ```
  */
 function normalizePackageNodeForTesting (nodes: readonly PackageNode[]): PackageNode[] {

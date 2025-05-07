@@ -1,5 +1,175 @@
 # @pnpm/make-dedicated-lockfile
 
+## 1000.0.17
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/logger@1001.0.0
+  - @pnpm/exportable-manifest@1000.1.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/lockfile.pruner@1001.0.8
+  - @pnpm/read-project-manifest@1000.0.10
+
+## 1000.0.16
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.10
+- @pnpm/exportable-manifest@1000.0.10
+
+## 1000.0.15
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/lockfile.pruner@1001.0.7
+  - @pnpm/exportable-manifest@1000.0.10
+  - @pnpm/read-project-manifest@1000.0.9
+
+## 1000.0.14
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/lockfile.pruner@1001.0.6
+  - @pnpm/exportable-manifest@1000.0.9
+  - @pnpm/read-project-manifest@1000.0.8
+
+## 1000.0.13
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.7
+- @pnpm/exportable-manifest@1000.0.8
+
+## 1000.0.12
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.6
+- @pnpm/lockfile.pruner@1001.0.5
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/lockfile.pruner@1001.0.4
+  - @pnpm/exportable-manifest@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.7
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [69f922a]
+  - @pnpm/find-workspace-dir@1000.1.0
+
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/lockfile.pruner@1001.0.3
+  - @pnpm/exportable-manifest@1000.0.7
+  - @pnpm/read-project-manifest@1000.0.6
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.3
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [1e229d7]
+  - @pnpm/read-project-manifest@1000.0.5
+  - @pnpm/exportable-manifest@1000.0.6
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/lockfile.pruner@1001.0.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/exportable-manifest@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/find-workspace-dir@1000.0.2
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/exportable-manifest@1000.0.4
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/lockfile.pruner@1001.0.1
+  - @pnpm/exportable-manifest@1000.0.3
+  - @pnpm/read-project-manifest@1000.0.2
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [738d9e4]
+  - @pnpm/exportable-manifest@1000.0.2
+
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [3f0e4f0]
+  - @pnpm/lockfile.fs@1001.1.0
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [a76da0c]
+  - @pnpm/lockfile.pruner@1001.0.0
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/exportable-manifest@1000.0.1
+  - @pnpm/read-project-manifest@1000.0.1
+  - @pnpm/find-workspace-dir@1000.0.1
+
+## 0.6.20
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1.0.6
+- @pnpm/lockfile.pruner@0.0.7
+- @pnpm/error@6.0.3
+- @pnpm/exportable-manifest@7.0.7
+- @pnpm/read-project-manifest@6.0.10
+- @pnpm/find-workspace-dir@7.0.3
+
 ## 0.6.19
 
 ### Patch Changes

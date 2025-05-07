@@ -21,7 +21,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
       },
     },
   }
-  const manifest = await addDependenciesToPackage(
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
     ['is-positive@1.0.0'],
     testDefaults({ packageExtensions })

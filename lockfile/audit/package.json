@@ -1,16 +1,28 @@
 {
   "name": "@pnpm/audit",
-  "version": "8.2.2",
+  "version": "1002.0.3",
   "description": "Audit a lockfile",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "audit"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/audit",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/audit#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -18,19 +30,20 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/audit",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "audit"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
+  "dependencies": {
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
+    "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/lockfile.detect-dep-types": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/lockfile.walker": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "ramda": "catalog:"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/audit#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
+    "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
     "@pnpm/audit": "workspace:*",
@@ -41,22 +54,8 @@
     "@types/ramda": "catalog:",
     "nock": "catalog:"
   },
-  "dependencies": {
-    "@pnpm/error": "workspace:*",
-    "@pnpm/fetch": "workspace:*",
-    "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/list": "workspace:*",
-    "@pnpm/lockfile.detect-dep-types": "workspace:*",
-    "@pnpm/lockfile.types": "workspace:*",
-    "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/lockfile.walker": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/types": "workspace:*",
-    "ramda": "catalog:"
-  },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

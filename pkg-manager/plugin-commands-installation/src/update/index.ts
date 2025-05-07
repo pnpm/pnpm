@@ -25,6 +25,7 @@ import { parseUpdateParam } from '../recursive'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
+    'dangerously-allow-all-builds',
     'depth',
     'dev',
     'engine-strict',
@@ -171,6 +172,9 @@ export async function handler (
   opts: UpdateCommandOptions,
   params: string[] = []
 ): Promise<string | undefined> {
+  if (opts.global && opts.rootProjectManifest == null) {
+    return 'No global packages found'
+  }
   if (opts.interactive) {
     return interactiveUpdate(params, opts)
   }
@@ -295,7 +299,7 @@ async function update (
     ...opts,
     allowNew: false,
     depth,
-    ignoreCurrentPrefs: false,
+    ignoreCurrentSpecifiers: false,
     includeDirect,
     include,
     update: true,

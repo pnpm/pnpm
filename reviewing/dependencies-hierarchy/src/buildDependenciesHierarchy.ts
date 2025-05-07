@@ -1,7 +1,7 @@
 import path from 'path'
 import {
   getLockfileImporterId,
-  type Lockfile,
+  type LockfileObject,
   type ProjectSnapshot,
   readCurrentLockfile,
   readWantedLockfile,
@@ -100,8 +100,8 @@ export async function buildDependenciesHierarchy (
 
 async function dependenciesHierarchyForPackage (
   projectPath: string,
-  currentLockfile: Lockfile,
-  wantedLockfile: Lockfile | null,
+  currentLockfile: LockfileObject,
+  wantedLockfile: LockfileObject | null,
   opts: {
     depth: number
     excludePeerDependencies?: boolean

@@ -1,4 +1,4 @@
-import { type Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { type DepPath, type ProjectId } from '@pnpm/types'
 import { mergeLockfileChanges } from '../src'
 
@@ -58,7 +58,7 @@ test('picks the newer version when dependencies differ inside importer', () => {
 })
 
 test('picks the newer version when dependencies differ inside package', () => {
-  const base: Lockfile = {
+  const base: LockfileObject = {
     importers: {
       ['.' as ProjectId]: {
         dependencies: {

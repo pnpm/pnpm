@@ -3,8 +3,12 @@ import path from 'path'
 import os from 'os'
 import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
 import { PnpmError } from '@pnpm/error'
+import { execSync } from 'child_process'
+import isWindows from 'is-windows'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'
+import pLimit from 'p-limit'
+import { quote as shellQuote } from 'shell-quote'
 import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,
@@ -26,7 +30,7 @@ export async function finishWorkers (): Promise<void> {
 }
 
 function createTarballWorkerPool (): WorkerPool {
-  const maxWorkers = Math.max(2, (os.availableParallelism?.() ?? os.cpus().length) - Math.abs(process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0)) - 1
+  const maxWorkers = calcMaxWorkers()
   const workerPool = new WorkerPool({
     id: 'pnpm',
     maxWorkers,
@@ -46,6 +50,18 @@ function createTarballWorkerPool (): WorkerPool {
     global.finishWorkers = () => workerPool.finishAsync()
   }
   return workerPool
+}
+
+function calcMaxWorkers () {
+  if (process.env.PNPM_WORKERS) {
+    const idleCPUs = Math.abs(parseInt(process.env.PNPM_WORKERS))
+    return Math.max(2, availableParallelism() - idleCPUs) - 1
+  }
+  return Math.max(1, availableParallelism() - 1)
+}
+
+function availableParallelism (): number {
+  return os.availableParallelism?.() ?? os.cpus().length
 }
 
 interface AddFilesResult {
@@ -183,25 +199,33 @@ export async function readPkgFromCafs (
   })
 }
 
+// The workers are doing lots of file system operations
+// so, running them in parallel helps only to a point.
+// With local experimenting it was discovered that running 4 workers gives the best results.
+// Adding more workers actually makes installation slower.
+const limitImportingPackage = pLimit(4)
+
 export async function importPackage (
   opts: Omit<LinkPkgMessage, 'type'>
 ): Promise<{ isBuilt: boolean, importMethod: string | undefined }> {
-  if (!workerPool) {
-    workerPool = createTarballWorkerPool()
-  }
-  const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-      workerPool!.checkinWorker(localWorker)
-      if (status === 'error') {
-        reject(new PnpmError(error.code ?? 'LINKING_FAILED', error.message as string))
-        return
-      }
-      resolve(value)
-    })
-    localWorker.postMessage({
-      type: 'link',
-      ...opts,
+  return limitImportingPackage(async () => {
+    if (!workerPool) {
+      workerPool = createTarballWorkerPool()
+    }
+    const localWorker = await workerPool.checkoutWorkerAsync(true)
+    return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
+      localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+        workerPool!.checkinWorker(localWorker)
+        if (status === 'error') {
+          reject(new PnpmError(error.code ?? 'LINKING_FAILED', error.message as string))
+          return
+        }
+        resolve(value)
+      })
+      localWorker.postMessage({
+        type: 'link',
+        ...opts,
+      })
     })
   })
 }
@@ -217,7 +241,8 @@ export async function symlinkAllModules (
     localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', error.message as string))
+        const hint = opts.deps?.[0]?.modules != null ? createErrorHint(error, opts.deps[0].modules) : undefined
+        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', error.message as string, { hint }))
         return
       }
       resolve(value)
@@ -227,6 +252,29 @@ export async function symlinkAllModules (
       ...opts,
     } as SymlinkAllModulesMessage)
   })
+}
+
+function createErrorHint (err: Error, checkedDir: string): string | undefined {
+  if ('code' in err && err.code === 'EISDIR' && isWindows()) {
+    const checkedDrive = `${checkedDir.split(':')[0]}:`
+    if (isDriveExFat(checkedDrive)) {
+      return `The "${checkedDrive}" drive is exFAT, which does not support symlinks. This will cause installation to fail. You can set the node-linker to "hoisted" to avoid this issue.`
+    }
+  }
+  return undefined
+}
+
+// In Windows system exFAT drive, symlink will result in error.
+function isDriveExFat (drive: string): boolean {
+  try {
+    // cspell:disable-next-line
+    const output = execSync(`wmic logicaldisk where ${shellQuote([`DeviceID='${drive}'`])} get FileSystem`).toString()
+    const lines = output.trim().split('\n')
+    const name = lines.length > 1 ? lines[1].trim() : ''
+    return name === 'exFAT'
+  } catch {
+    return false
+  }
 }
 
 export async function hardLinkDir (src: string, destDirs: string[]): Promise<void> {

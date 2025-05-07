@@ -1,5 +1,92 @@
 # @pnpm/assert-store
 
+## 2.0.11
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.11
+
+## 2.0.10
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.10
+
+## 2.0.9
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.9
+
+## 2.0.8
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.8
+
+## 2.0.7
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.7
+
+## 2.0.6
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.6
+
+## 2.0.5
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.5
+
+## 2.0.4
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.4
+
+## 2.0.3
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.3
+
+## 2.0.2
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.2
+
+## 2.0.1
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.1
+
+## 2.0.0
+
+### Major Changes
+
+- d433cb9: Some registries allow identical content to be published under different package names or versions. To accommodate this, index files in the store are now stored using both the content hash and package identifier.
+
+  This approach ensures that we can:
+
+  1. Validate that the integrity in the lockfile corresponds to the correct package,
+     which might not be the case after a poorly resolved Git conflict.
+  2. Allow the same content to be referenced by different packages or different versions of the same package.
+
+  Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
+  Related issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
+
+### Patch Changes
+
+- Updated dependencies [d433cb9]
+- Updated dependencies [099e6af]
+  - @pnpm/store.cafs@5.0.0
+
 ## 1.0.92
 
 ### Patch Changes

@@ -225,11 +225,15 @@ function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>): M
   const unknownOptions = new Map<string, string[]>()
   const closestMatches = getClosestOptionMatches.bind(null, Array.from(knownOptions))
   for (const usedOption of usedOptions) {
-    if (knownOptions.has(usedOption) || usedOption.startsWith('//')) continue
+    if (knownOptions.has(usedOption) || usedOption.startsWith('//') || isScopeRegistryOption(usedOption)) continue
 
     unknownOptions.set(usedOption, closestMatches(usedOption))
   }
   return unknownOptions
+}
+
+function isScopeRegistryOption (optionName: string): boolean {
+  return /^@[a-z0-9][\w.-]*:registry$/.test(optionName)
 }
 
 function getClosestOptionMatches (knownOptions: string[], option: string): string[] {

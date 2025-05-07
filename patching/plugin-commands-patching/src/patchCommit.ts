@@ -2,13 +2,15 @@ import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
+import { createShortHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
+import { globalWarn } from '@pnpm/logger'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { getStorePath } from '@pnpm/store-path'
 import { type ProjectRootDir } from '@pnpm/types'
-import glob from 'fast-glob'
+import { glob } from 'tinyglobby'
 import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
 import equals from 'ramda/src/equals'
@@ -16,11 +18,11 @@ import execa from 'safe-execa'
 import escapeStringRegexp from 'escape-string-regexp'
 import makeEmptyDir from 'make-empty-dir'
 import renderHelp from 'render-help'
-import tempy from 'tempy'
-import { writePackage } from './writePackage'
+import { type WritePackageOptions, writePackage } from './writePackage'
 import { type ParseWantedDependencyResult, parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency'
 import { readEditDirState } from './stateFile'
+import { updatePatchedDependencies } from './updatePatchedDependencies'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -47,7 +49,7 @@ export function help (): string {
   })
 }
 
-type PatchCommitCommandOptions = install.InstallCommandOptions & Pick<Config, 'patchesDir' | 'rootProjectManifest' | 'rootProjectManifestDir'>
+type PatchCommitCommandOptions = install.InstallCommandOptions & Pick<Config, 'patchesDir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'patchedDependencies'>
 
 export async function handler (opts: PatchCommitCommandOptions, params: string[]): Promise<string | undefined> {
   const userDir = params[0]
@@ -72,17 +74,20 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   if (!applyToAll) {
     gitTarballUrl = await getGitTarballUrlFromLockfile({
       alias: patchedPkgManifest.name,
-      pref: patchedPkgManifest.version,
+      bareSpecifier: patchedPkgManifest.version,
     }, {
       lockfileDir,
       modulesDir: opts.modulesDir,
       virtualStoreDir: opts.virtualStoreDir,
     })
   }
-  const srcDir = tempy.directory()
-  await writePackage(parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : nameAndVersion), srcDir, opts)
+  const patchedPkg = parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : nameAndVersion)
   const patchedPkgDir = await preparePkgFilesForDiff(userDir)
-  const patchContent = await diffFolders(srcDir, patchedPkgDir)
+  const patchContent = await getPatchContent({
+    patchedPkg,
+    patchedPkgDir,
+    tmpName: createShortHash(editDir),
+  }, opts)
   if (patchedPkgDir !== userDir) {
     fs.rmSync(patchedPkgDir, { recursive: true })
   }
@@ -94,36 +99,49 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
 
   const patchFileName = patchKey.replace('/', '__')
   await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')
-  const { writeProjectManifest, manifest } = await tryReadProjectManifest(lockfileDir)
 
-  const rootProjectManifest = (!opts.sharedWorkspaceLockfile ? manifest : (opts.rootProjectManifest ?? manifest)) ?? {}
-
-  if (!rootProjectManifest.pnpm) {
-    rootProjectManifest.pnpm = {
-      patchedDependencies: {},
-    }
-  } else if (!rootProjectManifest.pnpm.patchedDependencies) {
-    rootProjectManifest.pnpm.patchedDependencies = {}
+  const patchedDependencies = {
+    ...opts.patchedDependencies,
+    [patchKey]: `${patchesDirName}/${patchFileName}.patch`,
   }
-  rootProjectManifest.pnpm.patchedDependencies![patchKey] = `${patchesDirName}/${patchFileName}.patch`
-  await writeProjectManifest(rootProjectManifest)
-
-  if (opts?.selectedProjectsGraph?.[lockfileDir]) {
-    opts.selectedProjectsGraph[lockfileDir].package.manifest = rootProjectManifest
-  }
-
-  if (opts?.allProjectsGraph?.[lockfileDir].package.manifest) {
-    opts.allProjectsGraph[lockfileDir].package.manifest = rootProjectManifest
-  }
+  await updatePatchedDependencies(patchedDependencies, {
+    ...opts,
+    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+  })
 
   return install.handler({
     ...opts,
-    rootProjectManifest,
+    patchedDependencies,
     rawLocalConfig: {
       ...opts.rawLocalConfig,
       'frozen-lockfile': false,
     },
   }) as Promise<undefined>
+}
+
+interface GetPatchContentContext {
+  patchedPkg: ParseWantedDependencyResult
+  patchedPkgDir: string
+  tmpName: string
+}
+
+type GetPatchContentOptions = Pick<PatchCommitCommandOptions, 'dir' | 'pnpmHomeDir' | 'storeDir'> & WritePackageOptions
+
+async function getPatchContent (ctx: GetPatchContentContext, opts: GetPatchContentOptions): Promise<string> {
+  const storeDir = await getStorePath({
+    pkgRoot: opts.dir,
+    storePath: opts.storeDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+  })
+  const srcDir = path.join(storeDir, 'tmp', 'patch-commit', ctx.tmpName)
+  await writePackage(ctx.patchedPkg, srcDir, opts)
+  const patchContent = await diffFolders(srcDir, ctx.patchedPkgDir)
+  try {
+    fs.rmSync(srcDir, { recursive: true })
+  } catch (error) {
+    globalWarn(`Failed to clean up temporary directory at ${srcDir} with error: ${String(error)}`)
+  }
+  return patchContent
 }
 
 async function diffFolders (folderA: string, folderB: string): Promise<string> {
@@ -165,6 +183,8 @@ async function diffFolders (folderA: string, folderB: string): Promise<string> {
     .replace(new RegExp(escapeStringRegexp(`${folderAN}/`), 'g'), '')
     .replace(new RegExp(escapeStringRegexp(`${folderBN}/`), 'g'), '')
     .replace(/\n\\ No newline at end of file\n$/, '\n')
+    .replace(/^diff --git a\/.*\.DS_Store b\/.*\.DS_Store[\s\S]+?(?=^diff --git)/gm, '')
+    .replace(/^diff --git a\/.*\.DS_Store b\/.*\.DS_Store[\s\S]*$/gm, '')
 }
 
 function removeTrailingAndLeadingSlash (p: string): string {
@@ -204,6 +224,7 @@ async function preparePkgFilesForDiff (src: string): Promise<string> {
 async function areAllFilesInPkg (files: string[], basePath: string): Promise<boolean> {
   const allFiles = await glob('**', {
     cwd: basePath,
+    expandDirectories: false,
   })
   return equals(allFiles.sort(), files.sort())
 }

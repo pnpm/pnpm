@@ -1,5 +1,188 @@
 # @pnpm/pnpmfile
 
+## 1001.2.0
+
+### Minor Changes
+
+- e5c58f0: Allow loading the `preResolution`, `importPackage`, and `fetchers` hooks from local pnpmfile.
+
+## 1001.1.2
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/hooks.types@1001.0.7
+  - @pnpm/lockfile.types@1001.0.7
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.1.1
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1002.0.1
+- @pnpm/crypto.hash@1000.1.1
+
+## 1001.1.0
+
+### Minor Changes
+
+- 1413c25: **Experimental.** A new hook is supported for updating configuration settings. The hook can be provided via `.pnpmfile.cjs`. For example:
+
+  ```js
+  module.exports = {
+    hooks: {
+      updateConfig: (config) => ({
+        ...config,
+        nodeLinker: "hoisted",
+      }),
+    },
+  };
+  ```
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/hooks.types@1001.0.6
+  - @pnpm/lockfile.types@1001.0.6
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.0.9
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/lockfile.types@1001.0.5
+  - @pnpm/hooks.types@1001.0.5
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/store-controller-types@1001.0.5
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.0.8
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1001.0.4
+- @pnpm/crypto.hash@1000.1.1
+
+## 1001.0.7
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.1.1
+
+## 1001.0.6
+
+### Patch Changes
+
+- Updated dependencies [daf47e9]
+- Updated dependencies [a5e4965]
+  - @pnpm/crypto.hash@1000.1.0
+  - @pnpm/types@1000.2.1
+  - @pnpm/hooks.types@1001.0.4
+  - @pnpm/lockfile.types@1001.0.4
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/store-controller-types@1001.0.3
+
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/hooks.types@1001.0.3
+  - @pnpm/lockfile.types@1001.0.3
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/store-controller-types@1001.0.2
+  - @pnpm/crypto.hash@1000.0.0
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/hooks.types@1001.0.2
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/store-controller-types@1001.0.1
+  - @pnpm/crypto.hash@1000.0.0
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/crypto.hash@1000.0.0
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/hooks.types@1001.0.1
+  - @pnpm/lockfile.types@1001.0.1
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/store-controller-types@1000.1.1
+  - @pnpm/crypto.hash@1000.0.0
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/crypto.hash@1000.0.0
+
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Minor Changes
+
+- d47c426: On repeat install perform a fast check if `node_modules` is up to date [#8838](https://github.com/pnpm/pnpm/pull/8838).
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/lockfile.types@1001.0.0
+  - @pnpm/hooks.types@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/crypto.hash@1000.0.0
+
+## 7.0.0
+
+### Major Changes
+
+- bcffd4d: Use SHA256 for storing the pnpmfile checksum in the lockfile [#8530](https://github.com/pnpm/pnpm/pull/8530).
+
+### Patch Changes
+
+- Updated dependencies [dcd2917]
+  - @pnpm/crypto.hash@1.0.0
+  - @pnpm/error@6.0.3
+  - @pnpm/store-controller-types@18.1.6
+
 ## 6.0.13
 
 ### Patch Changes

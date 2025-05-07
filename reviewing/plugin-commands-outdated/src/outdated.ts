@@ -20,7 +20,7 @@ import chalk from 'chalk'
 import pick from 'ramda/src/pick'
 import sortWith from 'ramda/src/sortWith'
 import renderHelp from 'render-help'
-import stripAnsi from 'strip-ansi'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 import {
   DEFAULT_COMPARATORS,
   NAME_COMPARATOR,

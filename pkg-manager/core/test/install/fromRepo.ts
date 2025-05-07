@@ -20,7 +20,7 @@ const withGitProtocolDepFixture = f.find('with-git-protocol-dep')
 test('from a github repo', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['kevva/is-negative'], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['kevva/is-negative'], testDefaults())
 
   project.has('is-negative')
 
@@ -32,7 +32,7 @@ test('from a github repo', async () => {
 test('from a github repo through URL', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['https://github.com/kevva/is-negative'], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['https://github.com/kevva/is-negative'], testDefaults())
 
   project.has('is-negative')
 
@@ -44,7 +44,7 @@ test('from a github repo with different name via named installation', async () =
 
   const reporter = sinon.spy()
 
-  const manifest = await addDependenciesToPackage(
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
     ['say-hi@github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'],
     testDefaults({ fastUnpack: false, reporter })
@@ -85,7 +85,7 @@ test('from a github repo with different name', async () => {
 
   const reporter = sinon.spy()
 
-  const manifest = await install({
+  const { updatedManifest: manifest } = await install({
     dependencies: {
       'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
     },
@@ -178,7 +178,7 @@ test.skip('from a non-github git repo', async () => {
 test('from a github repo the has no package.json file', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['pnpm/for-testing.no-package-json'], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['pnpm/for-testing.no-package-json'], testDefaults())
 
   project.has('for-testing.no-package-json')
 
@@ -198,7 +198,7 @@ test('from a github repo the has no package.json file', async () => {
 test.skip('from a github repo that needs to be built. isolated node linker is used', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['pnpm-e2e/prepare-script-works'], testDefaults({ ignoreScripts: true }, { ignoreScripts: true }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['pnpm-e2e/prepare-script-works'], testDefaults({ ignoreScripts: true }, { ignoreScripts: true }))
 
   project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
 
@@ -218,7 +218,7 @@ test.skip('from a github repo that needs to be built. isolated node linker is us
 test.skip('from a github repo that needs to be built. hoisted node linker is  used', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage(
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
     ['pnpm-e2e/prepare-script-works'],
     testDefaults({ ignoreScripts: true, nodeLinker: 'hoisted' }, { ignoreScripts: true })
@@ -241,7 +241,7 @@ test.skip('from a github repo that needs to be built. hoisted node linker is  us
 
 test('re-adding a git repo with a different tag', async () => {
   const project = prepareEmpty()
-  let manifest = await addDependenciesToPackage({}, ['kevva/is-negative#1.0.0'], testDefaults())
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['kevva/is-negative#1.0.0'], testDefaults())
   project.has('is-negative')
   expect(manifest.dependencies).toStrictEqual({
     'is-negative': 'github:kevva/is-negative#1.0.0',
@@ -261,7 +261,7 @@ test('re-adding a git repo with a different tag', async () => {
       },
     }
   )
-  manifest = await addDependenciesToPackage(manifest, ['kevva/is-negative#1.0.1'], testDefaults())
+  manifest = (await addDependenciesToPackage(manifest, ['kevva/is-negative#1.0.1'], testDefaults())).updatedManifest
   project.has('is-negative')
   expect(JSON.parse(fs.readFileSync('./node_modules/is-negative/package.json', 'utf8')).version).toBe('1.0.1')
   lockfile = project.readLockfile()
@@ -291,7 +291,7 @@ test('should not update when adding unrelated dependency', async () => {
 
   expect(fs.readdirSync('./node_modules/.pnpm')).toContain('is-negative@https+++codeload.github.com+kevva+is-negative+tar.gz+1d7e288222b53a0cab90a331f1865220ec29560c') // cspell:disable-line
 
-  manifest = await addDependenciesToPackage(manifest, ['is-number'], testDefaults({ preferFrozenLockfile: false, modulesCacheMaxAge: 0 }))
+  manifest = (await addDependenciesToPackage(manifest, ['is-number'], testDefaults({ preferFrozenLockfile: false, modulesCacheMaxAge: 0 }))).updatedManifest
 
   expect(manifest.dependencies).toHaveProperty('is-number')
   expect(manifest.dependencies['is-negative']).toBe('github:kevva/is-negative#master')
@@ -326,7 +326,7 @@ test('git-hosted repository is not added to the store if it fails to be built', 
 test('from subdirectories of a git repo', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, [
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [
     'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app',
     'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-express-server',
   ], testDefaults())

@@ -1,7 +1,7 @@
 // cspell:ignore ents
 import fs from 'fs'
 import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { type Lockfile, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
+import { type LockfileObject, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
@@ -38,7 +38,7 @@ export async function createFuseHandlers (lockfileDir: string, storeDir: string)
   return createFuseHandlersFromLockfile(lockfile, storeDir)
 }
 
-export function createFuseHandlersFromLockfile (lockfile: Lockfile, storeDir: string): FuseHandlers {
+export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeDir: string): FuseHandlers {
   const pkgSnapshotCache = new Map<string, { name: string, version: string, pkgSnapshot: PackageSnapshot, index: PackageFilesIndex }>()
   const virtualNodeModules = makeVirtualNodeModules(lockfile)
   return {

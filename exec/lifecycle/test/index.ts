@@ -46,6 +46,23 @@ test('runLifecycleHook() escapes the args passed to the script', async () => {
   expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual(['Revert "feature (#1)"'])
 })
 
+test('runLifecycleHook() passes newline correctly', async () => {
+  const pkgRoot = f.find('escape-newline')
+  const pkg = await import(path.join(pkgRoot, 'package.json'))
+  await runLifecycleHook('echo', pkg, {
+    depPath: 'escape-newline@1.0.0',
+    pkgRoot,
+    rawConfig: {},
+    rootModulesDir,
+    unsafePerm: true,
+    args: ['a\nb'],
+  })
+
+  expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual([
+    process.platform === 'win32' ? 'a\\nb' : 'a\nb',
+  ])
+})
+
 test('runLifecycleHook() sets frozen-lockfile to false', async () => {
   const pkgRoot = f.find('inspect-frozen-lockfile')
   await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))

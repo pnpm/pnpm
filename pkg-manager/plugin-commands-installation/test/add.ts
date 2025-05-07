@@ -16,6 +16,7 @@ const DEFAULT_OPTIONS = {
   bail: false,
   bin: 'node_modules/.bin',
   cacheDir: path.join(tmp, 'cache'),
+  excludeLinksFromLockfile: false,
   extraEnv: {},
   cliOptions: {},
   deployAllFiles: false,
@@ -25,6 +26,7 @@ const DEFAULT_OPTIONS = {
     optionalDependencies: true,
   },
   lock: true,
+  preferWorkspacePackages: true,
   pnpmfile: '.pnpmfile.cjs',
   pnpmHomeDir: '',
   rawConfig: { registry: REGISTRY_URL },
@@ -89,7 +91,7 @@ test('installing with "workspace:" should work even if link-workspace-packages i
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^' })
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:*' })
 
   projects['project-1'].has('project-2')
 })
@@ -206,7 +208,7 @@ test('installing with "workspace=true" with linkWorkspacePackages on and saveWor
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': '^2.0.0' })
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
 
   projects['project-1'].has('project-2')
 })
@@ -317,7 +319,7 @@ test('pnpm add - should add prefix when set in .npmrc when a range is not specif
 
     expect(
       manifest.dependencies['is-positive']
-    ).toMatch(/~([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+)?$/)
+    ).toMatch(/~(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Z-]+(?:\.[0-9A-Z-]+)*))?(?:\+[0-9A-Z-]+)?$/i)
   }
 })
 

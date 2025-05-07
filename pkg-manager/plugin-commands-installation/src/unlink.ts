@@ -1,8 +1,7 @@
-import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import renderHelp from 'render-help'
+import { createProjectManifestWriter } from './createProjectManifestWriter'
 import * as install from './install'
 
 export const cliOptionsTypes = install.cliOptionsTypes
@@ -58,7 +57,8 @@ export async function handler (
       }
     }
   }
-  await writeProjectManifest(path.join(opts.rootProjectManifestDir, 'package.json'), opts.rootProjectManifest)
+  const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
+  await writeProjectManifest(opts.rootProjectManifest)
   await install.handler(opts)
   return undefined
 }

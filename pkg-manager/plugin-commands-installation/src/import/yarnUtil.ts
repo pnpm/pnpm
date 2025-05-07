@@ -4,7 +4,7 @@
 import { type structUtils } from '@yarnpkg/core'
 
 const BUILTIN_PLACEHOLDER = 'builtin'
-const MULTIPLE_KEYS_REGEXP = / *, */g
+const MULTIPLE_KEYS_REGEXP = / *, */
 
 export type ParseDescriptor = typeof structUtils.parseDescriptor
 export type ParseRange = typeof structUtils.parseRange

@@ -16,6 +16,7 @@ import {
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
+import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
 import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
@@ -24,7 +25,6 @@ import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifie
 import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
-import { DISABLE_DEPS_CHECK_ENV, shouldRunCheck } from './shouldRunCheck'
 import { runDepsStatusCheck } from './runDepsStatusCheck'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
@@ -173,6 +173,7 @@ export type RunOpts =
   | 'scriptShell'
   | 'scriptsPrependNodePath'
   | 'shellEmulator'
+  | 'syncInjectedDepsAfterScripts'
   | 'userAgent'
   >
   & (
@@ -197,20 +198,19 @@ export async function handler (
   }
   const [scriptName, ...passedThruArgs] = params
 
-  // verifyDepsBeforeRun is outside of shouldRunCheck because TypeScript's tagged union
-  // only works when the tag is directly placed in the condition.
-  if (opts.verifyDepsBeforeRun && shouldRunCheck(process.env, scriptName)) {
+  if (opts.verifyDepsBeforeRun) {
     await runDepsStatusCheck(opts)
+  }
+
+  if (opts.nodeOptions) {
+    opts.extraEnv = {
+      ...opts.extraEnv,
+      NODE_OPTIONS: opts.nodeOptions,
+    }
   }
 
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
-      if (opts.verifyDepsBeforeRun) {
-        opts.extraEnv = {
-          ...opts.extraEnv,
-          ...DISABLE_DEPS_CHECK_ENV,
-        }
-      }
       return runRecursive(params, opts) as Promise<undefined>
     }
     dir = Object.keys(opts.selectedProjectsGraph)[0]
@@ -265,16 +265,10 @@ so you may run "pnpm -w run ${scriptName}"`,
   }
   const concurrency = opts.workspaceConcurrency ?? 4
 
-  const extraEnv = {
-    ...opts.extraEnv,
-    ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
-    ...opts.verifyDepsBeforeRun ? DISABLE_DEPS_CHECK_ENV : undefined,
-  }
-
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
     extraBinPaths: opts.extraBinPaths,
-    extraEnv,
+    extraEnv: opts.extraEnv,
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
@@ -300,7 +294,12 @@ so you may run "pnpm -w run ${scriptName}"`,
   try {
     const limitRun = pLimit(concurrency)
 
-    const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
+    const runScriptOptions: RunScriptOptions = {
+      enablePrePostScripts: opts.enablePrePostScripts ?? false,
+      syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
+      workspaceDir: opts.workspaceDir,
+    }
+    const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
 
     await Promise.all(specifiedScripts.map(script => limitRun(() => _runScript(script))))
   } catch (err: unknown) {
@@ -387,6 +386,8 @@ ${renderCommands(rootScripts)}`
 
 export interface RunScriptOptions {
   enablePrePostScripts: boolean
+  syncInjectedDepsAfterScripts: string[] | undefined
+  workspaceDir: string | undefined
 }
 
 export async function runScript (opts: {
@@ -409,6 +410,13 @@ export async function runScript (opts: {
     !opts.manifest.scripts[scriptName].includes(`post${scriptName}`)
   ) {
     await runLifecycleHook(`post${scriptName}`, opts.manifest, opts.lifecycleOpts)
+  }
+  if (opts.runScriptOptions.syncInjectedDepsAfterScripts?.includes(scriptName)) {
+    await syncInjectedDeps({
+      pkgName: opts.manifest.name,
+      pkgRootDir: opts.lifecycleOpts.pkgRoot,
+      workspaceDir: opts.runScriptOptions.workspaceDir,
+    })
   }
 }
 

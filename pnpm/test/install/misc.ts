@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { type Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
@@ -105,7 +105,7 @@ test('install with external lockfile directory', async () => {
 
   project.has('is-positive')
 
-  const lockfile = readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
+  const lockfile = readYamlFile<LockfileObject>(path.resolve('..', WANTED_LOCKFILE))
 
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project'])
 })
@@ -240,7 +240,8 @@ test('`pnpm -r add` should fail if no package name was provided', () => {
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - project`, 'utf8')
 
   const { status, stdout } = execPnpmSync(['-r', 'add'])
 
@@ -303,7 +304,8 @@ test('recursive install should fail if the used pnpm version does not satisfy th
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "*"`, 'utf8')
 
   process.chdir('project-1')
 
@@ -336,7 +338,8 @@ test('engine-strict=true: recursive install should fail if the used Node version
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "*"`, 'utf8')
 
   process.chdir('project-1')
 
@@ -369,7 +372,8 @@ test('engine-strict=false: recursive install should not fail if the used Node ve
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "*"`, 'utf8')
 
   process.chdir('project-1')
 

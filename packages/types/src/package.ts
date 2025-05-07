@@ -72,12 +72,14 @@ export interface TypesVersions {
 export interface BaseManifest {
   name?: string
   version?: string
+  type?: string
   bin?: PackageBin
   description?: string
   directories?: {
     bin?: string
   }
   files?: string[]
+  funding?: string
   dependencies?: Dependencies
   devDependencies?: Dependencies
   optionalDependencies?: Dependencies
@@ -88,6 +90,10 @@ export interface BaseManifest {
   bundledDependencies?: string[] | boolean
   homepage?: string
   repository?: string | { url: string }
+  bugs?: string | {
+    url?: string
+    email?: string
+  }
   scripts?: PackageScripts
   config?: object
   engines?: {
@@ -109,6 +115,7 @@ export interface BaseManifest {
   author?: string
   license?: string
   exports?: Record<string, string>
+  imports?: Record<string, unknown>
 }
 
 export interface DependencyManifest extends BaseManifest {
@@ -126,31 +133,39 @@ export interface PeerDependencyRules {
 
 export type AllowedDeprecatedVersions = Record<string, string>
 
+export type ConfigDependencies = Record<string, string>
+
+export interface PnpmSettings {
+  configDependencies?: ConfigDependencies
+  neverBuiltDependencies?: string[]
+  onlyBuiltDependencies?: string[]
+  onlyBuiltDependenciesFile?: string
+  ignoredBuiltDependencies?: string[]
+  overrides?: Record<string, string>
+  packageExtensions?: Record<string, PackageExtension>
+  ignoredOptionalDependencies?: string[]
+  peerDependencyRules?: PeerDependencyRules
+  allowedDeprecatedVersions?: AllowedDeprecatedVersions
+  allowNonAppliedPatches?: boolean // deprecated: use allowUnusedPatches instead
+  allowUnusedPatches?: boolean
+  ignorePatchFailures?: boolean
+  patchedDependencies?: Record<string, string>
+  updateConfig?: {
+    ignoreDependencies?: string[]
+  }
+  auditConfig?: {
+    ignoreCves?: string[]
+    ignoreGhsas?: string[]
+  }
+  requiredScripts?: string[]
+  supportedArchitectures?: SupportedArchitectures
+  executionEnv?: ExecutionEnv
+}
+
 export interface ProjectManifest extends BaseManifest {
   packageManager?: string
   workspaces?: string[]
-  pnpm?: {
-    neverBuiltDependencies?: string[]
-    onlyBuiltDependencies?: string[]
-    onlyBuiltDependenciesFile?: string
-    overrides?: Record<string, string>
-    packageExtensions?: Record<string, PackageExtension>
-    ignoredOptionalDependencies?: string[]
-    peerDependencyRules?: PeerDependencyRules
-    allowedDeprecatedVersions?: AllowedDeprecatedVersions
-    allowNonAppliedPatches?: boolean
-    patchedDependencies?: Record<string, string>
-    updateConfig?: {
-      ignoreDependencies?: string[]
-    }
-    auditConfig?: {
-      ignoreCves?: string[]
-      ignoreGhsas?: string[]
-    }
-    requiredScripts?: string[]
-    supportedArchitectures?: SupportedArchitectures
-    executionEnv?: ExecutionEnv
-  }
+  pnpm?: PnpmSettings
   private?: boolean
   resolutions?: Record<string, string>
 }

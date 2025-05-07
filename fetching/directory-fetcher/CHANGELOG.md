@@ -1,5 +1,138 @@
 # @pnpm/directory-fetcher
 
+## 1000.1.6
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/fetcher-base@1000.0.10
+  - @pnpm/exec.pkg-requires-build@1000.0.7
+  - @pnpm/read-project-manifest@1000.0.10
+
+## 1000.1.5
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/fetcher-base@1000.0.9
+
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+  - @pnpm/types@1000.4.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/exec.pkg-requires-build@1000.0.6
+  - @pnpm/fetcher-base@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.9
+
+## 1000.1.3
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/exec.pkg-requires-build@1000.0.5
+  - @pnpm/fetcher-base@1000.0.7
+  - @pnpm/read-project-manifest@1000.0.8
+  - @pnpm/resolver-base@1000.2.1
+
+## 1000.1.2
+
+### Patch Changes
+
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/fetcher-base@1000.0.6
+
+## 1000.1.1
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/exec.pkg-requires-build@1000.0.4
+  - @pnpm/fetcher-base@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.7
+  - @pnpm/resolver-base@1000.1.4
+
+## 1000.1.0
+
+### Minor Changes
+
+- e32b1a2: Optionally return file stats from `fetchFromDir`.
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/exec.pkg-requires-build@1000.0.3
+  - @pnpm/fetcher-base@1000.0.4
+  - @pnpm/read-project-manifest@1000.0.6
+  - @pnpm/resolver-base@1000.1.3
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [1e229d7]
+  - @pnpm/read-project-manifest@1000.0.5
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/exec.pkg-requires-build@1000.0.2
+  - @pnpm/fetcher-base@1000.0.3
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/resolver-base@1000.1.2
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/exec.pkg-requires-build@1000.0.1
+  - @pnpm/fetcher-base@1000.0.2
+  - @pnpm/read-project-manifest@1000.0.2
+  - @pnpm/resolver-base@1000.1.1
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/fetcher-base@1000.0.1
+  - @pnpm/read-project-manifest@1000.0.1
+
+## 8.0.10
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.7
+- @pnpm/read-project-manifest@6.0.10
+
 ## 8.0.9
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 import fs from 'fs'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type LockfileV9 as Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileFile } from '@pnpm/lockfile.types'
 import { preparePackages } from '@pnpm/prepare'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
@@ -30,6 +30,6 @@ test('peer dependency is not unlinked when adding a new dependency', async () =>
   await execPnpm(['install'])
   await execPnpm(['--filter=project-1', 'add', 'is-odd@1.0.0'])
 
-  const lockfile = readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
   expect(Object.keys(lockfile!.snapshots!)).toContain('@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@@pnpm.e2e+peer-a)')
 })

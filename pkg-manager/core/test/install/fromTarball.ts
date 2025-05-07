@@ -6,7 +6,7 @@ import { testDefaults } from '../utils'
 test('tarball from npm registry', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, [`http://localhost:${REGISTRY_MOCK_PORT}/is-array/-/is-array-1.0.1.tgz`], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [`http://localhost:${REGISTRY_MOCK_PORT}/is-array/-/is-array-1.0.1.tgz`], testDefaults())
 
   project.has('is-array')
   project.storeHas(`localhost+${REGISTRY_MOCK_PORT}/is-array/1.0.1`)

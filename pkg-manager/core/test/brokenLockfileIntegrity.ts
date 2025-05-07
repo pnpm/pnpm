@@ -16,7 +16,7 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     [
       '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     ],
@@ -62,7 +62,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     [
       '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     ],

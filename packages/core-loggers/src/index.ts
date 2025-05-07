@@ -5,6 +5,8 @@ import {
   type ExecutionTimeLog,
   type HookLog,
   type InstallCheckLog,
+  type InstallingConfigDepsLog,
+  type IgnoredScriptsLog,
   type LifecycleLog,
   type LinkLog,
   type PackageImportMethodLog,
@@ -31,6 +33,8 @@ export type Log =
   | ExecutionTimeLog
   | HookLog
   | InstallCheckLog
+  | InstallingConfigDepsLog
+  | IgnoredScriptsLog
   | LifecycleLog
   | LinkLog
   | PackageManifestLog

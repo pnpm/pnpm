@@ -24,9 +24,9 @@ jobs:
       env:
         "npm_config_//registry.npmjs.org/:_authToken": ${{ secrets.NPM_TOKEN }}
       run: |
-        npm dist-tag add pnpm@${{ github.event.inputs.version }} latest-9
+        npm dist-tag add pnpm@${{ github.event.inputs.version }} latest-10
         npm dist-tag add pnpm@${{ github.event.inputs.version }} ${{ github.event.inputs.tag }}
-        npm dist-tag add @pnpm/exe@${{ github.event.inputs.version }} latest-9
+        npm dist-tag add @pnpm/exe@${{ github.event.inputs.version }} latest-10
         npm dist-tag add @pnpm/exe@${{ github.event.inputs.version }} ${{ github.event.inputs.tag }}
 
   publish-to-winget:
@@ -34,7 +34,7 @@ jobs:
     environment: release
     needs: tag-in-registry
     steps:
-      - uses: vedantmgoyal2009/winget-releaser@v2
+      - uses: vedantmgoyal9/winget-releaser@main
         with:
           identifier: pnpm.pnpm
           version: ${{ github.event.inputs.version }}

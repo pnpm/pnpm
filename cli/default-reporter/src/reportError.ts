@@ -103,10 +103,24 @@ function getErrorInfo (logObj: Log, config?: Config, peerDependencyRules?: PeerD
   return { title: logObj.message! }
 }
 
-function formatPkgsStack (pkgsStack: Array<{ id: string, name: string, version: string }>) {
+interface PkgStackItem {
+  readonly id: string
+  readonly name: string
+  // The version may be missing if this was a private workspace package without
+  // the version field set.
+  readonly version?: string
+}
+
+function formatPkgNameVer ({ name, version }: PkgStackItem) {
+  return version == null
+    ? name
+    : `${name}@${version}`
+}
+
+function formatPkgsStack (pkgsStack: readonly PkgStackItem[]) {
   return `This error happened while installing the dependencies of \
-${pkgsStack[0].name}@${pkgsStack[0].version}\
-${pkgsStack.slice(1).map(({ name, version }) => `${EOL} at ${name}@${version}`).join('')}`
+${formatPkgNameVer(pkgsStack[0])}\
+${pkgsStack.slice(1).map((pkgInfo) => `${EOL} at ${formatPkgNameVer(pkgInfo)}`).join('')}`
 }
 
 interface PackageMeta {
@@ -456,12 +470,12 @@ function reportSpecNotSupportedByAnyResolverError (err: Error, logObj: Log): Err
   // protocol is meant to be replaced before it's passed to any of the real
   // resolvers.
   //
-  // If this kind of error is thrown, and the dependency pref is using the
+  // If this kind of error is thrown, and the dependency bareSpecifier is using the
   // catalog protocol it's most likely because we're trying to install an out of
   // repo dependency that was published incorrectly. For example, it may be been
   // mistakenly published with 'npm publish' instead of 'pnpm publish'. Report a
   // more clear error in this case.
-  if (logObj.package?.pref?.startsWith('catalog:')) {
+  if (logObj.package?.bareSpecifier?.startsWith('catalog:')) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return reportExternalCatalogProtocolError(err, logObj as any)
   }
@@ -489,7 +503,7 @@ protocol are replaced with real specifiers on 'pnpm publish'.
 This is likely a bug in the publishing automation of this package. Consider filing
 a bug with the authors of:
 
-  ${highlight(`${problemDep.name}@${problemDep.version}`)}
+  ${highlight(formatPkgNameVer(problemDep))}
 `
   }
 

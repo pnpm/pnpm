@@ -1,5 +1,219 @@
 # @pnpm/package-store
 
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/package-requester@1004.0.0
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/create-cafs-store@1000.0.12
+  - @pnpm/fetcher-base@1000.0.10
+  - @pnpm/worker@1000.1.5
+
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/fetcher-base@1000.0.9
+  - @pnpm/package-requester@1003.0.1
+  - @pnpm/store-controller-types@1002.0.1
+  - @pnpm/create-cafs-store@1000.0.11
+  - @pnpm/store.cafs@1000.0.10
+  - @pnpm/worker@1000.1.4
+
+## 1002.0.0
+
+### Major Changes
+
+- 72cff38: The resolving function now takes a `registries` object, so it finds the required registry itself instead of receiving it from package requester.
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/package-requester@1003.0.0
+  - @pnpm/fetcher-base@1000.0.8
+  - @pnpm/store.cafs@1000.0.9
+  - @pnpm/worker@1000.1.3
+  - @pnpm/create-cafs-store@1000.0.10
+
+## 1001.1.0
+
+### Minor Changes
+
+- a54d3ad: Export `CreatePackageStoreOptions`.
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/fetcher-base@1000.0.7
+  - @pnpm/package-requester@1002.0.2
+  - @pnpm/resolver-base@1000.2.1
+  - @pnpm/store.cafs@1000.0.8
+  - @pnpm/store-controller-types@1001.0.5
+  - @pnpm/worker@1000.1.2
+  - @pnpm/create-cafs-store@1000.0.9
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/fetcher-base@1000.0.6
+  - @pnpm/package-requester@1002.0.1
+  - @pnpm/store-controller-types@1001.0.4
+  - @pnpm/store.cafs@1000.0.7
+  - @pnpm/create-cafs-store@1000.0.8
+  - @pnpm/worker@1000.1.1
+
+## 1001.0.0
+
+### Patch Changes
+
+- Updated dependencies [2e05789]
+  - @pnpm/worker@1000.1.0
+  - @pnpm/package-requester@1002.0.0
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.8
+- @pnpm/package-requester@1001.0.4
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/fetcher-base@1000.0.5
+  - @pnpm/package-requester@1001.0.3
+  - @pnpm/resolver-base@1000.1.4
+  - @pnpm/store.cafs@1000.0.6
+  - @pnpm/store-controller-types@1001.0.3
+  - @pnpm/worker@1000.0.7
+  - @pnpm/create-cafs-store@1000.0.7
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/create-cafs-store@1000.0.6
+  - @pnpm/fetcher-base@1000.0.4
+  - @pnpm/package-requester@1001.0.2
+  - @pnpm/resolver-base@1000.1.3
+  - @pnpm/store.cafs@1000.0.5
+  - @pnpm/store-controller-types@1001.0.2
+  - @pnpm/worker@1000.0.6
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/fetcher-base@1000.0.3
+  - @pnpm/package-requester@1001.0.1
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/store.cafs@1000.0.4
+  - @pnpm/store-controller-types@1001.0.1
+  - @pnpm/worker@1000.0.5
+  - @pnpm/create-cafs-store@1000.0.5
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/package-requester@1001.0.0
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/store.cafs@1000.0.3
+  - @pnpm/create-cafs-store@1000.0.4
+  - @pnpm/worker@1000.0.4
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/fetcher-base@1000.0.2
+  - @pnpm/package-requester@1000.1.2
+  - @pnpm/resolver-base@1000.1.1
+  - @pnpm/store.cafs@1000.0.2
+  - @pnpm/store-controller-types@1000.1.1
+  - @pnpm/worker@1000.0.3
+  - @pnpm/create-cafs-store@1000.0.3
+
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [7272992]
+  - @pnpm/worker@1000.0.2
+  - @pnpm/package-requester@1000.1.1
+  - @pnpm/create-cafs-store@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+  - @pnpm/package-requester@1000.1.0
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/store.cafs@1000.0.1
+  - @pnpm/create-cafs-store@1000.0.1
+  - @pnpm/fetcher-base@1000.0.1
+  - @pnpm/worker@1000.0.1
+
+## 21.0.0
+
+### Major Changes
+
+- d433cb9: Some registries allow identical content to be published under different package names or versions. To accommodate this, index files in the store are now stored using both the content hash and package identifier.
+
+  This approach ensures that we can:
+
+  1. Validate that the integrity in the lockfile corresponds to the correct package,
+     which might not be the case after a poorly resolved Git conflict.
+  2. Allow the same content to be referenced by different packages or different versions of the same package.
+
+  Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
+  Related issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
+
+### Patch Changes
+
+- Updated dependencies [d433cb9]
+- Updated dependencies [099e6af]
+  - @pnpm/package-requester@26.0.0
+  - @pnpm/store.cafs@5.0.0
+  - @pnpm/worker@2.0.0
+  - @pnpm/create-cafs-store@7.0.12
+  - @pnpm/fetcher-base@16.0.7
+  - @pnpm/store-controller-types@18.1.6
+
 ## 20.4.2
 
 ### Patch Changes

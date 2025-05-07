@@ -1,6 +1,5 @@
-import { lexCompare } from '@pnpm/util.lex-comparator'
-import sortKeys from 'sort-keys'
-import { type LockfileFileV9, type LockfileFile } from '@pnpm/lockfile.types'
+import { type LockfileFile } from '@pnpm/lockfile.types'
+import { sortKeysByPriority, sortDirectKeys, sortDeepKeys } from '@pnpm/object.key-sorting'
 
 const ORDERED_KEYS = {
   resolution: 1,
@@ -40,65 +39,48 @@ const ROOT_KEYS: readonly RootKey[] = [
   'packageExtensionsChecksum',
   'pnpmfileChecksum',
   'patchedDependencies',
-  'dependencies',
-  'optionalDependencies',
-  'devDependencies',
-  'dependenciesMeta',
   'importers',
   'packages',
 ]
 const ROOT_KEYS_ORDER = Object.fromEntries(ROOT_KEYS.map((key, index) => [key, index]))
 
-function compareWithPriority (priority: Record<string, number>, left: string, right: string): number {
-  const leftPriority = priority[left]
-  const rightPriority = priority[right]
-  if (leftPriority != null && rightPriority != null) return leftPriority - rightPriority
-  if (leftPriority != null) return -1
-  if (rightPriority != null) return 1
-  return lexCompare(left, right)
-}
-
-export function sortLockfileKeys (lockfile: LockfileFileV9): LockfileFileV9 {
-  const compareRootKeys = compareWithPriority.bind(null, ROOT_KEYS_ORDER)
+export function sortLockfileKeys (lockfile: LockfileFile): LockfileFile {
   if (lockfile.importers != null) {
-    lockfile.importers = sortKeys(lockfile.importers)
+    lockfile.importers = sortDirectKeys(lockfile.importers)
     for (const [importerId, importer] of Object.entries(lockfile.importers)) {
-      lockfile.importers[importerId] = sortKeys(importer, {
-        compare: compareRootKeys,
+      lockfile.importers[importerId] = sortKeysByPriority({
+        priority: ROOT_KEYS_ORDER,
         deep: true,
-      })
+      }, importer)
     }
   }
   if (lockfile.packages != null) {
-    lockfile.packages = sortKeys(lockfile.packages)
+    lockfile.packages = sortDirectKeys(lockfile.packages)
     for (const [pkgId, pkg] of Object.entries(lockfile.packages)) {
-      lockfile.packages[pkgId] = sortKeys(pkg, {
-        compare: compareWithPriority.bind(null, ORDERED_KEYS),
+      lockfile.packages[pkgId] = sortKeysByPriority({
+        priority: ORDERED_KEYS,
         deep: true,
-      })
+      }, pkg)
     }
   }
   if (lockfile.snapshots != null) {
-    lockfile.snapshots = sortKeys(lockfile.snapshots)
+    lockfile.snapshots = sortDirectKeys(lockfile.snapshots)
     for (const [pkgId, pkg] of Object.entries(lockfile.snapshots)) {
-      lockfile.snapshots[pkgId] = sortKeys(pkg, {
-        compare: compareWithPriority.bind(null, ORDERED_KEYS),
+      lockfile.snapshots[pkgId] = sortKeysByPriority({
+        priority: ORDERED_KEYS,
         deep: true,
-      })
+      }, pkg)
     }
   }
   if (lockfile.catalogs != null) {
-    lockfile.catalogs = sortKeys(lockfile.catalogs)
+    lockfile.catalogs = sortDirectKeys(lockfile.catalogs)
     for (const [catalogName, catalog] of Object.entries(lockfile.catalogs)) {
-      lockfile.catalogs[catalogName] = sortKeys(catalog, {
-        compare: lexCompare,
-        deep: true,
-      })
+      lockfile.catalogs[catalogName] = sortDeepKeys(catalog)
     }
   }
-  for (const key of ['dependencies', 'devDependencies', 'optionalDependencies', 'time', 'patchedDependencies'] as const) {
+  for (const key of ['time', 'patchedDependencies'] as const) {
     if (!lockfile[key]) continue
-    lockfile[key] = sortKeys<any>(lockfile[key]) // eslint-disable-line @typescript-eslint/no-explicit-any
+    lockfile[key] = sortDirectKeys<any>(lockfile[key]) // eslint-disable-line @typescript-eslint/no-explicit-any
   }
-  return sortKeys(lockfile, { compare: compareRootKeys })
+  return sortKeysByPriority({ priority: ROOT_KEYS_ORDER }, lockfile)
 }

@@ -1,9 +1,8 @@
 import pathExists from 'path-exists'
 import path from 'path'
 import {
-  type Lockfile,
+  type LockfileObject,
   type PackageSnapshot,
-  type PatchFile,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
 import {
@@ -13,7 +12,7 @@ import {
 } from '@pnpm/lockfile.utils'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { getPatchInfo } from '@pnpm/patching.config'
+import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type DepPath, type SupportedArchitectures, type ProjectId, type Registries } from '@pnpm/types'
 import {
@@ -44,7 +43,7 @@ export interface LockfileToHoistedDepGraphOptions {
   nodeVersion: string
   pnpmVersion: string
   registries: Registries
-  patchedDependencies?: Record<string, PatchFile>
+  patchedDependencies?: PatchGroupRecord
   sideEffectsCacheRead: boolean
   skipped: Set<string>
   storeController: StoreController
@@ -54,8 +53,8 @@ export interface LockfileToHoistedDepGraphOptions {
 }
 
 export async function lockfileToHoistedDepGraph (
-  lockfile: Lockfile,
-  currentLockfile: Lockfile | null,
+  lockfile: LockfileObject,
+  currentLockfile: LockfileObject | null,
   opts: LockfileToHoistedDepGraphOptions
 ): Promise<LockfileToDepGraphResult> {
   let prevGraph!: DependenciesGraph
@@ -75,7 +74,7 @@ export async function lockfileToHoistedDepGraph (
 }
 
 async function _lockfileToHoistedDepGraph (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   opts: LockfileToHoistedDepGraphOptions
 ): Promise<Omit<LockfileToDepGraphResult, 'prevGraph'>> {
   const tree = hoist(lockfile, {
@@ -157,7 +156,7 @@ function pickLinkedDirectDeps (
 async function fetchDeps (
   opts: {
     graph: DependenciesGraph
-    lockfile: Lockfile
+    lockfile: LockfileObject
     pkgLocationsByDepPath: Record<string, string[]>
     hoistedLocations: Record<string, string[]>
   } & LockfileToHoistedDepGraphOptions,

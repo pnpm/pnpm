@@ -7,7 +7,7 @@ import {
 } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { mergeLockfileChanges } from '@pnpm/lockfile.merger'
-import { type Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { type ProjectId } from '@pnpm/types'
 import comverToSemver from 'comver-to-semver'
 import yaml from 'js-yaml'
@@ -26,7 +26,7 @@ export async function readCurrentLockfile (
     wantedVersions?: string[]
     ignoreIncompatible: boolean
   }
-): Promise<Lockfile | null> {
+): Promise<LockfileObject | null> {
   const lockfilePath = path.join(virtualStoreDir, 'lock.yaml')
   return (await _read(lockfilePath, virtualStoreDir, opts)).lockfile
 }
@@ -40,7 +40,7 @@ export async function readWantedLockfileAndAutofixConflicts (
     mergeGitBranchLockfiles?: boolean
   }
 ): Promise<{
-    lockfile: Lockfile | null
+    lockfile: LockfileObject | null
     hadConflicts: boolean
   }> {
   return _readWantedLockfile(pkgPath, {
@@ -57,7 +57,7 @@ export async function readWantedLockfile (
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
   }
-): Promise<Lockfile | null> {
+): Promise<LockfileObject | null> {
   return (await _readWantedLockfile(pkgPath, opts)).lockfile
 }
 
@@ -70,7 +70,7 @@ async function _read (
     ignoreIncompatible: boolean
   }
 ): Promise<{
-    lockfile: Lockfile | null
+    lockfile: LockfileObject | null
     hadConflicts: boolean
   }> {
   let lockfileRawContent
@@ -85,7 +85,7 @@ async function _read (
       hadConflicts: false,
     }
   }
-  let lockfile: Lockfile
+  let lockfile: LockfileObject
   let hadConflicts!: boolean
   try {
     lockfile = convertToLockfileObject(yaml.load(lockfileRawContent) as any) // eslint-disable-line
@@ -140,8 +140,8 @@ export function createLockfileObject (
     excludeLinksFromLockfile: boolean
     peersSuffixMaxLength: number
   }
-): Lockfile {
-  const importers: Lockfile['importers'] = {}
+): LockfileObject {
+  const importers: LockfileObject['importers'] = {}
   for (const importerId of importerIds) {
     importers[importerId] = {
       dependencies: {},
@@ -169,7 +169,7 @@ async function _readWantedLockfile (
     autofixMergeConflicts?: boolean
   }
 ): Promise<{
-    lockfile: Lockfile | null
+    lockfile: LockfileObject | null
     hadConflicts: boolean
   }> {
   const lockfileNames: string[] = [WANTED_LOCKFILE]
@@ -179,7 +179,7 @@ async function _readWantedLockfile (
       lockfileNames.unshift(gitBranchLockfileName)
     }
   }
-  let result: { lockfile: Lockfile | null, hadConflicts: boolean } = { lockfile: null, hadConflicts: false }
+  let result: { lockfile: LockfileObject | null, hadConflicts: boolean } = { lockfile: null, hadConflicts: false }
   /* eslint-disable no-await-in-loop */
   for (const lockfileName of lockfileNames) {
     result = await _read(path.join(pkgPath, lockfileName), pkgPath, { ...opts, autofixMergeConflicts: true })
@@ -195,7 +195,7 @@ async function _readWantedLockfile (
 }
 
 async function _mergeGitBranchLockfiles (
-  lockfile: Lockfile | null,
+  lockfile: LockfileObject | null,
   lockfileDir: string,
   prefix: string,
   opts: {
@@ -203,13 +203,13 @@ async function _mergeGitBranchLockfiles (
     wantedVersions?: string[]
     ignoreIncompatible: boolean
   }
-): Promise<Lockfile | null> {
+): Promise<LockfileObject | null> {
   if (!lockfile) {
     return lockfile
   }
-  const gitBranchLockfiles: Array<(Lockfile | null)> = (await _readGitBranchLockfiles(lockfileDir, prefix, opts)).map(({ lockfile }) => lockfile)
+  const gitBranchLockfiles: Array<(LockfileObject | null)> = (await _readGitBranchLockfiles(lockfileDir, prefix, opts)).map(({ lockfile }) => lockfile)
 
-  let mergedLockfile: Lockfile = lockfile
+  let mergedLockfile: LockfileObject = lockfile
 
   for (const gitBranchLockfile of gitBranchLockfiles) {
     if (!gitBranchLockfile) {
@@ -230,7 +230,7 @@ async function _readGitBranchLockfiles (
     ignoreIncompatible: boolean
   }
 ): Promise<Array<{
-    lockfile: Lockfile | null
+    lockfile: LockfileObject | null
     hadConflicts: boolean
   }>> {
   const files = await getGitBranchLockfileNames(lockfileDir)

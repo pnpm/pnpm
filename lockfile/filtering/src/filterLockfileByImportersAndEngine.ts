@@ -1,7 +1,7 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { LockfileMissingDependencyError } from '@pnpm/error'
 import {
-  type Lockfile,
+  type LockfileObject,
   type PackageSnapshots,
 } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
@@ -17,12 +17,12 @@ import { filterImporter } from './filterImporter'
 const lockfileLogger = logger('lockfile')
 
 export interface FilterLockfileResult {
-  lockfile: Lockfile
+  lockfile: LockfileObject
   selectedImporterIds: ProjectId[]
 }
 
 export function filterLockfileByEngine (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   opts: FilterLockfileOptions
 ): FilterLockfileResult {
   const importerIds = Object.keys(lockfile.importers) as ProjectId[]
@@ -44,7 +44,7 @@ export interface FilterLockfileOptions {
 }
 
 export function filterLockfileByImportersAndEngine (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   importerIds: ProjectId[],
   opts: FilterLockfileOptions
 ): FilterLockfileResult {
@@ -92,7 +92,7 @@ export function filterLockfileByImportersAndEngine (
 }
 
 function pickPkgsWithAllDeps (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   depPaths: DepPath[],
   importerIdSet: Set<ProjectId>,
   opts: {
@@ -116,7 +116,7 @@ function pickPkgsWithAllDeps (
 
 function pkgAllDeps (
   ctx: {
-    lockfile: Lockfile
+    lockfile: LockfileObject
     pickedPackages: PackageSnapshots
     importerIdSet: Set<ProjectId>
   },
@@ -197,7 +197,7 @@ function pkgAllDeps (
 }
 
 function toImporterDepPaths (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   importerIds: ProjectId[],
   opts: {
     include: { [dependenciesField in DependenciesField]: boolean }
@@ -235,7 +235,7 @@ interface ParsedDepRefs {
   importerIds: ProjectId[]
 }
 
-function parseDepRefs (refsByPkgNames: Array<[string, string]>, lockfile: Lockfile): ParsedDepRefs {
+function parseDepRefs (refsByPkgNames: Array<[string, string]>, lockfile: LockfileObject): ParsedDepRefs {
   const acc: ParsedDepRefs = {
     depPaths: [],
     importerIds: [],

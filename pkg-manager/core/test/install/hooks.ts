@@ -1,5 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import {
@@ -26,7 +26,7 @@ test('readPackage, afterAllResolved hooks', async () => {
     return manifest
   }
 
-  const afterAllResolved = jest.fn((lockfile: Lockfile) => {
+  const afterAllResolved = jest.fn((lockfile: LockfileObject) => {
     Object.assign(lockfile, { foo: 'foo' })
     return lockfile
   })
@@ -64,7 +64,7 @@ test('readPackage, afterAllResolved async hooks', async () => {
     return manifest
   }
 
-  const afterAllResolved = jest.fn(async (lockfile: Lockfile) => {
+  const afterAllResolved = jest.fn(async (lockfile: LockfileObject) => {
     Object.assign(lockfile, { foo: 'foo' })
     return lockfile
   })

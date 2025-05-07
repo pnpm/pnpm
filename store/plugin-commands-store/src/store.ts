@@ -104,7 +104,6 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
     store = await createOrConnectStoreController(opts)
     return storeAdd(params.slice(1), {
       prefix: opts.dir,
-      registries: opts.registries,
       reporter: opts.reporter,
       storeController: store.ctrl,
       tag: opts.tag,

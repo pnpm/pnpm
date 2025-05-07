@@ -154,11 +154,10 @@ async function isAlreadyPublished (
   pkgVersion: string
 ): Promise<boolean> {
   try {
-    await opts.resolve({ alias: pkgName, pref: pkgVersion }, {
+    await opts.resolve({ alias: pkgName, bareSpecifier: pkgVersion }, {
       lockfileDir: opts.lockfileDir,
       preferredVersions: {},
       projectDir: opts.dir,
-      registry: pickRegistryForPackage(opts.registries, pkgName, pkgVersion),
     })
     return true
   } catch (err: any) { // eslint-disable-line

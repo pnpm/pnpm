@@ -54,7 +54,7 @@ export function help (): string {
             shortAlias: '-g',
           },
           {
-            description: 'When set to "project", the .npmrc file at the nearest package.json will be used',
+            description: 'When set to "project", the .npmrc file at the nearest package.json will be used. If no .npmrc file is present in the directory, the setting will be written to a pnpm-workspace.yaml file.',
             name: '--location <project|global>',
           },
           {
@@ -75,7 +75,9 @@ export function help (): string {
   })
 }
 
-export async function handler (opts: ConfigCommandOptions, params: string[]): Promise<string | undefined> {
+export type ConfigHandlerResult = string | undefined | { output: string, exitCode: number }
+
+export async function handler (opts: ConfigCommandOptions, params: string[]): Promise<ConfigHandlerResult> {
   if (params.length === 0) {
     throw new PnpmError('CONFIG_NO_SUBCOMMAND', 'Please specify the subcommand', {
       hint: help(),

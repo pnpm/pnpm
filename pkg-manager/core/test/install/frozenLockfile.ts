@@ -103,7 +103,7 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
 test(`frozen-lockfile: should successfully install when ${WANTED_LOCKFILE} is available`, async () => {
   const project = prepareEmpty()
 
-  const manifest = await install({
+  const { updatedManifest: manifest } = await install({
     dependencies: {
       'is-positive': '^3.0.0',
     },
@@ -131,7 +131,7 @@ test(`frozen-lockfile: should fail if no ${WANTED_LOCKFILE} is present`, async (
 test(`prefer-frozen-lockfile: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async () => {
   const project = prepareEmpty()
 
-  const manifest = await install({
+  const { updatedManifest: manifest } = await install({
     dependencies: {
       'is-positive': '^3.0.0',
     },
@@ -193,7 +193,7 @@ test(`frozen-lockfile: should not fail if no ${WANTED_LOCKFILE} is present and p
 test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async () => {
   const project = prepareEmpty()
 
-  const manifest = await install({
+  const { updatedManifest: manifest } = await install({
     dependencies: {
       '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
     },

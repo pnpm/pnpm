@@ -1,0 +1,55 @@
+{
+  "name": "@jsr/rus__greet",
+  "description": "Example library that greets you!",
+  "dist-tags": {
+    "latest": "0.0.3"
+  },
+  "versions": {
+    "0.0.3": {
+      "name": "@jsr/rus__greet",
+      "version": "0.0.3",
+      "description": "Example library that greets you!",
+      "dist": {
+        "tarball": "https://npm.jsr.io/~/11/@jsr/rus__greet/0.0.3.tgz",
+        "shasum": "99158A6BE97ECFDDB52E236A574588897321CD32",
+        "integrity": "sha512-hOYkQsOF5aMKmsjzXXuttQM/gTN57Ocjwm3UYFF+siCXKjxGusqUQBsajGdvZ/zHyTr7cZg5phXi43I3KDTd5w=="
+      },
+      "dependencies": {
+        "@jsr/luca__cases": "1.0.0"
+      }
+    },
+    "0.0.2": {
+      "name": "@jsr/rus__greet",
+      "version": "0.0.2",
+      "description": "Example library that greets you!",
+      "dist": {
+        "tarball": "https://npm.jsr.io/~/11/@jsr/rus__greet/0.0.2.tgz",
+        "shasum": "D7CD221AC674E964CCF1D8FC238D5E88760B8479",
+        "integrity": "sha512-+5Z534D4erkvqWjJVnQDvb1Do/rdK4sf3kuCYt2jc1TmCSuEr9tcUD1Llyl6oFpeRxYzi3f2nt8c1z/etFD0jA=="
+      },
+      "dependencies": {
+        "@jsr/luca__cases": "1.0.0"
+      }
+    },
+    "0.0.1": {
+      "name": "@jsr/rus__greet",
+      "version": "0.0.1",
+      "description": "Example library that greets you!",
+      "dist": {
+        "tarball": "https://npm.jsr.io/~/11/@jsr/rus__greet/0.0.1.tgz",
+        "shasum": "3DF04DE78584958FF55F369496BD09CEBAA4A10F",
+        "integrity": "sha512-er2E93G7KqTOE9Q9gTcCgoBT2OPlqAkGE8JaH8H1+xdVZd6DBrNRJi6TMMtEVZ4YuGIyLU2N3zwhyo29AP8R+A=="
+      },
+      "dependencies": {
+        "@jsr/luca__cases": "1.0.0"
+      }
+    }
+  },
+  "time": {
+    "created": "2024-11-16T15:31:57.112Z",
+    "modified": "2024-11-16T16:24:49.810Z",
+    "0.0.3": "2024-11-16T16:31:27.117Z",
+    "0.0.2": "2024-11-16T16:13:24.566Z",
+    "0.0.1": "2024-11-16T16:08:48.829Z"
+  }
+}

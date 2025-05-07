@@ -16,9 +16,6 @@
       "path": "../../catalogs/types"
     },
     {
-      "path": "../../config/pick-registry-for-package"
-    },
-    {
       "path": "../../fetching/pick-fetcher"
     },
     {
@@ -52,9 +49,6 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../packages/which-version-is-pinned"
-    },
-    {
       "path": "../../patching/config"
     },
     {
@@ -71,6 +65,9 @@
     },
     {
       "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../semver/peer-range"
     },
     {
       "path": "../../store/store-controller-types"

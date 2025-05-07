@@ -1,5 +1,11 @@
 # @pnpm/dedupe.issues-renderer
 
+## 1000.0.1
+
+### Patch Changes
+
+- acdf26d: Replace `strip-ansi` with the built-in `util.stripVTControlCharacters` [#9009](https://github.com/pnpm/pnpm/pull/9009).
+
 ## 2.0.0
 
 ### Major Changes

@@ -129,6 +129,7 @@ export async function handler (
   | 'allProjectsGraph'
   | 'bail'
   | 'bin'
+  | 'configDependencies'
   | 'dev'
   | 'engineStrict'
   | 'globalPnpmfile'
@@ -161,19 +162,21 @@ export async function handler (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
+  const store = await createOrConnectStoreController(opts)
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
     await recursive(opts.allProjects, params, {
       ...opts,
       allProjectsGraph: opts.allProjectsGraph!,
       include,
       selectedProjectsGraph: opts.selectedProjectsGraph,
+      storeControllerAndDir: store,
       workspaceDir: opts.workspaceDir,
     }, 'remove')
     return
   }
-  const store = await createOrConnectStoreController(opts)
   const removeOpts = Object.assign(opts, {
     ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
+    linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     storeController: store.ctrl,
     storeDir: store.dir,
     include,
@@ -211,5 +214,5 @@ export async function handler (
     },
     removeOpts
   )
-  await writeProjectManifest(mutationResult.manifest)
+  await writeProjectManifest(mutationResult.updatedProject.manifest)
 }

@@ -1,6 +1,7 @@
 name: Bug Report 🐛
 description: Create a bug report for pnpm
 labels: ['type: bug']
+type: Bug
 body:
   - type: markdown
     attributes:

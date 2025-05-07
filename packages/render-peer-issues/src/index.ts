@@ -46,8 +46,8 @@ export function renderPeerIssues (
         if (currentParentPkg && allowedVersionsByParentPkgName[peerName]?.[currentParentPkg.name]) {
           const allowedVersionsByParent: Record<string, string[]> = {}
           for (const { targetPkg, parentPkg, ranges } of allowedVersionsByParentPkgName[peerName][currentParentPkg.name]) {
-            if (!parentPkg.pref || currentParentPkg.version &&
-              (isSubRange(parentPkg.pref, currentParentPkg.version) || semver.satisfies(currentParentPkg.version, parentPkg.pref))) {
+            if (!parentPkg.bareSpecifier || currentParentPkg.version &&
+              (isSubRange(parentPkg.bareSpecifier, currentParentPkg.version) || semver.satisfies(currentParentPkg.version, parentPkg.bareSpecifier))) {
               allowedVersionsByParent[targetPkg.name] = ranges
             }
           }
@@ -72,7 +72,7 @@ export function renderPeerIssues (
       const { conflicts, intersections } = peerDependencyIssuesByProjects[projectKey]
       if (conflicts.length) {
         summaries.push(
-          chalk.red(`✕ Conflicting peer dependencies:\n  ${cliColumns(conflicts, cliColumnsOptions)}`)
+          chalk.red(`✕ Conflicting peer dependencies:\n  ${cliColumns(conflicts, cliColumnsOptions).trimEnd()}`)
         )
       }
       if (Object.keys(intersections).length) {
@@ -81,12 +81,9 @@ export function renderPeerIssues (
         )
       }
       const title = chalk.reset(projectKey)
-      let summariesConcatenated = summaries.join('\n')
-      if (summariesConcatenated) {
-        summariesConcatenated += '\n'
-      }
-      return `${archy(toArchyData(title, project))}${summariesConcatenated}`
-    }).join('\n')
+      const summariesConcatenated = summaries.join('\n')
+      return `${archy(toArchyData(title, project))}${summariesConcatenated}`.trimEnd()
+    }).join('\n\n')
 }
 
 function formatUnmetPeerMessage (
@@ -156,8 +153,8 @@ function parseAllowedVersions (allowedVersions: Record<string, string>): ParsedA
   const overrides = tryParseAllowedVersions(allowedVersions)
   const allowedVersionsMatchAll: Record<string, string[]> = {}
   const allowedVersionsByParentPkgName: AllowedVersionsByParentPkgName = {}
-  for (const { parentPkg, targetPkg, newPref } of overrides) {
-    const ranges = parseVersions(newPref)
+  for (const { parentPkg, targetPkg, newBareSpecifier } of overrides) {
+    const ranges = parseVersions(newBareSpecifier)
     if (!parentPkg) {
       allowedVersionsMatchAll[targetPkg.name] = ranges
       continue

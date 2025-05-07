@@ -1,8 +1,10 @@
 import AdmZip from 'adm-zip'
 import { Response } from 'node-fetch'
 import path from 'path'
+import fs from 'fs'
 import { Readable } from 'stream'
 import tar from 'tar-stream'
+import { globalWarn } from '@pnpm/logger'
 import {
   getNodeDir,
   getNodeBinDir,
@@ -34,8 +36,17 @@ jest.mock('@pnpm/fetch', () => ({
   createFetchFromRegistry: () => fetchMock,
 }))
 
+jest.mock('@pnpm/logger', () => {
+  const originalModule = jest.requireActual('@pnpm/logger')
+  return {
+    ...originalModule,
+    globalWarn: jest.fn(),
+  }
+})
+
 beforeEach(() => {
   fetchMock.mockClear()
+  ;(globalWarn as jest.Mock).mockClear()
 })
 
 test('check API (placeholder test)', async () => {
@@ -92,6 +103,28 @@ test('get node version base dir', async () => {
   expect(typeof getNodeVersionsBaseDir).toBe('function')
   const versionDir = getNodeVersionsBaseDir(process.cwd())
   expect(versionDir).toBe(path.resolve(process.cwd(), 'nodejs'))
+})
+
+test('specified an invalid Node.js via use-node-version should not cause pnpm itself to break', async () => {
+  tempDir()
+  const configDir = path.resolve('config')
+
+  const opts: NvmNodeCommandOptions = {
+    bin: process.cwd(),
+    configDir,
+    global: true,
+    pnpmHomeDir: process.cwd(),
+    rawConfig: {},
+    useNodeVersion: '22.14',
+  }
+
+  fs.mkdirSync('nodejs', { recursive: true })
+  fs.writeFileSync('nodejs/versions.json', '{"default":"16.4.0"}', 'utf8')
+
+  expect(await getNodeBinDir(opts)).toBeTruthy()
+
+  const calls = (globalWarn as jest.Mock).mock.calls
+  expect(calls[calls.length - 1][0]).toContain('"22.14" is not a valid Node.js version.')
 })
 
 describe('prepareExecutionEnv', () => {

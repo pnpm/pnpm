@@ -60,7 +60,7 @@ test('dlx', async () => {
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
-  }, ['shx', 'touch', 'foo'])
+  }, ['shx@0.3.4', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBeTruthy()
 })
@@ -124,7 +124,7 @@ test('dlx --package <pkg1> [--package <pkg2>]', async () => {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     package: [
-      'zkochan/for-testing-pnpm-dlx',
+      '@pnpm.e2e/for-testing-pnpm-dlx',
       'is-positive',
     ],
   }, ['foo'])
@@ -210,10 +210,10 @@ test('dlx with cache', async () => {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     dlxCacheMaxAge: Infinity,
-  }, ['shx', 'touch', 'foo'])
+  }, ['shx@0.3.4', 'touch', 'foo'])
 
   expect(fs.existsSync('foo')).toBe(true)
-  verifyDlxCache(createCacheKey('shx'))
+  verifyDlxCache(createCacheKey('shx@0.3.4'))
   expect(spy).toHaveBeenCalled()
 
   spy.mockReset()
@@ -224,10 +224,10 @@ test('dlx with cache', async () => {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     dlxCacheMaxAge: Infinity,
-  }, ['shx', 'touch', 'bar'])
+  }, ['shx@0.3.4', 'touch', 'bar'])
 
   expect(fs.existsSync('bar')).toBe(true)
-  verifyDlxCache(createCacheKey('shx'))
+  verifyDlxCache(createCacheKey('shx@0.3.4'))
   expect(spy).not.toHaveBeenCalled()
 
   spy.mockRestore()
@@ -245,12 +245,12 @@ test('dlx does not reuse expired cache', async () => {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     dlxCacheMaxAge: Infinity,
-  }, ['shx', 'echo', 'hello world'])
-  verifyDlxCache(createCacheKey('shx'))
+  }, ['shx@0.3.4', 'echo', 'hello world'])
+  verifyDlxCache(createCacheKey('shx@0.3.4'))
 
   // change the date attributes of the cache to 30 minutes older than now
   const newDate = new Date(now.getTime() - 30 * 60_000)
-  fs.lutimesSync(path.resolve('cache', 'dlx', createCacheKey('shx'), 'pkg'), newDate, newDate)
+  fs.lutimesSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'), 'pkg'), newDate, newDate)
 
   const spy = jest.spyOn(add, 'handler')
 
@@ -261,15 +261,15 @@ test('dlx does not reuse expired cache', async () => {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     dlxCacheMaxAge: 10, // 10 minutes should make 30 minutes old cache expired
-  }, ['shx', 'touch', 'BAR'])
+  }, ['shx@0.3.4', 'touch', 'BAR'])
 
   expect(fs.existsSync('BAR')).toBe(true)
-  expect(spy).toHaveBeenCalledWith(expect.anything(), ['shx'])
+  expect(spy).toHaveBeenCalledWith(expect.anything(), ['shx@0.3.4'])
 
   spy.mockRestore()
 
   expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx')))
+    fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4')))
       .map(sanitizeDlxCacheComponent)
       .sort()
   ).toStrictEqual([
@@ -277,7 +277,7 @@ test('dlx does not reuse expired cache', async () => {
     '***********-*****',
     '***********-*****',
   ].sort())
-  verifyDlxCacheLink(createCacheKey('shx'))
+  verifyDlxCacheLink(createCacheKey('shx@0.3.4'))
 })
 
 test('dlx still saves cache even if execution fails', async () => {
@@ -291,8 +291,57 @@ test('dlx still saves cache even if execution fails', async () => {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     dlxCacheMaxAge: Infinity,
-  }, ['shx', 'mkdir', path.resolve('not-a-dir')])
+  }, ['shx@0.3.4', 'mkdir', path.resolve('not-a-dir')])
 
   expect(fs.readFileSync(path.resolve('not-a-dir'), 'utf-8')).toEqual(expect.anything())
-  verifyDlxCache(createCacheKey('shx'))
+  verifyDlxCache(createCacheKey('shx@0.3.4'))
+})
+
+test('dlx builds the package that is executed', async () => {
+  prepareEmpty()
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }, ['@pnpm.e2e/has-bin-and-needs-build'])
+
+  // The command file of the above package is created by a postinstall script
+  // so if it doesn't fail it means that it was built.
+
+  const dlxCacheDir = path.resolve('cache', 'dlx', createCacheKey('@pnpm.e2e/has-bin-and-needs-build@1.0.0'), 'pkg')
+  const builtPkg1Path = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  expect(fs.existsSync(path.join(builtPkg1Path, 'package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(builtPkg1Path, 'generated-by-preinstall.js'))).toBeFalsy()
+  expect(fs.existsSync(path.join(builtPkg1Path, 'generated-by-postinstall.js'))).toBeFalsy()
+
+  const builtPkg2Path = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example')
+  expect(fs.existsSync(path.join(builtPkg2Path, 'package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(builtPkg2Path, 'generated-by-install.js'))).toBeFalsy()
+})
+
+test('dlx builds the packages passed via --allow-build', async () => {
+  prepareEmpty()
+
+  const allowBuild = ['@pnpm.e2e/install-script-example']
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    allowBuild,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }, ['@pnpm.e2e/has-bin-and-needs-build'])
+
+  const dlxCacheDir = path.resolve('cache', 'dlx', dlx.createCacheKey(['@pnpm.e2e/has-bin-and-needs-build@1.0.0'], DEFAULT_OPTS.registries, allowBuild), 'pkg')
+  const builtPkg1Path = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  expect(fs.existsSync(path.join(builtPkg1Path, 'package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(builtPkg1Path, 'generated-by-preinstall.js'))).toBeFalsy()
+  expect(fs.existsSync(path.join(builtPkg1Path, 'generated-by-postinstall.js'))).toBeFalsy()
+
+  const builtPkg2Path = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example')
+  expect(fs.existsSync(path.join(builtPkg2Path, 'package.json'))).toBeTruthy()
+  expect(fs.existsSync(path.join(builtPkg2Path, 'generated-by-install.js'))).toBeTruthy()
 })

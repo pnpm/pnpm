@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { type LockfileV9 as Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
@@ -248,7 +248,7 @@ test('readPackage hook from pnpmfile at root of workspace', async () => {
 
   process.chdir('..')
 
-  const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
+  const lockfile = readYamlFile<LockfileFile>('pnpm-lock.yaml')
   expect(lockfile.snapshots!['is-positive@1.0.0'].dependencies).toStrictEqual({
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
   })
@@ -302,7 +302,7 @@ test('fails when .pnpmfile.cjs requires a non-existed module', async () => {
 
   fs.writeFileSync('.pnpmfile.cjs', 'module.exports = require("./this-does-node-exist")', 'utf8')
 
-  const proc = execPnpmSync(['install', '@pnpm.e2e/pkg-with-1-dep'])
+  const proc = execPnpmSync(['add', '@pnpm.e2e/pkg-with-1-dep'])
 
   expect(proc.stderr.toString()).toContain('Error during pnpmfile execution')
   expect(proc.status).toBe(1)
@@ -612,7 +612,7 @@ test('readPackage hook is used during removal inside a workspace', async () => {
   await execPnpm(['uninstall', 'is-positive', '--no-strict-peer-dependencies'])
 
   process.chdir('..')
-  const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
+  const lockfile = readYamlFile<LockfileFile>('pnpm-lock.yaml')
   expect(lockfile.packages!['@pnpm.e2e/abc@1.0.0'].peerDependencies!['is-negative']).toBe('1.0.0')
 })
 
@@ -646,8 +646,47 @@ test('preResolution hook', async () => {
   expect(ctx.existsCurrentLockfile).toBe(false)
   expect(ctx.existsNonEmptyWantedLockfile).toBe(false)
 
-  expect(ctx.registries).toEqual({
+  expect(ctx.registries).toMatchObject({
     default: `http://localhost:${REGISTRY_MOCK_PORT}/`,
     '@foo': 'https://foo.com/',
   })
+})
+
+test('pass readPackage with shared lockfile', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['*'] })
+  fs.writeFileSync('.pnpmfile.cjs', `
+module.exports = {
+  hooks: {
+    readPackage: (pkg) => ({
+      ...pkg,
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    }),
+  },
+}
+`, 'utf8')
+
+  await execPnpm(['install'])
+
+  projects['project-1'].has('is-positive')
+  projects['project-1'].hasNot('is-negative')
+  projects['project-2'].has('is-positive')
+  projects['project-2'].hasNot('is-negative')
 })

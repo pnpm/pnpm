@@ -1,5 +1,85 @@
 # @pnpm/render-peer-issues
 
+## 1001.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+  - @pnpm/parse-overrides@1001.0.0
+  - @pnpm/types@1000.5.0
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+
+## 1000.0.4
+
+### Patch Changes
+
+- 3717340: Remove trailing new line from the output.
+
+## 1000.0.3
+
+### Patch Changes
+
+- acdf26d: Replace `strip-ansi` with the built-in `util.stripVTControlCharacters` [#9009](https://github.com/pnpm/pnpm/pull/9009).
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/parse-overrides@1000.0.2
+
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+- @pnpm/parse-overrides@1000.0.1
+
+## 5.0.10
+
+### Patch Changes
+
+- ee5dde3: Don't fail to render missing peer dependencies, when the parents field is an empty array.
+  - @pnpm/error@6.0.3
+  - @pnpm/parse-overrides@5.1.2
+
 ## 5.0.9
 
 ### Patch Changes

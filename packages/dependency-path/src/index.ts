@@ -169,7 +169,7 @@ export function depPathToFilename (depPath: string, maxLengthWithoutHash: number
   if (filename.includes('(')) {
     filename = filename
       .replace(/\)$/, '')
-      .replace(/(\)\()|\(|\)/g, '_')
+      .replace(/\)\(|\(|\)/g, '_')
   }
   if (filename.length > maxLengthWithoutHash || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
     return `${filename.substring(0, maxLengthWithoutHash - 33)}_${createShortHash(filename)}`

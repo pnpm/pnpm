@@ -1,5 +1,29 @@
 # @pnpm/find-workspace-dir
 
+## 1000.1.0
+
+### Minor Changes
+
+- 69f922a: Throw an error message if a `pnpm-workspaces.yaml` or `pnpm-workspaces.yml` file is found instead of a `pnpm-workspace.yaml` [#9170](https://github.com/pnpm/pnpm/issues/9170).
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/error@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+
+## 7.0.3
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+
 ## 7.0.2
 
 ### Patch Changes

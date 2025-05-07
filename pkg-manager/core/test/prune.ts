@@ -19,10 +19,10 @@ test('prune removes extraneous packages', async () => {
   const project = prepareEmpty()
 
   const opts = testDefaults()
-  let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], { ...opts, targetDependenciesField: 'dependencies' })
-  manifest = await addDependenciesToPackage(manifest, ['applyq@0.2.1'], { ...opts, targetDependenciesField: 'devDependencies' })
-  manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], { ...opts, targetDependenciesField: 'optionalDependencies' })
-  manifest = await addDependenciesToPackage(manifest, ['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-negative@2.1.0'], { ...opts, targetDependenciesField: 'dependencies' })
+  manifest = (await addDependenciesToPackage(manifest, ['applyq@0.2.1'], { ...opts, targetDependenciesField: 'devDependencies' })).updatedManifest
+  manifest = (await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], { ...opts, targetDependenciesField: 'optionalDependencies' })).updatedManifest
+  manifest = (await addDependenciesToPackage(manifest, ['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)).updatedManifest
   symlinkDir.sync(linkedPkg, path.resolve('node_modules/@pnpm.e2e/hello-world-js-bin'))
 
   project.has('@pnpm.e2e/hello-world-js-bin') // external link added
@@ -74,9 +74,9 @@ test('prune removes extraneous packages', async () => {
 test('prune removes dev dependencies in production', async () => {
   const project = prepareEmpty()
 
-  let manifest = await addDependenciesToPackage({}, ['is-positive@2.0.0'], testDefaults({ targetDependenciesField: 'devDependencies' }))
-  manifest = await addDependenciesToPackage(manifest, ['is-negative@2.1.0'], testDefaults({ targetDependenciesField: 'dependencies' }))
-  manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@2.0.0'], testDefaults({ targetDependenciesField: 'devDependencies' }))
+  manifest = (await addDependenciesToPackage(manifest, ['is-negative@2.1.0'], testDefaults({ targetDependenciesField: 'dependencies' }))).updatedManifest
+  manifest = (await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], testDefaults({ targetDependenciesField: 'optionalDependencies' }))).updatedManifest
   await install(manifest, testDefaults({
     include: {
       dependencies: true,

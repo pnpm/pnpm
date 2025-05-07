@@ -1,5 +1,5 @@
 import path from 'path'
-import { matchCatalogResolveResult, type CatalogResolver } from '@pnpm/catalogs.resolver'
+import { type CatalogResolution, matchCatalogResolveResult, type CatalogResolver } from '@pnpm/catalogs.resolver'
 import {
   deprecationLogger,
   progressLogger,
@@ -7,7 +7,7 @@ import {
 } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import {
-  type Lockfile,
+  type LockfileObject,
   type PackageSnapshot,
   type ResolvedDependencies,
 } from '@pnpm/lockfile.types'
@@ -16,8 +16,7 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import { getPatchInfo } from '@pnpm/patching.config'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
+import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
 import {
   type DirectoryResolution,
   DIRECT_DEP_SELECTOR_WEIGHT,
@@ -39,10 +38,11 @@ import {
   type ReadPackageHook,
   type Registries,
   type PkgIdWithPatchHash,
+  type PinnedVersion,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
-import { type PatchFile, type PatchInfo } from '@pnpm/patching.types'
+import { type PatchInfo } from '@pnpm/patching.types'
 import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import pDefer from 'p-defer'
@@ -59,7 +59,7 @@ import { parentIdsContainSequence } from './parentIdsContainSequence'
 import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
 import { type CatalogLookupMetadata } from './resolveDependencyTree'
-import { replaceVersionInPref } from './replaceVersionInPref'
+import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier'
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
 
@@ -111,9 +111,9 @@ export interface LinkedDependency {
   pkgId: PkgResolutionId
   version: string
   name: string
-  normalizedPref?: string
   alias: string
   catalogLookup?: CatalogLookupMetadata
+  normalizedBareSpecifier?: string
 }
 
 export interface PendingNode {
@@ -136,7 +136,6 @@ export interface ResolutionContext {
   allPeerDepNames: Set<string>
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
-  allowBuild?: (pkgName: string) => boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allPreferredVersions?: PreferredVersions
   appliedPatches: Set<string>
@@ -149,10 +148,11 @@ export interface ResolutionContext {
   resolvedPkgsById: ResolvedPkgsById
   outdatedDependencies: Record<PkgResolutionId, string>
   childrenByParentId: ChildrenByParentId
-  patchedDependencies?: Record<string, PatchFile>
+  patchedDependencies?: PatchGroupRecord
   pendingNodes: PendingNode[]
-  wantedLockfile: Lockfile
-  currentLockfile: Lockfile
+  wantedLockfile: LockfileObject
+  currentLockfile: LockfileObject
+  injectWorkspacePackages?: boolean
   linkWorkspacePackagesDepth: number
   lockfileDir: string
   storeController: StoreController
@@ -190,9 +190,9 @@ export type PkgAddress = {
   depIsLinked: boolean
   isNew: boolean
   isLinkedDependency?: false
+  resolvedVia?: string
   nodeId: NodeId
   pkgId: PkgResolutionId
-  normalizedPref?: string // is returned only for root dependencies
   installable: boolean
   pkg: PackageManifest
   version?: string
@@ -203,6 +203,7 @@ export type PkgAddress = {
   publishedAt?: string
   catalogLookup?: CatalogLookupMetadata
   optional: boolean
+  normalizedBareSpecifier?: string
 } & ({
   isLinkedDependency: true
   version: string
@@ -250,7 +251,7 @@ export interface ResolvedPackage {
   }
 }
 
-type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId'>
+type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId' | 'resolvedVia'>
 
 export type ParentPkgAliases = Record<string, PkgAddress | true>
 
@@ -274,6 +275,7 @@ interface ResolvedDependenciesOptions {
   prefix: string
   supportedArchitectures?: SupportedArchitectures
   updateToLatest?: boolean
+  pinnedVersion?: PinnedVersion
 }
 
 interface PostponedResolutionOpts {
@@ -406,6 +408,7 @@ export interface ImporterToResolve {
   parentPkgAliases: ParentPkgAliases
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>
   options: ImporterToResolveOptions
+  pinnedVersion?: PinnedVersion
 }
 
 interface ResolveDependenciesOfImportersResult {
@@ -548,21 +551,13 @@ async function resolveDependenciesOfImporterDependency (
       throw result.error
     },
   })
-  const originalPref = extendedWantedDep.wantedDependency.pref
+  const originalBareSpecifier = extendedWantedDep.wantedDependency.bareSpecifier
 
   if (catalogLookup != null) {
-    // The lockfile from a previous installation may have already resolved this
-    // cataloged dependency. Reuse the exact version in the lockfile catalog
-    // snapshot to ensure all projects using the same cataloged dependency get
-    // the same version.
-    const existingCatalogResolution = ctx.wantedLockfile.catalogs
-      ?.[catalogLookup.catalogName]
-      ?.[extendedWantedDep.wantedDependency.alias]
-    const replacementPref = existingCatalogResolution?.specifier === catalogLookup.specifier
-      ? replaceVersionInPref(catalogLookup.specifier, existingCatalogResolution.version)
-      : catalogLookup.specifier
-
-    extendedWantedDep.wantedDependency.pref = replacementPref
+    extendedWantedDep.wantedDependency.bareSpecifier = getCatalogReplacementBareSpecifier(
+      catalogLookup,
+      ctx.wantedLockfile,
+      extendedWantedDep.wantedDependency)
   }
 
   const result = await resolveDependenciesOfDependency(
@@ -578,6 +573,7 @@ async function resolveDependenciesOfImporterDependency (
       updateToLatest: catalogLookup != null
         ? false
         : importer.options.updateToLatest,
+      pinnedVersion: importer.pinnedVersion,
     },
     extendedWantedDep
   )
@@ -587,7 +583,7 @@ async function resolveDependenciesOfImporterDependency (
   if (result.resolveDependencyResult != null && catalogLookup != null) {
     result.resolveDependencyResult.catalogLookup = {
       ...catalogLookup,
-      userSpecifiedPref: originalPref,
+      userSpecifiedBareSpecifier: originalBareSpecifier,
     }
   }
 
@@ -824,13 +820,51 @@ async function resolveDependenciesOfDependency (
     prefix: options.prefix,
     proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
     publishedBy: options.publishedBy,
-    update,
+    update: update ? options.updateToLatest ? 'latest' : 'compatible' : false,
     updateDepth,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
-    updateToLatest: options.updateToLatest,
     parentIds: options.parentIds,
+    pinnedVersion: options.pinnedVersion,
   }
+
+  // The catalog protocol is normally replaced when resolving the dependencies
+  // of importers. However, when a workspace package is "injected", it becomes a
+  // "file:" dependency and is no longer an "importer" from the perspective of
+  // pnpm.
+  //
+  // To allow the catalog protocol to still be used for injected workspace
+  // packages, it's necessary to check if the parent package was an injected
+  // workspace package and replace the catalog: protocol for the current package.
+  const isInjectedWorkspacePackage = options.parentPkg.resolvedVia === 'workspace' &&
+    options.parentPkg.pkgId.startsWith('file:')
+  if (isInjectedWorkspacePackage) {
+    const catalogLookup = matchCatalogResolveResult(ctx.catalogResolver(extendedWantedDep.wantedDependency), {
+      found: (result) => result.resolution,
+      unused: () => undefined,
+      misconfiguration: (result) => {
+        throw result.error
+      },
+    })
+
+    // The standard process for replacing the catalog protocol when resolving
+    // the dependencies of "importers" stores the catalog lookup in the
+    // dependency resolution result. This allows the catalogs snapshot section
+    // of the wanted lockfile to be kept up to date.
+    //
+    // We can do a simple replacement here instead and discard the catalog
+    // lookup object. It's not necessary to store this information for injected
+    // workspace packages. The injected workspace package will still be resolved
+    // as an importer separately, and we can rely on that process keeping the
+    // importers lockfile catalog snapshots up to date.
+    if (catalogLookup != null) {
+      extendedWantedDep.wantedDependency.bareSpecifier = getCatalogReplacementBareSpecifier(
+        catalogLookup,
+        ctx.wantedLockfile,
+        extendedWantedDep.wantedDependency)
+    }
+  }
+
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
   if (resolveDependencyResult == null) return { resolveDependencyResult: null }
@@ -994,7 +1028,7 @@ async function resolveChildren (
 
 function getDepsToResolve (
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
-  wantedLockfile: Lockfile,
+  wantedLockfile: LockfileObject,
   options: {
     preferredDependencies?: ResolvedDependencies
     prefix: string
@@ -1031,7 +1065,7 @@ function getDepsToResolve (
         // So for example, if foo@1.0.0 had bar@1.0.0 as a dependency
         // and foo was updated to 1.1.0 which depends on bar ^1.0.0
         // then bar@1.0.0 can be reused for foo@1.1.0
-        semver.validRange(wantedDependency.pref) !== null &&
+        semver.validRange(wantedDependency.bareSpecifier) !== null &&
         preferredDependencies[wantedDependency.alias] &&
         satisfiesWanted(preferredDependencies[wantedDependency.alias])
       ) {
@@ -1069,10 +1103,10 @@ function getDepsToResolve (
 
 function referenceSatisfiesWantedSpec (
   opts: {
-    lockfile: Lockfile
+    lockfile: LockfileObject
     prefix: string
   },
-  wantedDep: { alias: string, pref: string },
+  wantedDep: { alias: string, bareSpecifier: string },
   preferredRef: string
 ) {
   const depPath = dp.refToRelative(preferredRef, wantedDep.alias)
@@ -1086,10 +1120,10 @@ function referenceSatisfiesWantedSpec (
     return false
   }
   const { version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-  if (!semver.validRange(wantedDep.pref) && Object.values(opts.lockfile.importers).filter(importer => importer.specifiers[wantedDep.alias] === wantedDep.pref).length) {
+  if (!semver.validRange(wantedDep.bareSpecifier) && Object.values(opts.lockfile.importers).filter(importer => importer.specifiers[wantedDep.alias] === wantedDep.bareSpecifier).length) {
     return true
   }
-  return semver.satisfies(version, wantedDep.pref, true)
+  return semver.satisfies(version, wantedDep.bareSpecifier, true)
 }
 
 type InfoFromLockfile = {
@@ -1106,7 +1140,7 @@ type InfoFromLockfile = {
 } | unknown)
 
 function getInfoFromLockfile (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   registries: Registries,
   reference: string | undefined,
   alias: string | undefined
@@ -1175,11 +1209,11 @@ interface ResolveDependencyOptions {
   proceed: boolean
   publishedBy?: Date
   pickLowestVersion?: boolean
-  update: boolean
+  update: false | 'compatible' | 'latest'
   updateDepth: number
   updateMatching?: UpdateMatchingFunction
   supportedArchitectures?: SupportedArchitectures
-  updateToLatest?: boolean
+  pinnedVersion?: PinnedVersion
 }
 
 type ResolveDependencyResult = PkgAddress | LinkedDependency | null
@@ -1224,8 +1258,9 @@ async function resolveDependency (
     }
   }
   try {
-    if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`)) {
-      wantedDependency.pref = replaceVersionInPref(wantedDependency.pref, currentPkg.version)
+    const calcSpecifier = options.currentDepth === 0
+    if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifier) {
+      wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
@@ -1246,11 +1281,10 @@ async function resolveDependency (
       preferWorkspacePackages: ctx.preferWorkspacePackages,
       projectDir: (
         options.currentDepth > 0 &&
-        !wantedDependency.pref.startsWith('file:')
+        !wantedDependency.bareSpecifier.startsWith('file:')
       )
         ? ctx.lockfileDir
         : options.parentPkg.rootDir,
-      registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.pref) || ctx.registries.default,
       skipFetch: ctx.dryRun,
       update: options.update,
       workspacePackages: ctx.workspacePackages,
@@ -1260,13 +1294,15 @@ async function resolveDependency (
         err.pkgsStack = getPkgsInfoFromIds(options.parentIds, ctx.resolvedPkgsById)
         return err
       },
-      updateToLatest: options.updateToLatest,
+      injectWorkspacePackages: ctx.injectWorkspacePackages,
+      calcSpecifier,
+      pinnedVersion: options.pinnedVersion,
     })
   } catch (err: any) { // eslint-disable-line
     const wantedDependencyDetails = {
       name: wantedDependency.alias,
-      pref: wantedDependency.pref,
-      version: wantedDependency.alias ? wantedDependency.pref : undefined,
+      bareSpecifier: wantedDependency.bareSpecifier,
+      version: wantedDependency.alias ? wantedDependency.bareSpecifier : undefined,
     }
     if (wantedDependency.optional) {
       skippedOptionalDependencyLogger.debug({
@@ -1289,7 +1325,7 @@ async function resolveDependency (
     wanted: {
       dependentId: options.parentPkg.pkgId,
       name: wantedDependency.alias,
-      rawSpec: wantedDependency.pref,
+      rawSpec: wantedDependency.bareSpecifier,
     },
   })
 
@@ -1312,18 +1348,18 @@ async function resolveDependency (
     if (!pkgResponse.body.manifest) {
       // This should actually never happen because the local-resolver returns a manifest
       // even if no real manifest exists in the filesystem.
-      throw new PnpmError('MISSING_PACKAGE_JSON', `Can't install ${wantedDependency.pref}: Missing package.json file`)
+      throw new PnpmError('MISSING_PACKAGE_JSON', `Can't install ${wantedDependency.bareSpecifier}: Missing package.json file`)
     }
     return {
-      alias: wantedDependency.alias || pkgResponse.body.manifest.name || path.basename(pkgResponse.body.resolution.directory),
+      alias: wantedDependency.alias ?? pkgResponse.body.alias ?? pkgResponse.body.manifest.name ?? path.basename(pkgResponse.body.resolution.directory),
       dev: wantedDependency.dev,
       isLinkedDependency: true,
       name: pkgResponse.body.manifest.name,
-      normalizedPref: pkgResponse.body.normalizedPref,
       optional: wantedDependency.optional,
       pkgId: pkgResponse.body.id,
       resolution: pkgResponse.body.resolution,
       version: pkgResponse.body.manifest.version,
+      normalizedBareSpecifier: pkgResponse.body.normalizedBareSpecifier,
     }
   }
 
@@ -1353,7 +1389,7 @@ async function resolveDependency (
     }
   }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
-    throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
+    throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.bareSpecifier}: Missing package name`)
   }
   let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
   const patch = getPatchInfo(ctx.patchedDependencies, pkg.name, pkg.version)
@@ -1466,7 +1502,6 @@ async function resolveDependency (
     // WARN: It is very important to keep this sync
     // Otherwise, deprecation messages for the same package might get written several times
     ctx.resolvedPkgsById[pkgResponse.body.id] = getResolvedPackage({
-      allowBuild: ctx.allowBuild,
       dependencyLockfile: currentPkg.dependencyLockfile,
       pkgIdWithPatchHash,
       force: ctx.force,
@@ -1492,7 +1527,7 @@ async function resolveDependency (
       ctx.dependenciesTree.get(nodeId)!.depth = Math.min(ctx.dependenciesTree.get(nodeId)!.depth, options.currentDepth)
     } else {
       ctx.pendingNodes.push({
-        alias: wantedDependency.alias || pkg.name,
+        alias: wantedDependency.alias ?? pkgResponse.body.alias ?? pkg.name,
         depth: options.currentDepth,
         parentIds: options.parentIds,
         installable,
@@ -1531,11 +1566,12 @@ async function resolveDependency (
     }
   }
   return {
-    alias: wantedDependency.alias || pkg.name,
+    alias: wantedDependency.alias ?? pkgResponse.body.alias ?? pkg.name,
     depIsLinked,
+    resolvedVia: pkgResponse.body.resolvedVia,
     isNew,
     nodeId,
-    normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
+    normalizedBareSpecifier: pkgResponse.body.normalizedBareSpecifier,
     missingPeersOfChildren,
     pkgId: pkgResponse.body.id,
     rootDir,
@@ -1557,7 +1593,7 @@ function getManifestFromResponse (
 ): PackageManifest {
   if (pkgResponse.body.manifest) return pkgResponse.body.manifest
   return {
-    name: wantedDependency.pref.split('/').pop()!,
+    name: wantedDependency.bareSpecifier.split('/').pop()!,
     version: '0.0.0',
   }
 }
@@ -1584,7 +1620,6 @@ function pkgIsLeaf (pkg: PackageManifest): boolean {
 
 function getResolvedPackage (
   options: {
-    allowBuild?: (pkgName: string) => boolean
     dependencyLockfile?: PackageSnapshot
     pkgIdWithPatchHash: PkgIdWithPatchHash
     force: boolean
@@ -1633,6 +1668,7 @@ function getResolvedPackage (
 function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {
   if ((pkg.peerDependencies == null) && (pkg.peerDependenciesMeta == null)) return {}
   const ownDeps = new Set([
+    pkg.name,
     ...Object.keys(pkg.dependencies ?? {}),
     ...Object.keys(pkg.optionalDependencies ?? {}),
   ])
@@ -1653,4 +1689,23 @@ function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {
     }
   }
   return result
+}
+
+function getCatalogReplacementBareSpecifier (
+  catalogLookup: CatalogResolution,
+  wantedLockfile: LockfileObject,
+  wantedDependency: WantedDependency
+): string {
+  // The lockfile from a previous installation may have already resolved this
+  // cataloged dependency. Reuse the exact version in the lockfile catalog
+  // snapshot to ensure all projects using the same cataloged dependency get the
+  // same version.
+  const existingCatalogResolution = wantedLockfile.catalogs
+    ?.[catalogLookup.catalogName]
+    ?.[wantedDependency.alias]
+  const replacementBareSpecifier = existingCatalogResolution?.specifier === catalogLookup.specifier
+    ? replaceVersionInBareSpecifier(catalogLookup.specifier, existingCatalogResolution.version)
+    : catalogLookup.specifier
+
+  return replacementBareSpecifier
 }

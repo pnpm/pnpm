@@ -1,29 +1,30 @@
 import { type TarballResolution, type GitResolution, type ResolveResult, type PkgResolutionId } from '@pnpm/resolver-base'
 import git from 'graceful-git'
 import semver from 'semver'
-import { parsePref, type HostedPackageSpec } from './parsePref'
+import { parseBareSpecifier, type HostedPackageSpec } from './parseBareSpecifier'
 import { createGitHostedPkgId } from './createGitHostedPkgId'
+import { type AgentOptions } from '@pnpm/network.agent'
 
 export { createGitHostedPkgId }
 
 export type { HostedPackageSpec }
 
 export type GitResolver = (wantedDependency: {
-  pref: string
+  bareSpecifier: string
 }) => Promise<ResolveResult | null>
 
 export function createGitResolver (
-  opts: unknown
+  opts: AgentOptions
 ): GitResolver {
   return async function resolveGit (wantedDependency): Promise<ResolveResult | null> {
-    const parsedSpec = await parsePref(wantedDependency.pref)
+    const parsedSpec = await parseBareSpecifier(wantedDependency.bareSpecifier, opts)
 
     if (parsedSpec == null) return null
 
-    const pref = parsedSpec.gitCommittish == null || parsedSpec.gitCommittish === ''
+    const bareSpecifier = parsedSpec.gitCommittish == null || parsedSpec.gitCommittish === ''
       ? 'HEAD'
       : parsedSpec.gitCommittish
-    const commit = await resolveRef(parsedSpec.fetchSpec, pref, parsedSpec.gitRange)
+    const commit = await resolveRef(parsedSpec.fetchSpec, bareSpecifier, parsedSpec.gitRange)
     let resolution
 
     if ((parsedSpec.hosted != null) && !isSsh(parsedSpec.fetchSpec)) {
@@ -62,7 +63,7 @@ export function createGitResolver (
 
     return {
       id,
-      normalizedPref: parsedSpec.normalizedPref,
+      normalizedBareSpecifier: parsedSpec.normalizedBareSpecifier,
       resolution,
       resolvedVia: 'git-repository',
     }
@@ -117,11 +118,11 @@ function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref:
     const vTags =
       Object.keys(refs)
         // using the same semantics of version tags as https://github.com/zkat/pacote
-        .filter((key: string) => /^refs\/tags\/v?(\d+\.\d+\.\d+(?:[-+].+)?)(\^{})?$/.test(key))
+        .filter((key: string) => /^refs\/tags\/v?\d+\.\d+\.\d+(?:[-+].+)?(?:\^\{\})?$/.test(key))
         .map((key: string) => {
           return key
             .replace(/^refs\/tags\//, '')
-            .replace(/\^{}$/, '') // accept annotated tags
+            .replace(/\^\{\}$/, '') // accept annotated tags
         })
         .filter((key: string) => semver.valid(key, true))
     const refVTag = resolveVTags(vTags, range)

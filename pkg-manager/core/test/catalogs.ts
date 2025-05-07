@@ -3,6 +3,8 @@ import { type ProjectRootDir, type ProjectId, type ProjectManifest } from '@pnpm
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type MutatedProject, mutateModules, type ProjectOptions, type MutateModulesOptions, addDependenciesToPackage } from '@pnpm/core'
+import { type CatalogSnapshots } from '@pnpm/lockfile.types'
+import { sync as loadJsonFile } from 'load-json-file'
 import path from 'path'
 import { testDefaults } from './utils'
 
@@ -297,6 +299,210 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
   })
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/8638
+test('lockfile catalog snapshots do not contain stale references on --filter', async () => {
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {},
+    },
+    {
+      name: 'project2',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    },
+  ])
+
+  await mutateModules(installProjects(projects), {
+    ...options,
+    catalogs: {
+      default: {
+        'is-positive': '^1.0.0',
+      },
+    },
+  })
+
+  expect(readLockfile().catalogs).toStrictEqual({
+    default: {
+      'is-positive': { specifier: '^1.0.0', version: '1.0.0' },
+    },
+  })
+
+  // This test updates the catalog entry in project2, but only performs a
+  // filtered install on project1. The lockfile catalog snapshots for project2
+  // should still be updated despite it not being part of the filtered install.
+  const onlyProject1 = installProjects(projects).slice(0, 1)
+  expect(onlyProject1).toMatchObject([{ id: 'project1' }])
+
+  await mutateModules(onlyProject1, {
+    ...options,
+    catalogs: {
+      default: {
+        'is-positive': '=3.1.0',
+      },
+    },
+  })
+
+  expect(readLockfile()).toStrictEqual(expect.objectContaining({
+    catalogs: {
+      default: {
+        'is-positive': { specifier: '=3.1.0', version: '3.1.0' },
+      },
+    },
+    importers: expect.objectContaining({
+      project1: {},
+      project2: expect.objectContaining({
+        dependencies: {
+          // project 2 should be updated even though it wasn't part of the
+          // filtered install. This is due to a filtered install updating
+          // the lockfile first: https://github.com/pnpm/pnpm/pull/8183
+          'is-positive': { specifier: 'catalog:', version: '3.1.0' },
+        },
+      }),
+    }),
+  }))
+
+  // is-positive was not updated because only dependencies of project1 were.
+  const pathToIsPositivePkgJson = path.join(options.allProjects[1].rootDir!, 'node_modules/is-positive/package.json')
+  expect(loadJsonFile<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('1.0.0')
+
+  await mutateModules(installProjects(projects), {
+    ...options,
+    catalogs: {
+      default: {
+        'is-positive': '=3.1.0',
+      },
+    },
+  })
+
+  // is-positive is now updated because a full install took place.
+  expect(loadJsonFile<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('3.1.0')
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/9112
+test('dedupe-peer-dependents=false with --filter does not erase catalog snapshots', async () => {
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {},
+    },
+    {
+      name: 'project2',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    },
+  ])
+
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    dedupePeerDependents: false,
+    catalogs: {
+      default: {
+        'is-positive': '1.0.0',
+      },
+    },
+  })
+
+  expect(readLockfile().catalogs).toStrictEqual({
+    default: {
+      'is-positive': { specifier: '1.0.0', version: '1.0.0' },
+    },
+  })
+
+  // Perform a filtered install with only project 1. The catalog protocol usage
+  // in project 2 should be retained.
+  const onlyProject1 = installProjects(projects).slice(0, 1)
+  expect(onlyProject1).toMatchObject([{ id: 'project1' }])
+  await mutateModules(onlyProject1, {
+    ...options,
+    lockfileOnly: true,
+    dedupePeerDependents: false,
+    catalogs: {
+      default: {
+        // Modify the original specifier above from "1.0.0" to "^1.0.0" in order
+        // to force a resolution instead of a frozen install.
+        'is-positive': '^1.0.0',
+      },
+    },
+  })
+
+  // The catalogs snapshot section was erased in the bug report from
+  // https://github.com/pnpm/pnpm/issues/9112 when dedupe-peer-dependents=false.
+  expect(readLockfile()).toStrictEqual(expect.objectContaining({
+    catalogs: {
+      default: {
+        'is-positive': { specifier: '^1.0.0', version: '1.0.0' },
+      },
+    },
+    importers: expect.objectContaining({
+      project1: {},
+      project2: expect.objectContaining({
+        dependencies: {
+          'is-positive': { specifier: 'catalog:', version: '1.0.0' },
+        },
+      }),
+    }),
+  }))
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues/8639
+test('--fix-lockfile with --filter does not erase catalog snapshots', async () => {
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        'is-negative': 'catalog:',
+      },
+    },
+    {
+      name: 'project2',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    },
+  ])
+
+  const catalogs = {
+    default: {
+      'is-positive': '^1.0.0',
+      'is-negative': '^1.0.0',
+    },
+  }
+
+  const expectedCatalogsSnapshot: CatalogSnapshots = {
+    default: {
+      'is-negative': { specifier: '^1.0.0', version: '1.0.0' },
+      'is-positive': { specifier: '^1.0.0', version: '1.0.0' },
+    },
+  }
+
+  await mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    catalogs,
+  })
+
+  // Sanity check this test is set up correctly.
+  expect(readLockfile().catalogs).toStrictEqual(expectedCatalogsSnapshot)
+
+  // The catalogs snapshot should still be the same after performing a filtered
+  // install with --fix-lockfile.
+  const onlyProject1 = installProjects(projects).slice(0, 1)
+  expect(onlyProject1).toMatchObject([{ id: 'project1' }])
+
+  await mutateModules(onlyProject1, {
+    ...options,
+    lockfileOnly: true,
+    fixLockfile: true,
+    catalogs,
+  })
+
+  expect(readLockfile().catalogs).toStrictEqual(expectedCatalogsSnapshot)
+})
+
 test('external dependency using catalog protocol errors', async () => {
   const { options, projects } = preparePackagesAndReturnObjects([
     {
@@ -366,11 +572,11 @@ test('catalog resolutions should be consistent', async () => {
 
   // At this point, both 3.0.0 and 3.1.0 should be in the lockfile, but the
   // catalog entry still resolves to 3.0.0.
-  expect(readLockfile()).toEqual(expect.objectContaining({
+  expect(readLockfile()).toStrictEqual(expect.objectContaining({
     catalogs: { default: { 'is-positive': { specifier: '^3.0.0', version: '3.0.0' } } },
     packages: expect.objectContaining({
-      'is-positive@3.0.0': expect.objectContaining({}),
-      'is-positive@3.1.0': expect.objectContaining({}),
+      'is-positive@3.0.0': expect.any(Object),
+      'is-positive@3.1.0': expect.any(Object),
     }),
   }))
 
@@ -381,14 +587,14 @@ test('catalog resolutions should be consistent', async () => {
   await mutateModules(installProjects(projects), mutateOpts)
 
   // Expect all projects using the catalog specifier (e.g. project1 and project3) to resolve to the same version.
-  expect(readLockfile()).toEqual(expect.objectContaining({
+  expect(readLockfile()).toMatchObject({
     catalogs: { default: { 'is-positive': { specifier: '^3.0.0', version: '3.0.0' } } },
-    importers: expect.objectContaining({
-      project1: expect.objectContaining({ dependencies: { 'is-positive': { specifier: 'catalog:', version: '3.0.0' } } }),
-      project2: expect.objectContaining({ dependencies: { 'is-positive': { specifier: '3.1.0', version: '3.1.0' } } }),
-      project3: expect.objectContaining({ dependencies: { 'is-positive': { specifier: 'catalog:', version: '3.0.0' } } }),
-    }),
-  }))
+    importers: {
+      project1: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '3.0.0' } } },
+      project2: { dependencies: { 'is-positive': { specifier: '3.1.0', version: '3.1.0' } } },
+      project3: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '3.0.0' } } },
+    },
+  })
 })
 
 // Similar to the 'catalog resolutions should be consistent' test above, but
@@ -433,13 +639,13 @@ test('catalog entry using npm alias can be reused', async () => {
 
   await mutateModules(installProjects(projects), mutateOpts)
 
-  expect(readLockfile()).toEqual(expect.objectContaining({
+  expect(readLockfile()).toMatchObject({
     catalogs: { default: { '@pnpm.test/is-positive-alias': { specifier: 'npm:is-positive@1.0.0', version: '1.0.0' } } },
-    importers: expect.objectContaining({
-      project1: expect.objectContaining({ dependencies: { '@pnpm.test/is-positive-alias': { specifier: 'catalog:', version: 'is-positive@1.0.0' } } }),
-      project2: expect.objectContaining({ dependencies: { '@pnpm.test/is-positive-alias': { specifier: 'catalog:', version: 'is-positive@1.0.0' } } }),
-    }),
-  }))
+    importers: {
+      project1: { dependencies: { '@pnpm.test/is-positive-alias': { specifier: 'catalog:', version: 'is-positive@1.0.0' } } },
+      project2: { dependencies: { '@pnpm.test/is-positive-alias': { specifier: 'catalog:', version: 'is-positive@1.0.0' } } },
+    },
+  })
 })
 
 // If a catalog specifier was used in one or more package.json files and all
@@ -513,6 +719,162 @@ test('lockfile catalog snapshots should remove unused entries', async () => {
   }
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/8715
+//
+// Catalogs on injected deps require more consideration since the injected dep
+// is no longer seen as an "importer". The catalog protocol is traditionally
+// only for "importers" (i.e. packages matching the `packages` filter in
+// pnpm-workspace.yaml).
+//
+// Since injected deps copy the workspace package into the node_modules/.pnpm
+// dir, a bit more work has to be done to make catalogs usable on these unique
+// packages.
+//
+// Example of a package at packages/project2 getting "injected".
+//
+//   node_modules/.pnpm/project2@file+packages+project2/node_modules/project2
+//
+test('catalogs work in injected dep', async () => {
+  expect.hasAssertions()
+
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        project2: 'workspace:*',
+      },
+      dependenciesMeta: {
+        project2: { injected: true },
+      },
+    },
+    {
+      name: 'project2',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    },
+  ])
+
+  const install = () => mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    // This setting turns injected deps into regular symlinked workspace
+    // packages if peer dependencies aren't resolved differently.
+    dedupeInjectedDeps: false,
+    catalogs: {
+      default: { 'is-positive': '1.0.0' },
+    },
+  })
+
+  // This should run without "is-positive@catalog: isn't supported by any
+  // available resolver." errors.
+  await expect(install()).resolves.not.toThrow()
+
+  const lockfile = readLockfile()
+
+  // The resolved catalogs should be correct.
+  expect(lockfile.catalogs).toStrictEqual({
+    default: {
+      'is-positive': { specifier: '1.0.0', version: '1.0.0' },
+    },
+  })
+
+  expect(lockfile.importers).toEqual({
+    // Check that project2 was indeed injected into project1. Otherwise this
+    // test wouldn't be checking the correct scenario.
+    project1: {
+      dependencies: {
+        project2: { specifier: 'workspace:*', version: 'file:project2' },
+      },
+      dependenciesMeta: {
+        project2: { injected: true },
+      },
+    },
+    project2: {
+      dependencies: {
+        'is-positive': { specifier: 'catalog:', version: '1.0.0' },
+      },
+    },
+  })
+
+  // Double check the correct version of is-positive as requested from the
+  // catalog was installed and not the latest.
+  expect(lockfile.snapshots).toStrictEqual({
+    'is-positive@1.0.0': {},
+    'project2@file:project2': {
+      dependencies: { 'is-positive': '1.0.0' },
+    },
+  })
+})
+
+test('catalogs work when inject-workspace-packages=true', async () => {
+  expect.hasAssertions()
+
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        project2: 'workspace:*',
+      },
+    },
+    {
+      name: 'project2',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    },
+  ])
+
+  const install = () => mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    // This setting turns injected deps into regular symlinked workspace
+    // packages if peer dependencies aren't resolved differently.
+    dedupeInjectedDeps: false,
+    injectWorkspacePackages: true,
+    catalogs: {
+      default: { 'is-positive': '1.0.0' },
+    },
+  })
+
+  // This should run without "is-positive@catalog: isn't supported by any
+  // available resolver." errors.
+  await expect(install()).resolves.not.toThrow()
+
+  const lockfile = readLockfile()
+
+  // The resolved catalogs should be correct.
+  expect(lockfile.catalogs).toStrictEqual({
+    default: {
+      'is-positive': { specifier: '1.0.0', version: '1.0.0' },
+    },
+  })
+
+  expect(lockfile.importers).toEqual({
+    // Check that project2 was indeed injected into project1. Otherwise this
+    // test wouldn't be checking the correct scenario.
+    project1: {
+      dependencies: {
+        project2: { specifier: 'workspace:*', version: 'file:project2' },
+      },
+    },
+    project2: {
+      dependencies: {
+        'is-positive': { specifier: 'catalog:', version: '1.0.0' },
+      },
+    },
+  })
+
+  // Double check the correct version of is-positive as requested from the
+  // catalog was installed and not the latest.
+  expect(lockfile.snapshots).toStrictEqual({
+    'is-positive@1.0.0': {},
+    'project2@file:project2': {
+      dependencies: { 'is-positive': '1.0.0' },
+    },
+  })
+})
+
 describe('add', () => {
   test('adding is-positive@catalog: works', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
@@ -520,7 +882,7 @@ describe('add', () => {
       dependencies: {},
     }])
 
-    const updatedManifest = await addDependenciesToPackage(
+    const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
       ['is-positive@catalog:'],
       {
@@ -538,10 +900,99 @@ describe('add', () => {
         'is-positive': 'catalog:',
       },
     })
-    expect(readLockfile()).toEqual(expect.objectContaining({
+    expect(readLockfile()).toMatchObject({
       catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
-      packages: { 'is-positive@1.0.0': expect.objectContaining({}) },
-    }))
+      packages: { 'is-positive@1.0.0': expect.any(Object) },
+    })
+  })
+
+  test('adding no specific version will use catalog if present', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+
+    const { updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive'],
+      {
+        ...options,
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          default: { 'is-positive': '1.0.0' },
+        },
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    })
+    expect(readLockfile()).toMatchObject({
+      catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
+      packages: { 'is-positive@1.0.0': expect.any(Object) },
+    })
+  })
+
+  test('adding specific version equal to catalog version will use catalog if present', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+
+    const { updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive@1.0.0'],
+      {
+        ...options,
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          default: { 'is-positive': '1.0.0' },
+        },
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    })
+    expect(readLockfile()).toMatchObject({
+      catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
+      packages: { 'is-positive@1.0.0': expect.any(Object) },
+    })
+  })
+
+  test('adding different version than the catalog will not use catalog', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+
+    const { updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive@2.0.0'],
+      {
+        ...options,
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          default: { 'is-positive': '1.0.0' },
+        },
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'is-positive': '2.0.0',
+      },
+    })
+    expect(readLockfile().packages).toStrictEqual({
+      'is-positive@2.0.0': expect.any(Object),
+    })
   })
 })
 
@@ -551,24 +1002,39 @@ describe('add', () => {
 // pnpm update does not touch or rewrite dependencies using the catalog
 // protocol.
 describe('update', () => {
+  // Many of the update tests use @pnpm.e2e/foo, which has the following
+  // versions currently published to the https://github.com/pnpm/registry-mock
+  //
+  //   - 1.0.0
+  //   - 1.1.0
+  //   - 1.2.0
+  //   - 1.3.0
+  //   - 2.0.0
+  //   - 100.0.0
+  //   - 100.1.0
+  //
+  // The @pnpm.e2e/foo package is used rather than public packages like
+  // is-positive since public packages can release new versions and break the
+  // tests here.
+
   test('update does not modify catalog: protocol', async () => {
     const { options, projects } = preparePackagesAndReturnObjects([{
       name: 'project1',
       dependencies: {
-        'is-positive': 'catalog:',
+        '@pnpm.e2e/foo': 'catalog:',
       },
     }])
 
-    const updatedManifest = await addDependenciesToPackage(
+    const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
-      ['is-positive'],
+      ['@pnpm.e2e/foo'],
       {
         ...options,
         lockfileOnly: true,
         allowNew: false,
         update: true,
         catalogs: {
-          default: { 'is-positive': '^1.0.0' },
+          default: { '@pnpm.e2e/foo': '^1.0.0' },
         },
       })
 
@@ -576,7 +1042,7 @@ describe('update', () => {
     expect(updatedManifest).toEqual({
       name: 'project1',
       dependencies: {
-        'is-positive': 'catalog:',
+        '@pnpm.e2e/foo': 'catalog:',
       },
     })
   })
@@ -585,12 +1051,12 @@ describe('update', () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
       dependencies: {
-        'is-positive': 'catalog:',
+        '@pnpm.e2e/foo': 'catalog:',
       },
     }])
 
     const catalogs = {
-      default: { 'is-positive': '3.0.0' },
+      default: { '@pnpm.e2e/foo': '1.0.0' },
     }
     const mutateOpts = {
       ...options,
@@ -600,19 +1066,19 @@ describe('update', () => {
 
     await mutateModules(installProjects(projects), mutateOpts)
 
-    // Updating the catalog from 3.0.0 to ^3.0.0. This should still lock to the
-    // existing 3.0.0 version despite version 3.1.0 existing.
-    catalogs.default['is-positive'] = '^3.0.0'
+    // Updating the catalog from 1.0.0 to ^1.0.0. This should still lock to the
+    // existing 1.0.0 version despite version 1.3.0 existing.
+    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
     await mutateModules(installProjects(projects), mutateOpts)
 
     expect(readLockfile().catalogs.default).toEqual({
-      'is-positive': { specifier: '^3.0.0', version: '3.0.0' },
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
     })
 
     // Expecting the manifest to remain unchanged after running an update.
-    const updatedManifest = await addDependenciesToPackage(
+    const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
-      ['is-positive'],
+      ['@pnpm.e2e/foo'],
       {
         ...mutateOpts,
         update: true,
@@ -621,27 +1087,27 @@ describe('update', () => {
     expect(updatedManifest).toEqual({
       name: 'project1',
       dependencies: {
-        'is-positive': 'catalog:',
+        '@pnpm.e2e/foo': 'catalog:',
       },
     })
 
-    // The lockfile should only contain 3.0.0 and not 3.1.0 (or a later version).
-    expect(readLockfile()).toEqual(expect.objectContaining({
-      catalogs: { default: { 'is-positive': { specifier: '^3.0.0', version: '3.0.0' } } },
-      packages: { 'is-positive@3.0.0': expect.objectContaining({}) },
-    }))
+    // The lockfile should only contain 1.0.0 and not 1.3.0 (or a later version).
+    expect(readLockfile()).toMatchObject({
+      catalogs: { default: { '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' } } },
+      packages: { '@pnpm.e2e/foo@1.0.0': expect.any(Object) },
+    })
   })
 
   test('update latest does not modify catalog: protocol', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
       name: 'project1',
       dependencies: {
-        'is-positive': 'catalog:',
+        '@pnpm.e2e/foo': 'catalog:',
       },
     }])
 
     const catalogs = {
-      default: { 'is-positive': '1.0.0' },
+      default: { '@pnpm.e2e/foo': '1.0.0' },
     }
 
     const mutateOpts = {
@@ -652,15 +1118,15 @@ describe('update', () => {
 
     await mutateModules(installProjects(projects), mutateOpts)
 
-    // Sanity check that the is-positive dependency is installed on the older
+    // Sanity check that the @pnpm.e2e/foo dependency is installed on the older
     // requested version.
     expect(readLockfile().catalogs.default).toEqual({
-      'is-positive': { specifier: '1.0.0', version: '1.0.0' },
+      '@pnpm.e2e/foo': { specifier: '1.0.0', version: '1.0.0' },
     })
 
-    const updatedManifest = await addDependenciesToPackage(
+    const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
-      ['is-positive'],
+      ['@pnpm.e2e/foo'],
       {
         ...mutateOpts,
         allowNew: false,
@@ -672,11 +1138,11 @@ describe('update', () => {
     expect(updatedManifest).toEqual({
       name: 'project1',
       dependencies: {
-        'is-positive': 'catalog:',
+        '@pnpm.e2e/foo': 'catalog:',
       },
     })
 
-    expect(Object.keys(readLockfile().snapshots)).toEqual(['is-positive@1.0.0'])
+    expect(Object.keys(readLockfile().snapshots)).toEqual(['@pnpm.e2e/foo@1.0.0'])
   })
 })
 

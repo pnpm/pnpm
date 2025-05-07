@@ -4,13 +4,19 @@ import {
   type RecursiveSummary,
   throwOnCommandFail,
 } from '@pnpm/cli-utils'
-import { type Config, getOptionsFromRootManifest, readLocalConfig } from '@pnpm/config'
+import {
+  type Config,
+  type OptionsFromRootManifest,
+  getOptionsFromRootManifest,
+  readLocalConfig,
+} from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { createMatcherWithIndex } from '@pnpm/matcher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
+import { type StoreController } from '@pnpm/package-store'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { sortPackages } from '@pnpm/sort-packages'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
@@ -41,9 +47,11 @@ import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './u
 import { getSaveType } from './getSaveType'
 import { getPinnedVersion } from './getPinnedVersion'
 import { type PreferredVersions } from '@pnpm/resolver-base'
+import { IgnoredBuildsError } from './errors'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
+| 'configDependencies'
 | 'dedupePeerDependents'
 | 'depth'
 | 'globalPnpmfile'
@@ -89,9 +97,15 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   selectedProjectsGraph: ProjectsGraph
   preferredVersions?: PreferredVersions
   pruneDirectDependencies?: boolean
+  pruneLockfileImporters?: boolean
+  storeControllerAndDir?: {
+    ctrl: StoreController
+    dir: string
+  }
 } & Partial<
 Pick<Config,
 | 'sort'
+| 'strictDepBuilds'
 | 'workspaceConcurrency'
 >
 > & Required<
@@ -120,7 +134,7 @@ export async function recursive (
 
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmdFullName}`)
 
-  const store = await createOrConnectStoreController(opts)
+  const store = opts.storeControllerAndDir ?? await createOrConnectStoreController(opts)
 
   const workspacePackages: WorkspacePackages = arrayOfWorkspacePackagesToMap(allProjects) as WorkspacePackages
   const targetDependenciesField = getSaveType(opts)
@@ -131,8 +145,9 @@ export async function recursive (
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     ownLifecycleHooksStdio: 'pipe',
     peer: opts.savePeer,
-    pruneLockfileImporters: ((opts.ignoredPackages == null) || opts.ignoredPackages.size === 0) &&
-      pkgs.length === allProjects.length,
+    pruneLockfileImporters: opts.pruneLockfileImporters ??
+      (((opts.ignoredPackages == null) || opts.ignoredPackages.size === 0) &&
+        pkgs.length === allProjects.length),
     storeController: store.ctrl,
     storeDir: store.dir,
     targetDependenciesField,
@@ -233,6 +248,7 @@ export async function recursive (
           update: opts.update,
           updateMatching: opts.updateMatching,
           updatePackageManifest: opts.updatePackageManifest,
+          updateToLatest: opts.latest,
         } as MutatedProject)
         return
       case 'install':
@@ -244,6 +260,7 @@ export async function recursive (
           update: opts.update,
           updateMatching: opts.updateMatching,
           updatePackageManifest: opts.updatePackageManifest,
+          updateToLatest: opts.latest,
         } as MutatedProject)
       }
     }))
@@ -257,7 +274,7 @@ export async function recursive (
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies of any of the projects.')
     }
-    const { updatedProjects: mutatedPkgs } = await mutateModules(mutatedImporters, {
+    const { updatedProjects: mutatedPkgs, ignoredBuilds } = await mutateModules(mutatedImporters, {
       ...installOpts,
       storeController: store.ctrl,
     })
@@ -268,6 +285,9 @@ export async function recursive (
             return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
           })
       )
+    }
+    if (opts.strictDepBuilds && ignoredBuilds?.length) {
+      throw new IgnoredBuildsError(ignoredBuilds)
     }
     return true
   }
@@ -310,10 +330,24 @@ export async function recursive (
           }
         }
 
-        let action!: any // eslint-disable-line @typescript-eslint/no-explicit-any
+        type ActionOpts =
+          & Omit<InstallOptions, 'allProjects'>
+          & OptionsFromRootManifest
+          & Project
+          & Pick<Config, 'bin'>
+          & { pinnedVersion: 'major' | 'minor' | 'patch' }
+
+        interface ActionResult {
+          updatedManifest: ProjectManifest
+          ignoredBuilds: string[] | undefined
+        }
+
+        type ActionFunction = (manifest: PackageManifest | ProjectManifest, opts: ActionOpts) => Promise<ActionResult>
+
+        let action: ActionFunction
         switch (cmdFullName) {
         case 'remove':
-          action = async (manifest: PackageManifest, opts: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+          action = async (manifest, opts) => {
             const mutationResult = await mutateModules([
               {
                 dependencyNames: currentInput,
@@ -321,18 +355,18 @@ export async function recursive (
                 rootDir,
               },
             ], opts)
-            return mutationResult.updatedProjects[0].manifest
+            return { updatedManifest: mutationResult.updatedProjects[0].manifest, ignoredBuilds: mutationResult.ignoredBuilds }
           }
           break
         default:
           action = currentInput.length === 0
             ? install
-            : async (manifest: PackageManifest, opts: any) => addDependenciesToPackage(manifest, currentInput, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+            : async (manifest, opts) => addDependenciesToPackage(manifest, currentInput, opts)
           break
         }
 
         const localConfig = await memReadLocalConfig(rootDir)
-        const newManifest = await action(
+        const { updatedManifest: newManifest, ignoredBuilds } = await action(
           manifest,
           {
             ...installOpts,
@@ -356,6 +390,9 @@ export async function recursive (
         )
         if (opts.save !== false) {
           await writeProjectManifest(newManifest)
+        }
+        if (opts.strictDepBuilds && ignoredBuilds?.length) {
+          throw new IgnoredBuildsError(ignoredBuilds)
         }
         result[rootDir].status = 'passed'
       } catch (err: any) { // eslint-disable-line

@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { type LockfileFileV9 as LockfileFile } from '@pnpm/lockfile.types'
+import { type LockfileFile } from '@pnpm/lockfile.types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
   prepare,
@@ -549,7 +549,7 @@ test('installation with --link-workspace-packages links packages even if they we
     },
   ])
 
-  await execPnpm(['recursive', 'install', '--no-link-workspace-packages'])
+  await execPnpm(['-r', 'install', '--no-link-workspace-packages'])
 
   {
     const lockfile = projects.project.readLockfile()
@@ -557,7 +557,7 @@ test('installation with --link-workspace-packages links packages even if they we
     expect(lockfile.importers['.'].dependencies?.negative.version).toBe('is-negative@1.0.0')
   }
 
-  await execPnpm(['recursive', 'install', '--link-workspace-packages'])
+  await execPnpm(['-r', 'install', '--link-workspace-packages'])
 
   {
     const lockfile = projects.project.readLockfile()
@@ -590,7 +590,7 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   fs.writeFileSync('.npmrc', 'shared-workspace-lockfile = true\nlink-workspace-packages = true', 'utf8')
 
-  await execPnpm(['recursive', 'install'])
+  await execPnpm(['install'])
 
   {
     const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
@@ -608,7 +608,7 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
     version: '1.0.0',
   })
 
-  await execPnpm(['recursive', 'install'])
+  await execPnpm(['install'])
 
   {
     const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
@@ -1231,6 +1231,14 @@ auto-install-peers=false`, 'utf8')
 test('dependencies of workspace projects are built during headless installation', async () => {
   const projects = preparePackages([
     {
+      location: '.',
+      package: {
+        pnpm: {
+          neverBuiltDependencies: [],
+        },
+      },
+    },
+    {
       name: 'project-1',
       version: '1.0.0',
 
@@ -1243,8 +1251,8 @@ test('dependencies of workspace projects are built during headless installation'
   fs.writeFileSync('.npmrc', 'shared-workspace-lockfile=false', 'utf8')
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm(['recursive', 'install', '--lockfile-only'])
-  await execPnpm(['recursive', 'install', '--frozen-lockfile'])
+  await execPnpm(['install', '--lockfile-only'])
+  await execPnpm(['install', '--frozen-lockfile'])
 
   {
     const generatedByPreinstall = projects['project-1'].requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -1277,14 +1285,15 @@ test("linking the package's bin to another workspace package in a monorepo", asy
 
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm(['recursive', 'install'])
+  await execPnpm(['install'])
 
   projects.main.isExecutable('.bin/hello')
 
   expect(fs.existsSync('main/node_modules')).toBeTruthy()
   rimraf('main/node_modules')
+  rimraf('node_modules')
 
-  await execPnpm(['recursive', 'install', '--frozen-lockfile'])
+  await execPnpm(['install', '--frozen-lockfile'])
 
   projects.main.isExecutable('.bin/hello')
 })
@@ -1433,6 +1442,7 @@ test('custom virtual store directory in a workspace with not shared lockfile', a
 
   rimraf('project-1/virtual-store')
   rimraf('project-1/node_modules')
+  rimraf('node_modules')
 
   await execPnpm(['install', '--frozen-lockfile'])
 
@@ -1844,4 +1854,110 @@ shared-workspace-lockfile=false
   expect(lockfile.overrides).toStrictEqual({
     'is-odd': '1.0.0',
   })
+})
+
+test('deploy should keep files created by lifecycle scripts', async () => {
+  const preparedManifests = {
+    root: {
+      name: 'root',
+      version: '0.0.0',
+      private: true,
+      pnpm: {
+        neverBuiltDependencies: [],
+      },
+    },
+    'project-0': {
+      name: 'project-0',
+      version: '0.0.0',
+      dependencies: {
+        '@pnpm.e2e/install-script-example': '1.0.0',
+      },
+    },
+  } satisfies Record<string, ProjectManifest>
+
+  preparePackages([
+    {
+      location: '.',
+      package: preparedManifests.root,
+    },
+    preparedManifests['project-0'],
+  ])
+
+  fs.writeFileSync('.npmrc', `
+inject-workspace-packages=true
+`, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  const monorepoRoot = process.cwd()
+  const deployOutputProjectDir = path.join(makeTempDir(false), './project-0-deployed')
+
+  execPnpmSync(['install'], { expectSuccess: true })
+
+  {
+    process.chdir('project-0')
+    expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+  }
+  {
+    process.chdir(monorepoRoot)
+    execPnpmSync(['deploy', '--filter', 'project-0', deployOutputProjectDir], { expectSuccess: true })
+  }
+  {
+    process.chdir(deployOutputProjectDir)
+    expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+  }
+})
+
+test('rebuild in a directory created with "pnpm deploy" and with "pnpm.neverBuiltDependencies" configured should run lifecycle scripts', async () => {
+  const preparedManifests = {
+    root: {
+      name: 'root',
+      version: '0.0.0',
+      private: true,
+      pnpm: {
+        neverBuiltDependencies: [],
+      },
+    },
+    'project-0': {
+      name: 'project-0',
+      version: '0.0.0',
+      dependencies: {
+        '@pnpm.e2e/install-script-example': '1.0.0',
+      },
+    },
+  } satisfies Record<string, ProjectManifest>
+
+  preparePackages([
+    {
+      location: '.',
+      package: preparedManifests.root,
+    },
+    preparedManifests['project-0'],
+  ])
+
+  fs.writeFileSync('.npmrc', `
+inject-workspace-packages=true
+`, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  const monorepoRoot = process.cwd()
+  const deployOutputProjectDir = path.join(makeTempDir(false), './project-0-deployed')
+
+  execPnpmSync(['install'], { expectSuccess: true })
+
+  {
+    process.chdir('project-0')
+    expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+  }
+  {
+    process.chdir(monorepoRoot)
+    execPnpmSync(['deploy', '--filter', 'project-0', deployOutputProjectDir], { expectSuccess: true })
+  }
+  {
+    process.chdir(deployOutputProjectDir)
+    fs.rmSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')
+    expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
+
+    execPnpmSync(['rebuild'], { expectSuccess: true })
+    expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+  }
 })

@@ -1,4 +1,4 @@
-import { audit, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts } from '@pnpm/audit'
+import { audit, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts } from '@pnpm/audit'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { type Config, types as allTypes, type UniversalOptions } from '@pnpm/config'
@@ -119,38 +119,42 @@ export function help (): string {
   })
 }
 
-export async function handler (
-  opts: Pick<UniversalOptions, 'dir'> & {
-    auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
-    fix?: boolean
-    ignoreRegistryErrors?: boolean
-    json?: boolean
-    lockfileDir?: string
-    registries: Registries
-    ignoreVulnerabilities?: string
-  } & Pick<Config, 'ca'
-  | 'cert'
-  | 'httpProxy'
-  | 'httpsProxy'
-  | 'key'
-  | 'localAddress'
-  | 'maxSockets'
-  | 'noProxy'
-  | 'strictSsl'
-  | 'fetchRetries'
-  | 'fetchRetryMaxtimeout'
-  | 'fetchRetryMintimeout'
-  | 'fetchRetryFactor'
-  | 'fetchTimeout'
-  | 'production'
-  | 'dev'
-  | 'optional'
-  | 'userConfig'
-  | 'rawConfig'
-  | 'rootProjectManifest'
-  | 'virtualStoreDirMaxLength'
-  >
-): Promise<{ exitCode: number, output: string }> {
+export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
+  auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
+  fix?: boolean
+  ignoreRegistryErrors?: boolean
+  json?: boolean
+  lockfileDir?: string
+  registries: Registries
+  ignoreVulnerabilities?: string
+} & Pick<Config, 'auditConfig'
+| 'ca'
+| 'cert'
+| 'httpProxy'
+| 'httpsProxy'
+| 'key'
+| 'localAddress'
+| 'maxSockets'
+| 'noProxy'
+| 'strictSsl'
+| 'fetchRetries'
+| 'fetchRetryMaxtimeout'
+| 'fetchRetryMintimeout'
+| 'fetchRetryFactor'
+| 'fetchTimeout'
+| 'production'
+| 'dev'
+| 'overrides'
+| 'optional'
+| 'userConfig'
+| 'rawConfig'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
+| 'virtualStoreDirMaxLength'
+| 'workspaceDir'
+>
+
+export async function handler (opts: AuditOptions): Promise<{ exitCode: number, output: string }> {
   const lockfileDir = opts.lockfileDir ?? opts.dir
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
   if (lockfile == null) {
@@ -200,7 +204,7 @@ export async function handler (
     throw err
   }
   if (opts.fix) {
-    const newOverrides = await fix(opts.dir, auditReport)
+    const newOverrides = await fix(auditReport, opts)
     if (Object.values(newOverrides).length === 0) {
       return {
         exitCode: 0,
@@ -232,16 +236,34 @@ ${JSON.stringify(newIgnores, null, 2)}`,
     }
   }
   const vulnerabilities = auditReport.metadata.vulnerabilities
+  const ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts = {
+    low: 0,
+    moderate: 0,
+    high: 0,
+    critical: 0,
+  }
   const totalVulnerabilityCount = Object.values(vulnerabilities)
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
   const ignoreGhsas = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreGhsas
   if (ignoreGhsas) {
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    auditReport.advisories = pickBy(({ github_advisory_id }) => !ignoreGhsas.includes(github_advisory_id), auditReport.advisories)
+    auditReport.advisories = pickBy(({ github_advisory_id, severity }) => {
+      if (!ignoreGhsas.includes(github_advisory_id)) {
+        return true
+      }
+      ignoredVulnerabilities[severity as AuditLevelString] += 1
+      return false
+    }, auditReport.advisories)
   }
   const ignoreCves = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreCves
   if (ignoreCves) {
-    auditReport.advisories = pickBy(({ cves }) => cves.length === 0 || difference(cves, ignoreCves).length > 0, auditReport.advisories)
+    auditReport.advisories = pickBy(({ cves, severity }) => {
+      if (cves.length === 0 || difference(cves, ignoreCves).length > 0) {
+        return true
+      }
+      ignoredVulnerabilities[severity as AuditLevelString] += 1
+      return false
+    }, auditReport.advisories)
   }
   if (opts.json) {
     return {
@@ -279,16 +301,16 @@ ${JSON.stringify(newIgnores, null, 2)}`,
   }
   return {
     exitCode: output ? 1 : 0,
-    output: `${output}${reportSummary(auditReport.metadata.vulnerabilities, totalVulnerabilityCount)}`,
+    output: `${output}${reportSummary(auditReport.metadata.vulnerabilities, totalVulnerabilityCount, ignoredVulnerabilities)}`,
   }
 }
 
-function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number): string {
+function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number, ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts): string {
   if (totalVulnerabilityCount === 0) return 'No known vulnerabilities found\n'
   return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
     Object.entries(vulnerabilities)
       .filter(([auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
-      .map(([auditLevel, vulnerabilitiesCount]) => AUDIT_COLOR[auditLevel as AuditLevelString](`${vulnerabilitiesCount as string} ${auditLevel}`))
+      .map(([auditLevel, vulnerabilitiesCount]) => AUDIT_COLOR[auditLevel as AuditLevelString](`${vulnerabilitiesCount as string} ${auditLevel}${ignoredVulnerabilities[auditLevel as AuditLevelString] > 0 ? ` (${ignoredVulnerabilities[auditLevel as AuditLevelString]} ignored)` : ''}`))
       .join(' | ')
   }`
 }

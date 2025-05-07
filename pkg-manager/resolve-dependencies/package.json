@@ -1,25 +1,27 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "36.0.6",
+  "version": "1007.0.0",
   "description": "Resolves dependency graph of a package",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/resolve-dependencies",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/resolve-dependencies#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "keywords": [
-    "pnpm10"
-  ],
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.12"
-  },
-  "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/resolve-dependencies",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/resolve-dependencies#readme",
   "scripts": {
     "start": "tsc --watch",
     "test": "pnpm run compile && pnpm run _test",
@@ -44,12 +46,11 @@
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/patching.types": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/semver.peer-range": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/which-version-is-pinned": "workspace:*",
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@yarnpkg/core": "catalog:",
     "filenamify": "catalog:",
@@ -68,6 +69,9 @@
     "semver-range-intersect": "catalog:",
     "version-selector-type": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
     "@pnpm/logger": "workspace:*",
     "@pnpm/resolve-dependencies": "workspace:*",
@@ -75,12 +79,8 @@
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:"
   },
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

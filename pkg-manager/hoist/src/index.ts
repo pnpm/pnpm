@@ -4,7 +4,7 @@ import { linkLogger } from '@pnpm/core-loggers'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/link-bins'
 import {
-  type Lockfile,
+  type LockfileObject,
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
@@ -56,7 +56,7 @@ export async function hoist (opts: HoistOpts): Promise<HoistedDependencies> {
 }
 
 export interface GetHoistedDependenciesOpts {
-  lockfile: Lockfile
+  lockfile: LockfileObject
   importerIds?: ProjectId[]
   privateHoistPattern: string[]
   privateHoistedModulesDir: string
@@ -202,7 +202,7 @@ function hoistGraph (
   currentSpecifiers: Record<string, string>,
   opts: {
     getAliasHoistType: GetAliasHoistType
-    lockfile: Lockfile
+    lockfile: LockfileObject
   }
 ): HoistGraphResult {
   const hoistedAliases = new Set(Object.keys(currentSpecifiers))
@@ -242,7 +242,7 @@ function hoistGraph (
 async function symlinkHoistedDependencies (
   hoistedDependencies: HoistedDependencies,
   opts: {
-    lockfile: Lockfile
+    lockfile: LockfileObject
     privateHoistedModulesDir: string
     publicHoistedModulesDir: string
     virtualStoreDir: string

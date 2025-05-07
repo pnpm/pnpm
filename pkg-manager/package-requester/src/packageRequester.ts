@@ -161,7 +161,8 @@ async function resolveAndFetch (
 ): Promise<PackageResponse> {
   let latest: string | undefined
   let manifest: DependencyManifest | undefined
-  let normalizedPref: string | undefined
+  let normalizedBareSpecifier: string | undefined
+  let alias: string | undefined
   let resolution = options.currentPkg?.resolution as Resolution
   let pkgId = options.currentPkg?.id
   const skipResolution = resolution && !options.update
@@ -185,9 +186,11 @@ async function resolveAndFetch (
       preferredVersions: options.preferredVersions,
       preferWorkspacePackages: options.preferWorkspacePackages,
       projectDir: options.projectDir,
-      registry: options.registry,
       workspacePackages: options.workspacePackages,
-      updateToLatest: options.updateToLatest,
+      update: options.update,
+      injectWorkspacePackages: options.injectWorkspacePackages,
+      calcSpecifier: options.calcSpecifier,
+      pinnedVersion: options.pinnedVersion,
     }), { priority: options.downloadPriority })
 
     manifest = resolveResult.manifest
@@ -206,24 +209,26 @@ async function resolveAndFetch (
     updated = pkgId !== resolveResult.id || !resolution || forceFetch
     resolution = resolveResult.resolution
     pkgId = resolveResult.id
-    normalizedPref = resolveResult.normalizedPref
+    normalizedBareSpecifier = resolveResult.normalizedBareSpecifier
+    alias = resolveResult.alias
   }
 
   const id = pkgId!
 
   if (resolution.type === 'directory' && !id.startsWith('file:')) {
     if (manifest == null) {
-      throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''}`)
+      throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`)
     }
     return {
       body: {
         id,
         isLocal: true,
         manifest,
-        normalizedPref,
         resolution: resolution as DirectoryResolution,
         resolvedVia,
         updated,
+        normalizedBareSpecifier,
+        alias,
       },
     }
   }
@@ -252,11 +257,12 @@ async function resolveAndFetch (
         isInstallable: isInstallable ?? undefined,
         latest,
         manifest,
-        normalizedPref,
+        normalizedBareSpecifier,
         resolution,
         resolvedVia,
         updated,
         publishedAt,
+        alias,
       },
     }
   }
@@ -288,11 +294,12 @@ async function resolveAndFetch (
       isInstallable: isInstallable ?? undefined,
       latest,
       manifest,
-      normalizedPref,
+      normalizedBareSpecifier,
       resolution,
       resolvedVia,
       updated,
       publishedAt,
+      alias,
     },
     fetching: fetchResult.fetching,
     filesIndexFile: fetchResult.filesIndexFile,

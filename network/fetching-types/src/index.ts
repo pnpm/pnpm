@@ -1,11 +1,16 @@
 import { type RetryTimeoutOptions } from '@zkochan/retry'
-import { type Response } from 'node-fetch'
+import { type Response, type RequestInit as NodeRequestInit } from 'node-fetch'
 
 export type { RetryTimeoutOptions }
 
+export interface RequestInit extends NodeRequestInit {
+  retry?: RetryTimeoutOptions
+  timeout?: number
+}
+
 export type FetchFromRegistry = (
   url: string,
-  opts?: {
+  opts?: RequestInit & {
     authHeaderValue?: string
     compress?: boolean
     retry?: RetryTimeoutOptions

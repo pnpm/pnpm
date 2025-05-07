@@ -52,9 +52,6 @@
       "path": "../config/config"
     },
     {
-      "path": "../config/pick-registry-for-package"
-    },
-    {
       "path": "../config/plugin-commands-config"
     },
     {
@@ -65,6 +62,9 @@
     },
     {
       "path": "../env/plugin-commands-env"
+    },
+    {
+      "path": "../exec/build-commands"
     },
     {
       "path": "../exec/plugin-commands-rebuild"
@@ -176,6 +176,9 @@
     },
     {
       "path": "../workspace/pkgs-graph"
+    },
+    {
+      "path": "../workspace/read-manifest"
     },
     {
       "path": "../workspace/state"

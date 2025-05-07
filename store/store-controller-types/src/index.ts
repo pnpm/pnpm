@@ -17,6 +17,7 @@ import {
   type SupportedArchitectures,
   type DependencyManifest,
   type PackageManifest,
+  type PinnedVersion,
 } from '@pnpm/types'
 
 export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync }
@@ -123,15 +124,16 @@ export interface RequestPackageOptions {
   lockfileDir: string
   preferredVersions: PreferredVersions
   preferWorkspacePackages?: boolean
-  registry: string
   sideEffectsCache?: boolean
   skipFetch?: boolean
-  update?: boolean
+  update?: false | 'compatible' | 'latest'
   workspacePackages?: WorkspacePackages
   forceResolve?: boolean
   supportedArchitectures?: SupportedArchitectures
   onFetchError?: OnFetchError
-  updateToLatest?: boolean
+  injectWorkspacePackages?: boolean
+  calcSpecifier?: boolean
+  pinnedVersion?: PinnedVersion
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
@@ -145,7 +147,7 @@ export interface PackageResponse {
     resolution: Resolution
     manifest?: PackageManifest
     id: PkgResolutionId
-    normalizedPref?: string
+    normalizedBareSpecifier?: string
     updated: boolean
     publishedAt?: string
     resolvedVia?: string
@@ -153,6 +155,7 @@ export interface PackageResponse {
     // If latest does not equal the version of the
     // resolved package, it is out-of-date.
     latest?: string
+    alias?: string
   } & (
     {
       isLocal: true

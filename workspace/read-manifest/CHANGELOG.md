@@ -1,5 +1,73 @@
 # @pnpm/workspace.read-manifest
 
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [5b73df1]
+  - @pnpm/types@1000.5.0
+
+## 1000.1.3
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+
+## 1000.1.2
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+
+## 1000.1.1
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+
+## 1000.1.0
+
+### Minor Changes
+
+- 8fcc221: Extend WorkspaceManifest with PnpmSettings.
+- 8fcc221: The `packages` field in `pnpm-workspace.yaml` became optional.
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/error@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/error@1000.0.1
+
+## 2.2.2
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/error@6.0.3
+
 ## 2.2.1
 
 ### Patch Changes

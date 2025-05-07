@@ -1,6 +1,6 @@
 import { logger } from '@pnpm/logger'
 import {
-  type Lockfile,
+  type LockfileObject,
   type LockfileResolution,
   type PackageSnapshot,
   pruneSharedLockfile,
@@ -18,12 +18,12 @@ import { type DependenciesGraph } from '.'
 export function updateLockfile (
   { dependenciesGraph, lockfile, prefix, registries, lockfileIncludeTarballUrl }: {
     dependenciesGraph: DependenciesGraph
-    lockfile: Lockfile
+    lockfile: LockfileObject
     prefix: string
     registries: Registries
     lockfileIncludeTarballUrl?: boolean
   }
-): Lockfile {
+): LockfileObject {
   lockfile.packages = lockfile.packages ?? {}
   for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(

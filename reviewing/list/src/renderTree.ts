@@ -97,6 +97,7 @@ async function renderTreeForPackage (
       return null
     }))).filter(Boolean).join('\n')
 
+  // eslint-disable-next-line regexp/no-unused-capturing-group
   return `${chalk.bold.underline(label)}\n\n${output}`.replace(/(\n)+$/, '')
 }
 

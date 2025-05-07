@@ -1,5 +1,23 @@
 # @pnpm/network.auth-header
 
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/error@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+
+## 3.0.3
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+
 ## 3.0.2
 
 ### Patch Changes

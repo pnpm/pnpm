@@ -3,22 +3,28 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
 import { createWorkspaceState } from '../src/createWorkspaceState'
 
-const lastValidatedTimestamp = Date.now()
-
 test('createWorkspaceState() on empty list', () => {
   prepareEmpty()
 
   expect(
     createWorkspaceState({
       allProjects: [],
-      catalogs: undefined,
-      lastValidatedTimestamp,
+      pnpmfileExists: true,
+      filteredInstall: false,
+      settings: {
+        autoInstallPeers: true,
+        dedupeDirectDeps: true,
+        excludeLinksFromLockfile: false,
+        preferWorkspacePackages: false,
+        linkWorkspacePackages: false,
+        injectWorkspacePackages: false,
+      },
     })
-  ).toStrictEqual({
-    catalogs: undefined,
-    lastValidatedTimestamp,
-    projectRootDirs: [],
-  })
+  ).toStrictEqual(expect.objectContaining({
+    projects: {},
+    pnpmfileExists: true,
+    lastValidatedTimestamp: expect.any(Number),
+  }))
 })
 
 test('createWorkspaceState() on non-empty list', () => {
@@ -30,30 +36,42 @@ test('createWorkspaceState() on non-empty list', () => {
   expect(
     createWorkspaceState({
       allProjects: [
-        { rootDir: path.resolve('packages/c') as ProjectRootDir },
-        { rootDir: path.resolve('packages/b') as ProjectRootDir },
-        { rootDir: path.resolve('packages/a') as ProjectRootDir },
-        { rootDir: path.resolve('packages/d') as ProjectRootDir },
+        { rootDir: path.resolve('packages/c') as ProjectRootDir, manifest: {} },
+        { rootDir: path.resolve('packages/b') as ProjectRootDir, manifest: {} },
+        { rootDir: path.resolve('packages/a') as ProjectRootDir, manifest: {} },
+        { rootDir: path.resolve('packages/d') as ProjectRootDir, manifest: {} },
       ],
-      lastValidatedTimestamp,
+      settings: {
+        autoInstallPeers: true,
+        dedupeDirectDeps: true,
+        excludeLinksFromLockfile: false,
+        preferWorkspacePackages: false,
+        linkWorkspacePackages: false,
+        injectWorkspacePackages: false,
+        catalogs: {
+          default: {
+            foo: '0.1.2',
+          },
+        },
+      },
+      pnpmfileExists: false,
+      filteredInstall: false,
+    })
+  ).toStrictEqual(expect.objectContaining({
+    settings: expect.objectContaining({
       catalogs: {
         default: {
           foo: '0.1.2',
         },
       },
-    })
-  ).toStrictEqual({
-    catalogs: {
-      default: {
-        foo: '0.1.2',
-      },
+    }),
+    lastValidatedTimestamp: expect.any(Number),
+    projects: {
+      [path.resolve('packages/a')]: {},
+      [path.resolve('packages/b')]: {},
+      [path.resolve('packages/c')]: {},
+      [path.resolve('packages/d')]: {},
     },
-    lastValidatedTimestamp,
-    projectRootDirs: [
-      path.resolve('packages/a'),
-      path.resolve('packages/b'),
-      path.resolve('packages/c'),
-      path.resolve('packages/d'),
-    ],
-  })
+    pnpmfileExists: false,
+  }))
 })

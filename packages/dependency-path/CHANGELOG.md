@@ -1,5 +1,81 @@
 # @pnpm/dependency-path
 
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [5b73df1]
+  - @pnpm/types@1000.5.0
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.1.1
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [daf47e9]
+- Updated dependencies [a5e4965]
+  - @pnpm/crypto.hash@1000.1.0
+  - @pnpm/types@1000.2.1
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/crypto.hash@1000.0.0
+
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/crypto.hash@1000.0.0
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/crypto.hash@1000.0.0
+
+## 6.0.0
+
+### Major Changes
+
+- dcd2917: Use sha256 for hashing long paths inside `node_modules/.pnpm`.
+- d55b259: Escape the `#` character in directory names within the virtual store (`node_modules/.pnpm`) [#8557](https://github.com/pnpm/pnpm/pull/8557).
+
+### Patch Changes
+
+- Updated dependencies [dcd2917]
+  - @pnpm/crypto.hash@1.0.0
+
 ## 5.1.7
 
 ### Patch Changes

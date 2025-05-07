@@ -12,7 +12,7 @@ import { testDefaults } from '../utils'
 test('the modules cache is pruned when it expires', async () => {
   const project = prepareEmpty()
 
-  let manifest = await install({
+  let { updatedManifest: manifest } = await install({
     dependencies: {
       'is-positive': '1.0.0',
       'is-negative': '1.0.0',
@@ -29,7 +29,7 @@ test('the modules cache is pruned when it expires', async () => {
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({}))).manifest
+  }, testDefaults({}))).updatedProject.manifest
 
   project.has('.pnpm/is-negative@1.0.0/node_modules/is-negative')
 
@@ -49,7 +49,7 @@ test('the modules cache is pruned when it expires', async () => {
 test('the modules cache is pruned when it expires and headless install is used', async () => {
   const project = prepareEmpty()
 
-  let manifest = await install({
+  let { updatedManifest: manifest } = await install({
     dependencies: {
       'is-positive': '1.0.0',
       'is-negative': '1.0.0',
@@ -66,9 +66,9 @@ test('the modules cache is pruned when it expires and headless install is used',
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ lockfileOnly: true }))).manifest
+  }, testDefaults({ lockfileOnly: true }))).updatedProject.manifest
 
-  manifest = await install(manifest, testDefaults({ frozenLockfile: true }))
+  manifest = (await install(manifest, testDefaults({ frozenLockfile: true }))).updatedManifest
 
   project.has('.pnpm/is-negative@1.0.0/node_modules/is-negative')
 

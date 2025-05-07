@@ -1,7 +1,7 @@
 import { findDependencyLicenses } from '@pnpm/license-scanner'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { type DepPath, type ProjectManifest, type Registries, type ProjectId } from '@pnpm/types'
-import { type Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import { type LicensePackage } from '../lib/licenses'
 import { type GetPackageInfoOptions, type PackageInfo } from '../lib/getPkgInfo'
 
@@ -35,7 +35,7 @@ jest.mock('../lib/getPkgInfo', () => {
 
 describe('licences', () => {
   test('findDependencyLicenses()', async () => {
-    const lockfile: Lockfile = {
+    const lockfile: LockfileObject = {
       importers: {
         ['.' as ProjectId]: {
           dependencies: {
@@ -103,7 +103,7 @@ describe('licences', () => {
   })
 
   test('filterable by includedImporterIds', async () => {
-    const lockfile: Lockfile = {
+    const lockfile: LockfileObject = {
       importers: {
         ['.' as ProjectId]: {
           dependencies: {
@@ -178,7 +178,7 @@ describe('licences', () => {
   })
 
   test('findDependencyLicenses lists all versions (#7724)', async () => {
-    const lockfile: Lockfile = {
+    const lockfile: LockfileObject = {
       importers: {
         ['.' as ProjectId]: {
           dependencies: {

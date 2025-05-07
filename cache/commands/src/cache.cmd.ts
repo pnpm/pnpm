@@ -1,7 +1,7 @@
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
-import { FULL_FILTERED_META_DIR, META_DIR } from '@pnpm/constants'
+import { FULL_FILTERED_META_DIR, ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { getStorePath } from '@pnpm/store-path'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
@@ -61,7 +61,9 @@ export function help (): string {
 export type CacheCommandOptions = Pick<Config, 'cacheDir' | 'storeDir' | 'pnpmHomeDir' | 'cliOptions' | 'resolutionMode' | 'registrySupportsTimeField'>
 
 export async function handler (opts: CacheCommandOptions, params: string[]): Promise<string | undefined> {
-  const cacheType = opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField ? FULL_FILTERED_META_DIR : META_DIR
+  const cacheType = (opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField)
+    ? FULL_FILTERED_META_DIR
+    : ABBREVIATED_META_DIR
   const cacheDir = path.join(opts.cacheDir, cacheType)
   switch (params[0]) {
   case 'list-registries':

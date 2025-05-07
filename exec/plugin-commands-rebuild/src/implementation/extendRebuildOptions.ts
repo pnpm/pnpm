@@ -51,7 +51,7 @@ export type StrictRebuildOptions = {
   peersSuffixMaxLength: number
   strictStorePkgContentCheck: boolean
   fetchFullMetadata?: boolean
-} & Pick<Config, 'sslConfigs'>
+} & Pick<Config, 'sslConfigs' | 'onlyBuiltDependencies' | 'onlyBuiltDependenciesFile' | 'neverBuiltDependencies'>
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &
 Pick<StrictRebuildOptions, 'storeDir' | 'storeController'> & Pick<Config, 'rootProjectManifest' | 'rootProjectManifestDir'>
@@ -106,5 +106,8 @@ export async function extendRebuildOptions (
     ...(opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest) : {}),
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
+  if (extendedOpts.neverBuiltDependencies == null && extendedOpts.onlyBuiltDependencies == null && extendedOpts.onlyBuiltDependenciesFile == null) {
+    extendedOpts.onlyBuiltDependencies = []
+  }
   return extendedOpts
 }

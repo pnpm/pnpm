@@ -1,10 +1,10 @@
-import { type Lockfile, type PackageSnapshot, type PackageSnapshots } from '@pnpm/lockfile.types'
+import { type LockfileObject, type PackageSnapshot, type PackageSnapshots } from '@pnpm/lockfile.types'
 import { type DepPath, type ProjectId } from '@pnpm/types'
 import comverToSemver from 'comver-to-semver'
 import semver from 'semver'
 
-export function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile): Lockfile {
-  const newLockfile: Lockfile = {
+export function mergeLockfileChanges (ours: LockfileObject, theirs: LockfileObject): LockfileObject {
+  const newLockfile: LockfileObject = {
     importers: {},
     lockfileVersion: semver.gt(comverToSemver(theirs.lockfileVersion.toString()), comverToSemver(ours.lockfileVersion.toString()))
       ? theirs.lockfileVersion

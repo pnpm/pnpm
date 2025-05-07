@@ -1,0 +1,53 @@
+{
+  "name": "@pnpm/workspace.injected-deps-syncer",
+  "version": "1000.0.7",
+  "description": "Update all injected replica of a workspace package",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/injected-deps-syncer",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/injected-deps-syncer#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix",
+    "_test": "jest"
+  },
+  "dependencies": {
+    "@pnpm/directory-fetcher": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/modules-yaml": "workspace:*",
+    "@types/normalize-path": "catalog:",
+    "normalize-path": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/workspace.injected-deps-syncer": "workspace:*"
+  },
+  "engines": {
+    "node": ">=18.12"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

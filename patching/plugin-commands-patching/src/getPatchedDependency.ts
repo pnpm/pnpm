@@ -55,14 +55,14 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
     return {
       ...dep,
       applyToAll,
-      pref: version,
+      bareSpecifier: version,
     }
   } else {
     const preferred = preferredVersions[0]
     return {
       ...dep,
-      applyToAll: !dep.pref,
-      pref: preferred.gitTarballUrl ?? preferred.version,
+      applyToAll: !dep.bareSpecifier,
+      bareSpecifier: preferred.gitTarballUrl ?? preferred.version,
     }
   }
 }
@@ -96,7 +96,7 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
     )
   }
 
-  const pkgName = dep.alias && dep.pref ? dep.alias : (dep.pref ?? dep.alias)
+  const pkgName = dep.alias && dep.bareSpecifier ? dep.alias : (dep.bareSpecifier ?? dep.alias)
 
   const versions = Object.entries(lockfile.packages ?? {})
     .map(([depPath, pkgSnapshot]) => {
@@ -110,6 +110,6 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
 
   return {
     versions,
-    preferredVersions: versions.filter(({ version }) => dep.alias && dep.pref ? semver.satisfies(version, dep.pref) : true),
+    preferredVersions: versions.filter(({ version }) => dep.alias && dep.bareSpecifier ? semver.satisfies(version, dep.bareSpecifier) : true),
   }
 }

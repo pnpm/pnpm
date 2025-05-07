@@ -16,7 +16,7 @@ test('single dependency', async () => {
     },
     scripts: {
       start: 'echo hello from script',
-      checkEnv: 'node --eval "assert.strictEqual(process.env.pnpm_run_skip_deps_check, \'true\')"',
+      checkEnv: 'node --eval "assert.strictEqual(process.env.npm_config_verify_deps_before_run, \'false\')"',
     },
   }
 
@@ -26,16 +26,14 @@ test('single dependency', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('Cannot find a lockfile in')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
 
   await execPnpm([...CONFIG, 'install'])
 
-  // installing dependencies on a single package workspace should not create a packages list cache
-  {
-    const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toBeUndefined()
-  }
+  // installing dependencies on a single package workspace should create a packages list cache
+  const workspaceState = loadWorkspaceState(process.cwd())
+  expect(workspaceState).toBeDefined()
 
   // should be able to execute a script after dependencies have been installed
   {
@@ -65,7 +63,7 @@ test('single dependency', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
     expect(stdout.toString()).not.toContain('The manifest file is not newer than the lockfile. Exiting check.')
     expect(stdout.toString()).toContain('The manifest is newer than the lockfile. Continuing check.')
   }
@@ -89,7 +87,7 @@ test('single dependency', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -100,7 +98,7 @@ test('single dependency', async () => {
     expect(stdout.toString()).toContain('hello from script')
   }
 
-  // should set env.pnpm_run_skip_deps_check for the script
+  // should set env.npm_config_verify_deps_before_run to false for the script (to skip check in nested script)
   await execPnpm([...CONFIG, 'run', 'checkEnv'])
 })
 
@@ -122,16 +120,14 @@ test('deleting node_modules after install', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('Cannot find a lockfile in')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
   }
 
   await execPnpm([...CONFIG, 'install'])
 
-  // installing dependencies on a single package workspace should not create a packages list cache
-  {
-    const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toBeUndefined()
-  }
+  // installing dependencies on a single package workspace should create a packages list cache
+  const workspaceState = loadWorkspaceState(process.cwd())
+  expect(workspaceState).toBeDefined()
 
   // should be able to execute a script after dependencies have been installed
   {
@@ -145,7 +141,7 @@ test('deleting node_modules after install', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_NO_DEPS')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
   }
 })
 
@@ -164,16 +160,14 @@ test('no dependencies', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('Cannot find a lockfile in')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
 
   await execPnpm([...CONFIG, 'install'])
 
-  // installing dependencies on a single package workspace should not create a packages list cache
-  {
-    const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toBeUndefined()
-  }
+  // installing dependencies on a single package workspace should create a packages list cache
+  const workspaceState = loadWorkspaceState(process.cwd())
+  expect(workspaceState).toBeDefined()
 
   // should be able to execute a script after the lockfile has been created
   {
@@ -204,23 +198,20 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
     fs.writeFileSync(require.resolve('./package.json'), jsonText)
     console.log('manifest mutated')
   `)
+  fs.writeFileSync('.npmrc', 'verify-deps-before-run=error', 'utf8')
 
   const cacheDir = path.resolve('cache')
-  const config = [
-    CONFIG,
-    `--config.cache-dir=${cacheDir}`,
-  ]
 
   // add a script named `start` which would inherit `config` and invoke `nestedScript`
   manifest.scripts!.start =
-    `node mutate-manifest.js && node ${pnpmBinLocation} ${config.join(' ')} run nestedScript`
+    `node mutate-manifest.js && node ${pnpmBinLocation} --config.cache-dir=${cacheDir} run nestedScript`
   project.writePackageJson(manifest)
 
   // attempting to execute a script without installing dependencies should fail
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('Cannot find a lockfile in')
+    expect(stdout.toString()).toContain('Cannot check whether dependencies are outdated')
   }
 
   await execPnpm([...CONFIG, 'install'])
@@ -236,7 +227,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
   {
     const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
     expect(status).not.toBe(0)
-    expect(stdout.toString()).toContain('ERR_PNPM_RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST')
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
   }
 
   await execPnpm([...CONFIG, 'install'])

@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { type LockfileV9 as Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
 import deepRequireCwd from 'deep-require-cwd'
@@ -73,7 +73,7 @@ test('skip optional dependency that does not support the current OS', async () =
   const project = prepareEmpty()
   const reporter = sinon.spy()
 
-  let manifest = await install({
+  let { updatedManifest: manifest } = await install({
     optionalDependencies: {
       '@pnpm.e2e/not-compatible-with-any-os': '*',
     },
@@ -111,7 +111,7 @@ test('skip optional dependency that does not support the current OS', async () =
 
   // a previously skipped package is successfully installed
 
-  manifest = await addDependenciesToPackage(manifest, ['@pnpm.e2e/dep-of-optional-pkg'], testDefaults())
+  manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/dep-of-optional-pkg'], testDefaults())).updatedManifest
 
   project.has('@pnpm.e2e/dep-of-optional-pkg')
 
@@ -257,7 +257,7 @@ test('optional subdependency is not removed from current lockfile when new depen
     const modulesInfo = readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
     expect(modulesInfo.skipped).toStrictEqual(['@pnpm.e2e/dep-of-optional-pkg@1.0.0', '@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
 
-    const currentLockfile = readYamlFile<Lockfile>(path.resolve('node_modules/.pnpm/lock.yaml'))
+    const currentLockfile = readYamlFile<LockfileFile>(path.resolve('node_modules/.pnpm/lock.yaml'))
     expect(currentLockfile.packages).toHaveProperty(['@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
   }
 
@@ -270,7 +270,7 @@ test('optional subdependency is not removed from current lockfile when new depen
   ], testDefaults({ allProjects, fastUnpack: false, hoistPattern: ['*'] }))
 
   {
-    const currentLockfile = readYamlFile<Lockfile>(path.resolve('node_modules/.pnpm/lock.yaml'))
+    const currentLockfile = readYamlFile<LockfileFile>(path.resolve('node_modules/.pnpm/lock.yaml'))
     expect(currentLockfile.packages).toHaveProperty(['@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
   }
 })
@@ -279,7 +279,7 @@ test('optional subdependency is skipped', async () => {
   const project = prepareEmpty()
   const reporter = sinon.spy()
 
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-optional', '@pnpm.e2e/dep-of-optional-pkg'], testDefaults({ reporter }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-optional', '@pnpm.e2e/dep-of-optional-pkg'], testDefaults({ reporter }))
 
   {
     const modulesInfo = readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
@@ -354,7 +354,7 @@ test('only that package is skipped which is an optional dependency only and not 
   const project = prepareEmpty()
   const reporter = sinon.spy()
 
-  const manifest = await addDependenciesToPackage({}, [
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [
     '@pnpm.e2e/peer-c@1.0.0',
     '@pnpm.e2e/has-optional-dep-with-peer',
     '@pnpm.e2e/not-compatible-with-any-os-and-has-peer',
@@ -587,7 +587,7 @@ describe('supported architectures', () => {
     prepareEmpty()
     const opts = testDefaults({ nodeLinker })
 
-    const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], {
+    const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], {
       ...opts,
       supportedArchitectures: { os: ['darwin'], cpu: ['arm64'] },
     })
@@ -611,7 +611,7 @@ describe('supported architectures', () => {
     prepareEmpty()
     const opts = testDefaults({ modulesCacheMaxAge: 0 })
 
-    const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], {
+    const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], {
       ...opts,
       supportedArchitectures: { os: ['darwin', 'linux', 'win32'], cpu: ['arm64', 'x64'] },
     })
@@ -626,7 +626,7 @@ describe('supported architectures', () => {
     prepareEmpty()
     const opts = testDefaults({ nodeLinker: 'hoisted' })
 
-    const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], {
+    const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], {
       ...opts,
       supportedArchitectures: { os: ['darwin', 'linux', 'win32'], cpu: ['arm64', 'x64'] },
     })
@@ -641,7 +641,7 @@ describe('supported architectures', () => {
     prepareEmpty()
     const opts = testDefaults({ modulesCacheMaxAge: 0 })
 
-    const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/parent-of-has-many-optional-deps@1.0.0'], {
+    const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/parent-of-has-many-optional-deps@1.0.0'], {
       ...opts,
       supportedArchitectures: { os: ['darwin', 'linux', 'win32'], cpu: ['arm64', 'x64'] },
     })

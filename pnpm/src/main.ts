@@ -22,7 +22,7 @@ import chalk from 'chalk'
 import { isCI } from 'ci-info'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
-import stripAnsi from 'strip-ansi'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 import { checkForUpdates } from './checkForUpdates'
 import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd'
 import { formatUnknownOptionsError } from './formatError'
@@ -97,6 +97,9 @@ export async function main (inputArgv: string[]): Promise<void> {
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
     const isDlxCommand = cmd === 'dlx'
+    if (cmd === 'link' && cliParams.length === 0) {
+      cliOptions.global = true
+    }
     config = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
@@ -106,7 +109,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       ignoreNonAuthSettingsFromLocal: isDlxCommand,
     }) as typeof config
     if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
-      if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm') {
+      if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm' && cmd !== 'self-update') {
         await switchCliVersion(config)
       } else if (!cmd || !skipPackageManagerCheckForCommand.has(cmd)) {
         checkPackageManager(config.wantedPackageManager, config)
@@ -174,7 +177,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   }
 
   if (
-    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove') &&
+    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds') &&
     typeof workspaceDir === 'string'
   ) {
     cliOptions['recursive'] = true
@@ -296,8 +299,14 @@ export async function main (inputArgv: string[]): Promise<void> {
       config as Omit<typeof config, 'reporter'>,
       cliParams
     )
-    if (result instanceof Promise) {
-      result = await result
+    try {
+      if (result instanceof Promise) {
+        result = await result
+      }
+    } finally {
+      // When use-node-version is set and "pnpm run" is executed,
+      // this will be the only place where the tarball worker pool is finished.
+      await finishWorkers()
     }
     executionTimeLogger.debug({
       startedAt: global['pnpm__startedAt'],
@@ -311,9 +320,6 @@ export async function main (inputArgv: string[]): Promise<void> {
     }
     return result
   })()
-  // When use-node-version is set and "pnpm run" is executed,
-  // this will be the only place where the tarball worker pool is finished.
-  await finishWorkers()
   if (output) {
     if (!output.endsWith('\n')) {
       output = `${output}\n`

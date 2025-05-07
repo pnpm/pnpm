@@ -1,5 +1,301 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.0.5
+
+### Patch Changes
+
+- @pnpm/config.config-writer@1000.0.4
+- @pnpm/cli-utils@1000.1.3
+- @pnpm/config@1003.0.1
+
+## 1002.0.4
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/config.config-writer@1000.0.3
+  - @pnpm/audit@1002.0.3
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/read-project-manifest@1000.0.10
+
+## 1002.0.3
+
+### Patch Changes
+
+- Updated dependencies [17b7e9f]
+  - @pnpm/config.config-writer@1000.0.2
+  - @pnpm/cli-utils@1000.1.1
+  - @pnpm/audit@1002.0.2
+  - @pnpm/lockfile.fs@1001.1.10
+  - @pnpm/config@1002.7.2
+
+## 1002.0.2
+
+### Patch Changes
+
+- 01f2bcf: `pnpm audit --fix` should update the overrides in `pnpm-workspace.yaml`.
+- Updated dependencies [750ae7d]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/cli-utils@1000.1.0
+  - @pnpm/config.config-writer@1000.0.1
+  - @pnpm/audit@1002.0.1
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/read-project-manifest@1000.0.9
+
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [e57f1df]
+  - @pnpm/config@1002.7.0
+  - @pnpm/cli-utils@1000.0.19
+
+## 1002.0.0
+
+### Major Changes
+
+- 7f9f202: Remove dependency paths from audit output to prevent out-of-memory errors [#9280](https://github.com/pnpm/pnpm/issues/9280).
+
+### Patch Changes
+
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+- Updated dependencies [7f9f202]
+  - @pnpm/config@1002.6.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/audit@1002.0.0
+  - @pnpm/cli-utils@1000.0.18
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/read-project-manifest@1000.0.8
+
+## 1001.0.17
+
+### Patch Changes
+
+- Updated dependencies [936430a]
+  - @pnpm/config@1002.5.4
+  - @pnpm/cli-utils@1000.0.17
+  - @pnpm/audit@1001.0.11
+  - @pnpm/lockfile.fs@1001.1.7
+
+## 1001.0.16
+
+### Patch Changes
+
+- Updated dependencies [6e4459c]
+  - @pnpm/config@1002.5.3
+  - @pnpm/cli-utils@1000.0.16
+
+## 1001.0.15
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.15
+- @pnpm/audit@1001.0.10
+- @pnpm/config@1002.5.2
+- @pnpm/lockfile.fs@1001.1.6
+
+## 1001.0.14
+
+### Patch Changes
+
+- Updated dependencies [c3aa4d8]
+  - @pnpm/config@1002.5.1
+  - @pnpm/cli-utils@1000.0.14
+
+## 1001.0.13
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+- Updated dependencies [d965748]
+  - @pnpm/types@1000.2.1
+  - @pnpm/config@1002.5.0
+  - @pnpm/cli-utils@1000.0.13
+  - @pnpm/audit@1001.0.9
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/read-project-manifest@1000.0.7
+
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [1c2eb8c]
+  - @pnpm/config@1002.4.1
+  - @pnpm/cli-utils@1000.0.12
+
+## 1001.0.11
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [8fcc221]
+  - @pnpm/config@1002.4.0
+  - @pnpm/types@1000.2.0
+  - @pnpm/cli-utils@1000.0.11
+  - @pnpm/audit@1001.0.8
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/read-project-manifest@1000.0.6
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+  - @pnpm/config@1002.3.1
+  - @pnpm/cli-utils@1000.0.10
+  - @pnpm/lockfile.fs@1001.1.3
+  - @pnpm/audit@1001.0.7
+
+## 1001.0.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.9
+
+## 1001.0.8
+
+### Patch Changes
+
+- Updated dependencies [f6006f2]
+  - @pnpm/config@1002.3.0
+  - @pnpm/cli-utils@1000.0.8
+
+## 1001.0.7
+
+### Patch Changes
+
+- Updated dependencies [1e229d7]
+  - @pnpm/read-project-manifest@1000.0.5
+  - @pnpm/cli-utils@1000.0.7
+  - @pnpm/config@1002.2.1
+  - @pnpm/audit@1001.0.6
+
+## 1001.0.6
+
+### Patch Changes
+
+- acdf26d: Replace `strip-ansi` with the built-in `util.stripVTControlCharacters` [#9009](https://github.com/pnpm/pnpm/pull/9009).
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/config@1002.2.0
+  - @pnpm/audit@1001.0.5
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/network.auth-header@1000.0.2
+
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/cli-utils@1000.0.5
+  - @pnpm/config@1002.1.2
+  - @pnpm/audit@1001.0.4
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+- Updated dependencies [1f5169f]
+  - @pnpm/types@1000.1.0
+  - @pnpm/config@1002.1.1
+  - @pnpm/cli-utils@1000.0.4
+  - @pnpm/audit@1001.0.3
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/read-project-manifest@1000.0.2
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [f90a94b]
+- Updated dependencies [f891288]
+  - @pnpm/config@1002.1.0
+  - @pnpm/cli-utils@1000.0.3
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [878ea8c]
+  - @pnpm/config@1002.0.0
+  - @pnpm/cli-utils@1000.0.2
+  - @pnpm/audit@1001.0.2
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [3f0e4f0]
+  - @pnpm/lockfile.fs@1001.1.0
+  - @pnpm/audit@1001.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [ac5b9d8]
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/config@1001.0.0
+  - @pnpm/constants@1001.0.0
+  - @pnpm/audit@1001.0.0
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/cli-utils@1000.0.1
+  - @pnpm/error@1000.0.1
+  - @pnpm/network.auth-header@1000.0.1
+  - @pnpm/read-project-manifest@1000.0.1
+
+## 10.3.3
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [477e0c1]
+- Updated dependencies [dfcf034]
+- Updated dependencies [592e2ef]
+- Updated dependencies [19d5b51]
+- Updated dependencies [1dbc56a]
+- Updated dependencies [e9985b6]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/config@22.0.0
+  - @pnpm/audit@8.2.3
+  - @pnpm/lockfile.fs@1.0.6
+  - @pnpm/error@6.0.3
+  - @pnpm/cli-utils@4.0.8
+  - @pnpm/network.auth-header@3.0.3
+  - @pnpm/read-project-manifest@6.0.10
+
 ## 10.3.2
 
 ### Patch Changes

@@ -1,11 +1,15 @@
-import { getPatchInfo } from '../src/index'
+import { type PatchFile } from '@pnpm/patching.types'
+import { getPatchInfo, groupPatchedDependencies } from '../src/index'
+
+const _getPatchInfo = (patchedDependencies: Record<string, PatchFile>, name: string, version: string) =>
+  getPatchInfo(groupPatchedDependencies(patchedDependencies), name, version)
 
 test('getPatchInfo(undefined, ...) returns undefined', () => {
   expect(getPatchInfo(undefined, 'foo', '1.0.0')).toBeUndefined()
 })
 
 test('getPatchInfo(_, name, version) returns strict=true if name@version exists', () => {
-  expect(getPatchInfo({
+  expect(_getPatchInfo({
     'foo@1.0.0': {
       path: 'patches/foo@1.0.0.patch',
       hash: '00000000000000000000000000000000',
@@ -21,7 +25,7 @@ test('getPatchInfo(_, name, version) returns strict=true if name@version exists'
 })
 
 test('getPatchInfo(_, name, version) returns strict=false if name exists and name@version does not exist', () => {
-  expect(getPatchInfo({
+  expect(_getPatchInfo({
     foo: {
       path: 'patches/foo.patch',
       hash: '00000000000000000000000000000000',
@@ -37,7 +41,7 @@ test('getPatchInfo(_, name, version) returns strict=false if name exists and nam
 })
 
 test('getPatchInfo(_, name, version) prioritizes name@version over name if both exist', () => {
-  expect(getPatchInfo({
+  expect(_getPatchInfo({
     foo: {
       path: 'patches/foo.patch',
       hash: '00000000000000000000000000000000',
@@ -57,7 +61,7 @@ test('getPatchInfo(_, name, version) prioritizes name@version over name if both 
 })
 
 test('getPatchInfo(_, name, version) does not access wrong name', () => {
-  expect(getPatchInfo({
+  expect(_getPatchInfo({
     'bar@1.0.0': {
       path: 'patches/bar@1.0.0.patch',
       hash: '00000000000000000000000000000000',
@@ -66,7 +70,7 @@ test('getPatchInfo(_, name, version) does not access wrong name', () => {
 })
 
 test('getPatchInfo(_, name, version) does not access wrong version', () => {
-  expect(getPatchInfo({
+  expect(_getPatchInfo({
     'foo@2.0.0': {
       path: 'patches/foo@2.0.0.patch',
       hash: '00000000000000000000000000000000',

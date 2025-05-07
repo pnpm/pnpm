@@ -6,6 +6,8 @@ import { selfUpdate } from '@pnpm/tools.plugin-commands-self-updater'
 import spawn from 'cross-spawn'
 import nock from 'nock'
 
+const pnpmTarballPath = require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-9.1.0.tgz')
+
 jest.mock('@pnpm/cli-meta', () => {
   const actualModule = jest.requireActual('@pnpm/cli-meta')
 
@@ -38,23 +40,25 @@ function prepareOptions (dir: string) {
       original: [],
     },
     cliOptions: {},
+    excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     bail: true,
     pnpmHomeDir: dir,
+    preferWorkspacePackages: true,
     registries: {
       default: 'https://registry.npmjs.org/',
     },
     rawLocalConfig: {},
     sort: false,
-    rootProjectManifestDir: process.cwd(),
-    bin: process.cwd(),
+    rootProjectManifestDir: dir,
+    bin: dir,
     workspaceConcurrency: 1,
     extraEnv: {},
     pnpmfile: '',
     rawConfig: {},
     cacheDir: path.join(dir, '.cache'),
     virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
-    dir: process.cwd(),
+    dir,
     managePackageManagerVersions: false,
   }
 }
@@ -87,7 +91,7 @@ test('self-update', async () => {
     .reply(200, createMetadata('9.1.0', opts.registries.default))
   nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
-    .replyWithFile(200, path.join(__dirname, 'pnpm-9.1.0.tgz'))
+    .replyWithFile(200, pnpmTarballPath)
 
   await selfUpdate.handler(opts, [])
 
@@ -112,7 +116,7 @@ test('self-update by exact version', async () => {
     .reply(200, createMetadata('9.2.0', opts.registries.default, ['9.1.0']))
   nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
-    .replyWithFile(200, path.join(__dirname, 'pnpm-9.1.0.tgz'))
+    .replyWithFile(200, pnpmTarballPath)
 
   await selfUpdate.handler(opts, ['9.1.0'])
 
@@ -141,13 +145,61 @@ test('self-update does nothing when pnpm is up to date', async () => {
   expect(output).toBe('The currently active pnpm v9.0.0 is already "latest" and doesn\'t need an update')
 })
 
+test('should update packageManager field when a newer pnpm version is available', async () => {
+  const opts = prepare()
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  fs.writeFileSync(pkgJsonPath, JSON.stringify({
+    packageManager: 'pnpm@8.0.0',
+  }), 'utf8')
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '8.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project has been updated to use pnpm v9.0.0')
+  expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
+})
+
+test('should not update packageManager field when current version matches latest', async () => {
+  const opts = prepare()
+  const pkgJsonPath = path.join(opts.dir, 'package.json')
+  fs.writeFileSync(pkgJsonPath, JSON.stringify({
+    packageManager: 'pnpm@9.0.0',
+  }), 'utf8')
+  nock(opts.registries.default)
+    .get('/pnpm')
+    .reply(200, createMetadata('9.0.0', opts.registries.default))
+
+  const output = await selfUpdate.handler({
+    ...opts,
+    managePackageManagerVersions: true,
+    wantedPackageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+  }, [])
+
+  expect(output).toBe('The current project is already set to use pnpm v9.0.0')
+  expect(JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8')).packageManager).toBe('pnpm@9.0.0')
+})
+
 test('self-update links pnpm that is already present on the disk', async () => {
   const opts = prepare()
   nock(opts.registries.default)
     .get('/pnpm')
     .reply(200, createMetadata('9.2.0', opts.registries.default))
 
-  const latestPnpmDir = path.join(opts.pnpmHomeDir, '.tools/pnpm/9.2.0/node_modules/pnpm')
+  const baseDir = path.join(opts.pnpmHomeDir, '.tools/pnpm/9.2.0')
+  fs.mkdirSync(path.join(baseDir, 'bin'), { recursive: true })
+  const latestPnpmDir = path.join(baseDir, 'node_modules/pnpm')
   fs.mkdirSync(latestPnpmDir, { recursive: true })
   fs.writeFileSync(path.join(latestPnpmDir, 'package.json'), JSON.stringify({ name: 'pnpm', bin: 'bin.js' }), 'utf8')
   fs.writeFileSync(path.join(latestPnpmDir, 'bin.js'), `#!/usr/bin/env node
@@ -184,7 +236,7 @@ test('self-update updates the packageManager field in package.json', async () =>
     .reply(200, createMetadata('9.1.0', opts.registries.default))
   nock(opts.registries.default)
     .get('/pnpm/-/pnpm-9.1.0.tgz')
-    .replyWithFile(200, path.join(__dirname, 'pnpm-9.1.0.tgz'))
+    .replyWithFile(200, pnpmTarballPath)
 
   const output = await selfUpdate.handler(opts, [])
 

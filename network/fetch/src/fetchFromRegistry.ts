@@ -10,7 +10,7 @@ const ABBREVIATED_DOC = 'application/vnd.npm.install-v1+json; q=1.0, application
 const JSON_DOC = 'application/json'
 const MAX_FOLLOWED_REDIRECTS = 20
 
-export type FetchWithAgentOptions = RequestInit & {
+export interface FetchWithAgentOptions extends RequestInit {
   agentOptions: AgentOptions
 }
 
@@ -30,13 +30,13 @@ export function fetchWithAgent (url: RequestInfo, opts: FetchWithAgentOptions): 
 
 export type { AgentOptions }
 
-export function createFetchFromRegistry (
-  defaultOpts: {
-    fullMetadata?: boolean
-    userAgent?: string
-    sslConfigs?: Record<string, SslConfig>
-  } & AgentOptions
-): FetchFromRegistry {
+export interface CreateFetchFromRegistryOptions extends AgentOptions {
+  fullMetadata?: boolean
+  userAgent?: string
+  sslConfigs?: Record<string, SslConfig>
+}
+
+export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOptions): FetchFromRegistry {
   return async (url, opts): Promise<Response> => {
     const headers = {
       'user-agent': USER_AGENT,
@@ -67,6 +67,7 @@ export function createFetchFromRegistry (
         },
         // if verifying integrity, node-fetch must not decompress
         compress: opts?.compress ?? false,
+        method: opts?.method,
         headers,
         redirect: 'manual',
         retry: opts?.retry,

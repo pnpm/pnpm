@@ -28,6 +28,7 @@ const DEFAULT_OPTS = {
   lockStaleDuration: 90,
   networkConcurrency: 16,
   offline: false,
+  preferWorkspacePackages: true,
   proxy: undefined,
   pnpmHomeDir: '',
   rawConfig: { registry: REGISTRY },

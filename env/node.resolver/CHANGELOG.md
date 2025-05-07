@@ -1,5 +1,109 @@
 # @pnpm/node.resolver
 
+## 1000.0.16
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.16
+
+## 1000.0.15
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.15
+
+## 1000.0.14
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.14
+
+## 1000.0.13
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.13
+
+## 1000.0.12
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.12
+
+## 1000.0.11
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.11
+
+## 1000.0.10
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.10
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.9
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.8
+
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.7
+
+## 1000.0.6
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.6
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.5
+
+## 1000.0.4
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.4
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.3
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [b0f3c71]
+  - @pnpm/fetching-types@1000.1.0
+  - @pnpm/node.fetcher@1000.0.1
+
+## 3.0.17
+
+### Patch Changes
+
+- @pnpm/node.fetcher@4.0.17
+
 ## 3.0.16
 
 ### Patch Changes

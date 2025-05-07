@@ -4,7 +4,7 @@ import {
   progressLogger,
 } from '@pnpm/core-loggers'
 import {
-  type Lockfile,
+  type LockfileObject,
   type PackageSnapshot,
 } from '@pnpm/lockfile.fs'
 import {
@@ -15,8 +15,8 @@ import {
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { getPatchInfo } from '@pnpm/patching.config'
-import { type PatchFile, type PatchInfo } from '@pnpm/patching.types'
+import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
+import { type PatchInfo } from '@pnpm/patching.types'
 import { type DepPath, type SupportedArchitectures, type Registries, type PkgIdWithPatchHash, type ProjectId } from '@pnpm/types'
 import {
   type PkgRequestFetchResult,
@@ -63,7 +63,7 @@ export interface LockfileToDepGraphOptions {
   lockfileDir: string
   nodeVersion: string
   pnpmVersion: string
-  patchedDependencies?: Record<string, PatchFile>
+  patchedDependencies?: PatchGroupRecord
   registries: Registries
   sideEffectsCacheRead: boolean
   skipped: Set<DepPath>
@@ -93,8 +93,8 @@ export interface LockfileToDepGraphResult {
 }
 
 export async function lockfileToDepGraph (
-  lockfile: Lockfile,
-  currentLockfile: Lockfile | null,
+  lockfile: LockfileObject,
+  currentLockfile: LockfileObject | null,
   opts: LockfileToDepGraphOptions
 ): Promise<LockfileToDepGraphResult> {
   const currentPackages = currentLockfile?.packages ?? {}

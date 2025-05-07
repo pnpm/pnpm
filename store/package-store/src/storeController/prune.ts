@@ -16,12 +16,17 @@ export interface PruneOptions {
 
 export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFiles?: boolean): Promise<void> {
   const cafsDir = path.join(storeDir, 'files')
-  await Promise.all([
-    rimraf(path.join(cacheDir, 'metadata')),
-    rimraf(path.join(cacheDir, 'metadata-full')),
-    rimraf(path.join(cacheDir, 'metadata-v1.1')),
-    rimraf(path.join(cacheDir, 'metadata-v1.2')),
-  ])
+  const metadataDirs = await getSubdirsSafely(cacheDir)
+  await Promise.all(metadataDirs.map(async (metadataDir) => {
+    if (!metadataDir.startsWith('metadata')) return
+    try {
+      await rimraf(path.join(cacheDir, metadataDir))
+    } catch (err: unknown) {
+      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
+        throw err
+      }
+    }
+  }))
   await rimraf(path.join(storeDir, 'tmp'))
   globalInfo('Removed all cached metadata files')
   const pkgIndexFiles = [] as string[]

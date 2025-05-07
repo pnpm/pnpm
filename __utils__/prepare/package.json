@@ -1,10 +1,11 @@
 {
   "name": "@pnpm/prepare",
-  "version": "0.0.105",
+  "version": "0.0.118",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "dependencies": {
     "@pnpm/assert-project": "workspace:*",
+    "@pnpm/prepare-temp-dir": "workspace:*",
     "@pnpm/types": "workspace:*",
     "write-json5-file": "^3.1.0",
     "write-pkg": "catalog:",

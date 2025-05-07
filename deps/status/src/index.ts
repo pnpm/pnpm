@@ -1,1 +1,2 @@
-export { type CheckDepsStatusOptions, checkDepsStatus } from './checkDepsStatus'
+export { type WorkspaceStateSettings } from '@pnpm/workspace.state'
+export { type CheckDepsStatusOptions, type CheckDepsStatusResult, checkDepsStatus } from './checkDepsStatus'

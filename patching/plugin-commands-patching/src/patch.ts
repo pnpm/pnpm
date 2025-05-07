@@ -12,12 +12,11 @@ import renderHelp from 'render-help'
 import chalk from 'chalk'
 import terminalLink from 'terminal-link'
 import { PnpmError } from '@pnpm/error'
-import { type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { writePackage } from './writePackage'
 import { getEditDirPath } from './getEditDirPath'
-import { getPatchedDependency } from './getPatchedDependency'
+import { type GetPatchedDependencyResult, getPatchedDependency } from './getPatchedDependency'
 import { writeEditDirState } from './stateFile'
-import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import isWindows from 'is-windows'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -56,6 +55,7 @@ export function help (): string {
 
 export type PatchCommandOptions = Pick<Config,
 | 'dir'
+| 'patchedDependencies'
 | 'registries'
 | 'tag'
 | 'storeDir'
@@ -84,6 +84,8 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
     virtualStoreDir: opts.virtualStoreDir,
   })
 
+  const quote = isWindows() ? '"' : "'"
+
   const modulesDir = path.join(lockfileDir, opts.modulesDir ?? 'node_modules')
   const editDir = opts.editDir
     ? path.resolve(opts.dir, opts.editDir)
@@ -91,7 +93,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
 
   if (fs.existsSync(editDir) && fs.readdirSync(editDir).length !== 0) {
     throw new PnpmError('EDIT_DIR_NOT_EMPTY', `The directory ${editDir} is not empty`, {
-      hint: 'Either run `pnpm patch-commit` to commit or delete it then run `pnpm patch` to recreate it',
+      hint: 'Either run `pnpm patch-commit ' + quote + editDir + quote + '` to commit or delete it then run `pnpm patch` to recreate it',
     })
   }
 
@@ -104,31 +106,23 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
     applyToAll: patchedDep.applyToAll,
   })
 
-  if (!opts.ignoreExisting) {
-    let rootProjectManifest = opts.rootProjectManifest
-    if (!opts.sharedWorkspaceLockfile) {
-      const { manifest } = await tryReadProjectManifest(lockfileDir)
-      if (manifest) {
-        rootProjectManifest = manifest
-      }
-    }
-    if (rootProjectManifest?.pnpm?.patchedDependencies) {
-      tryPatchWithExistingPatchFile({
-        allowFailure: patchedDep.applyToAll,
-        patchedDep,
-        patchedDir: editDir,
-        patchedDependencies: rootProjectManifest.pnpm.patchedDependencies,
-        lockfileDir,
-      })
-    }
+  if (!opts.ignoreExisting && opts.patchedDependencies) {
+    tryPatchWithExistingPatchFile({
+      allowFailure: patchedDep.applyToAll,
+      patchedDep,
+      patchedDir: editDir,
+      patchedDependencies: opts.patchedDependencies,
+      lockfileDir,
+    })
   }
+
   return `Patch: You can now edit the package at:
 
-  ${terminalLink(chalk.blue(editDir), 'file://' + editDir)}
+  ${terminalLink(chalk.blue(editDir), 'file://' + editDir, { fallback: false })}
 
 To commit your changes, run:
 
-  ${chalk.green(`pnpm patch-commit '${editDir}'`)}
+  ${chalk.green(`pnpm patch-commit ${quote}${editDir}${quote}`)}
 
 `
 }
@@ -136,22 +130,26 @@ To commit your changes, run:
 function tryPatchWithExistingPatchFile (
   {
     allowFailure,
-    patchedDep,
+    patchedDep: { applyToAll, alias, bareSpecifier },
     patchedDir,
     patchedDependencies,
     lockfileDir,
   }: {
     allowFailure: boolean
-    patchedDep: ParseWantedDependencyResult
+    patchedDep: GetPatchedDependencyResult
     patchedDir: string
     patchedDependencies: Record<string, string>
     lockfileDir: string
   }
 ): void {
-  if (!patchedDep.alias || !patchedDep.pref) {
-    return
+  if (!alias) return
+  let existingPatchFile: string | undefined
+  if (bareSpecifier) {
+    existingPatchFile = patchedDependencies[`${alias}@${bareSpecifier}`]
   }
-  const existingPatchFile = patchedDependencies[`${patchedDep.alias}@${patchedDep.pref}`]
+  if (!existingPatchFile && applyToAll) {
+    existingPatchFile = patchedDependencies[alias]
+  }
   if (!existingPatchFile) {
     return
   }

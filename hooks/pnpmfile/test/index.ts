@@ -62,3 +62,9 @@ test('calculatePnpmfileChecksum is undefined if pnpmfile even when it exports un
   const hooks = requireHooks(__dirname, { pnpmfile })
   expect(hooks.calculatePnpmfileChecksum).toBeUndefined()
 })
+
+test('updateConfig throws an error if it returns undefined', async () => {
+  const pnpmfile = path.join(__dirname, '__fixtures__/updateConfigReturnsUndefined.js')
+  const hooks = requireHooks(__dirname, { pnpmfile })
+  expect(() => hooks.updateConfig!({})).toThrow('The updateConfig hook returned undefined')
+})

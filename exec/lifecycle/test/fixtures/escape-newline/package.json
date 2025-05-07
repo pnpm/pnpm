@@ -1,0 +1,7 @@
+{
+  "name": "issue-8980",
+  "version": "1.0.0",
+  "scripts": {
+    "echo": "node echo.sh"
+  }
+}

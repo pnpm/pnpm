@@ -9,12 +9,12 @@ export interface VersionOverride {
   selector: string
   parentPkg?: PackageSelector
   targetPkg: PackageSelector
-  newPref: string
+  newBareSpecifier: string
 }
 
 export interface PackageSelector {
   name: string
-  pref?: string
+  bareSpecifier?: string
 }
 
 export function parseOverrides (
@@ -23,10 +23,10 @@ export function parseOverrides (
 ): VersionOverride[] {
   const _resolveFromCatalog = resolveFromCatalog.bind(null, catalogs ?? {})
   return Object.entries(overrides)
-    .map(([selector, newPref]) => {
+    .map(([selector, newBareSpecifier]) => {
       const result = parsePkgAndParentSelector(selector)
       const resolvedCatalog = matchCatalogResolveResult(_resolveFromCatalog({
-        pref: newPref,
+        bareSpecifier: newBareSpecifier,
         alias: result.targetPkg.name,
       }), {
         found: ({ resolution }) => resolution.specifier,
@@ -37,13 +37,13 @@ export function parseOverrides (
       })
       return {
         selector,
-        newPref: resolvedCatalog ?? newPref,
+        newBareSpecifier: resolvedCatalog ?? newBareSpecifier,
         ...result,
       }
     })
 }
 
-function parsePkgAndParentSelector (selector: string): Pick<VersionOverride, 'parentPkg' | 'targetPkg'> {
+export function parsePkgAndParentSelector (selector: string): Pick<VersionOverride, 'parentPkg' | 'targetPkg'> {
   let delimiterIndex = selector.search(DELIMITER_REGEX)
   if (delimiterIndex !== -1) {
     delimiterIndex++
@@ -66,6 +66,6 @@ function parsePkgSelector (selector: string): PackageSelector {
   }
   return {
     name: wantedDep.alias,
-    pref: wantedDep.pref,
+    bareSpecifier: wantedDep.bareSpecifier,
   }
 }

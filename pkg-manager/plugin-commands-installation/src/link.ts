@@ -2,15 +2,14 @@ import path from 'path'
 import {
   docsUrl,
   tryReadProjectManifest,
-  type ReadProjectManifestOpts,
 } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
+import { writeSettings } from '@pnpm/config.config-writer'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { DEPENDENCIES_FIELDS, type ProjectManifest, type Project } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import {
   type WorkspacePackages,
 } from '@pnpm/core'
@@ -18,12 +17,14 @@ import { logger } from '@pnpm/logger'
 import pick from 'ramda/src/pick'
 import partition from 'ramda/src/partition'
 import renderHelp from 'render-help'
+import { createProjectManifestWriter } from './createProjectManifestWriter'
 import { getSaveType } from './getSaveType'
 import * as install from './install'
+import normalize from 'normalize-path'
 
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
-const isFilespec = isWindows ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/ : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
+const isFilespec = isWindows ? /^(?:[./\\]|~\/|[a-z]:)/i : /^(?:[./]|~\/|[a-z]:)/i
 
 type LinkOpts = Pick<Config,
 | 'bin'
@@ -31,6 +32,7 @@ type LinkOpts = Pick<Config,
 | 'engineStrict'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
+| 'overrides'
 | 'saveDev'
 | 'saveOptional'
 | 'saveProd'
@@ -128,6 +130,8 @@ export async function handler (
     })
   }
 
+  const writeProjectManifest = await createProjectManifestWriter(opts.rootProjectManifestDir)
+
   // pnpm link
   if ((params == null) || (params.length === 0)) {
     const cwd = process.cwd()
@@ -138,8 +142,8 @@ export async function handler (
     await checkPeerDeps(cwd, opts)
 
     const newManifest = opts.rootProjectManifest ?? {}
-    await addLinkToManifest(opts, newManifest, cwd, linkOpts.dir)
-    await writeProjectManifest(path.join(opts.rootProjectManifestDir, 'package.json'), newManifest)
+    await addLinkToManifest(opts, newManifest, cwd, opts.rootProjectManifestDir)
+    await writeProjectManifest(newManifest)
     await install.handler({
       ...linkOpts,
       frozenLockfileIfExists: false,
@@ -155,12 +159,12 @@ export async function handler (
   const newManifest = opts.rootProjectManifest ?? {}
   await Promise.all(
     pkgPaths.map(async (dir) => {
-      await addLinkToManifest(opts, newManifest, dir, opts.dir)
+      await addLinkToManifest(opts, newManifest, dir, opts.rootProjectManifestDir)
       await checkPeerDeps(dir, opts)
     })
   )
 
-  await writeProjectManifest(path.join(opts.rootProjectManifestDir, 'package.json'), newManifest)
+  await writeProjectManifest(newManifest)
   await install.handler({
     ...linkOpts,
     frozenLockfileIfExists: false,
@@ -168,18 +172,21 @@ export async function handler (
   })
 }
 
-async function addLinkToManifest (opts: ReadProjectManifestOpts, manifest: ProjectManifest, linkedDepDir: string, dependentDir: string) {
-  if (!manifest.pnpm) {
-    manifest.pnpm = {
-      overrides: {},
-    }
-  } else if (!manifest.pnpm.overrides) {
-    manifest.pnpm.overrides = {}
-  }
+async function addLinkToManifest (opts: LinkOpts, manifest: ProjectManifest, linkedDepDir: string, manifestDir: string) {
   const { manifest: linkedManifest } = await tryReadProjectManifest(linkedDepDir, opts)
   const linkedPkgName = linkedManifest?.name ?? path.basename(linkedDepDir)
-  const linkedPkgSpec = `link:${path.relative(dependentDir, linkedDepDir)}`
-  manifest.pnpm.overrides![linkedPkgName] = linkedPkgSpec
+  const linkedPkgSpec = `link:${normalize(path.relative(manifestDir, linkedDepDir))}`
+  opts.overrides = {
+    ...opts.overrides,
+    [linkedPkgName]: linkedPkgSpec,
+  }
+  await writeSettings({
+    ...opts,
+    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    updatedSettings: {
+      overrides: opts.overrides,
+    },
+  })
   if (DEPENDENCIES_FIELDS.every((depField) => manifest[depField]?.[linkedPkgName] == null)) {
     manifest.dependencies = manifest.dependencies ?? {}
     manifest.dependencies[linkedPkgName] = linkedPkgSpec

@@ -1,5 +1,5 @@
 import path from 'path'
-import { type Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import * as dp from '@pnpm/dependency-path'
@@ -18,7 +18,7 @@ type DirEntry = {
   target: string
 } | DirDirEntry
 
-export function makeVirtualNodeModules (lockfile: Lockfile): DirEntry {
+export function makeVirtualNodeModules (lockfile: LockfileObject): DirEntry {
   const entries: Record<string, DirEntry> = {
     '.pnpm': {
       entryType: 'directory',
@@ -40,7 +40,7 @@ export function makeVirtualNodeModules (lockfile: Lockfile): DirEntry {
   }
 }
 
-function createVirtualStoreDir (lockfile: Lockfile): Record<string, DirEntry> {
+function createVirtualStoreDir (lockfile: LockfileObject): Record<string, DirEntry> {
   const rootDir = {} as Record<string, DirEntry>
   for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages ?? {})) {
     const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)

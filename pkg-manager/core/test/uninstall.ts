@@ -6,7 +6,7 @@ import {
   type RootLog,
   type StatsLog,
 } from '@pnpm/core-loggers'
-import { type Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -28,7 +28,7 @@ const f = fixtures(__dirname)
 test('uninstall package with no dependencies', async () => {
   const project = prepareEmpty()
 
-  let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], testDefaults({ save: true }))
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-negative@2.1.0'], testDefaults({ save: true }))
 
   const reporter = sinon.spy()
   manifest = (await mutateModulesInSingleProject({
@@ -36,7 +36,7 @@ test('uninstall package with no dependencies', async () => {
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ save: true, reporter }))).manifest
+  }, testDefaults({ save: true, reporter }))).updatedProject.manifest
 
   expect(reporter.calledWithMatch({
     initial: {
@@ -102,13 +102,13 @@ test('uninstall a dependency that is not present in node_modules', async () => {
 
 test('uninstall scoped package', async () => {
   const project = prepareEmpty()
-  let manifest = await addDependenciesToPackage({}, ['@zkochan/logger@0.1.0'], testDefaults({ save: true }))
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@zkochan/logger@0.1.0'], testDefaults({ save: true }))
   manifest = (await mutateModulesInSingleProject({
     dependencyNames: ['@zkochan/logger'],
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ save: true }))).manifest
+  }, testDefaults({ save: true }))).updatedProject.manifest
 
   project.storeHas('@zkochan/logger', '0.1.0')
 
@@ -121,13 +121,13 @@ test('uninstall tarball dependency', async () => {
   const project = prepareEmpty()
   const opts = testDefaults({ save: true })
 
-  let manifest = await addDependenciesToPackage({}, [`http://localhost:${REGISTRY_MOCK_PORT}/is-array/-/is-array-1.0.1.tgz`], opts)
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, [`http://localhost:${REGISTRY_MOCK_PORT}/is-array/-/is-array-1.0.1.tgz`], opts)
   manifest = (await mutateModulesInSingleProject({
     dependencyNames: ['is-array'],
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd() as ProjectRootDir,
-  }, opts)).manifest
+  }, opts)).updatedProject.manifest
 
   project.storeHas('is-array', '1.0.1')
   project.hasNot('is-array')
@@ -137,13 +137,13 @@ test('uninstall tarball dependency', async () => {
 
 test('uninstall package with dependencies and do not touch other deps', async () => {
   const project = prepareEmpty()
-  let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0', 'camelcase-keys@3.0.0'], testDefaults({ save: true }))
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-negative@2.1.0', 'camelcase-keys@3.0.0'], testDefaults({ save: true }))
   manifest = (await mutateModulesInSingleProject({
     dependencyNames: ['camelcase-keys'],
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ pruneStore: true, save: true }))).manifest
+  }, testDefaults({ pruneStore: true, save: true }))).updatedProject.manifest
 
   project.storeHasNot('camelcase-keys', '3.0.0')
   project.hasNot('camelcase-keys')
@@ -170,7 +170,7 @@ test('uninstall package with dependencies and do not touch other deps', async ()
 
 test('uninstall package with its bin files', async () => {
   prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/sh-hello-world@1.0.1'], testDefaults({ fastUnpack: false, save: true }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/sh-hello-world@1.0.1'], testDefaults({ fastUnpack: false, save: true }))
   await mutateModulesInSingleProject({
     dependencyNames: ['@pnpm.e2e/sh-hello-world'],
     manifest,
@@ -210,7 +210,7 @@ test('relative link is uninstalled', async () => {
 test('pendingBuilds gets updated after uninstall', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/pre-and-postinstall-scripts-example', '@pnpm.e2e/with-postinstall-b'],
     testDefaults({ fastUnpack: false, save: true, ignoreScripts: true })
   )
@@ -300,7 +300,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
   projects['project-1'].hasNot('is-positive')
   projects['project-2'].has('is-negative')
 
-  const lockfile = readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  const lockfile = readYamlFile<LockfileObject>(WANTED_LOCKFILE)
 
   expect(lockfile).toStrictEqual({
     settings: {

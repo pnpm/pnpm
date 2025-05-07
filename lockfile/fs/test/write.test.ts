@@ -81,6 +81,7 @@ test('writeLockfiles() when no specifiers but dependencies present', async () =>
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
+    packages: {},
   }
   await writeLockfiles({
     currentLockfile: wantedLockfile,

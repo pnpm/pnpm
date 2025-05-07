@@ -1,7 +1,7 @@
 import { config } from '@pnpm/plugin-commands-config'
 
 test('config get', async () => {
-  const configKey = await config.handler({
+  const getResult = await config.handler({
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
@@ -11,11 +11,25 @@ test('config get', async () => {
     },
   }, ['get', 'store-dir'])
 
-  expect(configKey).toEqual('~/store')
+  expect(typeof getResult === 'object' && 'output' in getResult && getResult.output).toEqual('~/store')
+})
+
+test('config get works with camelCase', async () => {
+  const getResult = await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    rawConfig: {
+      'store-dir': '~/store',
+    },
+  }, ['get', 'storeDir'])
+
+  expect(typeof getResult === 'object' && 'output' in getResult && getResult.output).toEqual('~/store')
 })
 
 test('config get a boolean should return string format', async () => {
-  const configKey = await config.handler({
+  const getResult = await config.handler({
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
@@ -25,11 +39,11 @@ test('config get a boolean should return string format', async () => {
     },
   }, ['get', 'update-notifier'])
 
-  expect(configKey).toEqual('true')
+  expect(typeof getResult === 'object' && 'output' in getResult && getResult.output).toEqual('true')
 })
 
 test('config get on array should return a comma-separated list', async () => {
-  const configKey = await config.handler({
+  const getResult = await config.handler({
     dir: process.cwd(),
     cliOptions: {},
     configDir: process.cwd(),
@@ -42,7 +56,7 @@ test('config get on array should return a comma-separated list', async () => {
     },
   }, ['get', 'public-hoist-pattern'])
 
-  expect(configKey).toBe('*eslint*,*prettier*')
+  expect(typeof getResult === 'object' && 'output' in getResult && getResult.output).toBe('*eslint*,*prettier*')
 })
 
 test('config get without key show list all settings ', async () => {

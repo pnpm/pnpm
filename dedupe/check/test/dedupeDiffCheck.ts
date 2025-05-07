@@ -1,10 +1,10 @@
 import { DedupeCheckIssuesError, dedupeDiffCheck } from '@pnpm/dedupe.check'
-import { type Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { type DepPath, type ProjectId } from '@pnpm/types'
 
 describe('dedupeDiffCheck', () => {
   it('should have no changes for same lockfile', () => {
-    const lockfile: Lockfile = {
+    const lockfile: LockfileObject = {
       importers: {
         ['.' as ProjectId]: {
           specifiers: {},
@@ -19,7 +19,7 @@ describe('dedupeDiffCheck', () => {
   })
 
   it('throws DedupeCheckIssuesError on changes', () => {
-    const before: Lockfile = {
+    const before: LockfileObject = {
       importers: {
         ['packages/a' as ProjectId]: {
           specifiers: {
@@ -59,7 +59,7 @@ describe('dedupeDiffCheck', () => {
       lockfileVersion: 'testLockfileVersion',
     }
 
-    const after: Lockfile = {
+    const after: LockfileObject = {
       importers: {
         ['packages/a' as ProjectId]: {
           specifiers: {
