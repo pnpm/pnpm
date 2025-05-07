@@ -267,17 +267,14 @@ describe('plugin-commands-audit', () => {
       userConfig: {},
       rawConfig,
       registries,
-      rootProjectManifest: {
-        pnpm: {
-          auditConfig: {
-            ignoreCves: [
-              'CVE-2019-10742',
-              'CVE-2020-28168',
-              'CVE-2021-3749',
-              'CVE-2020-7598',
-            ],
-          },
-        },
+      rootProjectManifest: {},
+      auditConfig: {
+        ignoreCves: [
+          'CVE-2019-10742',
+          'CVE-2020-28168',
+          'CVE-2021-3749',
+          'CVE-2020-7598',
+        ],
       },
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
@@ -300,17 +297,14 @@ describe('plugin-commands-audit', () => {
       userConfig: {},
       rawConfig,
       registries,
-      rootProjectManifest: {
-        pnpm: {
-          auditConfig: {
-            ignoreGhsas: [
-              'GHSA-42xw-2xvc-qx8m',
-              'GHSA-4w2v-q235-vp99',
-              'GHSA-cph5-m8f7-6c5x',
-              'GHSA-vh95-rmgr-6w4m',
-            ],
-          },
-        },
+      rootProjectManifest: {},
+      auditConfig: {
+        ignoreGhsas: [
+          'GHSA-42xw-2xvc-qx8m',
+          'GHSA-4w2v-q235-vp99',
+          'GHSA-cph5-m8f7-6c5x',
+          'GHSA-vh95-rmgr-6w4m',
+        ],
       },
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
@@ -334,17 +328,14 @@ describe('plugin-commands-audit', () => {
       userConfig: {},
       rawConfig,
       registries,
-      rootProjectManifest: {
-        pnpm: {
-          auditConfig: {
-            ignoreCves: [
-              'CVE-2019-10742',
-              'CVE-2020-28168',
-              'CVE-2021-3749',
-              'CVE-2020-7598',
-            ],
-          },
-        },
+      rootProjectManifest: {},
+      auditConfig: {
+        ignoreCves: [
+          'CVE-2019-10742',
+          'CVE-2020-28168',
+          'CVE-2021-3749',
+          'CVE-2020-7598',
+        ],
       },
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
