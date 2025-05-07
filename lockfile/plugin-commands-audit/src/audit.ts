@@ -258,7 +258,7 @@ ${newIgnores.join('\n')}`,
   }
   const totalVulnerabilityCount = Object.values(vulnerabilities)
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
-  const ignoreGhsas = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreGhsas
+  const ignoreGhsas = opts.auditConfig?.ignoreGhsas
   if (ignoreGhsas) {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     auditReport.advisories = pickBy(({ github_advisory_id, severity }) => {
@@ -269,7 +269,7 @@ ${newIgnores.join('\n')}`,
       return false
     }, auditReport.advisories)
   }
-  const ignoreCves = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreCves
+  const ignoreCves = opts.auditConfig?.ignoreCves
   if (ignoreCves) {
     auditReport.advisories = pickBy(({ cves, severity }) => {
       if (cves.length === 0 || difference(cves, ignoreCves).length > 0) {
