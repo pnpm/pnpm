@@ -237,7 +237,7 @@ export async function handler (
     optionalDependencies: opts.optional !== false,
   }
   if (opts.allowBuild?.length) {
-    if (opts.allowBuild.length === 1 && opts.allowBuild[0] === 'true') {
+    if (opts.argv.original.includes('--allow-build')) {
       throw new PnpmError('ALLOW_BUILD_MISSING_PACKAGE', 'The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
     }
     if (opts.rootProjectManifest?.pnpm?.ignoredBuiltDependencies?.length) {
