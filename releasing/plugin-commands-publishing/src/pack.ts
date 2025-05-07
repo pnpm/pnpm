@@ -133,6 +133,14 @@ export async function handler (opts: PackOptions): Promise<string> {
     const chunks = sortPackages(selectedProjectsGraph)
 
     const limitPack = pLimit(opts.workspaceConcurrency ?? 4)
+    const resolvedOpts = { ...opts }
+    if (opts.out) {
+      resolvedOpts.out = path.resolve(opts.dir, opts.out)
+    } else if (opts.packDestination) {
+      resolvedOpts.packDestination = path.resolve(opts.dir, opts.packDestination)
+    } else {
+      resolvedOpts.packDestination = path.resolve(opts.dir)
+    }
     for (const chunk of chunks) {
       // eslint-disable-next-line no-await-in-loop
       await Promise.all(chunk.map(pkgDir =>
@@ -140,10 +148,8 @@ export async function handler (opts: PackOptions): Promise<string> {
           if (!packedPkgDirs.has(pkgDir)) return
           const pkg = selectedProjectsGraph[pkgDir].package
           const packResult = await api({
-            ...opts,
+            ...resolvedOpts,
             dir: pkg.rootDir,
-            out: opts.out ? path.resolve(opts.dir, opts.out) : undefined,
-            packDestination: !opts.out ? path.resolve(opts.dir, opts.packDestination ?? '.') : undefined,
           })
           packedPackages.push(toPackResultJson(packResult))
         })
