@@ -7,7 +7,7 @@ export interface WantedDependency {
   dev: boolean
   optional: boolean
   injected?: boolean
-  source?: 'cli-param'
+  saveCatalog?: boolean
 }
 
 type GetNonDevWantedDependenciesManifest = Pick<DependencyManifest, 'bundleDependencies' | 'bundledDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'>

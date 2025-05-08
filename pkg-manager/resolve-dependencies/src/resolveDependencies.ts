@@ -1583,7 +1583,7 @@ async function resolveDependency (
     missingPeers: getMissingPeers(pkg),
     optional: resolvedPkg.optional,
     version: resolvedPkg.version,
-    saveCatalog: wantedDependency.source === 'cli-param',
+    saveCatalog: wantedDependency.saveCatalog,
 
     // Next fields are actually only needed when isNew = true
     installable,
