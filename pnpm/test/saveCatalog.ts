@@ -484,3 +484,108 @@ test('--save-catalog does not affect new dependencies from package.json', async 
     },
   } as ProjectManifest)
 })
+
+test.skip('--save-catalog does not overwrite existing catalogs', async () => {
+  const manifests: ProjectManifest[] = [
+    {
+      name: 'project-0',
+      version: '0.0.0',
+      dependencies: {
+        '@pnpm.e2e/bar': 'catalog:',
+      },
+    },
+    {
+      name: 'project-1',
+      version: '0.0.0',
+    },
+  ]
+
+  preparePackages(manifests)
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    catalog: {
+      '@pnpm.e2e/bar': '=100.0.0', // intentionally outdated
+    },
+    packages: ['project-0', 'project-1'],
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+
+  await execPnpm(['install'])
+  expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+    catalogs: {
+      default: {
+        '@pnpm.e2e/bar': {
+          specifier: '=100.0.0',
+          version: '100.0.0',
+        },
+      },
+    },
+    importers: {
+      'project-0': {
+        dependencies: {
+          '@pnpm.e2e/bar': {
+            specifier: 'catalog:',
+            version: '100.0.0',
+          },
+        },
+      },
+      'project-1': {},
+    },
+  } as Partial<LockfileFile>))
+
+  await execPnpm(['add', '--filter=project-1', ...SAVE_CATALOG, '@pnpm.e2e/foo@100.1.0', '@pnpm.e2e/bar@100.1.0'])
+  expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+    catalogs: {
+      default: {
+        '@pnpm.e2e/bar': {
+          specifier: '=100.0.0', // unchanged
+          version: '100.0.0',
+        },
+        '@pnpm.e2e/foo': {
+          specifier: '100.1.0', // created by `pnpm add --save-catalog`
+          version: '100.1.0',
+        },
+      },
+    },
+    importers: {
+      'project-0': {
+        dependencies: {
+          '@pnpm.e2e/bar': {
+            specifier: 'catalog:', // unchanged
+            version: '100.0.0',
+          },
+        },
+      },
+      'project-1': {
+        dependencies: {
+          '@pnpm.e2e/bar': {
+            specifier: '100.1.0', // created by `pnpm add --save-catalog`
+            version: '100.1.0',
+          },
+          '@pnpm.e2e/foo': {
+            specifier: 'catalog:', // created by `pnpm add --save-catalog`
+            version: '100.1.0',
+          },
+        },
+      },
+    },
+  } as Partial<LockfileFile>))
+  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+    catalog: {
+      '@pnpm.e2e/bar': '=100.0.0', // unchanged
+      '@pnpm.e2e/foo': '100.1.0', // created by `pnpm add --save-catalog`
+    },
+    packages: ['project-0', 'project-1'],
+  })
+  expect(loadJsonFile('project-0/package.json')).toStrictEqual(manifests[0])
+  expect(loadJsonFile('project-1/package.json')).toStrictEqual({
+    ...manifests[1],
+    dependencies: {
+      ...manifests[1].dependencies,
+      '@pnpm.e2e/bar': '100.1.0',
+      '@pnpm.e2e/foo': 'catalog:',
+    },
+  } as ProjectManifest)
+})
