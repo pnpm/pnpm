@@ -32,6 +32,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'tag',
     'unsafe-perm',
     'embed-readme',
+    'workspace-concurrency',
   ], allTypes)
 }
 
@@ -100,6 +101,10 @@ export function help (): string {
             description: 'Publish all packages from the workspace',
             name: '--recursive',
             shortAlias: '-r',
+          },
+          {
+            description: 'Set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.',
+            name: '--workspace-concurrency <number>',
           },
         ],
       },

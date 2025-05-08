@@ -41,6 +41,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
       'pack-destination',
       'pack-gzip-level',
       'json',
+      'workspace-concurrency',
     ], allTypes),
   }
 }
@@ -72,6 +73,10 @@ export function help (): string {
             description: 'Pack all packages from the workspace',
             name: '--recursive',
             shortAlias: '-r',
+          },
+          {
+            description: 'Set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.',
+            name: '--workspace-concurrency <number>',
           },
         ],
       },
