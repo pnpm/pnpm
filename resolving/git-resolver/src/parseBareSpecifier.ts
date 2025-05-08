@@ -169,7 +169,7 @@ function parseGitParams (committish: string | null): GitParsedParams {
 // handle SCP-like URLs
 // see https://github.com/yarnpkg/yarn/blob/5682d55/src/util/git.js#L103
 function correctUrl (gitUrl: string): string {
-  const parsed = urlLib.parse(gitUrl.replace(/^git\+/, '')) // eslint-disable-line n/no-deprecated-api
+  const parsed = new URL(gitUrl.replace(/^git\+/, ''))
 
   if (parsed.protocol === 'ssh:' &&
     parsed.hostname &&

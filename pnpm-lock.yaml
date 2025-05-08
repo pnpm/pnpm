@@ -417,9 +417,6 @@ catalogs:
     ndjson:
       specifier: ^2.0.0
       version: 2.0.0
-    nerf-dart:
-      specifier: 1.0.0
-      version: 1.0.0
     nock:
       specifier: 13.3.4
       version: 13.3.4
@@ -3882,9 +3879,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      nerf-dart:
-        specifier: 'catalog:'
-        version: 1.0.0
     devDependencies:
       '@pnpm/network.auth-header':
         specifier: workspace:*

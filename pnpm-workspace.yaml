@@ -195,7 +195,6 @@ catalog:
   mem: ^8.1.1
   micromatch: ^4.0.8
   ndjson: ^2.0.0
-  nerf-dart: 1.0.0
   nock: 13.3.4
   node-fetch: npm:@pnpm/node-fetch@1.0.0
   node-gyp: ^11.0.0
