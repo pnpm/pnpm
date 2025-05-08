@@ -70,6 +70,10 @@ and must recompile all your C++ addons with the new binary.',
             description: 'Publishes packages to the npm registry. Only publishes a package if its version is not taken in the registry.',
             name: 'publish [--tag <tag>] [--access <public|restricted>]',
           },
+          {
+            description: 'Create tarballs for each package.',
+            name: 'pack [-- <args>...]',
+          },
         ],
       },
       {
