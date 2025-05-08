@@ -38,7 +38,7 @@ export { types }
 
 export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
 export * from './readLocalConfig'
-export { getWorkspaceConcurrency } from './concurrency'
+export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency'
 
 export type { Config, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
 

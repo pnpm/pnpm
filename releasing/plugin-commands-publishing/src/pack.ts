@@ -3,7 +3,7 @@ import path from 'path'
 import { createGzip } from 'zlib'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
-import { types as allTypes, type UniversalOptions, type Config, getWorkspaceConcurrency } from '@pnpm/config'
+import { types as allTypes, type UniversalOptions, type Config, getWorkspaceConcurrency, getDefaultWorkspaceConcurrency } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
 import { createExportableManifest } from '@pnpm/exportable-manifest'
 import { packlist } from '@pnpm/fs.packlist'
@@ -75,7 +75,7 @@ export function help (): string {
             shortAlias: '-r',
           },
           {
-            description: 'Set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.',
+            description: `Set the maximum number of concurrency. Default is ${getDefaultWorkspaceConcurrency()}. For unlimited concurrency use Infinity.`,
             name: '--workspace-concurrency <number>',
           },
         ],
