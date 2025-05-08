@@ -1,6 +1,7 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { type LockfileObject, type ResolvedCatalogEntry } from '@pnpm/lockfile.types'
+import { globalWarn } from '@pnpm/logger'
 import { type PatchGroupRecord } from '@pnpm/patching.config'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
@@ -159,9 +160,19 @@ export async function resolveDependencyTree<T> (
     autoInstallPeers,
     autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch === true,
     allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
-    addNewDefaultCatalog (alias: string, entry: ResolvedCatalogEntry): void {
+    addNewDefaultCatalog (alias: string, entry: ResolvedCatalogEntry): boolean {
+      const existingCatalog = opts.catalogs?.default?.[alias]
+      if (existingCatalog != null) {
+        if (existingCatalog !== entry.specifier) {
+          globalWarn(
+            `Skip adding ${alias} to the default catalog because it already exists as ${existingCatalog}, please use \`pnpm update\` to update the catalogs.`
+          )
+        }
+        return false
+      }
       newDefaultCatalogs ??= {}
       newDefaultCatalogs[alias] = entry
+      return true
     },
     catalogResolver: resolveFromCatalog.bind(null, opts.catalogs ?? {}),
     childrenByParentId: {} as ChildrenByParentId,

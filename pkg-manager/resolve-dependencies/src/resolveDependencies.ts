@@ -141,7 +141,7 @@ export interface ResolutionContext {
   allPreferredVersions?: PreferredVersions
   appliedPatches: Set<string>
   updatedSet: Set<string>
-  addNewDefaultCatalog: (alias: string, entry: ResolvedCatalogEntry) => void
+  addNewDefaultCatalog: (alias: string, entry: ResolvedCatalogEntry) => boolean // `false` means skipping
   catalogResolver: CatalogResolver
   defaultTag: string
   dryRun: boolean
@@ -1573,11 +1573,12 @@ async function resolveDependency (
   const resolvedPkg = ctx.resolvedPkgsById[pkgResponse.body.id]
   const alias = wantedDependency.alias ?? pkgResponse.body.alias ?? pkg.name
   if (alias && ctx.saveCatalog && wantedDependency.source === 'cli-param' && normalizedBareSpecifier && resolvedPkg != null) {
-    ctx.addNewDefaultCatalog(alias, {
+    if (ctx.addNewDefaultCatalog(alias, {
       specifier: normalizedBareSpecifier,
       version: resolvedPkg.version,
-    })
-    normalizedBareSpecifier = 'catalog:'
+    })) {
+      normalizedBareSpecifier = 'catalog:'
+    }
   }
 
   return {

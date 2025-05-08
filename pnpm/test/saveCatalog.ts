@@ -485,7 +485,7 @@ test('--save-catalog does not affect new dependencies from package.json', async 
   } as ProjectManifest)
 })
 
-test.skip('--save-catalog does not overwrite existing catalogs', async () => {
+test('--save-catalog does not overwrite existing catalogs', async () => {
   const manifests: ProjectManifest[] = [
     {
       name: 'project-0',
