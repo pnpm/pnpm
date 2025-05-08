@@ -155,25 +155,10 @@ export async function resolveDependencyTree<T> (
 ): Promise<ResolveDependencyTreeResult> {
   const wantedToBeSkippedPackageIds = new Set<PkgResolutionId>()
   const autoInstallPeers = opts.autoInstallPeers === true
-  let newDefaultCatalogs: Record<string, ResolvedCatalogEntry> | undefined
   const ctx: ResolutionContext = {
     autoInstallPeers,
     autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch === true,
     allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
-    addNewDefaultCatalog (alias: string, entry: ResolvedCatalogEntry): boolean {
-      const existingCatalog = opts.catalogs?.default?.[alias]
-      if (existingCatalog != null) {
-        if (existingCatalog !== entry.specifier) {
-          globalWarn(
-            `Skip adding ${alias} to the default catalog because it already exists as ${existingCatalog}, please use \`pnpm update\` to update the catalogs.`
-          )
-        }
-        return false
-      }
-      newDefaultCatalogs ??= {}
-      newDefaultCatalogs[alias] = entry
-      return true
-    },
     catalogResolver: resolveFromCatalog.bind(null, opts.catalogs ?? {}),
     childrenByParentId: {} as ChildrenByParentId,
     currentLockfile: opts.currentLockfile,
@@ -252,6 +237,28 @@ export async function resolveDependencyTree<T> (
   })
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)
   const directDepsByImporterId = zipObj(importers.map(({ id }) => id), pkgAddressesByImporters)
+
+  let newDefaultCatalogs: Record<string, ResolvedCatalogEntry> | undefined
+  for (const directDependencies of pkgAddressesByImporters) {
+    for (const directDep of directDependencies as PkgAddress[]) {
+      const { alias, normalizedBareSpecifier, version, saveCatalog } = directDep
+      const existingCatalog = opts.catalogs?.default?.[alias]
+      if (existingCatalog != null) {
+        if (existingCatalog !== normalizedBareSpecifier) {
+          globalWarn(
+            `Skip adding ${alias} to the default catalog because it already exists as ${existingCatalog}, please use \`pnpm update\` to update the catalogs.`
+          )
+        }
+      } else if (saveCatalog && normalizedBareSpecifier != null && version != null) {
+        newDefaultCatalogs ??= {}
+        newDefaultCatalogs[alias] = {
+          specifier: normalizedBareSpecifier,
+          version,
+        }
+        directDep.normalizedBareSpecifier = 'catalog:'
+      }
+    }
+  }
 
   for (const pendingNode of ctx.pendingNodes) {
     ctx.dependenciesTree.set(pendingNode.nodeId, {

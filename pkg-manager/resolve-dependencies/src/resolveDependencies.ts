@@ -9,7 +9,6 @@ import { PnpmError } from '@pnpm/error'
 import {
   type LockfileObject,
   type PackageSnapshot,
-  type ResolvedCatalogEntry,
   type ResolvedDependencies,
 } from '@pnpm/lockfile.types'
 import {
@@ -141,7 +140,6 @@ export interface ResolutionContext {
   allPreferredVersions?: PreferredVersions
   appliedPatches: Set<string>
   updatedSet: Set<string>
-  addNewDefaultCatalog: (alias: string, entry: ResolvedCatalogEntry) => boolean // `false` means skipping
   catalogResolver: CatalogResolver
   defaultTag: string
   dryRun: boolean
@@ -207,6 +205,7 @@ export type PkgAddress = {
   catalogLookup?: CatalogLookupMetadata
   optional: boolean
   normalizedBareSpecifier?: string
+  saveCatalog?: boolean
 } & ({
   isLinkedDependency: true
   version: string
@@ -1569,30 +1568,22 @@ async function resolveDependency (
     }
   }
 
-  let normalizedBareSpecifier = pkgResponse.body.normalizedBareSpecifier
   const resolvedPkg = ctx.resolvedPkgsById[pkgResponse.body.id]
-  const alias = wantedDependency.alias ?? pkgResponse.body.alias ?? pkg.name
-  if (alias && ctx.saveCatalog && wantedDependency.source === 'cli-param' && normalizedBareSpecifier && resolvedPkg != null) {
-    if (ctx.addNewDefaultCatalog(alias, {
-      specifier: normalizedBareSpecifier,
-      version: resolvedPkg.version,
-    })) {
-      normalizedBareSpecifier = 'catalog:'
-    }
-  }
 
   return {
-    alias,
+    alias: wantedDependency.alias ?? pkgResponse.body.alias ?? pkg.name,
     depIsLinked,
     resolvedVia: pkgResponse.body.resolvedVia,
     isNew,
     nodeId,
-    normalizedBareSpecifier,
+    normalizedBareSpecifier: pkgResponse.body.normalizedBareSpecifier,
     missingPeersOfChildren,
     pkgId: pkgResponse.body.id,
     rootDir,
     missingPeers: getMissingPeers(pkg),
     optional: resolvedPkg.optional,
+    version: resolvedPkg.version,
+    saveCatalog: wantedDependency.source === 'cli-param',
 
     // Next fields are actually only needed when isNew = true
     installable,
