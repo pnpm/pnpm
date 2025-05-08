@@ -179,7 +179,7 @@ function correctUrl (gitUrl: string): string {
     }
     const [auth, pathname] = gitUrl.slice(6).split('/')
     const [, host] = auth.split('@')
-    if (!/:\d+$/.test(host)) {
+    if (host.includes(':') && !/:\d+$/.test(host)) {
       const authArr = auth.split(':')
       gitUrl = `ssh://${authArr.slice(0, -1).join(':') + '/' + authArr[authArr.length - 1]}${pathname ? '/' + pathname : ''}${hash}`
     } else {
