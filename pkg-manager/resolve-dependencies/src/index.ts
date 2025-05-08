@@ -5,6 +5,7 @@ import {
 import {
   type LockfileObject,
   type ProjectSnapshot,
+  type ResolvedCatalogEntry,
 } from '@pnpm/lockfile.types'
 import {
   getAllDependenciesFromManifest,
@@ -93,6 +94,7 @@ export interface ImporterToResolve extends Importer<{
 export interface ResolveDependenciesResult {
   dependenciesByProjectId: DependenciesByProjectId
   dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
+  newDefaultCatalogs?: Record<string, ResolvedCatalogEntry> | undefined
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -135,6 +137,7 @@ export async function resolveDependencies (
     appliedPatches,
     time,
     allPeerDepNames,
+    newDefaultCatalogs,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   opts.storeController.clearResolutionCache()
@@ -304,6 +307,10 @@ export async function resolveDependencies (
   }
 
   newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
+  for (const alias in newDefaultCatalogs) {
+    newLockfile.catalogs.default ??= {}
+    newLockfile.catalogs.default[alias] = newDefaultCatalogs[alias]
+  }
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
@@ -319,6 +326,7 @@ export async function resolveDependencies (
     dependenciesGraph,
     outdatedDependencies,
     linkedDependenciesByProjectId,
+    newDefaultCatalogs,
     newLockfile,
     peerDependencyIssuesByProjects,
     waitTillAllFetchingsFinish,

@@ -51,6 +51,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'public-hoist-pattern',
     'registry',
     'reporter',
+    'save-catalog',
     'save-dev',
     'save-exact',
     'save-optional',
@@ -115,6 +116,10 @@ export function help (): string {
           {
             description: 'Save package to your `peerDependencies` and `devDependencies`',
             name: '--save-peer',
+          },
+          {
+            description: 'Save package to the catalog entry',
+            name: '--save-catalog',
           },
           {
             description: 'Install exact version',

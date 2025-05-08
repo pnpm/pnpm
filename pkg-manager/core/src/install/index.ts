@@ -38,6 +38,7 @@ import {
   writeWantedLockfile,
   cleanGitBranchLockfiles,
   type CatalogSnapshots,
+  type ResolvedCatalogEntry,
 } from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { extendProjectsWithTargetDirs } from '@pnpm/lockfile.utils'
@@ -141,12 +142,18 @@ type Opts = Omit<InstallOptions, 'allProjects'> & {
   binsDir?: string
 } & InstallMutationOptions
 
+export interface InstallResult {
+  newDefaultCatalogs: Record<string, ResolvedCatalogEntry> | undefined
+  updatedManifest: ProjectManifest
+  ignoredBuilds: string[] | undefined
+}
+
 export async function install (
   manifest: ProjectManifest,
   opts: Opts
-): Promise<{ updatedManifest: ProjectManifest, ignoredBuilds: string[] | undefined }> {
+): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { updatedProjects: projects, ignoredBuilds } = await mutateModules(
+  const { newDefaultCatalogs, updatedProjects: projects, ignoredBuilds } = await mutateModules(
     [
       {
         mutation: 'install',
@@ -168,7 +175,7 @@ export async function install (
       }],
     }
   )
-  return { updatedManifest: projects[0].manifest, ignoredBuilds }
+  return { newDefaultCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds }
 }
 
 interface ProjectToBeInstalled {
@@ -188,6 +195,12 @@ export type MutateModulesOptions = InstallOptions & {
   } | InstallOptions['hooks']
 }
 
+export interface MutateModulesInSingleProjectResult {
+  newDefaultCatalogs: Record<string, ResolvedCatalogEntry> | undefined
+  updatedProject: UpdatedProject
+  ignoredBuilds: string[] | undefined
+}
+
 export async function mutateModulesInSingleProject (
   project: MutatedProject & {
     binsDir?: string
@@ -196,7 +209,7 @@ export async function mutateModulesInSingleProject (
     modulesDir?: string
   },
   maybeOpts: Omit<MutateModulesOptions, 'allProjects'> & InstallMutationOptions
-): Promise<{ updatedProject: UpdatedProject, ignoredBuilds: string[] | undefined }> {
+): Promise<MutateModulesInSingleProjectResult> {
   const result = await mutateModules(
     [
       {
@@ -215,10 +228,15 @@ export async function mutateModulesInSingleProject (
       }],
     }
   )
-  return { updatedProject: result.updatedProjects[0], ignoredBuilds: result.ignoredBuilds }
+  return {
+    newDefaultCatalogs: result.newDefaultCatalogs,
+    updatedProject: result.updatedProjects[0],
+    ignoredBuilds: result.ignoredBuilds,
+  }
 }
 
 export interface MutateModulesResult {
+  newDefaultCatalogs?: Record<string, ResolvedCatalogEntry>
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
@@ -315,6 +333,7 @@ export async function mutateModules (
   }
 
   return {
+    newDefaultCatalogs: result.newDefaultCatalogs,
     updatedProjects: result.updatedProjects,
     stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     depsRequiringBuild: result.depsRequiringBuild,
@@ -322,6 +341,7 @@ export async function mutateModules (
   }
 
   interface InnerInstallResult {
+    readonly newDefaultCatalogs?: Record<string, ResolvedCatalogEntry>
     readonly updatedProjects: UpdatedProject[]
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
@@ -520,6 +540,7 @@ export async function mutateModules (
         optionalDependencies,
         updateWorkspaceDependencies: project.update,
         preferredSpecs,
+        saveCatalog: opts.saveCatalog,
         overrides: opts.overrides,
         defaultCatalog: opts.catalogs?.default,
       })
@@ -548,6 +569,7 @@ export async function mutateModules (
     })
 
     return {
+      newDefaultCatalogs: result.newDefaultCatalogs,
       updatedProjects: result.projects,
       stats: result.stats,
       depsRequiringBuild: result.depsRequiringBuild,
@@ -854,9 +876,9 @@ export async function addDependenciesToPackage (
     pinnedVersion?: 'major' | 'minor' | 'patch'
     targetDependenciesField?: DependenciesField
   } & InstallMutationOptions
-): Promise<{ updatedManifest: ProjectManifest, ignoredBuilds: string[] | undefined }> {
+): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { updatedProjects: projects, ignoredBuilds } = await mutateModules(
+  const { newDefaultCatalogs, updatedProjects: projects, ignoredBuilds } = await mutateModules(
     [
       {
         allowNew: opts.allowNew,
@@ -884,7 +906,7 @@ export async function addDependenciesToPackage (
         },
       ],
     })
-  return { updatedManifest: projects[0].manifest, ignoredBuilds }
+  return { newDefaultCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds }
 }
 
 export type ImporterToUpdate = {
@@ -909,6 +931,7 @@ export interface UpdatedProject {
 }
 
 interface InstallFunctionResult {
+  newDefaultCatalogs?: Record<string, ResolvedCatalogEntry>
   newLockfile: LockfileObject
   projects: UpdatedProject[]
   stats?: InstallationResultStats
@@ -1023,6 +1046,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     dependenciesGraph,
     dependenciesByProjectId,
     linkedDependenciesByProjectId,
+    newDefaultCatalogs,
     newLockfile,
     outdatedDependencies,
     peerDependencyIssuesByProjects,
@@ -1059,6 +1083,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
       registries: ctx.registries,
       resolutionMode: opts.resolutionMode,
+      saveCatalog: opts.saveCatalog,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
       tag: opts.tag,
@@ -1416,6 +1441,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 
   return {
+    newDefaultCatalogs,
     newLockfile,
     projects: projects.map(({ id, manifest, rootDir }) => ({
       manifest,

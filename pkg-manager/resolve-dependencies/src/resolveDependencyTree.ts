@@ -1,6 +1,7 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
-import { type LockfileObject } from '@pnpm/lockfile.types'
+import { type LockfileObject, type ResolvedCatalogEntry } from '@pnpm/lockfile.types'
+import { globalWarn } from '@pnpm/logger'
 import { type PatchGroupRecord } from '@pnpm/patching.config'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
@@ -118,6 +119,7 @@ export interface ResolveDependenciesOptions {
   pnpmVersion: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
+  saveCatalog?: boolean
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   resolvePeersFromWorkspaceRoot?: boolean
   injectWorkspacePackages?: boolean
@@ -136,6 +138,7 @@ export interface ResolveDependenciesOptions {
 export interface ResolveDependencyTreeResult {
   allPeerDepNames: Set<string>
   dependenciesTree: DependenciesTree<ResolvedPackage>
+  newDefaultCatalogs?: Record<string, ResolvedCatalogEntry>
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -179,6 +182,7 @@ export async function resolveDependencyTree<T> (
     registries: opts.registries,
     resolvedPkgsById: {} as ResolvedPkgsById,
     resolutionMode: opts.resolutionMode,
+    saveCatalog: opts.saveCatalog,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
@@ -234,6 +238,28 @@ export async function resolveDependencyTree<T> (
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)
   const directDepsByImporterId = zipObj(importers.map(({ id }) => id), pkgAddressesByImporters)
 
+  let newDefaultCatalogs: Record<string, ResolvedCatalogEntry> | undefined
+  for (const directDependencies of pkgAddressesByImporters) {
+    for (const directDep of directDependencies as PkgAddress[]) {
+      const { alias, normalizedBareSpecifier, version, saveCatalog } = directDep
+      const existingCatalog = opts.catalogs?.default?.[alias]
+      if (existingCatalog != null) {
+        if (existingCatalog !== normalizedBareSpecifier) {
+          globalWarn(
+            `Skip adding ${alias} to the default catalog because it already exists as ${existingCatalog}, please use \`pnpm update\` to update the catalogs.`
+          )
+        }
+      } else if (saveCatalog && normalizedBareSpecifier != null && version != null) {
+        newDefaultCatalogs ??= {}
+        newDefaultCatalogs[alias] = {
+          specifier: normalizedBareSpecifier,
+          version,
+        }
+        directDep.normalizedBareSpecifier = 'catalog:'
+      }
+    }
+  }
+
   for (const pendingNode of ctx.pendingNodes) {
     ctx.dependenciesTree.set(pendingNode.nodeId, {
       children: () => buildTree(ctx, pendingNode.resolvedPackage.id,
@@ -276,6 +302,7 @@ export async function resolveDependencyTree<T> (
 
   return {
     dependenciesTree: ctx.dependenciesTree,
+    newDefaultCatalogs,
     outdatedDependencies: ctx.outdatedDependencies,
     resolvedImporters,
     resolvedPkgsById: ctx.resolvedPkgsById,

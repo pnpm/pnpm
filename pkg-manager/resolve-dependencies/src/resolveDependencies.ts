@@ -172,6 +172,7 @@ export interface ResolutionContext {
   workspacePackages?: WorkspacePackages
   missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { depth: number, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
+  saveCatalog?: boolean
 }
 
 export type MissingPeers = Record<string, { range: string, optional: boolean }>
@@ -204,6 +205,7 @@ export type PkgAddress = {
   catalogLookup?: CatalogLookupMetadata
   optional: boolean
   normalizedBareSpecifier?: string
+  saveCatalog?: boolean
 } & ({
   isLinkedDependency: true
   version: string
@@ -1565,6 +1567,9 @@ async function resolveDependency (
       }
     }
   }
+
+  const resolvedPkg = ctx.resolvedPkgsById[pkgResponse.body.id]
+
   return {
     alias: wantedDependency.alias ?? pkgResponse.body.alias ?? pkg.name,
     depIsLinked,
@@ -1576,7 +1581,9 @@ async function resolveDependency (
     pkgId: pkgResponse.body.id,
     rootDir,
     missingPeers: getMissingPeers(pkg),
-    optional: ctx.resolvedPkgsById[pkgResponse.body.id].optional,
+    optional: resolvedPkg.optional,
+    version: resolvedPkg.version,
+    saveCatalog: wantedDependency.saveCatalog,
 
     // Next fields are actually only needed when isNew = true
     installable,
