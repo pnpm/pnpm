@@ -589,3 +589,82 @@ test('--save-catalog does not overwrite existing catalogs', async () => {
     },
   } as ProjectManifest)
 })
+
+test('--save-catalog creates new workspace manifest with the new catalog (recursive add)', async () => {
+  const manifests: ProjectManifest[] = [
+    {
+      name: 'project-0',
+      version: '0.0.0',
+    },
+    {
+      name: 'project-1',
+      version: '0.0.0',
+    },
+  ]
+
+  preparePackages(manifests)
+
+  await execPnpm(['add', '--recursive', ...SAVE_CATALOG, '@pnpm.e2e/foo@100.1.0'])
+
+  expect(readYamlFile('project-0/pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+    catalogs: {
+      default: {
+        '@pnpm.e2e/foo': {
+          specifier: '100.1.0',
+          version: '100.1.0',
+        },
+      },
+    },
+    importers: {
+      '.': {
+        dependencies: {
+          '@pnpm.e2e/foo': {
+            specifier: 'catalog:',
+            version: '100.1.0',
+          },
+        },
+      },
+    },
+  } as Partial<LockfileFile>))
+  expect(readYamlFile('project-1/pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+    catalogs: {
+      default: {
+        '@pnpm.e2e/foo': {
+          specifier: '100.1.0',
+          version: '100.1.0',
+        },
+      },
+    },
+    importers: {
+      '.': {
+        dependencies: {
+          '@pnpm.e2e/foo': {
+            specifier: 'catalog:',
+            version: '100.1.0',
+          },
+        },
+      },
+    },
+  } as Partial<LockfileFile>))
+
+  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+    catalog: {
+      '@pnpm.e2e/foo': '100.1.0',
+    },
+  })
+
+  expect(loadJsonFile('project-0/package.json')).toStrictEqual({
+    ...manifests[0],
+    dependencies: {
+      ...manifests[0].dependencies,
+      '@pnpm.e2e/foo': 'catalog:',
+    },
+  } as ProjectManifest)
+  expect(loadJsonFile('project-1/package.json')).toStrictEqual({
+    ...manifests[1],
+    dependencies: {
+      ...manifests[1].dependencies,
+      '@pnpm.e2e/foo': 'catalog:',
+    },
+  } as ProjectManifest)
+})
