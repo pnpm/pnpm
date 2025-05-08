@@ -762,11 +762,6 @@ test('pnpm run with node version', async () => {
     scripts: {
       'assert-node-version': 'node -e "assert.equal(process.version, \'v20.0.0\')"',
     },
-    pnpm: {
-      executionEnv: {
-        nodeVersion: '20.0.0',
-      },
-    },
   })
 
   await run.handler({
@@ -778,5 +773,8 @@ test('pnpm run with node version', async () => {
     pnpmHomeDir: process.cwd(),
     rawConfig: {},
     workspaceConcurrency: 1,
+    executionEnv: {
+      nodeVersion: '20.0.0',
+    },
   }, ['assert-node-version'])
 })

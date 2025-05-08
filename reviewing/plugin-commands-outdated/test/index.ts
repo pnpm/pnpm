@@ -377,6 +377,11 @@ test('ignore packages in package.json > pnpm.updateConfig.ignoreDependencies in 
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     dir: withPnpmUpdateIgnore,
+    updateConfig: {
+      ignoreDependencies: [
+        'is-positive',
+      ],
+    },
   })
 
   expect(exitCode).toBe(1)
