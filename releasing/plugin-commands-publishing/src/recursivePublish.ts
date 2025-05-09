@@ -1,6 +1,6 @@
 import path from 'path'
 import { createResolver } from '@pnpm/client'
-import { type Config } from '@pnpm/config'
+import { type Config, getWorkspaceConcurrency } from '@pnpm/config'
 import { logger } from '@pnpm/logger'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { type ResolveFunction } from '@pnpm/resolver-base'
@@ -105,7 +105,7 @@ export async function recursivePublish (
       appendedArgs.push(`--otp=${opts.cliOptions['otp'] as string}`)
     }
     const chunks = sortPackages(opts.selectedProjectsGraph)
-    const limitPublish = pLimit(opts.workspaceConcurrency ?? 4)
+    const limitPublish = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
     const tag = opts.tag ?? 'latest'
     for (const chunk of chunks) {
       // eslint-disable-next-line no-await-in-loop

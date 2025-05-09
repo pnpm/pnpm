@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../config/config"
+    },
+    {
       "path": "../../deps/graph-sequencer"
     },
     {

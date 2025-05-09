@@ -3,7 +3,7 @@ import path from 'path'
 import { createGzip } from 'zlib'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
-import { types as allTypes, type UniversalOptions, type Config } from '@pnpm/config'
+import { types as allTypes, type UniversalOptions, type Config, getWorkspaceConcurrency, getDefaultWorkspaceConcurrency } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
 import { createExportableManifest } from '@pnpm/exportable-manifest'
 import { packlist } from '@pnpm/fs.packlist'
@@ -41,6 +41,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
       'pack-destination',
       'pack-gzip-level',
       'json',
+      'workspace-concurrency',
     ], allTypes),
   }
 }
@@ -72,6 +73,10 @@ export function help (): string {
             description: 'Pack all packages from the workspace',
             name: '--recursive',
             shortAlias: '-r',
+          },
+          {
+            description: `Set the maximum number of concurrency. Default is ${getDefaultWorkspaceConcurrency()}. For unlimited concurrency use Infinity.`,
+            name: '--workspace-concurrency <number>',
           },
         ],
       },
@@ -132,7 +137,7 @@ export async function handler (opts: PackOptions): Promise<string> {
 
     const chunks = sortPackages(selectedProjectsGraph)
 
-    const limitPack = pLimit(opts.workspaceConcurrency ?? 4)
+    const limitPack = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
     const resolvedOpts = { ...opts }
     if (opts.out) {
       resolvedOpts.out = path.resolve(opts.dir, opts.out)
