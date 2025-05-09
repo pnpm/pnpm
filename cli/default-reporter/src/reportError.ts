@@ -4,7 +4,7 @@ import { renderDedupeCheckIssues } from '@pnpm/dedupe.issues-renderer'
 import { type DedupeCheckIssues } from '@pnpm/dedupe.types'
 import { type PnpmError } from '@pnpm/error'
 import { renderPeerIssues } from '@pnpm/render-peer-issues'
-import { type PeerDependencyRules, type PeerDependencyIssuesByProjects } from '@pnpm/types'
+import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
 import equals from 'ramda/src/equals'
 import StackTracey from 'stacktracey'
@@ -19,8 +19,8 @@ StackTracey.maxColumnWidths = {
 const highlight = chalk.yellow
 const colorPath = chalk.gray
 
-export function reportError (logObj: Log, config?: Config, peerDependencyRules?: PeerDependencyRules): string | null {
-  const errorInfo = getErrorInfo(logObj, config, peerDependencyRules)
+export function reportError (logObj: Log, config?: Config): string | null {
+  const errorInfo = getErrorInfo(logObj, config)
   if (!errorInfo) return null
   let output = formatErrorSummary(errorInfo.title, (logObj as LogObjWithPossibleError).err?.code)
   if (logObj.pkgsStack != null) {
@@ -49,7 +49,7 @@ interface ErrorInfo {
   body?: string
 }
 
-function getErrorInfo (logObj: Log, config?: Config, peerDependencyRules?: PeerDependencyRules): ErrorInfo | null {
+function getErrorInfo (logObj: Log, config?: Config): ErrorInfo | null {
   if ('err' in logObj && logObj.err) {
     const err = logObj.err as (PnpmError & { stack: object })
     switch (err.code) {
@@ -80,7 +80,7 @@ function getErrorInfo (logObj: Log, config?: Config, peerDependencyRules?: PeerD
     case 'ERR_PNPM_UNSUPPORTED_ENGINE':
       return reportEngineError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_PEER_DEP_ISSUES':
-      return reportPeerDependencyIssuesError(err, logObj as any, peerDependencyRules) // eslint-disable-line @typescript-eslint/no-explicit-any
+      return reportPeerDependencyIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_DEDUPE_CHECK_ISSUES':
       return reportDedupeCheckIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER':
@@ -430,8 +430,7 @@ function hideSecureInfo (key: string, value: string): string {
 
 function reportPeerDependencyIssuesError (
   err: Error,
-  msg: { issuesByProjects: PeerDependencyIssuesByProjects },
-  peerDependencyRules?: PeerDependencyRules
+  msg: { issuesByProjects: PeerDependencyIssuesByProjects }
 ): ErrorInfo | null {
   const hasMissingPeers = getHasMissingPeers(msg.issuesByProjects)
   const hints: string[] = []
@@ -439,7 +438,7 @@ function reportPeerDependencyIssuesError (
     hints.push('If you want peer dependencies to be automatically installed, add "auto-install-peers=true" to an .npmrc file at the root of your project.')
   }
   hints.push('If you don\'t want pnpm to fail on peer dependency issues, add "strict-peer-dependencies=false" to an .npmrc file at the root of your project.')
-  const rendered = renderPeerIssues(msg.issuesByProjects, { rules: peerDependencyRules })
+  const rendered = renderPeerIssues(msg.issuesByProjects)
   if (!rendered) return null
   return {
     title: err.message,
