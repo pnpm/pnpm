@@ -57,6 +57,7 @@ const pickBundledManifest = pick([
   'bin',
   'bundledDependencies',
   'bundleDependencies',
+  'cpu',
   'dependencies',
   'directories',
   'engines',
