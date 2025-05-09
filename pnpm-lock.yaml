@@ -21,6 +21,9 @@ catalogs:
     '@pnpm/config.env-replace':
       specifier: ^3.0.2
       version: 3.0.2
+    '@pnpm/config.nerf-dart':
+      specifier: ^1.0.0
+      version: 1.0.0
     '@pnpm/exec':
       specifier: ^2.0.0
       version: 2.0.0
@@ -417,9 +420,6 @@ catalogs:
     ndjson:
       specifier: ^2.0.0
       version: 2.0.0
-    nerf-dart:
-      specifier: 1.0.0
-      version: 1.0.0
     nock:
       specifier: 13.3.4
       version: 13.3.4
@@ -3882,12 +3882,12 @@ importers:
 
   network/auth-header:
     dependencies:
+      '@pnpm/config.nerf-dart':
+        specifier: 'catalog:'
+        version: 1.0.0
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      nerf-dart:
-        specifier: 'catalog:'
-        version: 1.0.0
     devDependencies:
       '@pnpm/network.auth-header':
         specifier: workspace:*
@@ -9375,6 +9375,10 @@ packages:
     resolution: {integrity: sha512-GD6nKLyKF+ev15Tj3pS8y6cTVPIuAqTyhPrUFMfmodFvhEDdYKN/gdGimkc9GJLfHVC/SuCVFg49YNJyoW7niA==}
     engines: {node: '>=18.12'}
 
+  '@pnpm/config.nerf-dart@1.0.0':
+    resolution: {integrity: sha512-/jnjwmeLVEXzfk+za2qJams03KtFe4C5s2fT623SZ6UxhYqzHd+Zin/NzrCFY1/IHMHMP1ScFDDgAd36GrKxEA==}
+    engines: {node: '>=18.12'}
+
   '@pnpm/config.nerf-dart@1.0.1':
     resolution: {integrity: sha512-03d2l21gAyzGVr9SR6rS5pvCTnZ4HaNdi8jB2Y/UGvszzrNbA+AJVObVw6SulNQ1Eah3SHB9wCezJwtP+jYIcA==}
     engines: {node: '>=18.12'}
@@ -13116,9 +13120,6 @@ packages:
   neo-async@2.6.2:
     resolution: {integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==}
 
-  nerf-dart@1.0.0:
-    resolution: {integrity: sha512-EZSPZB70jiVsivaBLYDCyntd5eH8NTSMOn3rB+HxwdmKThGELLdYv8qVIMWvZEFy9w8ZZpW9h9OB32l1rGtj7g==}
-
   next-path@1.0.0:
     resolution: {integrity: sha512-oWgXcUL3zi7KsPNoWLM2Z/EVaOMsZO8em4iAzJmqoo08zinMwsMvkrNbeLDztMdaPJryfYJvbx2OBoBYnPQKpg==}
     engines: {node: '>=6'}
@@ -16261,6 +16262,8 @@ snapshots:
   '@pnpm/config.env-replace@3.0.1': {}
 
   '@pnpm/config.env-replace@3.0.2': {}
+
+  '@pnpm/config.nerf-dart@1.0.0': {}
 
   '@pnpm/config.nerf-dart@1.0.1': {}
 
@@ -20817,8 +20820,6 @@ snapshots:
   negotiator@1.0.0: {}
 
   neo-async@2.6.2: {}
-
-  nerf-dart@1.0.0: {}
 
   next-path@1.0.0: {}
 
