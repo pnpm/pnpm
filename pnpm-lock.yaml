@@ -19,8 +19,8 @@ catalogs:
       specifier: ^1.0.1
       version: 1.0.1
     '@pnpm/config.env-replace':
-      specifier: 3.0.1
-      version: 3.0.1
+      specifier: ^3.0.2
+      version: 3.0.2
     '@pnpm/exec':
       specifier: ^2.0.0
       version: 2.0.0
@@ -37,8 +37,8 @@ catalogs:
       specifier: 2.0.5
       version: 2.0.5
     '@pnpm/network.agent':
-      specifier: ^2.0.2
-      version: 2.0.2
+      specifier: ^2.0.3
+      version: 2.0.3
     '@pnpm/nopt':
       specifier: ^0.2.1
       version: 0.2.1
@@ -67,8 +67,8 @@ catalogs:
       specifier: ^0.5.4
       version: 0.5.4
     '@pnpm/util.lex-comparator':
-      specifier: 3.0.1
-      version: 3.0.1
+      specifier: ^3.0.2
+      version: 3.0.2
     '@reflink/reflink':
       specifier: 0.1.19
       version: 0.1.19
@@ -1330,7 +1330,7 @@ importers:
         version: link:../../packages/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.1
+        version: 3.0.2
       ansi-diff:
         specifier: 'catalog:'
         version: 1.2.0
@@ -1471,7 +1471,7 @@ importers:
         version: link:../../catalogs/types
       '@pnpm/config.env-replace':
         specifier: 'catalog:'
-        version: 3.0.1
+        version: 3.0.2
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
@@ -2262,7 +2262,7 @@ importers:
         version: link:../../__utils__/prepare-temp-dir
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.1
+        version: 3.0.2
       chalk:
         specifier: 'catalog:'
         version: 4.1.2
@@ -3019,7 +3019,7 @@ importers:
         version: link:../../packages/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.1
+        version: 3.0.2
       p-filter:
         specifier: 'catalog:'
         version: 2.1.0
@@ -3906,7 +3906,7 @@ importers:
         version: link:../fetching-types
       '@pnpm/network.agent':
         specifier: 'catalog:'
-        version: 2.0.2
+        version: 2.0.3
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -3947,7 +3947,7 @@ importers:
     dependencies:
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.1
+        version: 3.0.2
       sort-keys:
         specifier: 'catalog:'
         version: 4.2.0
@@ -5048,7 +5048,7 @@ importers:
         version: link:../../packages/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.1
+        version: 3.0.2
       is-subdir:
         specifier: 'catalog:'
         version: 1.2.0
@@ -6698,7 +6698,7 @@ importers:
         version: 'link:'
       '@pnpm/network.agent':
         specifier: 'catalog:'
-        version: 2.0.2
+        version: 2.0.3
       '@types/hosted-git-info':
         specifier: 'catalog:'
         version: 3.0.5
@@ -8215,7 +8215,7 @@ importers:
         version: link:../../packages/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.1
+        version: 3.0.2
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -9371,6 +9371,14 @@ packages:
     resolution: {integrity: sha512-/raU9tmnv1wEw1LdTTCvopwjUMXlLvGP5214sKSpIFC6w41hPS4f1oODDy0nNVteXwa8ewu85xpHQeMFgXdmxQ==}
     engines: {node: '>=18.12'}
 
+  '@pnpm/config.env-replace@3.0.2':
+    resolution: {integrity: sha512-GD6nKLyKF+ev15Tj3pS8y6cTVPIuAqTyhPrUFMfmodFvhEDdYKN/gdGimkc9GJLfHVC/SuCVFg49YNJyoW7niA==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/config.nerf-dart@1.0.1':
+    resolution: {integrity: sha512-03d2l21gAyzGVr9SR6rS5pvCTnZ4HaNdi8jB2Y/UGvszzrNbA+AJVObVw6SulNQ1Eah3SHB9wCezJwtP+jYIcA==}
+    engines: {node: '>=18.12'}
+
   '@pnpm/config@1002.5.2':
     resolution: {integrity: sha512-VLo2C/bDoXTla8b/EIrbQoUoETvgGXWnpF/Zl72Qc/m7rZ4UI8J5UC6TraGEjG24dSPqdrjrHv7TvkJfmEVlYQ==}
     engines: {node: '>=18.12'}
@@ -9480,20 +9488,20 @@ packages:
     engines: {node: '>=18.12.0'}
     hasBin: true
 
-  '@pnpm/network.agent@2.0.2':
-    resolution: {integrity: sha512-F+jK0LcYH/Px2RmVR5PP/rFpoTLAUZqfbSQcF/A4+4SZDN7ega2UeDFOmXAvVKF2QDuwmZ3qA+skV/0bt/8kBg==}
+  '@pnpm/network.agent@2.0.3':
+    resolution: {integrity: sha512-YITr8VrjPPULdQWAA17oU0M4j4286OmRnk0XA1ntoR+v0FbdGRKmRQmOHx86s1eM3eGCh1UF8WPHNkbgjjBN3Q==}
     engines: {node: '>=18.12'}
 
   '@pnpm/network.ca-file@1.0.2':
     resolution: {integrity: sha512-YcPQ8a0jwYU9bTdJDpXjMi7Brhkr1mXsXrUJvjqM2mQDgkRiz8jFaQGOdaLxgjtUfQgZhKy/O3cG/YwmgKaxLA==}
     engines: {node: '>=12.22.0'}
 
-  '@pnpm/network.config@2.0.1':
-    resolution: {integrity: sha512-7hFqy3ixKy/7G0pDp4PkVAfS4bRTHO7AV7a4noK0ehpR4Qq7ZliTFFSWOvDNfPh+P71RnmDGLWQ+cczYNYIpZw==}
+  '@pnpm/network.config@2.1.0':
+    resolution: {integrity: sha512-3Z4suyclrd1NOp1ue+xf5VCEd7Pu1R16wXg8wCmKIiQD7E69BE4WA3ralxrkPx0B0OtqM1H8lBPINsipZaUcuQ==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/network.proxy-agent@2.0.2':
-    resolution: {integrity: sha512-ayCPw0Q57JjjbfiwAqlAGMRUbbqs6ju/pr8B3FgnvIBd5BIhNnCzXtrryZYeesFhCWttvNoD5zMh2hvxBc8UIg==}
+  '@pnpm/network.proxy-agent@2.0.3':
+    resolution: {integrity: sha512-x6lyFMJFgf/8dArUfPBtEqieKm8J7Vab/hIiNCCqcziEucJwNgFUF1xwLUuypn/oSB9XvGQa4nxPZ0dyFZzOrQ==}
     engines: {node: '>=18.12'}
 
   '@pnpm/node-fetch@1.0.0':
@@ -9615,6 +9623,10 @@ packages:
 
   '@pnpm/util.lex-comparator@3.0.1':
     resolution: {integrity: sha512-jUR0XFKlYcwexqNl+Qbkw8XqQw3+wjwKz72uREqVf4OiV9Hi67IoVu8q1gz0LvHgZmqruisiar+873HcJW9dHw==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/util.lex-comparator@3.0.2':
+    resolution: {integrity: sha512-blFO4Ws97tWv/SNE6N39ZdGmZBrocXnBOfVp0ln4kELmns4pGPZizqyRtR8EjfOLMLstbmNCTReBoDvLz1isVg==}
     engines: {node: '>=18.12'}
 
   '@pnpm/which@3.0.1':
@@ -16248,6 +16260,10 @@ snapshots:
 
   '@pnpm/config.env-replace@3.0.1': {}
 
+  '@pnpm/config.env-replace@3.0.2': {}
+
+  '@pnpm/config.nerf-dart@1.0.1': {}
+
   '@pnpm/config@1002.5.2(@pnpm/logger@1000.0.0)':
     dependencies:
       '@pnpm/catalogs.config': 1000.0.2
@@ -16425,10 +16441,10 @@ snapshots:
       print-diff: 2.0.0
       write-json-file: 5.0.0
 
-  '@pnpm/network.agent@2.0.2':
+  '@pnpm/network.agent@2.0.3':
     dependencies:
-      '@pnpm/network.config': 2.0.1
-      '@pnpm/network.proxy-agent': 2.0.2
+      '@pnpm/network.config': 2.1.0
+      '@pnpm/network.proxy-agent': 2.0.3
       agentkeepalive: 4.6.0
       lru-cache: 7.18.3
     transitivePeerDependencies:
@@ -16438,11 +16454,11 @@ snapshots:
     dependencies:
       graceful-fs: 4.2.10
 
-  '@pnpm/network.config@2.0.1':
+  '@pnpm/network.config@2.1.0':
     dependencies:
-      nerf-dart: 1.0.0
+      '@pnpm/config.nerf-dart': 1.0.1
 
-  '@pnpm/network.proxy-agent@2.0.2':
+  '@pnpm/network.proxy-agent@2.0.3':
     dependencies:
       '@pnpm/error': 1000.0.2
       http-proxy-agent: 7.0.2
@@ -16643,6 +16659,8 @@ snapshots:
   '@pnpm/util.lex-comparator@3.0.0': {}
 
   '@pnpm/util.lex-comparator@3.0.1': {}
+
+  '@pnpm/util.lex-comparator@3.0.2': {}
 
   '@pnpm/which@3.0.1':
     dependencies:
