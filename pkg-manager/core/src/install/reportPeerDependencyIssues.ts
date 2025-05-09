@@ -21,11 +21,9 @@ export function reportPeerDependencyIssues (
   const { allowedVersionsMatchAll, allowedVersionsByParentPkgName } = parseAllowedVersions(opts?.rules?.allowedVersions ?? {})
   const newPeerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
   for (const [projectId, { bad, missing, conflicts, intersections }] of Object.entries(peerDependencyIssuesByProjects)) {
-    newPeerDependencyIssuesByProjects[projectId] = { bad: {}, missing: {}, conflicts: [], intersections: {} }
+    newPeerDependencyIssuesByProjects[projectId] = { bad: {}, missing: {}, conflicts, intersections }
     for (const [peerName, issues] of Object.entries(missing)) {
       if (
-        !conflicts.includes(peerName) &&
-        intersections[peerName] == null ||
         ignoreMissingMatcher(peerName)
       ) {
         continue
