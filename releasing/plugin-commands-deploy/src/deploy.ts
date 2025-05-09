@@ -276,7 +276,7 @@ async function deployFromSharedLockfile (
     })
   } catch (error) {
     globalWarn('Deployment with a shared lockfile has failed. If this is a bug, please report it at <https://github.com/pnpm/pnpm/issues>.')
-    globalWarn(`As a workaround, you may add ${FORCE_LEGACY_DEPLOY}=true to .npmrc.`)
+    globalWarn('As a workaround, you may add "forceLegacyDeploy: true" to pnpm-workspace.yaml.')
     throw error
   }
 
