@@ -52,8 +52,8 @@ catalogs:
       specifier: ^1.0.0
       version: 1.0.0
     '@pnpm/os.env.path-extender':
-      specifier: ^2.0.2
-      version: 2.0.2
+      specifier: ^2.0.3
+      version: 2.0.3
     '@pnpm/patch-package':
       specifier: 0.0.1
       version: 0.0.1
@@ -4198,7 +4198,7 @@ importers:
         version: link:../../cli/cli-utils
       '@pnpm/os.env.path-extender':
         specifier: 'catalog:'
-        version: 2.0.2
+        version: 2.0.3
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -9517,16 +9517,16 @@ packages:
     resolution: {integrity: sha512-oQYP08exi6mOPdAZZWcNIGS+KKPsnNwUBzSuAEGWuCcqwMAt3k/WVCqVIXzBxhO5sP2b43og69VHmPj6IroKqw==}
     engines: {node: '>=14.6'}
 
-  '@pnpm/os.env.path-extender-posix@2.0.1':
-    resolution: {integrity: sha512-UA+17CyARGyvzZFiHRN2Yftl8ZSPjwxEWkd+PQldWyK8ptWUsYYusnCpQ5Prufk8WSFGBZFQFlll2O/YnomPWg==}
+  '@pnpm/os.env.path-extender-posix@2.1.0':
+    resolution: {integrity: sha512-oE0WCU2GCdOS/ChBi0dAFkktpxe0EPvCswP6+15yaHuydrCBTAaoB9cqSQaQCYrrDbabhn3kSxTex2T5xhq9fg==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/os.env.path-extender-windows@2.0.2':
-    resolution: {integrity: sha512-CWpnyz8WZwRMEchWYMUxavJF4LSrKIz4LBNaif4pgeL+ahZEb6osVKuw10YHKalC1lhQ5HNUbljlarufB/zxhA==}
+  '@pnpm/os.env.path-extender-windows@2.0.3':
+    resolution: {integrity: sha512-zJlGIoRLNpZh9xhCgC6nTvqvXzw1wKhiH3TuroJQ0xHxDwVxk7kAbF4wSROBcVcdOnK4zlxsA1Vc0jAPjxInog==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/os.env.path-extender@2.0.2':
-    resolution: {integrity: sha512-hLSkfzaDO3/yknezXSeNTsZ8bD6YnoXT7ISTFyjSmJxa40pj2O0tz7oLSVoTQM4jxuqdAKtejeSUY7zMf8Hywg==}
+  '@pnpm/os.env.path-extender@2.0.3':
+    resolution: {integrity: sha512-Tnrcwi0kGBaMPT9amiWg2ANbdIWMxVJS/d62lNMHbWX3erY2MAG9Y7Si46qdshrYlOzeqHX/lrW5AjlgF/zNeQ==}
     engines: {node: '>=18.12'}
 
   '@pnpm/package-is-installable@1000.0.6':
@@ -16491,20 +16491,20 @@ snapshots:
       semver: 7.7.1
       validate-npm-package-name: 4.0.0
 
-  '@pnpm/os.env.path-extender-posix@2.0.1':
+  '@pnpm/os.env.path-extender-posix@2.1.0':
     dependencies:
       '@pnpm/error': 1000.0.2
 
-  '@pnpm/os.env.path-extender-windows@2.0.2':
+  '@pnpm/os.env.path-extender-windows@2.0.3':
     dependencies:
       '@pnpm/error': 1000.0.2
       safe-execa: 0.1.4
       string.prototype.matchall: 4.0.12
 
-  '@pnpm/os.env.path-extender@2.0.2':
+  '@pnpm/os.env.path-extender@2.0.3':
     dependencies:
-      '@pnpm/os.env.path-extender-posix': 2.0.1
-      '@pnpm/os.env.path-extender-windows': 2.0.2
+      '@pnpm/os.env.path-extender-posix': 2.1.0
+      '@pnpm/os.env.path-extender-windows': 2.0.3
 
   '@pnpm/package-is-installable@1000.0.6(@pnpm/logger@1000.0.0)':
     dependencies:
