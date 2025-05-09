@@ -4212,12 +4212,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../error
-      '@pnpm/matcher':
-        specifier: workspace:*
-        version: link:../../config/matcher
-      '@pnpm/parse-overrides':
-        specifier: workspace:*
-        version: link:../../config/parse-overrides
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
@@ -4230,9 +4224,6 @@ importers:
       cli-columns:
         specifier: 'catalog:'
         version: 4.0.0
-      semver:
-        specifier: 'catalog:'
-        version: 7.7.1
     devDependencies:
       '@pnpm/render-peer-issues':
         specifier: workspace:*
@@ -4240,9 +4231,6 @@ importers:
       '@types/archy':
         specifier: 'catalog:'
         version: 0.0.33
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.5.3
 
   packages/types:
     devDependencies:
