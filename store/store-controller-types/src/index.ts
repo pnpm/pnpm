@@ -28,6 +28,7 @@ DependencyManifest,
 | 'bin'
 | 'bundledDependencies'
 | 'bundleDependencies'
+| 'cpu'
 | 'dependencies'
 | 'directories'
 | 'engines'

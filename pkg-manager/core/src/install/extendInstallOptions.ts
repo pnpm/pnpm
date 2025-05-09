@@ -13,6 +13,7 @@ import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type PackageExtension,
+  type PeerDependencyRules,
   type ReadPackageHook,
   type Registries,
   type PrepareExecutionEnv,
@@ -111,6 +112,7 @@ export interface StrictInstallOptions {
   symlink: boolean
   enableModulesDir: boolean
   modulesCacheMaxAge: number
+  peerDependencyRules: PeerDependencyRules
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   ignorePatchFailures?: boolean
   allowUnusedPatches: boolean

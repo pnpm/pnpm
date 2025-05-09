@@ -1,8 +1,8 @@
+import { nerfDart } from '@pnpm/config.nerf-dart'
 import { PnpmError } from '@pnpm/error'
 import { spawnSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import { nerfDart } from './helpers/nerfDart'
 
 export function getAuthHeadersFromConfig (
   { allSettings, userSettings }: {

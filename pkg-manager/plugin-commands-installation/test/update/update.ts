@@ -276,14 +276,6 @@ test('ignore packages in package.json > updateConfig.ignoreDependencies fields i
       '@pnpm.e2e/bar': '100.0.0',
       '@pnpm.e2e/qar': '100.0.0',
     },
-    pnpm: {
-      updateConfig: {
-        ignoreDependencies: [
-          '@pnpm.e2e/foo',
-          '@pnpm.e2e/bar',
-        ],
-      },
-    },
   })
 
   await install.handler({
@@ -305,6 +297,12 @@ test('ignore packages in package.json > updateConfig.ignoreDependencies fields i
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     latest: true,
+    updateConfig: {
+      ignoreDependencies: [
+        '@pnpm.e2e/foo',
+        '@pnpm.e2e/bar',
+      ],
+    },
   })
 
   const lockfileUpdated = project.readLockfile()
@@ -322,13 +320,6 @@ test('not ignore packages if these are specified in parameter even if these are 
     dependencies: {
       '@pnpm.e2e/foo': '100.0.0',
       '@pnpm.e2e/bar': '100.0.0',
-    },
-    pnpm: {
-      updateConfig: {
-        ignoreDependencies: [
-          '@pnpm.e2e/foo',
-        ],
-      },
     },
   })
 
@@ -348,6 +339,11 @@ test('not ignore packages if these are specified in parameter even if these are 
   await update.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
+    updateConfig: {
+      ignoreDependencies: [
+        '@pnpm.e2e/foo',
+      ],
+    },
   }, ['@pnpm.e2e/foo@latest', '@pnpm.e2e/bar@latest'])
 
   const lockfileUpdated = project.readLockfile()
@@ -363,13 +359,6 @@ test('do not update anything if all the dependencies are ignored and trying to u
     dependencies: {
       '@pnpm.e2e/foo': '100.0.0',
     },
-    pnpm: {
-      updateConfig: {
-        ignoreDependencies: [
-          '@pnpm.e2e/foo',
-        ],
-      },
-    },
   })
 
   await install.handler({
@@ -381,6 +370,11 @@ test('do not update anything if all the dependencies are ignored and trying to u
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     latest: true,
+    updateConfig: {
+      ignoreDependencies: [
+        '@pnpm.e2e/foo',
+      ],
+    },
   }, [])
 
   const lockfileUpdated = project.readLockfile()

@@ -101,6 +101,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
 | 'configDependencies'
+| 'updateConfig'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -270,7 +271,7 @@ when running add/update with the --workspace option')
   let updateMatch: UpdateDepsMatcher | null
   if (opts.update) {
     if (params.length === 0) {
-      const ignoreDeps = manifest.pnpm?.updateConfig?.ignoreDependencies
+      const ignoreDeps = opts.updateConfig?.ignoreDependencies
       if (ignoreDeps?.length) {
         params = makeIgnorePatterns(ignoreDeps)
       }

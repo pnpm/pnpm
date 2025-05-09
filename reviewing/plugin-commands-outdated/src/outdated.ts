@@ -167,6 +167,7 @@ export type OutdatedCommandOptions = {
 | 'strictSsl'
 | 'tag'
 | 'userAgent'
+| 'updateConfig'
 > & Partial<Pick<Config, 'userConfig'>>
 
 export async function handler (
@@ -192,7 +193,7 @@ export async function handler (
   const [outdatedPackages] = await outdatedDepsOfProjects(packages, params, {
     ...opts,
     fullMetadata: opts.long,
-    ignoreDependencies: manifest?.pnpm?.updateConfig?.ignoreDependencies,
+    ignoreDependencies: opts.updateConfig?.ignoreDependencies,
     include,
     retry: {
       factor: opts.fetchRetryFactor,

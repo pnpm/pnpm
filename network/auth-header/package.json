@@ -31,6 +31,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/config.nerf-dart": "catalog:",
     "@pnpm/error": "workspace:*"
   },
   "devDependencies": {
