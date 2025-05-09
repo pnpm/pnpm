@@ -14,11 +14,32 @@ export function reportPeerDependencyIssues (
     strictPeerDependencies: boolean
   }
 ): void {
-  const ignoreMissingPatterns = [...new Set(opts?.rules?.ignoreMissing ?? [])]
+  const newPeerDependencyIssuesByProjects = filterPeerDependencyIssues(peerDependencyIssuesByProjects, opts.rules)
+  if (
+    Object.values(newPeerDependencyIssuesByProjects).every((peerIssuesOfProject) =>
+      isEmpty(peerIssuesOfProject.bad) && (
+        isEmpty(peerIssuesOfProject.missing) ||
+        peerIssuesOfProject.conflicts.length === 0 && Object.keys(peerIssuesOfProject.intersections).length === 0
+      ))
+  ) return
+  if (opts.strictPeerDependencies) {
+    throw new PeerDependencyIssuesError(newPeerDependencyIssuesByProjects)
+  }
+  peerDependencyIssuesLogger.debug({
+    issuesByProjects: newPeerDependencyIssuesByProjects,
+  })
+}
+
+export function filterPeerDependencyIssues (
+  peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects,
+  rules?: PeerDependencyRules
+): PeerDependencyIssuesByProjects {
+  if (!rules) return peerDependencyIssuesByProjects
+  const ignoreMissingPatterns = [...new Set(rules?.ignoreMissing ?? [])]
   const ignoreMissingMatcher = createMatcher(ignoreMissingPatterns)
-  const allowAnyPatterns = [...new Set(opts?.rules?.allowAny ?? [])]
+  const allowAnyPatterns = [...new Set(rules?.allowAny ?? [])]
   const allowAnyMatcher = createMatcher(allowAnyPatterns)
-  const { allowedVersionsMatchAll, allowedVersionsByParentPkgName } = parseAllowedVersions(opts?.rules?.allowedVersions ?? {})
+  const { allowedVersionsMatchAll, allowedVersionsByParentPkgName } = parseAllowedVersions(rules?.allowedVersions ?? {})
   const newPeerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
   for (const [projectId, { bad, missing, conflicts, intersections }] of Object.entries(peerDependencyIssuesByProjects)) {
     newPeerDependencyIssuesByProjects[projectId] = { bad: {}, missing: {}, conflicts, intersections }
@@ -53,20 +74,7 @@ export function reportPeerDependencyIssues (
       }
     }
   }
-
-  if (
-    Object.values(newPeerDependencyIssuesByProjects).every((peerIssuesOfProject) =>
-      isEmpty(peerIssuesOfProject.bad) && (
-        isEmpty(peerIssuesOfProject.missing) ||
-        peerIssuesOfProject.conflicts.length === 0 && Object.keys(peerIssuesOfProject.intersections).length === 0
-      ))
-  ) return
-  if (opts.strictPeerDependencies) {
-    throw new PeerDependencyIssuesError(newPeerDependencyIssuesByProjects)
-  }
-  peerDependencyIssuesLogger.debug({
-    issuesByProjects: newPeerDependencyIssuesByProjects,
-  })
+  return newPeerDependencyIssuesByProjects
 }
 
 function isSubRange (superRange: string | undefined, subRange: string): boolean {
