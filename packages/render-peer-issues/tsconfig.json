@@ -10,12 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../config/matcher"
-    },
-    {
-      "path": "../../config/parse-overrides"
-    },
-    {
       "path": "../error"
     },
     {
