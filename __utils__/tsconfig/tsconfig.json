@@ -12,7 +12,8 @@
     "removeComments": false,
     "sourceMap": true,
     "strict": true,
-    "target": "es2021"
+    "target": "es2021",
+    "skipLibCheck": true
   },
   "atom": {
     "rewriteTsconfig": true
