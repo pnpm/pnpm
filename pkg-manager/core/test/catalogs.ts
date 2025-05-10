@@ -902,6 +902,7 @@ describe('add', () => {
     })
     expect(readLockfile()).toMatchObject({
       catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
+      importers: { project1: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '1.0.0' } } } },
       packages: { 'is-positive@1.0.0': expect.any(Object) },
     })
   })
@@ -932,6 +933,7 @@ describe('add', () => {
     })
     expect(readLockfile()).toMatchObject({
       catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
+      importers: { project1: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '1.0.0' } } } },
       packages: { 'is-positive@1.0.0': expect.any(Object) },
     })
   })
@@ -962,6 +964,7 @@ describe('add', () => {
     })
     expect(readLockfile()).toMatchObject({
       catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
+      importers: { project1: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '1.0.0' } } } },
       packages: { 'is-positive@1.0.0': expect.any(Object) },
     })
   })
