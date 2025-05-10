@@ -435,9 +435,14 @@ function reportPeerDependencyIssuesError (
   const hasMissingPeers = getHasMissingPeers(msg.issuesByProjects)
   const hints: string[] = []
   if (hasMissingPeers) {
-    hints.push('If you want peer dependencies to be automatically installed, add "autoInstallPeers: true" to a pnpm-workspace.yaml file at the root of your project.')
+    hints.push(`To auto-install peer dependencies, add the following to "pnpm-workspace.yaml" in your project root:
+
+  autoInstallPeers: true`)
   }
-  hints.push('If you don\'t want pnpm to fail on peer dependency issues, add "strictPeerDependencies: false" to a pnpm-workspace.yaml file at the root of your project.')
+  hints.push(`To disable failing on peer dependency issues, add the following to pnpm-workspace.yaml in your project root:
+
+  strictPeerDependencies: false
+`)
   const rendered = renderPeerIssues(msg.issuesByProjects)
   if (!rendered) return null
   return {

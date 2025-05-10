@@ -93,8 +93,8 @@ test('pack when there is bundledDependencies but without node-linker=hoisted', a
     extraBinPaths: [],
   })).rejects.toMatchObject({
     code: 'ERR_PNPM_BUNDLED_DEPENDENCIES_WITHOUT_HOISTED',
-    message: 'bundledDependencies does not work with node-linker=isolated',
-    hint: 'Add node-linker=hoisted to .npmrc or delete bundledDependencies from the root package.json to resolve this error',
+    message: 'bundledDependencies does not work with "nodeLinker: isolated"',
+    hint: 'Add "nodeLinker: hoisted" to pnpm-workspace.yaml or delete bundledDependencies from the root package.json to resolve this error',
   })
 })
 
