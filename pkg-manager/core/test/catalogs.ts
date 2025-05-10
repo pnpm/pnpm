@@ -10,6 +10,7 @@ import { testDefaults } from './utils'
 
 function preparePackagesAndReturnObjects (manifests: Array<ProjectManifest & Required<Pick<ProjectManifest, 'name'>>>) {
   const project = prepareEmpty()
+  const lockfileDir = process.cwd()
   const projects: Record<ProjectId, ProjectManifest> = {}
   for (const manifest of manifests) {
     projects[manifest.name as ProjectId] = manifest
@@ -23,9 +24,12 @@ function preparePackagesAndReturnObjects (manifests: Array<ProjectManifest & Req
   return {
     ...project,
     projects,
-    options: testDefaults({
-      allProjects,
-    }),
+    options: {
+      ...testDefaults({
+        allProjects,
+      }),
+      lockfileDir,
+    },
   }
 }
 
@@ -887,6 +891,7 @@ describe('add', () => {
       ['is-positive@catalog:'],
       {
         ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
         lockfileOnly: true,
         allowNew: true,
         catalogs: {
@@ -902,6 +907,7 @@ describe('add', () => {
     })
     expect(readLockfile()).toMatchObject({
       catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
+      importers: { project1: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '1.0.0' } } } },
       packages: { 'is-positive@1.0.0': expect.any(Object) },
     })
   })
@@ -917,6 +923,7 @@ describe('add', () => {
       ['is-positive'],
       {
         ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
         lockfileOnly: true,
         allowNew: true,
         catalogs: {
@@ -932,6 +939,7 @@ describe('add', () => {
     })
     expect(readLockfile()).toMatchObject({
       catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
+      importers: { project1: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '1.0.0' } } } },
       packages: { 'is-positive@1.0.0': expect.any(Object) },
     })
   })
@@ -947,6 +955,7 @@ describe('add', () => {
       ['is-positive@1.0.0'],
       {
         ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
         lockfileOnly: true,
         allowNew: true,
         catalogs: {
@@ -962,6 +971,7 @@ describe('add', () => {
     })
     expect(readLockfile()).toMatchObject({
       catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
+      importers: { project1: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '1.0.0' } } } },
       packages: { 'is-positive@1.0.0': expect.any(Object) },
     })
   })
@@ -977,6 +987,7 @@ describe('add', () => {
       ['is-positive@2.0.0'],
       {
         ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
         lockfileOnly: true,
         allowNew: true,
         catalogs: {
@@ -1030,6 +1041,7 @@ describe('update', () => {
       ['@pnpm.e2e/foo'],
       {
         ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
         lockfileOnly: true,
         allowNew: false,
         update: true,
@@ -1081,6 +1093,7 @@ describe('update', () => {
       ['@pnpm.e2e/foo'],
       {
         ...mutateOpts,
+        dir: path.join(options.lockfileDir, 'project1'),
         update: true,
       })
 
@@ -1129,6 +1142,7 @@ describe('update', () => {
       ['@pnpm.e2e/foo'],
       {
         ...mutateOpts,
+        dir: path.join(process.cwd(), 'project1'),
         allowNew: false,
         update: true,
         updateToLatest: true,
