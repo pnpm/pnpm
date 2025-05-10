@@ -62,9 +62,9 @@ export async function runLifecycleHook (
   if (opts.scriptShell != null && isWindowsBatchFile(opts.scriptShell)) {
     throw new PnpmError('ERR_PNPM_INVALID_SCRIPT_SHELL_WINDOWS', 'Cannot spawn .bat or .cmd as a script shell.', {
       hint: `\
-The .npmrc script-shell option was configured to a .bat or .cmd file. These cannot be used as a script shell reliably.
+The pnpm-workspace.yaml scriptShell option was configured to a .bat or .cmd file. These cannot be used as a script shell reliably.
 
-Please unset the script-shell option, or configure it to a .exe instead.
+Please unset the scriptShell option, or configure it to a .exe instead.
 `,
     })
   }
