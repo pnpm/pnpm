@@ -31,18 +31,14 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/matcher": "workspace:*",
-    "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/types": "workspace:*",
     "archy": "catalog:",
     "chalk": "catalog:",
-    "cli-columns": "catalog:",
-    "semver": "catalog:"
+    "cli-columns": "catalog:"
   },
   "devDependencies": {
     "@pnpm/render-peer-issues": "workspace:*",
-    "@types/archy": "catalog:",
-    "@types/semver": "catalog:"
+    "@types/archy": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

@@ -1403,6 +1403,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   reportPeerDependencyIssues(peerDependencyIssuesByProjects, {
     lockfileDir: opts.lockfileDir,
     strictPeerDependencies: opts.strictPeerDependencies,
+    rules: opts.peerDependencyRules,
   })
 
   summaryLogger.debug({ prefix: opts.lockfileDir })
