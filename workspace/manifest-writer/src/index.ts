@@ -6,9 +6,14 @@ import writeYamlFile from 'write-yaml-file'
 import equals from 'ramda/src/equals'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 
-export async function updateWorkspaceManifest (dir: string, updatedFields: Partial<WorkspaceManifest>): Promise<void> {
+export type WorkspaceManifestUpdater = Partial<WorkspaceManifest> | ((current: WorkspaceManifest) => Partial<WorkspaceManifest>)
+
+export async function updateWorkspaceManifest (dir: string, updater: WorkspaceManifestUpdater): Promise<void> {
   let manifest = await readWorkspaceManifest(dir) ?? {} as WorkspaceManifest
   let shouldBeUpdated = false
+  const updatedFields = typeof updater === 'function'
+    ? updater(manifest)
+    : updater
   for (const [key, value] of Object.entries(updatedFields)) {
     if (!equals(manifest[key as keyof WorkspaceManifest], value)) {
       shouldBeUpdated = true
