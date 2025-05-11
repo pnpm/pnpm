@@ -148,6 +148,8 @@ async function purgeModulesDirsOfImporters (
   },
   importers: ImporterToPurge[]
 ): Promise<void> {
+  // eslint-disable-next-line no-debugger
+  debugger
   if (opts.confirmModulesPurge ?? true) {
     const confirmed = await enquirer.prompt<{ question: boolean }>({
       type: 'confirm',

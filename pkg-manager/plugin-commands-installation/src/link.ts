@@ -21,6 +21,8 @@ import { createProjectManifestWriter } from './createProjectManifestWriter'
 import { getSaveType } from './getSaveType'
 import * as install from './install'
 import normalize from 'normalize-path'
+import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
+import { getOptionsFromRootManifest } from '@pnpm/config'
 
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
@@ -109,11 +111,24 @@ export async function handler (
   let workspacePackagesArr: Project[]
   let workspacePackages!: WorkspacePackages
   if (opts.workspaceDir) {
-    workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, {
-      ...opts,
-      patterns: opts.workspacePackagePatterns,
-    })
-    workspacePackages = arrayOfWorkspacePackagesToMap(workspacePackagesArr) as WorkspacePackages
+    // https://github.com/orgs/pnpm/discussions/9037
+    // The pnpm-workspace.yaml file may only contain other configurations without the packages field.
+    // In this case, the value of opts.workspacePackagePatterns is undefined.
+    if (!opts.workspacePackagePatterns && (params == null || params.length === 0)) {
+      opts.rootProjectManifestDir = opts.lockfileDir ?? opts.dir
+      opts.rootProjectManifest = await safeReadProjectManifestOnly(opts.rootProjectManifestDir) ?? undefined
+      if (opts.rootProjectManifest != null) {
+        if (opts.rootProjectManifest) {
+          Object.assign(opts, getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest))
+        }
+      }
+    } else {
+      workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, {
+        ...opts,
+        patterns: opts.workspacePackagePatterns,
+      })
+      workspacePackages = arrayOfWorkspacePackagesToMap(workspacePackagesArr) as WorkspacePackages
+    }
   } else {
     workspacePackages = new Map()
   }
