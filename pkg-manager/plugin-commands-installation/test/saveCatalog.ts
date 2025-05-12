@@ -18,7 +18,7 @@ const createOptions = (): add.AddCommandOptions => ({
   registries: {
     ...DEFAULT_OPTS.registries,
   },
-  saveCatalog: true,
+  saveCatalog: '',
   dir: process.cwd(),
   cacheDir: path.resolve('cache'),
   storeDir: path.resolve('store'),

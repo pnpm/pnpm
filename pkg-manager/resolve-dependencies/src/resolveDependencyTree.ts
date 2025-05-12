@@ -119,7 +119,7 @@ export interface ResolveDependenciesOptions {
   pnpmVersion: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
-  saveCatalog?: boolean
+  saveCatalog?: string
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   resolvePeersFromWorkspaceRoot?: boolean
   injectWorkspacePackages?: boolean
@@ -249,7 +249,7 @@ export async function resolveDependencyTree<T> (
             `Skip adding ${alias} to the default catalog because it already exists as ${existingCatalog}, please use \`pnpm update\` to update the catalogs.`
           )
         }
-      } else if (saveCatalog && normalizedBareSpecifier != null && version != null) {
+      } else if (saveCatalog != null && normalizedBareSpecifier != null && version != null) {
         newDefaultCatalogs ??= {}
         newDefaultCatalogs[alias] = {
           specifier: normalizedBareSpecifier,

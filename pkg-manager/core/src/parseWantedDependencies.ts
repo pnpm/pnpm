@@ -16,7 +16,7 @@ export function parseWantedDependencies (
     overrides?: Record<string, string>
     updateWorkspaceDependencies?: boolean
     preferredSpecs?: Record<string, string>
-    saveCatalog?: boolean
+    saveCatalog?: string
     defaultCatalog?: Catalog
   }
 ): WantedDependency[] {

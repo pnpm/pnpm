@@ -172,7 +172,7 @@ export interface ResolutionContext {
   workspacePackages?: WorkspacePackages
   missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { depth: number, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
-  saveCatalog?: boolean
+  saveCatalog?: string
 }
 
 export type MissingPeers = Record<string, { range: string, optional: boolean }>
@@ -205,7 +205,7 @@ export type PkgAddress = {
   catalogLookup?: CatalogLookupMetadata
   optional: boolean
   normalizedBareSpecifier?: string
-  saveCatalog?: boolean
+  saveCatalog?: string
 } & ({
   isLinkedDependency: true
   version: string
