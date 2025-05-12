@@ -387,7 +387,7 @@ export async function getConfig (opts: {
     pnpmConfig.filterProd = (pnpmConfig.filterProd as string).split(' ')
   }
 
-  if (!pnpmConfig.ignoreScripts && pnpmConfig.workspaceDir) {
+  if (pnpmConfig.workspaceDir) {
     pnpmConfig.extraBinPaths = [path.join(pnpmConfig.workspaceDir, 'node_modules', '.bin')]
   } else {
     pnpmConfig.extraBinPaths = []

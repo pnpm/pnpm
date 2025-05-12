@@ -340,6 +340,21 @@ test('extraBinPaths', async () => {
         name: 'pnpm',
         version: '1.0.0',
       },
+      workspaceDir: process.cwd(),
+    })
+    // extraBinPaths has the node_modules/.bin folder from the root of the workspace if scripts are ignored
+    expect(config.extraBinPaths).toStrictEqual([path.resolve('node_modules/.bin')])
+  }
+
+  {
+    const { config } = await getConfig({
+      cliOptions: {
+        'ignore-scripts': true,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
     })
     // extraBinPaths is empty inside a workspace if scripts are ignored
     expect(config.extraBinPaths).toEqual([])
