@@ -56,6 +56,7 @@
     "enquirer": "catalog:",
     "execa": "catalog:",
     "p-filter": "catalog:",
+    "p-limit": "catalog:",
     "ramda": "catalog:",
     "realpath-missing": "catalog:",
     "render-help": "catalog:",

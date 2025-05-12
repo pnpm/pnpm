@@ -189,6 +189,23 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   expect(modulesManifest?.onlyBuiltDependencies).toStrictEqual(['@pnpm.e2e/install-script-example'])
 })
 
+test('--allow-build flag should specify the package', async () => {
+  const project = prepare({})
+  const result = execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '--allow-build'])
+
+  expect(result.status).toBe(1)
+  expect(result.stdout.toString()).toContain('The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
+
+  const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
+  expect(manifest.pnpm?.onlyBuiltDependencies).toStrictEqual(undefined)
+  const modulesManifest = await readWorkspaceManifest(project.dir())
+  expect(modulesManifest?.onlyBuiltDependencies).toStrictEqual(undefined)
+})
+
 test('selectively allow scripts in some dependencies by --allow-build flag overlap ignoredBuiltDependencies', async () => {
   prepare({
     pnpm: {

@@ -1,9 +1,12 @@
 import fs from 'fs'
 import path from 'path'
 import { pack } from '@pnpm/plugin-commands-publishing'
-import { prepare, tempDir } from '@pnpm/prepare'
+import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import tar from 'tar'
 import chalk from 'chalk'
+import { sync as writeYamlFile } from 'write-yaml-file'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { type PackResultJson } from '../src/pack'
 import { DEFAULT_OPTS } from './utils'
 
 test('pack: package with package.json', async () => {
@@ -90,8 +93,8 @@ test('pack when there is bundledDependencies but without node-linker=hoisted', a
     extraBinPaths: [],
   })).rejects.toMatchObject({
     code: 'ERR_PNPM_BUNDLED_DEPENDENCIES_WITHOUT_HOISTED',
-    message: 'bundledDependencies does not work with node-linker=isolated',
-    hint: 'Add node-linker=hoisted to .npmrc or delete bundledDependencies from the root package.json to resolve this error',
+    message: 'bundledDependencies does not work with "nodeLinker: isolated"',
+    hint: 'Add "nodeLinker: hoisted" to pnpm-workspace.yaml or delete bundledDependencies from the root package.json to resolve this error',
   })
 })
 
@@ -512,12 +515,12 @@ test('pack: should display packed contents order by name', async () => {
     extraBinPaths: [],
   })
 
-  expect(output).toBe(`${chalk.blueBright('Tarball Contents')}
+  expect(output).toBe(`package: test-publish-package.json@0.0.0
+${chalk.blueBright('Tarball Contents')}
 a.js
 b.js
 package.json
 src/index.ts
-
 ${chalk.blueBright('Tarball Details')}
 test-publish-package.json-0.0.0.tgz`)
 })
@@ -560,4 +563,165 @@ test('pack: display in json format', async () => {
       },
     ],
   }, null, 2))
+})
+
+test('pack: recursive pack and display in json format', async () => {
+  const dir = tempDir()
+
+  const pkg1 = {
+    name: '@pnpmtest/test-recursive-pack-project-1',
+    version: '1.0.0',
+
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  const pkg2 = {
+    name: '@pnpmtest/test-recursive-pack-project-2',
+    version: '1.0.0',
+
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+  }
+
+  prepare({
+    name: '@pnpmtest/test-recursive-pack-project',
+    version: '0.0.0',
+  }, {
+    tempDir: dir,
+  })
+
+  const pkgs = [
+    pkg1,
+    pkg2,
+    // This will be packed because the pack command does not check whether it is in the registry
+    {
+      name: 'is-positive',
+      version: '1.0.0',
+
+      scripts: {
+        prepublishOnly: 'exit 1',
+      },
+    },
+    // This will be packed because the pack command does not check whether it is a private package
+    {
+      name: 'i-am-private',
+      version: '1.0.0',
+
+      private: true,
+      scripts: {
+        prepublishOnly: 'exit 1',
+      },
+    },
+  ]
+
+  preparePackages(pkgs, {
+    tempDir: path.join(dir, 'project'),
+  })
+
+  writeYamlFile(path.join(dir, 'pnpm-workspace.yaml'), { packages: pkgs.filter(pkg => pkg).map(pkg => pkg.name) })
+
+  const { selectedProjectsGraph } = await filterPackagesFromDir(dir, [])
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir,
+    extraBinPaths: [],
+    json: true,
+    recursive: true,
+    selectedProjectsGraph,
+  })
+
+  const json: PackResultJson[] = JSON.parse(output)
+
+  expect(Array.isArray(json)).toBeTruthy()
+  expect(json).toHaveLength(5)
+
+  for (const pkg of json) {
+    expect(pkg).toHaveProperty('name')
+    expect(pkg).toHaveProperty('version')
+    expect(pkg).toHaveProperty('filename')
+    expect(pkg).toHaveProperty('files')
+    expect(Array.isArray(pkg.files)).toBeTruthy()
+    for (const file of pkg.files) {
+      expect(file).toHaveProperty('path')
+    }
+    expect(fs.existsSync(pkg.filename)).toBeTruthy()
+  }
+})
+
+test('pack: recursive pack with filter', async () => {
+  const dir = tempDir()
+
+  const pkg1 = {
+    name: '@pnpmtest/test-recursive-pack-project-1',
+    version: '1.0.0',
+
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  const pkg2 = {
+    name: '@pnpmtest/test-recursive-pack-project-2',
+    version: '1.0.0',
+
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+  }
+
+  prepare({
+    name: '@pnpmtest/test-recursive-pack-project',
+    version: '0.0.0',
+  }, {
+    tempDir: dir,
+  })
+
+  const pkgs = [
+    pkg1,
+    pkg2,
+    {
+      name: 'is-positive',
+      version: '1.0.0',
+
+      scripts: {
+        prepublishOnly: 'exit 1',
+      },
+    },
+    {
+      name: 'i-am-private',
+      version: '1.0.0',
+
+      private: true,
+      scripts: {
+        prepublishOnly: 'exit 1',
+      },
+    },
+  ]
+
+  preparePackages(pkgs, {
+    tempDir: path.join(dir, 'project'),
+  })
+
+  writeYamlFile(path.join(dir, 'pnpm-workspace.yaml'), { packages: pkgs.filter(pkg => pkg).map(pkg => pkg.name) })
+
+  const { selectedProjectsGraph } = await filterPackagesFromDir(dir, [{ namePattern: '@pnpmtest/*' }])
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir,
+    extraBinPaths: [],
+    selectedProjectsGraph,
+    recursive: true,
+    unicode: false,
+  })
+
+  expect(output).toContain('package: @pnpmtest/test-recursive-pack-project@0.0.0')
+  expect(output).toContain('package: @pnpmtest/test-recursive-pack-project-1@1.0.0')
+  expect(output).toContain('package: @pnpmtest/test-recursive-pack-project-2@1.0.0')
+  expect(output).not.toContain('package: is-positive')
+  expect(output).not.toContain('package: i-am-private')
 })

@@ -1,7 +1,46 @@
-import { cpus } from 'os'
-import { getWorkspaceConcurrency } from '../lib/concurrency'
+import os, { cpus } from 'os'
+import { getDefaultWorkspaceConcurrency, resetAvailableParallelismCache, getWorkspaceConcurrency } from '../lib/concurrency'
 
 const hostCores = cpus().length
+
+beforeEach(() => {
+  resetAvailableParallelismCache()
+})
+
+afterEach(() => {
+  resetAvailableParallelismCache()
+  jest.restoreAllMocks()
+})
+
+function mockAvailableParallelism (value: number) {
+  if ('availableParallelism' in os) {
+    jest.spyOn(os, 'availableParallelism').mockReturnValue(value)
+  }
+  jest.spyOn(os, 'cpus').mockReturnValue(Array(value).fill(cpus()[0]))
+}
+
+test('getDefaultWorkspaceConcurrency: cpu num < 4', () => {
+  mockAvailableParallelism(1)
+  expect(getDefaultWorkspaceConcurrency(false)).toBe(1)
+})
+
+test('getDefaultWorkspaceConcurrency: cpu num > 4', () => {
+  mockAvailableParallelism(5)
+  expect(getDefaultWorkspaceConcurrency(false)).toBe(4)
+})
+
+test('getDefaultWorkspaceConcurrency: cpu num = 4', () => {
+  mockAvailableParallelism(4)
+  expect(getDefaultWorkspaceConcurrency(false)).toBe(4)
+})
+
+test('getDefaultWorkspaceConcurrency: using cache', () => {
+  mockAvailableParallelism(4)
+  expect(getDefaultWorkspaceConcurrency()).toBe(4)
+
+  mockAvailableParallelism(5)
+  expect(getDefaultWorkspaceConcurrency()).toBe(4)
+})
 
 test('default workspace concurrency', () => {
   const n = getWorkspaceConcurrency(undefined)

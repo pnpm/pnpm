@@ -114,11 +114,6 @@ declare module 'yaml-tag' {
   export = anything
 }
 
-declare module 'nerf-dart' {
-  const anything: any
-  export = anything
-}
-
 declare module '@pnpm/patch-package/dist/applyPatches' {
   export function applyPatch (opts: any): boolean
 }

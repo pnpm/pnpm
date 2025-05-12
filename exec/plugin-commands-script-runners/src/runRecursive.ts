@@ -2,7 +2,7 @@ import assert from 'assert'
 import path from 'path'
 import util from 'util'
 import { throwOnCommandFail } from '@pnpm/cli-utils'
-import { type Config } from '@pnpm/config'
+import { type Config, getWorkspaceConcurrency } from '@pnpm/config'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -64,7 +64,7 @@ export async function runRecursive (
     })
   }
 
-  const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
+  const limitRun = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   const stdio =
     !opts.stream &&
     (opts.workspaceConcurrency === 1 ||
@@ -145,7 +145,7 @@ export async function runRecursive (
             workspaceDir: opts.workspaceDir,
           }
           const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
-          const groupEnd = (opts.workspaceConcurrency ?? 4) > 1
+          const groupEnd = getWorkspaceConcurrency(opts.workspaceConcurrency) > 1
             ? undefined
             : groupStart(formatSectionName({
               name: pkg.package.manifest.name,

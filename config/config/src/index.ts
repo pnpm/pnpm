@@ -29,7 +29,7 @@ import {
   type VerifyDepsBeforeRun,
   type WantedPackageManager,
 } from './Config'
-import { getWorkspaceConcurrency } from './concurrency'
+import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 import { types } from './types'
@@ -38,6 +38,7 @@ export { types }
 
 export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
 export * from './readLocalConfig'
+export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency'
 
 export type { Config, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
 
@@ -192,7 +193,7 @@ export async function getConfig (opts: {
     'verify-deps-before-run': false,
     'verify-store-integrity': true,
     'virtual-store-dir': 'node_modules/.pnpm',
-    'workspace-concurrency': 4,
+    'workspace-concurrency': getDefaultWorkspaceConcurrency(),
     'workspace-prefix': opts.workspaceDir,
     'embed-readme': false,
     'registry-supports-time-field': false,

@@ -8,6 +8,7 @@ import {
   type Config,
   type OptionsFromRootManifest,
   getOptionsFromRootManifest,
+  getWorkspaceConcurrency,
   readLocalConfig,
 } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -305,7 +306,7 @@ export async function recursive (
 
   let newDefaultCatalogs: Record<string, ResolvedCatalogEntry> | undefined
 
-  const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
+  const limitInstallation = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   await Promise.all(pkgPaths.map(async (rootDir) =>
     limitInstallation(async () => {
       const hooks = opts.ignorePnpmfile

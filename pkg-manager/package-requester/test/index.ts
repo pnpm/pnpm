@@ -1022,9 +1022,7 @@ test('the version in the bundled manifest should be normalized', async () => {
     preferredVersions: {},
     projectDir: tempy.directory(),
   })
-  expect((await pkgResponse.fetching!()).bundledManifest).toMatchObject({
-    version: '1.2.1',
-  })
+  expect((await pkgResponse.fetching!()).bundledManifest?.version).toBe('1.2.1')
 })
 
 test('should skip store integrity check and resolve manifest if fetchRawManifest is true', async () => {

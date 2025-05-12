@@ -2,6 +2,7 @@ import assert from 'assert'
 import path from 'path'
 import util from 'util'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
+import { getWorkspaceConcurrency } from '@pnpm/config'
 import { skippedOptionalDependencyLogger, ignoredScriptsLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
@@ -87,7 +88,7 @@ export async function buildModules<T extends string> (
       }
     )
   })
-  await runGroups(opts.childConcurrency ?? 4, groups)
+  await runGroups(getWorkspaceConcurrency(opts.childConcurrency), groups)
   if (opts.ignoredBuiltDependencies?.length) {
     for (const ignoredBuild of opts.ignoredBuiltDependencies) {
       // We already ignore the build of this dependency.

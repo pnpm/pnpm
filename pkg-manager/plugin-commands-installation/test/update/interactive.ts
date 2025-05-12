@@ -284,11 +284,6 @@ test('interactively update should ignore dependencies from the ignoreDependencie
       // has many versions that satisfy ^3.0.0
       micromatch: '^3.0.0',
     },
-    pnpm: {
-      updateConfig: {
-        ignoreDependencies: ['is-negative'],
-      },
-    },
   })
 
   const storeDir = path.resolve('pnpm-store')
@@ -317,6 +312,9 @@ test('interactively update should ignore dependencies from the ignoreDependencie
     interactive: true,
     linkWorkspacePackages: true,
     storeDir,
+    updateConfig: {
+      ignoreDependencies: ['is-negative'],
+    },
   })
 
   expect(prompt.mock.calls[0][0].choices).toStrictEqual(

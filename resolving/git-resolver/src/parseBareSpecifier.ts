@@ -169,16 +169,21 @@ function parseGitParams (committish: string | null): GitParsedParams {
 // handle SCP-like URLs
 // see https://github.com/yarnpkg/yarn/blob/5682d55/src/util/git.js#L103
 function correctUrl (gitUrl: string): string {
-  const parsed = urlLib.parse(gitUrl.replace(/^git\+/, '')) // eslint-disable-line n/no-deprecated-api
-
-  if (parsed.protocol === 'ssh:' &&
-    parsed.hostname &&
-    parsed.pathname &&
-    parsed.pathname.startsWith('/:') &&
-    parsed.port === null) {
-    parsed.pathname = parsed.pathname.replace(/^\/:/, '')
-    return urlLib.format(parsed)
+  let _gitUrl = gitUrl.replace(/^git\+/, '')
+  if (_gitUrl.startsWith('ssh://')) {
+    const hashIndex = _gitUrl.indexOf('#')
+    let hash = ''
+    if (hashIndex !== -1) {
+      hash = _gitUrl.slice(hashIndex)
+      _gitUrl = _gitUrl.slice(0, hashIndex)
+    }
+    const [auth, pathname] = _gitUrl.slice(6).split('/')
+    const [, host] = auth.split('@')
+    if (host.includes(':') && !/:\d+$/.test(host)) {
+      const authArr = auth.split(':')
+      const protocol = gitUrl.split('://')[0]
+      gitUrl = `${protocol}://${authArr.slice(0, -1).join(':') + '/' + authArr[authArr.length - 1]}${pathname ? '/' + pathname : ''}${hash}`
+    }
   }
-
   return gitUrl
 }

@@ -1,6 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { getDefaultWorkspaceConcurrency } from '@pnpm/config'
 import renderHelp from 'render-help'
 
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
@@ -70,6 +71,10 @@ and must recompile all your C++ addons with the new binary.',
             description: 'Publishes packages to the npm registry. Only publishes a package if its version is not taken in the registry.',
             name: 'publish [--tag <tag>] [--access <public|restricted>]',
           },
+          {
+            description: 'Create tarballs for each package.',
+            name: 'pack [-- <args>...]',
+          },
         ],
       },
       {
@@ -81,7 +86,7 @@ and must recompile all your C++ addons with the new binary.',
             name: '--no-bail',
           },
           {
-            description: 'Set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.',
+            description: `Set the maximum number of concurrency. Default is ${getDefaultWorkspaceConcurrency()}. For unlimited concurrency use Infinity.`,
             name: '--workspace-concurrency <number>',
           },
           {

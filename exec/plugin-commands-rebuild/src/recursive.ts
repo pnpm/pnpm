@@ -7,6 +7,7 @@ import {
 import {
   type Config,
   readLocalConfig,
+  getWorkspaceConcurrency,
 } from '@pnpm/config'
 import { logger } from '@pnpm/logger'
 import { sortPackages } from '@pnpm/sort-packages'
@@ -110,7 +111,7 @@ export async function recursiveRebuild (
     )
     return
   }
-  const limitRebuild = pLimit(opts.workspaceConcurrency ?? 4)
+  const limitRebuild = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
     await Promise.all(chunk.map(async (rootDir) =>

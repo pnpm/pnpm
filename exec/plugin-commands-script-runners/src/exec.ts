@@ -2,7 +2,7 @@ import path from 'path'
 import { docsUrl, type RecursiveSummary, throwOnCommandFail, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { type LifecycleMessage, lifecycleLogger } from '@pnpm/core-loggers'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types } from '@pnpm/config'
+import { type Config, types, getWorkspaceConcurrency } from '@pnpm/config'
 import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
@@ -174,7 +174,7 @@ export async function handler (
   if (!params[0]) {
     throw new PnpmError('EXEC_MISSING_COMMAND', '\'pnpm exec\' requires a command to run')
   }
-  const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
+  const limitRun = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
 
   if (opts.verifyDepsBeforeRun) {
     await runDepsStatusCheck(opts)
