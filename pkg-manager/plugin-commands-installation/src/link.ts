@@ -23,7 +23,6 @@ import * as install from './install'
 import normalize from 'normalize-path'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { getOptionsFromRootManifest } from '@pnpm/config'
-import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 // @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
@@ -112,10 +111,7 @@ export async function handler (
   let workspacePackagesArr: Project[]
   let workspacePackages!: WorkspacePackages
   if (opts.workspaceDir) {
-    // https://github.com/orgs/pnpm/discussions/9037
-    // The pnpm-workspace.yaml file may only contain other configurations without the packages field.
-    const workspaceManifest = await readWorkspaceManifest(opts.workspaceDir)
-    if (!workspaceManifest?.packages && (params == null || params.length === 0)) {
+    if (params == null || params.length === 0) {
       opts.rootProjectManifestDir = opts.lockfileDir ?? opts.dir
       opts.rootProjectManifest = await safeReadProjectManifestOnly(opts.rootProjectManifestDir) ?? undefined
       if (opts.rootProjectManifest != null) {

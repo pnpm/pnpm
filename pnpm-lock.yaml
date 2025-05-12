@@ -5484,9 +5484,6 @@ importers:
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../../workspace/pkgs-graph
-      '@pnpm/workspace.read-manifest':
-        specifier: workspace:*
-        version: link:../../workspace/read-manifest
       '@pnpm/workspace.state':
         specifier: workspace:*
         version: link:../../workspace/state
