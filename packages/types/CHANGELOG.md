@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 1000.6.0
+
+### Minor Changes
+
+- 5ec7255: Export AuditConfig.
+
 ## 1000.5.0
 
 ### Minor Changes

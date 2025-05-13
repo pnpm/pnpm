@@ -1,5 +1,28 @@
 # @pnpm/resolve-dependencies
 
+## 1007.0.1
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [c24c66e]
+  - @pnpm/npm-resolver@1004.0.1
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/patching.config@1001.0.3
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/manifest-utils@1001.0.1
+  - @pnpm/lockfile.preferred-versions@1000.0.13
+  - @pnpm/lockfile.pruner@1001.0.9
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/pick-fetcher@1000.0.0
+
 ## 1007.0.0
 
 ### Major Changes

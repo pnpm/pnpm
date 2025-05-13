@@ -1,5 +1,16 @@
 # @pnpm/lockfile-utils
 
+## 1001.0.11
+
+### Patch Changes
+
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/pick-fetcher@1000.0.0
+
 ## 1001.0.10
 
 ### Patch Changes

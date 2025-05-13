@@ -1,5 +1,11 @@
 # @pnpm/fs.hard-link-dir
 
+## 1000.0.1
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+
 ## 4.0.0
 
 ### Major Changes

@@ -1,5 +1,26 @@
 # @pnpm/package-requester
 
+## 1004.0.1
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- c24c66e: Don't remove cpu field on subsequent install
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [c24c66e]
+  - @pnpm/package-is-installable@1000.0.10
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/worker@1000.1.6
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/fetcher-base@1000.0.11
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/store.cafs@1000.0.12
+  - @pnpm/pick-fetcher@1000.0.0
+
 ## 1004.0.0
 
 ### Major Changes

@@ -1,5 +1,42 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.2.0
+
+### Minor Changes
+
+- fdb1d98: Added support for recursively running pack in every project of a workspace [#4351](https://github.com/pnpm/pnpm/issues/4351).
+
+  Now you can run `pnpm -r pack` to pack all packages in the workspace.
+
+### Patch Changes
+
+- fdb1d98: Parallelly run recursive pack and publish
+- fdb1d98: Get `pack-destination` configuration from settings.
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- 36d1448: Set the default `workspaceConcurrency` to `Math.min(os.availableParallelism(), 4)` [#9493](https://github.com/pnpm/pnpm/pull/9493).
+- 36d1448: Add `workspace-concurrency` cli option for pack and publish
+- Updated dependencies [b282bd1]
+- Updated dependencies [51bd373]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/network.auth-header@1000.0.3
+  - @pnpm/plugin-commands-env@1000.0.25
+  - @pnpm/lifecycle@1001.0.14
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/types@1000.6.0
+  - @pnpm/client@1000.0.18
+  - @pnpm/pick-registry-for-package@1000.0.8
+  - @pnpm/package-bins@1000.0.8
+  - @pnpm/exportable-manifest@1000.1.1
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/sort-packages@1000.0.8
+
 ## 1000.1.22
 
 ### Patch Changes

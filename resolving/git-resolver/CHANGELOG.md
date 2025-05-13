@@ -1,5 +1,14 @@
 # @pnpm/git-resolver
 
+## 1001.0.1
+
+### Patch Changes
+
+- 6b6ccf9: Remove `url.parse` usage to fix warning on Node.js 24 [#9492](https://github.com/pnpm/pnpm/issues/9492).
+- Updated dependencies [09cf46f]
+  - @pnpm/fetch@1000.2.2
+  - @pnpm/resolver-base@1003.0.1
+
 ## 1001.0.0
 
 ### Major Changes

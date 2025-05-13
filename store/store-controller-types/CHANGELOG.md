@@ -1,5 +1,15 @@
 # @pnpm/store-controller-types
 
+## 1003.0.1
+
+### Patch Changes
+
+- c24c66e: Don't remove cpu field on subsequent install
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+  - @pnpm/fetcher-base@1000.0.11
+  - @pnpm/resolver-base@1003.0.1
+
 ## 1003.0.0
 
 ### Major Changes

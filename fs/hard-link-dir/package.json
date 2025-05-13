@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.hard-link-dir",
-  "version": "1000.0.0",
+  "version": "1000.0.1",
   "description": "Hard link (or copy if linking fails) all files from a directory to several target directories.",
   "keywords": [
     "pnpm",

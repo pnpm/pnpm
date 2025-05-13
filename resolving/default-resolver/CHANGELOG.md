@@ -1,5 +1,17 @@
 # @pnpm/default-resolver
 
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [09cf46f]
+- Updated dependencies [6b6ccf9]
+  - @pnpm/local-resolver@1001.0.1
+  - @pnpm/npm-resolver@1004.0.1
+  - @pnpm/git-resolver@1001.0.1
+  - @pnpm/tarball-resolver@1002.0.1
+  - @pnpm/resolver-base@1003.0.1
+
 ## 1002.0.0
 
 ### Major Changes

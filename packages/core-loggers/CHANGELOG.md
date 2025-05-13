@@ -1,5 +1,13 @@
 # @pnpm/core-loggers
 
+## 1001.0.1
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+
 ## 1001.0.0
 
 ### Major Changes

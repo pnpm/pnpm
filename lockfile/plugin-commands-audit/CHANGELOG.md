@@ -1,5 +1,43 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.1.0
+
+### Minor Changes
+
+- 5ec7255: Added two new flags to the `pnpm audit` command, `--ignore` and `--ignore-unfixable` [#8474](https://github.com/pnpm/pnpm/pull/8474).
+
+  Ignore all vulnerabilities that have no solution:
+
+  ```shell
+  > pnpm audit --ignore-unfixable
+  ```
+
+  Provide a list of CVE's to ignore those specifically, even if they have a resolution.
+
+  ```shell
+  > pnpm audit --ignore=CVE-2021-1234 --ignore=CVE-2021-5678
+  ```
+
+### Patch Changes
+
+- Updated dependencies [b282bd1]
+- Updated dependencies [51bd373]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/network.auth-header@1000.0.3
+  - @pnpm/audit@1002.0.4
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/config.config-writer@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.11
+
 ## 1002.0.5
 
 ### Patch Changes

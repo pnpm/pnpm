@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.filtering",
-  "version": "1001.0.11",
+  "version": "1001.0.12",
   "description": "Filters a lockfile",
   "keywords": [
     "pnpm",

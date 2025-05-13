@@ -1,5 +1,25 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1000.1.12
+
+### Patch Changes
+
+- df8df8a: pnpm version management should work, when `dangerouslyAllowAllBuilds` is set to `true` [#9472](https://github.com/pnpm/pnpm/issues/9472).
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/link-bins@1000.0.13
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/client@1000.0.18
+  - @pnpm/cli-meta@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.11
+
 ## 1000.1.11
 
 ### Patch Changes

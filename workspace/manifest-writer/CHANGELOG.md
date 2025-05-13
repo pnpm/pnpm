@@ -1,5 +1,13 @@
 # @pnpm/workspace.manifest-writer
 
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [c00360b]
+  - @pnpm/object.key-sorting@1000.0.1
+  - @pnpm/workspace.read-manifest@1000.1.5
+
 ## 1000.1.3
 
 ### Patch Changes

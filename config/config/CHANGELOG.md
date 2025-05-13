@@ -1,5 +1,27 @@
 # @pnpm/config
 
+## 1003.1.0
+
+### Minor Changes
+
+- b282bd1: A new setting added for `pnpm init` to create a `package.json` with `type=module`, when `init-type` is `module`. Works as a flag for the init command too [#9463](https://github.com/pnpm/pnpm/pull/9463).
+
+### Patch Changes
+
+- fdb1d98: Get `pack-destination` configuration from settings.
+- e4af08c: `pnpm link` should work from inside a workspace [#9506](https://github.com/pnpm/pnpm/issues/9506).
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- 36d1448: Set the default `workspaceConcurrency` to `Math.min(os.availableParallelism(), 4)` [#9493](https://github.com/pnpm/pnpm/pull/9493).
+- 9362b5f: Read `updateConfig` from `pnpm-workspace.yaml` [#9500](https://github.com/pnpm/pnpm/issues/9500).
+- 6cf010c: `pnpm run` should be able to run commands from the workspace root, if `ignoreScripts` is set tot `true` [#4858](https://github.com/pnpm/pnpm/issues/4858).
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/pnpmfile@1001.2.1
+  - @pnpm/types@1000.6.0
+  - @pnpm/read-project-manifest@1000.0.11
+  - @pnpm/workspace.read-manifest@1000.1.5
+  - @pnpm/catalogs.config@1000.0.2
+
 ## 1003.0.1
 
 ### Patch Changes

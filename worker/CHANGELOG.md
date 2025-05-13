@@ -1,5 +1,18 @@
 # @pnpm/worker
 
+## 1000.1.6
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+  - @pnpm/create-cafs-store@1000.0.13
+  - @pnpm/symlink-dependency@1000.0.9
+  - @pnpm/fs.hard-link-dir@1000.0.1
+  - @pnpm/exec.pkg-requires-build@1000.0.8
+  - @pnpm/store.cafs@1000.0.12
+  - @pnpm/cafs-types@1000.0.0
+
 ## 1000.1.5
 
 ### Patch Changes

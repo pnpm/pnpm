@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-init
 
+## 1000.2.0
+
+### Minor Changes
+
+- b282bd1: A new setting added for `pnpm init` to create a `package.json` with `type=module`, when `init-type` is `module`. Works as a flag for the init command too [#9463](https://github.com/pnpm/pnpm/pull/9463).
+
+### Patch Changes
+
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/object.key-sorting@1000.0.1
+  - @pnpm/types@1000.6.0
+  - @pnpm/cli-meta@1000.0.8
+  - @pnpm/write-project-manifest@1000.0.8
+
 ## 1000.1.14
 
 ### Patch Changes

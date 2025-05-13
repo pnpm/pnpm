@@ -1,5 +1,17 @@
 # @pnpm/directory-fetcher
 
+## 1000.1.7
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+  - @pnpm/exec.pkg-requires-build@1000.0.8
+  - @pnpm/fetcher-base@1000.0.11
+  - @pnpm/read-project-manifest@1000.0.11
+  - @pnpm/resolver-base@1003.0.1
+
 ## 1000.1.6
 
 ### Patch Changes

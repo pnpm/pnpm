@@ -1,5 +1,20 @@
 # @pnpm/audit
 
+## 1002.0.4
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/fetch@1000.2.2
+  - @pnpm/types@1000.6.0
+  - @pnpm/lockfile.detect-dep-types@1001.0.9
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/lockfile.walker@1001.0.9
+  - @pnpm/read-project-manifest@1000.0.11
+
 ## 1002.0.3
 
 ### Patch Changes

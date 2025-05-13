@@ -1,5 +1,12 @@
 # @pnpm/resolver-base
 
+## 1003.0.1
+
+### Patch Changes
+
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+
 ## 1003.0.0
 
 ### Major Changes

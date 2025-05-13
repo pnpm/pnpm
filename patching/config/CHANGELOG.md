@@ -1,5 +1,12 @@
 # @pnpm/patching.config
 
+## 1001.0.3
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+  - @pnpm/dependency-path@1000.0.9
+
 ## 1001.0.2
 
 ### Patch Changes

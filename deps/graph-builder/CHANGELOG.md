@@ -1,5 +1,23 @@
 # @pnpm/deps.graph-builder
 
+## 1002.0.4
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [c24c66e]
+  - @pnpm/package-is-installable@1000.0.10
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/patching.config@1001.0.3
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/modules-yaml@1000.3.3
+
 ## 1002.0.3
 
 ### Patch Changes

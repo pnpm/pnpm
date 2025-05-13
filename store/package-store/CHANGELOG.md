@@ -1,5 +1,22 @@
 # @pnpm/package-store
 
+## 1002.0.3
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [c24c66e]
+  - @pnpm/package-requester@1004.0.1
+  - @pnpm/create-cafs-store@1000.0.13
+  - @pnpm/worker@1000.1.6
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/fetcher-base@1000.0.11
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/store.cafs@1000.0.12
+
 ## 1002.0.2
 
 ### Patch Changes

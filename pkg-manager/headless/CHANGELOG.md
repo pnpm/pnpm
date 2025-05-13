@@ -1,5 +1,41 @@
 # @pnpm/headless
 
+## 1004.0.4
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+- Updated dependencies [c24c66e]
+  - @pnpm/package-is-installable@1000.0.10
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.9
+  - @pnpm/package-requester@1004.0.1
+  - @pnpm/modules-cleaner@1001.0.13
+  - @pnpm/lockfile-to-pnp@1001.0.13
+  - @pnpm/symlink-dependency@1000.0.9
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/link-bins@1000.0.13
+  - @pnpm/deps.graph-builder@1002.0.4
+  - @pnpm/build-modules@1000.3.5
+  - @pnpm/lockfile.filtering@1001.0.12
+  - @pnpm/hoist@1001.0.15
+  - @pnpm/patching.config@1001.0.3
+  - @pnpm/lifecycle@1001.0.14
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/worker@1000.1.6
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/real-hoist@1001.0.11
+  - @pnpm/calc-dep-state@1001.0.13
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/modules-yaml@1000.3.3
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/read-project-manifest@1000.0.11
+
 ## 1004.0.3
 
 ### Patch Changes

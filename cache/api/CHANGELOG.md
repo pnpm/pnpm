@@ -1,5 +1,21 @@
 # @pnpm/cache.api
 
+## 1000.0.23
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/npm-resolver@1004.0.1
+  - @pnpm/store.cafs@1000.0.12
+
 ## 1000.0.22
 
 ### Patch Changes

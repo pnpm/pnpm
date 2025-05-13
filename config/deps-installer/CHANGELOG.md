@@ -1,5 +1,23 @@
 # @pnpm/config.deps-installer
 
+## 1000.0.4
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [51bd373]
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/network.auth-header@1000.0.3
+  - @pnpm/npm-resolver@1004.0.1
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/package-store@1002.0.3
+  - @pnpm/fetch@1000.2.2
+  - @pnpm/types@1000.6.0
+  - @pnpm/config.config-writer@1000.0.5
+  - @pnpm/pick-registry-for-package@1000.0.8
+  - @pnpm/read-package-json@1000.0.9
+
 ## 1000.0.3
 
 ### Patch Changes

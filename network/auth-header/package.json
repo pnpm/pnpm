@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/network.auth-header",
-  "version": "1000.0.2",
+  "version": "1000.0.3",
   "description": "Gets the authorization header for the given URI",
   "keywords": [
     "pnpm",

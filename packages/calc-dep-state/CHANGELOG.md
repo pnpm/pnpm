@@ -1,5 +1,17 @@
 # @pnpm/calc-dep-state
 
+## 1001.0.13
+
+### Patch Changes
+
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+  - @pnpm/object.key-sorting@1000.0.1
+  - @pnpm/types@1000.6.0
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+
 ## 1001.0.12
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/link-bins
 
+## 1000.0.13
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+  - @pnpm/manifest-utils@1001.0.1
+  - @pnpm/package-bins@1000.0.8
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/read-project-manifest@1000.0.11
+
 ## 1000.0.12
 
 ### Patch Changes

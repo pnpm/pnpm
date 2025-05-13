@@ -1,5 +1,14 @@
 # @pnpm/workspace.injected-deps-syncer
 
+## 1000.0.8
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+  - @pnpm/directory-fetcher@1000.1.7
+  - @pnpm/modules-yaml@1000.3.3
+
 ## 1000.0.7
 
 ### Patch Changes

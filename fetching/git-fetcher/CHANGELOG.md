@@ -1,5 +1,15 @@
 # @pnpm/git-fetcher
 
+## 1001.0.7
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+  - @pnpm/worker@1000.1.6
+  - @pnpm/prepare-package@1000.0.15
+  - @pnpm/fetcher-base@1000.0.11
+
 ## 1001.0.6
 
 ### Patch Changes

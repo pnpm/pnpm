@@ -1,5 +1,15 @@
 # @pnpm/symlink-dependency
 
+## 1000.0.9
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/types@1000.6.0
+
 ## 1000.0.8
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @pnpm/hoist
 
+## 1001.0.15
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- c00360b: Update `@pnpm/util.lex-comparator` to v3.0.2.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/link-bins@1000.0.13
+  - @pnpm/types@1000.6.0
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/lockfile.walker@1001.0.9
+  - @pnpm/dependency-path@1000.0.9
+
 ## 1001.0.14
 
 ### Patch Changes

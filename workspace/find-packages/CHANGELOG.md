@@ -1,5 +1,18 @@
 # @pnpm/find-workspace-packages
 
+## 1000.0.24
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- c00360b: Update `@pnpm/util.lex-comparator` to v3.0.2.
+- Updated dependencies [09cf46f]
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/fs.find-packages@1000.0.11
+  - @pnpm/types@1000.6.0
+
 ## 1000.0.23
 
 ### Patch Changes

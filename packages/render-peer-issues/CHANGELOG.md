@@ -1,5 +1,16 @@
 # @pnpm/render-peer-issues
 
+## 1002.0.0
+
+### Major Changes
+
+- f0c3ed6: Remove filtering of peer dependency issues.
+
+### Patch Changes
+
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+
 ## 1001.0.0
 
 ### Major Changes

@@ -1,5 +1,14 @@
 # @pnpm/pkg-manager.direct-dep-linker
 
+## 1000.0.9
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+  - @pnpm/symlink-dependency@1000.0.9
+  - @pnpm/core-loggers@1001.0.1
+
 ## 1000.0.8
 
 ### Patch Changes

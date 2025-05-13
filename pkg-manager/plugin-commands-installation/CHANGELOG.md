@@ -1,5 +1,50 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.0.2
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- 36d1448: Set the default `workspaceConcurrency` to `Math.min(os.availableParallelism(), 4)` [#9493](https://github.com/pnpm/pnpm/pull/9493).
+- 9362b5f: Read `updateConfig` from `pnpm-workspace.yaml` [#9500](https://github.com/pnpm/pnpm/issues/9500).
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [f0c3ed6]
+- Updated dependencies [9362b5f]
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/store-connection-manager@1002.0.2
+  - @pnpm/plugin-commands-rebuild@1002.0.14
+  - @pnpm/plugin-commands-env@1000.0.25
+  - @pnpm/get-context@1001.0.14
+  - @pnpm/workspace.find-packages@1000.0.24
+  - @pnpm/config.deps-installer@1000.0.4
+  - @pnpm/package-store@1002.0.3
+  - @pnpm/outdated@1001.0.19
+  - @pnpm/core@1008.0.2
+  - @pnpm/workspace.state@1001.1.20
+  - @pnpm/pnpmfile@1001.2.1
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/deps.status@1002.1.2
+  - @pnpm/types@1000.6.0
+  - @pnpm/filter-workspace-packages@1000.0.24
+  - @pnpm/workspace.pkgs-graph@1000.0.14
+  - @pnpm/manifest-utils@1001.0.1
+  - @pnpm/config.config-writer@1000.0.5
+  - @pnpm/pick-registry-for-package@1000.0.8
+  - @pnpm/dedupe.check@1001.0.8
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/read-project-manifest@1000.0.11
+  - @pnpm/write-project-manifest@1000.0.8
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/sort-packages@1000.0.8
+
 ## 1004.0.1
 
 ### Patch Changes

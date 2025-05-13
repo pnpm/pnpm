@@ -1,5 +1,20 @@
 # @pnpm/pnpmfile
 
+## 1001.2.1
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [c24c66e]
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/hooks.types@1001.0.8
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/crypto.hash@1000.1.1
+
 ## 1001.2.0
 
 ### Minor Changes

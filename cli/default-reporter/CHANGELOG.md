@@ -1,5 +1,30 @@
 # @pnpm/default-reporter
 
+## 1002.0.0
+
+### Major Changes
+
+- f0c3ed6: Remove filtering of peer dependency issues.
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- c00360b: Update `@pnpm/util.lex-comparator` to v3.0.2.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+- Updated dependencies [f0c3ed6]
+  - @pnpm/config@1003.1.0
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/types@1000.6.0
+  - @pnpm/render-peer-issues@1002.0.0
+  - @pnpm/cli-meta@1000.0.8
+
 ## 1001.4.3
 
 ### Patch Changes

@@ -1,5 +1,31 @@
 # @pnpm/deps.status
 
+## 1002.1.2
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/get-context@1001.0.14
+  - @pnpm/workspace.find-packages@1000.0.24
+  - @pnpm/lockfile.verification@1001.1.7
+  - @pnpm/workspace.state@1001.1.20
+  - @pnpm/pnpmfile@1001.2.1
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/workspace.read-manifest@1000.1.5
+  - @pnpm/lockfile.settings-checker@1001.0.9
+
 ## 1002.1.1
 
 ### Patch Changes

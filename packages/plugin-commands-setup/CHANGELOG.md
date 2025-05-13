@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-setup
 
+## 1000.1.0
+
+### Minor Changes
+
+- 741fcd2: Added support for Nushell to `pnpm setup` [#6476](https://github.com/pnpm/pnpm/issues/6476).
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/cli-meta@1000.0.8
+
 ## 1000.0.23
 
 ### Patch Changes

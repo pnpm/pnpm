@@ -1,5 +1,40 @@
 # pnpm
 
+## 10.11.0
+
+### Minor Changes
+
+- A new setting added for `pnpm init` to create a `package.json` with `type=module`, when `init-type` is `module`. Works as a flag for the init command too [#9463](https://github.com/pnpm/pnpm/pull/9463).
+- Added support for Nushell to `pnpm setup` [#6476](https://github.com/pnpm/pnpm/issues/6476).
+- Added two new flags to the `pnpm audit` command, `--ignore` and `--ignore-unfixable` [#8474](https://github.com/pnpm/pnpm/pull/8474).
+
+  Ignore all vulnerabilities that have no solution:
+
+  ```shell
+  > pnpm audit --ignore-unfixable
+  ```
+
+  Provide a list of CVE's to ignore those specifically, even if they have a resolution.
+
+  ```shell
+  > pnpm audit --ignore=CVE-2021-1234 --ignore=CVE-2021-5678
+  ```
+
+- Added support for recursively running pack in every project of a workspace [#4351](https://github.com/pnpm/pnpm/issues/4351).
+
+  Now you can run `pnpm -r pack` to pack all packages in the workspace.
+
+### Patch Changes
+
+- pnpm version management should work, when `dangerouslyAllowAllBuilds` is set to `true` [#9472](https://github.com/pnpm/pnpm/issues/9472).
+- `pnpm link` should work from inside a workspace [#9506](https://github.com/pnpm/pnpm/issues/9506).
+- Set the default `workspaceConcurrency` to `Math.min(os.availableParallelism(), 4)` [#9493](https://github.com/pnpm/pnpm/pull/9493).
+- Installation should not exit with an error if `strictPeerDependencies` is `true` but all issues are ignored by `peerDependencyRules` [#9505](https://github.com/pnpm/pnpm/pull/9505).
+- Read `updateConfig` from `pnpm-workspace.yaml` [#9500](https://github.com/pnpm/pnpm/issues/9500).
+- Add support for `recursive pack`
+- Remove `url.parse` usage to fix warning on Node.js 24 [#9492](https://github.com/pnpm/pnpm/issues/9492).
+- `pnpm run` should be able to run commands from the workspace root, if `ignoreScripts` is set tot `true` [#4858](https://github.com/pnpm/pnpm/issues/4858).
+
 ## 10.10.0
 
 ### Minor Changes
