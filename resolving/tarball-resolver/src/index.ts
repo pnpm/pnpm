@@ -11,8 +11,15 @@ export async function resolveFromTarball (
 
   if (isRepository(wantedDependency.bareSpecifier)) return null
 
-  // If there are redirects, we want to get the final URL address
-  const { url: resolvedUrl } = await fetchFromRegistry(wantedDependency.bareSpecifier, { method: 'HEAD' })
+  let resolvedUrl
+
+  // If there are redirects and the response is immutable, we want to get the final URL address
+  const response = await fetchFromRegistry(wantedDependency.bareSpecifier, { method: 'HEAD' })
+  if (response?.headers?.get('cache-control')?.includes('immutable')) {
+    resolvedUrl = response.url
+  } else {
+    resolvedUrl = wantedDependency.bareSpecifier
+  }
 
   return {
     id: resolvedUrl as PkgResolutionId,
