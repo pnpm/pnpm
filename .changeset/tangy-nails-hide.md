@@ -8,4 +8,4 @@
 "pnpm": minor
 ---
 
-Add a CLI flag named `--save-catalog` to `pnpm add` to save new dependencies as a catalog: `catalog:` will be added to `package.json` and the package specifier will be added to the default catalog object (either `catalog` or `catalogs.default`) in `pnpm-workspace.yaml` [#9425](https://github.com/pnpm/pnpm/issues/9425).
+Add a CLI option (`--save-catalog=<name>`) to `pnpm add` to save new dependencies as a catalog: `catalog:<name>` or `catalog:` will be added to `package.json` and the package specifier will be added to the `catalogs` or `catalog` object in `pnpm-workspace.yaml` [#9425](https://github.com/pnpm/pnpm/issues/9425).
