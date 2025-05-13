@@ -288,6 +288,7 @@ export async function getConfig (opts: {
   }
   pnpmConfig.globalPkgDir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
   if (cliOptions['global']) {
+    delete pnpmConfig.workspaceDir
     pnpmConfig.dir = pnpmConfig.globalPkgDir
     pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
     if (pnpmConfig.bin) {
