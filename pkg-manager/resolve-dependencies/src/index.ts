@@ -306,6 +306,9 @@ export async function resolveDependencies (
     }
   }
 
+  // Q: Why would `newLockfile.catalogs` be constructed twice?
+  // A: `getCatalogSnapshots` handles new dependencies that were resolved as `catalog:*` (e.g. new entries in `package.json` whose values were `catalog:*`),
+  //    and `newCatalogs` handles dependencies that were added as CLI parameters from `pnpm add --save-catalog`.
   newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
   for (const catalogName in newCatalogs) {
     for (const dependencyName in newCatalogs[catalogName]) {
