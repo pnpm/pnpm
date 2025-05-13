@@ -169,3 +169,49 @@ test('saveCatalog does not work with local dependencies', async () => {
   expect(readYamlFile('pnpm-lock.yaml')).not.toHaveProperty(['catalog'])
   expect(readYamlFile('pnpm-lock.yaml')).not.toHaveProperty(['catalogs'])
 })
+
+test('saveCatalog with non-default name', async () => {
+  const project = prepare({
+    name: 'test-save-catalog',
+    version: '0.0.0',
+    private: true,
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await add.handler(createOptions('my-catalog'), ['@pnpm.e2e/foo'])
+
+  expect(loadJsonFile('package.json')).toHaveProperty(['dependencies'], {
+    '@pnpm.e2e/foo': 'catalog:my-catalog',
+  })
+
+  expect(readYamlFile('pnpm-workspace.yaml')).toHaveProperty(['catalogs', 'my-catalog'], {
+    '@pnpm.e2e/foo': '^100.1.0',
+  })
+
+  expect(project.readLockfile()).toStrictEqual(expect.objectContaining({
+    catalogs: {
+      'my-catalog': {
+        '@pnpm.e2e/foo': {
+          specifier: '^100.1.0',
+          version: '100.1.0',
+        },
+      },
+    },
+    importers: {
+      '.': {
+        dependencies: {
+          '@pnpm.e2e/foo': {
+            specifier: 'catalog:my-catalog',
+            version: '100.1.0',
+          },
+        },
+      },
+    },
+    packages: {
+      '@pnpm.e2e/foo@100.1.0': {
+        resolution: expect.anything(),
+      },
+    },
+  } as Partial<LockfileFile>))
+})

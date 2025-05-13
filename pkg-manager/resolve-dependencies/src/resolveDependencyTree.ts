@@ -256,7 +256,7 @@ export async function resolveDependencyTree<T> (
           specifier: normalizedBareSpecifier,
           version,
         }
-        directDep.normalizedBareSpecifier = 'catalog:'
+        directDep.normalizedBareSpecifier = `catalog:${saveCatalog === 'default' ? '' : saveCatalog}`
       }
     }
   }

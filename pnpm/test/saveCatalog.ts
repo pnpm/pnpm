@@ -9,6 +9,8 @@ import { execPnpm } from './utils'
 
 const SAVE_CATALOG_DEFAULT = ['--save-catalog=default'] as const // TODO: change this back to `--save-catalog` (without `=default`) when the arg parser is fixed
 
+const saveCatalogAny = (catalogName: string) => [`--save-catalog=${catalogName}`] as const
+
 test('--save-catalog adds catalogs to the manifest of a single package workspace', async () => {
   const manifest: ProjectManifest = {
     name: 'test-save-catalog',
@@ -667,4 +669,104 @@ test('--save-catalog creates new workspace manifest with the new catalog (recurs
       '@pnpm.e2e/foo': 'catalog:',
     },
   } as ProjectManifest)
+})
+
+test('--save-catalog with a non-default catalog name', async () => {
+  const manifest: ProjectManifest = {
+    name: 'test-save-catalog',
+    version: '0.0.0',
+    private: true,
+    dependencies: {
+      '@pnpm.e2e/bar': 'catalog:',
+    },
+  }
+
+  prepare(manifest)
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    catalog: {
+      '@pnpm.e2e/bar': '^100.1.0',
+    },
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+
+  await execPnpm(['install'])
+  expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+    catalogs: {
+      default: {
+        '@pnpm.e2e/bar': {
+          specifier: '^100.1.0',
+          version: '100.1.0',
+        },
+      },
+    },
+    importers: {
+      '.': {
+        dependencies: {
+          '@pnpm.e2e/bar': {
+            specifier: 'catalog:',
+            version: '100.1.0',
+          },
+        },
+      },
+    },
+    packages: {
+      '@pnpm.e2e/bar@100.1.0': expect.anything(),
+    },
+  } as Partial<LockfileFile>))
+
+  await execPnpm(['add', ...saveCatalogAny('my-catalog'), '@pnpm.e2e/foo'])
+  expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
+    catalogs: {
+      default: {
+        '@pnpm.e2e/bar': {
+          specifier: '^100.1.0',
+          version: '100.1.0',
+        },
+      },
+      'my-catalog': {
+        '@pnpm.e2e/foo': {
+          specifier: '^100.1.0',
+          version: '100.1.0',
+        },
+      },
+    },
+    importers: {
+      '.': {
+        dependencies: {
+          '@pnpm.e2e/bar': {
+            specifier: 'catalog:',
+            version: '100.1.0',
+          },
+          '@pnpm.e2e/foo': {
+            specifier: 'catalog:my-catalog',
+            version: '100.1.0',
+          },
+        },
+      },
+    },
+    packages: {
+      '@pnpm.e2e/bar@100.1.0': expect.anything(),
+      '@pnpm.e2e/foo@100.1.0': expect.anything(),
+    },
+  } as Partial<LockfileFile>))
+  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+    catalog: {
+      '@pnpm.e2e/bar': '^100.1.0',
+    },
+    catalogs: {
+      'my-catalog': {
+        '@pnpm.e2e/foo': '^100.1.0',
+      },
+    },
+  })
+  expect(loadJsonFile('package.json')).toStrictEqual({
+    ...manifest,
+    dependencies: {
+      ...manifest.dependencies,
+      '@pnpm.e2e/foo': 'catalog:my-catalog',
+    },
+  })
 })
