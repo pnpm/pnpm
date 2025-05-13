@@ -12,6 +12,11 @@ export interface WantedDependency {
   dev: boolean
   optional: boolean
   nodeExecPath?: string
+
+  /**
+   * Whether or not to update the specifier in user's package.json file if an
+   * update of that dependency was requested.
+   */
   updateSpec?: boolean
   prevSpecifier?: string
 }

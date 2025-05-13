@@ -567,12 +567,6 @@ async function resolveDependenciesOfImporterDependency (
       ...importer.options,
       parentPkgAliases: importer.parentPkgAliases,
       pickLowestVersion: pickLowestVersion && !importer.updatePackageManifest,
-      // Cataloged dependencies cannot be upgraded yet since they require
-      // updating the pnpm-workspace.yaml file. This will be handled in a future
-      // version of pnpm.
-      updateToLatest: catalogLookup != null
-        ? false
-        : importer.options.updateToLatest,
       pinnedVersion: importer.pinnedVersion,
     },
     extendedWantedDep
@@ -584,6 +578,7 @@ async function resolveDependenciesOfImporterDependency (
     result.resolveDependencyResult.catalogLookup = {
       ...catalogLookup,
       userSpecifiedBareSpecifier: originalBareSpecifier,
+      updateSpec: extendedWantedDep.wantedDependency.updateSpec,
     }
   }
 
@@ -1697,13 +1692,19 @@ function getCatalogReplacementBareSpecifier (
   wantedDependency: WantedDependency
 ): string {
   // The lockfile from a previous installation may have already resolved this
-  // cataloged dependency. Reuse the exact version in the lockfile catalog
-  // snapshot to ensure all projects using the same cataloged dependency get the
-  // same version.
+  // cataloged dependency. Unless an update is requested, reuse the exact
+  // version in the lockfile catalog snapshot to ensure all projects using the
+  // same cataloged dependency get the same version.
   const existingCatalogResolution = wantedLockfile.catalogs
     ?.[catalogLookup.catalogName]
     ?.[wantedDependency.alias]
-  const replacementBareSpecifier = existingCatalogResolution?.specifier === catalogLookup.specifier
+
+  // Hard-coding this to true to test pnpm update code paths. We'll need to
+  // either change how the existing catalog resolution is reused or check
+  // whether this dependency is being updated.
+  const isUpdating = true
+
+  const replacementBareSpecifier = !isUpdating && existingCatalogResolution?.specifier === catalogLookup.specifier
     ? replaceVersionInBareSpecifier(catalogLookup.specifier, existingCatalogResolution.version)
     : catalogLookup.specifier
 

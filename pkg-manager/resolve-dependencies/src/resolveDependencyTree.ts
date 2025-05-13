@@ -75,6 +75,11 @@ export interface CatalogLookupMetadata {
    * originally requested 'catalog:' or 'catalog:default'.
    */
   readonly userSpecifiedBareSpecifier: string
+
+  // TODO: While it's convenient to copy this field from the wanted dep, is
+  // that the best way to do this? The normal update patch matches resolved
+  // dependencies back to their wanted dependencies by index.
+  readonly updateSpec?: boolean
 }
 
 export interface Importer<WantedDepExtraProps> {

@@ -1,4 +1,5 @@
 import path from 'path'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
@@ -93,6 +94,12 @@ export interface ImporterToResolve extends Importer<{
 export interface ResolveDependenciesResult {
   dependenciesByProjectId: DependenciesByProjectId
   dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
+  /**
+   * A partial object of catalog config entries that were changed as a part of a
+   * pnpm update or add command. These should be upserted into
+   * pnpm-workspace.yaml.
+   */
+  updatedCatalogConfigs: Catalogs | undefined
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -275,6 +282,17 @@ export async function resolveDependencies (
     }
   }))
 
+  const updatedCatalogConfigs: Record<string, Record<string, string>> = {}
+  for (const project of projectsToResolve.filter(project => project.updatePackageManifest)) {
+    const resolvedImporter = resolvedImporters[project.id]
+    for (const dep of resolvedImporter.directDependencies) {
+      if (dep.catalogLookup?.updateSpec) {
+        updatedCatalogConfigs[dep.catalogLookup.catalogName] ??= {}
+        updatedCatalogConfigs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier ?? dep.catalogLookup.userSpecifiedBareSpecifier
+      }
+    }
+  }
+
   if (opts.dedupeDirectDeps) {
     const rootDeps = dependenciesByProjectId['.']
     if (rootDeps) {
@@ -303,7 +321,7 @@ export async function resolveDependencies (
     }
   }
 
-  newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
+  newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies), updatedCatalogConfigs)
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
@@ -317,6 +335,7 @@ export async function resolveDependencies (
   return {
     dependenciesByProjectId,
     dependenciesGraph,
+    updatedCatalogConfigs,
     outdatedDependencies,
     linkedDependenciesByProjectId,
     newLockfile,
