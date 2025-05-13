@@ -1196,10 +1196,12 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  fs.writeFileSync('.npmrc', `shared-workspace-lockfile = true
-link-workspace-packages = true
-auto-install-peers=false`, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: true,
+    linkWorkspacePackages: true,
+    autoInstallPeers: false,
+  })
 
   process.chdir('foo')
 
@@ -1264,8 +1266,10 @@ test('dependencies of workspace projects are built during headless installation'
     },
   ])
 
-  fs.writeFileSync('.npmrc', 'shared-workspace-lockfile=false', 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+  })
 
   await execPnpm(['install', '--lockfile-only'])
   await execPnpm(['install', '--frozen-lockfile'])
@@ -1441,8 +1445,11 @@ test('custom virtual store directory in a workspace with not shared lockfile', a
     },
   ])
 
-  fs.writeFileSync('.npmrc', 'virtual-store-dir=virtual-store\nshared-workspace-lockfile=false', 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    virtualStoreDir: 'virtual-store',
+    sharedWorkspaceLockfile: false,
+  })
 
   await execPnpm(['install'])
 
@@ -1485,8 +1492,11 @@ test('custom virtual store directory in a workspace with shared lockfile', async
     },
   ])
 
-  fs.writeFileSync('.npmrc', 'virtual-store-dir=virtual-store\nshared-workspace-lockfile=true', 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    virtualStoreDir: 'virtual-store',
+    sharedWorkspaceLockfile: true,
+  })
 
   await execPnpm(['install'])
 
@@ -1578,8 +1588,10 @@ test('pnpm run should include the workspace root when include-workspace-root is 
     },
   ])
 
-  fs.writeFileSync('.npmrc', 'include-workspace-root', 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    includeWorkspaceRoot: true,
+  })
 
   await execPnpm(['-r', 'test'])
 
@@ -1605,8 +1617,10 @@ test('legacy directory filtering', async () => {
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  fs.writeFileSync('.npmrc', 'legacy-dir-filtering=true', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    legacyDirFiltering: true,
+  })
 
   const { stdout } = execPnpmSync(['list', '--filter=./packages', '--parseable', '--depth=-1'])
   const output = stdout.toString()
@@ -1859,10 +1873,10 @@ test('overrides in workspace project should be taken into account when shared-wo
     },
   ])
 
-  fs.writeFileSync('.npmrc', `
-shared-workspace-lockfile=false
-`, 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+  })
 
   await execPnpm(['install'])
 
@@ -1899,10 +1913,10 @@ test('deploy should keep files created by lifecycle scripts', async () => {
     preparedManifests['project-0'],
   ])
 
-  fs.writeFileSync('.npmrc', `
-inject-workspace-packages=true
-`, 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    injectWorkspacePackages: true,
+  })
 
   const monorepoRoot = process.cwd()
   const deployOutputProjectDir = path.join(makeTempDir(false), './project-0-deployed')
@@ -1950,10 +1964,10 @@ test('rebuild in a directory created with "pnpm deploy" and with "pnpm.neverBuil
     preparedManifests['project-0'],
   ])
 
-  fs.writeFileSync('.npmrc', `
-inject-workspace-packages=true
-`, 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    injectWorkspacePackages: true,
+  })
 
   const monorepoRoot = process.cwd()
   const deployOutputProjectDir = path.join(makeTempDir(false), './project-0-deployed')
