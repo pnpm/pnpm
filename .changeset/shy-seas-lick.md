@@ -1,5 +1,6 @@
 ---
 "@pnpm/config": patch
+"pnpm": patch
 ---
 
-fixed extra-bin-paths not set if using `ignore-script=true` in a monorepo
+`pnpm run` should be able to run commands from the workspace root, if `ignoreScripts` is set tot `true` [#4858](https://github.com/pnpm/pnpm/issues/4858).
