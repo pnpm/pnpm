@@ -2,7 +2,7 @@ import { promises as fs, existsSync } from 'fs'
 import path from 'path'
 import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
-import { type Config, types as allTypes, getDefaultWorkspaceConcurrency } from '@pnpm/config'
+import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { runNpm } from '@pnpm/run-npm'
@@ -32,7 +32,6 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'tag',
     'unsafe-perm',
     'embed-readme',
-    'workspace-concurrency',
   ], allTypes)
 }
 
@@ -101,10 +100,6 @@ export function help (): string {
             description: 'Publish all packages from the workspace',
             name: '--recursive',
             shortAlias: '-r',
-          },
-          {
-            description: `Set the maximum number of concurrency. Default is ${getDefaultWorkspaceConcurrency()}. For unlimited concurrency use Infinity.`,
-            name: '--workspace-concurrency <number>',
           },
         ],
       },
