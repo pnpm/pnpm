@@ -1,6 +1,6 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
-import { type LockfileObject, type ResolvedCatalogEntry } from '@pnpm/lockfile.types'
+import { type CatalogSnapshots, type LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import { type PatchGroupRecord } from '@pnpm/patching.config'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
@@ -138,7 +138,7 @@ export interface ResolveDependenciesOptions {
 export interface ResolveDependencyTreeResult {
   allPeerDepNames: Set<string>
   dependenciesTree: DependenciesTree<ResolvedPackage>
-  newDefaultCatalogs?: Record<string, ResolvedCatalogEntry>
+  newCatalogs?: CatalogSnapshots
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -238,7 +238,7 @@ export async function resolveDependencyTree<T> (
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)
   const directDepsByImporterId = zipObj(importers.map(({ id }) => id), pkgAddressesByImporters)
 
-  let newDefaultCatalogs: Record<string, ResolvedCatalogEntry> | undefined
+  let newCatalogs: CatalogSnapshots | undefined
   for (const directDependencies of pkgAddressesByImporters) {
     for (const directDep of directDependencies as PkgAddress[]) {
       const { alias, normalizedBareSpecifier, version, saveCatalog } = directDep
@@ -250,8 +250,9 @@ export async function resolveDependencyTree<T> (
           )
         }
       } else if (saveCatalog != null && normalizedBareSpecifier != null && version != null) {
-        newDefaultCatalogs ??= {}
-        newDefaultCatalogs[alias] = {
+        newCatalogs ??= {}
+        newCatalogs[saveCatalog] ??= {}
+        newCatalogs[saveCatalog][alias] = {
           specifier: normalizedBareSpecifier,
           version,
         }
@@ -302,7 +303,7 @@ export async function resolveDependencyTree<T> (
 
   return {
     dependenciesTree: ctx.dependenciesTree,
-    newDefaultCatalogs,
+    newCatalogs,
     outdatedDependencies: ctx.outdatedDependencies,
     resolvedImporters,
     resolvedPkgsById: ctx.resolvedPkgsById,

@@ -45,25 +45,42 @@ export async function updateWorkspaceManifest (dir: string, updatedFields: Parti
   await writeManifestFile(dir, manifest)
 }
 
-export async function addDefaultCatalogs (
-  workspaceDir: string,
-  newDefaultCatalogs: Record<string, Pick<ResolvedCatalogEntry, 'specifier'>>
-): Promise<void> {
+export interface NewCatalogs {
+  [catalogName: string]: {
+    [dependencyName: string]: Pick<ResolvedCatalogEntry, 'specifier'>
+  }
+}
+
+export async function addCatalogs (workspaceDir: string, newCatalogs: NewCatalogs): Promise<void> {
   const manifest: Partial<WorkspaceManifest> = await readWorkspaceManifest(workspaceDir) ?? {}
+  let shouldBeUpdated = false
 
-  let targetCatalog: Record<string, string> | undefined = manifest.catalog ?? manifest.catalogs?.default
-  const targetCatalogWasNil = targetCatalog == null
+  for (const catalogName in newCatalogs) {
+    let targetCatalog: Record<string, string> | undefined = catalogName === 'default'
+      ? manifest.catalog ?? manifest.catalogs?.default
+      : manifest.catalogs?.[catalogName]
+    const targetCatalogWasNil = targetCatalog == null
 
-  for (const alias in newDefaultCatalogs) {
-    targetCatalog ??= {}
-    targetCatalog[alias] = newDefaultCatalogs[alias].specifier
+    for (const dependencyName in newCatalogs[catalogName]) {
+      targetCatalog ??= {}
+      targetCatalog[dependencyName] = newCatalogs[catalogName][dependencyName].specifier
+    }
+
+    if (targetCatalog == null) continue
+
+    shouldBeUpdated = true
+
+    if (targetCatalogWasNil) {
+      if (catalogName === 'default') {
+        manifest.catalog = targetCatalog
+      } else {
+        manifest.catalogs ??= {}
+        manifest.catalogs[catalogName] = targetCatalog
+      }
+    }
   }
 
-  if (targetCatalog == null) return
-
-  if (targetCatalogWasNil) {
-    manifest.catalog = targetCatalog
+  if (shouldBeUpdated) {
+    await writeManifestFile(workspaceDir, manifest)
   }
-
-  await writeManifestFile(workspaceDir, manifest)
 }

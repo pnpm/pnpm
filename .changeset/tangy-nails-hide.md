@@ -1,6 +1,7 @@
 ---
 "@pnpm/plugin-commands-installation": minor
 "@pnpm/resolve-dependencies": minor
+"@pnpm/workspace.read-manifest": minor
 "@pnpm/workspace.manifest-writer": minor
 "@pnpm/core": minor
 "@pnpm/config": minor
