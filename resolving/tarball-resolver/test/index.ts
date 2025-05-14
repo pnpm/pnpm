@@ -6,7 +6,7 @@ import { createFetchFromRegistry } from '@pnpm/fetch'
 const fetch = createFetchFromRegistry({})
 const resolveFromTarball = _resolveFromTarball.bind(null, fetch)
 
-test('tarball from npm registry', async () => {
+test('tarball from npm registry (immutable)', async () => {
   const resolutionResult = await resolveFromTarball({ bareSpecifier: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz' })
 
   expect(resolutionResult).toStrictEqual({
@@ -14,6 +14,18 @@ test('tarball from npm registry', async () => {
     normalizedBareSpecifier: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
     resolution: {
       tarball: 'https://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
+    },
+    resolvedVia: 'url',
+  })
+})
+test('tarball from npm.jsr.io registry (immutable)', async () => {
+  const resolutionResult = await resolveFromTarball({ bareSpecifier: 'http://npm.jsr.io/~/11/@jsr/luca__flag/1.0.1.tgz' })
+
+  expect(resolutionResult).toStrictEqual({
+    id: 'https://npm.jsr.io/~/11/@jsr/luca__flag/1.0.1.tgz',
+    normalizedBareSpecifier: 'https://npm.jsr.io/~/11/@jsr/luca__flag/1.0.1.tgz',
+    resolution: {
+      tarball: 'https://npm.jsr.io/~/11/@jsr/luca__flag/1.0.1.tgz',
     },
     resolvedVia: 'url',
   })
@@ -34,14 +46,14 @@ test('tarball from URL that contain port number', async () => {
   })
 })
 
-test('tarball not from npm registry', async () => {
+test('tarball not from npm registry (mutable)', async () => {
   const resolutionResult = await resolveFromTarball({ bareSpecifier: 'https://github.com/hegemonic/taffydb/tarball/master' })
 
   expect(resolutionResult).toStrictEqual({
-    id: 'https://codeload.github.com/hegemonic/taffydb/legacy.tar.gz/refs/heads/master',
-    normalizedBareSpecifier: 'https://codeload.github.com/hegemonic/taffydb/legacy.tar.gz/refs/heads/master',
+    id: 'https://github.com/hegemonic/taffydb/tarball/master',
+    normalizedBareSpecifier: 'https://github.com/hegemonic/taffydb/tarball/master',
     resolution: {
-      tarball: 'https://codeload.github.com/hegemonic/taffydb/legacy.tar.gz/refs/heads/master',
+      tarball: 'https://github.com/hegemonic/taffydb/tarball/master',
     },
     resolvedVia: 'url',
   })
@@ -51,10 +63,10 @@ test('tarballs from GitHub (is-negative)', async () => {
   const resolutionResult = await resolveFromTarball({ bareSpecifier: 'https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz' })
 
   expect(resolutionResult).toStrictEqual({
-    id: 'https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
-    normalizedBareSpecifier: 'https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
+    id: 'https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz',
+    normalizedBareSpecifier: 'https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz',
     resolution: {
-      tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
+      tarball: 'https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz',
     },
     resolvedVia: 'url',
   })
