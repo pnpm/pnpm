@@ -11,6 +11,10 @@ import { type InstallCommandOptions } from './install'
 import { installDeps } from './installDeps'
 import { writeSettings } from '@pnpm/config.config-writer'
 
+export const shorthands: Record<string, string> = {
+  'save-catalog': '--save-catalog-name=default',
+}
+
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
@@ -51,7 +55,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'public-hoist-pattern',
     'registry',
     'reporter',
-    'save-catalog',
+    'save-catalog-name',
     'save-dev',
     'save-exact',
     'save-optional',
@@ -118,8 +122,12 @@ export function help (): string {
             name: '--save-peer',
           },
           {
-            description: 'Save package to the catalog entry',
+            description: 'Save package to the default catalog',
             name: '--save-catalog',
+          },
+          {
+            description: 'Save package to the specified catalog',
+            name: '--save-catalog-name=<name>',
           },
           {
             description: 'Install exact version',

@@ -7,10 +7,6 @@ import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm } from './utils'
 
-const SAVE_CATALOG_DEFAULT = ['--save-catalog=default'] as const // TODO: change this back to `--save-catalog` (without `=default`) when the arg parser is fixed
-
-const saveCatalogAny = (catalogName: string) => [`--save-catalog=${catalogName}`] as const
-
 test('--save-catalog adds catalogs to the manifest of a single package workspace', async () => {
   const manifest: ProjectManifest = {
     name: 'test-save-catalog',
@@ -57,7 +53,7 @@ test('--save-catalog adds catalogs to the manifest of a single package workspace
     },
   } as Partial<LockfileFile>))
 
-  await execPnpm(['add', ...SAVE_CATALOG_DEFAULT, '@pnpm.e2e/foo'])
+  await execPnpm(['add', '--save-catalog', '@pnpm.e2e/foo'])
   expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
@@ -159,7 +155,7 @@ test('--save-catalog adds catalogs to the manifest of a shared lockfile workspac
     },
   } as Partial<LockfileFile>))
 
-  await execPnpm(['--filter=project-1', 'add', ...SAVE_CATALOG_DEFAULT, '@pnpm.e2e/foo'])
+  await execPnpm(['--filter=project-1', 'add', '--save-catalog', '@pnpm.e2e/foo'])
   expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
@@ -271,7 +267,7 @@ test('--save-catalog adds catalogs to the manifest of a multi-lockfile workspace
   }
 
   {
-    await execPnpm(['--filter=project-1', 'add', ...SAVE_CATALOG_DEFAULT, '@pnpm.e2e/foo'])
+    await execPnpm(['--filter=project-1', 'add', '--save-catalog', '@pnpm.e2e/foo'])
 
     const lockfile0: LockfileFile = readYamlFile('project-0/pnpm-lock.yaml')
     expect(lockfile0.catalogs).toStrictEqual({
@@ -362,7 +358,7 @@ test('--save-catalog does not add local workspace dependency as a catalog', asyn
   }
 
   {
-    await execPnpm(['--filter=project-1', 'add', ...SAVE_CATALOG_DEFAULT, 'project-0@workspace:*'])
+    await execPnpm(['--filter=project-1', 'add', '--save-catalog', 'project-0@workspace:*'])
 
     const lockfile: LockfileFile = readYamlFile('pnpm-lock.yaml')
     expect(lockfile.catalogs).toBeUndefined()
@@ -442,7 +438,7 @@ test('--save-catalog does not affect new dependencies from package.json', async 
   } as ProjectManifest)
 
   // add a new dependency by running `pnpm add --save-catalog`
-  await execPnpm(['add', ...SAVE_CATALOG_DEFAULT, '@pnpm.e2e/pkg-c'])
+  await execPnpm(['add', '--save-catalog', '@pnpm.e2e/pkg-c'])
 
   const lockfile = project.readLockfile()
   expect(lockfile.catalogs).toStrictEqual({
@@ -537,7 +533,7 @@ test('--save-catalog does not overwrite existing catalogs', async () => {
     },
   } as Partial<LockfileFile>))
 
-  await execPnpm(['add', '--filter=project-1', ...SAVE_CATALOG_DEFAULT, '@pnpm.e2e/foo@100.1.0', '@pnpm.e2e/bar@100.1.0'])
+  await execPnpm(['add', '--filter=project-1', '--save-catalog', '@pnpm.e2e/foo@100.1.0', '@pnpm.e2e/bar@100.1.0'])
   expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {
@@ -606,7 +602,7 @@ test('--save-catalog creates new workspace manifest with the new catalog (recurs
 
   preparePackages(manifests)
 
-  await execPnpm(['add', '--recursive', ...SAVE_CATALOG_DEFAULT, '@pnpm.e2e/foo@100.1.0'])
+  await execPnpm(['add', '--recursive', '--save-catalog', '@pnpm.e2e/foo@100.1.0'])
 
   expect(readYamlFile('project-0/pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
     catalogs: {
@@ -717,7 +713,7 @@ test('--save-catalog with a non-default catalog name', async () => {
     },
   } as Partial<LockfileFile>))
 
-  await execPnpm(['add', ...saveCatalogAny('my-catalog'), '@pnpm.e2e/foo'])
+  await execPnpm(['add', '--save-catalog-name=my-catalog', '@pnpm.e2e/foo'])
   expect(readYamlFile('pnpm-lock.yaml')).toStrictEqual(expect.objectContaining({
     catalogs: {
       default: {

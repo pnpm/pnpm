@@ -72,7 +72,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 | 'save'
-| 'saveCatalog'
+| 'saveCatalogName'
 | 'saveDev'
 | 'saveExact'
 | 'saveOptional'
@@ -152,7 +152,7 @@ export async function recursive (
     pruneLockfileImporters: opts.pruneLockfileImporters ??
       (((opts.ignoredPackages == null) || opts.ignoredPackages.size === 0) &&
         pkgs.length === allProjects.length),
-    saveCatalog: opts.saveCatalog,
+    saveCatalog: opts.saveCatalogName,
     storeController: store.ctrl,
     storeDir: store.dir,
     targetDependenciesField,

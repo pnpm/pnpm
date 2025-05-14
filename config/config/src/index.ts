@@ -175,7 +175,7 @@ export async function getConfig (opts: {
     'resolution-mode': 'highest',
     'resolve-peers-from-workspace-root': true,
     'save-peer': false,
-    'save-catalog': undefined,
+    'save-catalog-name': undefined,
     'save-workspace-protocol': 'rolling',
     'scripts-prepend-node-path': false,
     'strict-dep-builds': false,

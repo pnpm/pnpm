@@ -9,7 +9,7 @@ import { sync as readYamlFile } from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 
 // This must be a function because some of its values depend on CWD
-const createOptions = (saveCatalog = 'default'): add.AddCommandOptions => ({
+const createOptions = (saveCatalogName = 'default'): add.AddCommandOptions => ({
   ...DEFAULT_OPTS,
   rawConfig: {
     ...DEFAULT_OPTS.rawConfig,
@@ -18,7 +18,7 @@ const createOptions = (saveCatalog = 'default'): add.AddCommandOptions => ({
   registries: {
     ...DEFAULT_OPTS.registries,
   },
-  saveCatalog,
+  saveCatalogName,
   dir: process.cwd(),
   cacheDir: path.resolve('cache'),
   storeDir: path.resolve('store'),
