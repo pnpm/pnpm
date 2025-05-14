@@ -639,7 +639,7 @@ export async function resolveDependencies (
   const postponedResolutionsQueue: PostponedResolutionFunction[] = []
   const postponedPeersResolutionQueue: PostponedPeersResolutionFunction[] = []
   const pkgAddresses: PkgAddress[] = []
-  ;(await Promise.all(
+  await Promise.all(
     extendedWantedDeps.map(async (extendedWantedDep) => {
       const {
         resolveDependencyResult,
@@ -661,7 +661,7 @@ export async function resolveDependencies (
         postponedPeersResolutionQueue.push(postponedPeersResolution)
       }
     })
-  ))
+  )
   const newPreferredVersions = Object.create(preferredVersions) as PreferredVersions
   const currentParentPkgAliases: Record<string, PkgAddress | true> = {}
   for (const pkgAddress of pkgAddresses) {
