@@ -3,6 +3,7 @@ import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
 import {
+  type CatalogSnapshots,
   type LockfileObject,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.types'
@@ -93,6 +94,7 @@ export interface ImporterToResolve extends Importer<{
 export interface ResolveDependenciesResult {
   dependenciesByProjectId: DependenciesByProjectId
   dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
+  newCatalogs?: CatalogSnapshots | undefined
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -135,6 +137,7 @@ export async function resolveDependencies (
     appliedPatches,
     time,
     allPeerDepNames,
+    newCatalogs,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   opts.storeController.clearResolutionCache()
@@ -303,7 +306,17 @@ export async function resolveDependencies (
     }
   }
 
+  // Q: Why would `newLockfile.catalogs` be constructed twice?
+  // A: `getCatalogSnapshots` handles new dependencies that were resolved as `catalog:*` (e.g. new entries in `package.json` whose values were `catalog:*`),
+  //    and `newCatalogs` handles dependencies that were added as CLI parameters from `pnpm add --save-catalog`.
   newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
+  for (const catalogName in newCatalogs) {
+    for (const dependencyName in newCatalogs[catalogName]) {
+      newLockfile.catalogs ??= {}
+      newLockfile.catalogs[catalogName] ??= {}
+      newLockfile.catalogs[catalogName][dependencyName] = newCatalogs[catalogName][dependencyName]
+    }
+  }
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
@@ -319,6 +332,7 @@ export async function resolveDependencies (
     dependenciesGraph,
     outdatedDependencies,
     linkedDependenciesByProjectId,
+    newCatalogs,
     newLockfile,
     peerDependencyIssuesByProjects,
     waitTillAllFetchingsFinish,

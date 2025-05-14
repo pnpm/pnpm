@@ -88,6 +88,7 @@ export const types = Object.assign({
   'aggregate-output': Boolean,
   'reporter-hide-prefix': Boolean,
   'save-peer': Boolean,
+  'save-catalog-name': String,
   'save-workspace-protocol': Boolean,
   'script-shell': String,
   'shamefully-flatten': Boolean,

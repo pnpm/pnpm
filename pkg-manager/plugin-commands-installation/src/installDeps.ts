@@ -22,6 +22,7 @@ import {
 } from '@pnpm/core'
 import { globalInfo, logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
+import { addCatalogs } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import isSubdir from 'is-subdir'
@@ -313,9 +314,12 @@ when running add/update with the --workspace option')
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const { newCatalogs, updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false) {
-      await writeProjectManifest(updatedProject.manifest)
+      await Promise.all([
+        writeProjectManifest(updatedProject.manifest),
+        newCatalogs && addCatalogs(opts.workspaceDir ?? opts.dir, newCatalogs),
+      ])
     }
     if (!opts.lockfileOnly) {
       await updateWorkspaceState({
@@ -333,9 +337,12 @@ when running add/update with the --workspace option')
     return
   }
 
-  const { updatedManifest, ignoredBuilds } = await install(manifest, installOpts)
+  const { newCatalogs, updatedManifest, ignoredBuilds } = await install(manifest, installOpts)
   if (opts.update === true && opts.save !== false) {
-    await writeProjectManifest(updatedManifest)
+    await Promise.all([
+      writeProjectManifest(updatedManifest),
+      newCatalogs && addCatalogs(opts.workspaceDir ?? opts.dir, newCatalogs),
+    ])
   }
   if (opts.strictDepBuilds && ignoredBuilds?.length) {
     throw new IgnoredBuildsError(ignoredBuilds)

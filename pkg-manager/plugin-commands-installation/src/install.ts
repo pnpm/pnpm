@@ -297,6 +297,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'savePeer'
 | 'savePrefix'
 | 'saveProd'
+| 'saveCatalogName'
 | 'saveWorkspaceProtocol'
 | 'lockfileIncludeTarballUrl'
 | 'allProjectsGraph'

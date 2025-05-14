@@ -1,6 +1,7 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
-import { type LockfileObject } from '@pnpm/lockfile.types'
+import { type CatalogSnapshots, type LockfileObject } from '@pnpm/lockfile.types'
+import { globalWarn } from '@pnpm/logger'
 import { type PatchGroupRecord } from '@pnpm/patching.config'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
@@ -136,6 +137,7 @@ export interface ResolveDependenciesOptions {
 export interface ResolveDependencyTreeResult {
   allPeerDepNames: Set<string>
   dependenciesTree: DependenciesTree<ResolvedPackage>
+  newCatalogs?: CatalogSnapshots
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -234,6 +236,29 @@ export async function resolveDependencyTree<T> (
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)
   const directDepsByImporterId = zipObj(importers.map(({ id }) => id), pkgAddressesByImporters)
 
+  let newCatalogs: CatalogSnapshots | undefined
+  for (const directDependencies of pkgAddressesByImporters) {
+    for (const directDep of directDependencies as PkgAddress[]) {
+      const { alias, normalizedBareSpecifier, version, saveCatalogName } = directDep
+      const existingCatalog = opts.catalogs?.default?.[alias]
+      if (existingCatalog != null) {
+        if (existingCatalog !== normalizedBareSpecifier) {
+          globalWarn(
+            `Skip adding ${alias} to catalogs.${saveCatalogName} because it already exists as ${existingCatalog}`
+          )
+        }
+      } else if (saveCatalogName != null && normalizedBareSpecifier != null && version != null) {
+        newCatalogs ??= {}
+        newCatalogs[saveCatalogName] ??= {}
+        newCatalogs[saveCatalogName][alias] = {
+          specifier: normalizedBareSpecifier,
+          version,
+        }
+        directDep.normalizedBareSpecifier = `catalog:${saveCatalogName === 'default' ? '' : saveCatalogName}`
+      }
+    }
+  }
+
   for (const pendingNode of ctx.pendingNodes) {
     ctx.dependenciesTree.set(pendingNode.nodeId, {
       children: () => buildTree(ctx, pendingNode.resolvedPackage.id,
@@ -276,6 +301,7 @@ export async function resolveDependencyTree<T> (
 
   return {
     dependenciesTree: ctx.dependenciesTree,
+    newCatalogs,
     outdatedDependencies: ctx.outdatedDependencies,
     resolvedImporters,
     resolvedPkgsById: ctx.resolvedPkgsById,

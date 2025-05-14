@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare-temp-dir"
     },
     {
+      "path": "../../lockfile/types"
+    },
+    {
       "path": "../../object/key-sorting"
     },
     {
