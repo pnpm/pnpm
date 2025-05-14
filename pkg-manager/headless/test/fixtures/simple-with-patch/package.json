@@ -10,10 +10,5 @@
   },
   "optionalDependencies": {
     "colors": "1.2.0"
-  },
-  "pnpm": {
-    "patchedDependencies": {
-      "is-positive": "patches/is-positive.patch"
-    }
   }
 }
