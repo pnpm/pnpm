@@ -667,7 +667,7 @@ test('--save-catalog creates new workspace manifest with the new catalog (recurs
   } as ProjectManifest)
 })
 
-test('--save-catalog with a non-default catalog name', async () => {
+test('--save-catalog-name', async () => {
   const manifest: ProjectManifest = {
     name: 'test-save-catalog',
     version: '0.0.0',
