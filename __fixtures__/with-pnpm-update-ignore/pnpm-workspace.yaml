@@ -1,0 +1,3 @@
+updateConfig:
+  ignoreDependencies:
+    - is-positive

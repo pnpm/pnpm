@@ -1,4 +1,3 @@
-import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type LockfileFile } from '@pnpm/lockfile.types'
@@ -35,9 +34,11 @@ test('deduplicate packages that have peers, when adding new dependency in a work
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  fs.writeFileSync('.npmrc', `dedupe-peer-dependents=true
-auto-install-peers=false`, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    dedupePeerDependents: true,
+    autoInstallPeers: false,
+  })
   await execPnpm(['install'])
   await execPnpm(['--filter=project-2', 'add', '@pnpm.e2e/abc@1.0.0'])
 
@@ -78,9 +79,11 @@ test('partial update in a workspace should work with dedupe-peer-dependents is t
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  fs.writeFileSync('.npmrc', `dedupe-peer-dependents=true
-auto-install-peers=false`, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    dedupePeerDependents: true,
+    autoInstallPeers: false,
+  })
   await execPnpm(['install'])
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.1', distTag: 'latest' })
   process.chdir('project-2')
@@ -121,9 +124,11 @@ test('partial update --latest in a workspace should not affect other packages wh
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  fs.writeFileSync('.npmrc', `dedupe-peer-dependents=true
-auto-install-peers=false`, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    dedupePeerDependents: true,
+    autoInstallPeers: false,
+  })
   await execPnpm(['install'])
 
   await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
@@ -171,9 +176,11 @@ test('peer dependents deduplication should not remove peer dependencies', async 
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  fs.writeFileSync('.npmrc', `dedupe-peer-dependents=true
-auto-install-peers=true`, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    dedupePeerDependents: true,
+    autoInstallPeers: true,
+  })
   await execPnpm(['install'])
   await execPnpm(['--filter=project-2', 'add', 'is-positive@1.0.0'])
 
