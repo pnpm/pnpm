@@ -65,7 +65,6 @@ import {
   type DependenciesField,
   type DependencyManifest,
   type PeerDependencyIssues,
-  type Project,
   type ProjectId,
   type ProjectManifest,
   type ReadPackageHook,
@@ -513,9 +512,9 @@ export async function mutateModules (
         forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepBareSpecifierSame)
       }
       if (opts.ignoreScripts && project.manifest?.scripts &&
-        (project.manifest.scripts.preinstall ||
-          project.manifest.scripts.install ||
-          project.manifest.scripts.postinstall ||
+        (project.manifest.scripts.preinstall ??
+          project.manifest.scripts.install ??
+          project.manifest.scripts.postinstall ??
           project.manifest.scripts.prepare)
       ) {
         ctx.pendingBuilds.push(project.id)
@@ -546,8 +545,8 @@ export async function mutateModules (
 
     async function installSome (project: InstallSomeProject) {
       const currentBareSpecifiers = opts.ignoreCurrentSpecifiers ? {} : getAllDependenciesFromManifest(project.manifest)
-      const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies || {}
-      const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies || {}
+      const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies ?? {}
+      const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies ?? {}
       if (preferredSpecs == null) {
         const manifests = []
         for (const versions of ctx.workspacePackages.values()) {
