@@ -539,7 +539,7 @@ export async function mutateModules (
         optionalDependencies,
         updateWorkspaceDependencies: project.update,
         preferredSpecs,
-        saveCatalog: opts.saveCatalog,
+        saveCatalog: opts.saveCatalogName,
         overrides: opts.overrides,
         defaultCatalog: opts.catalogs?.default,
       })

@@ -11,10 +11,6 @@ import { DEFAULT_OPTS } from './utils'
 // This must be a function because some of its values depend on CWD
 const createOptions = (saveCatalogName = 'default'): add.AddCommandOptions => ({
   ...DEFAULT_OPTS,
-  rawConfig: {
-    ...DEFAULT_OPTS.rawConfig,
-    'save-catalog': true,
-  },
   registries: {
     ...DEFAULT_OPTS.registries,
   },
