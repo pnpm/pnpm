@@ -119,7 +119,6 @@ export interface ResolveDependenciesOptions {
   pnpmVersion: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
-  saveCatalog?: string
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   resolvePeersFromWorkspaceRoot?: boolean
   injectWorkspacePackages?: boolean
@@ -182,7 +181,6 @@ export async function resolveDependencyTree<T> (
     registries: opts.registries,
     resolvedPkgsById: {} as ResolvedPkgsById,
     resolutionMode: opts.resolutionMode,
-    saveCatalog: opts.saveCatalog,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
