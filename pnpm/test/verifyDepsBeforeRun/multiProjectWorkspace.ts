@@ -759,8 +759,10 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
     projects[name].writePackageJson(manifests[name])
   }
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  writeYamlFile('.npmrc', 'verify-deps-before-run=error')
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    // verifyDepsBeforeRun: 'error',
+  })
 
   // attempting to execute a script without installing dependencies should fail
   {

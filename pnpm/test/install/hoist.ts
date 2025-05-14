@@ -1,4 +1,3 @@
-import fs from 'fs'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm } from '../utils'
@@ -35,7 +34,7 @@ test('shamefully hoist the dependency graph', async () => {
   project.hasNot('cookie')
 })
 
-test('shamefully-hoist: applied to all the workspace projects when set to true in the root .npmrc file', async () => {
+test('shamefully-hoist: applied to all the workspace projects when set to true in the root pnpm-workspace.yaml file', async () => {
   const projects = preparePackages([
     {
       location: '.',
@@ -57,8 +56,10 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  fs.writeFileSync('.npmrc', 'shamefully-hoist=true', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    shamefullyHoist: true,
+  })
 
   await execPnpm(['install'])
 
@@ -69,7 +70,7 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
   projects.project.has('@pnpm.e2e/foobar')
 })
 
-test('shamefully-hoist: applied to all the workspace projects when set to true in the root .npmrc file (with dedupe-direct-deps=true)', async () => {
+test('shamefully-hoist: applied to all the workspace projects when set to true in the root pnpm-workspace.yaml file (with dedupe-direct-deps=true)', async () => {
   const projects = preparePackages([
     {
       location: '.',
@@ -91,9 +92,11 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
     },
   ])
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  fs.writeFileSync('.npmrc', `shamefully-hoist=true
-dedupe-direct-deps=true`, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    shamefullyHoist: true,
+    dedupeDirectDeps: true,
+  })
 
   await execPnpm(['install'])
 
