@@ -12,7 +12,7 @@ export interface WantedDependency {
   dev: boolean
   optional: boolean
   nodeExecPath?: string
-  saveCatalog?: string
+  saveCatalogName?: string
   updateSpec?: boolean
   prevSpecifier?: string
 }

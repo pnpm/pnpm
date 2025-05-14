@@ -11,16 +11,13 @@ import { DEFAULT_OPTS } from './utils'
 // This must be a function because some of its values depend on CWD
 const createOptions = (saveCatalogName = 'default'): add.AddCommandOptions => ({
   ...DEFAULT_OPTS,
-  registries: {
-    ...DEFAULT_OPTS.registries,
-  },
   saveCatalogName,
   dir: process.cwd(),
   cacheDir: path.resolve('cache'),
   storeDir: path.resolve('store'),
 })
 
-test('saveCatalog creates new workspace manifest with the new catalogs', async () => {
+test('saveCatalogName creates new workspace manifest with the new catalogs', async () => {
   const project = prepare({
     name: 'test-save-catalog',
     version: '0.0.0',
@@ -66,7 +63,7 @@ test('saveCatalog creates new workspace manifest with the new catalogs', async (
   } as Partial<LockfileFile>))
 })
 
-test('saveCatalog works with different protocols', async () => {
+test('saveCatalogName works with different protocols', async () => {
   const project = prepare({
     name: 'test-save-catalog',
     version: '0.0.0',
@@ -131,7 +128,7 @@ test('saveCatalog works with different protocols', async () => {
   } as Partial<LockfileFile>))
 })
 
-test('saveCatalog does not work with local dependencies', async () => {
+test('saveCatalogName does not work with local dependencies', async () => {
   preparePackages([
     {
       name: 'local-dep',
@@ -166,7 +163,7 @@ test('saveCatalog does not work with local dependencies', async () => {
   expect(readYamlFile('pnpm-lock.yaml')).not.toHaveProperty(['catalogs'])
 })
 
-test('saveCatalog with non-default name', async () => {
+test('saveCatalogName with non-default name', async () => {
   const project = prepare({
     name: 'test-save-catalog',
     version: '0.0.0',

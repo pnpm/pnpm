@@ -152,7 +152,7 @@ export async function recursive (
     pruneLockfileImporters: opts.pruneLockfileImporters ??
       (((opts.ignoredPackages == null) || opts.ignoredPackages.size === 0) &&
         pkgs.length === allProjects.length),
-    saveCatalog: opts.saveCatalogName,
+    saveCatalogName: opts.saveCatalogName,
     storeController: store.ctrl,
     storeDir: store.dir,
     targetDependenciesField,

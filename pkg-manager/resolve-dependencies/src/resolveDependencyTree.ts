@@ -239,22 +239,22 @@ export async function resolveDependencyTree<T> (
   let newCatalogs: CatalogSnapshots | undefined
   for (const directDependencies of pkgAddressesByImporters) {
     for (const directDep of directDependencies as PkgAddress[]) {
-      const { alias, normalizedBareSpecifier, version, saveCatalog } = directDep
+      const { alias, normalizedBareSpecifier, version, saveCatalogName } = directDep
       const existingCatalog = opts.catalogs?.default?.[alias]
       if (existingCatalog != null) {
         if (existingCatalog !== normalizedBareSpecifier) {
           globalWarn(
-            `Skip adding ${alias} to catalogs.${saveCatalog} because it already exists as ${existingCatalog}`
+            `Skip adding ${alias} to catalogs.${saveCatalogName} because it already exists as ${existingCatalog}`
           )
         }
-      } else if (saveCatalog != null && normalizedBareSpecifier != null && version != null) {
+      } else if (saveCatalogName != null && normalizedBareSpecifier != null && version != null) {
         newCatalogs ??= {}
-        newCatalogs[saveCatalog] ??= {}
-        newCatalogs[saveCatalog][alias] = {
+        newCatalogs[saveCatalogName] ??= {}
+        newCatalogs[saveCatalogName][alias] = {
           specifier: normalizedBareSpecifier,
           version,
         }
-        directDep.normalizedBareSpecifier = `catalog:${saveCatalog === 'default' ? '' : saveCatalog}`
+        directDep.normalizedBareSpecifier = `catalog:${saveCatalogName === 'default' ? '' : saveCatalogName}`
       }
     }
   }

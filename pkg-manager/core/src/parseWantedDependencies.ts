@@ -16,7 +16,7 @@ export function parseWantedDependencies (
     overrides?: Record<string, string>
     updateWorkspaceDependencies?: boolean
     preferredSpecs?: Record<string, string>
-    saveCatalog?: string
+    saveCatalogName?: string
     defaultCatalog?: Catalog
   }
 ): WantedDependency[] {
@@ -44,7 +44,7 @@ export function parseWantedDependencies (
         dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
         optional: Boolean(opts.optional || alias && !!opts.optionalDependencies[alias]),
         prevSpecifier: alias && opts.currentBareSpecifiers[alias],
-        saveCatalog: opts.saveCatalog,
+        saveCatalogName: opts.saveCatalogName,
       } satisfies Partial<WantedDependency>
       if (bareSpecifier) {
         return {

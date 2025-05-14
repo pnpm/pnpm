@@ -204,7 +204,7 @@ export type PkgAddress = {
   catalogLookup?: CatalogLookupMetadata
   optional: boolean
   normalizedBareSpecifier?: string
-  saveCatalog?: string
+  saveCatalogName?: string
 } & ({
   isLinkedDependency: true
   version: string
@@ -1582,7 +1582,7 @@ async function resolveDependency (
     missingPeers: getMissingPeers(pkg),
     optional: resolvedPkg.optional,
     version: resolvedPkg.version,
-    saveCatalog: wantedDependency.saveCatalog,
+    saveCatalogName: wantedDependency.saveCatalogName,
 
     // Next fields are actually only needed when isNew = true
     installable,
