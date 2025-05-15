@@ -38,7 +38,7 @@ export type Resolution =
   GitResolution |
   ({ type: string } & object)
 
-export type ResolveVia =
+export type ResolvedVia =
   | 'npm-registry'
   | 'jsr-registry'
   | 'git-repository'
@@ -60,7 +60,7 @@ export interface ResolveResultBase {
   publishedAt?: string
   manifest?: DependencyManifest
   resolution: Resolution
-  resolvedVia: ResolveVia
+  resolvedVia: ResolvedVia
   normalizedBareSpecifier?: string
   alias?: string
 }
