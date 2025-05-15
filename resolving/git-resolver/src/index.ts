@@ -10,6 +10,7 @@ export { createGitHostedPkgId }
 export type { HostedPackageSpec }
 
 export interface GitResolveResult extends ResolveResult {
+  normalizedBareSpecifier: string
   resolution: GitResolution | TarballResolution
   resolvedVia: 'git-repository'
 }
