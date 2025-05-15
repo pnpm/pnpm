@@ -3,14 +3,18 @@ import path from 'path'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type LocalResolveResult } from '@pnpm/resolver-base'
+import { type DirectoryResolution, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
 import { type DependencyManifest } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
 import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier'
 
-export {
-  type LocalResolveResult as ResolveFromLocalResult,
-  type WantedLocalDependency,
+export { type WantedLocalDependency }
+
+export interface LocalResolveResult extends ResolveResult {
+  manifest?: DependencyManifest
+  normalizedBareSpecifier: string
+  resolution: DirectoryResolution | TarballResolution
+  resolvedVia: 'local-filesystem'
 }
 
 /**

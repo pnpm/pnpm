@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry, type GetAuthHeader } from '@pnpm/fetching-types'
 import { type GitResolveResult, createGitResolver } from '@pnpm/git-resolver'
-import { resolveFromLocal } from '@pnpm/local-resolver'
+import { type LocalResolveResult, resolveFromLocal } from '@pnpm/local-resolver'
 import {
   createNpmResolver,
   type JsrResolveResult,
@@ -13,7 +13,6 @@ import {
   type ResolverFactoryOptions,
 } from '@pnpm/npm-resolver'
 import {
-  type LocalResolveResult,
   type ResolveFunction,
   type ResolveOptions,
   type UrlResolveResult,

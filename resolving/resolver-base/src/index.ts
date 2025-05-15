@@ -57,13 +57,6 @@ export interface ResolveResult {
   alias?: string
 }
 
-export interface LocalResolveResult extends ResolveResult {
-  manifest?: DependencyManifest
-  normalizedBareSpecifier: string
-  resolution: DirectoryResolution | TarballResolution
-  resolvedVia: 'local-filesystem'
-}
-
 export interface UrlResolveResult extends ResolveResult {
   normalizedBareSpecifier: string
   resolution: TarballResolution
