@@ -73,6 +73,8 @@ export interface NpmResolveResult extends ResolveResultBase {
 }
 
 export interface JsrResolveResult extends ResolveResultBase {
+  alias: string
+  manifest: DependencyManifest
   resolution: TarballResolution
   resolvedVia: 'jsr-registry'
 }
