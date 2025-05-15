@@ -66,6 +66,8 @@ export interface ResolveResultBase {
 }
 
 export interface NpmResolveResult extends ResolveResultBase {
+  latest: string
+  manifest: DependencyManifest
   resolution: TarballResolution
   resolvedVia: 'npm-registry'
 }
