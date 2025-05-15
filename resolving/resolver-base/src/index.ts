@@ -92,6 +92,7 @@ export interface LocalResolveResult extends ResolveResultBase {
 }
 
 export interface UrlResolveResult extends ResolveResultBase {
+  normalizedBareSpecifier: string
   resolution: TarballResolution
   resolvedVia: 'url'
 }
