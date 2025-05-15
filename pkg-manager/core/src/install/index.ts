@@ -474,13 +474,13 @@ export async function mutateModules (
       case 'install': {
         await installCase({
           ...projectOpts,
-          updatePackageManifest: (projectOpts as InstallDepsMutation).updatePackageManifest ?? (projectOpts as InstallDepsMutation).update,
+          updatePackageManifest: (projectOpts as InstallDepsMutation).updatePackageManifest ?? (projectOpts as InstallDepsMutation).update!,
         })
         break
       }
       case 'installSome': {
         await installSome({
-          ...projectOpts,
+          ...projectOpts as InstallSomeProject,
           updatePackageManifest: (projectOpts as InstallSomeDepsMutation).updatePackageManifest !== false,
         })
         break
@@ -489,7 +489,18 @@ export async function mutateModules (
     }
     /* eslint-enable no-await-in-loop */
 
-    async function installCase (project: any) { // eslint-disable-line
+    type InstallCaseProject = Pick<ImporterToUpdate,
+    | 'binsDir'
+    | 'buildIndex'
+    | 'id'
+    | 'manifest'
+    | 'modulesDir'
+    | 'mutation'
+    | 'rootDir'
+    | 'updatePackageManifest'
+    >
+
+    async function installCase (project: InstallCaseProject) {
       const wantedDependencies = getWantedDependencies(project.manifest, {
         autoInstallPeers: opts.autoInstallPeers,
         includeDirect: opts.includeDirect,
@@ -501,9 +512,9 @@ export async function mutateModules (
         forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepBareSpecifierSame)
       }
       if (opts.ignoreScripts && project.manifest?.scripts &&
-        (project.manifest.scripts.preinstall ||
-          project.manifest.scripts.install ||
-          project.manifest.scripts.postinstall ||
+        (project.manifest.scripts.preinstall != null ||
+          project.manifest.scripts.install != null ||
+          project.manifest.scripts.postinstall != null ||
           project.manifest.scripts.prepare)
       ) {
         ctx.pendingBuilds.push(project.id)
@@ -513,13 +524,29 @@ export async function mutateModules (
         pruneDirectDependencies: false,
         ...project,
         wantedDependencies,
-      })
+      } as ImporterToUpdate)
     }
 
-    async function installSome (project: any) { // eslint-disable-line
+    type InstallSomeProject = Pick<ImporterToUpdate,
+    | 'binsDir'
+    | 'buildIndex'
+    | 'id'
+    | 'manifest'
+    | 'modulesDir'
+    | 'mutation'
+    | 'rootDir'
+    | 'updatePackageManifest'
+    > & Pick<InstallSomeDepsMutation,
+    | 'allowNew'
+    | 'dependencySelectors'
+    | 'targetDependenciesField'
+    | 'update'
+    >
+
+    async function installSome (project: InstallSomeProject) {
       const currentBareSpecifiers = opts.ignoreCurrentSpecifiers ? {} : getAllDependenciesFromManifest(project.manifest)
-      const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies || {}
-      const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies || {}
+      const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies ?? {}
+      const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies ?? {}
       if (preferredSpecs == null) {
         const manifests = []
         for (const versions of ctx.workspacePackages.values()) {
@@ -547,7 +574,7 @@ export async function mutateModules (
         pruneDirectDependencies: false,
         ...project,
         wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true, nodeExecPath: opts.nodeExecPath })),
-      })
+      } as ImporterToUpdate)
     }
 
     // Unfortunately, the private lockfile may differ from the public one.
