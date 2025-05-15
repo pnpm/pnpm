@@ -83,7 +83,7 @@ export interface GitResolveResult extends ResolveResultBase {
 export interface LocalResolveResult extends ResolveResultBase {
   manifest?: DependencyManifest
   normalizedBareSpecifier: string
-  resolution: TarballResolution | DirectoryResolution
+  resolution: DirectoryResolution | TarballResolution
   resolvedVia: 'local-filesystem'
 }
 
