@@ -38,21 +38,13 @@ export type Resolution =
   GitResolution |
   ({ type: string } & object)
 
-export type ResolvedVia =
-  | 'npm-registry'
-  | 'jsr-registry'
-  | 'git-repository'
-  | 'local-filesystem'
-  | 'url'
-  | 'workspace'
-
 export interface ResolveResult {
   id: PkgResolutionId
   latest?: string
   publishedAt?: string
   manifest?: DependencyManifest
   resolution: Resolution
-  resolvedVia: ResolvedVia
+  resolvedVia: string
   normalizedBareSpecifier?: string
   alias?: string
 }
