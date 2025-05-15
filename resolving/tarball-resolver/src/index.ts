@@ -11,7 +11,7 @@ export async function resolveFromTarball (
 
   if (isRepository(wantedDependency.bareSpecifier)) return null
 
-  let resolvedUrl
+  let resolvedUrl: string
 
   // If there are redirects and the response is immutable, we want to get the final URL address
   const response = await fetchFromRegistry(wantedDependency.bareSpecifier, { method: 'HEAD' })
