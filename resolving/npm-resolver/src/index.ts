@@ -77,7 +77,10 @@ export interface ResolverFactoryOptions {
   saveWorkspaceProtocol?: boolean | 'rolling'
 }
 
-export type NpmResolver = (wantedDependency: WantedDependency, opts: ResolveFromNpmOptions) => Promise<NpmResolveResult | JsrResolveResult | WorkspaceResolveResult | null>
+export type NpmResolver = (
+  wantedDependency: WantedDependency,
+  opts: ResolveFromNpmOptions
+) => Promise<NpmResolveResult | JsrResolveResult | WorkspaceResolveResult | null>
 
 export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
