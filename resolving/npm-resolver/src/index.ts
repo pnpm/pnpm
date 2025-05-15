@@ -13,7 +13,6 @@ import {
   type JsrResolveResult,
   type PkgResolutionId,
   type PreferredVersions,
-  type ResolveResult,
   type WantedDependency,
   type WorkspacePackage,
   type WorkspacePackages,
