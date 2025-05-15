@@ -47,6 +47,7 @@ test.each([
 
 test.each([
   ['git+https://github.com/pnpm/pnpm.git', 'https://github.com/pnpm/pnpm.git'],
+  ['git+ssh://git@sub.domain.tld:internal-app/sub-path/service-name.git', 'ssh://git@sub.domain.tld/internal-app/sub-path/service-name.git'],
 ])('the fetchSpec of %s should be %s', async (input, output) => {
   const parsed = await parseBareSpecifier(input, {})
   expect(parsed?.fetchSpec).toBe(output)
