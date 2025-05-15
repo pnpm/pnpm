@@ -25,7 +25,7 @@ export function createGitResolver (
       ? 'HEAD'
       : parsedSpec.gitCommittish
     const commit = await resolveRef(parsedSpec.fetchSpec, bareSpecifier, parsedSpec.gitRange)
-    let resolution
+    let resolution: GitResolution | TarballResolution | undefined
 
     if ((parsedSpec.hosted != null) && !isSsh(parsedSpec.fetchSpec)) {
       // don't use tarball for ssh url, they are likely private repo
@@ -35,7 +35,7 @@ export function createGitResolver (
       const tarball = hosted.tarball?.()
 
       if (tarball) {
-        resolution = { tarball } as TarballResolution
+        resolution = { tarball }
       }
     }
 
@@ -44,7 +44,7 @@ export function createGitResolver (
         commit,
         repo: parsedSpec.fetchSpec,
         type: 'git',
-      } as GitResolution
+      }
     }
 
     if (parsedSpec.path) {

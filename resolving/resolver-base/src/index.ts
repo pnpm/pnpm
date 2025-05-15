@@ -66,14 +66,17 @@ export interface ResolveResultBase {
 }
 
 export interface NpmResolveResult extends ResolveResultBase {
+  resolution: TarballResolution
   resolvedVia: 'npm-registry'
 }
 
 export interface JsrResolveResult extends ResolveResultBase {
+  resolution: TarballResolution
   resolvedVia: 'jsr-registry'
 }
 
 export interface GitResolveResult extends ResolveResultBase {
+  resolution: GitResolution | TarballResolution
   resolvedVia: 'git-repository'
 }
 
@@ -85,6 +88,7 @@ export interface LocalResolveResult extends ResolveResultBase {
 }
 
 export interface UrlResolveResult extends ResolveResultBase {
+  resolution: TarballResolution
   resolvedVia: 'url'
 }
 
