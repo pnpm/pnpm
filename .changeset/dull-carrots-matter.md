@@ -1,9 +1,10 @@
 ---
+"@pnpm/default-resolver": minor
 "@pnpm/tarball-resolver": minor
-"@pnpm/local-resolver": minor
-"@pnpm/resolver-base": minor
+"@pnpm/local-resolver": major
+"@pnpm/resolver-base": major
 "@pnpm/git-resolver": minor
 "@pnpm/npm-resolver": minor
 ---
 
-Fix the type of `ResolveResult.resolvedVia` and create different resolver types.
+Create different resolver result types which provide more information.
