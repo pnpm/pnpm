@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry, type GetAuthHeader } from '@pnpm/fetching-types'
-import { createGitResolver } from '@pnpm/git-resolver'
+import { type GitResolveResult, createGitResolver } from '@pnpm/git-resolver'
 import { resolveFromLocal } from '@pnpm/local-resolver'
 import {
   createNpmResolver,
@@ -13,7 +13,6 @@ import {
   type ResolverFactoryOptions,
 } from '@pnpm/npm-resolver'
 import {
-  type GitResolveResult,
   type LocalResolveResult,
   type ResolveFunction,
   type ResolveOptions,

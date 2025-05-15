@@ -57,11 +57,6 @@ export interface ResolveResult {
   alias?: string
 }
 
-export interface GitResolveResult extends ResolveResult {
-  resolution: GitResolution | TarballResolution
-  resolvedVia: 'git-repository'
-}
-
 export interface LocalResolveResult extends ResolveResult {
   manifest?: DependencyManifest
   normalizedBareSpecifier: string
