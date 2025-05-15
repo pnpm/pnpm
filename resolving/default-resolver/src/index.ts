@@ -9,7 +9,17 @@ import {
   type ResolveFromNpmOptions,
   type ResolverFactoryOptions,
 } from '@pnpm/npm-resolver'
-import { type ResolveFunction } from '@pnpm/resolver-base'
+import {
+  type GitResolveResult,
+  type JsrResolveResult,
+  type LocalResolveResult,
+  type NpmResolveResult,
+  type ResolveFunction,
+  type ResolveOptions,
+  type UrlResolveResult,
+  type WantedDependency,
+  type WorkspaceResolveResult,
+} from '@pnpm/resolver-base'
 import { resolveFromTarball } from '@pnpm/tarball-resolver'
 
 export type {
@@ -19,11 +29,21 @@ export type {
   ResolverFactoryOptions,
 }
 
+export type DefaultResolveResult =
+  | NpmResolveResult
+  | JsrResolveResult
+  | GitResolveResult
+  | LocalResolveResult
+  | UrlResolveResult
+  | WorkspaceResolveResult
+
+export type DefaultResolver = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<DefaultResolveResult>
+
 export function createResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   pnpmOpts: ResolverFactoryOptions
-): { resolve: ResolveFunction, clearCache: () => void } {
+): { resolve: DefaultResolver, clearCache: () => void } {
   const { resolveFromNpm, resolveFromJsr, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
   const resolveFromGit = createGitResolver(pnpmOpts)
   return {

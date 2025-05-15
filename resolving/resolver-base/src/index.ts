@@ -46,15 +46,7 @@ export type ResolvedVia =
   | 'url'
   | 'workspace'
 
-export type ResolveResult =
-  | NpmResolveResult
-  | JsrResolveResult
-  | GitResolveResult
-  | LocalResolveResult
-  | UrlResolveResult
-  | WorkspaceResolveResult
-
-export interface ResolveResultBase {
+export interface ResolveResult {
   id: PkgResolutionId
   latest?: string
   publishedAt?: string
@@ -65,33 +57,33 @@ export interface ResolveResultBase {
   alias?: string
 }
 
-export interface NpmResolveResult extends ResolveResultBase {
+export interface NpmResolveResult extends ResolveResult {
   latest: string
   manifest: DependencyManifest
   resolution: TarballResolution
   resolvedVia: 'npm-registry'
 }
 
-export interface JsrResolveResult extends ResolveResultBase {
+export interface JsrResolveResult extends ResolveResult {
   alias: string
   manifest: DependencyManifest
   resolution: TarballResolution
   resolvedVia: 'jsr-registry'
 }
 
-export interface GitResolveResult extends ResolveResultBase {
+export interface GitResolveResult extends ResolveResult {
   resolution: GitResolution | TarballResolution
   resolvedVia: 'git-repository'
 }
 
-export interface LocalResolveResult extends ResolveResultBase {
+export interface LocalResolveResult extends ResolveResult {
   manifest?: DependencyManifest
   normalizedBareSpecifier: string
   resolution: DirectoryResolution | TarballResolution
   resolvedVia: 'local-filesystem'
 }
 
-export interface UrlResolveResult extends ResolveResultBase {
+export interface UrlResolveResult extends ResolveResult {
   normalizedBareSpecifier: string
   resolution: TarballResolution
   resolvedVia: 'url'
@@ -100,7 +92,7 @@ export interface UrlResolveResult extends ResolveResultBase {
 /**
  * A dependency on a workspace package.
  */
-export interface WorkspaceResolveResult extends ResolveResultBase {
+export interface WorkspaceResolveResult extends ResolveResult {
   /**
    * 'workspace' will be returned for workspace: protocol dependencies or a
    * package in the workspace that matches the wanted dependency's name and
