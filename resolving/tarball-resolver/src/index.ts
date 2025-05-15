@@ -1,10 +1,10 @@
-import { type PkgResolutionId, type ResolveResult } from '@pnpm/resolver-base'
+import { type PkgResolutionId, type UrlResolveResult } from '@pnpm/resolver-base'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
 
 export async function resolveFromTarball (
   fetchFromRegistry: FetchFromRegistry,
   wantedDependency: { bareSpecifier: string }
-): Promise<ResolveResult | null> {
+): Promise<UrlResolveResult | null> {
   if (!wantedDependency.bareSpecifier.startsWith('http:') && !wantedDependency.bareSpecifier.startsWith('https:')) {
     return null
   }

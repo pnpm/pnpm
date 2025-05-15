@@ -1,4 +1,4 @@
-import { type TarballResolution, type GitResolution, type ResolveResult, type PkgResolutionId } from '@pnpm/resolver-base'
+import { type TarballResolution, type GitResolution, type GitResolveResult, type PkgResolutionId } from '@pnpm/resolver-base'
 import git from 'graceful-git'
 import semver from 'semver'
 import { parseBareSpecifier, type HostedPackageSpec } from './parseBareSpecifier'
@@ -11,12 +11,12 @@ export type { HostedPackageSpec }
 
 export type GitResolver = (wantedDependency: {
   bareSpecifier: string
-}) => Promise<ResolveResult | null>
+}) => Promise<GitResolveResult | null>
 
 export function createGitResolver (
   opts: AgentOptions
 ): GitResolver {
-  return async function resolveGit (wantedDependency): Promise<ResolveResult | null> {
+  return async function resolveGit (wantedDependency): Promise<GitResolveResult | null> {
     const parsedSpec = await parseBareSpecifier(wantedDependency.bareSpecifier, opts)
 
     if (parsedSpec == null) return null

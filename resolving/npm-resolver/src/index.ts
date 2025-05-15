@@ -9,6 +9,8 @@ import {
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
+  type NpmResolveResult,
+  type JsrResolveResult,
   type PkgResolutionId,
   type PreferredVersions,
   type ResolveResult,
@@ -152,7 +154,7 @@ async function resolveNpm (
   ctx: ResolveFromNpmContext,
   wantedDependency: WantedDependency,
   opts: ResolveFromNpmOptions
-): Promise<ResolveResult | null> {
+): Promise<NpmResolveResult | JsrResolveResult | WorkspaceResolveResult | null> {
   const defaultTag = opts.defaultTag ?? 'latest'
   const registry = wantedDependency.alias
     ? pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.bareSpecifier)
@@ -297,7 +299,7 @@ async function resolveJsr (
   ctx: ResolveFromNpmContext,
   wantedDependency: WantedDependency,
   opts: Omit<ResolveFromNpmOptions, 'registry'>
-): Promise<ResolveResult | null> {
+): Promise<JsrResolveResult | null> {
   if (!wantedDependency.bareSpecifier) return null
   const defaultTag = opts.defaultTag ?? 'latest'
 

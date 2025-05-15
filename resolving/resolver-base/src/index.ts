@@ -38,21 +38,60 @@ export type Resolution =
   GitResolution |
   ({ type: string } & object)
 
-export interface ResolveResult {
+export type ResolveVia =
+  | 'npm-registry'
+  | 'jsr-registry'
+  | 'git-repository'
+  | 'local-filesystem'
+  | 'url'
+  | 'workspace'
+
+export type ResolveResult =
+  | NpmResolveResult
+  | JsrResolveResult
+  | GitResolveResult
+  | LocalResolveResult
+  | UrlResolveResult
+  | WorkspaceResolveResult
+
+export interface ResolveResultBase {
   id: PkgResolutionId
   latest?: string
   publishedAt?: string
   manifest?: DependencyManifest
   resolution: Resolution
-  resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'workspace' | 'url' | string
+  resolvedVia: ResolveVia
   normalizedBareSpecifier?: string
   alias?: string
+}
+
+export interface NpmResolveResult extends ResolveResultBase {
+  resolvedVia: 'npm-registry'
+}
+
+export interface JsrResolveResult extends ResolveResultBase {
+  resolvedVia: 'jsr-registry'
+}
+
+export interface GitResolveResult extends ResolveResultBase {
+  resolvedVia: 'git-repository'
+}
+
+export interface LocalResolveResult extends ResolveResultBase {
+  manifest?: DependencyManifest
+  normalizedBareSpecifier: string
+  resolution: TarballResolution | DirectoryResolution
+  resolvedVia: 'local-filesystem'
+}
+
+export interface UrlResolveResult extends ResolveResultBase {
+  resolvedVia: 'url'
 }
 
 /**
  * A dependency on a workspace package.
  */
-export interface WorkspaceResolveResult extends ResolveResult {
+export interface WorkspaceResolveResult extends ResolveResultBase {
   /**
    * 'workspace' will be returned for workspace: protocol dependencies or a
    * package in the workspace that matches the wanted dependency's name and
