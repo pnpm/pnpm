@@ -9,15 +9,14 @@ import {
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
-  type NpmResolveResult,
-  type JsrResolveResult,
   type PkgResolutionId,
   type PreferredVersions,
+  type ResolveResult,
+  type TarballResolution,
   type WantedDependency,
   type WorkspacePackage,
   type WorkspacePackages,
   type WorkspacePackagesByVersion,
-  type WorkspaceResolveResult,
 } from '@pnpm/resolver-base'
 import { type Registries, type PinnedVersion } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
@@ -74,6 +73,24 @@ export interface ResolverFactoryOptions {
   timeout?: number
   registries: Registries
   saveWorkspaceProtocol?: boolean | 'rolling'
+}
+
+export interface NpmResolveResult extends ResolveResult {
+  latest: string
+  manifest: PackageInRegistry
+  resolution: TarballResolution
+  resolvedVia: 'npm-registry'
+}
+
+export interface JsrResolveResult extends ResolveResult {
+  alias: string
+  manifest: PackageInRegistry
+  resolution: TarballResolution
+  resolvedVia: 'jsr-registry'
+}
+
+export interface WorkspaceResolveResult extends ResolveResult {
+  resolvedVia: 'workspace'
 }
 
 export type NpmResolver = (

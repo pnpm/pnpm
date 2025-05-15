@@ -57,20 +57,6 @@ export interface ResolveResult {
   alias?: string
 }
 
-export interface NpmResolveResult extends ResolveResult {
-  latest: string
-  manifest: DependencyManifest
-  resolution: TarballResolution
-  resolvedVia: 'npm-registry'
-}
-
-export interface JsrResolveResult extends ResolveResult {
-  alias: string
-  manifest: DependencyManifest
-  resolution: TarballResolution
-  resolvedVia: 'jsr-registry'
-}
-
 export interface GitResolveResult extends ResolveResult {
   resolution: GitResolution | TarballResolution
   resolvedVia: 'git-repository'
@@ -87,18 +73,6 @@ export interface UrlResolveResult extends ResolveResult {
   normalizedBareSpecifier: string
   resolution: TarballResolution
   resolvedVia: 'url'
-}
-
-/**
- * A dependency on a workspace package.
- */
-export interface WorkspaceResolveResult extends ResolveResult {
-  /**
-   * 'workspace' will be returned for workspace: protocol dependencies or a
-   * package in the workspace that matches the wanted dependency's name and
-   * version range.
-   */
-  resolvedVia: 'workspace'
 }
 
 export interface WorkspacePackage {

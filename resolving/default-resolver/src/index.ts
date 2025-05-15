@@ -4,6 +4,9 @@ import { createGitResolver } from '@pnpm/git-resolver'
 import { resolveFromLocal } from '@pnpm/local-resolver'
 import {
   createNpmResolver,
+  type JsrResolveResult,
+  type NpmResolveResult,
+  type WorkspaceResolveResult,
   type PackageMeta,
   type PackageMetaCache,
   type ResolveFromNpmOptions,
@@ -11,14 +14,11 @@ import {
 } from '@pnpm/npm-resolver'
 import {
   type GitResolveResult,
-  type JsrResolveResult,
   type LocalResolveResult,
-  type NpmResolveResult,
   type ResolveFunction,
   type ResolveOptions,
   type UrlResolveResult,
   type WantedDependency,
-  type WorkspaceResolveResult,
 } from '@pnpm/resolver-base'
 import { resolveFromTarball } from '@pnpm/tarball-resolver'
 
