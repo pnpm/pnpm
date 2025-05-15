@@ -512,9 +512,9 @@ export async function mutateModules (
         forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepBareSpecifierSame)
       }
       if (opts.ignoreScripts && project.manifest?.scripts &&
-        (project.manifest.scripts.preinstall ??
-          project.manifest.scripts.install ??
-          project.manifest.scripts.postinstall ??
+        (project.manifest.scripts.preinstall != null ||
+          project.manifest.scripts.install != null ||
+          project.manifest.scripts.postinstall != null ||
           project.manifest.scripts.prepare)
       ) {
         ctx.pendingBuilds.push(project.id)
