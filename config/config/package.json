@@ -1,9 +1,24 @@
 {
   "name": "@pnpm/config",
-  "version": "21.6.1",
+  "version": "1003.1.0",
   "description": "Gets configuration options for pnpm",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "config"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/config/config",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/config/config#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
@@ -17,20 +32,6 @@
     "start": "tsc --watch",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/config/config",
-  "keywords": [
-    "pnpm9",
-    "pnpm",
-    "config"
-  ],
-  "engines": {
-    "node": ">=18.12"
-  },
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/config/config#readme",
   "dependencies": {
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
@@ -50,6 +51,7 @@
     "can-write-to-dir": "catalog:",
     "is-subdir": "catalog:",
     "is-windows": "catalog:",
+    "lodash.kebabcase": "catalog:",
     "normalize-registry-url": "catalog:",
     "path-absolute": "catalog:",
     "path-name": "catalog:",
@@ -58,17 +60,23 @@
     "realpath-missing": "catalog:",
     "which": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "catalog:",
+    "@types/lodash.kebabcase": "catalog:",
     "@types/ramda": "catalog:",
     "@types/which": "catalog:",
     "symlink-dir": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

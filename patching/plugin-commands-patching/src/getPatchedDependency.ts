@@ -1,10 +1,9 @@
 import path from 'path'
 import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { prompt } from 'enquirer'
-import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile-file'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { PnpmError } from '@pnpm/error'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
 import realpathMissing from 'realpath-missing'
@@ -15,7 +14,9 @@ export type GetPatchedDependencyOptions = {
   lockfileDir: string
 } & Pick<Config, 'virtualStoreDir' | 'modulesDir'>
 
-export async function getPatchedDependency (rawDependency: string, opts: GetPatchedDependencyOptions): Promise<ParseWantedDependencyResult> {
+export type GetPatchedDependencyResult = ParseWantedDependencyResult & { applyToAll: boolean }
+
+export async function getPatchedDependency (rawDependency: string, opts: GetPatchedDependencyOptions): Promise<GetPatchedDependencyResult> {
   const dep = parseWantedDependency(rawDependency)
 
   const { versions, preferredVersions } = await getVersionsFromLockfile(dep, opts)
@@ -29,9 +30,10 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
 
   dep.alias = dep.alias ?? rawDependency
   if (preferredVersions.length > 1) {
-    const { version } = await prompt<{
+    const { version, applyToAll } = await prompt<{
       version: string
-    }>({
+      applyToAll: boolean
+    }>([{
       type: 'select',
       name: 'version',
       message: 'Choose which version to patch',
@@ -45,13 +47,24 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
         const selectedVersion = preferredVersions.find(preferred => preferred.version === selected)!
         return selectedVersion.gitTarballUrl ?? selected
       },
-    })
-    dep.pref = version
+    }, {
+      type: 'confirm',
+      name: 'applyToAll',
+      message: 'Apply this patch to all versions?',
+    }])
+    return {
+      ...dep,
+      applyToAll,
+      bareSpecifier: version,
+    }
   } else {
     const preferred = preferredVersions[0]
-    dep.pref = preferred.gitTarballUrl ?? preferred.version
+    return {
+      ...dep,
+      applyToAll: !dep.bareSpecifier,
+      bareSpecifier: preferred.gitTarballUrl ?? preferred.version,
+    }
   }
-  return dep
 }
 
 export interface LockfileVersion {
@@ -76,11 +89,14 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
   if (!lockfile) {
     throw new PnpmError(
       'PATCH_NO_LOCKFILE',
-      `No ${WANTED_LOCKFILE} found: Cannot patch without a lockfile`
+      'The modules directory is not ready for patching',
+      {
+        hint: 'Run pnpm install first',
+      }
     )
   }
 
-  const pkgName = dep.alias && dep.pref ? dep.alias : (dep.pref ?? dep.alias)
+  const pkgName = dep.alias && dep.bareSpecifier ? dep.alias : (dep.bareSpecifier ?? dep.alias)
 
   const versions = Object.entries(lockfile.packages ?? {})
     .map(([depPath, pkgSnapshot]) => {
@@ -94,6 +110,6 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
 
   return {
     versions,
-    preferredVersions: versions.filter(({ version }) => dep.alias && dep.pref ? semver.satisfies(version, dep.pref) : true),
+    preferredVersions: versions.filter(({ version }) => dep.alias && dep.bareSpecifier ? semver.satisfies(version, dep.bareSpecifier) : true),
   }
 }

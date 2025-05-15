@@ -1,16 +1,28 @@
 {
   "name": "@pnpm/plugin-commands-licenses",
-  "version": "4.1.10",
+  "version": "1000.0.25",
   "description": "The licenses command of pnpm",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "licenses"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-licenses",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-licenses#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -18,17 +30,22 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-licenses",
-  "keywords": [
-    "pnpm9",
-    "pnpm",
-    "licenses"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
+  "dependencies": {
+    "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/command": "workspace:*",
+    "@pnpm/common-cli-options-help": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/license-scanner": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/store-path": "workspace:*",
+    "@zkochan/table": "catalog:",
+    "chalk": "catalog:",
+    "ramda": "catalog:",
+    "render-help": "catalog:",
+    "semver": "catalog:"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-licenses#readme",
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
@@ -40,27 +57,12 @@
     "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
-    "@types/zkochan__table": "catalog:",
-    "strip-ansi": "catalog:"
+    "@types/zkochan__table": "catalog:"
   },
-  "dependencies": {
-    "@pnpm/cli-utils": "workspace:*",
-    "@pnpm/command": "workspace:*",
-    "@pnpm/common-cli-options-help": "workspace:*",
-    "@pnpm/config": "workspace:*",
-    "@pnpm/constants": "workspace:*",
-    "@pnpm/error": "workspace:*",
-    "@pnpm/license-scanner": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*",
-    "@pnpm/store-path": "workspace:*",
-    "@zkochan/table": "catalog:",
-    "chalk": "catalog:",
-    "ramda": "catalog:",
-    "render-help": "catalog:",
-    "semver": "catalog:"
+  "engines": {
+    "node": ">=18.12"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

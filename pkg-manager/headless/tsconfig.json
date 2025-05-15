@@ -40,16 +40,16 @@
       "path": "../../fs/symlink-dependency"
     },
     {
-      "path": "../../lockfile/filter-lockfile"
+      "path": "../../lockfile/filtering"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
       "path": "../../lockfile/lockfile-to-pnp"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../packages/calc-dep-state"
@@ -67,7 +67,13 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../../patching/config"
     },
     {
       "path": "../../pkg-manifest/read-package-json"
@@ -79,19 +85,16 @@
       "path": "../../store/cafs"
     },
     {
-      "path": "../../store/package-store"
-    },
-    {
       "path": "../../store/store-controller-types"
     },
     {
       "path": "../../store/store-path"
     },
     {
-      "path": "../../worker"
+      "path": "../../testing/temp-store"
     },
     {
-      "path": "../client"
+      "path": "../../worker"
     },
     {
       "path": "../direct-dep-linker"

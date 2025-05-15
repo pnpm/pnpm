@@ -40,13 +40,13 @@
       "path": "../../deps/graph-sequencer"
     },
     {
-      "path": "../../lockfile/lockfile-types"
+      "path": "../../lockfile/types"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/utils"
     },
     {
-      "path": "../../lockfile/lockfile-walker"
+      "path": "../../lockfile/walker"
     },
     {
       "path": "../../packages/calc-dep-state"
@@ -64,6 +64,9 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {
@@ -74,6 +77,9 @@
     },
     {
       "path": "../../pkg-manager/modules-yaml"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
     },
     {
       "path": "../../store/cafs"
@@ -98,6 +104,9 @@
     },
     {
       "path": "../lifecycle"
+    },
+    {
+      "path": "../pkg-requires-build"
     }
   ]
 }

@@ -1,0 +1,6 @@
+packages:
+  - '.'
+
+catalog:
+  is-negative: ^1.0.0
+sharedWorkspaceLockfile: false

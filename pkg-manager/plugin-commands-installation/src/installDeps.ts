@@ -4,29 +4,41 @@ import {
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
+import { checkDepsStatus } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { type Lockfile } from '@pnpm/lockfile-types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir } from '@pnpm/types'
+import { type IncludedDependencies, type Project, type ProjectsGraph, type ProjectRootDir, type PrepareExecutionEnv } from '@pnpm/types'
 import {
   install,
   mutateModulesInSingleProject,
   type MutateModulesOptions,
   type WorkspacePackages,
 } from '@pnpm/core'
-import { logger } from '@pnpm/logger'
+import { globalInfo, logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
+import { addCatalogs } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
+import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import isSubdir from 'is-subdir'
+import { IgnoredBuildsError } from './errors'
 import { getPinnedVersion } from './getPinnedVersion'
 import { getSaveType } from './getSaveType'
 import { getNodeExecPath } from './nodeExecPath'
-import { recursive, createMatcher, matchDependencies, makeIgnorePatterns, type UpdateDepsMatcher } from './recursive'
+import {
+  type CommandFullName,
+  type RecursiveOptions,
+  type UpdateDepsMatcher,
+  createMatcher,
+  matchDependencies,
+  makeIgnorePatterns,
+  recursive,
+} from './recursive'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -40,22 +52,26 @@ export type InstallDepsOptions = Pick<Config,
 | 'autoInstallPeers'
 | 'bail'
 | 'bin'
+| 'catalogs'
 | 'cliOptions'
 | 'dedupePeerDependents'
 | 'depth'
 | 'dev'
 | 'engineStrict'
+| 'excludeLinksFromLockfile'
 | 'global'
 | 'globalPnpmfile'
 | 'hooks'
-| 'ignoreCurrentPrefs'
+| 'ignoreCurrentSpecifiers'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
+| 'optimisticRepeatInstall'
 | 'linkWorkspacePackages'
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'pnpmfile'
 | 'production'
+| 'preferWorkspacePackages'
 | 'rawLocalConfig'
 | 'registries'
 | 'rootProjectManifestDir'
@@ -85,6 +101,8 @@ export type InstallDepsOptions = Pick<Config,
 | 'extraEnv'
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
+| 'configDependencies'
+| 'updateConfig'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -105,7 +123,7 @@ export type InstallDepsOptions = Pick<Config,
    * lockfile will change on disk after installation. The lockfile arguments
    * passed to this callback should not be mutated.
    */
-  lockfileCheck?: (prev: Lockfile, next: Lockfile) => void
+  lockfileCheck?: (prev: LockfileObject, next: LockfileObject) => void
   update?: boolean
   updateToLatest?: boolean
   updateMatching?: (pkgName: string) => boolean
@@ -115,12 +133,25 @@ export type InstallDepsOptions = Pick<Config,
   dedupe?: boolean
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
-} & Partial<Pick<Config, 'pnpmHomeDir'>>
+  prepareExecutionEnv: PrepareExecutionEnv
+  fetchFullMetadata?: boolean
+  pruneLockfileImporters?: boolean
+} & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds'>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<void> {
+  if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall) {
+    const { upToDate } = await checkDepsStatus({
+      ...opts,
+      ignoreFilteredInstallCache: true,
+    })
+    if (upToDate) {
+      globalInfo('Already up to date')
+      return
+    }
+  }
   if (opts.workspace) {
     if (opts.latest) {
       throw new PnpmError('BAD_OPTIONS', 'Cannot use --latest with --workspace simultaneously')
@@ -141,6 +172,7 @@ when running add/update with the --workspace option')
     // @ts-expect-error
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
+  const store = await createOrConnectStoreController(opts)
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,
     devDependencies: true,
@@ -175,21 +207,11 @@ when running add/update with the --workspace option')
         })
       }
 
-      let allProjectsGraph!: ProjectsGraph
-      if (opts.dedupePeerDependents) {
-        allProjectsGraph = opts.allProjectsGraph ?? createPkgGraph(allProjects, {
-          linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
-        }).graph
-      } else {
-        allProjectsGraph = selectedProjectsGraph
-        if (!allProjectsGraph[opts.workspaceDir as ProjectRootDir]) {
-          allProjectsGraph = {
-            ...allProjectsGraph,
-            ...selectProjectByDir(allProjects, opts.workspaceDir),
-          }
-        }
-      }
-      await recursive(allProjects,
+      const allProjectsGraph: ProjectsGraph = opts.allProjectsGraph ?? createPkgGraph(allProjects, {
+        linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
+      }).graph
+
+      await recursiveInstallThenUpdateWorkspaceState(allProjects,
         params,
         {
           ...opts,
@@ -198,6 +220,7 @@ when running add/update with the --workspace option')
           forcePublicHoistPattern,
           allProjectsGraph,
           selectedProjectsGraph,
+          storeControllerAndDir: store,
           workspaceDir: opts.workspaceDir,
         },
         opts.update ? 'update' : (params.length === 0 ? 'install' : 'add')
@@ -223,10 +246,9 @@ when running add/update with the --workspace option')
     manifest = {}
   }
 
-  const store = await createOrConnectStoreController(opts)
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    ...getOptionsFromRootManifest(opts.dir, manifest),
+    ...getOptionsFromRootManifest(opts.dir, (opts.dir === opts.rootProjectManifestDir ? opts.rootProjectManifest ?? manifest : manifest)),
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository
@@ -250,7 +272,7 @@ when running add/update with the --workspace option')
   let updateMatch: UpdateDepsMatcher | null
   if (opts.update) {
     if (params.length === 0) {
-      const ignoreDeps = manifest.pnpm?.updateConfig?.ignoreDependencies
+      const ignoreDeps = opts.updateConfig?.ignoreDependencies
       if (ignoreDeps?.length) {
         params = makeIgnorePatterns(ignoreDeps)
       }
@@ -292,16 +314,38 @@ when running add/update with the --workspace option')
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const updatedImporter = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const { newCatalogs, updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false) {
-      await writeProjectManifest(updatedImporter.manifest)
+      await Promise.all([
+        writeProjectManifest(updatedProject.manifest),
+        newCatalogs && addCatalogs(opts.workspaceDir ?? opts.dir, newCatalogs),
+      ])
+    }
+    if (!opts.lockfileOnly) {
+      await updateWorkspaceState({
+        allProjects,
+        settings: opts,
+        workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
+        pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
+        filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
+        configDependencies: opts.configDependencies,
+      })
+    }
+    if (opts.strictDepBuilds && ignoredBuilds?.length) {
+      throw new IgnoredBuildsError(ignoredBuilds)
     }
     return
   }
 
-  const updatedManifest = await install(manifest, installOpts)
+  const { newCatalogs, updatedManifest, ignoredBuilds } = await install(manifest, installOpts)
   if (opts.update === true && opts.save !== false) {
-    await writeProjectManifest(updatedManifest)
+    await Promise.all([
+      writeProjectManifest(updatedManifest),
+      newCatalogs && addCatalogs(opts.workspaceDir ?? opts.dir, newCatalogs),
+    ])
+  }
+  if (opts.strictDepBuilds && ignoredBuilds?.length) {
+    throw new IgnoredBuildsError(ignoredBuilds)
   }
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {
@@ -314,7 +358,7 @@ when running add/update with the --workspace option')
     ], {
       workspaceDir: opts.workspaceDir,
     })
-    await recursive(allProjects, [], {
+    await recursiveInstallThenUpdateWorkspaceState(allProjects, [], {
       ...opts,
       ...OVERWRITE_UPDATE_OPTIONS,
       allProjectsGraph: opts.allProjectsGraph!,
@@ -339,6 +383,17 @@ when running add/update with the --workspace option')
         skipIfHasSideEffectsCache: true,
       }
     )
+  } else {
+    if (!opts.lockfileOnly) {
+      await updateWorkspaceState({
+        allProjects,
+        settings: opts,
+        workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
+        pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
+        filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
+        configDependencies: opts.configDependencies,
+      })
+    }
   }
 }
 
@@ -346,4 +401,24 @@ function selectProjectByDir (projects: Project[], searchedDir: string): Projects
   const project = projects.find(({ rootDir }) => path.relative(rootDir, searchedDir) === '')
   if (project == null) return undefined
   return { [searchedDir]: { dependencies: [], package: project } }
+}
+
+async function recursiveInstallThenUpdateWorkspaceState (
+  allProjects: Project[],
+  params: string[],
+  opts: RecursiveOptions & WorkspaceStateSettings,
+  cmdFullName: CommandFullName
+): Promise<boolean | string> {
+  const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
+  if (!opts.lockfileOnly) {
+    await updateWorkspaceState({
+      allProjects,
+      settings: opts,
+      workspaceDir: opts.workspaceDir,
+      pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
+      filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
+      configDependencies: opts.configDependencies,
+    })
+  }
+  return recursiveResult
 }

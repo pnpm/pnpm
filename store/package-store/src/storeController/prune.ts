@@ -1,4 +1,5 @@
-import { promises as fs } from 'fs'
+import { type Dirent, promises as fs } from 'fs'
+import util from 'util'
 import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
@@ -15,24 +16,38 @@ export interface PruneOptions {
 
 export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFiles?: boolean): Promise<void> {
   const cafsDir = path.join(storeDir, 'files')
-  await Promise.all([
-    rimraf(path.join(cacheDir, 'metadata')),
-    rimraf(path.join(cacheDir, 'metadata-full')),
-    rimraf(path.join(cacheDir, 'metadata-v1.1')),
-  ])
+  const metadataDirs = await getSubdirsSafely(cacheDir)
+  await Promise.all(metadataDirs.map(async (metadataDir) => {
+    if (!metadataDir.startsWith('metadata')) return
+    try {
+      await rimraf(path.join(cacheDir, metadataDir))
+    } catch (err: unknown) {
+      if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT')) {
+        throw err
+      }
+    }
+  }))
   await rimraf(path.join(storeDir, 'tmp'))
   globalInfo('Removed all cached metadata files')
   const pkgIndexFiles = [] as string[]
+  const indexDir = path.join(storeDir, 'index')
+  await Promise.all((await getSubdirsSafely(indexDir)).map(async (dir) => {
+    const subdir = path.join(indexDir, dir)
+    await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
+      const filePath = path.join(subdir, fileName)
+      if (fileName.endsWith('.json')) {
+        pkgIndexFiles.push(filePath)
+      }
+    }))
+  }))
   const removedHashes = new Set<string>()
-  const dirs = (await fs.readdir(cafsDir, { withFileTypes: true }))
-    .filter(entry => entry.isDirectory())
-    .map(dir => dir.name)
+  const dirs = await getSubdirsSafely(cafsDir)
   let fileCounter = 0
   await Promise.all(dirs.map(async (dir) => {
     const subdir = path.join(cafsDir, dir)
     await Promise.all((await fs.readdir(subdir)).map(async (fileName) => {
       const filePath = path.join(subdir, fileName)
-      if (fileName.endsWith('-index.json')) {
+      if (fileName.endsWith('.json')) {
         pkgIndexFiles.push(filePath)
         return
       }
@@ -66,4 +81,19 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
     }
   }))
   globalInfo(`Removed ${pkgCounter} package${pkgCounter === 1 ? '' : 's'}`)
+}
+
+async function getSubdirsSafely (dir: string): Promise<string[]> {
+  let entries: Dirent[]
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true }) as Dirent[]
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return []
+    }
+    throw err
+  }
+  return entries
+    .filter(entry => entry.isDirectory())
+    .map(dir => dir.name)
 }

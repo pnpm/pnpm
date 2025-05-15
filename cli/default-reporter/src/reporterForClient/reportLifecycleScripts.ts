@@ -13,7 +13,7 @@ const NODE_MODULES = `${path.sep}node_modules${path.sep}`
 const TMP_DIR_IN_STORE = `tmp${path.sep}_tmp_` // git-hosted dependencies are built in these temporary directories
 
 // When streaming processes are spawned, use this color for prefix
-const colorWheel = ['cyan', 'magenta', 'blue', 'yellow', 'green', 'red']
+const colorWheel = ['cyan', 'magenta', 'blue', 'yellow', 'green', 'red'] as const
 const NUM_COLORS = colorWheel.length
 
 // Ever-increasing index ensures colors are always sequential
@@ -127,10 +127,10 @@ function renderCollapsedScriptOutput (
     return `${messageCache.label}...`
   }
   const time = prettyTime(toNano(process.hrtime(messageCache.startTime)))
-  if (log['exitCode'] === 0) {
+  if (log.exitCode === 0) {
     return `${messageCache.label}, done in ${time}`
   }
-  if (log['optional'] === true) {
+  if (log.optional === true) {
     return `${messageCache.label}, failed in ${time} (skipped as optional)`
   }
   return `${messageCache.label}, failed in ${time}${EOL}${renderScriptOutput(log, messageCache, opts)}`
@@ -189,13 +189,13 @@ function updateMessageCache (
     maxWidth: number
   }
 ): void {
-  if (log['script']) {
+  if (log.script) {
     const prefix = `${formatPrefix(opts.cwd, log.wd)} ${hlValue(log.stage)}`
     const maxLineWidth = opts.maxWidth - prefix.length - 2 + ANSI_ESCAPES_LENGTH_OF_PREFIX
-    messageCache.script = `${prefix}$ ${cutLine(log['script'], maxLineWidth)}`
+    messageCache.script = `${prefix}$ ${cutLine(log.script, maxLineWidth)}`
   } else if (opts.exit) {
     const time = prettyTime(toNano(process.hrtime(messageCache.startTime)))
-    if (log['exitCode'] === 0) {
+    if (log.exitCode === 0) {
       messageCache.status = formatIndentedStatus(chalk.magentaBright(`Done in ${time}`))
     } else {
       messageCache.status = formatIndentedStatus(chalk.red(`Failed in ${time} at ${log.wd}`))
@@ -229,8 +229,8 @@ function streamLifecycleOutput (
   logObj: LifecycleLog
 ): string {
   const prefix = formatLifecycleScriptPrefix(colorByPkg, cwd, logObj.wd, logObj.stage)
-  if (typeof logObj['exitCode'] === 'number') {
-    if (logObj['exitCode'] === 0) {
+  if (typeof logObj.exitCode === 'number') {
+    if (logObj.exitCode === 0) {
       return `${prefix}: Done`
     } else {
       return `${prefix}: Failed`
@@ -264,17 +264,17 @@ function formatLifecycleScriptPrefix (
 }
 
 function formatLine (maxWidth: number, logObj: LifecycleLog): string {
-  const line = cutLine(logObj['line'], maxWidth)
+  const line = cutLine(logObj.line, maxWidth)
 
   // TODO: strip only the non-color/style ansi escape codes
-  if (logObj['stdio'] === 'stderr') {
+  if (logObj.stdio === 'stderr') {
     return chalk.gray(line)
   }
   return line
 }
 
-function cutLine (line: string, maxLength: number): string {
-  if (!line) return '' // This actually should never happen but it is better to be safe
+function cutLine (line: string | undefined, maxLength: number): string {
+  if (!line) return ''
   return cliTruncate(line, maxLength)
 }
 

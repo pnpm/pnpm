@@ -11,7 +11,7 @@ export interface PackageSpecObject {
   alias: string
   nodeExecPath?: string
   peer?: boolean
-  pref?: string
+  bareSpecifier?: string
   saveType?: DependenciesField
 }
 
@@ -20,27 +20,27 @@ export async function updateProjectManifestObject (
   packageManifest: ProjectManifest,
   packageSpecs: PackageSpecObject[]
 ): Promise<ProjectManifest> {
-  packageSpecs.forEach((packageSpec) => {
+  for (const packageSpec of packageSpecs) {
     if (packageSpec.saveType) {
-      const spec = packageSpec.pref ?? findSpec(packageSpec.alias, packageManifest)
+      const spec = packageSpec.bareSpecifier ?? findSpec(packageSpec.alias, packageManifest)
       if (spec) {
         packageManifest[packageSpec.saveType] = packageManifest[packageSpec.saveType] ?? {}
         packageManifest[packageSpec.saveType]![packageSpec.alias] = spec
-        DEPENDENCIES_FIELDS.filter((depField) => depField !== packageSpec.saveType).forEach((deptype) => {
-          if (packageManifest[deptype] != null) {
-            delete packageManifest[deptype]![packageSpec.alias]
+        for (const deptype of DEPENDENCIES_FIELDS) {
+          if (deptype !== packageSpec.saveType) {
+            delete packageManifest[deptype]?.[packageSpec.alias]
           }
-        })
+        }
         if (packageSpec.peer === true) {
           packageManifest.peerDependencies = packageManifest.peerDependencies ?? {}
           packageManifest.peerDependencies[packageSpec.alias] = spec
         }
       }
-    } else if (packageSpec.pref) {
+    } else if (packageSpec.bareSpecifier) {
       const usedDepType = guessDependencyType(packageSpec.alias, packageManifest) ?? 'dependencies'
       if (usedDepType !== 'peerDependencies') {
         packageManifest[usedDepType] = packageManifest[usedDepType] ?? {}
-        packageManifest[usedDepType]![packageSpec.alias] = packageSpec.pref
+        packageManifest[usedDepType]![packageSpec.alias] = packageSpec.bareSpecifier
       }
     }
     if (packageSpec.nodeExecPath) {
@@ -49,7 +49,7 @@ export async function updateProjectManifestObject (
       }
       packageManifest.dependenciesMeta[packageSpec.alias] = { node: packageSpec.nodeExecPath }
     }
-  })
+  }
 
   packageManifestLogger.debug({
     prefix,

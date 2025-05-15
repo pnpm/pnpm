@@ -1,6 +1,6 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { install } from '@pnpm/plugin-commands-installation'
-import { test } from '@pnpm/plugin-commands-script-runners'
+import { run } from '@pnpm/plugin-commands-script-runners'
 import renderHelp from 'render-help'
 import { type PnpmOptions } from '../types'
 
@@ -21,5 +21,5 @@ export function help (): string {
 
 export async function handler (opts: PnpmOptions, params: string[]): Promise<void> {
   await install.handler(opts)
-  await test.handler(opts as any, params) // eslint-disable-line
+  await run.handler(opts as any, ['test', ...params]) // eslint-disable-line
 }

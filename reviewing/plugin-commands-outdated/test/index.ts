@@ -7,7 +7,7 @@ import { outdated } from '@pnpm/plugin-commands-outdated'
 import { prepare, tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import stripAnsi from 'strip-ansi'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 
 const f = fixtures(__dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
@@ -17,6 +17,8 @@ const hasNotOutdatedDepsFixture = f.find('has-not-outdated-deps')
 const hasMajorOutdatedDepsFixture = f.find('has-major-outdated-deps')
 const hasNoLockfileFixture = f.find('has-no-lockfile')
 const withPnpmUpdateIgnore = f.find('with-pnpm-update-ignore')
+const hasOutdatedDepsUsingCatalogProtocol = f.find('has-outdated-deps-using-catalog-protocol')
+const hasOutdatedDepsUsingNpmAlias = f.find('has-outdated-deps-using-npm-alias')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -375,6 +377,11 @@ test('ignore packages in package.json > pnpm.updateConfig.ignoreDependencies in 
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     dir: withPnpmUpdateIgnore,
+    updateConfig: {
+      ignoreDependencies: [
+        'is-positive',
+      ],
+    },
   })
 
   expect(exitCode).toBe(1)
@@ -384,5 +391,71 @@ test('ignore packages in package.json > pnpm.updateConfig.ignoreDependencies in 
 ├─────────────┼─────────┼────────┤
 │ is-negative │ 1.0.0   │ 2.1.0  │
 └─────────────┴─────────┴────────┘
+`)
+})
+
+test('pnpm outdated: catalog protocol', async () => {
+  const { output, exitCode } = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    catalogs: {
+      // Duplicating the catalog config in the pnpm-workspace.yaml inline to
+      // avoid an async read and catalog config normalization call.
+      default: { 'is-negative': '^1.0.0' },
+    },
+    dir: hasOutdatedDepsUsingCatalogProtocol,
+  })
+
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
+┌─────────────┬─────────┬────────┐
+│ Package     │ Current │ Latest │
+├─────────────┼─────────┼────────┤
+│ is-negative │ 1.0.0   │ 2.1.0  │
+└─────────────┴─────────┴────────┘
+`)
+})
+
+test('pnpm outdated: --compatible works with npm aliases', async () => {
+  const { output, exitCode } = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    compatible: true,
+    dir: hasOutdatedDepsUsingNpmAlias,
+  })
+
+  // Although is-negative@2.1.0 is the latest version at the time of writing,
+  // the "compatible: true" option above should make pnpm to only find 1.0.1.
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
+┌─────────────┬─────────┬────────┐
+│ Package     │ Current │ Latest │
+├─────────────┼─────────┼────────┤
+│ is-negative │ 1.0.0   │ 1.0.1  │
+└─────────────┴─────────┴────────┘
+`)
+})
+
+test('pnpm outdated: support --sortField option', async () => {
+  tempDir()
+
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'pnpm-lock.yaml'), path.resolve('pnpm-lock.yaml'))
+  fs.copyFileSync(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+
+  const { output, exitCode } = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: hasOutdatedDepsFixture,
+    sortBy: 'name',
+  })
+
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
+┌──────────────────────┬──────────────────────┬────────────┐
+│ Package              │ Current              │ Latest     │
+├──────────────────────┼──────────────────────┼────────────┤
+│ @pnpm.e2e/deprecated │ 1.0.0                │ Deprecated │
+├──────────────────────┼──────────────────────┼────────────┤
+│ is-negative          │ 1.0.0 (wanted 2.1.0) │ 2.1.0      │
+├──────────────────────┼──────────────────────┼────────────┤
+│ is-positive (dev)    │ 1.0.0 (wanted 3.1.0) │ 3.1.0      │
+└──────────────────────┴──────────────────────┴────────────┘
 `)
 })

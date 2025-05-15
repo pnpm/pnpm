@@ -17,6 +17,9 @@
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
     }
   ]
 }

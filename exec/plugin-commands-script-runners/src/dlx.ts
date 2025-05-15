@@ -2,20 +2,23 @@ import fs, { type Stats } from 'fs'
 import path from 'path'
 import util from 'util'
 import { docsUrl } from '@pnpm/cli-utils'
+import { createResolver } from '@pnpm/client'
+import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types } from '@pnpm/config'
-import { createBase32Hash } from '@pnpm/crypto.base32-hash'
+import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
-import { node } from '@pnpm/plugin-commands-env'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
+import { type PnpmSettings } from '@pnpm/types'
 import execa from 'execa'
-import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import symlinkDir from 'symlink-dir'
 import { makeEnv } from './makeEnv'
+
+export const skipPackageManagerCheck = true
 
 export const commandNames = ['dlx']
 
@@ -35,6 +38,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   package: [String, Array],
+  'allow-build': [String, Array],
 })
 
 export function help (): string {
@@ -47,6 +51,10 @@ export function help (): string {
           {
             description: 'The package to install before running the command',
             name: '--package',
+          },
+          {
+            description: 'A list of package names that are allowed to run postinstall scripts during installation',
+            name: '--allow-build',
           },
           {
             description: 'Runs the script inside of a shell. Uses /bin/sh on UNIX and \\cmd.exe on Windows.',
@@ -65,45 +73,74 @@ export function help (): string {
 export type DlxCommandOptions = {
   package?: string[]
   shellMode?: boolean
-} & Pick<Config, 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' > & add.AddCommandOptions
+  allowBuild?: string[]
+} & Pick<Config, 'extraBinPaths' | 'registries' | 'reporter' | 'userAgent' | 'cacheDir' | 'dlxCacheMaxAge' | 'useNodeVersion' | 'symlink'> & Omit<add.AddCommandOptions, 'rootProjectManifestDir'> & PnpmSettings
 
 export async function handler (
   opts: DlxCommandOptions,
   [command, ...args]: string[]
 ): Promise<{ exitCode: number }> {
   const pkgs = opts.package ?? [command]
-  const { cacheLink, prepareDir } = findCache(pkgs, {
+  const { resolve } = createResolver({
+    ...opts,
+    authConfig: opts.rawConfig,
+  })
+  const resolvedPkgAliases: string[] = []
+  const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {
+    const { alias, bareSpecifier } = parseWantedDependency(pkg) || {}
+    if (alias == null) return pkg
+    resolvedPkgAliases.push(alias)
+    const resolved = await resolve({ alias, bareSpecifier }, {
+      lockfileDir: opts.lockfileDir ?? opts.dir,
+      preferredVersions: {},
+      projectDir: opts.dir,
+    })
+    return resolved.id
+  }))
+  const { cacheLink, cacheExists, cachedDir } = findCache(resolvedPkgs, {
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
+    registries: opts.registries,
+    allowBuild: opts.allowBuild ?? [],
   })
-  if (prepareDir) {
-    fs.mkdirSync(prepareDir, { recursive: true })
+  if (!cacheExists) {
+    fs.mkdirSync(cachedDir, { recursive: true })
     await add.handler({
-      // Ideally the config reader should ignore these settings when the dlx command is executed.
-      // This is a temporary solution until "@pnpm/config" is refactored.
-      ...omit(['workspaceDir', 'rootProjectManifest'], opts),
-      bin: path.join(prepareDir, 'node_modules/.bin'),
-      dir: prepareDir,
-      lockfileDir: prepareDir,
-      rootProjectManifestDir: prepareDir, // This property won't be used as rootProjectManifest will be undefined
+      ...opts,
+      bin: path.join(cachedDir, 'node_modules/.bin'),
+      dir: cachedDir,
+      lockfileDir: cachedDir,
+      onlyBuiltDependencies: [...resolvedPkgAliases, ...(opts.allowBuild ?? [])],
+      rootProjectManifestDir: cachedDir,
       saveProd: true, // dlx will be looking for the package in the "dependencies" field!
       saveDev: false,
       saveOptional: false,
       savePeer: false,
-    }, pkgs)
-    await symlinkDir(prepareDir, cacheLink, { overwrite: true })
+      symlink: true,
+      workspaceDir: undefined,
+    }, resolvedPkgs)
+    try {
+      await symlinkDir(cachedDir, cacheLink, { overwrite: true })
+    } catch (error) {
+      // EBUSY means that there is another dlx process running in parallel that has acquired the cache link first.
+      // Similarly, EEXIST means that another dlx process has created the cache link before this process.
+      // The link created by the other process is just as up-to-date as the link the current process was attempting
+      // to create. Therefore, instead of re-attempting to create the current link again, it is just as good to let
+      // the other link stay. The current process should yield.
+      if (!util.types.isNativeError(error) || !('code' in error) || (error.code !== 'EBUSY' && error.code !== 'EEXIST')) {
+        throw error
+      }
+    }
   }
-  const modulesDir = path.join(cacheLink, 'node_modules')
+  const modulesDir = path.join(cachedDir, 'node_modules')
   const binsDir = path.join(modulesDir, '.bin')
-  const prependPaths = [binsDir]
-  if (opts.useNodeVersion) {
-    const nodePath = await node.getNodeBinDir(opts)
-    prependPaths.push(nodePath)
-  }
-  const env = makeEnv({ userAgent: opts.userAgent, prependPaths })
+  const env = makeEnv({
+    userAgent: opts.userAgent,
+    prependPaths: [binsDir, ...opts.extraBinPaths],
+  })
   const binName = opts.package
     ? command
-    : await getBinName(modulesDir, await getPkgName(cacheLink))
+    : await getBinName(modulesDir, await getPkgName(cachedDir))
   try {
     await execa(binName, args, {
       cwd: process.cwd(),
@@ -162,34 +199,64 @@ function scopeless (pkgName: string): string {
 function findCache (pkgs: string[], opts: {
   cacheDir: string
   dlxCacheMaxAge: number
-}): { cacheLink: string, prepareDir: string | null } {
-  const dlxCommandCacheDir = createDlxCommandCacheDir(opts.cacheDir, pkgs)
+  registries: Record<string, string>
+  allowBuild: string[]
+}): { cacheLink: string, cacheExists: boolean, cachedDir: string } {
+  const dlxCommandCacheDir = createDlxCommandCacheDir(pkgs, opts)
   const cacheLink = path.join(dlxCommandCacheDir, 'pkg')
-  const valid = isCacheValid(cacheLink, opts.dlxCacheMaxAge)
-  const prepareDir = valid ? null : getPrepareDir(dlxCommandCacheDir)
-  return { cacheLink, prepareDir }
+  const cachedDir = getValidCacheDir(cacheLink, opts.dlxCacheMaxAge)
+  return {
+    cacheLink,
+    cachedDir: cachedDir ?? getPrepareDir(dlxCommandCacheDir),
+    cacheExists: cachedDir != null,
+  }
 }
 
-function createDlxCommandCacheDir (cacheDir: string, pkgs: string[]): string {
-  const dlxCacheDir = path.resolve(cacheDir, 'dlx')
-  const hashStr = pkgs.join('\n') // '\n' is not a URL-friendly character, and therefore not a valid package name, which can be used as separator
-  const cacheKey = createBase32Hash(hashStr)
+function createDlxCommandCacheDir (
+  pkgs: string[],
+  opts: {
+    registries: Record<string, string>
+    cacheDir: string
+    allowBuild: string[]
+  }
+): string {
+  const dlxCacheDir = path.resolve(opts.cacheDir, 'dlx')
+  const cacheKey = createCacheKey(pkgs, opts.registries, opts.allowBuild)
   const cachePath = path.join(dlxCacheDir, cacheKey)
   fs.mkdirSync(cachePath, { recursive: true })
   return cachePath
 }
 
-function isCacheValid (cacheLink: string, dlxCacheMaxAge: number): boolean {
+export function createCacheKey (pkgs: string[], registries: Record<string, string>, allowBuild?: string[]): string {
+  const sortedPkgs = [...pkgs].sort((a, b) => a.localeCompare(b))
+  const sortedRegistries = Object.entries(registries).sort(([k1], [k2]) => k1.localeCompare(k2))
+  const args: unknown[] = [sortedPkgs, sortedRegistries]
+  if (allowBuild?.length) {
+    args.push({ allowBuild: allowBuild.sort((pkg1, pkg2) => pkg1.localeCompare(pkg2)) })
+  }
+  const hashStr = JSON.stringify(args)
+  return createHexHash(hashStr)
+}
+
+function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | undefined {
   let stats: Stats
+  let target: string
   try {
     stats = fs.lstatSync(cacheLink)
+    if (stats.isSymbolicLink()) {
+      target = fs.realpathSync(cacheLink)
+      if (!target) return undefined
+    } else {
+      return undefined
+    }
   } catch (err) {
     if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
-      return false
+      return undefined
     }
     throw err
   }
-  return stats.mtime.getTime() + dlxCacheMaxAge * 60_000 >= new Date().getTime()
+  const isValid = stats.mtime.getTime() + dlxCacheMaxAge * 60_000 >= new Date().getTime()
+  return isValid ? target : undefined
 }
 
 function getPrepareDir (cachePath: string): string {

@@ -2,15 +2,13 @@ import path from 'path'
 import fs from 'fs'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { PnpmError } from '@pnpm/error'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type MutatedProject, type ProjectOptions, addDependenciesToPackage, mutateModulesInSingleProject, mutateModules } from '@pnpm/core'
-import { type LockfileFileV9 } from '@pnpm/lockfile-types'
+import { type LockfileFile } from '@pnpm/lockfile.types'
 import { type ProjectRootDir, type ProjectManifest } from '@pnpm/types'
-import {
-  testDefaults,
-} from '../utils'
+import { testDefaults } from '../utils'
 
 test('versions are replaced with versions specified through overrides option', async () => {
   const project = prepareEmpty()
@@ -23,7 +21,7 @@ test('versions are replaced with versions specified through overrides option', a
     '@pnpm.e2e/bar@^100.0.0': '100.1.0',
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
   }
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/pkg-with-1-dep@100.0.0', '@pnpm.e2e/foobar@100.0.0', '@pnpm.e2e/foobarqar@1.0.0'],
     testDefaults({ overrides })
   )
@@ -114,7 +112,7 @@ test('when adding a new dependency that is present in the overrides, use the spe
   const overrides = {
     '@pnpm.e2e/bar': '100.1.0',
   }
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/bar'],
     testDefaults({ overrides })
   )
@@ -131,7 +129,7 @@ test('explicitly specifying a version at install will ignore overrides', async (
     '@pnpm.e2e/bar': '100.1.0',
   }
   const EXACT_VERSION = '100.0.0'
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     [`@pnpm.e2e/bar@${EXACT_VERSION}`],
     testDefaults({ overrides })
   )
@@ -208,7 +206,7 @@ test('overrides with local file and link specs', async () => {
     },
   })
 
-  const lockfile = readYamlFile<LockfileFileV9>(WANTED_LOCKFILE)
+  const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
 
   expect(lockfile.importers?.['packages/direct']).toStrictEqual({
     dependencies: {
@@ -251,4 +249,48 @@ test('overrides with local file and link specs', async () => {
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-b'))).toBe(path.resolve('node_modules/.pnpm/pkg@file+overrides+pkg/node_modules/pkg'))
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-c'))).toBe(path.resolve('overrides/pkg'))
   expect(fs.realpathSync(path.join(indirectPrefix, '@pnpm.e2e/pkg-d'))).toBe(path.resolve('overrides/pkg'))
+})
+
+test('overrides remove dependencies', async () => {
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+    },
+    pnpm: {
+      overrides: {
+        '@pnpm.e2e/pkg-with-good-optional>is-positive': '-',
+      },
+    },
+  }
+
+  const project = prepare(manifest)
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({
+    overrides: manifest.pnpm?.overrides,
+  }))
+
+  // assert that @pnpm.e2e/pkg-with-good-optional@1.0.0 depends on is-positive@1.0.0
+  expect(project.requireModule('@pnpm.e2e/pkg-with-good-optional/package.json')).toMatchObject({
+    version: '1.0.0',
+    optionalDependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  // yet because of the overrides, it installs @pnpm.e2e/pkg-with-good-optional@1.0.0 without is-positive@1.0.0
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots).toHaveProperty(['@pnpm.e2e/pkg-with-good-optional@1.0.0'])
+  expect(lockfile.snapshots['@pnpm.e2e/pkg-with-good-optional@1.0.0']).not.toHaveProperty(['optionalDependencies', 'is-positive'])
+  expect(lockfile.snapshots).not.toHaveProperty(['is-positive@1.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/pkg-with-good-optional@1.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['is-positive@1.0.0'])
+  expect(
+    fs.existsSync('node_modules/.pnpm/@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/is-positive')
+  ).toBe(false)
+  const currentLockfile = project.readCurrentLockfile()
+  expect(lockfile.overrides).toStrictEqual(currentLockfile.overrides)
 })

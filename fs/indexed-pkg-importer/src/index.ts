@@ -8,6 +8,8 @@ import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import { type FilesMap, type ImportOptions, type ImportIndexedPackage } from '@pnpm/store-controller-types'
 import { importIndexedDir, type ImportFile } from './importIndexedDir'
 
+export { type FilesMap, type ImportOptions, type ImportIndexedPackage }
+
 export type PackageImportMethod = 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
 
 export function createIndexedPkgImporter (packageImportMethod?: PackageImportMethod): ImportIndexedPackage {
@@ -136,11 +138,10 @@ function createCloneFunction (): CloneFunction {
       try {
         reflinkFileSync(fr, to)
       } catch (err: unknown) {
-        assert(util.types.isNativeError(err))
         // If the file already exists, then we just proceed.
         // This will probably only happen if the package's index file contains the same file twice.
         // For instance: { "index.js": "hash", "./index.js": "hash" }
-        if (!err.message.startsWith('File exists') && !err.message.includes('-2147024816')) throw err
+        if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
       }
     }
   }

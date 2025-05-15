@@ -1,5 +1,436 @@
 # @pnpm/build-modules
 
+## 1000.3.5
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- 36d1448: Set the default `workspaceConcurrency` to `Math.min(os.availableParallelism(), 4)` [#9493](https://github.com/pnpm/pnpm/pull/9493).
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+- Updated dependencies [c24c66e]
+  - @pnpm/config@1003.1.0
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/link-bins@1000.0.13
+  - @pnpm/patching.apply-patch@1000.0.4
+  - @pnpm/fs.hard-link-dir@1000.0.1
+  - @pnpm/lifecycle@1001.0.14
+  - @pnpm/worker@1000.1.6
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/calc-dep-state@1001.0.13
+  - @pnpm/read-package-json@1000.0.9
+
+## 1000.3.4
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+  - @pnpm/link-bins@1000.0.12
+  - @pnpm/lifecycle@1001.0.13
+
+## 1000.3.3
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/lifecycle@1001.0.12
+  - @pnpm/link-bins@1000.0.11
+  - @pnpm/calc-dep-state@1001.0.12
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/worker@1000.1.5
+  - @pnpm/fs.hard-link-dir@1000.0.0
+  - @pnpm/patching.apply-patch@1000.0.3
+
+## 1000.3.2
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1002.0.1
+- @pnpm/lifecycle@1001.0.11
+- @pnpm/calc-dep-state@1001.0.11
+- @pnpm/worker@1000.1.4
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/patching.apply-patch@1000.0.3
+
+## 1000.3.1
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/lifecycle@1001.0.10
+  - @pnpm/calc-dep-state@1001.0.10
+  - @pnpm/link-bins@1000.0.10
+  - @pnpm/read-package-json@1000.0.7
+  - @pnpm/worker@1000.1.3
+  - @pnpm/fs.hard-link-dir@1000.0.0
+  - @pnpm/patching.apply-patch@1000.0.3
+
+## 1000.3.0
+
+### Minor Changes
+
+- 5f7be64: Rename `pnpm.allowNonAppliedPatches` to `pnpm.allowUnusedPatches`. The old name is still supported but it would print a deprecation warning message.
+- 5f7be64: Add `pnpm.ignorePatchFailures` to manage whether pnpm would ignore patch application failures.
+
+  If `ignorePatchFailures` is not set, pnpm would throw an error when patches with exact versions or version ranges fail to apply, and it would ignore failures from name-only patches.
+
+  If `ignorePatchFailures` is explicitly set to `false`, pnpm would throw an error when any type of patch fails to apply.
+
+  If `ignorePatchFailures` is explicitly set to `true`, pnpm would print a warning when any type of patch fails to apply.
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/patching.types@1000.1.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/lifecycle@1001.0.9
+  - @pnpm/calc-dep-state@1001.0.9
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/link-bins@1000.0.9
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/store-controller-types@1001.0.5
+  - @pnpm/worker@1000.1.2
+  - @pnpm/fs.hard-link-dir@1000.0.0
+  - @pnpm/patching.apply-patch@1000.0.3
+
+## 1000.2.10
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1001.0.4
+- @pnpm/lifecycle@1001.0.8
+- @pnpm/calc-dep-state@1001.0.8
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/patching.apply-patch@1000.0.3
+- @pnpm/worker@1000.1.1
+
+## 1000.2.9
+
+### Patch Changes
+
+- Updated dependencies [2e05789]
+  - @pnpm/worker@1000.1.0
+
+## 1000.2.8
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.8
+- @pnpm/calc-dep-state@1001.0.7
+
+## 1000.2.7
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+- Updated dependencies [453a18a]
+  - @pnpm/types@1000.2.1
+  - @pnpm/patching.apply-patch@1000.0.3
+  - @pnpm/link-bins@1000.0.8
+  - @pnpm/lifecycle@1001.0.7
+  - @pnpm/calc-dep-state@1001.0.6
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/store-controller-types@1001.0.3
+  - @pnpm/worker@1000.0.7
+  - @pnpm/fs.hard-link-dir@1000.0.0
+
+## 1000.2.6
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/lifecycle@1001.0.6
+  - @pnpm/calc-dep-state@1001.0.5
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/link-bins@1000.0.7
+  - @pnpm/read-package-json@1000.0.4
+  - @pnpm/store-controller-types@1001.0.2
+  - @pnpm/worker@1000.0.6
+  - @pnpm/fs.hard-link-dir@1000.0.0
+  - @pnpm/patching.apply-patch@1000.0.2
+
+## 1000.2.5
+
+### Patch Changes
+
+- 0205498: Print warning about ignored builds of dependencies on repeat install [#9106](https://github.com/pnpm/pnpm/issues/9106).
+  - @pnpm/calc-dep-state@1001.0.4
+
+## 1000.2.4
+
+### Patch Changes
+
+- a5b36b7: `pnpm approve-builds` should work after two consecutive `pnpm install` runs [#9083](https://github.com/pnpm/pnpm/pull/9083).
+
+## 1000.2.3
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@1001.0.3
+
+## 1000.2.2
+
+### Patch Changes
+
+- 9843aed: Don't read a package from side-effects cache if it isn't allowed to be built [#9042](https://github.com/pnpm/pnpm/issues/9042).
+
+## 1000.2.1
+
+### Patch Changes
+
+- Updated dependencies [c0d1c01]
+  - @pnpm/lifecycle@1001.0.5
+  - @pnpm/link-bins@1000.0.6
+
+## 1000.2.0
+
+### Minor Changes
+
+- 7a9473b: Added a new field "pnpm.ignoredBuiltDependencies" for explicitly listing packages that should not be built. When a package is in the list, pnpm will not print an info message about that package not being built [#8935](https://github.com/pnpm/pnpm/issues/8935).
+
+### Patch Changes
+
+- 040e67b: Do not print patched dependencies as ignored dependencies that require a build [#8952](https://github.com/pnpm/pnpm/issues/8952).
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/calc-dep-state@1001.0.2
+  - @pnpm/lifecycle@1001.0.4
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/link-bins@1000.0.5
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/store-controller-types@1001.0.1
+  - @pnpm/worker@1000.0.5
+  - @pnpm/patching.apply-patch@1000.0.2
+  - @pnpm/fs.hard-link-dir@1000.0.0
+
+## 1000.1.2
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/link-bins@1000.0.4
+  - @pnpm/lifecycle@1001.0.3
+  - @pnpm/worker@1000.0.4
+  - @pnpm/fs.hard-link-dir@1000.0.0
+  - @pnpm/patching.apply-patch@1000.0.1
+
+## 1000.1.1
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lifecycle@1001.0.2
+  - @pnpm/calc-dep-state@1001.0.1
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/link-bins@1000.0.3
+  - @pnpm/read-package-json@1000.0.2
+  - @pnpm/store-controller-types@1000.1.1
+  - @pnpm/worker@1000.0.3
+  - @pnpm/fs.hard-link-dir@1000.0.0
+  - @pnpm/patching.apply-patch@1000.0.1
+
+## 1000.1.0
+
+### Minor Changes
+
+- 516c4b3: Improve how packages with blocked lifecycle scripts are reported during installation. Always print the list of ignored scripts at the end of the output. Include a hint about how to allow the execution of those packages.
+- 4771813: Store the list of ignored builds in `node_modules/.modules.yaml`.
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+- Updated dependencies [7272992]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/worker@1000.0.2
+  - @pnpm/lifecycle@1001.0.1
+  - @pnpm/link-bins@1000.0.2
+  - @pnpm/fs.hard-link-dir@1000.0.0
+  - @pnpm/patching.apply-patch@1000.0.1
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+- Updated dependencies [3a6a417]
+- Updated dependencies [a76da0c]
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/lifecycle@1001.0.0
+  - @pnpm/calc-dep-state@1001.0.0
+  - @pnpm/patching.apply-patch@1000.0.1
+  - @pnpm/link-bins@1000.0.1
+  - @pnpm/read-package-json@1000.0.1
+  - @pnpm/worker@1000.0.1
+  - @pnpm/fs.hard-link-dir@1000.0.0
+
+## 14.0.6
+
+### Patch Changes
+
+- Updated dependencies [099e6af]
+  - @pnpm/worker@2.0.0
+  - @pnpm/calc-dep-state@7.0.11
+  - @pnpm/store-controller-types@18.1.6
+  - @pnpm/lifecycle@17.1.6
+  - @pnpm/patching.apply-patch@3.1.2
+  - @pnpm/link-bins@10.0.12
+  - @pnpm/read-package-json@9.0.10
+  - @pnpm/fs.hard-link-dir@4.0.0
+
+## 14.0.5
+
+### Patch Changes
+
+- Updated dependencies [222d10a]
+  - @pnpm/worker@1.0.13
+  - @pnpm/calc-dep-state@7.0.10
+  - @pnpm/lifecycle@17.1.5
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.1.1
+  - @pnpm/link-bins@10.0.11
+
+## 14.0.4
+
+### Patch Changes
+
+- @pnpm/worker@1.0.12
+- @pnpm/lifecycle@17.1.5
+- @pnpm/fs.hard-link-dir@4.0.0
+- @pnpm/patching.apply-patch@3.1.1
+- @pnpm/link-bins@10.0.11
+
+## 14.0.3
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@7.0.9
+- @pnpm/lifecycle@17.1.5
+- @pnpm/patching.apply-patch@3.1.1
+- @pnpm/link-bins@10.0.11
+- @pnpm/read-package-json@9.0.9
+- @pnpm/worker@1.0.11
+- @pnpm/fs.hard-link-dir@4.0.0
+
+## 14.0.2
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/lifecycle@17.1.4
+  - @pnpm/calc-dep-state@7.0.8
+  - @pnpm/core-loggers@10.0.7
+  - @pnpm/link-bins@10.0.10
+  - @pnpm/read-package-json@9.0.8
+  - @pnpm/store-controller-types@18.1.6
+  - @pnpm/worker@1.0.10
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.1.0
+
+## 14.0.1
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/lifecycle@17.1.3
+  - @pnpm/calc-dep-state@7.0.7
+  - @pnpm/core-loggers@10.0.6
+  - @pnpm/link-bins@10.0.9
+  - @pnpm/read-package-json@9.0.7
+  - @pnpm/store-controller-types@18.1.5
+  - @pnpm/worker@1.0.9
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.1.0
+
+## 14.0.0
+
+### Major Changes
+
+- cb006df: Add ability to apply patch to all versions:
+  If the key of `pnpm.patchedDependencies` is a package name without a version (e.g. `pkg`), pnpm will attempt to apply the patch to all versions of
+  the package, failure will be skipped.
+  If it is a package name and an exact version (e.g. `pkg@x.y.z`), pnpm will attempt to apply the patch to that exact version only, failure will
+  cause pnpm to fail.
+
+  If there's only one version of `pkg` installed, `pnpm patch pkg` and subsequent `pnpm patch-commit $edit_dir` will create an entry named `pkg` in
+  `pnpm.patchedDependencies`. And pnpm will attempt to apply this patch to other versions of `pkg` in the future.
+
+  If there's multiple versions of `pkg` installed, `pnpm patch pkg` will ask which version to edit and whether to attempt to apply the patch to all.
+  If the user chooses to apply the patch to all, `pnpm patch-commit $edit_dir` would create a `pkg` entry in `pnpm.patchedDependencies`.
+  If the user chooses not to apply the patch to all, `pnpm patch-commit $edit_dir` would create a `pkg@x.y.z` entry in `pnpm.patchedDependencies` with
+  `x.y.z` being the version the user chose to edit.
+
+  If the user runs `pnpm patch pkg@x.y.z` with `x.y.z` being the exact version of `pkg` that has been installed, `pnpm patch-commit $edit_dir` will always
+  create a `pkg@x.y.z` entry in `pnpm.patchedDependencies`.
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/patching.apply-patch@3.1.0
+  - @pnpm/patching.types@1.0.0
+  - @pnpm/types@12.0.0
+  - @pnpm/calc-dep-state@7.0.6
+  - @pnpm/lifecycle@17.1.2
+  - @pnpm/core-loggers@10.0.5
+  - @pnpm/link-bins@10.0.8
+  - @pnpm/read-package-json@9.0.6
+  - @pnpm/store-controller-types@18.1.4
+  - @pnpm/worker@1.0.8
+  - @pnpm/fs.hard-link-dir@4.0.0
+
+## 13.0.8
+
+### Patch Changes
+
+- Updated dependencies [9899576]
+  - @pnpm/lifecycle@17.1.1
+  - @pnpm/calc-dep-state@7.0.5
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.0.1
+  - @pnpm/link-bins@10.0.7
+
+## 13.0.7
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/lifecycle@17.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/calc-dep-state@7.0.4
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/link-bins@10.0.7
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/store-controller-types@18.1.3
+  - @pnpm/worker@1.0.7
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/patching.apply-patch@3.0.1
+
 ## 13.0.6
 
 ### Patch Changes

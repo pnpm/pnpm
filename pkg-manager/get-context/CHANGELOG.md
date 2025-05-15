@@ -1,5 +1,275 @@
 # @pnpm/get-context
 
+## 1001.0.14
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/read-projects-context@1000.0.15
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/modules-yaml@1000.3.3
+  - @pnpm/resolver-base@1003.0.1
+
+## 1001.0.13
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/read-projects-context@1000.0.14
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/modules-yaml@1000.3.2
+
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/lockfile.fs@1001.1.10
+  - @pnpm/read-projects-context@1000.0.13
+
+## 1001.0.11
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/modules-yaml@1000.3.1
+  - @pnpm/read-projects-context@1000.0.12
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [64f6b4f]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/modules-yaml@1000.3.0
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/read-projects-context@1000.0.11
+  - @pnpm/resolver-base@1000.2.1
+
+## 1001.0.9
+
+### Patch Changes
+
+- Updated dependencies [d612dcf]
+- Updated dependencies [d612dcf]
+- Updated dependencies [3d52365]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/read-projects-context@1000.0.10
+  - @pnpm/lockfile.fs@1001.1.7
+
+## 1001.0.8
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.6
+- @pnpm/read-projects-context@1000.0.9
+
+## 1001.0.7
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/modules-yaml@1000.1.4
+  - @pnpm/read-projects-context@1000.0.8
+  - @pnpm/resolver-base@1000.1.4
+
+## 1001.0.6
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/modules-yaml@1000.1.3
+  - @pnpm/read-projects-context@1000.0.7
+  - @pnpm/resolver-base@1000.1.3
+
+## 1001.0.5
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.3
+- @pnpm/read-projects-context@1000.0.6
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/modules-yaml@1000.1.2
+  - @pnpm/read-projects-context@1000.0.5
+  - @pnpm/resolver-base@1000.1.2
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/modules-yaml@1000.1.1
+  - @pnpm/read-projects-context@1000.0.4
+  - @pnpm/resolver-base@1000.1.1
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+- Updated dependencies [4771813]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/modules-yaml@1000.1.0
+  - @pnpm/read-projects-context@1000.0.3
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [3f0e4f0]
+  - @pnpm/lockfile.fs@1001.1.0
+  - @pnpm/read-projects-context@1000.0.2
+
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/read-projects-context@1000.0.1
+
+## 13.0.0
+
+### Major Changes
+
+- 9ea8fa4: Don't validate (and possibly purge) modules directory as a side effect of `getContext` and `getContextForSingleImporter` [#8657](https://github.com/pnpm/pnpm/pull/8657).
+- 9ea8fa4: `PnpmContext.hoistPattern` and `PnpmContext.publicHoistPattern` are no longer affected by modules directory state [#8657](https://github.com/pnpm/pnpm/pull/8657). Prior behavior can be recreated with the new properties `PnpmContext.currentHoistPattern` (`_.currentHoistPattern ?? _.hoistPattern`) and `PnpmContext.currentPublicHoistPattern` (`_.currentPublicHoistPattern ?? _.publicHoistPattern`).
+- 9ea8fa4: `PnpmSingleContext.hoistPattern` and `PnpmSingleContext.publicHoistPattern` are no longer affected by modules directory state [#8657](https://github.com/pnpm/pnpm/pull/8657).
+- 9ea8fa4: `UnexpectedStoreError` and `UnexpectedVirtualStoreDirError` are no longer exported [#8657](https://github.com/pnpm/pnpm/pull/8657). They can be imported from `@pnpm/core` instead.
+- 9ea8fa4: Argument `alreadyPurged` removed from `getContextForSingleImporter` [#8657](https://github.com/pnpm/pnpm/pull/8657).
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/lockfile.fs@1.0.6
+  - @pnpm/read-projects-context@9.1.14
+
+## 12.0.7
+
+### Patch Changes
+
+- f9a095c: Don't purge `node_modules`, when typing "n" in the prompt that asks whether to remove `node_modules` before installation [#8655](https://github.com/pnpm/pnpm/pull/8655).
+  - @pnpm/lockfile.fs@1.0.5
+  - @pnpm/read-projects-context@9.1.13
+
+## 12.0.6
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+  - @pnpm/constants@9.0.0
+  - @pnpm/lockfile.fs@1.0.4
+  - @pnpm/error@6.0.2
+  - @pnpm/read-projects-context@9.1.12
+
+## 12.0.5
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/lockfile.fs@1.0.3
+  - @pnpm/core-loggers@10.0.7
+  - @pnpm/modules-yaml@13.1.7
+  - @pnpm/read-projects-context@9.1.11
+  - @pnpm/resolver-base@13.0.4
+
+## 12.0.4
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/lockfile.fs@1.0.2
+  - @pnpm/core-loggers@10.0.6
+  - @pnpm/modules-yaml@13.1.6
+  - @pnpm/read-projects-context@9.1.10
+  - @pnpm/resolver-base@13.0.3
+
+## 12.0.3
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.fs@1.0.1
+  - @pnpm/core-loggers@10.0.5
+  - @pnpm/modules-yaml@13.1.5
+  - @pnpm/read-projects-context@9.1.9
+  - @pnpm/resolver-base@13.0.2
+
+## 12.0.2
+
+### Patch Changes
+
+- Updated dependencies [8055a30]
+  - @pnpm/lockfile.fs@1.0.0
+  - @pnpm/read-projects-context@9.1.8
+
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/modules-yaml@13.1.4
+  - @pnpm/read-projects-context@9.1.7
+  - @pnpm/resolver-base@13.0.1
+
 ## 12.0.0
 
 ### Major Changes

@@ -1,5 +1,131 @@
 # @pnpm/types
 
+## 1000.6.0
+
+### Minor Changes
+
+- 5ec7255: Export AuditConfig.
+
+## 1000.5.0
+
+### Minor Changes
+
+- 5b73df1: Added `PinnedVersion`.
+
+## 1000.4.0
+
+### Minor Changes
+
+- 750ae7d: Export `ConfigDependencies` type.
+
+## 1000.3.0
+
+### Minor Changes
+
+- 5f7be64: Rename `pnpm.allowNonAppliedPatches` to `pnpm.allowUnusedPatches`. The old name is still supported but it would print a deprecation warning message.
+- 5f7be64: Add `pnpm.ignorePatchFailures` to manage whether pnpm would ignore patch application failures.
+
+  If `ignorePatchFailures` is not set, pnpm would throw an error when patches with exact versions or version ranges fail to apply, and it would ignore failures from name-only patches.
+
+  If `ignorePatchFailures` is explicitly set to `false`, pnpm would throw an error when any type of patch fails to apply.
+
+  If `ignorePatchFailures` is explicitly set to `true`, pnpm would print a warning when any type of patch fails to apply.
+
+## 1000.2.1
+
+### Patch Changes
+
+- a5e4965: Fix `pnpm deploy` creating a `package.json` without the `imports` and `license` field [#9193](https://github.com/pnpm/pnpm/issues/9193).
+
+## 1000.2.0
+
+### Minor Changes
+
+- 8fcc221: Export PnpmSettings.
+
+## 1000.1.1
+
+### Patch Changes
+
+- b562deb: Fix `pnpm deploy` creating a package.json without the `"type"` key [#8962](https://github.com/pnpm/pnpm/issues/8962).
+
+## 1000.1.0
+
+### Minor Changes
+
+- 9591a18: Added support for a new type of dependencies called "configurational dependencies". These dependencies are installed before all the other types of dependencies (before "dependencies", "devDependencies", "optionalDependencies").
+
+  Configurational dependencies cannot have dependencies of their own or lifecycle scripts. They should be added using exact version and the integrity checksum. Example:
+
+  ```json
+  {
+    "pnpm": {
+      "configDependencies": {
+        "my-configs": "1.0.0+sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw=="
+      }
+    }
+  }
+  ```
+
+  Related RFC: [#8](https://github.com/pnpm/rfcs/pull/8).
+  Related PR: [#8915](https://github.com/pnpm/pnpm/pull/8915).
+
+## 12.2.0
+
+### Minor Changes
+
+- d500d9f: Added a new setting to `package.json` at `pnpm.auditConfig.ignoreGhsas` for ignoring vulnerabilities by their GHSA code [#6838](https://github.com/pnpm/pnpm/issues/6838).
+
+  For instance:
+
+  ```json
+  {
+    "pnpm": {
+      "auditConfig": {
+        "ignoreGhsas": [
+          "GHSA-42xw-2xvc-qx8m",
+          "GHSA-4w2v-q235-vp99",
+          "GHSA-cph5-m8f7-6c5x",
+          "GHSA-vh95-rmgr-6w4m"
+        ]
+      }
+    }
+  }
+  ```
+
+## 12.1.0
+
+### Minor Changes
+
+- 7ee59a1: Added optional modulesDir field to projects.
+
+## 12.0.0
+
+### Major Changes
+
+- cb006df: Add ability to apply patch to all versions:
+  If the key of `pnpm.patchedDependencies` is a package name without a version (e.g. `pkg`), pnpm will attempt to apply the patch to all versions of
+  the package, failure will be skipped.
+  If it is a package name and an exact version (e.g. `pkg@x.y.z`), pnpm will attempt to apply the patch to that exact version only, failure will
+  cause pnpm to fail.
+
+  If there's only one version of `pkg` installed, `pnpm patch pkg` and subsequent `pnpm patch-commit $edit_dir` will create an entry named `pkg` in
+  `pnpm.patchedDependencies`. And pnpm will attempt to apply this patch to other versions of `pkg` in the future.
+
+  If there's multiple versions of `pkg` installed, `pnpm patch pkg` will ask which version to edit and whether to attempt to apply the patch to all.
+  If the user chooses to apply the patch to all, `pnpm patch-commit $edit_dir` would create a `pkg` entry in `pnpm.patchedDependencies`.
+  If the user chooses not to apply the patch to all, `pnpm patch-commit $edit_dir` would create a `pkg@x.y.z` entry in `pnpm.patchedDependencies` with
+  `x.y.z` being the version the user chose to edit.
+
+  If the user runs `pnpm patch pkg@x.y.z` with `x.y.z` being the exact version of `pkg` that has been installed, `pnpm patch-commit $edit_dir` will always
+  create a `pkg@x.y.z` entry in `pnpm.patchedDependencies`.
+
+## 11.1.0
+
+### Minor Changes
+
+- 0ef168b: Support specifying node version (via `pnpm.executionEnv.nodeVersion` in `package.json`) for running lifecycle scripts per each package in a workspace [#6720](https://github.com/pnpm/pnpm/issues/6720).
+
 ## 11.0.0
 
 ### Major Changes

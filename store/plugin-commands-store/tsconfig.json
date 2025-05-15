@@ -25,22 +25,25 @@
       "path": "../../config/normalize-registries"
     },
     {
-      "path": "../../config/pick-registry-for-package"
+      "path": "../../exec/plugin-commands-script-runners"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../lockfile/fs"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/utils"
     },
     {
-      "path": "../../packages/crypto.base32-hash"
+      "path": "../../packages/constants"
     },
     {
       "path": "../../packages/dependency-path"
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
     },
     {
       "path": "../../packages/parse-wanted-dependency"

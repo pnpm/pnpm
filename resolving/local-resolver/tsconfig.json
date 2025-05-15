@@ -10,10 +10,13 @@
   ],
   "references": [
     {
-      "path": "../../fs/graceful-fs"
+      "path": "../../crypto/hash"
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/logger"
     },
     {
       "path": "../../packages/types"

@@ -1,17 +1,16 @@
 import {
   LOCKFILE_VERSION,
-  LOCKFILE_VERSION_V6,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
   createLockfileObject,
   existsNonEmptyWantedLockfile,
   isEmptyLockfile,
-  type Lockfile,
+  type LockfileObject,
   readCurrentLockfile,
   readWantedLockfile,
   readWantedLockfileAndAutofixConflicts,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { type ProjectId, type ProjectRootDir } from '@pnpm/types'
 import { isCI } from 'ci-info'
@@ -19,11 +18,11 @@ import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
 
 export interface PnpmContext {
-  currentLockfile: Lockfile
+  currentLockfile: LockfileObject
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   existsNonEmptyWantedLockfile: boolean
-  wantedLockfile: Lockfile
+  wantedLockfile: LockfileObject
 }
 
 export async function readLockfiles (
@@ -45,12 +44,12 @@ export async function readLockfiles (
     virtualStoreDir: string
   }
 ): Promise<{
-    currentLockfile: Lockfile
+    currentLockfile: LockfileObject
     currentLockfileIsUpToDate: boolean
     existsCurrentLockfile: boolean
     existsWantedLockfile: boolean
     existsNonEmptyWantedLockfile: boolean
-    wantedLockfile: Lockfile
+    wantedLockfile: LockfileObject
     wantedLockfileIsModified: boolean
     lockfileHadConflicts: boolean
   }> {
@@ -59,11 +58,11 @@ export async function readLockfiles (
   // a latest pnpm should not break all the builds
   const lockfileOpts = {
     ignoreIncompatible: opts.force || isCI,
-    wantedVersions: [LOCKFILE_VERSION, LOCKFILE_VERSION_V6],
+    wantedVersions: [LOCKFILE_VERSION],
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
-  const fileReads = [] as Array<Promise<Lockfile | undefined | null>>
+  const fileReads = [] as Array<Promise<LockfileObject | undefined | null>>
   let lockfileHadConflicts: boolean = false
   if (opts.useLockfile) {
     if (!opts.frozenLockfile) {
@@ -107,7 +106,7 @@ export async function readLockfiles (
       }
     })()
   )
-  const files = await Promise.all<Lockfile | null | undefined>(fileReads)
+  const files = await Promise.all<LockfileObject | null | undefined>(fileReads)
   const sopts = {
     autoInstallPeers: opts.autoInstallPeers,
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,

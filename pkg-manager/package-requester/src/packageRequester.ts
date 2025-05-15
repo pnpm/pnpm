@@ -2,9 +2,8 @@ import { createReadStream, promises as fs } from 'fs'
 import os from 'os'
 import path from 'path'
 import {
-  type FileType,
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
-  getFilePathInCafs as _getFilePathInCafs,
+  getIndexFilePathInCafs as _getIndexFilePathInCafs,
   type PackageFilesIndex,
 } from '@pnpm/store.cafs'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
@@ -58,6 +57,7 @@ const pickBundledManifest = pick([
   'bin',
   'bundledDependencies',
   'bundleDependencies',
+  'cpu',
   'dependencies',
   'directories',
   'engines',
@@ -108,15 +108,14 @@ export function createPackageRequester (
     concurrency: networkConcurrency,
   })
 
-  const cafsDir = path.join(opts.storeDir, 'files')
-  const getFilePathInCafs = _getFilePathInCafs.bind(null, cafsDir)
+  const getIndexFilePathInCafs = _getIndexFilePathInCafs.bind(null, opts.storeDir)
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs)
   const fetchPackageToStore = fetchToStore.bind(null, {
-    readPkgFromCafs: _readPkgFromCafs.bind(null, cafsDir, opts.verifyStoreIntegrity),
+    readPkgFromCafs: _readPkgFromCafs.bind(null, opts.storeDir, opts.verifyStoreIntegrity),
     fetch,
     fetchingLocker: new Map(),
-    getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, cafsDir),
-    getFilePathInCafs,
+    getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, opts.storeDir),
+    getIndexFilePathInCafs,
     requestsQueue: Object.assign(requestsQueue, {
       counter: 0,
       concurrency: networkConcurrency,
@@ -139,7 +138,7 @@ export function createPackageRequester (
   return Object.assign(requestPackage, {
     fetchPackageToStore,
     getFilesIndexFilePath: getFilesIndexFilePath.bind(null, {
-      getFilePathInCafs,
+      getIndexFilePathInCafs,
       storeDir: opts.storeDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }),
@@ -163,7 +162,8 @@ async function resolveAndFetch (
 ): Promise<PackageResponse> {
   let latest: string | undefined
   let manifest: DependencyManifest | undefined
-  let normalizedPref: string | undefined
+  let normalizedBareSpecifier: string | undefined
+  let alias: string | undefined
   let resolution = options.currentPkg?.resolution as Resolution
   let pkgId = options.currentPkg?.id
   const skipResolution = resolution && !options.update
@@ -187,9 +187,11 @@ async function resolveAndFetch (
       preferredVersions: options.preferredVersions,
       preferWorkspacePackages: options.preferWorkspacePackages,
       projectDir: options.projectDir,
-      registry: options.registry,
       workspacePackages: options.workspacePackages,
-      updateToLatest: options.updateToLatest,
+      update: options.update,
+      injectWorkspacePackages: options.injectWorkspacePackages,
+      calcSpecifier: options.calcSpecifier,
+      pinnedVersion: options.pinnedVersion,
     }), { priority: options.downloadPriority })
 
     manifest = resolveResult.manifest
@@ -208,24 +210,26 @@ async function resolveAndFetch (
     updated = pkgId !== resolveResult.id || !resolution || forceFetch
     resolution = resolveResult.resolution
     pkgId = resolveResult.id
-    normalizedPref = resolveResult.normalizedPref
+    normalizedBareSpecifier = resolveResult.normalizedBareSpecifier
+    alias = resolveResult.alias
   }
 
   const id = pkgId!
 
   if (resolution.type === 'directory' && !id.startsWith('file:')) {
     if (manifest == null) {
-      throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''}`)
+      throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`)
     }
     return {
       body: {
         id,
         isLocal: true,
         manifest,
-        normalizedPref,
         resolution: resolution as DirectoryResolution,
         resolvedVia,
         updated,
+        normalizedBareSpecifier,
+        alias,
       },
     }
   }
@@ -254,11 +258,12 @@ async function resolveAndFetch (
         isInstallable: isInstallable ?? undefined,
         latest,
         manifest,
-        normalizedPref,
+        normalizedBareSpecifier,
         resolution,
         resolvedVia,
         updated,
         publishedAt,
+        alias,
       },
     }
   }
@@ -290,11 +295,12 @@ async function resolveAndFetch (
       isInstallable: isInstallable ?? undefined,
       latest,
       manifest,
-      normalizedPref,
+      normalizedBareSpecifier,
       resolution,
       resolvedVia,
       updated,
       publishedAt,
+      alias,
     },
     fetching: fetchResult.fetching,
     filesIndexFile: fetchResult.filesIndexFile,
@@ -309,7 +315,7 @@ interface FetchLock {
 
 function getFilesIndexFilePath (
   ctx: {
-    getFilePathInCafs: (integrity: string, fileType: FileType) => string
+    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     storeDir: string
     virtualStoreDirMaxLength: number
   },
@@ -318,7 +324,7 @@ function getFilesIndexFilePath (
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
   const filesIndexFile = (opts.pkg.resolution as TarballResolution).integrity
-    ? ctx.getFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, 'index')
+    ? ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id)
     : path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
   return { filesIndexFile, target }
 }
@@ -335,7 +341,7 @@ function fetchToStore (
       opts: FetchOptions
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
-    getFilePathInCafs: (integrity: string, fileType: FileType) => string
+    getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     getFilePathByModeInCafs: (integrity: string, mode: number) => string
     requestsQueue: {
       add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T>

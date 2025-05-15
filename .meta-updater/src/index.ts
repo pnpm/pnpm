@@ -1,50 +1,62 @@
 import fs from 'fs'
 import path from 'path'
-import { readWantedLockfile, type Lockfile } from '@pnpm/lockfile-file'
+import { readWantedLockfile, type LockfileObject } from '@pnpm/lockfile.fs'
 import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
+import { sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
+import { parsePkgAndParentSelector } from '@pnpm/parse-overrides'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import isSubdir from 'is-subdir'
 import loadJsonFile from 'load-json-file'
 import normalizePath from 'normalize-path'
 import writeJsonFile from 'write-json-file'
 
-const NEXT_TAG = 'next-9'
 const CLI_PKG_NAME = 'pnpm'
 
-export default async (workspaceDir: string) => {
-  const pnpmManifest = loadJsonFile.sync<any>(path.join(workspaceDir, 'pnpm/package.json'))
-  const pnpmVersion = pnpmManifest!['version'] // eslint-disable-line
-  const pnpmMajorKeyword = `pnpm${pnpmVersion.split('.')[0]}`
+export default async (workspaceDir: string) => { // eslint-disable-line
+  const workspaceManifest = await readWorkspaceManifest(workspaceDir)!
+  const pnpmManifest = loadJsonFile.sync<ProjectManifest>(path.join(workspaceDir, 'pnpm/package.json'))
+  const pnpmVersion = pnpmManifest!.version!
+  const pnpmMajorNumber = pnpmVersion.split('.')[0]
+  const pnpmMajorKeyword = `pnpm${pnpmMajorNumber}`
+  const nextTag = `next-${pnpmMajorNumber}`
   const utilsDir = path.join(workspaceDir, '__utils__')
   const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
   if (lockfile == null) {
     throw new Error('no lockfile found')
   }
   return createUpdateOptions({
-    'package.json': (manifest: ProjectManifest & { keywords?: string[] } | null, { dir }) => {
+    'package.json': (manifest: ProjectManifest & { keywords?: string[] } | null, { dir }: { dir: string }) => {
       if (!manifest) {
-        return manifest;
+        return manifest
       }
       if (manifest.name === 'monorepo-root') {
-        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${NEXT_TAG} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${NEXT_TAG} --access=public`
-        return manifest
+        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${nextTag} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${nextTag} --access=public`
+        return sortKeysInManifest(manifest)
       }
       if (manifest.name && manifest.name !== CLI_PKG_NAME) {
         manifest.devDependencies = {
           ...manifest.devDependencies,
-          [manifest.name]: `workspace:*`,
+          [manifest.name]: 'workspace:*',
         }
       } else if (manifest.name === CLI_PKG_NAME && manifest.devDependencies) {
         delete manifest.devDependencies[manifest.name]
       }
-      if (manifest.private || isSubdir(utilsDir, dir)) return manifest
+      if (manifest.private === true || isSubdir(utilsDir, dir)) return manifest
       manifest.keywords = [
+        'pnpm',
         pnpmMajorKeyword,
-        ...(manifest.keywords ?? []).filter((keyword) => !/^pnpm[0-9]+$/.test(keyword)),
+        ...Array.from(new Set((manifest.keywords ?? []).filter((keyword) => keyword !== 'pnpm' && !/^pnpm\d+$/.test(keyword)))).sort(),
       ]
+      const smallestAllowedLibVersion = Number(pnpmMajorNumber) * 100
+      const libMajorVersion = Number(manifest.version!.split('.')[0])
       if (manifest.name !== CLI_PKG_NAME) {
+        if (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100) {
+          manifest.version = `${smallestAllowedLibVersion}.0.0`
+        }
         for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
           if (!manifest[depType]) continue
+          manifest[depType] = sortDirectKeys(manifest[depType])
           for (const depName of Object.keys(manifest[depType] ?? {})) {
             if (!manifest[depType]?.[depName].startsWith('workspace:')) {
               manifest[depType]![depName] = 'catalog:'
@@ -52,6 +64,14 @@ export default async (workspaceDir: string) => {
           }
         }
       } else {
+        manifest.pnpm = manifest.pnpm ?? {}
+        manifest.pnpm.overrides = { ...workspaceManifest!.overrides }
+        for (const selector in manifest.pnpm.overrides) {
+          if (manifest.pnpm.overrides[selector] === 'catalog:') {
+            const { targetPkg } = parsePkgAndParentSelector(selector)
+            manifest.pnpm.overrides[selector] = workspaceManifest!.catalog![targetPkg.name]
+          }
+        }
         for (const depType of ['devDependencies'] as const) {
           if (!manifest[depType]) continue
           for (const depName of Object.keys(manifest[depType] ?? {})) {
@@ -69,24 +89,34 @@ export default async (workspaceDir: string) => {
           }
         }
       }
+      if (manifest.peerDependencies?.['@pnpm/logger'] != null) {
+        manifest.peerDependencies['@pnpm/logger'] = 'catalog:'
+      }
+      if (manifest.name !== '@pnpm/make-dedicated-lockfile' && manifest.name !== '@pnpm/mount-modules') {
+        for (const depType of ['dependencies', 'optionalDependencies'] as const) {
+          if (manifest[depType]?.['@pnpm/logger']) {
+            delete manifest[depType]!['@pnpm/logger']
+          }
+        }
+      }
       if (dir.includes('artifacts') || manifest.name === '@pnpm/exe') {
         manifest.version = pnpmVersion
         if (manifest.name === '@pnpm/exe') {
           for (const depName of ['@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/win-x64', '@pnpm/win-arm64', '@pnpm/macos-x64', '@pnpm/macos-arm64']) {
-            manifest.optionalDependencies![depName] = `workspace:*`
+            manifest.optionalDependencies![depName] = 'workspace:*'
           }
         }
-        return manifest
+        return sortKeysInManifest(manifest)
       }
-      return updateManifest(workspaceDir, manifest, dir)
+      return updateManifest(workspaceDir, manifest, dir, nextTag)
     },
     'tsconfig.json': updateTSConfig.bind(null, {
       lockfile,
       workspaceDir,
     }),
-    'cspell.json': (cspell: any) => {
-      if (cspell?.words) {
-        cspell.words = cspell.words.sort()
+    'cspell.json': (cspell: any) => { // eslint-disable-line
+      if (cspell && typeof cspell === 'object' && 'words' in cspell && Array.isArray(cspell.words)) {
+        cspell.words = cspell.words.sort((w1: string, w2: string) => w1.localeCompare(w2))
       }
       return cspell
     },
@@ -95,7 +125,7 @@ export default async (workspaceDir: string) => {
 
 async function updateTSConfig (
   context: {
-    lockfile: Lockfile
+    lockfile: LockfileObject
     workspaceDir: string
   },
   tsConfig: object | null,
@@ -106,6 +136,7 @@ async function updateTSConfig (
 ): Promise<object | null> {
   if (tsConfig == null) return tsConfig
   if (manifest.name === '@pnpm/tsconfig') return tsConfig
+  if (manifest.name === '@pnpm-private/typecheck') return tsConfig
   const relative = normalizePath(path.relative(context.workspaceDir, dir)) as ProjectId
   const importer = context.lockfile.importers[relative]
   if (!importer) return tsConfig
@@ -144,32 +175,15 @@ async function updateTSConfig (
     await writeJsonFile(path.join(dir, 'test/tsconfig.json'), {
       extends: '../tsconfig.json',
       compilerOptions: {
-        // The composite flag allows projects to be specified as references in
-        // other projects. Test projects should not be dependencies of other
-        // files and don't need composite set.
-        //
-        // Some tests perform a relative import into the "src" directory to test
-        // non-publicly exported idenfiers.
-        //
-        //   import { foo } from "../src/foo"
-        //
-        // Instead of:
-        //
-        //   import { foo } from "@pnpm/example"
-        //
-        // The relative "../src" imports would error if composite is enabled
-        // since composite would require files in "src" to be part of the test
-        // project.
-        composite: false,
-        noEmit: true,
-
-        rootDir: '.'
+        noEmit: false,
+        outDir: '../test.lib',
+        rootDir: '.',
       },
       include: [
         '**/*.ts',
-        path.relative(testDir, path.join(context.workspaceDir, '__typings__/**/*.d.ts')),
+        normalizePath(path.relative(testDir, path.join(context.workspaceDir, '__typings__/**/*.d.ts'))),
       ],
-      references: (tsConfig as any)?.compilerOptions?.composite === false
+      references: (tsConfig as any)?.compilerOptions?.composite === false // eslint-disable-line
         // If composite is explicitly set to false, we can't add the main
         // tsconfig.json as a project reference. Only composite enabled projects
         // can be referenced by definition. Instead, we have to add all the
@@ -184,7 +198,7 @@ async function updateTSConfig (
         // methods to be defensive against future changes to testDir, dir, or
         // relPath.
         ? linkValues.map(relPath => ({
-          path: path.relative(testDir, path.join(dir, relPath))
+          path: normalizePath(path.relative(testDir, path.join(dir, relPath))),
         }))
 
         // If the main project is composite (the more common case), we can
@@ -194,7 +208,7 @@ async function updateTSConfig (
         // The project reference allows editor features like Go to Definition
         // jump to files in src for imports using the current package's name
         // (ex: @pnpm/config).
-        : [{ path: ".." }]
+        : [{ path: '..' }],
     }, { indent: 2 })
   }
 
@@ -205,35 +219,37 @@ async function updateTSConfig (
       include: [
         'src/**/*.ts',
         'test/**/*.ts',
-        path.relative(dir, path.join(context.workspaceDir, '__typings__/**/*.d.ts')),
+        normalizePath(path.relative(dir, path.join(context.workspaceDir, '__typings__/**/*.d.ts'))),
       ],
-    }, { indent: 2 })
+    }, { indent: 2 }),
   ])
   return {
     ...tsConfig,
     extends: '@pnpm/tsconfig',
     compilerOptions: {
-      ...(tsConfig as any)['compilerOptions'],
+      ...(tsConfig as any)['compilerOptions'], // eslint-disable-line
       rootDir: 'src',
     },
     references: linkValues.map(path => ({ path })),
   }
 }
 
-let registryMockPort = 7769
+const registryMockPortForCore = 7769
 
-type UpdatedManifest = ProjectManifest & Record<string, unknown>
-
-async function updateManifest (workspaceDir: string, manifest: ProjectManifest, dir: string): Promise<UpdatedManifest> {
+async function updateManifest (workspaceDir: string, manifest: ProjectManifest, dir: string, nextTag: string): Promise<ProjectManifest> {
   const relative = normalizePath(path.relative(workspaceDir, dir))
   let scripts: Record<string, string>
+  let preset = '@pnpm/jest-config'
   switch (manifest.name) {
-  case '@pnpm/lockfile-types':
+  case '@pnpm/lockfile.types':
     scripts = { ...manifest.scripts }
     break
+  case '@pnpm/exec.build-commands':
+  case '@pnpm/config.deps-installer':
   case '@pnpm/headless':
   case '@pnpm/outdated':
   case '@pnpm/package-requester':
+  case '@pnpm/cache.commands':
   case '@pnpm/plugin-commands-import':
   case '@pnpm/plugin-commands-installation':
   case '@pnpm/plugin-commands-listing':
@@ -246,14 +262,18 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-deploy':
   case CLI_PKG_NAME:
   case '@pnpm/core': {
-    // @pnpm/core tests currently works only with port 4873 due to the usage of
-    // the next package: pkg-with-tarball-dep-from-registry
-    const port = manifest.name === '@pnpm/core' ? 4873 : ++registryMockPort
+    preset = '@pnpm/jest-config/with-registry'
     scripts = {
       ...(manifest.scripts as Record<string, string>),
     }
     scripts.test = 'pnpm run compile && pnpm run _test'
-    scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} jest`
+    if (manifest.name === '@pnpm/core') {
+      // @pnpm/core tests currently works only with port 7769 due to the usage of
+      // the next package: pkg-with-tarball-dep-from-registry
+      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} jest`
+    } else {
+      scripts._test = 'jest'
+    }
     break
   }
   default:
@@ -272,7 +292,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     break
   }
   if (manifest.name === CLI_PKG_NAME) {
-    manifest.publishConfig!.tag = NEXT_TAG
+    manifest.publishConfig!.tag = nextTag
   }
   if (scripts._test) {
     if (scripts.pretest) {
@@ -288,12 +308,13 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   scripts.compile = 'tsc --build && pnpm run lint --fix'
   delete scripts.tsc
   let homepage: string
-  let repository: string | { type: 'git', url: string }
+  let repository: string | { type: 'git', url: string, directory: 'pnpm' }
   if (manifest.name === CLI_PKG_NAME) {
     homepage = 'https://pnpm.io'
     repository = {
       type: 'git',
       url: 'git+https://github.com/pnpm/pnpm.git',
+      directory: 'pnpm',
     }
     scripts.compile += ' && rimraf dist bin/nodes && pnpm run bundle \
 && shx cp -r node-gyp-bin dist/node-gyp-bin \
@@ -332,7 +353,14 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
     delete manifest.dependencies['@types/ramda']
   }
-  return {
+  if (scripts.test) {
+    Object.assign(manifest, {
+      jest: {
+        preset,
+      },
+    })
+  }
+  return sortKeysInManifest({
     ...manifest,
     bugs: {
       url: 'https://github.com/pnpm/pnpm/issues',
@@ -349,5 +377,58 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     exports: {
       '.': manifest.name === 'pnpm' ? './package.json' : './lib/index.js',
     },
-  }
+  })
+}
+
+const priority = Object.fromEntries([
+  // Metadata
+  'name',
+  'private',
+  'version',
+  'description',
+  'keywords',
+  'license',
+  'author',
+  'contributors',
+  'funding',
+  'repository',
+  'homepage',
+  'bugs',
+
+  // Package Behavior
+  'type',
+  'main',
+  'types',
+  'module',
+  'browser',
+  'exports',
+  'files',
+  'bin',
+  'man',
+  'directories',
+  'unpkg',
+
+  // Scripts & Configuration
+  'scripts',
+  'config',
+
+  // Dependencies
+  'dependencies',
+  'peerDependencies',
+  'optionalDependencies',
+  'devDependencies',
+  'bundledDependencies', // alias: bundleDependencies
+
+  // Engines & Compatibility
+  'engines',
+  'os',
+  'cpu',
+
+  // pnpm/yarn/npm specific fields
+  'pnpm',
+  'packageManager',
+].map((key, index) => [key, index]))
+
+function sortKeysInManifest (manifest: ProjectManifest): ProjectManifest {
+  return sortKeysByPriority({ priority }, manifest)
 }

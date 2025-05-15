@@ -33,7 +33,9 @@ async function listLocalVersions (opts: NvmNodeCommandOptions): Promise<LocalVer
   }
   const { nodeLink } = await getNodeExecPathAndTargetDir(opts.pnpmHomeDir)
   const nodeVersionDirs = await fs.readdir(nodeBaseDir)
-  return nodeVersionDirs.reduce(({ currentVersion, versions }, nodeVersion) => {
+  let currentVersion: string | undefined
+  const versions: string[] = []
+  for (const nodeVersion of nodeVersionDirs) {
     const nodeVersionDir = path.join(nodeBaseDir, nodeVersion)
     const nodeExec = getNodeExecPathInNodeDir(nodeVersionDir)
     if (nodeLink?.startsWith(nodeVersionDir)) {
@@ -42,8 +44,8 @@ async function listLocalVersions (opts: NvmNodeCommandOptions): Promise<LocalVer
     if (semver.valid(nodeVersion) && existsSync(nodeExec)) {
       versions.push(nodeVersion)
     }
-    return { currentVersion, versions }
-  }, { currentVersion: undefined, versions: [] } as LocalVersions)
+  }
+  return { currentVersion, versions }
 }
 
 async function listRemoteVersions (opts: NvmNodeCommandOptions, versionSpec?: string): Promise<string[]> {

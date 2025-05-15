@@ -1,5 +1,278 @@
 # @pnpm/find-workspace-packages
 
+## 1000.0.24
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- c00360b: Update `@pnpm/util.lex-comparator` to v3.0.2.
+- Updated dependencies [09cf46f]
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/fs.find-packages@1000.0.11
+  - @pnpm/types@1000.6.0
+
+## 1000.0.23
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.1.3
+
+## 1000.0.22
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/fs.find-packages@1000.0.10
+
+## 1000.0.21
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.1.1
+
+## 1000.0.20
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [c85aaf8]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/fs.find-packages@1000.0.9
+  - @pnpm/cli-utils@1000.1.0
+
+## 1000.0.19
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.19
+
+## 1000.0.18
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/cli-utils@1000.0.18
+  - @pnpm/fs.find-packages@1000.0.8
+
+## 1000.0.17
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.17
+
+## 1000.0.16
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.16
+
+## 1000.0.15
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.15
+
+## 1000.0.14
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.14
+
+## 1000.0.13
+
+### Patch Changes
+
+- Updated dependencies [b8b0c68]
+- Updated dependencies [a5e4965]
+  - @pnpm/fs.find-packages@1000.0.7
+  - @pnpm/types@1000.2.1
+  - @pnpm/cli-utils@1000.0.13
+
+## 1000.0.12
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.12
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/cli-utils@1000.0.11
+  - @pnpm/fs.find-packages@1000.0.6
+
+## 1000.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.10
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.9
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.8
+
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.7
+- @pnpm/fs.find-packages@1000.0.5
+
+## 1000.0.6
+
+### Patch Changes
+
+- 9a44e6c: `pnpm deploy` should inherit the `pnpm` object from the root `package.json` [#8991](https://github.com/pnpm/pnpm/pull/8991).
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/fs.find-packages@1000.0.4
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.5
+- @pnpm/fs.find-packages@1000.0.3
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/cli-utils@1000.0.4
+  - @pnpm/fs.find-packages@1000.0.2
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.3
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.1
+- @pnpm/fs.find-packages@1000.0.1
+
+## 4.0.13
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.8
+- @pnpm/fs.find-packages@4.0.6
+
+## 4.0.12
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.7
+
+## 4.0.11
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.6
+- @pnpm/fs.find-packages@4.0.5
+
+## 4.0.10
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/cli-utils@4.0.5
+  - @pnpm/fs.find-packages@4.0.4
+
+## 4.0.9
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/cli-utils@4.0.4
+  - @pnpm/fs.find-packages@4.0.3
+
+## 4.0.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.3
+
+## 4.0.7
+
+### Patch Changes
+
+- 82f7ed2: Remove warnings for non-root `pnpm` field, add warnings for non-root `pnpm` subfields that aren't `executionEnv` [#8143](https://github.com/pnpm/pnpm/issues/8413).
+  - @pnpm/cli-utils@4.0.2
+
+## 4.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.1
+
+## 4.0.5
+
+### Patch Changes
+
+- Updated dependencies [26b065c]
+  - @pnpm/cli-utils@4.0.0
+
+## 4.0.4
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+- Updated dependencies [98c8bd6]
+  - @pnpm/types@12.0.0
+  - @pnpm/cli-utils@3.1.7
+  - @pnpm/fs.find-packages@4.0.2
+
+## 4.0.3
+
+### Patch Changes
+
+- @pnpm/cli-utils@3.1.6
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/fs.find-packages@4.0.1
+
 ## 4.0.1
 
 ### Patch Changes

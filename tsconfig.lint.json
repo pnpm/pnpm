@@ -5,6 +5,7 @@
     "rootDir": "src"
   },
   "include": [
+    ".meta-updater/**/*.ts",
     "**/src/**/*.ts",
     "**/test/**/*.ts",
     "typings/**/*.d.ts"

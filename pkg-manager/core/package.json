@@ -1,19 +1,58 @@
 {
   "name": "@pnpm/core",
+  "version": "1008.0.2",
   "description": "Fast, disk space efficient installation engine",
-  "version": "15.0.1",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "dependencies",
+    "dependency manager",
+    "efficient",
+    "fast",
+    "hardlinks",
+    "install",
+    "installer",
+    "link",
+    "lockfile",
+    "modules",
+    "npm",
+    "package manager",
+    "package.json",
+    "packages",
+    "prune",
+    "rapid",
+    "remove",
+    "shrinkwrap",
+    "symlinks",
+    "uninstall"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "peerDependencies": {
-    "@pnpm/logger": "^5.0.0",
-    "@pnpm/worker": "workspace:^"
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "start": "tsc --watch",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test-with-preview": "preview && pnpm run test:e2e",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7769 jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:*",
@@ -23,11 +62,11 @@
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/crypto.base32-hash": "workspace:*",
+    "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/filter-lockfile": "workspace:*",
     "@pnpm/get-context": "workspace:*",
     "@pnpm/headless": "workspace:*",
     "@pnpm/hoist": "workspace:*",
@@ -35,11 +74,15 @@
     "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-to-pnp": "workspace:*",
-    "@pnpm/lockfile-utils": "workspace:*",
-    "@pnpm/lockfile-walker": "workspace:*",
+    "@pnpm/lockfile.filtering": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.preferred-versions": "workspace:*",
+    "@pnpm/lockfile.pruner": "workspace:*",
+    "@pnpm/lockfile.settings-checker": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/lockfile.verification": "workspace:*",
+    "@pnpm/lockfile.walker": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/modules-cleaner": "workspace:*",
@@ -47,11 +90,11 @@
     "@pnpm/normalize-registries": "workspace:*",
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/package-requester": "workspace:*",
+    "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
+    "@pnpm/patching.config": "workspace:*",
     "@pnpm/pkg-manager.direct-dep-linker": "workspace:*",
-    "@pnpm/prune-lockfile": "workspace:*",
     "@pnpm/read-modules-dir": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",
     "@pnpm/resolve-dependencies": "workspace:*",
@@ -59,38 +102,39 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/which-version-is-pinned": "workspace:*",
     "@zkochan/rimraf": "catalog:",
+    "ci-info": "catalog:",
+    "enquirer": "catalog:",
     "is-inner-link": "catalog:",
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
     "normalize-path": "catalog:",
-    "p-every": "catalog:",
     "p-filter": "catalog:",
     "p-limit": "catalog:",
-    "p-map-values": "catalog:",
     "path-exists": "catalog:",
     "ramda": "catalog:",
     "run-groups": "catalog:",
-    "semver": "catalog:",
-    "sort-keys": "catalog:",
-    "version-selector-type": "catalog:"
+    "semver": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
-    "@pnpm/client": "workspace:*",
     "@pnpm/core": "workspace:*",
-    "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
-    "@pnpm/package-store": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
     "@pnpm/registry-mock": "catalog:",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
+    "@pnpm/testing.temp-store": "workspace:*",
     "@types/fs-extra": "catalog:",
     "@types/is-windows": "catalog:",
     "@types/normalize-path": "catalog:",
@@ -112,49 +156,10 @@
     "write-json-file": "catalog:",
     "write-yaml-file": "catalog:"
   },
-  "directories": {
-    "test": "test"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core#readme",
-  "keywords": [
-    "pnpm9",
-    "dependency manager",
-    "install",
-    "installer",
-    "uninstall",
-    "remove",
-    "link",
-    "prune",
-    "shrinkwrap",
-    "lockfile",
-    "fast",
-    "rapid",
-    "efficient",
-    "package.json",
-    "packages",
-    "dependencies",
-    "symlinks",
-    "hardlinks",
-    "modules",
-    "npm",
-    "package manager"
-  ],
-  "license": "MIT",
   "engines": {
     "node": ">=18.12"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core",
-  "scripts": {
-    "start": "tsc --watch",
-    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "test-with-preview": "preview && pnpm run test:e2e",
-    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=4873 jest",
-    "test": "pnpm run compile && pnpm run _test",
-    "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
-  },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "jest": {
+    "preset": "@pnpm/jest-config/with-registry"
   }
 }

@@ -22,9 +22,10 @@ export type SkippedOptionalDependencyMessage = {
   | 'build_failure'
 } | {
   package: {
+    id?: never
     name: string | undefined
     version: string | undefined
-    pref: string
+    bareSpecifier: string
   }
   reason: 'resolution_failure'
 })

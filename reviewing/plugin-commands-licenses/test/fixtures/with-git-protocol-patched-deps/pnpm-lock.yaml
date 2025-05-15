@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   is-positive@3.1.0:
-    hash: 3wijq7ky55ptqab6aghokum24i
+    hash: b27bbf2d83e68cac4491a38dd8b846aadd55d9c7bf8a4971139465c4de3566ce
     path: patches/is-positive@3.1.0.patch
 
 importers:
@@ -15,7 +15,7 @@ importers:
     dependencies:
       is-positive:
         specifier: github:kevva/is-positive
-        version: https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678(patch_hash=3wijq7ky55ptqab6aghokum24i)
+        version: https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678(patch_hash=b27bbf2d83e68cac4491a38dd8b846aadd55d9c7bf8a4971139465c4de3566ce)
 
 packages:
 
@@ -26,5 +26,4 @@ packages:
 
 snapshots:
 
-  is-positive@https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678(patch_hash=3wijq7ky55ptqab6aghokum24i):
-    dev: false
+  is-positive@https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678(patch_hash=b27bbf2d83e68cac4491a38dd8b846aadd55d9c7bf8a4971139465c4de3566ce): {}

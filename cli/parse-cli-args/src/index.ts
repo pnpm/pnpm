@@ -17,7 +17,7 @@ export interface ParsedCliArgs {
   cmd: string | null
   unknownOptions: Map<string, string[]>
   fallbackCommandUsed: boolean
-  workspaceDir?: string
+  workspaceDir: string | undefined
 }
 
 export async function parseCliArgs (
@@ -60,11 +60,29 @@ export async function parseCliArgs (
     commandName = opts.fallbackCommand!
     inputArgv.unshift(opts.fallbackCommand!)
   // The run command has special casing for --help and is handled further below.
-  } else if (cmd !== 'run' && noptExploratoryResults['help']) {
-    return getParsedArgsForHelp()
+  } else if (cmd !== 'run') {
+    if (noptExploratoryResults['help']) {
+      return {
+        ...getParsedArgsForHelp(),
+        workspaceDir: await getWorkspaceDir(noptExploratoryResults),
+      }
+    }
+    if (noptExploratoryResults['version'] || noptExploratoryResults['v']) {
+      return {
+        argv: noptExploratoryResults.argv,
+        cmd: null,
+        options: {
+          version: true,
+        },
+        params: noptExploratoryResults.argv.remain,
+        unknownOptions: new Map(),
+        fallbackCommandUsed: false,
+        workspaceDir: await getWorkspaceDir(noptExploratoryResults),
+      }
+    }
   }
 
-  function getParsedArgsForHelp (): ParsedCliArgs {
+  function getParsedArgsForHelp (): Omit<ParsedCliArgs, 'workspaceDir'> {
     return {
       argv: noptExploratoryResults.argv,
       cmd: 'help',
@@ -123,11 +141,15 @@ export async function parseCliArgs (
     0,
     { escapeArgs: getEscapeArgsWithSpecialCaseForRun() }
   )
+  const workspaceDir = await getWorkspaceDir(options)
 
   // For the run command, it's not clear whether --help should be passed to the
   // underlying script or invoke pnpm's help text until an additional nopt call.
   if (cmd === 'run' && options['help']) {
-    return getParsedArgsForHelp()
+    return {
+      ...getParsedArgsForHelp(),
+      workspaceDir,
+    }
   }
 
   if (opts.renamedOptions != null) {
@@ -150,10 +172,6 @@ export async function parseCliArgs (
       cmd = subCmd
     }
   }
-  const dir = options['dir'] ?? process.cwd()
-  const workspaceDir = options['global'] || options['ignore-workspace']
-    ? undefined
-    : await findWorkspaceDir(dir)
   if (options['workspace-root']) {
     if (options['global']) {
       throw new PnpmError('OPTIONS_CONFLICT', '--workspace-root may not be used with --global')
@@ -207,15 +225,25 @@ function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>): M
   const unknownOptions = new Map<string, string[]>()
   const closestMatches = getClosestOptionMatches.bind(null, Array.from(knownOptions))
   for (const usedOption of usedOptions) {
-    if (knownOptions.has(usedOption) || usedOption.startsWith('//')) continue
+    if (knownOptions.has(usedOption) || usedOption.startsWith('//') || isScopeRegistryOption(usedOption)) continue
 
     unknownOptions.set(usedOption, closestMatches(usedOption))
   }
   return unknownOptions
 }
 
+function isScopeRegistryOption (optionName: string): boolean {
+  return /^@[a-z0-9][\w.-]*:registry$/.test(optionName)
+}
+
 function getClosestOptionMatches (knownOptions: string[], option: string): string[] {
   return didYouMean(option, knownOptions, {
     returnType: ReturnTypeEnums.ALL_CLOSEST_MATCHES,
   })
+}
+
+async function getWorkspaceDir (parsedOpts: Record<string, unknown>): Promise<string | undefined> {
+  if (parsedOpts['global'] || parsedOpts['ignore-workspace']) return undefined
+  const dir = parsedOpts['dir'] ?? process.cwd()
+  return findWorkspaceDir(dir as string)
 }

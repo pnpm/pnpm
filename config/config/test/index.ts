@@ -21,6 +21,7 @@ delete process.env.npm_config_virtual_store_dir
 delete process.env.npm_config_shared_workspace_lockfile
 delete process.env.npm_config_side_effects_cache
 delete process.env.npm_config_node_version
+delete process.env.npm_config_fetch_retries
 
 const env = {
   PNPM_HOME: __dirname,
@@ -203,6 +204,7 @@ test('registries of scoped packages are read and normalized', async () => {
 
   expect(config.registries).toStrictEqual({
     default: 'https://default.com/',
+    '@jsr': 'https://npm.jsr.io/',
     '@foo': 'https://foo.com/',
     '@bar': 'https://bar.com/',
     '@qar': 'https://qar.com/qar',
@@ -226,6 +228,7 @@ test('registries in current directory\'s .npmrc have bigger priority then global
 
   expect(config.registries).toStrictEqual({
     default: 'https://pnpm.io/',
+    '@jsr': 'https://npm.jsr.io/',
     '@foo': 'https://foo.com/',
     '@bar': 'https://bar.com/',
     '@qar': 'https://qar.com/qar',
@@ -325,6 +328,21 @@ test('extraBinPaths', async () => {
       workspaceDir: process.cwd(),
     })
     // extraBinPaths has the node_modules/.bin folder from the root of the workspace
+    expect(config.extraBinPaths).toStrictEqual([path.resolve('node_modules/.bin')])
+  }
+
+  {
+    const { config } = await getConfig({
+      cliOptions: {
+        'ignore-scripts': true,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+    // extraBinPaths has the node_modules/.bin folder from the root of the workspace if scripts are ignored
     expect(config.extraBinPaths).toStrictEqual([path.resolve('node_modules/.bin')])
   }
 
@@ -614,6 +632,22 @@ test('reads workspacePackagePatterns', async () => {
   })
 
   expect(config.workspacePackagePatterns).toEqual(['packages/*'])
+})
+
+test('setting workspace-concurrency to negative number', async () => {
+  const workspaceDir = path.join(__dirname, 'fixtures/pkg-with-valid-workspace-yaml')
+  process.chdir(workspaceDir)
+  const { config } = await getConfig({
+    cliOptions: {
+      'workspace-concurrency': -1,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir,
+  })
+  expect(config.workspaceConcurrency >= 1).toBeTruthy()
 })
 
 test('respects test-pattern', async () => {
@@ -986,4 +1020,106 @@ test('read PNPM_HOME defined in environment variables', async () => {
   expect(config.pnpmHomeDir).toBe(homeDir)
 
   process.env = oldEnv
+})
+
+test('xxx', async () => {
+  const oldEnv = process.env
+  process.env = {
+    ...oldEnv,
+    FOO: 'fetch-retries',
+  }
+
+  const { config } = await getConfig({
+    cliOptions: {
+      dir: f.find('has-env-in-key'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.fetchRetries).toBe(999)
+
+  process.env = oldEnv
+})
+
+test('settings from pnpm-workspace.yaml are read', async () => {
+  const workspaceDir = f.find('settings-in-workspace-yaml')
+  process.chdir(workspaceDir)
+  const { config } = await getConfig({
+    cliOptions: {},
+    workspaceDir,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.onlyBuiltDependencies).toStrictEqual(['foo'])
+  expect(config.rawConfig['only-built-dependencies']).toStrictEqual(['foo'])
+})
+
+test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect', async () => {
+  const workspaceDir = f.find('settings-in-workspace-yaml')
+  process.chdir(workspaceDir)
+  const { config } = await getConfig({
+    cliOptions: {},
+    workspaceDir,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.sharedWorkspaceLockfile).toBe(false)
+  expect(config.lockfileDir).toBe(undefined)
+})
+
+test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async () => {
+  const workspaceDir = f.find('settings-in-workspace-yaml')
+  process.chdir(workspaceDir)
+  const { config } = await getConfig({
+    cliOptions: {},
+    workspaceDir,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.shamefullyHoist).toBe(true)
+  expect(config.publicHoistPattern).toStrictEqual(['*'])
+  expect(config.rawConfig['shamefully-hoist']).toBe(true)
+})
+
+test('when dangerouslyAllowAllBuilds is set to true neverBuiltDependencies is set to an empty array', async () => {
+  const { config } = await getConfig({
+    cliOptions: {
+      'dangerously-allow-all-builds': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.neverBuiltDependencies).toStrictEqual([])
+})
+
+test('when dangerouslyAllowAllBuilds is set to true and neverBuiltDependencies not empty, a warning is returned', async () => {
+  const workspaceDir = f.find('never-built-dependencies')
+  process.chdir(workspaceDir)
+  const { config, warnings } = await getConfig({
+    cliOptions: {
+      'dangerously-allow-all-builds': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir,
+  })
+
+  expect(config.neverBuiltDependencies).toStrictEqual([])
+  expect(warnings).toStrictEqual(['You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.'])
 })

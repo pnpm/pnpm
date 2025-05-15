@@ -11,7 +11,7 @@
       "dist": {
         "integrity": "sha512-KUmwlEiE3pzpmPCfrLkoOO7fmL4Tft+dcm6YQlUfOUJvHO73xlcKVoA/xOHP/ayUO8GiPlIqWRbKHrsxvXGE8g==",
         "shasum": "a95f834b4a4d9661623a0cf2bd76acbc213192fc",
-        "tarball": "http://localhost:4873/@pnpm.e2e/dep-of-pkg-with-1-dep/-/@pnpm.e2e/dep-of-pkg-with-1-dep-100.0.0.tgz"
+        "tarball": "http://localhost:7769/@pnpm.e2e/dep-of-pkg-with-1-dep/-/@pnpm.e2e/dep-of-pkg-with-1-dep-100.0.0.tgz"
       },
       "contributors": []
     },
@@ -25,7 +25,7 @@
       "dist": {
         "integrity": "sha512-CAF68U5SjOQOT2dubJxAxauvQwm0G2IWS+Si7xP6Za79ZAt2VmCG5LMoSfv7GkbKk0RvSm/EMpT4BQVGy1yCpg==",
         "shasum": "7647e89d79edff3ea46b0b04e390e2c820995be6",
-        "tarball": "http://localhost:4873/@pnpm.e2e/dep-of-pkg-with-1-dep/-/@pnpm.e2e/dep-of-pkg-with-1-dep-100.1.0.tgz"
+        "tarball": "http://localhost:7769/@pnpm.e2e/dep-of-pkg-with-1-dep/-/@pnpm.e2e/dep-of-pkg-with-1-dep-100.1.0.tgz"
       },
       "contributors": []
     },
@@ -39,7 +39,7 @@
       "dist": {
         "integrity": "sha512-v/FQPTv+Y6j/J5a7ymlifFIhJa28wROyiTfg1vcAVKdJ9S94E32CHVUbzgvdcu9pAkLqe7INiwJ2ynqmgiTiiw==",
         "shasum": "0cd58112bc509221dc3dfd97736a1feae3872b69",
-        "tarball": "http://localhost:4873/@pnpm.e2e/dep-of-pkg-with-1-dep/-/@pnpm.e2e/dep-of-pkg-with-1-dep-101.0.0.tgz"
+        "tarball": "http://localhost:7769/@pnpm.e2e/dep-of-pkg-with-1-dep/-/@pnpm.e2e/dep-of-pkg-with-1-dep-101.0.0.tgz"
       },
       "contributors": []
     }

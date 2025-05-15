@@ -38,7 +38,7 @@ test('the lowest version of a direct dependency is installed when resolution mod
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()
 
-  let manifest = await install({
+  let { updatedManifest: manifest } = await install({
     dependencies: {
       '@pnpm.e2e/foo': '^100.0.0',
     },
@@ -49,7 +49,7 @@ test('the lowest version of a direct dependency is installed when resolution mod
     expect(lockfile.packages['@pnpm.e2e/foo@100.0.0']).toBeTruthy()
   }
 
-  manifest = await install(manifest, testDefaults({ resolutionMode: 'time-based', update: true }))
+  manifest = (await install(manifest, testDefaults({ resolutionMode: 'time-based', update: true }))).updatedManifest
 
   {
     const lockfile = project.readLockfile()
@@ -70,7 +70,7 @@ test('the lowest version of a direct dependency is installed when resolution mod
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()
 
-  let manifest = await install({
+  let { updatedManifest: manifest } = await install({
     dependencies: {
       '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
     },
@@ -82,7 +82,7 @@ test('the lowest version of a direct dependency is installed when resolution mod
     expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
   }
 
-  manifest = await install(manifest, testDefaults({ resolutionMode: 'lowest-direct', update: true }))
+  manifest = (await install(manifest, testDefaults({ resolutionMode: 'lowest-direct', update: true }))).updatedManifest
 
   {
     const lockfile = project.readLockfile()

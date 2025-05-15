@@ -8,7 +8,7 @@ import {
   type MutatedProject,
   type ProjectOptions,
 } from '@pnpm/core'
-import { type Lockfile, type LockfileFile } from '@pnpm/lockfile-types'
+import { type LockfileObject, type LockfileFile } from '@pnpm/lockfile.types'
 import { type ProjectRootDir, type ProjectId } from '@pnpm/types'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -126,7 +126,7 @@ test('local file using absolute path is correctly installed on repeat install', 
   f.copy('local-pkg', absolutePath)
 
   // is-odd is only added because otherwise no lockfile is created
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     [`link:${absolutePath}`, 'is-odd@1.0.0'],
     testDefaults({ excludeLinksFromLockfile: true })
   )
@@ -151,7 +151,7 @@ test('hoisted install should not fail with excludeLinksFromLockfile true', async
   f.copy('local-pkg', absolutePath)
 
   // is-odd is only added because otherwise no lockfile is created
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     [`link:${absolutePath}`, 'is-odd@1.0.0'],
     testDefaults({ excludeLinksFromLockfile: true, nodeLinker: 'hoisted' })
   )
@@ -213,7 +213,7 @@ test('update the lockfile when a new project is added to the workspace but do no
   })
   await mutateModules(importers, testDefaults({ allProjects, excludeLinksFromLockfile: true, frozenLockfile: true }))
 
-  const lockfile: Lockfile = readYamlFile(WANTED_LOCKFILE)
+  const lockfile: LockfileObject = readYamlFile(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
   expect(Object.keys(lockfile.importers['project-1' as ProjectId].dependencies ?? {})).toStrictEqual(['is-positive'])
 })

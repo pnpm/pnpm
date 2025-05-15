@@ -1,13 +1,16 @@
 import path from 'path'
 import {
+  type IgnoredScriptsLog,
   type DeprecationLog,
   type PackageManifestLog,
   type RootLog,
   type SummaryLog,
 } from '@pnpm/core-loggers'
 import { type Config } from '@pnpm/config'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
+import boxen from 'boxen'
 import chalk from 'chalk'
 import semver from 'semver'
 import { EOL } from '../constants'
@@ -21,7 +24,11 @@ import {
   REMOVED_CHAR,
 } from './outputConstants'
 
-const CONFIG_BY_DEP_TYPE = {
+type DepType = 'prod' | 'optional' | 'peer' | 'dev' | 'nodeModulesOnly'
+
+type ConfigByDepType = 'production' | 'dev' | 'optional'
+
+const CONFIG_BY_DEP_TYPE: Partial<Record<DepType, ConfigByDepType>> = {
   prod: 'production',
   dev: 'dev',
   optional: 'optional',
@@ -33,6 +40,7 @@ export function reportSummary (
     summary: Rx.Observable<SummaryLog>
     root: Rx.Observable<RootLog>
     packageManifest: Rx.Observable<PackageManifestLog>
+    ignoredScripts: Rx.Observable<IgnoredScriptsLog>
   },
   opts: {
     cmd: string
@@ -49,11 +57,12 @@ export function reportSummary (
 
   return Rx.combineLatest(
     pkgsDiff$,
+    log$.ignoredScripts.pipe(Rx.startWith({ packageNames: undefined })),
     summaryLog$
   )
     .pipe(
       take(1),
-      map(([pkgsDiff]) => {
+      map(([pkgsDiff, ignoredScripts]) => {
         let msg = ''
         for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly'] as const) {
           let diffs: PackageDiff[] = Object.values(pkgsDiff[depType as keyof typeof pkgsDiff])
@@ -72,14 +81,23 @@ export function reportSummary (
             msg += EOL
             msg += _printDiffs(diffs, depType)
             msg += EOL
-          } else if (opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
+          } else if (CONFIG_BY_DEP_TYPE[depType] && opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
             msg += EOL
             msg += `${chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)} skipped`
-            if (opts.env.NODE_ENV === 'production' && depType === 'dev') {
-              msg += ' because NODE_ENV is set to production'
-            }
             msg += EOL
           }
+        }
+        if (ignoredScripts.packageNames && ignoredScripts.packageNames.length > 0 && !opts.pnpmConfig?.strictDepBuilds) {
+          msg += EOL
+          msg += boxen(`Ignored build scripts: ${Array.from(ignoredScripts.packageNames).sort(lexCompare).join(', ')}.
+Run "pnpm approve-builds${opts.pnpmConfig?.cliOptions?.global ? ' -g' : ''}" to pick which dependencies should be allowed to run scripts.`, {
+            title: 'Warning',
+            padding: 1,
+            margin: 0,
+            borderStyle: 'round',
+            borderColor: 'yellow',
+          })
+          msg += EOL
         }
         return Rx.of({ msg })
       })

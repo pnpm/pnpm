@@ -10,6 +10,7 @@ import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import { PnpmError } from '@pnpm/error'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { type IncludedDependencies, type ProjectRootDir } from '@pnpm/types'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
@@ -24,6 +25,7 @@ import { parseUpdateParam } from '../recursive'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
+    'dangerously-allow-all-builds',
     'depth',
     'dev',
     'engine-strict',
@@ -170,6 +172,9 @@ export async function handler (
   opts: UpdateCommandOptions,
   params: string[] = []
 ): Promise<string | undefined> {
+  if (opts.global && opts.rootProjectManifest == null) {
+    return 'No global packages found'
+  }
   if (opts.interactive) {
     return interactiveUpdate(params, opts)
   }
@@ -189,12 +194,10 @@ async function interactiveUpdate (
         manifest: await readProjectManifestOnly(opts.dir, opts),
       },
     ]
-  const rootDir = opts.workspaceDir ?? opts.dir
-  const rootProject = projects.find((project) => project.rootDir === rootDir)
   const outdatedPkgsOfProjects = await outdatedDepsOfProjects(projects, input, {
     ...opts,
     compatible: opts.latest !== true,
-    ignoreDependencies: rootProject?.manifest?.pnpm?.updateConfig?.ignoreDependencies,
+    ignoreDependencies: opts.updateConfig?.ignoreDependencies,
     include,
     retry: {
       factor: opts.fetchRetryFactor,
@@ -294,7 +297,7 @@ async function update (
     ...opts,
     allowNew: false,
     depth,
-    ignoreCurrentPrefs: false,
+    ignoreCurrentSpecifiers: false,
     includeDirect,
     include,
     update: true,
@@ -304,6 +307,7 @@ async function update (
       : undefined,
     updatePackageManifest: opts.save !== false,
     resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
+    prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
   }, dependencies)
 }
 

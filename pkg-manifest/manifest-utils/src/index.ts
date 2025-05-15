@@ -6,7 +6,6 @@ import {
 import { getAllUniqueSpecs } from './getAllUniqueSpecs'
 import { getSpecFromPackageManifest } from './getSpecFromPackageManifest'
 
-export * from './getPref'
 export * from './updateProjectManifestObject'
 export * from './getDependencyTypeFromManifest'
 

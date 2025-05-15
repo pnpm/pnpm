@@ -1,5 +1,253 @@
 # @pnpm/lifecycle
 
+## 1001.0.14
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [c24c66e]
+  - @pnpm/directory-fetcher@1000.1.7
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/link-bins@1000.0.13
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/read-package-json@1000.0.9
+
+## 1001.0.13
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+  - @pnpm/link-bins@1000.0.12
+
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/directory-fetcher@1000.1.6
+  - @pnpm/link-bins@1000.0.11
+  - @pnpm/read-package-json@1000.0.8
+
+## 1001.0.11
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@1000.1.5
+- @pnpm/store-controller-types@1002.0.1
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/directory-fetcher@1000.1.4
+  - @pnpm/link-bins@1000.0.10
+  - @pnpm/read-package-json@1000.0.7
+
+## 1001.0.9
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/directory-fetcher@1000.1.3
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/link-bins@1000.0.9
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/store-controller-types@1001.0.5
+
+## 1001.0.8
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@1000.1.2
+- @pnpm/store-controller-types@1001.0.4
+
+## 1001.0.7
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/link-bins@1000.0.8
+  - @pnpm/directory-fetcher@1000.1.1
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/store-controller-types@1001.0.3
+
+## 1001.0.6
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+  - @pnpm/types@1000.2.0
+  - @pnpm/directory-fetcher@1000.1.0
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/link-bins@1000.0.7
+  - @pnpm/read-package-json@1000.0.4
+  - @pnpm/store-controller-types@1001.0.2
+
+## 1001.0.5
+
+### Patch Changes
+
+- c0d1c01: Quote args for scripts with shell-quote to support new lines (on POSIX only) [#8980](https://github.com/pnpm/pnpm/issues/8980).
+  - @pnpm/directory-fetcher@1000.0.5
+  - @pnpm/link-bins@1000.0.6
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/directory-fetcher@1000.0.4
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/link-bins@1000.0.5
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/store-controller-types@1001.0.1
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/directory-fetcher@1000.0.3
+  - @pnpm/link-bins@1000.0.4
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/directory-fetcher@1000.0.2
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/link-bins@1000.0.3
+  - @pnpm/read-package-json@1000.0.2
+  - @pnpm/store-controller-types@1000.1.1
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/link-bins@1000.0.2
+
+## 1001.0.0
+
+### Major Changes
+
+- 3a6a417: Reduced the number of fields from `package.json` that are added as environment variables (`npm_package_` prefix) during script execution. Only the following fields are now included: `name`, `version`, `bin`, `engines`, and `config` [#8552](https://github.com/pnpm/pnpm/issues/8552).
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/directory-fetcher@1000.0.1
+  - @pnpm/link-bins@1000.0.1
+  - @pnpm/read-package-json@1000.0.1
+
+## 17.1.6
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+- @pnpm/store-controller-types@18.1.6
+- @pnpm/link-bins@10.0.12
+- @pnpm/read-package-json@9.0.10
+- @pnpm/directory-fetcher@8.0.10
+
+## 17.1.5
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+- @pnpm/link-bins@10.0.11
+- @pnpm/read-package-json@9.0.9
+- @pnpm/directory-fetcher@8.0.9
+
+## 17.1.4
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/directory-fetcher@8.0.8
+  - @pnpm/core-loggers@10.0.7
+  - @pnpm/link-bins@10.0.10
+  - @pnpm/read-package-json@9.0.8
+  - @pnpm/store-controller-types@18.1.6
+
+## 17.1.3
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/directory-fetcher@8.0.7
+  - @pnpm/core-loggers@10.0.6
+  - @pnpm/link-bins@10.0.9
+  - @pnpm/read-package-json@9.0.7
+  - @pnpm/store-controller-types@18.1.5
+
+## 17.1.2
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/directory-fetcher@8.0.6
+  - @pnpm/core-loggers@10.0.5
+  - @pnpm/link-bins@10.0.8
+  - @pnpm/read-package-json@9.0.6
+  - @pnpm/store-controller-types@18.1.4
+
+## 17.1.1
+
+### Patch Changes
+
+- 9899576: `pnpm install` should run `node-gyp rebuild` if the project has a `binding.gyp` file even if the project doesn't have an install script [#8293](https://github.com/pnpm/pnpm/issues/8293).
+  - @pnpm/directory-fetcher@8.0.5
+  - @pnpm/link-bins@10.0.7
+
+## 17.1.0
+
+### Minor Changes
+
+- 0ef168b: Support specifying node version (via `pnpm.executionEnv.nodeVersion` in `package.json`) for running lifecycle scripts per each package in a workspace [#6720](https://github.com/pnpm/pnpm/issues/6720).
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/directory-fetcher@8.0.5
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/link-bins@10.0.7
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/store-controller-types@18.1.3
+
 ## 17.0.8
 
 ### Patch Changes

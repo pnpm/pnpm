@@ -1,24 +1,24 @@
 import path from 'path'
-import { PnpmError } from '@pnpm/error'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
-import { globalWarn } from '@pnpm/logger'
 import {
-  type Lockfile,
+  type CatalogSnapshots,
+  type LockfileObject,
   type ProjectSnapshot,
-} from '@pnpm/lockfile-types'
+} from '@pnpm/lockfile.types'
 import {
   getAllDependenciesFromManifest,
   getSpecFromPackageManifest,
-  type PinnedVersion,
 } from '@pnpm/manifest-utils'
+import { verifyPatches } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
   type DependenciesField,
   DEPENDENCIES_FIELDS,
   type DependencyManifest,
   type PeerDependencyIssuesByProjects,
+  type PinnedVersion,
   type ProjectManifest,
   type ProjectId,
   type ProjectRootDir,
@@ -77,7 +77,6 @@ export interface ImporterToResolve extends Importer<{
   isNew?: boolean
   nodeExecPath?: string
   pinnedVersion?: PinnedVersion
-  raw: string
   updateSpec?: boolean
   preserveNonSemverVersionSpec?: boolean
 }> {
@@ -95,11 +94,12 @@ export interface ImporterToResolve extends Importer<{
 export interface ResolveDependenciesResult {
   dependenciesByProjectId: DependenciesByProjectId
   dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
+  newCatalogs?: CatalogSnapshots | undefined
   outdatedDependencies: {
     [pkgId: string]: string
   }
   linkedDependenciesByProjectId: Record<string, LinkedDependency[]>
-  newLockfile: Lockfile
+  newLockfile: LockfileObject
   peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   waitTillAllFetchingsFinish: () => Promise<void>
   wantedToBeSkippedPackageIds: Set<string>
@@ -116,7 +116,7 @@ export async function resolveDependencies (
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
-    allowNonAppliedPatches?: boolean
+    allowUnusedPatches?: boolean
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -125,7 +125,6 @@ export async function resolveDependencies (
     preferredVersions: opts.preferredVersions,
     virtualStoreDir: opts.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
-    updateToLatest: opts.updateToLatest,
     noDependencySelectors: importers.every(({ wantedDependencies }) => wantedDependencies.length === 0),
   })
   const projectsToResolve = await Promise.all(importers.map(async (project) => _toResolveImporter(project)))
@@ -138,6 +137,7 @@ export async function resolveDependencies (
     appliedPatches,
     time,
     allPeerDepNames,
+    newCatalogs,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   opts.storeController.clearResolutionCache()
@@ -149,9 +149,9 @@ export async function resolveDependencies (
     Object.keys(opts.wantedLockfile.importers).length === importers.length
   ) {
     verifyPatches({
-      patchedDependencies: Object.keys(opts.patchedDependencies),
+      patchedDependencies: opts.patchedDependencies,
       appliedPatches,
-      allowNonAppliedPatches: opts.allowNonAppliedPatches,
+      allowUnusedPatches: opts.allowUnusedPatches,
     })
   }
 
@@ -167,7 +167,7 @@ export async function resolveDependencies (
         project.modulesDir
       )
       : []
-    resolvedImporter.linkedDependencies.forEach((linkedDependency) => {
+    for (const linkedDependency of resolvedImporter.linkedDependencies) {
       // The location of the external link may vary on different machines, so it is better not to include it in the lockfile.
       // As a workaround, we symlink to the root of node_modules, which is a symlink to the actual location of the external link.
       const target = !opts.excludeLinksFromLockfile || isSubdir(opts.lockfileDir, linkedDependency.resolution.directory)
@@ -179,7 +179,7 @@ export async function resolveDependencies (
         version: linkedDependency.version,
         linkedDir,
       })
-    })
+    }
 
     return {
       binsDir: project.binsDir,
@@ -306,7 +306,17 @@ export async function resolveDependencies (
     }
   }
 
+  // Q: Why would `newLockfile.catalogs` be constructed twice?
+  // A: `getCatalogSnapshots` handles new dependencies that were resolved as `catalog:*` (e.g. new entries in `package.json` whose values were `catalog:*`),
+  //    and `newCatalogs` handles dependencies that were added as CLI parameters from `pnpm add --save-catalog`.
   newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
+  for (const catalogName in newCatalogs) {
+    for (const dependencyName in newCatalogs[catalogName]) {
+      newLockfile.catalogs ??= {}
+      newLockfile.catalogs[catalogName] ??= {}
+      newLockfile.catalogs[catalogName][dependencyName] = newCatalogs[catalogName][dependencyName]
+    }
+  }
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
@@ -322,34 +332,12 @@ export async function resolveDependencies (
     dependenciesGraph,
     outdatedDependencies,
     linkedDependenciesByProjectId,
+    newCatalogs,
     newLockfile,
     peerDependencyIssuesByProjects,
     waitTillAllFetchingsFinish,
     wantedToBeSkippedPackageIds,
   }
-}
-
-function verifyPatches (
-  {
-    patchedDependencies,
-    appliedPatches,
-    allowNonAppliedPatches,
-  }: {
-    patchedDependencies: string[]
-    appliedPatches: Set<string>
-    allowNonAppliedPatches: boolean
-  }
-): void {
-  const nonAppliedPatches: string[] = patchedDependencies.filter((patchKey) => !appliedPatches.has(patchKey))
-  if (!nonAppliedPatches.length) return
-  const message = `The following patches were not applied: ${nonAppliedPatches.join(', ')}`
-  if (allowNonAppliedPatches) {
-    globalWarn(message)
-    return
-  }
-  throw new PnpmError('PATCH_NOT_APPLIED', message, {
-    hint: 'Either remove them from "patchedDependencies" or update them to match packages in your dependencies.',
-  })
 }
 
 function addDirectDependenciesToLockfile (
@@ -370,14 +358,14 @@ function addDirectDependenciesToLockfile (
     newProjectSnapshot.publishDirectory = newManifest.publishConfig.directory
   }
 
-  linkedPackages.forEach((linkedPkg) => {
+  for (const linkedPkg of linkedPackages) {
     newProjectSnapshot.specifiers[linkedPkg.alias] = getSpecFromPackageManifest(newManifest, linkedPkg.alias)
-  })
+  }
 
-  const directDependenciesByAlias = directDependencies.reduce((acc, directDependency) => {
-    acc[directDependency.alias] = directDependency
-    return acc
-  }, {} as Record<string, ResolvedDirectDependency>)
+  const directDependenciesByAlias: Record<string, ResolvedDirectDependency> = {}
+  for (const directDependency of directDependencies) {
+    directDependenciesByAlias[directDependency.alias] = directDependency
+  }
 
   const allDeps = Array.from(new Set(Object.keys(getAllDependenciesFromManifest(newManifest))))
 

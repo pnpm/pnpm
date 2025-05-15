@@ -18,6 +18,7 @@ const DEFAULT_OPTIONS = {
   },
   bail: false,
   bin: 'node_modules/.bin',
+  excludeLinksFromLockfile: false,
   extraEnv: {},
   cliOptions: {},
   deployAllFiles: false,
@@ -29,6 +30,7 @@ const DEFAULT_OPTIONS = {
   lock: true,
   pnpmfile: '.pnpmfile.cjs',
   pnpmHomeDir: '',
+  preferWorkspacePackages: true,
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
   registries: {
@@ -38,7 +40,7 @@ const DEFAULT_OPTIONS = {
   sort: true,
   userConfig: {},
   workspaceConcurrency: 1,
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 test('interactive recursive should not error on git specifier override', async () => {

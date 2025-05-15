@@ -6,15 +6,17 @@ const childProcess = require('child_process')
 const { createRequire } = require('module')
 const { findWorkspacePackagesNoCheck } = require('@pnpm/workspace.find-packages')
 const { findWorkspaceDir } = require('@pnpm/find-workspace-dir')
+const { readWorkspaceManifest } = require('@pnpm/workspace.read-manifest')
 
 const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'package.json'), 'utf8'))
 
 ;(async () => {
   const workspaceDir = await findWorkspaceDir(__dirname)
-  const pkgs = await findWorkspacePackagesNoCheck(workspaceDir)
+  const workspaceManifest = await readWorkspaceManifest(workspaceDir)
+  const pkgs = await findWorkspacePackagesNoCheck(workspaceDir, { patterns: workspaceManifest.packages })
   const localPackages = pkgs.map(pkg => pkg.manifest.name)
-  const dirByPackageName = pkgs.reduce((acc, pkg) => {
-    acc[pkg.manifest.name] = pkg.dir
+  const dirByPackageName = pkgs.reduce((acc, { manifest, rootDirRealPath }) => {
+    acc[manifest.name] = rootDirRealPath
     return acc
   })
 
@@ -24,7 +26,7 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
     name: 'spnpmImports',
     setup: (build) => {
       // E.g. @pnpm/config -> /<some_dir>/pnpm/packages/config/src/index.ts
-      build.onResolve({ filter: /@pnpm\// }, ({ path, resolveDir }) => {
+      build.onResolve({ filter: /@pnpm\// }, ({ path }) => {
         // Bail if the package isn't present locally
         if (!localPackages.includes(path)) {
           return
@@ -36,11 +38,11 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
         }
       })
 
-      build.onResolve({filter: /js-yaml/}, ({ path, resolveDir, ...rest }) => {
-        if (path === 'js-yaml' && resolveDir.includes('lockfile/lockfile-file')) {
+      build.onResolve({filter: /js-yaml/}, ({ path, resolveDir }) => {
+        if (path === 'js-yaml' && resolveDir.includes('lockfile/fs')) {
           // Force esbuild to use the resolved js-yaml from within lockfile-file,
           // since it seems to pick the wrong one otherwise.
-          const lockfileFileProject = pathLib.resolve(__dirname, '../../lockfile/lockfile-file/index.js')
+          const lockfileFileProject = pathLib.resolve(__dirname, '../../lockfile/fs/index.js')
           const resolvedJsYaml = createRequire(lockfileFileProject).resolve('js-yaml')
           return {
             path: resolvedJsYaml
@@ -86,7 +88,12 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
 
   // Invoke the script just built by esbuild, with Node's sourcemaps enabled
   const { status } = childProcess.spawnSync(nodeBin, ['--enable-source-maps', pathLib.resolve(__dirname, 'dist/pnpm.cjs'), ...process.argv.slice(2)], {
-    stdio: 'inherit'
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      // During local development we don't want to switch to another version of pnpm
+      npm_config_manage_package_manager_versions: false,
+    },
   })
   process.exit(status)
 })()

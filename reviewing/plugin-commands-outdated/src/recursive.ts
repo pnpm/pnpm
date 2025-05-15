@@ -53,11 +53,10 @@ export async function outdatedRecursive (
   opts: OutdatedCommandOptions & { include: IncludedDependencies }
 ): Promise<{ output: string, exitCode: number }> {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
-  const rootManifest = pkgs.find(({ rootDir }) => rootDir === opts.lockfileDir)
   const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, params, {
     ...opts,
     fullMetadata: opts.long,
-    ignoreDependencies: rootManifest?.manifest?.pnpm?.updateConfig?.ignoreDependencies,
+    ignoreDependencies: opts.updateConfig?.ignoreDependencies,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,
@@ -68,13 +67,13 @@ export async function outdatedRecursive (
   })
   for (let i = 0; i < outdatedPackagesByProject.length; i++) {
     const { rootDir, manifest } = pkgs[i]
-    outdatedPackagesByProject[i].forEach((outdatedPkg) => {
+    for (const outdatedPkg of outdatedPackagesByProject[i]) {
       const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.current, outdatedPkg.belongsTo])
       if (!outdatedMap[key]) {
         outdatedMap[key] = { ...outdatedPkg, dependentPkgs: [] }
       }
       outdatedMap[key].dependentPkgs.push({ location: rootDir, manifest })
-    })
+    }
   }
 
   let output!: string

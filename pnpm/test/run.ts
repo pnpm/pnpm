@@ -86,7 +86,7 @@ test('exit code of child process is preserved', async () => {
   expect(result.status).toBe(87)
 })
 
-test('test -r: pass the args to the command that is specified in the build script of a package.json manifest', async () => {
+test('recursive test: pass the args to the command that is specified in the build script of a package.json manifest', async () => {
   preparePackages([{
     name: 'project',
     scripts: {
@@ -94,9 +94,11 @@ test('test -r: pass the args to the command that is specified in the build scrip
     },
   }])
 
-  const result = execPnpmSync(['test', '-r', 'arg', '--', '--flag=true'])
+  const result = execPnpmSync(['-r', 'test', 'arg', '--flag=true'])
 
-  expect((result.stdout as Buffer).toString('utf8')).toMatch(/ts-node test "arg" "--flag=true"/)
+  expect((result.stdout as Buffer).toString('utf8')).toMatch(
+    process.platform === 'win32' ? /ts-node test "arg" "--flag=true"/ : /ts-node test arg --flag\\=true/
+  )
 })
 
 test('start: run "node server.js" by default', async () => {
@@ -231,4 +233,62 @@ test('--reporter-hide-prefix should hide workspace prefix', async () => {
   expect(output).not.toContain('script1: 1')
   expect(output).toContain('2')
   expect(output).not.toContain('script2: 2')
+})
+
+test('recursive run when some packages define different node versions', async () => {
+  preparePackages([
+    {
+      name: 'node-version-unset',
+      scripts: {
+        'print-node-version': 'node -v',
+      },
+    },
+    {
+      name: 'node-version-18',
+      scripts: {
+        'print-node-version': 'node -v',
+      },
+      pnpm: {
+        executionEnv: {
+          nodeVersion: '18.0.0',
+        },
+      },
+    },
+    {
+      name: 'node-version-20',
+      scripts: {
+        'print-node-version': 'node -v',
+      },
+      pnpm: {
+        executionEnv: {
+          nodeVersion: '20.0.0',
+        },
+      },
+    },
+  ])
+
+  const runPrintNodeVersion = (args: string[]) =>
+    execPnpmSync(args)
+      .stdout
+      .toString()
+      .trim()
+      .split('\n')
+      .filter(x => /print-node-version.*v\d+\.\d+\.\d+/.test(x))
+      .sort()
+
+  expect(
+    runPrintNodeVersion(['run', '-r', 'print-node-version'])
+  ).toStrictEqual([
+    'node-version-18 print-node-version: v18.0.0',
+    'node-version-20 print-node-version: v20.0.0',
+    `node-version-unset print-node-version: ${process.version}`,
+  ])
+
+  expect(
+    runPrintNodeVersion(['run', '-r', '--use-node-version=19.0.0', 'print-node-version'])
+  ).toStrictEqual([
+    'node-version-18 print-node-version: v18.0.0',
+    'node-version-20 print-node-version: v20.0.0',
+    'node-version-unset print-node-version: v19.0.0',
+  ])
 })

@@ -1,0 +1,4 @@
+packages:
+  - "*"
+sharedWorkspaceLockfile: false
+linkWorkspacePackages: true

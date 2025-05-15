@@ -1,4 +1,4 @@
-import nerfDart from 'nerf-dart'
+import { nerfDart } from '@pnpm/config.nerf-dart'
 import { getAuthHeadersFromConfig, loadToken } from './getAuthHeadersFromConfig'
 import { removePort } from './helpers/removePort'
 

@@ -1,5 +1,6 @@
-import { type WantedDependency, resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import { type WantedDependency, resolveFromCatalog, matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
+import { PnpmError } from '@pnpm/error'
 
 describe('default catalog', () => {
   const catalogs = {
@@ -9,12 +10,12 @@ describe('default catalog', () => {
   }
 
   test('resolves using implicit name', () => {
-    expect(resolveFromCatalog(catalogs, { alias: 'foo', pref: 'catalog:' }))
+    expect(resolveFromCatalog(catalogs, { alias: 'foo', bareSpecifier: 'catalog:' }))
       .toEqual({ type: 'found', resolution: { catalogName: 'default', specifier: '1.0.0' } })
   })
 
   test('resolves using explicit name', () => {
-    expect(resolveFromCatalog(catalogs, { alias: 'foo', pref: 'catalog:default' }))
+    expect(resolveFromCatalog(catalogs, { alias: 'foo', bareSpecifier: 'catalog:default' }))
       .toEqual({ type: 'found', resolution: { catalogName: 'default', specifier: '1.0.0' } })
   })
 })
@@ -26,7 +27,7 @@ test('resolves named catalog', () => {
     },
   }
 
-  expect(resolveFromCatalog(catalogs, { alias: 'bar', pref: 'catalog:foo' }))
+  expect(resolveFromCatalog(catalogs, { alias: 'bar', bareSpecifier: 'catalog:foo' }))
     .toEqual({ type: 'found', resolution: { catalogName: 'foo', specifier: '1.0.0' } })
 })
 
@@ -37,7 +38,7 @@ test('returns unused for specifier not using catalog protocol', () => {
     },
   }
 
-  expect(resolveFromCatalog(catalogs, { alias: 'bar', pref: '^2.0.0' })).toEqual({ type: 'unused' })
+  expect(resolveFromCatalog(catalogs, { alias: 'bar', bareSpecifier: '^2.0.0' })).toEqual({ type: 'unused' })
 })
 
 describe('misconfiguration', () => {
@@ -56,11 +57,11 @@ describe('misconfiguration', () => {
       },
     }
 
-    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', pref: 'catalog:' }))
+    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', bareSpecifier: 'catalog:' }))
       .toThrow("No catalog entry 'bar' was found for catalog 'default'.")
-    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', pref: 'catalog:baz' }))
+    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', bareSpecifier: 'catalog:baz' }))
       .toThrow("No catalog entry 'bar' was found for catalog 'baz'.")
-    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'foo', pref: 'catalog:foo' }))
+    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'foo', bareSpecifier: 'catalog:foo' }))
       .toThrow("No catalog entry 'foo' was found for catalog 'foo'.")
   })
 
@@ -71,7 +72,7 @@ describe('misconfiguration', () => {
       },
     }
 
-    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', pref: 'catalog:foo' }))
+    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', bareSpecifier: 'catalog:foo' }))
       .toThrow("Found invalid catalog entry using the catalog protocol recursively. The entry for 'bar' in catalog 'foo' is invalid.")
   })
 
@@ -82,7 +83,7 @@ describe('misconfiguration', () => {
       },
     }
 
-    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', pref: 'catalog:foo' }))
+    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', bareSpecifier: 'catalog:foo' }))
       .toThrow("The workspace protocol cannot be used as a catalog value. The entry for 'bar' in catalog 'foo' is invalid.")
   })
 
@@ -93,7 +94,7 @@ describe('misconfiguration', () => {
       },
     }
 
-    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', pref: 'catalog:foo' }))
+    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', bareSpecifier: 'catalog:foo' }))
       .toThrow("The entry for 'bar' in catalog 'foo' declares a dependency using the 'file' protocol. This is not yet supported, but may be in a future version of pnpm.")
   })
 
@@ -104,7 +105,51 @@ describe('misconfiguration', () => {
       },
     }
 
-    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', pref: 'catalog:foo' }))
+    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', bareSpecifier: 'catalog:foo' }))
       .toThrow("The entry for 'bar' in catalog 'foo' declares a dependency using the 'link' protocol. This is not yet supported, but may be in a future version of pnpm.")
+  })
+})
+
+describe('matchCatalogResolveResult', () => {
+  test('matches found resolution', () => {
+    const matcher = {
+      found: jest.fn(),
+      misconfiguration: jest.fn(),
+      unused: jest.fn(),
+    }
+    const result = { type: 'found', resolution: { catalogName: 'foo', specifier: '1.0.0' } } as const
+    matchCatalogResolveResult(result, matcher)
+
+    expect(matcher.found).toHaveBeenCalledWith(result)
+    expect(matcher.misconfiguration).not.toHaveBeenCalled()
+    expect(matcher.unused).not.toHaveBeenCalled()
+  })
+
+  test('matches misconfiguration', () => {
+    const matcher = {
+      found: jest.fn(),
+      misconfiguration: jest.fn(),
+      unused: jest.fn(),
+    }
+    const result = { type: 'misconfiguration', catalogName: 'foo', error: new PnpmError('test', 'info') } as const
+    matchCatalogResolveResult(result, matcher)
+
+    expect(matcher.found).not.toHaveBeenCalled()
+    expect(matcher.misconfiguration).toHaveBeenCalledWith(result)
+    expect(matcher.unused).not.toHaveBeenCalled()
+  })
+
+  test('matches unused', () => {
+    const matcher = {
+      found: jest.fn(),
+      misconfiguration: jest.fn(),
+      unused: jest.fn(),
+    }
+    const result = { type: 'unused' } as const
+    matchCatalogResolveResult(result, matcher)
+
+    expect(matcher.found).not.toHaveBeenCalled()
+    expect(matcher.misconfiguration).not.toHaveBeenCalled()
+    expect(matcher.unused).toHaveBeenCalledWith(result)
   })
 })

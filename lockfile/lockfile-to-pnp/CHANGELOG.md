@@ -1,5 +1,210 @@
 # @pnpm/lockfile-to-pnp
 
+## 1001.0.13
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/dependency-path@1000.0.8
+
+## 1001.0.11
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.9
+- @pnpm/lockfile.fs@1001.1.10
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/dependency-path@1000.0.7
+
+## 1001.0.9
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/dependency-path@1000.0.6
+
+## 1001.0.8
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.6
+- @pnpm/lockfile.fs@1001.1.7
+
+## 1001.0.7
+
+### Patch Changes
+
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/lockfile.fs@1001.1.6
+- @pnpm/lockfile.utils@1001.0.5
+
+## 1001.0.6
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/lockfile.utils@1001.0.4
+
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/lockfile.utils@1001.0.3
+  - @pnpm/dependency-path@1000.0.3
+
+## 1001.0.4
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.3
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/dependency-path@1000.0.2
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/lockfile.utils@1001.0.1
+  - @pnpm/dependency-path@1000.0.1
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [3f0e4f0]
+  - @pnpm/lockfile.fs@1001.1.0
+
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [a76da0c]
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/lockfile.fs@1001.0.0
+
+## 4.1.15
+
+### Patch Changes
+
+- Updated dependencies [dcd2917]
+- Updated dependencies [d55b259]
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/lockfile.fs@1.0.6
+  - @pnpm/lockfile.utils@1.0.5
+
+## 4.1.14
+
+### Patch Changes
+
+- @pnpm/dependency-path@5.1.7
+- @pnpm/lockfile.fs@1.0.5
+- @pnpm/lockfile.utils@1.0.4
+
+## 4.1.13
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1.0.4
+
+## 4.1.12
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/lockfile.fs@1.0.3
+  - @pnpm/lockfile.utils@1.0.3
+  - @pnpm/dependency-path@5.1.6
+
+## 4.1.11
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/lockfile.fs@1.0.2
+  - @pnpm/lockfile.utils@1.0.2
+  - @pnpm/dependency-path@5.1.5
+
+## 4.1.10
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.fs@1.0.1
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/dependency-path@5.1.4
+
+## 4.1.9
+
+### Patch Changes
+
+- Updated dependencies [c5ef9b0]
+- Updated dependencies [8055a30]
+  - @pnpm/lockfile.utils@1.0.0
+  - @pnpm/lockfile.fs@1.0.0
+
+## 4.1.8
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/dependency-path@5.1.3
+
 ## 4.1.7
 
 ### Patch Changes

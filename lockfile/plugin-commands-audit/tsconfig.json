@@ -21,6 +21,9 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../config/config-writer"
+    },
+    {
       "path": "../../network/auth-header"
     },
     {
@@ -42,7 +45,7 @@
       "path": "../audit"
     },
     {
-      "path": "../lockfile-file"
+      "path": "../fs"
     }
   ]
 }

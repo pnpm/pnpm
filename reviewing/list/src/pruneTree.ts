@@ -1,6 +1,6 @@
+import * as crypto from '@pnpm/crypto.polyfill'
 import { type DependenciesHierarchy, type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { type PackageDependencyHierarchy } from './types'
-import { createHash } from 'crypto'
 
 export function pruneDependenciesTrees (trees: PackageDependencyHierarchy[] | null, limit: number): PackageDependencyHierarchy[] {
   if (trees === null) {
@@ -57,7 +57,7 @@ export function pruneDependenciesTrees (trees: PackageDependencyHierarchy[] | nu
 
       for (const node of path) {
         pathSoFar += `${node.name}@${node.version},`
-        const id = createHash('sha256').update(pathSoFar).digest('hex')
+        const id = crypto.hash('sha256', pathSoFar, 'hex')
         let existingNode = map.get(id)
 
         if (!existingNode) {

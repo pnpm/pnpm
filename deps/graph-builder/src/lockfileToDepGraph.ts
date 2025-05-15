@@ -5,18 +5,20 @@ import {
   progressLogger,
 } from '@pnpm/core-loggers'
 import {
-  type Lockfile,
+  type LockfileObject,
   type PackageSnapshot,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
-} from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type DepPath, type SupportedArchitectures, type PatchFile, type Registries, type PkgIdWithPatchHash, type ProjectId } from '@pnpm/types'
+import { type PatchGroupRecord, getPatchInfo } from '@pnpm/patching.config'
+import { type PatchInfo } from '@pnpm/patching.types'
+import { type DepPath, type SupportedArchitectures, type Registries, type PkgIdWithPatchHash, type ProjectId } from '@pnpm/types'
 import {
   type PkgRequestFetchResult,
   type FetchResponse,
@@ -45,7 +47,7 @@ export interface DependenciesGraphNode {
   requiresBuild?: boolean
   hasBin: boolean
   filesIndexFile?: string
-  patchFile?: PatchFile
+  patch?: PatchInfo
 }
 
 export interface DependenciesGraph {
@@ -62,7 +64,7 @@ export interface LockfileToDepGraphOptions {
   lockfileDir: string
   nodeVersion: string
   pnpmVersion: string
-  patchedDependencies?: Record<string, PatchFile>
+  patchedDependencies?: PatchGroupRecord
   registries: Registries
   sideEffectsCacheRead: boolean
   skipped: Set<DepPath>
@@ -92,8 +94,8 @@ export interface LockfileToDepGraphResult {
 }
 
 export async function lockfileToDepGraph (
-  lockfile: Lockfile,
-  currentLockfile: Lockfile | null,
+  lockfile: LockfileObject,
+  currentLockfile: LockfileObject | null,
   opts: LockfileToDepGraphOptions
 ): Promise<LockfileToDepGraphResult> {
   const currentPackages = currentLockfile?.packages ?? {}
@@ -103,13 +105,14 @@ export async function lockfileToDepGraph (
     const pkgSnapshotByLocation: Record<string, PackageSnapshot> = {}
     const gg = lockfileToDepGraphWithHashes(lockfile)
     const locationByDepPath = {} as Record<string, string>
+    const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
     await Promise.all(
       Object.entries(gg).map(async ([key, { depPath, children }]) => {
         if (opts.skipped.has(depPath)) return
         const pkgSnapshot = lockfile.packages![depPath]
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        const packageId = packageIdFromSnapshot(depPath, pkgSnapshot, opts.registries)
+        const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
         const modules = path.join('/Users/zoltan/src/sandbox/_store', `${pkgName}@${pkgVersion}_${key}`, 'node_modules')
         const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)
 
@@ -200,7 +203,7 @@ export async function lockfileToDepGraph (
           name: pkgName,
           optional: !!pkgSnapshot.optional,
           optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
-          patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
+          patch: _getPatchInfo(pkgName, pkgVersion),
         }
         pkgSnapshotByLocation[dir] = pkgSnapshot
         locationByDepPath[depPath] = dir

@@ -25,7 +25,7 @@ test('publish config to be overridden', async () => {
   }
   overridePublishConfig(publishManifest)
 
-  Object.keys(publishConfig).forEach((publishConfigKey) => {
+  for (const publishConfigKey in publishConfig) {
     expect(publishManifest[publishConfigKey as keyof PackageManifest]).toEqual(publishConfig[publishConfigKey])
-  })
+  }
 })

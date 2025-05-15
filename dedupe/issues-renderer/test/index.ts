@@ -1,5 +1,5 @@
 import { renderDedupeCheckIssues } from '@pnpm/dedupe.issues-renderer'
-import stripAnsi from 'strip-ansi'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 
 describe('renderDedupeCheckIssues', () => {
   test('prints removed packages and updated resolutions', () => {

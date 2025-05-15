@@ -22,12 +22,12 @@ const createResolveFromNpm = require('@pnpm/git-resolver').default
 const resolveFromNpm = createResolveFromNpm({})
 
 resolveFromNpm({
-  pref: 'kevva/is-negative#16fd36fe96106175d02d066171c44e2ff83bc055'
+  bareSpecifier: 'kevva/is-negative#16fd36fe96106175d02d066171c44e2ff83bc055'
 })
 .then(resolveResult => console.log(JSON.stringify(resolveResult, null, 2)))
 //> {
 //    "id": "github.com/kevva/is-negative/16fd36fe96106175d02d066171c44e2ff83bc055",
-//    "normalizedPref": "github:kevva/is-negative#16fd36fe96106175d02d066171c44e2ff83bc055",
+//    "normalizedBareSpecifier": "github:kevva/is-negative#16fd36fe96106175d02d066171c44e2ff83bc055",
 //    "resolution": {
 //      "tarball": "https://codeload.github.com/kevva/is-negative/tar.gz/16fd36fe96106175d02d066171c44e2ff83bc055"
 //    },

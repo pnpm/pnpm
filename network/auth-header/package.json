@@ -1,16 +1,28 @@
 {
   "name": "@pnpm/network.auth-header",
-  "version": "3.0.1",
+  "version": "1000.0.3",
   "description": "Gets the authorization header for the given URI",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "auth"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/network/auth-header",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/network/auth-header#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -18,27 +30,18 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/network/auth-header",
-  "keywords": [
-    "pnpm9",
-    "pnpm",
-    "auth"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
+  "dependencies": {
+    "@pnpm/config.nerf-dart": "catalog:",
+    "@pnpm/error": "workspace:*"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/network/auth-header#readme",
   "devDependencies": {
     "@pnpm/network.auth-header": "workspace:*",
     "safe-buffer": "catalog:"
   },
-  "dependencies": {
-    "@pnpm/error": "workspace:*",
-    "nerf-dart": "catalog:"
+  "engines": {
+    "node": ">=18.12"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

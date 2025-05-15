@@ -1,18 +1,18 @@
 import { LockfileMissingDependencyError } from '@pnpm/error'
 import {
-  type Lockfile,
+  type LockfileObject,
   type ProjectId,
   nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.utils'
 import * as dp from '@pnpm/dependency-path'
-import { hoist as _hoist, HoisterDependencyKind, type HoisterTree, type HoisterResult } from '@yarnpkg/nm'
+import { hoist as _hoist, HoisterDependencyKind, type HoisterTree, type HoisterResult } from '@yarnpkg/nm/hoist'
 
 export type HoistingLimits = Map<string, Set<string>>
 
 export type { HoisterResult }
 
 export function hoist (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   opts?: {
     hoistingLimits?: HoistingLimits
     // This option was added for Bit CLI in order to prevent pnpm from overwriting dependencies linked by Bit.
@@ -80,7 +80,7 @@ function toTree (
   { nodes, lockfile, depPathByPkgId, autoInstallPeers }: {
     autoInstallPeers?: boolean
     depPathByPkgId: Map<string, string>
-    lockfile: Lockfile
+    lockfile: LockfileObject
     nodes: Map<string, HoisterTree>
   },
   deps: Record<string, string>

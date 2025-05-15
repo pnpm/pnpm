@@ -1,10 +1,10 @@
-import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-types'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.types'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import {
   lockfileWalkerGroupImporterSteps,
   type LockfileWalkerStep,
-} from '@pnpm/lockfile-walker'
+} from '@pnpm/lockfile.walker'
 import { type DepTypes, DepType, detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { type SupportedArchitectures, type DependenciesField, type ProjectId, type Registries } from '@pnpm/types'
 import { getPkgInfo } from './getPkgInfo'
@@ -124,7 +124,7 @@ export async function lockfileToLicenseNode (
  * @returns
  */
 export async function lockfileToLicenseNodeTree (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean }
     includedImporterIds?: ProjectId[]

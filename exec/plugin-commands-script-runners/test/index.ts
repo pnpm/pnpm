@@ -6,7 +6,6 @@ import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import {
   restart,
   run,
-  test as testCommand,
 } from '@pnpm/plugin-commands-script-runners'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
@@ -29,18 +28,25 @@ test('pnpm run: returns correct exit code', async () => {
   })
 
   await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
   }, ['exit0'])
 
   let err!: Error & { errno: number }
   try {
     await run.handler({
+      ...DEFAULT_OPTS,
+      bail: true,
+      bin: 'node_modules/.bin',
       dir: process.cwd(),
       extraBinPaths: [],
       extraEnv: {},
+      pnpmHomeDir: '',
       rawConfig: {},
     }, ['exit1'])
   } catch (_err: any) { // eslint-disable-line
@@ -59,10 +65,13 @@ test('pnpm run --no-bail never fails', async () => {
   fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     bail: false,
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
   }, ['exit1'])
 
@@ -84,9 +93,12 @@ test('run: pass the args to the command that is specified in the build script', 
   fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
@@ -106,9 +118,12 @@ test('run: pass the args to the command that is specified in the build script of
   fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
@@ -127,12 +142,15 @@ test('test: pass the args to the command that is specified in the build script o
   fs.writeFileSync('args.json', '[]', 'utf8')
   fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  await testCommand.handler({
+  await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
-  }, ['arg', '--flag=true', '--help', '-h'])
+  }, ['test', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
   expect(args).toStrictEqual([['arg', '--flag=true', '--help', '-h']])
@@ -150,9 +168,12 @@ test('run start: pass the args to the command that is specified in the build scr
   fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
   }, ['start', 'arg', '--flag=true', '--help', '-h'])
 
@@ -172,9 +193,12 @@ test('run stop: pass the args to the command that is specified in the build scri
   fs.writeFileSync('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
   await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
   }, ['stop', 'arg', '--flag=true', '--help', '-h'])
 
@@ -202,9 +226,12 @@ test('restart: run stop, restart and start', async () => {
   })
 
   await restart.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
   }, [])
 
@@ -235,10 +262,13 @@ test('restart: run stop, restart and start and all the pre/post scripts', async 
   })
 
   await restart.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     enablePrePostScripts: true,
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
   }, [])
 
@@ -264,9 +294,12 @@ test('"pnpm run" prints the list of available commands', async () => {
   })
 
   const output = await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
   }, [])
 
@@ -309,10 +342,13 @@ test('"pnpm run" prints the list of available commands, including commands of th
   {
     process.chdir('foo')
     const output = await run.handler({
+      ...DEFAULT_OPTS,
       allProjects,
+      bin: 'node_modules/.bin',
       dir: process.cwd(),
       extraBinPaths: [],
       extraEnv: {},
+      pnpmHomeDir: '',
       rawConfig: {},
       selectedProjectsGraph,
       workspaceDir,
@@ -336,10 +372,13 @@ Commands of the root workspace project (to run them, use "pnpm -w run"):
   {
     process.chdir('..')
     const output = await run.handler({
+      ...DEFAULT_OPTS,
+      bin: 'node_modules/.bin',
       allProjects,
       dir: process.cwd(),
       extraBinPaths: [],
       extraEnv: {},
+      pnpmHomeDir: '',
       rawConfig: {},
       selectedProjectsGraph,
       workspaceDir,
@@ -360,10 +399,13 @@ test('pnpm run does not fail with --if-present even if the wanted script is not 
   prepare({})
 
   await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
     ifPresent: true,
+    pnpmHomeDir: '',
     rawConfig: {},
   }, ['build'])
 })
@@ -427,9 +469,12 @@ test('scripts work with PnP', async () => {
     },
   })
   await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
   }, ['foo'])
 
@@ -461,9 +506,12 @@ skipOnWindows('pnpm run with custom shell', async () => {
   ])
 
   await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
     scriptShell: path.resolve('node_modules/.bin/shell-mock'),
   }, ['build'])
@@ -490,17 +538,21 @@ onlyOnWindows('pnpm shows error if script-shell is .cmd', async () => {
 
   async function runScript () {
     await run.handler({
+      ...DEFAULT_OPTS,
+      bail: true,
+      bin: 'node_modules/.bin',
       dir: process.cwd(),
       extraBinPaths: [],
       extraEnv: {},
+      pnpmHomeDir: '',
       rawConfig: {},
       scriptShell: path.resolve('node_modules/.bin/shell-mock.cmd'),
     }, ['build'])
   }
 
-  await expect(runScript).rejects.toEqual(expect.objectContaining({
+  await expect(runScript).rejects.toMatchObject({
     code: 'ERR_PNPM_INVALID_SCRIPT_SHELL_WINDOWS',
-  }))
+  })
 })
 
 test('pnpm run with RegExp script selector should work', async () => {
@@ -518,9 +570,12 @@ test('pnpm run with RegExp script selector should work', async () => {
   })
 
   await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
   }, ['/^(lint|build):.*/'])
 
@@ -542,9 +597,12 @@ test('pnpm run with RegExp script selector should work also for pre/post script'
   })
 
   await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
     enablePrePostScripts: true,
   }, ['/build:.*/'])
@@ -565,9 +623,12 @@ test('pnpm run with RegExp script selector should work parallel as a default beh
   })
 
   await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
   }, ['/build:.*/'])
 
@@ -589,9 +650,12 @@ test('pnpm run with RegExp script selector should work sequentially with --works
   })
 
   await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
     workspaceConcurrency: 1,
   }, ['/build:.*/'])
@@ -602,7 +666,7 @@ test('pnpm run with RegExp script selector should work sequentially with --works
   expect(outputsA[0] < outputsB[0] && outputsA[1] < outputsB[1]).toBeTruthy()
 })
 
-test('pnpm run with RegExp script selector with flag should throw error', async () => {
+test.each(['d', 'g', 'i', 'm', 'u', 'v', 'y', 's'])('pnpm run with RegExp script selector with flag %s should throw error', async (flag) => {
   await using serverA = await createTestIpcServer()
   await using serverB = await createTestIpcServer()
 
@@ -616,12 +680,15 @@ test('pnpm run with RegExp script selector with flag should throw error', async 
   let err!: Error
   try {
     await run.handler({
+      ...DEFAULT_OPTS,
+      bin: 'node_modules/.bin',
       dir: process.cwd(),
       extraBinPaths: [],
       extraEnv: {},
+      pnpmHomeDir: '',
       rawConfig: {},
       workspaceConcurrency: 1,
-    }, ['/build:.*/i'])
+    }, [`/build:.*/${flag}`])
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -637,15 +704,18 @@ test('pnpm run with slightly incorrect command suggests correct one', async () =
 
   // cspell:ignore buil
   await expect(run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
     workspaceConcurrency: 1,
-  }, ['buil'])).rejects.toEqual(expect.objectContaining({
+  }, ['buil'])).rejects.toMatchObject({
     code: 'ERR_PNPM_NO_SCRIPT',
     hint: 'Command "buil" not found. Did you mean "pnpm run build"?',
-  }))
+  })
 })
 
 test('pnpm run with custom node-options', async () => {
@@ -656,11 +726,55 @@ test('pnpm run with custom node-options', async () => {
   })
 
   await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
     dir: process.cwd(),
     extraBinPaths: [],
     extraEnv: {},
+    pnpmHomeDir: '',
     rawConfig: {},
     nodeOptions: '--max-old-space-size=1200',
     workspaceConcurrency: 1,
   }, ['build'])
+})
+
+test('pnpm run without node version', async () => {
+  prepare({
+    scripts: {
+      'assert-node-version': `node -e "assert.equal(process.version, '${process.version}')"`,
+    },
+  })
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    pnpmHomeDir: process.cwd(),
+    rawConfig: {},
+    workspaceConcurrency: 1,
+  }, ['assert-node-version'])
+})
+
+test('pnpm run with node version', async () => {
+  prepare({
+    scripts: {
+      'assert-node-version': 'node -e "assert.equal(process.version, \'v20.0.0\')"',
+    },
+  })
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    bin: 'node_modules/.bin',
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    pnpmHomeDir: process.cwd(),
+    rawConfig: {},
+    workspaceConcurrency: 1,
+    executionEnv: {
+      nodeVersion: '20.0.0',
+    },
+  }, ['assert-node-version'])
 })

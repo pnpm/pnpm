@@ -1,5 +1,367 @@
 # @pnpm/deps.graph-builder
 
+## 1002.0.4
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [c24c66e]
+  - @pnpm/package-is-installable@1000.0.10
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/patching.config@1001.0.3
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/modules-yaml@1000.3.3
+
+## 1002.0.3
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/package-is-installable@1000.0.9
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/dependency-path@1000.0.8
+  - @pnpm/modules-yaml@1000.3.2
+  - @pnpm/patching.config@1001.0.2
+
+## 1002.0.2
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.9
+- @pnpm/store-controller-types@1002.0.1
+- @pnpm/lockfile.fs@1001.1.10
+
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/package-is-installable@1000.0.8
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/modules-yaml@1000.3.1
+  - @pnpm/patching.config@1001.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 5f7be64: Add an ability to patch dependencies by version ranges. Exact versions override version ranges, which in turn override name-only patches. Version range `*` is the same as name-only, except that patch application failure will not be ignored.
+
+  For example:
+
+  ```yaml
+  patchedDependencies:
+    foo: patches/foo-1.patch
+    foo@^2.0.0: patches/foo-2.patch
+    foo@2.1.0: patches/foo-3.patch
+  ```
+
+  The above configuration would apply `patches/foo-3.patch` to `foo@2.1.0`, `patches/foo-2.patch` to all `foo` versions which satisfy `^2.0.0` except `2.1.0`, and `patches/foo-1.patch` to the remaining `foo` versions.
+
+  > [!WARNING]
+  > The version ranges should not overlap. If you want to specialize a sub range, make sure to exclude it from the other keys. For example:
+  >
+  > ```yaml
+  > # pnpm-workspace.yaml
+  > patchedDependencies:
+  >   # the specialized sub range
+  >   'foo@2.2.0-2.8.0': patches/foo.2.2.0-2.8.0.patch
+  >   # the more general patch, excluding the sub range above
+  >   'foo@>=2.0.0 <2.2.0 || >2.8.0': 'patches/foo.gte2.patch
+  > ```
+  >
+  > In most cases, however, it's sufficient to just define an exact version to override the range.
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+- Updated dependencies [64f6b4f]
+- Updated dependencies [5f7be64]
+  - @pnpm/patching.config@1001.0.0
+  - @pnpm/patching.types@1000.1.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/modules-yaml@1000.3.0
+  - @pnpm/package-is-installable@1000.0.7
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/store-controller-types@1001.0.5
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [d612dcf]
+- Updated dependencies [d612dcf]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/lockfile.utils@1001.0.6
+  - @pnpm/store-controller-types@1001.0.4
+  - @pnpm/lockfile.fs@1001.1.7
+
+## 1001.0.9
+
+### Patch Changes
+
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/lockfile.fs@1001.1.6
+- @pnpm/lockfile.utils@1001.0.5
+
+## 1001.0.8
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/package-is-installable@1000.0.6
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/modules-yaml@1000.1.4
+  - @pnpm/store-controller-types@1001.0.3
+
+## 1001.0.7
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/package-is-installable@1000.0.5
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/lockfile.utils@1001.0.3
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/dependency-path@1000.0.3
+  - @pnpm/modules-yaml@1000.1.3
+  - @pnpm/store-controller-types@1001.0.2
+
+## 1001.0.6
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.3
+
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/package-is-installable@1000.0.4
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/modules-yaml@1000.1.2
+  - @pnpm/store-controller-types@1001.0.1
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/package-is-installable@1000.0.3
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/lockfile.utils@1001.0.1
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/dependency-path@1000.0.1
+  - @pnpm/modules-yaml@1000.1.1
+  - @pnpm/store-controller-types@1000.1.1
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+- Updated dependencies [4771813]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/modules-yaml@1000.1.0
+  - @pnpm/package-is-installable@1000.0.2
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [3f0e4f0]
+  - @pnpm/lockfile.fs@1001.1.0
+
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/package-is-installable@1000.0.1
+
+## 2.0.6
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [dcd2917]
+- Updated dependencies [e476b07]
+- Updated dependencies [d55b259]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/package-is-installable@9.0.12
+  - @pnpm/lockfile.fs@1.0.6
+  - @pnpm/lockfile.utils@1.0.5
+  - @pnpm/store-controller-types@18.1.6
+
+## 2.0.5
+
+### Patch Changes
+
+- @pnpm/package-is-installable@9.0.11
+- @pnpm/dependency-path@5.1.7
+- @pnpm/lockfile.fs@1.0.5
+- @pnpm/lockfile.utils@1.0.4
+
+## 2.0.4
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+  - @pnpm/constants@9.0.0
+  - @pnpm/lockfile.fs@1.0.4
+  - @pnpm/package-is-installable@9.0.10
+
+## 2.0.3
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/package-is-installable@9.0.9
+  - @pnpm/lockfile.fs@1.0.3
+  - @pnpm/lockfile.utils@1.0.3
+  - @pnpm/core-loggers@10.0.7
+  - @pnpm/dependency-path@5.1.6
+  - @pnpm/modules-yaml@13.1.7
+  - @pnpm/store-controller-types@18.1.6
+
+## 2.0.2
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/package-is-installable@9.0.8
+  - @pnpm/lockfile.fs@1.0.2
+  - @pnpm/lockfile.utils@1.0.2
+  - @pnpm/core-loggers@10.0.6
+  - @pnpm/dependency-path@5.1.5
+  - @pnpm/modules-yaml@13.1.6
+  - @pnpm/store-controller-types@18.1.5
+
+## 2.0.1
+
+### Patch Changes
+
+- Updated dependencies [33ba536]
+  - @pnpm/package-is-installable@9.0.7
+
+## 2.0.0
+
+### Major Changes
+
+- cb006df: Add ability to apply patch to all versions:
+  If the key of `pnpm.patchedDependencies` is a package name without a version (e.g. `pkg`), pnpm will attempt to apply the patch to all versions of
+  the package, failure will be skipped.
+  If it is a package name and an exact version (e.g. `pkg@x.y.z`), pnpm will attempt to apply the patch to that exact version only, failure will
+  cause pnpm to fail.
+
+  If there's only one version of `pkg` installed, `pnpm patch pkg` and subsequent `pnpm patch-commit $edit_dir` will create an entry named `pkg` in
+  `pnpm.patchedDependencies`. And pnpm will attempt to apply this patch to other versions of `pkg` in the future.
+
+  If there's multiple versions of `pkg` installed, `pnpm patch pkg` will ask which version to edit and whether to attempt to apply the patch to all.
+  If the user chooses to apply the patch to all, `pnpm patch-commit $edit_dir` would create a `pkg` entry in `pnpm.patchedDependencies`.
+  If the user chooses not to apply the patch to all, `pnpm patch-commit $edit_dir` would create a `pkg@x.y.z` entry in `pnpm.patchedDependencies` with
+  `x.y.z` being the version the user chose to edit.
+
+  If the user runs `pnpm patch pkg@x.y.z` with `x.y.z` being the exact version of `pkg` that has been installed, `pnpm patch-commit $edit_dir` will always
+  create a `pkg@x.y.z` entry in `pnpm.patchedDependencies`.
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/patching.config@1.0.0
+  - @pnpm/patching.types@1.0.0
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.fs@1.0.1
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/package-is-installable@9.0.6
+  - @pnpm/core-loggers@10.0.5
+  - @pnpm/dependency-path@5.1.4
+  - @pnpm/modules-yaml@13.1.5
+  - @pnpm/store-controller-types@18.1.4
+
+## 1.1.9
+
+### Patch Changes
+
+- Updated dependencies [c5ef9b0]
+- Updated dependencies [8055a30]
+  - @pnpm/lockfile.utils@1.0.0
+  - @pnpm/lockfile.fs@1.0.0
+
+## 1.1.8
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/package-is-installable@9.0.5
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/dependency-path@5.1.3
+  - @pnpm/modules-yaml@13.1.4
+  - @pnpm/store-controller-types@18.1.3
+
 ## 1.1.7
 
 ### Patch Changes

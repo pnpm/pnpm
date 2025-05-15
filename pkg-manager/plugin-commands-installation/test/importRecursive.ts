@@ -26,6 +26,7 @@ const DEFAULT_OPTS = {
   lockStaleDuration: 90,
   networkConcurrency: 16,
   offline: false,
+  preferWorkspacePackages: true,
   proxy: undefined,
   pnpmHomeDir: '',
   rawConfig: { registry: REGISTRY },
@@ -38,7 +39,7 @@ const DEFAULT_OPTS = {
   userConfig: {},
   useRunningStoreServer: false,
   useStoreServer: false,
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 test('import from shared yarn.lock of monorepo', async () => {

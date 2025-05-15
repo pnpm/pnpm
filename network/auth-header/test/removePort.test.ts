@@ -21,13 +21,13 @@ describe('removePort()', () => {
     const expectedOutput = (protocol: string) =>
       `${protocol}://custom.domain.com/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`
 
-    portsToTest.forEach((port: number) => {
-      protocols.forEach((protocol) => {
+    for (const port of portsToTest) {
+      for (const protocol of protocols) {
         expect(removePort(getUrl(port, protocol))).toEqual(
           expectedOutput(protocol)
         )
-      })
-    })
+      }
+    }
   })
 
   it('removes ports from valid urls with http, https, ws, wss protocols', () => {

@@ -1,6 +1,7 @@
 import type { PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
+import { PnpmError } from '@pnpm/error'
 import { hookLogger } from '@pnpm/core-loggers'
-import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
+import { createHashFromFile } from '@pnpm/crypto.hash'
 import pathAbsolute from 'path-absolute'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
@@ -20,6 +21,7 @@ export interface CookedHooks {
   preResolution?: Cook<Required<Hooks>['preResolution']>
   afterAllResolved?: Array<Cook<Required<Hooks>['afterAllResolved']>>
   filterLog?: Array<Cook<Required<Hooks>['filterLog']>>
+  updateConfig?: Hooks['updateConfig']
   importPackage?: ImportIndexedPackageAsync
   fetchers?: CustomFetchers
   calculatePnpmfileChecksum?: () => Promise<string | undefined>
@@ -40,7 +42,7 @@ export function requireHooks (
   let hooks: Hooks | undefined = pnpmFile?.hooks
 
   if (!globalHooks && !hooks) return { afterAllResolved: [], filterLog: [], readPackage: [] }
-  const calculatePnpmfileChecksum = hooks ? () => createBase32HashFromFile(pnpmfilePath) : undefined
+  const calculatePnpmfileChecksum = hooks ? () => createHashFromFile(pnpmfilePath) : undefined
   globalHooks = globalHooks ?? {}
   hooks = hooks ?? {}
   const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'filterLog'>> = {
@@ -70,15 +72,25 @@ export function requireHooks (
 
   // `importPackage`, `preResolution` and `fetchers` can only be defined via a global pnpmfile
 
-  cookedHooks.importPackage = globalHooks.importPackage
+  cookedHooks.importPackage = hooks.importPackage ?? globalHooks.importPackage
 
-  const preResolutionHook = globalHooks.preResolution
+  const preResolutionHook = hooks.preResolution ?? globalHooks.preResolution
 
   cookedHooks.preResolution = preResolutionHook
     ? (ctx: PreResolutionHookContext) => preResolutionHook(ctx, createPreResolutionHookLogger(prefix))
     : undefined
 
-  cookedHooks.fetchers = globalHooks.fetchers
+  cookedHooks.fetchers = hooks.fetchers ?? globalHooks.fetchers
+  if (hooks.updateConfig != null) {
+    const updateConfig = hooks.updateConfig
+    cookedHooks.updateConfig = (config) => {
+      const updatedConfig = updateConfig(config)
+      if (updatedConfig == null) {
+        throw new PnpmError('CONFIG_IS_UNDEFINED', 'The updateConfig hook returned undefined')
+      }
+      return updatedConfig
+    }
+  }
 
   return cookedHooks
 }

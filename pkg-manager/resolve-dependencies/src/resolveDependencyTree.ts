@@ -1,11 +1,14 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
-import { type Lockfile, type PatchFile } from '@pnpm/lockfile-types'
+import { type CatalogSnapshots, type LockfileObject } from '@pnpm/lockfile.types'
+import { globalWarn } from '@pnpm/logger'
+import { type PatchGroupRecord } from '@pnpm/patching.config'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
 import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
+  type PinnedVersion,
   type PkgResolutionId,
   type ProjectManifest,
   type ProjectId,
@@ -51,8 +54,8 @@ export interface ResolvedDirectDependency {
   pkgId: PkgResolutionId
   version: string
   name: string
-  normalizedPref?: string
   catalogLookup?: CatalogLookupMetadata
+  normalizedBareSpecifier?: string
 }
 
 /**
@@ -64,7 +67,7 @@ export interface CatalogLookupMetadata {
   readonly specifier: string
 
   /**
-   * The catalog protocol pref the user wrote in package.json files or as a
+   * The catalog protocol bareSpecifier the user wrote in package.json files or as a
    * parameter to pnpm add. Ex: pnpm add foo@catalog:
    *
    * This will usually be 'catalog:<name>', but can simply be 'catalog:' if
@@ -72,7 +75,7 @@ export interface CatalogLookupMetadata {
    * catalogName field, which would be 'default' regardless of whether users
    * originally requested 'catalog:' or 'catalog:default'.
    */
-  readonly userSpecifiedPref: string
+  readonly userSpecifiedBareSpecifier: string
 }
 
 export interface Importer<WantedDepExtraProps> {
@@ -87,19 +90,20 @@ export interface Importer<WantedDepExtraProps> {
 export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<WantedDepExtraProps> {
   updatePackageManifest: boolean
   updateMatching?: (pkgName: string) => boolean
+  updateToLatest?: boolean
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
   wantedDependencies: Array<WantedDepExtraProps & WantedDependency & { updateDepth: number }>
+  pinnedVersion?: PinnedVersion
 }
 
 export interface ResolveDependenciesOptions {
   autoInstallPeers?: boolean
   autoInstallPeersFromHighestMatch?: boolean
-  allowBuild?: (pkgName: string) => boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
-  allowNonAppliedPatches: boolean
+  allowUnusedPatches: boolean
   catalogs?: Catalogs
-  currentLockfile: Lockfile
+  currentLockfile: LockfileObject
   dedupePeerDependents?: boolean
   dryRun: boolean
   engineStrict: boolean
@@ -111,28 +115,29 @@ export interface ResolveDependenciesOptions {
   }
   nodeVersion?: string
   registries: Registries
-  patchedDependencies?: Record<string, PatchFile>
+  patchedDependencies?: PatchGroupRecord
   pnpmVersion: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   resolvePeersFromWorkspaceRoot?: boolean
+  injectWorkspacePackages?: boolean
   linkWorkspacePackagesDepth?: number
   lockfileDir: string
   storeController: StoreController
   tag: string
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
-  wantedLockfile: Lockfile
+  wantedLockfile: LockfileObject
   workspacePackages: WorkspacePackages
   supportedArchitectures?: SupportedArchitectures
-  updateToLatest?: boolean
   peersSuffixMaxLength: number
 }
 
 export interface ResolveDependencyTreeResult {
   allPeerDepNames: Set<string>
   dependenciesTree: DependenciesTree<ResolvedPackage>
+  newCatalogs?: CatalogSnapshots
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -152,7 +157,6 @@ export async function resolveDependencyTree<T> (
   const ctx: ResolutionContext = {
     autoInstallPeers,
     autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch === true,
-    allowBuild: opts.allowBuild,
     allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
     catalogResolver: resolveFromCatalog.bind(null, opts.catalogs ?? {}),
     childrenByParentId: {} as ChildrenByParentId,
@@ -164,6 +168,7 @@ export async function resolveDependencyTree<T> (
     force: opts.force,
     forceFullResolution: opts.forceFullResolution,
     ignoreScripts: opts.ignoreScripts,
+    injectWorkspacePackages: opts.injectWorkspacePackages,
     linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? -1,
     lockfileDir: opts.lockfileDir,
     nodeVersion: opts.nodeVersion,
@@ -213,9 +218,9 @@ export async function resolveDependencyTree<T> (
       },
       updateDepth: -1,
       updateMatching: importer.updateMatching,
+      updateToLatest: importer.updateToLatest,
       prefix: importer.rootDir,
       supportedArchitectures: opts.supportedArchitectures,
-      updateToLatest: opts.updateToLatest,
     }
     return {
       updatePackageManifest: importer.updatePackageManifest,
@@ -225,12 +230,36 @@ export async function resolveDependencyTree<T> (
       preferredVersions: importer.preferredVersions ?? {},
       wantedDependencies: importer.wantedDependencies,
       options: resolveOpts,
+      pinnedVersion: importer.pinnedVersion,
     }
   })
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)
   const directDepsByImporterId = zipObj(importers.map(({ id }) => id), pkgAddressesByImporters)
 
-  ctx.pendingNodes.forEach((pendingNode) => {
+  let newCatalogs: CatalogSnapshots | undefined
+  for (const directDependencies of pkgAddressesByImporters) {
+    for (const directDep of directDependencies as PkgAddress[]) {
+      const { alias, normalizedBareSpecifier, version, saveCatalogName } = directDep
+      const existingCatalog = opts.catalogs?.default?.[alias]
+      if (existingCatalog != null) {
+        if (existingCatalog !== normalizedBareSpecifier) {
+          globalWarn(
+            `Skip adding ${alias} to catalogs.${saveCatalogName} because it already exists as ${existingCatalog}`
+          )
+        }
+      } else if (saveCatalogName != null && normalizedBareSpecifier != null && version != null) {
+        newCatalogs ??= {}
+        newCatalogs[saveCatalogName] ??= {}
+        newCatalogs[saveCatalogName][alias] = {
+          specifier: normalizedBareSpecifier,
+          version,
+        }
+        directDep.normalizedBareSpecifier = `catalog:${saveCatalogName === 'default' ? '' : saveCatalogName}`
+      }
+    }
+  }
+
+  for (const pendingNode of ctx.pendingNodes) {
     ctx.dependenciesTree.set(pendingNode.nodeId, {
       children: () => buildTree(ctx, pendingNode.resolvedPackage.id,
         pendingNode.parentIds,
@@ -239,7 +268,7 @@ export async function resolveDependencyTree<T> (
       installable: pendingNode.installable,
       resolvedPackage: pendingNode.resolvedPackage,
     })
-  })
+  }
 
   const resolvedImporters: ResolvedImporters = {}
 
@@ -258,11 +287,11 @@ export async function resolveDependencyTree<T> (
             catalogLookup: dep.catalogLookup,
             dev: resolvedPackage.dev,
             name: resolvedPackage.name,
-            normalizedPref: dep.normalizedPref,
             optional: resolvedPackage.optional,
             pkgId: resolvedPackage.id,
             resolution: resolvedPackage.resolution,
             version: resolvedPackage.version,
+            normalizedBareSpecifier: dep.normalizedBareSpecifier,
           }
         }),
       directNodeIdsByAlias: new Map(directNonLinkedDeps.map(({ alias, nodeId }) => [alias, nodeId])),
@@ -272,6 +301,7 @@ export async function resolveDependencyTree<T> (
 
   return {
     dependenciesTree: ctx.dependenciesTree,
+    newCatalogs,
     outdatedDependencies: ctx.outdatedDependencies,
     resolvedImporters,
     resolvedPkgsById: ctx.resolvedPkgsById,
@@ -304,6 +334,10 @@ function buildTree (
     if (parentIdsContainSequence(parentIds, parentId, child.id) || parentId === child.id) {
       continue
     }
+    if (ctx.resolvedPkgsById[child.id].isLeaf) {
+      childrenNodeIds[child.alias] = child.id as unknown as NodeId
+      continue
+    }
     const childNodeId = nextNodeId()
     childrenNodeIds[child.alias] = childNodeId
     installable = installable || !ctx.skipped.has(child.id)
@@ -333,12 +367,12 @@ function buildTree (
 function dedupeSameAliasDirectDeps (directDeps: Array<PkgAddress | LinkedDependency>, wantedDependencies: Array<WantedDependency & { isNew?: boolean }>): Array<PkgAddress | LinkedDependency> {
   const deps = new Map<string, PkgAddress | LinkedDependency>()
   for (const directDep of directDeps) {
-    const { alias, normalizedPref } = directDep
+    const { alias, normalizedBareSpecifier } = directDep
     if (!deps.has(alias)) {
       deps.set(alias, directDep)
     } else {
       const wantedDep = wantedDependencies.find(dep =>
-        dep.alias ? dep.alias === alias : dep.pref === normalizedPref
+        dep.alias ? dep.alias === alias : dep.bareSpecifier === normalizedBareSpecifier
       )
       if (wantedDep?.isNew) {
         deps.set(alias, directDep)

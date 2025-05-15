@@ -1,5 +1,5 @@
 const audit = require('./lib').default
-const { readWantedLockfile } = require('@pnpm/lockfile-file')
+const { readWantedLockfile } = require('@pnpm/lockfile.fs')
 
 readWantedLockfile('../..', {})
   .then((lockfile) => audit(lockfile, { registry: 'https://registry.npmjs.org' }))

@@ -1,18 +1,17 @@
-import path from 'path'
-
 import { type Config } from '@pnpm/config'
 import { createResolver } from '@pnpm/client'
-import { type TarballResolution } from '@pnpm/lockfile-types'
+import { type TarballResolution } from '@pnpm/lockfile.types'
 
 import { PnpmError } from '@pnpm/error'
+import { sortDeepKeys } from '@pnpm/object.key-sorting'
 import { getStorePath } from '@pnpm/store-path'
-import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
+import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import sortKeys from 'sort-keys'
 
 import loadJsonFile from 'load-json-file'
 import renderHelp from 'render-help'
+
+export const skipPackageManagerCheck = true
 
 export const commandNames = ['cat-index']
 
@@ -54,7 +53,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
   }
 
   const wantedDependency = params[0]
-  const { alias, pref } = parseWantedDependency(wantedDependency) || {}
+  const { alias, bareSpecifier } = parseWantedDependency(wantedDependency) || {}
 
   if (!alias) {
     throw new PnpmError(
@@ -68,29 +67,27 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
   })
-  const cafsDir = path.join(storeDir, 'files')
   const { resolve } = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
   })
   const pkgSnapshot = await resolve(
-    { alias, pref },
+    { alias, bareSpecifier },
     {
       lockfileDir: opts.lockfileDir ?? opts.dir,
       preferredVersions: {},
       projectDir: opts.dir,
-      registry: pickRegistryForPackage(opts.registries, alias, pref),
     }
   )
 
-  const filesIndexFile = getFilePathInCafs(
-    cafsDir,
+  const filesIndexFile = getIndexFilePathInCafs(
+    storeDir,
     (pkgSnapshot.resolution as TarballResolution).integrity!.toString(),
-    'index'
+    `${alias}@${bareSpecifier}`
   )
   try {
     const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
-    return JSON.stringify(sortKeys(pkgFilesIndex, { deep: true }), null, 2)
+    return JSON.stringify(sortDeepKeys(pkgFilesIndex), null, 2)
   } catch {
     throw new PnpmError(
       'INVALID_PACKAGE',

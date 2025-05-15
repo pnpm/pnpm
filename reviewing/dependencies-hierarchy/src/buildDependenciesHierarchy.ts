@@ -1,12 +1,12 @@
 import path from 'path'
 import {
   getLockfileImporterId,
-  type Lockfile,
+  type LockfileObject,
   type ProjectSnapshot,
   readCurrentLockfile,
   readWantedLockfile,
   type ResolvedDependencies,
-} from '@pnpm/lockfile-file'
+} from '@pnpm/lockfile.fs'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
@@ -34,6 +34,7 @@ export async function buildDependenciesHierarchy (
   projectPaths: string[] | undefined,
   maybeOpts: {
     depth: number
+    excludePeerDependencies?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
     registries?: Registries
     onlyProjects?: boolean
@@ -70,6 +71,7 @@ export async function buildDependenciesHierarchy (
 
   const opts = {
     depth: maybeOpts.depth || 0,
+    excludePeerDependencies: maybeOpts.excludePeerDependencies,
     include: maybeOpts.include ?? {
       dependencies: true,
       devDependencies: true,
@@ -84,25 +86,25 @@ export async function buildDependenciesHierarchy (
     virtualStoreDir: modules?.virtualStoreDir,
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? maybeOpts.virtualStoreDirMaxLength,
   }
-  ; (
-    await Promise.all(projectPaths.map(async (projectPath) => {
-      return [
-        projectPath,
-        await dependenciesHierarchyForPackage(projectPath, currentLockfile, wantedLockfile, opts),
-      ] as [string, DependenciesHierarchy]
-    }))
-  ).forEach(([projectPath, dependenciesHierarchy]) => {
+  const pairs = await Promise.all(projectPaths.map(async (projectPath) => {
+    return [
+      projectPath,
+      await dependenciesHierarchyForPackage(projectPath, currentLockfile, wantedLockfile, opts),
+    ] as [string, DependenciesHierarchy]
+  }))
+  for (const [projectPath, dependenciesHierarchy] of pairs) {
     result[projectPath] = dependenciesHierarchy
-  })
+  }
   return result
 }
 
 async function dependenciesHierarchyForPackage (
   projectPath: string,
-  currentLockfile: Lockfile,
-  wantedLockfile: Lockfile | null,
+  currentLockfile: LockfileObject,
+  wantedLockfile: LockfileObject | null,
   opts: {
     depth: number
+    excludePeerDependencies?: boolean
     include: { [dependenciesField in DependenciesField]: boolean }
     registries: Registries
     onlyProjects?: boolean
@@ -127,6 +129,7 @@ async function dependenciesHierarchyForPackage (
   const depTypes = detectDepTypes(currentLockfile)
   const getChildrenTree = getTree.bind(null, {
     currentPackages: currentLockfile.packages ?? {},
+    excludePeerDependencies: opts.excludePeerDependencies,
     importers: currentLockfile.importers,
     includeOptionalDependencies: opts.include.optionalDependencies,
     depTypes,
@@ -134,7 +137,6 @@ async function dependenciesHierarchyForPackage (
     onlyProjects: opts.onlyProjects,
     rewriteLinkVersionDir: projectPath,
     maxDepth: opts.depth,
-    modulesDir,
     registries: opts.registries,
     search: opts.search,
     skipped: opts.skipped,
@@ -147,7 +149,8 @@ async function dependenciesHierarchyForPackage (
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciesField => opts.include[dependenciesField])) {
     const topDeps = currentLockfile.importers[importerId][dependenciesField] ?? {}
     result[dependenciesField] = []
-    Object.entries(topDeps).forEach(([alias, ref]) => {
+    for (const alias in topDeps) {
+      const ref = topDeps[alias]
       const packageInfo = getPkgInfo({
         alias,
         currentPackages: currentLockfile.packages ?? {},
@@ -170,9 +173,9 @@ async function dependenciesHierarchyForPackage (
         importers: currentLockfile.importers,
       })
       if (opts.onlyProjects && nodeId?.type !== 'importer') {
-        return
+        continue
       } else if (nodeId == null) {
-        if ((opts.search != null) && !matchedSearched) return
+        if ((opts.search != null) && !matchedSearched) continue
         newEntry = packageInfo
       } else {
         const dependencies = getChildrenTree(nodeId)
@@ -191,7 +194,7 @@ async function dependenciesHierarchyForPackage (
         }
         result[dependenciesField]!.push(newEntry)
       }
-    })
+    }
   }
 
   await Promise.all(

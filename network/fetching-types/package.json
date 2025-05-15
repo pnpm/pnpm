@@ -1,34 +1,34 @@
 {
   "name": "@pnpm/fetching-types",
-  "version": "6.0.0",
+  "version": "1000.1.0",
   "description": "Types for fetching",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "types"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/network/fetching-types",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/network/fetching-types#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "engines": {
-    "node": ">=18.12"
+  "exports": {
+    ".": "./lib/index.js"
   },
   "files": [
     "lib",
     "!*.map"
   ],
-  "repository": "https://github.com/pnpm/pnpm/blob/main/network/fetching-types",
-  "keywords": [
-    "pnpm9",
-    "pnpm",
-    "types"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/network/fetching-types#readme",
   "scripts": {
     "compile": "tsc --build && pnpm run lint --fix",
     "lint": "eslint \"src/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile"
   },
-  "funding": "https://opencollective.com/pnpm",
   "dependencies": {
     "@zkochan/retry": "catalog:",
     "node-fetch": "catalog:"
@@ -36,7 +36,10 @@
   "devDependencies": {
     "@pnpm/fetching-types": "workspace:*"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

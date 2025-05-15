@@ -2,12 +2,12 @@ import validateNpmPackageName from 'validate-npm-package-name'
 
 export interface ParsedWantedDependency {
   alias: string
-  pref: string
+  bareSpecifier: string
 }
 
 export type ParseWantedDependencyResult = Partial<ParsedWantedDependency> &
 (
-  Omit<ParsedWantedDependency, 'pref'>
+  Omit<ParsedWantedDependency, 'bareSpecifier'>
   | Omit<ParsedWantedDependency, 'alias'>
   | ParsedWantedDependency
 )
@@ -19,11 +19,11 @@ export function parseWantedDependency (rawWantedDependency: string): ParseWanted
     if (validateNpmPackageName(alias).validForOldPackages) {
       return {
         alias,
-        pref: rawWantedDependency.slice(versionDelimiter + 1),
+        bareSpecifier: rawWantedDependency.slice(versionDelimiter + 1),
       }
     }
     return {
-      pref: rawWantedDependency,
+      bareSpecifier: rawWantedDependency,
     }
   }
   if (validateNpmPackageName(rawWantedDependency).validForOldPackages) {
@@ -32,6 +32,6 @@ export function parseWantedDependency (rawWantedDependency: string): ParseWanted
     }
   }
   return {
-    pref: rawWantedDependency,
+    bareSpecifier: rawWantedDependency,
   }
 }

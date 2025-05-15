@@ -1,11 +1,22 @@
 import fs from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
-import { createBase32Hash } from '@pnpm/crypto.base32-hash'
+import { getConfig } from '@pnpm/config'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { execPnpm, execPnpmSync } from './utils'
+
+let registries: Record<string, string>
+
+beforeAll(async () => {
+  const { config } = await getConfig({ cliOptions: {}, packageManager: { name: '', version: '' } })
+  registries = config.registries
+  registries.default = `http://localhost:${REGISTRY_MOCK_PORT}/`
+})
+
+const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, registries)
 
 test('silent dlx prints the output of the child process only', async () => {
   prepare({})
@@ -19,7 +30,7 @@ test('silent dlx prints the output of the child process only', async () => {
     XDG_DATA_HOME: global,
   }
 
-  const result = execPnpmSync(['--silent', 'dlx', 'shx', 'echo', 'hi'], { env })
+  const result = execPnpmSync(['--silent', 'dlx', 'shx@0.3.4', 'echo', 'hi'], { env })
 
   expect(result.stdout.toString().trim()).toBe('hi')
 })
@@ -67,40 +78,40 @@ test('parallel dlx calls of the same package', async () => {
       `--config.store-dir=${path.resolve('store')}`,
       `--config.cache-dir=${path.resolve('cache')}`,
       '--config.dlx-cache-max-age=Infinity',
-      'dlx', 'shx', 'touch', name])
+      'dlx', 'shx@0.3.4', 'touch', name])
   ))
 
   expect(['foo', 'bar', 'baz'].filter(name => fs.existsSync(name))).toStrictEqual(['foo', 'bar', 'baz'])
   expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'))
+    fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'), 'pkg'))
   ).toStrictEqual([
     'node_modules',
     'package.json',
     'pnpm-lock.yaml',
   ])
   expect(
-    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg')))
-  ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
+    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'), 'pkg')))
+  ).toBe(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4')))
 
-  const cacheContentAfterFirstRun = fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()
+  const cacheContentAfterFirstRun = fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'))).sort()
 
   // parallel dlx calls with cache
   await Promise.all(['abc', 'def', 'ghi'].map(
-    name => execPnpm(['dlx', 'shx', 'mkdir', name])
+    name => execPnpm(['dlx', 'shx@0.3.4', 'mkdir', name])
   ))
 
   expect(['abc', 'def', 'ghi'].filter(name => fs.existsSync(name))).toStrictEqual(['abc', 'def', 'ghi'])
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).sort()).toStrictEqual(cacheContentAfterFirstRun)
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'))).sort()).toStrictEqual(cacheContentAfterFirstRun)
   expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'))
+    fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'), 'pkg'))
   ).toStrictEqual([
     'node_modules',
     'package.json',
     'pnpm-lock.yaml',
   ])
   expect(
-    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg')))
-  ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
+    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'), 'pkg')))
+  ).toBe(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4')))
 
   // parallel dlx calls with expired cache
   await Promise.all(['a/b/c', 'd/e/f', 'g/h/i'].map(
@@ -108,21 +119,21 @@ test('parallel dlx calls of the same package', async () => {
       `--config.store-dir=${path.resolve('store')}`,
       `--config.cache-dir=${path.resolve('cache')}`,
       '--config.dlx-cache-max-age=0',
-      'dlx', 'shx', 'mkdir', '-p', dirPath])
+      'dlx', 'shx@0.3.4', 'mkdir', '-p', dirPath])
   ))
 
   expect(['a/b/c', 'd/e/f', 'g/h/i'].filter(name => fs.existsSync(name))).toStrictEqual(['a/b/c', 'd/e/f', 'g/h/i'])
-  expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'))).length).toBeGreaterThan(cacheContentAfterFirstRun.length)
+  expect(fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'))).length).toBeGreaterThan(cacheContentAfterFirstRun.length)
   expect(
-    fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg'))
+    fs.readdirSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'), 'pkg'))
   ).toStrictEqual([
     'node_modules',
     'package.json',
     'pnpm-lock.yaml',
   ])
   expect(
-    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createBase32Hash('shx'), 'pkg')))
-  ).toBe(path.resolve('cache', 'dlx', createBase32Hash('shx')))
+    path.dirname(fs.realpathSync(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4'), 'pkg')))
+  ).toBe(path.resolve('cache', 'dlx', createCacheKey('shx@0.3.4')))
 })
 
 test('dlx creates cache and store prune cleans cache', async () => {
@@ -144,45 +155,36 @@ test('dlx creates cache and store prune cleans cache', async () => {
   await Promise.all(Object.entries(commands).map(([cmd, args]) => execPnpm([...settings, 'dlx', cmd, ...args])))
 
   // ensure that the dlx cache has certain structure
-  expect(
-    fs.readdirSync(path.resolve('cache', 'dlx'))
-      .sort()
-  ).toStrictEqual(
-    Object.keys(commands)
-      .map(createBase32Hash)
-      .sort()
-  )
-  for (const cmd of Object.keys(commands)) {
-    expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(cmd))).length).toBe(2)
+  const dlxBaseDir = path.resolve('cache', 'dlx')
+  const dlxDirs = fs.readdirSync(dlxBaseDir)
+  expect(dlxDirs.length).toEqual(Object.keys(commands).length)
+  for (const dlxDir of dlxDirs) {
+    expect(fs.readdirSync(path.resolve(dlxBaseDir, dlxDir)).length).toBe(2)
   }
 
   // modify the dates of the cache items
   const ageTable = {
-    shx: 20,
-    'shelljs/shx#61aca968cd7afc712ca61a4fc4ec3201e3770dc7': 75,
-    '@pnpm.e2e/touch-file-good-bin-name': 33,
-    '@pnpm.e2e/touch-file-one-bin': 123,
-  } satisfies Record<keyof typeof commands, number>
+    [dlxDirs[0]]: 20,
+    [dlxDirs[1]]: 75,
+    [dlxDirs[2]]: 33,
+    [dlxDirs[3]]: 123,
+  } satisfies Record<string, number>
   const now = new Date()
-  await Promise.all(Object.entries(ageTable).map(async ([cmd, age]) => {
+  await Promise.all(Object.entries(ageTable).map(async ([dlxDir, age]) => {
     const newDate = new Date(now.getTime() - age * 60_000)
-    const dlxCacheLink = path.resolve('cache', 'dlx', createBase32Hash(cmd), 'pkg')
+    const dlxCacheLink = path.resolve('cache', 'dlx', dlxDir, 'pkg')
     await fs.promises.lutimes(dlxCacheLink, newDate, newDate)
   }))
 
   await execPnpm([...settings, 'store', 'prune'])
 
   // test to see if dlx cache items are deleted or kept as expected
+  const keptDirs = [dlxDirs[0], dlxDirs[2]].sort()
   expect(
-    fs.readdirSync(path.resolve('cache', 'dlx'))
-      .sort()
-  ).toStrictEqual(
-    ['shx', '@pnpm.e2e/touch-file-good-bin-name']
-      .map(createBase32Hash)
-      .sort()
-  )
-  for (const cmd of ['shx', '@pnpm.e2e/touch-file-good-bin-name']) {
-    expect(fs.readdirSync(path.resolve('cache', 'dlx', createBase32Hash(cmd))).length).toBe(2)
+    fs.readdirSync(path.resolve('cache', 'dlx')).sort()
+  ).toStrictEqual(keptDirs)
+  for (const keptDir of keptDirs) {
+    expect(fs.readdirSync(path.resolve('cache', 'dlx', keptDir)).length).toBe(2)
   }
 
   await execPnpm([
@@ -206,9 +208,9 @@ test('dlx should ignore non-auth info from .npmrc in the current directory', asy
   await execPnpm([
     `--config.store-dir=${path.resolve('store')}`,
     `--config.cache-dir=${cacheDir}`,
-    'dlx', 'shx', 'echo', 'hi'])
+    'dlx', 'shx@0.3.4', 'echo', 'hi'])
 
-  const modulesManifest = await readModulesManifest(path.join(cacheDir, 'dlx', createBase32Hash('shx'), 'pkg/node_modules'))
+  const modulesManifest = await readModulesManifest(path.join(cacheDir, 'dlx', createCacheKey('shx@0.3.4'), 'pkg/node_modules'))
   expect(modulesManifest?.hoistPattern).toStrictEqual(['*'])
 })
 
@@ -259,7 +261,20 @@ test('dlx uses the node version specified by --use-node-version', async () => {
     stdio: [null, 'pipe', 'inherit'],
   })
 
-  const nodeInfo = JSON.parse(execResult.stdout.toString())
+  if (execResult.status !== 0) {
+    console.error(execResult.stderr.toString())
+    throw new Error(`Process exits with code ${execResult.status}`)
+  }
+
+  let nodeInfo
+  try {
+    nodeInfo = JSON.parse(execResult.stdout.toString())
+  } catch (err) {
+    console.error(execResult.stdout.toString())
+    console.error(execResult.stderr.toString())
+    throw err
+  }
+
   expect(nodeInfo).toMatchObject({
     versions: {
       node: '20.0.0',

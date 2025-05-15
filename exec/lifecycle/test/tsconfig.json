@@ -1,8 +1,8 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "composite": false,
-    "noEmit": true,
+    "noEmit": false,
+    "outDir": "../test.lib",
     "rootDir": "."
   },
   "include": [

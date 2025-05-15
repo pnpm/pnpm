@@ -1,9 +1,9 @@
 import path from 'path'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { type Lockfile } from '@pnpm/lockfile-types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { add, install, update } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
 import chalk from 'chalk'
 import * as enquirer from 'enquirer'
@@ -21,6 +21,7 @@ const DEFAULT_OPTIONS = {
   },
   bail: false,
   bin: 'node_modules/.bin',
+  excludeLinksFromLockfile: false,
   extraEnv: {},
   cliOptions: {},
   deployAllFiles: false,
@@ -32,6 +33,7 @@ const DEFAULT_OPTIONS = {
   lock: true,
   pnpmfile: '.pnpmfile.cjs',
   pnpmHomeDir: '',
+  preferWorkspacePackages: true,
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
   registries: {
@@ -41,7 +43,7 @@ const DEFAULT_OPTIONS = {
   sort: true,
   userConfig: {},
   workspaceConcurrency: 1,
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 test('interactively update', async () => {
@@ -64,6 +66,11 @@ test('interactively update', async () => {
     hint: '',
     value: '',
   }
+
+  await Promise.all([
+    addDistTag({ package: 'is-negative', version: '2.1.0', distTag: 'latest' }),
+    addDistTag({ package: 'micromatch', version: '4.0.0', distTag: 'latest' }),
+  ])
 
   await add.handler(
     {
@@ -164,7 +171,7 @@ test('interactively update', async () => {
           name: 'is-positive',
         },
         {
-          message: chalk`micromatch                                                   3.0.0 ❯ {redBright.bold 4.0.7}                 `,
+          message: chalk`micromatch                                                   3.0.0 ❯ {redBright.bold 4.0.0}                 `,
           value: 'micromatch',
           name: 'micromatch',
         },
@@ -259,7 +266,7 @@ test('interactive update of dev dependencies only', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
+  const lockfile = readYamlFile<LockfileObject>('pnpm-lock.yaml')
 
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
     'is-negative@1.0.1',
@@ -276,11 +283,6 @@ test('interactively update should ignore dependencies from the ignoreDependencie
       'is-positive': '^2.0.0',
       // has many versions that satisfy ^3.0.0
       micromatch: '^3.0.0',
-    },
-    pnpm: {
-      updateConfig: {
-        ignoreDependencies: ['is-negative'],
-      },
     },
   })
 
@@ -310,6 +312,9 @@ test('interactively update should ignore dependencies from the ignoreDependencie
     interactive: true,
     linkWorkspacePackages: true,
     storeDir,
+    updateConfig: {
+      ignoreDependencies: ['is-negative'],
+    },
   })
 
   expect(prompt.mock.calls[0][0].choices).toStrictEqual(

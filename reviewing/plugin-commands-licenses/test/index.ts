@@ -1,11 +1,12 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import path from 'path'
 import fs from 'fs'
+import { STORE_VERSION } from '@pnpm/constants'
 import { licenses } from '@pnpm/plugin-commands-licenses'
 import { install } from '@pnpm/plugin-commands-installation'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import stripAnsi from 'strip-ansi'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 import { DEFAULT_OPTS } from './utils'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 
@@ -29,9 +30,9 @@ test('pnpm licenses', async () => {
     dir: workspaceDir,
     pnpmHomeDir: '',
     long: false,
-    // we need to prefix it with v3 otherwise licenses tool can't find anything
+    // we need to prefix it with STORE_VERSION otherwise licenses tool can't find anything
     // in the content-addressable directory
-    storeDir: path.resolve(storeDir, 'v3'),
+    storeDir: path.resolve(storeDir, STORE_VERSION),
   }, ['list'])
 
   expect(exitCode).toBe(0)
@@ -56,9 +57,9 @@ test('pnpm licenses: show details', async () => {
     dir: workspaceDir,
     pnpmHomeDir: '',
     long: true,
-    // we need to prefix it with v3 otherwise licenses tool can't find anything
+    // we need to prefix it with STORE_VERSION otherwise licenses tool can't find anything
     // in the content-addressable directory
-    storeDir: path.resolve(storeDir, 'v3'),
+    storeDir: path.resolve(storeDir, STORE_VERSION),
   }, ['list'])
 
   expect(exitCode).toBe(0)
@@ -84,9 +85,9 @@ test('pnpm licenses: output as json', async () => {
     pnpmHomeDir: '',
     long: false,
     json: true,
-    // we need to prefix it with v3 otherwise licenses tool can't find anything
+    // we need to prefix it with STORE_VERSION otherwise licenses tool can't find anything
     // in the content-addressable directory
-    storeDir: path.resolve(storeDir, 'v3'),
+    storeDir: path.resolve(storeDir, STORE_VERSION),
   }, ['list'])
 
   expect(exitCode).toBe(0)
@@ -148,7 +149,7 @@ test('pnpm licenses: path should be correct for workspaces', async () => {
       pnpmHomeDir: '',
       long: false,
       json: true,
-      storeDir: path.resolve(storeDir, 'v3'),
+      storeDir: path.resolve(storeDir, STORE_VERSION),
     }, ['list'])
 
     expect(exitCode).toBe(0)
@@ -199,7 +200,7 @@ test('pnpm licenses: filter outputs', async () => {
           path.includes('bar')
         )
       ),
-      storeDir: path.resolve(storeDir, 'v3'),
+      storeDir: path.resolve(storeDir, STORE_VERSION),
     }, ['list']
   )
 
@@ -238,9 +239,9 @@ test('pnpm licenses: should correctly read LICENSE file with executable file mod
     dir: workspaceDir,
     pnpmHomeDir: '',
     long: true,
-    // we need to prefix it with v3 otherwise licenses tool can't find anything
+    // we need to prefix it with STORE_VERSION otherwise licenses tool can't find anything
     // in the content-addressable directory
-    storeDir: path.resolve(storeDir, 'v3'),
+    storeDir: path.resolve(storeDir, STORE_VERSION),
   }, ['list'])
 
   expect(exitCode).toBe(0)
@@ -264,7 +265,7 @@ test('pnpm licenses should work with file protocol dependency', async () => {
     dir: workspaceDir,
     pnpmHomeDir: '',
     long: false,
-    storeDir: path.resolve(storeDir, 'v3'),
+    storeDir: path.resolve(storeDir, STORE_VERSION),
   }, ['list'])
 
   expect(exitCode).toBe(0)
@@ -274,12 +275,16 @@ test('pnpm licenses should work with file protocol dependency', async () => {
 test('pnpm licenses should work with git protocol dep that have patches', async () => {
   const workspaceDir = tempDir()
   f.copy('with-git-protocol-patched-deps', workspaceDir)
+  const patchedDependencies = {
+    'is-positive@3.1.0': 'patches/is-positive@3.1.0.patch',
+  }
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
     frozenLockfile: true,
+    patchedDependencies,
     pnpmHomeDir: '',
     storeDir,
   })
@@ -289,7 +294,7 @@ test('pnpm licenses should work with git protocol dep that have patches', async 
     dir: workspaceDir,
     pnpmHomeDir: '',
     long: false,
-    storeDir: path.resolve(storeDir, 'v3'),
+    storeDir: path.resolve(storeDir, STORE_VERSION),
   }, ['list'])
 
   expect(exitCode).toBe(0)
@@ -312,7 +317,7 @@ test('pnpm licenses should work with git protocol dep that have peerDependencies
     dir: workspaceDir,
     pnpmHomeDir: '',
     long: false,
-    storeDir: path.resolve(storeDir, 'v3'),
+    storeDir: path.resolve(storeDir, STORE_VERSION),
   }, ['list'])
 
   expect(exitCode).toBe(0)
@@ -335,7 +340,7 @@ test('pnpm licenses should work git repository name containing capital letters',
     dir: workspaceDir,
     pnpmHomeDir: '',
     long: false,
-    storeDir: path.resolve(storeDir, 'v3'),
+    storeDir: path.resolve(storeDir, STORE_VERSION),
   }, ['list'])
 
   expect(exitCode).toBe(0)

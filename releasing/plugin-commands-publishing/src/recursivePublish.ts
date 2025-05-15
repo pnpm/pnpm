@@ -12,9 +12,11 @@ import writeJsonFile from 'write-json-file'
 import { publish } from './publish'
 
 export type PublishRecursiveOpts = Required<Pick<Config,
+| 'bin'
 | 'cacheDir'
 | 'cliOptions'
 | 'dir'
+| 'pnpmHomeDir'
 | 'rawConfig'
 | 'registries'
 | 'workspaceDir'
@@ -103,8 +105,9 @@ export async function recursivePublish (
     const chunks = sortPackages(opts.selectedProjectsGraph)
     const tag = opts.tag ?? 'latest'
     for (const chunk of chunks) {
-      // NOTE: It should be possible to publish these packages concurrently.
-      // However, looks like that requires too much resources for some CI envs.
+      // We can't run publish concurrently due to the npm CLI asking for OTP.
+      // NOTE: If we solve the OTP issue, we still need to limit packages concurrency.
+      // Otherwise, publishing will consume too much resources.
       // See related issue: https://github.com/pnpm/pnpm/issues/6968
       for (const pkgDir of chunk) {
         if (!publishedPkgDirs.has(pkgDir)) continue
@@ -152,11 +155,10 @@ async function isAlreadyPublished (
   pkgVersion: string
 ): Promise<boolean> {
   try {
-    await opts.resolve({ alias: pkgName, pref: pkgVersion }, {
+    await opts.resolve({ alias: pkgName, bareSpecifier: pkgVersion }, {
       lockfileDir: opts.lockfileDir,
       preferredVersions: {},
       projectDir: opts.dir,
-      registry: pickRegistryForPackage(opts.registries, pkgName, pkgVersion),
     })
     return true
   } catch (err: any) { // eslint-disable-line

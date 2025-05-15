@@ -4,9 +4,9 @@ import {
   createStreamParser,
   logger,
 } from '@pnpm/logger'
-import { take } from 'rxjs/operators'
+import { firstValueFrom } from 'rxjs'
 
-test('print peer dependency issues warning', (done) => {
+test('print peer dependency issues warning', async () => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -42,57 +42,48 @@ test('print peer dependency issues warning', (done) => {
 
   expect.assertions(1)
 
-  output$.pipe(take(1)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toContain('.')
-    },
-  })
+  const output = await firstValueFrom(output$)
+  expect(output).toContain('.')
 })
 
-test('print peer dependency issues error', (done) => {
+test('print peer dependency issues error', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
   })
 
-  const err = new Error('some error')
-  err['code'] = 'ERR_PNPM_PEER_DEP_ISSUES'
-  err['issuesByProjects'] = {
-    '.': {
-      missing: {},
-      bad: {
-        a: [
-          {
-            foundVersion: '2',
-            parents: [
-              {
-                name: 'b',
-                version: '1.0.0',
-              },
-            ],
-            optional: false,
-            resolvedFrom: [],
-            wantedRange: '3',
-          },
-        ],
+  const err = Object.assign(new Error('some error'), {
+    code: 'ERR_PNPM_PEER_DEP_ISSUES',
+    issuesByProjects: {
+      '.': {
+        missing: {},
+        bad: {
+          a: [
+            {
+              foundVersion: '2',
+              parents: [
+                {
+                  name: 'b',
+                  version: '1.0.0',
+                },
+              ],
+              optional: false,
+              resolvedFrom: [],
+              wantedRange: '3',
+            },
+          ],
+        },
+        conflicts: [],
+        intersections: {},
       },
-      conflicts: [],
-      intersections: {},
     },
-  }
+  })
   logger.error(err, err)
 
   expect.assertions(1)
 
   expect.assertions(1)
 
-  output$.pipe(take(1)).subscribe({
-    complete: () => done(),
-    error: done,
-    next: output => {
-      expect(output).toContain('.')
-    },
-  })
+  const output = await firstValueFrom(output$)
+  expect(output).toContain('.')
 })

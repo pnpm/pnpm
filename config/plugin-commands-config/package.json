@@ -1,16 +1,28 @@
 {
   "name": "@pnpm/plugin-commands-config",
-  "version": "3.0.12",
+  "version": "1000.1.6",
   "description": "Commands for reading and writing settings to/from config files",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "config"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/config/plugin-commands-config",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/config/plugin-commands-config#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -18,36 +30,32 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/config/plugin-commands-config",
-  "keywords": [
-    "pnpm9",
-    "pnpm",
-    "config"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/config/plugin-commands-config#readme",
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/run-npm": "workspace:*",
+    "@pnpm/workspace.manifest-writer": "workspace:*",
+    "camelcase": "catalog:",
     "ini": "catalog:",
+    "lodash.kebabcase": "catalog:",
     "read-ini-file": "catalog:",
     "render-help": "catalog:",
-    "sort-keys": "catalog:",
     "write-ini-file": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/logger": "catalog:",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/ini": "catalog:"
+    "@types/ini": "catalog:",
+    "@types/lodash.kebabcase": "catalog:",
+    "read-yaml-file": "catalog:"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

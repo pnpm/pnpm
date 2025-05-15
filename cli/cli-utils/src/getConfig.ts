@@ -1,6 +1,9 @@
 import { packageManager } from '@pnpm/cli-meta'
 import { getConfig as _getConfig, type CliOptions, type Config } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
+import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import { installConfigDeps } from '@pnpm/config.deps-installer'
+import { requireHooks } from '@pnpm/pnpmfile'
 
 export async function getConfig (
   cliOptions: CliOptions,
@@ -13,7 +16,7 @@ export async function getConfig (
     ignoreNonAuthSettingsFromLocal?: boolean
   }
 ): Promise<Config> {
-  const { config, warnings } = await _getConfig({
+  let { config, warnings } = await _getConfig({
     cliOptions,
     globalDirShouldAllowWrite: opts.globalDirShouldAllowWrite,
     packageManager,
@@ -23,14 +26,28 @@ export async function getConfig (
     ignoreNonAuthSettingsFromLocal: opts.ignoreNonAuthSettingsFromLocal,
   })
   config.cliOptions = cliOptions
+  if (config.configDependencies) {
+    const store = await createOrConnectStoreController(config)
+    await installConfigDeps(config.configDependencies, {
+      registries: config.registries,
+      rootDir: config.lockfileDir ?? config.rootProjectManifestDir,
+      store: store.ctrl,
+    })
+  }
+  if (!config.ignorePnpmfile) {
+    config.hooks = requireHooks(config.lockfileDir ?? config.dir, config)
+    if (config.hooks?.updateConfig) {
+      const updateConfigResult = config.hooks.updateConfig(config)
+      config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult
+    }
+  }
 
   if (opts.excludeReporter) {
     delete config.reporter // This is a silly workaround because @pnpm/core expects a function as opts.reporter
   }
 
-  // The warning should not be printed when --json is specified
-  if (warnings.length > 0 && !cliOptions.json) {
-    console.log(warnings.map((warning) => formatWarn(warning)).join('\n'))
+  if (warnings.length > 0) {
+    console.warn(warnings.map((warning) => formatWarn(warning)).join('\n'))
   }
 
   return config

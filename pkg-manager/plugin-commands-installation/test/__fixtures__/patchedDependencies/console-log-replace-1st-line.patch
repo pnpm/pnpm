@@ -1,0 +1,7 @@
+diff --git a/index.js b/index.js
+index 54b6705..6c0033d 100644
+--- a/index.js
++++ b/index.js
+@@ -1,1 +1,1 @@
+-console.log('first line')
++console.log('FIRST LINE')

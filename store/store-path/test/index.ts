@@ -1,3 +1,4 @@
+import { STORE_VERSION } from '@pnpm/constants'
 import { getStorePath } from '@pnpm/store-path'
 import isWindows from 'is-windows'
 
@@ -10,21 +11,21 @@ skipOnWindows('when a link can be created to the homedir', async () => {
   expect(await getStorePath({
     pkgRoot: '/can-link-to-homedir',
     pnpmHomeDir: '/local/share/pnpm',
-  })).toBe('/local/share/pnpm/store/v3')
+  })).toBe(`/local/share/pnpm/store/${STORE_VERSION}`)
 })
 
 skipOnWindows('a link can be created to the root of the drive', async () => {
   expect(await getStorePath({
     pkgRoot: '/src/workspace/project',
     pnpmHomeDir: '/local/share/pnpm',
-  })).toBe('/.pnpm-store/v3')
+  })).toBe(`/.pnpm-store/${STORE_VERSION}`)
 })
 
 skipOnWindows('a link can be created to the a subdir in the root of the drive', async () => {
   expect(await getStorePath({
     pkgRoot: '/mnt/project',
     pnpmHomeDir: '/local/share/pnpm',
-  })).toBe('/mnt/.pnpm-store/v3')
+  })).toBe(`/mnt/.pnpm-store/${STORE_VERSION}`)
 })
 
 test('fail when pnpm home directory is not defined', async () => {

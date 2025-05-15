@@ -27,9 +27,9 @@ beforeEach(() => {
   ;(globalWarn as jest.Mock).mockClear()
 })
 
-const cafsDir = tempy.directory()
-const filesIndexFile = path.join(cafsDir, 'index.json')
-const cafs = createCafsStore(cafsDir)
+const storeDir = tempy.directory()
+const filesIndexFile = path.join(storeDir, 'index.json')
+const cafs = createCafsStore(storeDir)
 
 const f = fixtures(__dirname)
 const tarballPath = f.find('babel-helper-hoist-variables-6.24.1.tgz')

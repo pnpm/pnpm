@@ -15,7 +15,6 @@ describe('TestEchoServer', () => {
     it('cleans up through Symbol.asyncDispose', async () => {
       let listenPath: string
 
-      // eslint-disable-next-line no-lone-blocks
       {
         await using server = await createTestIpcServer()
         listenPath = server.listenPath

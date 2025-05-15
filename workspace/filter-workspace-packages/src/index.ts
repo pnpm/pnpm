@@ -276,23 +276,23 @@ async function _filterGraph<Pkg extends Package> (
 
 function pkgGraphToGraph<Pkg extends Package> (pkgGraph: PackageGraph<Pkg>): Graph {
   const graph: Graph = {}
-  ;(Object.keys(pkgGraph) as ProjectRootDir[]).forEach((nodeId) => {
+  for (const nodeId of Object.keys(pkgGraph) as ProjectRootDir[]) {
     graph[nodeId] = pkgGraph[nodeId].dependencies
-  })
+  }
   return graph
 }
 
 function reverseGraph (graph: Graph): Graph {
   const reversedGraph: Graph = {}
-  ;(Object.keys(graph) as ProjectRootDir[]).forEach((dependentNodeId) => {
-    graph[dependentNodeId].forEach((dependencyNodeId) => {
+  for (const dependentNodeId of Object.keys(graph) as ProjectRootDir[]) {
+    for (const dependencyNodeId of graph[dependentNodeId]) {
       if (!reversedGraph[dependencyNodeId]) {
         reversedGraph[dependencyNodeId] = [dependentNodeId]
       } else {
         reversedGraph[dependencyNodeId].push(dependentNodeId)
       }
-    })
-  })
+    }
+  }
   return reversedGraph
 }
 

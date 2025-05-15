@@ -28,6 +28,7 @@ export async function linkHoistedModules (
   prevGraph: DependenciesGraph,
   hierarchy: DepHierarchy,
   opts: {
+    allowBuild?: (pkgName: string) => boolean
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
     force: boolean
@@ -58,7 +59,7 @@ export async function linkHoistedModules (
             prefix: parentDir,
           })
         }
-        return linkAllPkgsInOrder(storeController, graph, prevGraph, depsHierarchy, parentDir, {
+        return linkAllPkgsInOrder(storeController, graph, depsHierarchy, parentDir, {
           ...opts,
           warn,
         })
@@ -84,10 +85,10 @@ async function tryRemoveDir (dir: string): Promise<void> {
 async function linkAllPkgsInOrder (
   storeController: StoreController,
   graph: DependenciesGraph,
-  prevGraph: DependenciesGraph,
   hierarchy: DepHierarchy,
   parentDir: string,
   opts: {
+    allowBuild?: (pkgName: string) => boolean
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
     force: boolean
@@ -114,10 +115,12 @@ async function linkAllPkgsInOrder (
         depNode.requiresBuild = filesResponse.requiresBuild
         let sideEffectsCacheKey: string | undefined
         if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-          sideEffectsCacheKey = _calcDepState(dir, {
-            isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
-            patchFileHash: depNode.patchFile?.hash,
-          })
+          if (opts?.allowBuild?.(depNode.name) !== false) {
+            sideEffectsCacheKey = _calcDepState(dir, {
+              isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
+              patchFileHash: depNode.patch?.file.hash,
+            })
+          }
         }
         // Limiting the concurrency here fixes an out of memory error.
         // It is not clear why it helps as importing is also limited inside fs.indexed-pkg-importer.
@@ -128,7 +131,7 @@ async function linkAllPkgsInOrder (
             force: true,
             disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
             keepModulesDir: true,
-            requiresBuild: depNode.patchFile != null || depNode.requiresBuild,
+            requiresBuild: depNode.patch != null || depNode.requiresBuild,
             sideEffectsCacheKey,
           })
           if (importMethod) {
@@ -142,7 +145,7 @@ async function linkAllPkgsInOrder (
           depNode.isBuilt = isBuilt
         })
       }
-      return linkAllPkgsInOrder(storeController, graph, prevGraph, deps, dir, opts)
+      return linkAllPkgsInOrder(storeController, graph, deps, dir, opts)
     })
   )
   const modulesDir = path.join(parentDir, 'node_modules')

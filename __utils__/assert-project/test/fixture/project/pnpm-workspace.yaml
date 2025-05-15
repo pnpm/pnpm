@@ -2,3 +2,7 @@
 packages:
   - "."
   - "!store/**"
+# This config file may be removed
+# if the workaround with pnpm-workspace.yaml won't be needed
+sharedWorkspaceLockfile: false
+storeDir: ../store

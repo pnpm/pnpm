@@ -18,10 +18,10 @@ pnpm add @pnpm/local-resolver
 'use strict'
 const resolveFromLocal = require('@pnpm/local-resolver').default
 
-resolveFromLocal({pref: './example-package'}, {prefix: process.cwd()})
+resolveFromLocal({bareSpecifier: './example-package'}, {prefix: process.cwd()})
   .then(resolveResult => console.log(resolveResult))
 //> { id: 'link:example-package',
-//    normalizedPref: 'link:example-package',
+//    normalizedBareSpecifier: 'link:example-package',
 //    package:
 //     { name: 'foo',
 //       version: '1.0.0',

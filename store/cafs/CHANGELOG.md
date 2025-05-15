@@ -1,5 +1,161 @@
 # @pnpm/store.cafs
 
+## 1000.0.12
+
+### Patch Changes
+
+- Updated dependencies [c24c66e]
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/fetcher-base@1000.0.11
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/fetcher-base@1000.0.10
+
+## 1000.0.10
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.9
+- @pnpm/store-controller-types@1002.0.1
+
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [72cff38]
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/fetcher-base@1000.0.8
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.7
+- @pnpm/store-controller-types@1001.0.5
+
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.6
+- @pnpm/store-controller-types@1001.0.4
+
+## 1000.0.6
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.5
+- @pnpm/store-controller-types@1001.0.3
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.4
+- @pnpm/store-controller-types@1001.0.2
+
+## 1000.0.4
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.3
+- @pnpm/store-controller-types@1001.0.1
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.2
+- @pnpm/store-controller-types@1000.1.1
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/fetcher-base@1000.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- d433cb9: Some registries allow identical content to be published under different package names or versions. To accommodate this, index files in the store are now stored using both the content hash and package identifier.
+
+  This approach ensures that we can:
+
+  1. Validate that the integrity in the lockfile corresponds to the correct package,
+     which might not be the case after a poorly resolved Git conflict.
+  2. Allow the same content to be referenced by different packages or different versions of the same package.
+
+  Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
+  Related issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
+
+- 099e6af: Changed the structure of the index files in the store to store side effects cache information more efficiently. In the new version, side effects do not list all the files of the package but just the differences [#8636](https://github.com/pnpm/pnpm/pull/8636).
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.7
+- @pnpm/store-controller-types@18.1.6
+
+## 4.0.2
+
+### Patch Changes
+
+- a1f4df2: Fixed a race condition in temporary file creation in the store by including worker thread ID in filename. Previously, multiple worker threads could attempt to use the same temporary file. Temporary files now include both process ID and thread ID for uniqueness [#8703](https://github.com/pnpm/pnpm/pull/8703).
+
+## 4.0.1
+
+### Patch Changes
+
+- db7ff76: When checking whether a file in the store has executable permissions, the new approach checks if at least one of the executable bits (owner, group, and others) is set to 1. Previously, a file was incorrectly considered executable only when all the executable bits were set to 1. This fix ensures that files with any executable permission, regardless of the user class, are now correctly identified as executable [#8546](https://github.com/pnpm/pnpm/issues/8546).
+
+## 4.0.0
+
+### Major Changes
+
+- db420ab: `getFilePathInCafs` renamed to `getIndexFilePathInCafs`.
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.7
+- @pnpm/store-controller-types@18.1.6
+
+## 3.0.8
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.6
+- @pnpm/store-controller-types@18.1.5
+
+## 3.0.7
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.5
+- @pnpm/store-controller-types@18.1.4
+
+## 3.0.6
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.4
+- @pnpm/store-controller-types@18.1.3
+
 ## 3.0.5
 
 ### Patch Changes

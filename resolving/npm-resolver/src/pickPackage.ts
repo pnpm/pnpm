@@ -1,6 +1,6 @@
-import crypto from 'crypto'
 import { promises as fs } from 'fs'
 import path from 'path'
+import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import gfs from '@pnpm/graceful-fs'
@@ -15,7 +15,7 @@ import semver from 'semver'
 import renameOverwrite from 'rename-overwrite'
 import { toRaw } from './toRaw'
 import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange } from './pickPackageFromMeta'
-import { type RegistryPackageSpec } from './parsePref'
+import { type RegistryPackageSpec } from './parseBareSpecifier'
 
 export interface PackageMeta {
   name: string
@@ -205,10 +205,12 @@ export async function pickPackage (
       // only save meta to cache, when it is fresh
       ctx.metaCache.set(spec.name, meta)
       if (!opts.dryRun) {
+        // We stringify this meta here to avoid saving any mutations that could happen to the meta object.
+        const stringifiedMeta = JSON.stringify(meta)
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         runLimited(pkgMirror, (limit) => limit(async () => {
           try {
-            await saveMeta(pkgMirror, meta)
+            await saveMeta(pkgMirror, stringifiedMeta)
           } catch (err: any) { // eslint-disable-line
             // We don't care if this file was not written to the cache
           }
@@ -236,6 +238,7 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
   const versions: PackageMeta['versions'] = {}
   for (const [version, info] of Object.entries(pkg.versions)) {
     // The list taken from https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object
+    // with the addition of 'libc'
     versions[version] = pick([
       'name',
       'version',
@@ -250,6 +253,7 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
       'peerDependenciesMeta',
       'cpu',
       'os',
+      'libc',
       'deprecated',
       'bundleDependencies',
       'bundledDependencies',
@@ -268,7 +272,7 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
 
 function encodePkgName (pkgName: string): string {
   if (pkgName !== pkgName.toLowerCase()) {
-    return `${pkgName}_${crypto.createHash('md5').update(pkgName).digest('hex')}`
+    return `${pkgName}_${createHexHash(pkgName)}`
   }
   return pkgName
 }
@@ -283,14 +287,14 @@ async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
 
 const createdDirs = new Set<string>()
 
-async function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<void> {
+async function saveMeta (pkgMirror: string, meta: string): Promise<void> {
   const dir = path.dirname(pkgMirror)
   if (!createdDirs.has(dir)) {
     await fs.mkdir(dir, { recursive: true })
     createdDirs.add(dir)
   }
   const temp = pathTemp(pkgMirror)
-  await gfs.writeFile(temp, JSON.stringify(meta))
+  await gfs.writeFile(temp, meta)
   await renameOverwrite(temp, pkgMirror)
 }
 

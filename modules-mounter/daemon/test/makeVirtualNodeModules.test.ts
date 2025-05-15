@@ -1,5 +1,5 @@
 import path from 'path'
-import { readWantedLockfile } from '@pnpm/lockfile-file'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { makeVirtualNodeModules } from '../src/makeVirtualNodeModules'
 
 test('makeVirtualNodeModules', async () => {

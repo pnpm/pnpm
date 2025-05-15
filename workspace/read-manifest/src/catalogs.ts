@@ -1,11 +1,11 @@
 import { InvalidWorkspaceManifestError } from './errors/InvalidWorkspaceManifestError'
 
 export interface WorkspaceNamedCatalogs {
-  readonly [catalogName: string]: WorkspaceCatalog
+  [catalogName: string]: WorkspaceCatalog
 }
 
 export interface WorkspaceCatalog {
-  readonly [dependencyName: string]: string
+  [dependencyName: string]: string
 }
 
 export function assertValidWorkspaceManifestCatalog (manifest: { packages?: readonly string[], catalog?: unknown }): asserts manifest is { catalog?: WorkspaceCatalog } {

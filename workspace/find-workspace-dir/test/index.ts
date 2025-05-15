@@ -10,7 +10,7 @@ function isFileSystemCaseSensitive () {
   try {
     fs.realpathSync.native(process.cwd().toUpperCase())
     return false
-  } catch (_) {
+  } catch {
     return true
   }
 }

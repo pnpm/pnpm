@@ -1,16 +1,28 @@
 {
   "name": "@pnpm/plugin-commands-init",
-  "version": "4.0.12",
+  "version": "1000.2.0",
   "description": "Create a package.json file",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "init"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-init",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-init#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -19,33 +31,29 @@
     "compile": "tsc --build && pnpm run lint --fix",
     "update-responses": "ts-node test/utils/responses/update.ts"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-init",
-  "keywords": [
-    "pnpm9",
-    "pnpm",
-    "init"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
+  "dependencies": {
+    "@pnpm/cli-meta": "workspace:*",
+    "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/object.key-sorting": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/write-project-manifest": "workspace:*",
+    "camelcase-keys": "catalog:",
+    "ramda": "catalog:",
+    "render-help": "catalog:"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-init#readme",
   "devDependencies": {
     "@pnpm/plugin-commands-init": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@types/ramda": "catalog:",
     "load-json-file": "catalog:"
   },
-  "dependencies": {
-    "@pnpm/cli-utils": "workspace:*",
-    "@pnpm/config": "workspace:*",
-    "@pnpm/error": "workspace:*",
-    "@pnpm/write-project-manifest": "workspace:*",
-    "camelcase-keys": "catalog:",
-    "render-help": "catalog:"
+  "engines": {
+    "node": ">=18.12"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

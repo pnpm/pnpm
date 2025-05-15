@@ -1,6 +1,6 @@
 import { refToRelative } from '@pnpm/dependency-path'
 import path from 'path'
-import { getLockfileImporterId, type ProjectSnapshot } from '@pnpm/lockfile-file'
+import { getLockfileImporterId, type ProjectSnapshot } from '@pnpm/lockfile.fs'
 import { type TreeNodeId } from './TreeNodeId'
 
 export interface getTreeNodeChildIdOpts {

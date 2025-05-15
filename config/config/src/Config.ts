@@ -7,10 +7,18 @@ import {
   type SslConfig,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
+import { type OptionsFromRootManifest } from './getOptionsFromRootManifest'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 
-export interface Config {
+export interface WantedPackageManager {
+  name: string
+  version?: string
+}
+
+export type VerifyDepsBeforeRun = 'install' | 'warn' | 'error' | 'prompt' | false
+
+export interface Config extends OptionsFromRootManifest {
   allProjects?: Project[]
   selectedProjectsGraph?: ProjectsGraph
   allProjectsGraph?: ProjectsGraph
@@ -33,15 +41,18 @@ export interface Config {
   global?: boolean
   dir: string
   bin: string
+  verifyDepsBeforeRun?: VerifyDepsBeforeRun
   ignoreDepScripts?: boolean
   ignoreScripts?: boolean
   ignoreCompatibilityDb?: boolean
   includeWorkspaceRoot?: boolean
+  optimisticRepeatInstall?: boolean
   save?: boolean
   saveProd?: boolean
   saveDev?: boolean
   saveOptional?: boolean
   savePeer?: boolean
+  saveCatalogName?: string
   saveWorkspaceProtocol?: boolean | 'rolling'
   lockfileIncludeTarballUrl?: boolean
   scriptShell?: string
@@ -74,6 +85,7 @@ export interface Config {
     name: string
     version: string
   }
+  wantedPackageManager?: WantedPackageManager
   preferOffline?: boolean
   sideEffectsCache?: boolean // for backward compatibility
   sideEffectsCacheReadonly?: boolean // for backward compatibility
@@ -81,7 +93,7 @@ export interface Config {
   sideEffectsCacheWrite?: boolean
   shamefullyHoist?: boolean
   dev?: boolean
-  ignoreCurrentPrefs?: boolean
+  ignoreCurrentSpecifiers?: boolean
   recursive?: boolean
   enablePrePostScripts?: boolean
   useNodeVersion?: string
@@ -93,6 +105,7 @@ export interface Config {
   failedToLoadBuiltInConfig: boolean
   resolvePeersFromWorkspaceRoot?: boolean
   deployAllFiles?: boolean
+  forceLegacyDeploy?: boolean
   reporterHidePrefix?: boolean
 
   // proxy
@@ -139,6 +152,7 @@ export interface Config {
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
+  injectWorkspacePackages?: boolean
   preferWorkspacePackages: boolean
   reverse: boolean
   sort: boolean
@@ -190,7 +204,9 @@ export interface Config {
   dedupeDirectDeps?: boolean
   extendNodePath?: boolean
   gitBranchLockfile?: boolean
+  globalBinDir?: string
   globalDir?: string
+  globalPkgDir: string
   lockfile?: boolean
   dedupeInjectedDeps?: boolean
   nodeOptions?: string
@@ -199,6 +215,12 @@ export interface Config {
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength?: number
   strictStorePkgContentCheck: boolean
+  managePackageManagerVersions: boolean
+  strictDepBuilds: boolean
+  syncInjectedDepsAfterScripts?: string[]
+  initPackageManager: boolean
+  initType: 'commonjs' | 'module'
+  dangerouslyAllowAllBuilds: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

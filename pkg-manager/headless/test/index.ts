@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { hashObject } from '@pnpm/crypto.object-hasher'
-import { getFilePathInCafs } from '@pnpm/store.cafs'
+import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   type PackageManifestLog,
@@ -12,7 +12,7 @@ import {
   type StatsLog,
 } from '@pnpm/core-loggers'
 import { headlessInstall } from '@pnpm/headless'
-import { readWantedLockfile } from '@pnpm/lockfile-file'
+import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { tempDir } from '@pnpm/prepare'
 import { type DepPath } from '@pnpm/types'
@@ -472,6 +472,7 @@ test('available packages are relinked during forced install', async () => {
 
 test('installing local dependency', async () => {
   let prefix = f.prepare('has-local-dep')
+  f.copy('tar-pkg-1.0.0.tgz', path.join(prefix, 'tar-pkg-1.0.0.tgz'))
   prefix = path.join(prefix, 'pkg')
   const reporter = sinon.spy()
 
@@ -677,15 +678,14 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   }, {}, {}, { packageImportMethod: 'copy' })
   await headlessInstall(opts)
 
-  const cafsDir = path.join(opts.storeDir, 'files')
-  const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
+  const cacheIntegrityPath = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
   const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
-  delete cacheIntegrity!.sideEffects[sideEffectsKey]['generated-by-postinstall.js']
+  const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
+  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'generated-by-postinstall.js'])
+  delete cacheIntegrity!.sideEffects[sideEffectsKey].added['generated-by-postinstall.js']
 
-  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-preinstall.js'])
+  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'generated-by-preinstall.js'])
   writeJsonFile.sync(cacheIntegrityPath, cacheIntegrity)
 
   prefix = f.prepare('side-effects')
@@ -781,6 +781,17 @@ test('installing with no symlinks but with PnP', async () => {
 
 test('installing with no modules directory', async () => {
   const prefix = f.prepare('simple')
+
+  await headlessInstall(await testDefaults({
+    enableModulesDir: false,
+    lockfileDir: prefix,
+  }))
+
+  expect(fs.existsSync(path.join(prefix, 'node_modules'))).toBeFalsy()
+})
+
+test('installing with no modules directory and a patched dependency', async () => {
+  const prefix = f.prepare('simple-with-patch')
 
   await headlessInstall(await testDefaults({
     enableModulesDir: false,

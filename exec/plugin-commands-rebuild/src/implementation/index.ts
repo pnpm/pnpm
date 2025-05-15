@@ -1,7 +1,7 @@
 import assert from 'assert'
 import path from 'path'
 import util from 'util'
-import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { calcDepState, lockfileToDepGraph, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
@@ -15,20 +15,22 @@ import {
   runPostinstallHooks,
 } from '@pnpm/lifecycle'
 import { linkBins } from '@pnpm/link-bins'
-import { type TarballResolution } from '@pnpm/lockfile-types'
+import { type TarballResolution } from '@pnpm/lockfile.types'
 import {
-  type Lockfile,
+  type LockfileObject,
   nameVerFromPkgSnapshot,
   packageIsIndependent,
   type PackageSnapshots,
-} from '@pnpm/lockfile-utils'
-import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
+} from '@pnpm/lockfile.utils'
+import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { type DepPath, type ProjectManifest, type ProjectId, type ProjectRootDir } from '@pnpm/types'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
+import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import * as dp from '@pnpm/dependency-path'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { hardLinkDir } from '@pnpm/worker'
 import loadJsonFile from 'load-json-file'
 import runGroups from 'run-groups'
@@ -123,13 +125,30 @@ export async function rebuildSelectedPkgs (
     ]
   }
 
-  await _rebuild(
+  const { ignoredPkgs } = await _rebuild(
     {
       pkgsToRebuild: new Set(pkgs),
       ...ctx,
     },
     opts
   )
+  await writeModulesManifest(ctx.rootModulesDir, {
+    prunedAt: new Date().toUTCString(),
+    ...ctx.modulesFile,
+    hoistedDependencies: ctx.hoistedDependencies,
+    hoistPattern: ctx.hoistPattern,
+    included: ctx.include,
+    ignoredBuilds: ignoredPkgs,
+    layoutVersion: LAYOUT_VERSION,
+    packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
+    pendingBuilds: ctx.pendingBuilds,
+    publicHoistPattern: ctx.publicHoistPattern,
+    registries: ctx.registries,
+    skipped: Array.from(ctx.skipped),
+    storeDir: ctx.storeDir,
+    virtualStoreDir: ctx.virtualStoreDir,
+    virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
+  })
 }
 
 export async function rebuildProjects (
@@ -151,7 +170,7 @@ export async function rebuildProjects (
     idsToRebuild = Object.keys(ctx.currentLockfile.packages)
   }
 
-  const pkgsThatWereRebuilt = await _rebuild(
+  const { pkgsThatWereRebuilt, ignoredPkgs } = await _rebuild(
     {
       pkgsToRebuild: new Set(idsToRebuild),
       ...ctx,
@@ -192,6 +211,7 @@ export async function rebuildProjects (
     hoistedDependencies: ctx.hoistedDependencies,
     hoistPattern: ctx.hoistPattern,
     included: ctx.include,
+    ignoredBuilds: ignoredPkgs,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
@@ -240,16 +260,15 @@ async function _rebuild (
     skipped: Set<string>
     virtualStoreDir: string
     rootModulesDir: string
-    currentLockfile: Lockfile
+    currentLockfile: LockfileObject
     projects: Record<string, { id: ProjectId, rootDir: ProjectRootDir }>
     extraBinPaths: string[]
     extraNodePaths: string[]
   } & Pick<PnpmContext, 'modulesFile'>,
   opts: StrictRebuildOptions
-): Promise<Set<string>> {
+): Promise<{ pkgsThatWereRebuilt: Set<string>, ignoredPkgs: string[] }> {
   const depGraph = lockfileToDepGraph(ctx.currentLockfile)
   const depsStateCache: DepsStateCache = {}
-  const cafsDir = path.join(opts.storeDir, 'files')
   const pkgsThatWereRebuilt = new Set<string>()
   const graph = new Map()
   const pkgSnapshots: PackageSnapshots = ctx.currentLockfile.packages ?? {}
@@ -287,7 +306,13 @@ async function _rebuild (
     logger.info({ message, prefix: opts.dir })
   }
 
-  const allowBuild = createAllowBuildFunction(opts) ?? (() => true)
+  const ignoredPkgs: string[] = []
+  const _allowBuild = createAllowBuildFunction(opts) ?? (() => true)
+  const allowBuild = (pkgName: string) => {
+    if (_allowBuild(pkgName)) return true
+    ignoredPkgs.push(pkgName)
+    return false
+  }
   const builtDepPaths = new Set<string>()
 
   const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath) && !ctx.skipped.has(depPath)).map((depPath) =>
@@ -315,8 +340,9 @@ async function _rebuild (
         }
         const resolution = (pkgSnapshot.resolution as TarballResolution)
         let sideEffectsCacheKey: string | undefined
+        const pkgId = `${pkgInfo.name}@${pkgInfo.version}`
         if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
-          const filesIndexFile = getFilePathInCafs(cafsDir, resolution.integrity!.toString(), 'index')
+          const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, resolution.integrity!.toString(), pkgId)
           const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
           sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
             isBuilt: true,
@@ -326,8 +352,15 @@ async function _rebuild (
             return
           }
         }
+        let requiresBuild = true
+        const pgkManifest = await safeReadPackageJsonFromDir(pkgRoot)
+        if (pgkManifest != null) {
+          // This won't return the correct result for packages with binding.gyp as we don't pass the filesIndex to the function.
+          // However, currently rebuild doesn't work for such packages at all, which should be fixed.
+          requiresBuild = pkgRequiresBuild(pgkManifest, {})
+        }
 
-        const hasSideEffects = allowBuild(pkgInfo.name) && await runPostinstallHooks({
+        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name) && await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,
@@ -341,7 +374,7 @@ async function _rebuild (
         })
         if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && resolution.integrity) {
           builtDepPaths.add(depPath)
-          const filesIndexFile = getFilePathInCafs(cafsDir, resolution.integrity!.toString(), 'index')
+          const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, resolution.integrity!.toString(), pkgId)
           try {
             if (!sideEffectsCacheKey) {
               sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
@@ -419,7 +452,7 @@ async function _rebuild (
     })))
   }
 
-  return pkgsThatWereRebuilt
+  return { pkgsThatWereRebuilt, ignoredPkgs }
 }
 
 function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[] {

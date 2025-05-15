@@ -1,16 +1,16 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.utils'
 import { type Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
 import { generateInlinedScript, type PackageRegistry } from '@yarnpkg/pnp'
 import normalizePath from 'normalize-path'
 
 export async function writePnpFile (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   opts: {
     importerNames: Record<string, string>
     lockfileDir: string
@@ -31,7 +31,7 @@ export async function writePnpFile (
 }
 
 export function lockfileToPackageRegistry (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   opts: {
     importerNames: { [importerId: string]: string }
     lockfileDir: string
@@ -109,7 +109,7 @@ export function lockfileToPackageRegistry (
 }
 
 function toPackageDependenciesMap (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   deps: {
     [depAlias: string]: string
   },

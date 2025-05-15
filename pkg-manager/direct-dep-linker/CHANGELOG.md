@@ -1,5 +1,102 @@
 # @pnpm/pkg-manager.direct-dep-linker
 
+## 1000.0.9
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+  - @pnpm/symlink-dependency@1000.0.9
+  - @pnpm/core-loggers@1001.0.1
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/symlink-dependency@1000.0.8
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/symlink-dependency@1000.0.7
+
+## 1000.0.6
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@1000.0.6
+- @pnpm/core-loggers@1000.1.5
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@1000.0.5
+- @pnpm/core-loggers@1000.1.4
+
+## 1000.0.4
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@1000.0.4
+- @pnpm/core-loggers@1000.1.3
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@1000.0.3
+- @pnpm/core-loggers@1000.1.2
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@1000.0.2
+- @pnpm/core-loggers@1000.1.1
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/symlink-dependency@1000.0.1
+
+## 3.0.8
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@8.0.8
+- @pnpm/core-loggers@10.0.7
+
+## 3.0.7
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@8.0.7
+- @pnpm/core-loggers@10.0.6
+
+## 3.0.6
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@8.0.6
+- @pnpm/core-loggers@10.0.5
+
+## 3.0.5
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@8.0.5
+- @pnpm/core-loggers@10.0.4
+
 ## 3.0.4
 
 ### Patch Changes

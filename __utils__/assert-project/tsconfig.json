@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../lockfile/lockfile-types"
+      "path": "../../lockfile/types"
     },
     {
       "path": "../../packages/constants"

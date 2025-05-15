@@ -1,5 +1,35 @@
 # @pnpm/network.auth-header
 
+## 1000.0.3
+
+### Patch Changes
+
+- 51bd373: Replace nerf-dart with @pnpm/config.nerf-dart to fix warning on Node.js 24.
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/error@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+
+## 3.0.3
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+
+## 3.0.2
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+
 ## 3.0.1
 
 ### Patch Changes

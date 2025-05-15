@@ -1,6 +1,6 @@
 import { type Config } from '@pnpm/config'
 import type * as logs from '@pnpm/core-loggers'
-import { type LogLevel } from '@pnpm/logger'
+import { type LogLevel, type StreamParser } from '@pnpm/logger'
 import * as Rx from 'rxjs'
 import { filter, map, mergeAll } from 'rxjs/operators'
 import createDiffer from 'ansi-diff'
@@ -10,14 +10,13 @@ import { reporterForClient } from './reporterForClient'
 import { formatWarn } from './reporterForClient/utils/formatWarn'
 import { reporterForServer } from './reporterForServer'
 import { type FilterPkgsDiff } from './reporterForClient/reportSummary'
-import { type PeerDependencyRules } from '@pnpm/types'
 
 export { formatWarn }
 
 export function initDefaultReporter (
   opts: {
     useStderr?: boolean
-    streamParser: object
+    streamParser: StreamParser<logs.Log>
     reportingOptions?: {
       appendOnly?: boolean
       logLevel?: LogLevel
@@ -29,7 +28,6 @@ export function initDefaultReporter (
       hideProgressPrefix?: boolean
       hideLifecycleOutput?: boolean
       hideLifecyclePrefix?: boolean
-      peerDependencyRules?: PeerDependencyRules
     }
     context: {
       argv: string[]
@@ -48,7 +46,8 @@ export function initDefaultReporter (
       subscription.unsubscribe()
     }
   }
-  const outputMaxWidth = opts.reportingOptions?.outputMaxWidth ?? (process.stdout.columns && process.stdout.columns - 2) ?? 80
+  const proc = opts.context.process ?? process
+  const outputMaxWidth = opts.reportingOptions?.outputMaxWidth ?? (proc.stdout.columns && proc.stdout.columns - 2) ?? 80
   const output$ = toOutput$({
     ...opts,
     reportingOptions: {
@@ -73,7 +72,7 @@ export function initDefaultReporter (
     }
   }
   const diff = createDiffer({
-    height: process.stdout.rows,
+    height: proc.stdout.rows,
     outputMaxWidth,
   })
   const subscription = output$
@@ -85,8 +84,8 @@ export function initDefaultReporter (
       next: logUpdate,
     })
   const write = opts.useStderr
-    ? process.stderr.write.bind(process.stderr)
-    : process.stdout.write.bind(process.stdout)
+    ? proc.stderr.write.bind(proc.stderr)
+    : proc.stdout.write.bind(proc.stdout)
   function logUpdate (view: string) {
     // A new line should always be appended in case a prompt needs to appear.
     // Without a new line the prompt will be joined with the previous output.
@@ -101,12 +100,11 @@ export function initDefaultReporter (
 
 export function toOutput$ (
   opts: {
-    streamParser: object
+    streamParser: StreamParser<logs.Log>
     reportingOptions?: {
       appendOnly?: boolean
       logLevel?: LogLevel
       outputMaxWidth?: number
-      peerDependencyRules?: PeerDependencyRules
       streamLifecycleOutput?: boolean
       aggregateOutput?: boolean
       throttleProgress?: number
@@ -136,6 +134,8 @@ export function toOutput$ (
   const statsPushStream = new Rx.Subject<logs.StatsLog>()
   const packageImportMethodPushStream = new Rx.Subject<logs.PackageImportMethodLog>()
   const installCheckPushStream = new Rx.Subject<logs.InstallCheckLog>()
+  const installingConfigDepsStream = new Rx.Subject<logs.InstallingConfigDepsLog>()
+  const ignoredScriptsPushStream = new Rx.Subject<logs.IgnoredScriptsLog>()
   const registryPushStream = new Rx.Subject<logs.RegistryLog>()
   const rootPushStream = new Rx.Subject<logs.RootLog>()
   const packageManifestPushStream = new Rx.Subject<logs.PackageManifestLog>()
@@ -148,7 +148,7 @@ export function toOutput$ (
   const requestRetryPushStream = new Rx.Subject<logs.RequestRetryLog>()
   const updateCheckPushStream = new Rx.Subject<logs.UpdateCheckLog>()
   setTimeout(() => {
-    opts.streamParser['on']('data', (log: logs.Log) => {
+    opts.streamParser.on('data', (log: logs.Log) => {
       switch (log.name) {
       case 'pnpm:context':
         contextPushStream.next(log)
@@ -185,6 +185,12 @@ export function toOutput$ (
         break
       case 'pnpm:install-check':
         installCheckPushStream.next(log)
+        break
+      case 'pnpm:installing-config-deps':
+        installingConfigDepsStream.next(log)
+        break
+      case 'pnpm:ignored-scripts':
+        ignoredScriptsPushStream.next(log)
         break
       case 'pnpm:registry':
         registryPushStream.next(log)
@@ -237,6 +243,8 @@ export function toOutput$ (
     executionTime: Rx.from(executionTimePushStream),
     hook: Rx.from(hookPushStream),
     installCheck: Rx.from(installCheckPushStream),
+    installingConfigDeps: Rx.from(installingConfigDepsStream),
+    ignoredScripts: Rx.from(ignoredScriptsPushStream),
     lifecycle: Rx.from(lifecyclePushStream),
     link: Rx.from(linkPushStream),
     other,
@@ -263,7 +271,6 @@ export function toOutput$ (
       config: opts.context.config,
       env: opts.context.env ?? process.env,
       filterPkgsDiff: opts.filterPkgsDiff,
-      peerDependencyRules: opts.reportingOptions?.peerDependencyRules,
       process: opts.context.process ?? process,
       isRecursive: opts.context.config?.['recursive'] === true,
       logLevel: opts.reportingOptions?.logLevel,

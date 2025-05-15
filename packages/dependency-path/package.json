@@ -1,9 +1,25 @@
 {
   "name": "@pnpm/dependency-path",
-  "version": "5.1.2",
+  "version": "1000.0.9",
   "description": "Utilities for working with symlinked node_modules",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "node_modules",
+    "path"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/dependency-path",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/dependency-path#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
@@ -15,23 +31,8 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/dependency-path",
-  "keywords": [
-    "pnpm9",
-    "node_modules",
-    "pnpm",
-    "path"
-  ],
-  "engines": {
-    "node": ">=18.12"
-  },
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/dependency-path#readme",
   "dependencies": {
-    "@pnpm/crypto.base32-hash": "workspace:*",
+    "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/types": "workspace:*",
     "semver": "catalog:"
   },
@@ -39,8 +40,10 @@
     "@pnpm/dependency-path": "workspace:*",
     "@types/semver": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

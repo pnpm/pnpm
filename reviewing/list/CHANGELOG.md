@@ -1,5 +1,225 @@
 # @pnpm/list
 
+## 1000.0.17
+
+### Patch Changes
+
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+  - @pnpm/reviewing.dependencies-hierarchy@1001.0.14
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/read-project-manifest@1000.0.11
+
+## 1000.0.16
+
+### Patch Changes
+
+- Updated dependencies [5b73df1]
+  - @pnpm/types@1000.5.0
+  - @pnpm/reviewing.dependencies-hierarchy@1001.0.13
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.10
+
+## 1000.0.15
+
+### Patch Changes
+
+- @pnpm/reviewing.dependencies-hierarchy@1001.0.12
+
+## 1000.0.14
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/read-package-json@1000.0.7
+  - @pnpm/read-project-manifest@1000.0.9
+  - @pnpm/reviewing.dependencies-hierarchy@1001.0.11
+
+## 1000.0.13
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/read-project-manifest@1000.0.8
+  - @pnpm/reviewing.dependencies-hierarchy@1001.0.10
+
+## 1000.0.12
+
+### Patch Changes
+
+- @pnpm/reviewing.dependencies-hierarchy@1001.0.9
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [58d8597]
+  - @pnpm/crypto.polyfill@1000.1.0
+  - @pnpm/reviewing.dependencies-hierarchy@1001.0.8
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.7
+  - @pnpm/reviewing.dependencies-hierarchy@1001.0.7
+
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/read-package-json@1000.0.4
+  - @pnpm/read-project-manifest@1000.0.6
+  - @pnpm/reviewing.dependencies-hierarchy@1001.0.6
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/reviewing.dependencies-hierarchy@1001.0.5
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [1e229d7]
+  - @pnpm/read-project-manifest@1000.0.5
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/reviewing.dependencies-hierarchy@1001.0.4
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/read-project-manifest@1000.0.4
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/read-package-json@1000.0.2
+  - @pnpm/read-project-manifest@1000.0.2
+  - @pnpm/reviewing.dependencies-hierarchy@1001.0.3
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/reviewing.dependencies-hierarchy@1001.0.2
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/reviewing.dependencies-hierarchy@1001.0.1
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [a76da0c]
+  - @pnpm/reviewing.dependencies-hierarchy@1001.0.0
+  - @pnpm/read-package-json@1000.0.1
+  - @pnpm/read-project-manifest@1000.0.1
+
+## 10.2.3
+
+### Patch Changes
+
+- @pnpm/reviewing.dependencies-hierarchy@3.2.3
+- @pnpm/read-package-json@9.0.10
+- @pnpm/read-project-manifest@6.0.10
+
+## 10.2.2
+
+### Patch Changes
+
+- 222d10a: Use `crypto.hash`, when available, for improved performance [#8629](https://github.com/pnpm/pnpm/pull/8629).
+- Updated dependencies [222d10a]
+- Updated dependencies [222d10a]
+  - @pnpm/crypto.polyfill@1.0.0
+  - @pnpm/reviewing.dependencies-hierarchy@3.2.2
+
+## 10.2.1
+
+### Patch Changes
+
+- 44b8935: Fixed an issue where `pnpm list --json pkg` showed `"private": false` for a private package [#8519](https://github.com/pnpm/pnpm/issues/8519).
+  - @pnpm/reviewing.dependencies-hierarchy@3.2.1
+  - @pnpm/read-package-json@9.0.9
+  - @pnpm/read-project-manifest@6.0.9
+
+## 10.2.0
+
+### Minor Changes
+
+- 3af07cb: Support for a new CLI flag, `--exclude-peers`, added to the `list` and `why` commands. When `--exclude-peers` is used, peer dependencies are not printed in the results, but dependencies of peer dependencies are still scanned [#8506](https://github.com/pnpm/pnpm/pull/8506).
+
+### Patch Changes
+
+- Updated dependencies [3af07cb]
+- Updated dependencies [d500d9f]
+  - @pnpm/reviewing.dependencies-hierarchy@3.2.0
+  - @pnpm/types@12.2.0
+  - @pnpm/read-package-json@9.0.8
+  - @pnpm/read-project-manifest@6.0.8
+
+## 10.1.10
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/read-package-json@9.0.7
+  - @pnpm/read-project-manifest@6.0.7
+  - @pnpm/reviewing.dependencies-hierarchy@3.1.10
+
+## 10.1.9
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/read-package-json@9.0.6
+  - @pnpm/read-project-manifest@6.0.6
+  - @pnpm/reviewing.dependencies-hierarchy@3.1.9
+
+## 10.1.8
+
+### Patch Changes
+
+- @pnpm/reviewing.dependencies-hierarchy@3.1.8
+
+## 10.1.7
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/read-project-manifest@6.0.5
+  - @pnpm/reviewing.dependencies-hierarchy@3.1.7
+
 ## 10.1.6
 
 ### Patch Changes

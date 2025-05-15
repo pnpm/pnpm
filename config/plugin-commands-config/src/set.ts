@@ -7,6 +7,6 @@ export const help = configCmd.help
 
 export const commandNames = ['set']
 
-export async function handler (opts: ConfigCommandOptions, params: string[]): Promise<string | undefined> {
+export async function handler (opts: ConfigCommandOptions, params: string[]): Promise<configCmd.ConfigHandlerResult> {
   return configCmd.handler(opts, ['set', ...params])
 }

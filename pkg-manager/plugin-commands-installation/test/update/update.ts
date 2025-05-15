@@ -38,6 +38,39 @@ test('update with "*" pattern', async () => {
   expect(lockfile.packages['@pnpm.e2e/foo@1.0.0']).toBeTruthy()
 })
 
+test('update to latest should not touch the automatically installed peer dependencies', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/abc': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.1', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/abc', version: '2.0.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+  }, ['@pnpm.e2e/abc'])
+
+  const lockfile = project.readLockfile()
+
+  expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.1']).toBeFalsy()
+  expect(lockfile.packages['@pnpm.e2e/peer-c@1.0.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/peer-c@1.0.1']).toBeFalsy()
+})
+
 test('update with negation pattern', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'latest' })
@@ -243,14 +276,6 @@ test('ignore packages in package.json > updateConfig.ignoreDependencies fields i
       '@pnpm.e2e/bar': '100.0.0',
       '@pnpm.e2e/qar': '100.0.0',
     },
-    pnpm: {
-      updateConfig: {
-        ignoreDependencies: [
-          '@pnpm.e2e/foo',
-          '@pnpm.e2e/bar',
-        ],
-      },
-    },
   })
 
   await install.handler({
@@ -272,6 +297,12 @@ test('ignore packages in package.json > updateConfig.ignoreDependencies fields i
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     latest: true,
+    updateConfig: {
+      ignoreDependencies: [
+        '@pnpm.e2e/foo',
+        '@pnpm.e2e/bar',
+      ],
+    },
   })
 
   const lockfileUpdated = project.readLockfile()
@@ -289,13 +320,6 @@ test('not ignore packages if these are specified in parameter even if these are 
     dependencies: {
       '@pnpm.e2e/foo': '100.0.0',
       '@pnpm.e2e/bar': '100.0.0',
-    },
-    pnpm: {
-      updateConfig: {
-        ignoreDependencies: [
-          '@pnpm.e2e/foo',
-        ],
-      },
     },
   })
 
@@ -315,6 +339,11 @@ test('not ignore packages if these are specified in parameter even if these are 
   await update.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
+    updateConfig: {
+      ignoreDependencies: [
+        '@pnpm.e2e/foo',
+      ],
+    },
   }, ['@pnpm.e2e/foo@latest', '@pnpm.e2e/bar@latest'])
 
   const lockfileUpdated = project.readLockfile()
@@ -330,13 +359,6 @@ test('do not update anything if all the dependencies are ignored and trying to u
     dependencies: {
       '@pnpm.e2e/foo': '100.0.0',
     },
-    pnpm: {
-      updateConfig: {
-        ignoreDependencies: [
-          '@pnpm.e2e/foo',
-        ],
-      },
-    },
   })
 
   await install.handler({
@@ -348,6 +370,11 @@ test('do not update anything if all the dependencies are ignored and trying to u
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     latest: true,
+    updateConfig: {
+      ignoreDependencies: [
+        '@pnpm.e2e/foo',
+      ],
+    },
   }, [])
 
   const lockfileUpdated = project.readLockfile()

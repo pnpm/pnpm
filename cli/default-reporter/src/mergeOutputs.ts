@@ -8,12 +8,12 @@ export function mergeOutputs (outputs: Array<Rx.Observable<Rx.Observable<{ msg: 
   let started = false
   let previousOutput: string | null = null
   return Rx.merge(...outputs).pipe(
-    map((log: Rx.Observable<{ msg: string }>) => {
+    map((log: Rx.Observable<{ msg: string, fixed?: boolean }>) => {
       let currentBlockNo = -1
       let currentFixedBlockNo = -1
       return log.pipe(
         map((msg) => {
-          if (msg['fixed']) {
+          if (msg.fixed) {
             if (currentFixedBlockNo === -1) {
               currentFixedBlockNo = fixedBlockNo++
             }
@@ -40,7 +40,7 @@ export function mergeOutputs (outputs: Array<Rx.Observable<Rx.Observable<{ msg: 
       if (log.fixed) {
         acc.fixedBlocks[log.blockNo] = log.msg
       } else {
-        delete acc.fixedBlocks[log['prevFixedBlockNo'] as number]
+        delete acc.fixedBlocks[log.prevFixedBlockNo as number]
         acc.blocks[log.blockNo] = log.msg
       }
       return acc

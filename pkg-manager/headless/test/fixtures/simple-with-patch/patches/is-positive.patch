@@ -1,0 +1,10 @@
+diff --git a/index.js b/index.js
+index 8e020cac3320e72cb40e66b4c4573cc51c55e1e4..8be55d95c50a2a28e021e586ce5b928d9fea140e 100644
+--- a/index.js
++++ b/index.js
+@@ -7,3 +7,5 @@ module.exports = function (n) {
+ 
+ 	return n >= 0;
+ };
++
++// a change

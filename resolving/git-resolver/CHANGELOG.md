@@ -1,5 +1,137 @@
 # @pnpm/git-resolver
 
+## 1001.0.1
+
+### Patch Changes
+
+- 6b6ccf9: Remove `url.parse` usage to fix warning on Node.js 24 [#9492](https://github.com/pnpm/pnpm/issues/9492).
+- Updated dependencies [09cf46f]
+  - @pnpm/fetch@1000.2.2
+  - @pnpm/resolver-base@1003.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+- 5b73df1: Renamed `normalizedPref` to `specifiers`.
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/fetch@1000.2.1
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/fetch@1000.2.0
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/fetch@1000.1.6
+- @pnpm/resolver-base@1000.2.1
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/fetch@1000.1.5
+- @pnpm/resolver-base@1000.1.4
+
+## 1000.0.6
+
+### Patch Changes
+
+- @pnpm/fetch@1000.1.4
+- @pnpm/resolver-base@1000.1.3
+
+## 1000.0.5
+
+### Patch Changes
+
+- d6a4ff1: Proxy settings should be respected, when resolving Git-hosted dependencies [#6530](https://github.com/pnpm/pnpm/issues/6530).
+
+## 1000.0.4
+
+### Patch Changes
+
+- @pnpm/fetch@1000.1.3
+- @pnpm/resolver-base@1000.1.2
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/fetch@1000.1.2
+- @pnpm/resolver-base@1000.1.1
+
+## 1000.0.2
+
+### Patch Changes
+
+- b100962: Do not fall back to SSH, when resolving a git-hosted package if `git ls-remote` works via HTTPS [#8906](https://github.com/pnpm/pnpm/pull/8906).
+  - @pnpm/fetch@1000.1.1
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+- Updated dependencies [b0f3c71]
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/fetch@1000.1.0
+
+## 9.0.8
+
+### Patch Changes
+
+- @pnpm/fetch@8.0.7
+- @pnpm/resolver-base@13.0.4
+
+## 9.0.7
+
+### Patch Changes
+
+- @pnpm/fetch@8.0.6
+- @pnpm/resolver-base@13.0.3
+
+## 9.0.6
+
+### Patch Changes
+
+- @pnpm/fetch@8.0.5
+- @pnpm/resolver-base@13.0.2
+
+## 9.0.5
+
+### Patch Changes
+
+- @pnpm/fetch@8.0.4
+- @pnpm/resolver-base@13.0.1
+
 ## 9.0.4
 
 ### Patch Changes

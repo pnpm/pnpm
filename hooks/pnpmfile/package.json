@@ -1,16 +1,27 @@
 {
   "name": "@pnpm/pnpmfile",
-  "version": "6.0.6",
+  "version": "1001.2.1",
   "description": "Reading a .pnpmfile.cjs",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/hooks/pnpmfile",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/hooks/pnpmfile#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -18,36 +29,29 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/hooks/pnpmfile",
-  "keywords": [
-    "pnpm9",
-    "pnpm"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/hooks/pnpmfile#readme",
-  "devDependencies": {
-    "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/pnpmfile": "workspace:*"
-  },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/crypto.base32-hash": "workspace:*",
+    "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/hooks.types": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "chalk": "catalog:",
     "path-absolute": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "devDependencies": {
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/pnpmfile": "workspace:*"
+  },
+  "engines": {
+    "node": ">=18.12"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

@@ -4,7 +4,7 @@ import type { Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { addFilesFromTarball } from '@pnpm/worker'
 
-const isAbsolutePath = /^[/]|^[A-Za-z]:/
+const isAbsolutePath = /^\/|^[A-Z]:/i
 
 interface Resolution {
   integrity?: string
@@ -17,7 +17,7 @@ export function createLocalTarballFetcher (): FetchFunction {
     const tarball = resolvePath(opts.lockfileDir, resolution.tarball.slice(5))
     const buffer = gfs.readFileSync(tarball)
     return addFilesFromTarball({
-      cafsDir: cafs.cafsDir,
+      storeDir: cafs.storeDir,
       buffer,
       filesIndexFile: opts.filesIndexFile,
       integrity: resolution.integrity,

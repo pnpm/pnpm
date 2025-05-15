@@ -221,14 +221,12 @@ function parseYarn2Lock (lockFileContents: string): YarnLock2Struct {
     parseRange
   )
 
-  Object.entries(parseYarnLock).forEach(
-    // eslint-disable-next-line
-    ([fullDescriptor, versionData]: [string, any]) => {
-      keyNormalizer(fullDescriptor).forEach((descriptor) => {
-        dependencies[descriptor] = versionData
-      })
+  for (const fullDescriptor in parseYarnLock) {
+    const versionData = parseYarnLock[fullDescriptor]
+    for (const descriptor of keyNormalizer(fullDescriptor)) {
+      dependencies[descriptor] = versionData
     }
-  )
+  }
   return {
     object: dependencies,
     type: YarnLockType.yarn2,

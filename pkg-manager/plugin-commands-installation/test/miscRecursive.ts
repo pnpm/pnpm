@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { type LockfileFile } from '@pnpm/lockfile-types'
+import { type LockfileFile } from '@pnpm/lockfile.types'
 import { add, install, remove, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -755,46 +755,4 @@ test('installing in monorepo with shared lockfile should work on virtual drives'
   })
 
   projects['project-1'].has('is-positive')
-})
-
-test('pass readPackage with shared lockfile', async () => {
-  const projects = preparePackages([
-    {
-      name: 'project-1',
-      version: '1.0.0',
-      dependencies: {
-        'is-negative': '1.0.0',
-      },
-    },
-    {
-      name: 'project-2',
-      version: '1.0.0',
-      dependencies: {
-        'is-negative': '1.0.0',
-      },
-    },
-  ])
-
-  await install.handler({
-    ...DEFAULT_OPTS,
-    ...await filterPackagesFromDir(process.cwd(), []),
-    dir: process.cwd(),
-    recursive: true,
-    workspaceDir: process.cwd(),
-    hooks: {
-      readPackage: [
-        (pkg) => ({
-          ...pkg,
-          dependencies: {
-            'is-positive': '1.0.0',
-          },
-        }),
-      ],
-    },
-  })
-
-  projects['project-1'].has('is-positive')
-  projects['project-1'].hasNot('is-negative')
-  projects['project-2'].has('is-positive')
-  projects['project-2'].hasNot('is-negative')
 })

@@ -3,6 +3,7 @@ import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
 import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
+import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import {
   addDependenciesToPackage,
   install,
@@ -15,13 +16,13 @@ test('install with lockfileOnly = true', async () => {
   const project = prepareEmpty()
 
   const opts = testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' as const })
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
   const { cafsHasNot } = assertStore(opts.storeDir)
 
   cafsHasNot('@pnpm.e2e/pkg-with-1-dep', '100.0.0')
-  expect(fs.existsSync(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep.json`))).toBeTruthy()
+  expect(fs.existsSync(path.join(opts.cacheDir, `${ABBREVIATED_META_DIR}/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep.json`))).toBeTruthy()
   cafsHasNot('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
-  expect(fs.existsSync(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
+  expect(fs.existsSync(path.join(opts.cacheDir, `${ABBREVIATED_META_DIR}/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
   project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
   expect(manifest.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()
@@ -37,9 +38,9 @@ test('install with lockfileOnly = true', async () => {
   await install(manifest, opts)
 
   cafsHasNot('@pnpm.e2e/pkg-with-1-dep', '100.0.0')
-  expect(fs.existsSync(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep.json`))).toBeTruthy()
+  expect(fs.existsSync(path.join(opts.cacheDir, `${ABBREVIATED_META_DIR}/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep.json`))).toBeTruthy()
   cafsHasNot('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
-  expect(fs.existsSync(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
+  expect(fs.existsSync(path.join(opts.cacheDir, `${ABBREVIATED_META_DIR}/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
   project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
   expect(project.readCurrentLockfile()).toBeFalsy()
@@ -49,7 +50,7 @@ test('warn when installing with lockfileOnly = true and node_modules exists', as
   const project = prepareEmpty()
   const reporter = sinon.spy()
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive'], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive'], testDefaults())
   await addDependenciesToPackage(manifest, ['rimraf@2.5.1'], testDefaults({
     lockfileOnly: true,
     reporter,

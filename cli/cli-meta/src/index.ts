@@ -35,3 +35,40 @@ export const packageManager = {
   // This may be a 3.0.0-beta.2
   version: pkgJson.version,
 }
+
+export interface Process {
+  arch: NodeJS.Architecture
+  platform: NodeJS.Platform
+  pkg?: unknown
+}
+
+export function detectIfCurrentPkgIsExecutable (proc: Process = process): boolean {
+  return 'pkg' in proc && proc.pkg != null
+}
+
+export function isExecutedByCorepack (env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.COREPACK_ROOT != null
+}
+
+export function getCurrentPackageName (proc: Process = process): string {
+  return detectIfCurrentPkgIsExecutable(proc) ? getExePackageName(proc) : 'pnpm'
+}
+
+function getExePackageName (proc: Process): string {
+  return `@pnpm/${normalizePlatformName(proc)}-${normalizeArchName(proc)}`
+}
+
+function normalizePlatformName (proc: Process): string {
+  switch (proc.platform) {
+  case 'win32': return 'win'
+  case 'darwin': return 'macos'
+  default: return proc.platform
+  }
+}
+
+function normalizeArchName (proc: Process): string {
+  if (proc.platform === 'win32' && proc.arch === 'ia32') {
+    return 'x86'
+  }
+  return proc.arch
+}

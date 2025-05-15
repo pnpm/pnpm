@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
 import { docsUrl } from '@pnpm/cli-utils'
 import { logger } from '@pnpm/logger'
 import {
@@ -8,6 +9,7 @@ import {
   type PathExtenderReport,
 } from '@pnpm/os.env.path-extender'
 import renderHelp from 'render-help'
+import rimraf from '@zkochan/rimraf'
 
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
 
@@ -41,8 +43,7 @@ export function help (): string {
 }
 
 function getExecPath (): string {
-  // @ts-expect-error
-  if (process['pkg'] != null) {
+  if (detectIfCurrentPkgIsExecutable()) {
     // If the pnpm CLI was bundled by vercel/pkg then we cannot use the js path for npm_execpath
     // because in that case the js is in a virtual filesystem inside the executor.
     // Instead, we use the path to the exe file.
@@ -59,6 +60,7 @@ function copyCli (currentLocation: string, targetDir: string): void {
     prefix: process.cwd(),
   })
   fs.mkdirSync(targetDir, { recursive: true })
+  rimraf.sync(newExecPath)
   fs.copyFileSync(currentLocation, newExecPath)
 }
 
@@ -72,20 +74,23 @@ function createPnpxScripts (targetDir: string): void {
 
   fs.mkdirSync(targetDir, { recursive: true })
 
+  // windows can also use shell script via mingw or cygwin so no filter
   const shellScript = [
     '#!/bin/sh',
     'exec pnpm dlx "$@"',
   ].join('\n')
   fs.writeFileSync(path.join(targetDir, 'pnpx'), shellScript, { mode: 0o755 })
 
-  const batchScript = [
-    '@echo off',
-    'pnpm dlx %*',
-  ].join('\n')
-  fs.writeFileSync(path.join(targetDir, 'pnpx.cmd'), batchScript)
+  if (process.platform === 'win32') {
+    const batchScript = [
+      '@echo off',
+      'pnpm dlx %*',
+    ].join('\n')
+    fs.writeFileSync(path.join(targetDir, 'pnpx.cmd'), batchScript)
 
-  const powershellScript = 'pnpm dlx $args'
-  fs.writeFileSync(path.join(targetDir, 'pnpx.ps1'), powershellScript)
+    const powershellScript = 'pnpm dlx @args'
+    fs.writeFileSync(path.join(targetDir, 'pnpx.ps1'), powershellScript)
+  }
 }
 
 export async function handler (

@@ -10,19 +10,22 @@
   ],
   "references": [
     {
+      "path": "../../crypto/hash"
+    },
+    {
       "path": "../../fetching/fetcher-base"
     },
     {
-      "path": "../../lockfile/lockfile-types"
+      "path": "../../lockfile/types"
     },
     {
       "path": "../../packages/core-loggers"
     },
     {
-      "path": "../../packages/crypto.base32-hash"
+      "path": "../../packages/error"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../packages/logger"
     },
     {
       "path": "../../packages/types"

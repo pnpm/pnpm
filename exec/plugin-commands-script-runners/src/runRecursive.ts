@@ -2,7 +2,8 @@ import assert from 'assert'
 import path from 'path'
 import util from 'util'
 import { throwOnCommandFail } from '@pnpm/cli-utils'
-import { type Config } from '@pnpm/config'
+import { type Config, getWorkspaceConcurrency } from '@pnpm/config'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodeRequireOption,
@@ -15,21 +16,25 @@ import pLimit from 'p-limit'
 import realpathMissing from 'realpath-missing'
 import { existsInDir } from './existsInDir'
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec'
-import { runScript } from './run'
+import { type RunScriptOptions, runScript } from './run'
 import { tryBuildRegExpFromCommand } from './regexpCommand'
 import { type PackageScripts, type ProjectRootDir } from '@pnpm/types'
 
 export type RecursiveRunOpts = Pick<Config,
+| 'bin'
 | 'enablePrePostScripts'
 | 'unsafePerm'
+| 'pnpmHomeDir'
 | 'rawConfig'
 | 'rootProjectManifest'
 | 'scriptsPrependNodePath'
 | 'scriptShell'
 | 'shellEmulator'
 | 'stream'
+| 'syncInjectedDepsAfterScripts'
+| 'workspaceDir'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir' | 'dir'>> &
-Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
+Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
   resumeFrom?: string
@@ -59,7 +64,7 @@ export async function runRecursive (
     })
   }
 
-  const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
+  const limitRun = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   const stdio =
     !opts.stream &&
     (opts.workspaceConcurrency === 1 ||
@@ -117,9 +122,14 @@ export async function runRecursive (
             rootModulesDir: await realpathMissing(path.join(prefix, 'node_modules')),
             scriptsPrependNodePath: opts.scriptsPrependNodePath,
             scriptShell: opts.scriptShell,
+            silent: opts.reporter === 'silent',
             shellEmulator: opts.shellEmulator,
             stdio,
             unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+          }
+          const { executionEnv } = pkg.package.manifest.pnpm ?? {}
+          if (executionEnv != null) {
+            lifecycleOpts.extraBinPaths = (await prepareExecutionEnv(opts, { executionEnv })).extraBinPaths
           }
           const pnpPath = workspacePnpPath ?? existsPnp(prefix)
           if (pnpPath) {
@@ -129,8 +139,13 @@ export async function runRecursive (
             }
           }
 
-          const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
-          const groupEnd = (opts.workspaceConcurrency ?? 4) > 1
+          const runScriptOptions: RunScriptOptions = {
+            enablePrePostScripts: opts.enablePrePostScripts ?? false,
+            syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
+            workspaceDir: opts.workspaceDir,
+          }
+          const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
+          const groupEnd = getWorkspaceConcurrency(opts.workspaceConcurrency) > 1
             ? undefined
             : groupStart(formatSectionName({
               name: pkg.package.manifest.name,

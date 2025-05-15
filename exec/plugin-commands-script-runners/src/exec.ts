@@ -1,15 +1,18 @@
 import path from 'path'
 import { docsUrl, type RecursiveSummary, throwOnCommandFail, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { type LifecycleMessage, lifecycleLogger } from '@pnpm/core-loggers'
-import { type Config, types } from '@pnpm/config'
+import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
+import { type Config, types, getWorkspaceConcurrency } from '@pnpm/config'
+import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { sortPackages } from '@pnpm/sort-packages'
 import { type Project, type ProjectsGraph, type ProjectRootDir, type ProjectRootDirRealPath } from '@pnpm/types'
 import execa from 'execa'
 import pLimit from 'p-limit'
-import PATH from 'path-name'
+import { prependDirsToPath } from '@pnpm/env.path'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { existsInDir } from './existsInDir'
@@ -24,6 +27,7 @@ import { PnpmError } from '@pnpm/error'
 import which from 'which'
 import writeJsonFile from 'write-json-file'
 import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint'
+import { runDepsStatusCheck } from './runDepsStatusCheck'
 
 export const shorthands: Record<string, string | string[]> = {
   parallel: runShorthands.parallel,
@@ -62,6 +66,10 @@ export function help (): string {
         title: 'Options',
 
         list: [
+          {
+            description: 'Do not hide project name prefix from output of recursively running command.',
+            name: '--no-reporter-hide-prefix',
+          },
           PARALLEL_OPTION_HELP,
           {
             description: 'Run the shell command in every package found in subdirectories \
@@ -79,8 +87,10 @@ The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
           },
           RESUME_FROM_OPTION_HELP,
           REPORT_SUMMARY_OPTION_HELP,
+          ...UNIVERSAL_OPTIONS,
         ],
       },
+      FILTERING,
     ],
     url: docsUrl('exec'),
     usages: ['pnpm [-r] [-c] exec <command> [args...]'],
@@ -114,10 +124,11 @@ export async function writeRecursiveSummary (opts: { dir: string, summary: Recur
 }
 
 export function createEmptyRecursiveSummary (chunks: string[][]): RecursiveSummary {
-  return chunks.flat().reduce<RecursiveSummary>((acc, prefix) => {
+  const acc: RecursiveSummary = {}
+  for (const prefix of chunks.flat()) {
     acc[prefix] = { status: 'queued' }
-    return acc
-  }, {})
+  }
+  return acc
 }
 
 export function getExecutionDuration (start: [number, number]): number {
@@ -125,25 +136,49 @@ export function getExecutionDuration (start: [number, number]): number {
   return (end[0] * 1e9 + end[1]) / 1e6
 }
 
+export type ExecOpts = Required<Pick<Config, 'selectedProjectsGraph'>> & {
+  bail?: boolean
+  unsafePerm?: boolean
+  reverse?: boolean
+  sort?: boolean
+  workspaceConcurrency?: number
+  shellMode?: boolean
+  resumeFrom?: string
+  reportSummary?: boolean
+  implicitlyFellbackFromRun?: boolean
+} & Pick<Config,
+| 'bin'
+| 'dir'
+| 'extraBinPaths'
+| 'extraEnv'
+| 'lockfileDir'
+| 'modulesDir'
+| 'nodeOptions'
+| 'pnpmHomeDir'
+| 'rawConfig'
+| 'recursive'
+| 'reporterHidePrefix'
+| 'userAgent'
+| 'verifyDepsBeforeRun'
+| 'workspaceDir'
+> & CheckDepsStatusOptions
+
 export async function handler (
-  opts: Required<Pick<Config, 'selectedProjectsGraph'>> & {
-    bail?: boolean
-    unsafePerm?: boolean
-    reverse?: boolean
-    sort?: boolean
-    workspaceConcurrency?: number
-    shellMode?: boolean
-    resumeFrom?: string
-    reportSummary?: boolean
-    implicitlyFellbackFromRun?: boolean
-  } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'modulesDir' | 'dir' | 'userAgent' | 'recursive' | 'reporterHidePrefix' | 'workspaceDir' | 'nodeOptions'>,
+  opts: ExecOpts,
   params: string[]
 ): Promise<{ exitCode: number }> {
   // For backward compatibility
   if (params[0] === '--') {
     params.shift()
   }
-  const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
+  if (!params[0]) {
+    throw new PnpmError('EXEC_MISSING_COMMAND', '\'pnpm exec\' requires a command to run')
+  }
+  const limitRun = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
+
+  if (opts.verifyDepsBeforeRun) {
+    await runDepsStatusCheck(opts)
+  }
 
   let chunks!: ProjectRootDir[][]
   if (opts.recursive) {
@@ -170,6 +205,10 @@ export async function handler (
     }
   }
 
+  if (!opts.selectedProjectsGraph) {
+    throw new PnpmError('RECURSIVE_EXEC_NO_PACKAGE', 'No package found in this workspace')
+  }
+
   if (opts.resumeFrom) {
     chunks = getResumedPackageChunks({
       resumeFrom: opts.resumeFrom,
@@ -183,15 +222,23 @@ export async function handler (
   const workspacePnpPath = opts.workspaceDir && existsPnp(opts.workspaceDir)
 
   let exitCode = 0
-  const prependPaths = [
-    './node_modules/.bin',
-    ...opts.extraBinPaths,
-  ]
+  const mapPrefixToPrependPaths: Record<ProjectRootDir, string[]> = {}
+  await Promise.all(chunks.flat().map(async prefix => {
+    const executionEnv = await prepareExecutionEnv(opts, {
+      extraBinPaths: opts.extraBinPaths,
+      executionEnv: opts.selectedProjectsGraph[prefix]?.package.manifest.pnpm?.executionEnv,
+    })
+    mapPrefixToPrependPaths[prefix] = [
+      './node_modules/.bin',
+      ...executionEnv.extraBinPaths,
+    ]
+  }))
   const reporterShowPrefix = opts.recursive && opts.reporterHidePrefix === false
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
     await Promise.all(chunk.map(async (prefix) =>
       limitRun(async () => {
+        const prependPaths = mapPrefixToPrependPaths[prefix]
         result[prefix].status = 'running'
         const startTime = process.hrtime()
         try {
@@ -315,7 +362,7 @@ async function createExecCommandNotFoundHint (
     let nearestScript: string | null | undefined
     try {
       nearestScript = getNearestScript(programName, (await readProjectManifestOnly(opts.dir)).scripts)
-    } catch (_err) {}
+    } catch {}
     if (nearestScript) {
       return `Did you mean "pnpm ${nearestScript}"?`
     }
@@ -355,11 +402,10 @@ function isErrorCommandNotFound (command: string, error: CommandError, prependPa
 
   // Windows
   if (process.platform === 'win32') {
-    const prepend = prependPaths.join(path.delimiter)
-    const whichPath = process.env[PATH] ? `${prepend}${path.delimiter}${process.env[PATH] as string}` : prepend
+    const { value: path } = prependDirsToPath(prependPaths)
     return !which.sync(command, {
       nothrow: true,
-      path: whichPath,
+      path,
     })
   }
 

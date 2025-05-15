@@ -11,6 +11,9 @@
   "references": [
     {
       "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../packages/logger"
     }
   ]
 }

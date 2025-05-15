@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { readCurrentLockfile } from '@pnpm/lockfile-file'
+import { readCurrentLockfile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectManifest, type ProjectId, type ProjectRootDir } from '@pnpm/types'
@@ -529,7 +529,7 @@ test('adding a new dev dependency to project that uses a shared lockfile', async
       },
     ],
   }))).updatedProjects
-  manifest = await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))
+  manifest = (await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))).updatedManifest
 
   expect(manifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
   expect(manifest.devDependencies).toStrictEqual({ 'is-negative': '1.0.0' })
@@ -978,7 +978,6 @@ test('adding a new dependency with the workspace: protocol', async () => {
       rootDir: path.resolve('project-1') as ProjectRootDir,
     },
   ], testDefaults({
-    saveWorkspaceProtocol: true,
     allProjects: [
       {
         manifest: {
@@ -995,9 +994,11 @@ test('adding a new dependency with the workspace: protocol', async () => {
         rootDir: path.resolve('project-1') as ProjectRootDir,
       },
     ],
+  }, {
+    saveWorkspaceProtocol: 'rolling',
   }))
 
-  expect(updatedProjects[0].manifest.dependencies).toStrictEqual({ foo: 'workspace:^1.0.0' })
+  expect(updatedProjects[0].manifest.dependencies).toStrictEqual({ foo: 'workspace:^' })
 })
 
 test('adding a new dependency with the workspace: protocol and save-workspace-protocol is "rolling"', async () => {
@@ -1011,7 +1012,6 @@ test('adding a new dependency with the workspace: protocol and save-workspace-pr
       rootDir: path.resolve('project-1') as ProjectRootDir,
     },
   ], testDefaults({
-    saveWorkspaceProtocol: 'rolling',
     allProjects: [
       {
         manifest: {
@@ -1028,6 +1028,8 @@ test('adding a new dependency with the workspace: protocol and save-workspace-pr
         rootDir: path.resolve('project-1') as ProjectRootDir,
       },
     ],
+  }, {
+    saveWorkspaceProtocol: 'rolling',
   }))
 
   expect(updatedProjects[0].manifest.dependencies).toStrictEqual({ foo: 'workspace:^' })
@@ -1152,15 +1154,16 @@ test('update workspace range', async () => {
         rootDir: path.resolve('dep8') as ProjectRootDir,
       },
     ],
-    saveWorkspaceProtocol: true,
+  }, {
+    saveWorkspaceProtocol: 'rolling',
   }))
 
   const expected = {
-    dep1: 'workspace:2.0.0',
-    dep2: 'workspace:~2.0.0',
-    dep3: 'workspace:^2.0.0',
-    dep4: 'workspace:^2.0.0',
-    dep5: 'workspace:~2.0.0',
+    dep1: 'workspace:*',
+    dep2: 'workspace:~',
+    dep3: 'workspace:^',
+    dep4: 'workspace:^',
+    dep5: 'workspace:~',
     dep6: 'workspace:*',
     dep7: 'workspace:^',
     dep8: 'workspace:~',
@@ -1268,6 +1271,7 @@ test('update workspace range when save-workspace-protocol is "rolling"', async (
         rootDir: path.resolve('dep6') as ProjectRootDir,
       },
     ],
+  }, {
     saveWorkspaceProtocol: 'rolling',
   }))
 

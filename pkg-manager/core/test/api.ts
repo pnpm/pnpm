@@ -3,7 +3,6 @@ import { testDefaults } from './utils'
 
 test('API', () => {
   expect(typeof pnpm.install).toBe('function')
-  expect(typeof pnpm.link).toBe('function')
 })
 
 // TODO: some sort of this validation might need to exist

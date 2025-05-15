@@ -4,13 +4,13 @@ import {
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import { filterLockfile, filterLockfileByImporters } from '@pnpm/filter-lockfile'
+import { filterLockfile, filterLockfileByImporters } from '@pnpm/lockfile.filtering'
 import {
-  type Lockfile,
+  type LockfileObject,
   type PackageSnapshots,
   type ProjectSnapshot,
-} from '@pnpm/lockfile-types'
-import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
+} from '@pnpm/lockfile.types'
+import { packageIdFromSnapshot } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { type StoreController } from '@pnpm/store-controller-types'
@@ -46,8 +46,8 @@ export async function prune (
     hoistedDependencies: HoistedDependencies
     hoistedModulesDir?: string
     publicHoistedModulesDir?: string
-    wantedLockfile: Lockfile
-    currentLockfile: Lockfile
+    wantedLockfile: LockfileObject
+    currentLockfile: LockfileObject
     pruneStore?: boolean
     pruneVirtualStore?: boolean
     skipped: Set<DepPath>
@@ -76,7 +76,7 @@ export async function prune (
     const depsToRemove = new Set(
       (removePackages ?? []).filter((removePackage) => allCurrentPackages.has(removePackage))
     )
-    currentPkgs.forEach(([depName, depVersion]) => {
+    for (const [depName, depVersion] of currentPkgs) {
       if (
         !wantedPkgs[depName] ||
         wantedPkgs[depName] !== depVersion ||
@@ -84,7 +84,7 @@ export async function prune (
       ) {
         depsToRemove.add(depName)
       }
-    })
+    }
     if (pruneDirectDependencies) {
       const publiclyHoistedDeps = getPubliclyHoistedDependencies(opts.hoistedDependencies)
       if (allCurrentPackages.size > 0) {
@@ -239,16 +239,17 @@ function getPkgsDepPaths (
   packages: PackageSnapshots,
   skipped: Set<string>
 ): Record<DepPath, string> {
-  return Object.entries(packages).reduce((acc, [depPath, pkg]) => {
+  const acc: Record<DepPath, string> = {}
+  for (const [depPath, pkg] of Object.entries(packages)) {
     if (skipped.has(depPath)) return acc
     acc[depPath as DepPath] = packageIdFromSnapshot(depPath as DepPath, pkg)
-    return acc
-  }, {} as Record<DepPath, string>)
+  }
+  return acc
 }
 
 function getPkgsDepPathsOwnedOnlyByImporters (
   importerIds: ProjectId[],
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   include: { [dependenciesField in DependenciesField]: boolean },
   skipped: Set<DepPath>
 ): Record<string, string> {

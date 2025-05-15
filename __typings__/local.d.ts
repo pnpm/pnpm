@@ -1,4 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+declare module 'bole' {
+  const anything: any
+  export = anything
+}
+
+declare module 'ndjson' {
+  const anything: any
+  export = anything
+}
+
 declare module 'hyperdrive-schemas' {
   const anything: any
   export = anything
@@ -17,6 +27,10 @@ declare module '@zkochan/libnpx/index' {
 declare module '@pnpm/npm-conf' {
   const anything: any
   export = anything
+}
+
+declare module '@pnpm/npm-conf/lib/util' {
+  export function parseField (types: any, field: string, value: any): unknown
 }
 
 declare module '@pnpm/npm-lifecycle' {
@@ -96,11 +110,6 @@ declare module 'stacktracey' {
 }
 
 declare module 'yaml-tag' {
-  const anything: any
-  export = anything
-}
-
-declare module 'nerf-dart' {
   const anything: any
   export = anything
 }

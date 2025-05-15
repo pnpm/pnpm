@@ -1,8 +1,12 @@
 import fs from 'fs'
 import path from 'path'
 import { pack } from '@pnpm/plugin-commands-publishing'
-import { prepare, tempDir } from '@pnpm/prepare'
+import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import tar from 'tar'
+import chalk from 'chalk'
+import { sync as writeYamlFile } from 'write-yaml-file'
+import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { type PackResultJson } from '../src/pack'
 import { DEFAULT_OPTS } from './utils'
 
 test('pack: package with package.json', async () => {
@@ -89,9 +93,75 @@ test('pack when there is bundledDependencies but without node-linker=hoisted', a
     extraBinPaths: [],
   })).rejects.toMatchObject({
     code: 'ERR_PNPM_BUNDLED_DEPENDENCIES_WITHOUT_HOISTED',
-    message: 'bundledDependencies does not work with node-linker=isolated',
-    hint: 'Add node-linker=hoisted to .npmrc or delete bundledDependencies from the root package.json to resolve this error',
+    message: 'bundledDependencies does not work with "nodeLinker: isolated"',
+    hint: 'Add "nodeLinker: hoisted" to pnpm-workspace.yaml or delete bundledDependencies from the root package.json to resolve this error',
   })
+})
+
+describe('pack: package with custom tarball path', () => {
+  beforeAll(() => {
+    prepare({
+      name: 'test-publish-package',
+      version: '0.0.0',
+    })
+  })
+
+  test.each([
+    {
+      out: 'custom-name.tgz',
+      expected: 'custom-name.tgz',
+    },
+    {
+      out: '%s.tgz',
+      expected: 'test-publish-package.tgz',
+    },
+    {
+      out: 'custom-name-%v.tgz',
+      expected: 'custom-name-0.0.0.tgz',
+    },
+    {
+      out: '%s-%v.tgz',
+      expected: 'test-publish-package-0.0.0.tgz',
+    },
+    {
+      out: './foo/%s-%v.tgz',
+      expected: './foo/test-publish-package-0.0.0.tgz',
+    },
+    {
+      out: './%s/out/%v.tgz',
+      expected: './test-publish-package/out/0.0.0.tgz',
+    },
+    {
+      out: './%s/%s-%v.tgz',
+      expected: './test-publish-package/test-publish-package-0.0.0.tgz',
+    },
+  ])('should pack $actual as $expected', async ({ out, expected }) => {
+    await pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: process.cwd(),
+      extraBinPaths: [],
+      out,
+    })
+
+    expect(fs.existsSync(expected)).toBeTruthy()
+  })
+})
+
+test('pack: cannot use --pack-destination with --out', async () => {
+  prepare({
+    name: 'test-publish-package',
+    version: '0.0.0',
+  })
+
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    out: 'foo.tgz',
+    packDestination: 'bar',
+  })).rejects.toThrow('Cannot use --pack-destination and --out together')
 })
 
 test('pack a package without package name', async () => {
@@ -106,6 +176,20 @@ test('pack a package without package name', async () => {
     dir: process.cwd(),
     extraBinPaths: [],
   })).rejects.toThrow('Package name is not defined in the package.json.')
+})
+
+test('pack a package with invalid package name', async () => {
+  prepare({
+    name: '@',
+    version: '0.0.0',
+  })
+
+  await expect(pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })).rejects.toThrow('Invalid package name "@".')
 })
 
 test('pack a package without package version', async () => {
@@ -297,7 +381,7 @@ test('pack to custom destination directory', async () => {
     embedReadme: false,
   })
 
-  expect(output).toBe(path.resolve('custom-dest/custom-dest-0.0.0.tgz'))
+  expect(output).toContain(path.resolve('custom-dest/custom-dest-0.0.0.tgz'))
 })
 
 test('pack: custom pack-gzip-level', async () => {
@@ -411,4 +495,233 @@ test('pack: modify manifest in prepack script', async () => {
   expect(fs.existsSync('./package/package.json')).toBeTruthy()
   expect(fs.existsSync('./package/dist/index.js')).toBeTruthy()
   expect(fs.existsSync('./package/dist/bin.js')).toBeTruthy()
+})
+
+test('pack: should display packed contents order by name', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+  })
+
+  fs.mkdirSync('./src')
+  fs.writeFileSync('./src/index.ts', 'index', 'utf8')
+  fs.writeFileSync('./a.js', 'a', 'utf8')
+  fs.writeFileSync('./b.js', 'b', 'utf8')
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+  })
+
+  expect(output).toBe(`package: test-publish-package.json@0.0.0
+${chalk.blueBright('Tarball Contents')}
+a.js
+b.js
+package.json
+src/index.ts
+${chalk.blueBright('Tarball Details')}
+test-publish-package.json-0.0.0.tgz`)
+})
+
+test('pack: display in json format', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+  })
+
+  fs.mkdirSync('./src')
+  fs.writeFileSync('./src/index.ts', 'index', 'utf8')
+  fs.writeFileSync('./a.js', 'a', 'utf8')
+  fs.writeFileSync('./b.js', 'b', 'utf8')
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    json: true,
+  })
+
+  expect(output).toBe(JSON.stringify({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+    filename: 'test-publish-package.json-0.0.0.tgz',
+    files: [
+      {
+        path: 'a.js',
+      },
+      {
+        path: 'b.js',
+      },
+      {
+        path: 'package.json',
+      },
+      {
+        path: 'src/index.ts',
+      },
+    ],
+  }, null, 2))
+})
+
+test('pack: recursive pack and display in json format', async () => {
+  const dir = tempDir()
+
+  const pkg1 = {
+    name: '@pnpmtest/test-recursive-pack-project-1',
+    version: '1.0.0',
+
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  const pkg2 = {
+    name: '@pnpmtest/test-recursive-pack-project-2',
+    version: '1.0.0',
+
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+  }
+
+  prepare({
+    name: '@pnpmtest/test-recursive-pack-project',
+    version: '0.0.0',
+  }, {
+    tempDir: dir,
+  })
+
+  const pkgs = [
+    pkg1,
+    pkg2,
+    // This will be packed because the pack command does not check whether it is in the registry
+    {
+      name: 'is-positive',
+      version: '1.0.0',
+
+      scripts: {
+        prepublishOnly: 'exit 1',
+      },
+    },
+    // This will be packed because the pack command does not check whether it is a private package
+    {
+      name: 'i-am-private',
+      version: '1.0.0',
+
+      private: true,
+      scripts: {
+        prepublishOnly: 'exit 1',
+      },
+    },
+  ]
+
+  preparePackages(pkgs, {
+    tempDir: path.join(dir, 'project'),
+  })
+
+  writeYamlFile(path.join(dir, 'pnpm-workspace.yaml'), { packages: pkgs.filter(pkg => pkg).map(pkg => pkg.name) })
+
+  const { selectedProjectsGraph } = await filterPackagesFromDir(dir, [])
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir,
+    extraBinPaths: [],
+    json: true,
+    recursive: true,
+    selectedProjectsGraph,
+  })
+
+  const json: PackResultJson[] = JSON.parse(output)
+
+  expect(Array.isArray(json)).toBeTruthy()
+  expect(json).toHaveLength(5)
+
+  for (const pkg of json) {
+    expect(pkg).toHaveProperty('name')
+    expect(pkg).toHaveProperty('version')
+    expect(pkg).toHaveProperty('filename')
+    expect(pkg).toHaveProperty('files')
+    expect(Array.isArray(pkg.files)).toBeTruthy()
+    for (const file of pkg.files) {
+      expect(file).toHaveProperty('path')
+    }
+    expect(fs.existsSync(pkg.filename)).toBeTruthy()
+  }
+})
+
+test('pack: recursive pack with filter', async () => {
+  const dir = tempDir()
+
+  const pkg1 = {
+    name: '@pnpmtest/test-recursive-pack-project-1',
+    version: '1.0.0',
+
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  const pkg2 = {
+    name: '@pnpmtest/test-recursive-pack-project-2',
+    version: '1.0.0',
+
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+  }
+
+  prepare({
+    name: '@pnpmtest/test-recursive-pack-project',
+    version: '0.0.0',
+  }, {
+    tempDir: dir,
+  })
+
+  const pkgs = [
+    pkg1,
+    pkg2,
+    {
+      name: 'is-positive',
+      version: '1.0.0',
+
+      scripts: {
+        prepublishOnly: 'exit 1',
+      },
+    },
+    {
+      name: 'i-am-private',
+      version: '1.0.0',
+
+      private: true,
+      scripts: {
+        prepublishOnly: 'exit 1',
+      },
+    },
+  ]
+
+  preparePackages(pkgs, {
+    tempDir: path.join(dir, 'project'),
+  })
+
+  writeYamlFile(path.join(dir, 'pnpm-workspace.yaml'), { packages: pkgs.filter(pkg => pkg).map(pkg => pkg.name) })
+
+  const { selectedProjectsGraph } = await filterPackagesFromDir(dir, [{ namePattern: '@pnpmtest/*' }])
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir,
+    extraBinPaths: [],
+    selectedProjectsGraph,
+    recursive: true,
+    unicode: false,
+  })
+
+  expect(output).toContain('package: @pnpmtest/test-recursive-pack-project@0.0.0')
+  expect(output).toContain('package: @pnpmtest/test-recursive-pack-project-1@1.0.0')
+  expect(output).toContain('package: @pnpmtest/test-recursive-pack-project-2@1.0.0')
+  expect(output).not.toContain('package: is-positive')
+  expect(output).not.toContain('package: i-am-private')
 })

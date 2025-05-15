@@ -61,6 +61,9 @@ function checkList (value: string | string[], list: string | string[]): boolean 
   if (typeof list === 'string') {
     list = [list]
   }
+
+  list = list.filter((value) => typeof value === 'string')
+
   if (list.length === 1 && list[0] === 'any') {
     return true
   }

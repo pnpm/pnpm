@@ -1,4 +1,9 @@
-import { type ProjectRootDir, type DependencyManifest, type PkgResolutionId } from '@pnpm/types'
+import {
+  type ProjectRootDir,
+  type DependencyManifest,
+  type PkgResolutionId,
+  type PinnedVersion,
+} from '@pnpm/types'
 
 export { type PkgResolutionId }
 
@@ -38,9 +43,22 @@ export interface ResolveResult {
   latest?: string
   publishedAt?: string
   manifest?: DependencyManifest
-  normalizedPref?: string // is null for npm-hosted dependencies
   resolution: Resolution
-  resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'url' | string
+  resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'workspace' | 'url' | string
+  normalizedBareSpecifier?: string
+  alias?: string
+}
+
+/**
+ * A dependency on a workspace package.
+ */
+export interface WorkspaceResolveResult extends ResolveResult {
+  /**
+   * 'workspace' will be returned for workspace: protocol dependencies or a
+   * package in the workspace that matches the wanted dependency's name and
+   * version range.
+   */
+  resolvedVia: 'workspace'
 }
 
 export interface WorkspacePackage {
@@ -80,19 +98,22 @@ export interface ResolveOptions {
   lockfileDir: string
   preferredVersions: PreferredVersions
   preferWorkspacePackages?: boolean
-  registry: string
   workspacePackages?: WorkspacePackages
-  updateToLatest?: boolean
+  update?: false | 'compatible' | 'latest'
+  injectWorkspacePackages?: boolean
+  calcSpecifier?: boolean
+  pinnedVersion?: PinnedVersion
 }
 
 export type WantedDependency = {
   injected?: boolean
+  prevSpecifier?: string
 } & ({
   alias?: string
-  pref: string
+  bareSpecifier: string
 } | {
   alias: string
-  pref?: string
+  bareSpecifier?: string
 })
 
 export type ResolveFunction = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<ResolveResult>

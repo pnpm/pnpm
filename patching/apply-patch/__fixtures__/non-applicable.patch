@@ -1,0 +1,9 @@
+diff --git a/patch-target.txt b/patch-target.txt
+index 27a8dc9..31cbe49 100644
+--- a/patch-target.txt
++++ b/patch-target.txt
+@@ -1,3 +1,3 @@
+ first line of patch-target
+ second line of patch-target
+-FINAL line of patch-target
++final line of patch-target

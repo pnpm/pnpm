@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../prepare"
+      "path": "../prepare-temp-dir"
     }
   ]
 }

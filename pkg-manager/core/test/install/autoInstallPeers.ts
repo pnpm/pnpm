@@ -79,7 +79,7 @@ test('don\'t fail on linked package, when peers are auto installed', async () =>
     },
   ])
   process.chdir('pkg')
-  const updatedManifest = await addDependenciesToPackage(pkgManifest, ['@pnpm.e2e/peer-b'], testDefaults({ autoInstallPeers: true }))
+  const { updatedManifest } = await addDependenciesToPackage(pkgManifest, ['@pnpm.e2e/peer-b'], testDefaults({ autoInstallPeers: true }))
   expect(Object.keys(updatedManifest.dependencies ?? {})).toStrictEqual(['linked', '@pnpm.e2e/peer-b'])
 })
 
@@ -184,7 +184,7 @@ test('prefer the peer dependency version already used in the root', async () => 
 test('automatically install root peer dependencies', async () => {
   const project = prepareEmpty()
 
-  let manifest = await install({
+  let { updatedManifest: manifest } = await install({
     dependencies: {
       'is-negative': '^1.0.1',
     },
@@ -219,7 +219,7 @@ test('automatically install root peer dependencies', async () => {
   project.has('is-negative')
 
   // The auto installed peer is not removed when a new dependency is added
-  manifest = await addDependenciesToPackage(manifest, ['is-odd@1.0.0'], testDefaults({ autoInstallPeers: true, resolutionMode: 'lowest-direct' }))
+  manifest = (await addDependenciesToPackage(manifest, ['is-odd@1.0.0'], testDefaults({ autoInstallPeers: true, resolutionMode: 'lowest-direct' }))).updatedManifest
   project.has('is-odd')
   project.has('is-positive')
   project.has('is-negative')
@@ -618,4 +618,49 @@ test('auto install hoisted peer dependency', async () => {
   expect(Object.keys(lockfile.snapshots).filter((depPath) => depPath.startsWith('@pnpm.e2e/peer-c@'))).toStrictEqual([
     '@pnpm.e2e/peer-c@2.0.0',
   ])
+})
+
+test('auto install peer of optional peer', async () => {
+  const project = prepareEmpty()
+  await mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'project-1',
+          dependencies: {
+            '@pnpm.e2e/has-optional-peer-with-peer': '1.0.0',
+          },
+        },
+        rootDir: path.resolve('project-1') as ProjectRootDir,
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'project-2',
+          dependencies: {
+            '@pnpm.e2e/has-y-peer': '1.0.0',
+          },
+        },
+        rootDir: path.resolve('project-2') as ProjectRootDir,
+      },
+    ],
+    autoInstallPeers: true,
+  }))
+  const lockfile = project.readLockfile()
+  expect(Object.keys(lockfile.snapshots)).toStrictEqual([
+    '@pnpm.e2e/has-optional-peer-with-peer@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))',
+    '@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0)',
+    '@pnpm/y@2.0.0',
+  ])
+  project.hasNot('@pnpm.e2e/peer-a')
 })

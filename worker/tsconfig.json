@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../crypto/polyfill"
+    },
+    {
       "path": "../exec/pkg-requires-build"
     },
     {
@@ -23,6 +26,9 @@
     },
     {
       "path": "../packages/error"
+    },
+    {
+      "path": "../packages/logger"
     },
     {
       "path": "../packages/types"

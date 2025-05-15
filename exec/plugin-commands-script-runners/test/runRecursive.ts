@@ -726,7 +726,9 @@ test('`pnpm run -r` should avoid infinite recursion', async () => {
       },
     },
   ])
-  writeYamlFile('pnpm-workspace.yaml', {})
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**'],
+  })
 
   await execa(pnpmBin, [
     'install',
@@ -1058,4 +1060,28 @@ test('pnpm recursive run report summary with --bail', async () => {
   expect(executionStatus[path.resolve('project-3')].status).toBe('running')
   expect(executionStatus[path.resolve('project-4')].status).toBe('queued')
   expect(executionStatus[path.resolve('project-5')].status).toBe('skipped')
+})
+
+test('pnpm recursive run with custom node-options', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "assert.strictEqual(process.env.NODE_OPTIONS, \'--max-old-space-size=1200\')"',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterPackagesFromDir(process.cwd(), [])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    nodeOptions: '--max-old-space-size=1200',
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['build'])
 })

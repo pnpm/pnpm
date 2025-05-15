@@ -16,22 +16,19 @@
       "path": "../../catalogs/types"
     },
     {
-      "path": "../../config/pick-registry-for-package"
-    },
-    {
       "path": "../../fetching/pick-fetcher"
-    },
-    {
-      "path": "../../lockfile/lockfile-types"
-    },
-    {
-      "path": "../../lockfile/lockfile-utils"
     },
     {
       "path": "../../lockfile/preferred-versions"
     },
     {
-      "path": "../../lockfile/prune-lockfile"
+      "path": "../../lockfile/pruner"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
     },
     {
       "path": "../../packages/constants"
@@ -46,10 +43,16 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {
-      "path": "../../packages/which-version-is-pinned"
+      "path": "../../patching/config"
+    },
+    {
+      "path": "../../patching/types"
     },
     {
       "path": "../../pkg-manifest/manifest-utils"
@@ -62,6 +65,9 @@
     },
     {
       "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../semver/peer-range"
     },
     {
       "path": "../../store/store-controller-types"

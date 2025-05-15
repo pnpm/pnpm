@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { type Lockfile } from '@pnpm/lockfile-file'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import {
   type SupportedArchitectures,
@@ -77,7 +77,7 @@ export async function findDependencyLicenses (opts: {
   virtualStoreDirMaxLength: number
   modulesDir?: string
   registries: Registries
-  wantedLockfile: Lockfile | null
+  wantedLockfile: LockfileObject | null
   includedImporterIds?: ProjectId[]
   supportedArchitectures?: SupportedArchitectures
 }): Promise<LicensePackage[]> {
@@ -109,13 +109,13 @@ export async function findDependencyLicenses (opts: {
     const licenseNode = licenseNodeTree.dependencies[dependencyName]
     const dependenciesOfNode = getDependenciesFromLicenseNode(licenseNode)
 
-    dependenciesOfNode.forEach((dependencyNode) => {
+    for (const dependencyNode of dependenciesOfNode) {
       const mapKey = `${dependencyNode.name}@${dependencyNode.version}`
       const existingVersion = licensePackages.get(mapKey)?.version
       if (existingVersion === undefined) {
         licensePackages.set(mapKey, dependencyNode)
       }
-    })
+    }
   }
 
   // Get all non-duplicate dependencies of the project

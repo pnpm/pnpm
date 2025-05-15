@@ -1,25 +1,27 @@
 {
   "name": "@pnpm/read-projects-context",
-  "version": "9.1.6",
+  "version": "1000.0.15",
   "description": "Reads the current state of projects from modules manifest",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/read-projects-context",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/read-projects-context#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "keywords": [
-    "pnpm9"
-  ],
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.12"
-  },
-  "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/read-projects-context",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/read-projects-context#readme",
   "scripts": {
     "start": "tsc --watch",
     "test": "pnpm run compile",
@@ -28,20 +30,23 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
     "@pnpm/types": "workspace:*",
     "realpath-missing": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*"
   },
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
+  "engines": {
+    "node": ">=18.12"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

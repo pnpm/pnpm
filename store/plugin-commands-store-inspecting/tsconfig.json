@@ -16,13 +16,13 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../config/pick-registry-for-package"
-    },
-    {
       "path": "../../fs/graceful-fs"
     },
     {
-      "path": "../../lockfile/lockfile-types"
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../object/key-sorting"
     },
     {
       "path": "../../packages/error"

@@ -1,5 +1,129 @@
 # @pnpm/fetch
 
+## 1000.2.2
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/types@1000.6.0
+
+## 1000.2.1
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+
+## 1000.2.0
+
+### Minor Changes
+
+- 750ae7d: Export `CreateFetchFromRegistryOptions` type.
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/core-loggers@1000.2.0
+
+## 1000.1.6
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/core-loggers@1000.1.5
+
+## 1000.1.5
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/core-loggers@1000.1.4
+
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/core-loggers@1000.1.3
+
+## 1000.1.3
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/core-loggers@1000.1.2
+
+## 1000.1.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/core-loggers@1000.1.1
+
+## 1000.1.1
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+  - @pnpm/core-loggers@1000.1.0
+
+## 1000.1.0
+
+### Minor Changes
+
+- b0f3c71: The `fetch` function accepts a `method` option now.
+
+### Patch Changes
+
+- Updated dependencies [b0f3c71]
+  - @pnpm/fetching-types@1000.1.0
+
+## 8.0.7
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/core-loggers@10.0.7
+
+## 8.0.6
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/core-loggers@10.0.6
+
+## 8.0.5
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/core-loggers@10.0.5
+
+## 8.0.4
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/core-loggers@10.0.4
+
 ## 8.0.3
 
 ### Patch Changes

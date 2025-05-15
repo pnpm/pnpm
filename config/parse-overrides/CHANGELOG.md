@@ -1,5 +1,51 @@
 # @pnpm/parse-overrides
 
+## 1001.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+  - @pnpm/parse-wanted-dependency@1001.0.0
+  - @pnpm/catalogs.resolver@1000.0.3
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/error@1000.0.2
+- @pnpm/catalogs.resolver@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+- @pnpm/catalogs.resolver@1000.0.1
+
+## 5.1.2
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+- @pnpm/catalogs.resolver@0.1.2
+
+## 5.1.1
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+- @pnpm/catalogs.resolver@0.1.1
+
+## 5.1.0
+
+### Minor Changes
+
+- 0f0e441: Overrides now support catalogs [#8303](https://github.com/pnpm/pnpm/issues/8303).
+
 ## 5.0.1
 
 ### Patch Changes

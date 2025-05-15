@@ -1,5 +1,197 @@
 # @pnpm/link-bins
 
+## 1000.0.13
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+  - @pnpm/manifest-utils@1001.0.1
+  - @pnpm/package-bins@1000.0.8
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/read-project-manifest@1000.0.11
+
+## 1000.0.12
+
+### Patch Changes
+
+- fa1e69b: Fix command shim generation in Cygwin/MSYS2/MinGW envs [#9442](https://github.com/pnpm/pnpm/issues/9442).
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [5b73df1]
+  - @pnpm/logger@1001.0.0
+  - @pnpm/manifest-utils@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/package-bins@1000.0.7
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.10
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/package-bins@1000.0.6
+  - @pnpm/manifest-utils@1000.0.8
+  - @pnpm/read-package-json@1000.0.7
+  - @pnpm/read-project-manifest@1000.0.9
+
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/package-bins@1000.0.5
+  - @pnpm/manifest-utils@1000.0.7
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/read-project-manifest@1000.0.8
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [b8b0c68]
+- Updated dependencies [a5e4965]
+  - @pnpm/package-bins@1000.0.4
+  - @pnpm/types@1000.2.1
+  - @pnpm/manifest-utils@1000.0.6
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.7
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/package-bins@1000.0.3
+  - @pnpm/manifest-utils@1000.0.5
+  - @pnpm/read-package-json@1000.0.4
+  - @pnpm/read-project-manifest@1000.0.6
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [1e229d7]
+  - @pnpm/read-project-manifest@1000.0.5
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/package-bins@1000.0.2
+  - @pnpm/manifest-utils@1000.0.4
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/read-project-manifest@1000.0.4
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/package-bins@1000.0.1
+  - @pnpm/manifest-utils@1000.0.3
+  - @pnpm/read-package-json@1000.0.2
+  - @pnpm/read-project-manifest@1000.0.2
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/manifest-utils@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+- @pnpm/manifest-utils@1000.0.1
+- @pnpm/read-package-json@1000.0.1
+- @pnpm/read-project-manifest@1000.0.1
+
+## 10.0.12
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+- @pnpm/manifest-utils@6.0.10
+- @pnpm/read-package-json@9.0.10
+- @pnpm/read-project-manifest@6.0.10
+
+## 10.0.11
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+- @pnpm/manifest-utils@6.0.9
+- @pnpm/read-package-json@9.0.9
+- @pnpm/read-project-manifest@6.0.9
+
+## 10.0.10
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/package-bins@9.0.7
+  - @pnpm/manifest-utils@6.0.8
+  - @pnpm/read-package-json@9.0.8
+  - @pnpm/read-project-manifest@6.0.8
+
+## 10.0.9
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/package-bins@9.0.6
+  - @pnpm/manifest-utils@6.0.7
+  - @pnpm/read-package-json@9.0.7
+  - @pnpm/read-project-manifest@6.0.7
+
+## 10.0.8
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/package-bins@9.0.5
+  - @pnpm/manifest-utils@6.0.6
+  - @pnpm/read-package-json@9.0.6
+  - @pnpm/read-project-manifest@6.0.6
+
+## 10.0.7
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/package-bins@9.0.4
+  - @pnpm/manifest-utils@6.0.5
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/read-project-manifest@6.0.5
+
 ## 10.0.6
 
 ### Patch Changes

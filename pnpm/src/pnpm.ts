@@ -8,12 +8,6 @@ const argv = process.argv.slice(2)
 // eslint-disable-next-line @typescript-eslint/no-floating-promises
 ; (async () => {
   switch (argv[0]) {
-  case '-v':
-  case '--version': {
-    const { version } = (await import('@pnpm/cli-meta')).packageManager
-    console.log(version)
-    break
-  }
   // commands that are passed through to npm:
   case 'access':
   case 'adduser':
@@ -22,8 +16,10 @@ const argv = process.argv.slice(2)
   case 'dist-tag':
   case 'docs':
   case 'edit':
+  case 'find':
   case 'home':
   case 'info':
+  case 'issues':
   case 'login':
   case 'logout':
   case 'owner':

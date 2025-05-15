@@ -95,10 +95,17 @@ test('workspace deps are replaced', async () => {
       bar: 'workspace:@foo/bar@*',
       baz: 'workspace:baz@^',
       foo: 'workspace:*',
+      qux: 'workspace:^',
+      waldo: 'workspace:^',
+      xerox: 'workspace:../xerox',
+      xeroxAlias: 'workspace:../xerox',
     },
     peerDependencies: {
       foo: 'workspace:>= || ^3.9.0',
       baz: '^1.0.0 || workspace:>',
+      bar: 'workspace:^3.0.0',
+      qux: 'workspace:^',
+      waldo: 'workspace:^1.x',
     },
   }
 
@@ -116,6 +123,18 @@ test('workspace deps are replaced', async () => {
       name: 'foo',
       version: '4.5.6',
     },
+    {
+      name: 'qux',
+      version: '1.0.0-alpha-a.b-c-something+build.1-aef.1-its-okay',
+    },
+    {
+      name: 'waldo',
+      version: '1.9.0',
+    },
+    {
+      name: 'xerox',
+      version: '4.5.6',
+    },
   ])
 
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
@@ -131,15 +150,22 @@ test('workspace deps are replaced', async () => {
       bar: 'npm:@foo/bar@3.2.1',
       baz: '^1.2.3',
       foo: '4.5.6',
+      qux: '^1.0.0-alpha-a.b-c-something+build.1-aef.1-its-okay',
+      waldo: '^1.9.0',
+      xerox: '4.5.6',
+      xeroxAlias: 'npm:xerox@4.5.6',
     },
     peerDependencies: {
       baz: '^1.0.0 || >1.2.3',
       foo: '>=4.5.6 || ^3.9.0',
+      bar: '^3.0.0',
+      qux: '^1.0.0-alpha-a.b-c-something+build.1-aef.1-its-okay',
+      waldo: '^1.x',
     },
   })
 })
 
-test('catalog deps are replace', async () => {
+test('catalog deps are replaced', async () => {
   const catalogProtocolPackageManifest: ProjectManifest = {
     name: 'catalog-protocol-package',
     version: '1.0.0',
@@ -191,4 +217,38 @@ test('catalog deps are replace', async () => {
       foo: '^1.2.4',
     },
   })
+})
+
+test('jsr deps are replaced', async () => {
+  const jsrProtocolPackageManifest = {
+    name: 'jsr-protocol-manifest',
+    version: '0.0.0',
+    dependencies: {
+      '@foo/bar': 'jsr:^1.0.0',
+    },
+    optionalDependencies: {
+      baz: 'jsr:@foo/baz@3.0',
+    },
+    peerDependencies: {
+      qux: 'jsr:@foo/qux',
+    },
+  } satisfies ProjectManifest
+
+  preparePackages([jsrProtocolPackageManifest])
+
+  process.chdir(jsrProtocolPackageManifest.name)
+
+  expect(await createExportableManifest(process.cwd(), jsrProtocolPackageManifest, { catalogs: {} })).toStrictEqual({
+    name: 'jsr-protocol-manifest',
+    version: '0.0.0',
+    dependencies: {
+      '@foo/bar': 'npm:@jsr/foo__bar@^1.0.0',
+    },
+    optionalDependencies: {
+      baz: 'npm:@jsr/foo__baz@3.0',
+    },
+    peerDependencies: {
+      qux: 'npm:@jsr/foo__qux',
+    },
+  } as Partial<typeof jsrProtocolPackageManifest>)
 })

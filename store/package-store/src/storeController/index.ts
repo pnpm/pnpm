@@ -1,3 +1,5 @@
+import path from 'path'
+import fs from 'fs'
 import { createCafsStore, createPackageImporterAsync, type CafsLocker } from '@pnpm/create-cafs-store'
 import { type Fetchers } from '@pnpm/fetcher-base'
 import { createPackageRequester } from '@pnpm/package-requester'
@@ -6,33 +8,38 @@ import {
   type ImportIndexedPackageAsync,
   type StoreController,
 } from '@pnpm/store-controller-types'
-import { addFilesFromDir, importPackage } from '@pnpm/worker'
+import { addFilesFromDir, importPackage, initStoreDir } from '@pnpm/worker'
 import { prune } from './prune'
 
 export { type CafsLocker }
 
+export interface CreatePackageStoreOptions {
+  cafsLocker?: CafsLocker
+  engineStrict?: boolean
+  force?: boolean
+  nodeVersion?: string
+  importPackage?: ImportIndexedPackageAsync
+  pnpmVersion?: string
+  ignoreFile?: (filename: string) => boolean
+  cacheDir: string
+  storeDir: string
+  networkConcurrency?: number
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+  verifyStoreIntegrity: boolean
+  virtualStoreDirMaxLength: number
+  strictStorePkgContentCheck?: boolean
+  clearResolutionCache: () => void
+}
+
 export function createPackageStore (
   resolve: ResolveFunction,
   fetchers: Fetchers,
-  initOpts: {
-    cafsLocker?: CafsLocker
-    engineStrict?: boolean
-    force?: boolean
-    nodeVersion?: string
-    importPackage?: ImportIndexedPackageAsync
-    pnpmVersion?: string
-    ignoreFile?: (filename: string) => boolean
-    cacheDir: string
-    storeDir: string
-    networkConcurrency?: number
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-    verifyStoreIntegrity: boolean
-    virtualStoreDirMaxLength: number
-    strictStorePkgContentCheck?: boolean
-    clearResolutionCache: () => void
-  }
+  initOpts: CreatePackageStoreOptions
 ): StoreController {
   const storeDir = initOpts.storeDir
+  if (!fs.existsSync(path.join(storeDir, 'files'))) {
+    initStoreDir(storeDir).catch() // eslint-disable-line @typescript-eslint/no-floating-promises
+  }
   const cafs = createCafsStore(storeDir, {
     cafsLocker: initOpts.cafsLocker,
     packageImportMethod: initOpts.packageImportMethod,
@@ -58,7 +65,7 @@ export function createPackageStore (
     fetchPackage: packageRequester.fetchPackageToStore,
     getFilesIndexFilePath: packageRequester.getFilesIndexFilePath,
     importPackage: initOpts.importPackage
-      ? createPackageImporterAsync({ importIndexedPackage: initOpts.importPackage, cafsDir: cafs.cafsDir })
+      ? createPackageImporterAsync({ importIndexedPackage: initOpts.importPackage, storeDir: cafs.storeDir })
       : (targetDir, opts) => importPackage({
         ...opts,
         packageImportMethod: initOpts.packageImportMethod,
@@ -73,7 +80,7 @@ export function createPackageStore (
 
   async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }): Promise<void> {
     await addFilesFromDir({
-      cafsDir: cafs.cafsDir,
+      storeDir: cafs.storeDir,
       dir: builtPkgLocation,
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
       filesIndexFile: opts.filesIndexFile,

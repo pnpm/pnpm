@@ -4,7 +4,11 @@
 [Italiano](https://pnpm.io/it/) |
 [Português Brasileiro](https://pnpm.io/pt/)
 
-![](https://i.imgur.com/qlW1eEG.png)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="https://i.imgur.com/qlW1eEG.png">
+  <source media="(prefers-color-scheme: dark)"  srcset="https://i.imgur.com/qlW1eEG.png">
+  <img src="https://i.imgur.com/qlW1eEG.png" alt="pnpm">
+</picture>
 
 Fast, disk space efficient package manager:
 
@@ -35,10 +39,19 @@ To quote the [Rush](https://rushjs.io/) team:
   <tbody>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://bit.dev/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80"></a>
+        <a href="https://bit.dev/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80" alt="Bit"></a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://figma.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/figma.svg" width="80"></a>
+        <a href="https://sanity.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/sanity.svg" width="180" alt="Bit"></a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://syntax.fm/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/syntaxfm.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/syntaxfm_light.svg" />
+            <img src="https://pnpm.io/img/users/syntaxfm.svg" width="90" alt="Syntax" />
+          </picture>
+        </a>
       </td>
     </tr>
   </tbody>
@@ -54,56 +67,72 @@ To quote the [Rush](https://rushjs.io/) team:
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/discord.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/discord_light.svg" />
-            <img src="https://pnpm.io/img/users/discord.svg" width="220" />
+            <img src="https://pnpm.io/img/users/discord.svg" width="220" alt="Discord" />
           </picture>
         </a>
       </td>
-      <td align="center" valign="middle">
-        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/prisma.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/prisma_light.svg" />
-            <img src="https://pnpm.io/img/users/prisma.svg" width="180" />
-          </picture>
-        </a>
-      </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://uscreen.de/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/uscreen.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/uscreen_light.svg" />
-            <img src="https://pnpm.io/img/users/uscreen.svg" width="180" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
-        <a href="https://www.jetbrains.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/jetbrains.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/jetbrains.svg" />
-            <img src="https://pnpm.io/img/users/jetbrains.svg" width="180" />
+            <img src="https://pnpm.io/img/users/uscreen.svg" width="180" alt="u|screen" />
           </picture>
         </a>
       </td>
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://nx.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
+        <a href="https://www.jetbrains.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/nx.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/nx_light.svg" />
-            <img src="https://pnpm.io/img/users/nx.svg" width="120" />
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/jetbrains.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/jetbrains.svg" />
+            <img src="https://pnpm.io/img/users/jetbrains.svg" width="180" alt="JetBrains" />
           </picture>
         </a>
       </td>
+      <td align="center" valign="middle">
+        <a href="https://nx.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/nx.svg?0" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/nx_light.svg?0" />
+            <img src="https://pnpm.io/img/users/nx.svg" width="70" alt="Nx" />
+          </picture>
+        </a>
+      </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://coderabbit.ai/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/coderabbit.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/coderabbit_light.svg" />
-            <img src="https://pnpm.io/img/users/coderabbit.svg" width="220" />
+            <img src="https://pnpm.io/img/users/coderabbit.svg" width="220" alt="CodeRabbit" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://route4me.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://pnpm.io/img/users/route4me.svg" width="220" alt="Route4Me" />
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://workleap.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/workleap.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/workleap_light.svg" />
+            <img src="https://pnpm.io/img/users/workleap.svg" width="190" alt="Workleap" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://stackblitz.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/stackblitz.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/stackblitz_light.svg" />
+            <img src="https://pnpm.io/img/users/stackblitz.svg" width="190" alt="Stackblitz" />
           </picture>
         </a>
       </td>
@@ -118,7 +147,7 @@ To quote the [Rush](https://rushjs.io/) team:
     <tr>
       <td align="center" valign="middle">
         <a href="https://leniolabs.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <img src="https://pnpm.io/img/users/leniolabs.jpg" width="80">
+          <img src="https://pnpm.io/img/users/leniolabs.jpg" width="40" alt="Leniolabs_">
         </a>
       </td>
       <td align="center" valign="middle">
@@ -126,39 +155,62 @@ To quote the [Rush](https://rushjs.io/) team:
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/vercel.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/vercel_light.svg" />
-            <img src="https://pnpm.io/img/users/vercel.svg" width="180" />
+            <img src="https://pnpm.io/img/users/vercel.svg" width="90" alt="Vercel" />
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://depot.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/depot.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/depot_light.svg" />
-            <img src="https://pnpm.io/img/users/depot.svg" width="200" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
-        <a href="https://moonrepo.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/moonrepo.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/moonrepo_light.svg" />
-            <img src="https://pnpm.io/img/users/moonrepo.svg" width="200" />
+            <img src="https://pnpm.io/img/users/depot.svg" width="100" alt="Depot" />
           </picture>
         </a>
       </td>
     </tr>
     <tr>
       <td align="center" valign="middle">
+        <a href="https://moonrepo.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/moonrepo.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/moonrepo_light.svg" />
+            <img src="https://pnpm.io/img/users/moonrepo.svg" width="100" alt="moonrepo" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
         <a href="https://devowl.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/devowlio.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/devowlio.svg" />
-            <img src="https://pnpm.io/img/users/devowlio.svg" width="200" />
+            <img src="https://pnpm.io/img/users/devowlio.svg" width="100" alt="devowl.io" />
           </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://cerbos.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/cerbos.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/cerbos_light.svg" />
+            <img src="https://pnpm.io/img/users/cerbos.svg" width="90" alt="Cerbos" />
+          </picture>
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://vlt.sh/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/vlt.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/vlt_light.svg" />
+            <img src="https://pnpm.io/img/users/vlt.svg" width="70" alt="vlt" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://vite.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://pnpm.io/img/users/vitejs.svg" width="32" alt="Vite">
         </a>
       </td>
       <td align="center" valign="middle">
@@ -166,24 +218,15 @@ To quote the [Rush](https://rushjs.io/) team:
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/macpaw.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/macpaw_light.svg" />
-            <img src="https://pnpm.io/img/users/macpaw.svg" width="200" />
+            <img src="https://pnpm.io/img/users/macpaw.svg" width="100" />
           </picture>
         </a>
       </td>
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://cerbos.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/cerbos.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/cerbos_light.svg" />
-            <img src="https://pnpm.io/img/users/cerbos.svg" width="180" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
-        <a href="https://vpsserver.com/en-us/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <img src="https://pnpm.io/img/users/vpsserver.svg" width="180" />
+        <a href="https://opensource.mercedes-benz.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://pnpm.io/img/users/mercedes.svg" width="32" alt="Vite">
         </a>
       </td>
     </tr>
@@ -217,6 +260,7 @@ why it works fine with the Node.js ecosystem, read this small article: [Flat nod
 - [Frequently Asked Questions](https://pnpm.io/faq)
 - [Chat](https://r.pnpm.io/chat)
 - [X](https://x.com/pnpmjs)
+- [Bluesky](https://bsky.app/profile/pnpm.io)
 
 ## Benchmark
 
@@ -225,18 +269,6 @@ pnpm is up to 2x faster than npm and Yarn classic. See all benchmarks [here](htt
 Benchmarks on an app with lots of dependencies:
 
 ![](https://pnpm.io/img/benchmarks/alotta-files.svg)
-
-## Backers
-
-Thank you to all our backers! [Become a backer](https://opencollective.com/pnpm#backer)
-
-<a href="https://opencollective.com/pnpm#backers" target="_blank"><img src="https://opencollective.com/pnpm/backers.svg?width=890"></a>
-
-## Contributors
-
-This project exists thanks to all the people who contribute. [Contribute](../../blob/main/CONTRIBUTING.md).
-
-<a href="../../graphs/contributors"><img src="https://opencollective.com/pnpm/contributors.svg?width=890&button=false" /></a>
 
 ## License
 

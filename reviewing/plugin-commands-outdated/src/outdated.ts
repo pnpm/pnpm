@@ -20,9 +20,10 @@ import chalk from 'chalk'
 import pick from 'ramda/src/pick'
 import sortWith from 'ramda/src/sortWith'
 import renderHelp from 'render-help'
-import stripAnsi from 'strip-ansi'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 import {
   DEFAULT_COMPARATORS,
+  NAME_COMPARATOR,
   type OutdatedWithVersionDiff,
 } from './utils'
 import { outdatedRecursive } from './recursive'
@@ -40,6 +41,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     ], allTypes),
     compatible: Boolean,
     format: ['table', 'list', 'json'],
+    'sort-by': 'name',
   }
 }
 
@@ -105,6 +107,14 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: 'Don\'t check "optionalDependencies"',
             name: '--no-optional',
           },
+          {
+            description: 'Prints the outdated dependencies in the given format. Default is "table". Supported options: "table, list, json"',
+            name: '--format <format>',
+          },
+          {
+            description: 'Specify the sorting method. Currently only `name` is supported.',
+            name: '--sort-by',
+          },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
@@ -125,10 +135,12 @@ export type OutdatedCommandOptions = {
   long?: boolean
   recursive?: boolean
   format?: 'table' | 'list' | 'json'
+  sortBy?: 'name'
 } & Pick<Config,
 | 'allProjects'
 | 'ca'
 | 'cacheDir'
+| 'catalogs'
 | 'cert'
 | 'dev'
 | 'dir'
@@ -155,6 +167,7 @@ export type OutdatedCommandOptions = {
 | 'strictSsl'
 | 'tag'
 | 'userAgent'
+| 'updateConfig'
 > & Partial<Pick<Config, 'userConfig'>>
 
 export async function handler (
@@ -180,7 +193,7 @@ export async function handler (
   const [outdatedPackages] = await outdatedDepsOfProjects(packages, params, {
     ...opts,
     fullMetadata: opts.long,
-    ignoreDependencies: manifest?.pnpm?.updateConfig?.ignoreDependencies,
+    ignoreDependencies: opts.updateConfig?.ignoreDependencies,
     include,
     retry: {
       factor: opts.fetchRetryFactor,
@@ -215,7 +228,7 @@ export async function handler (
   }
 }
 
-function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }): string {
+function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortBy?: 'name' }): string {
   if (outdatedPackages.length === 0) return ''
   const columnNames = [
     'Package',
@@ -240,7 +253,7 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
 
   const data = [
     columnNames,
-    ...sortOutdatedPackages(outdatedPackages)
+    ...sortOutdatedPackages(outdatedPackages, { sortBy: opts.sortBy })
       .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
   ]
   let detailsColumnMaxWidth = 40
@@ -264,9 +277,9 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
   })
 }
 
-function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }): string {
+function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortBy?: 'name' }): string {
   if (outdatedPackages.length === 0) return ''
-  return sortOutdatedPackages(outdatedPackages)
+  return sortOutdatedPackages(outdatedPackages, { sortBy: opts.sortBy })
     .map((outdatedPkg) => {
       let info = `${chalk.bold(renderPackageName(outdatedPkg))}
 ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
@@ -293,8 +306,8 @@ export interface OutdatedPackageJSONOutput {
   latestManifest?: PackageManifest
 }
 
-function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }): string {
-  const outdatedPackagesJSON: Record<string, OutdatedPackageJSONOutput> = sortOutdatedPackages(outdatedPackages)
+function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortBy?: 'name' }): string {
+  const outdatedPackagesJSON: Record<string, OutdatedPackageJSONOutput> = sortOutdatedPackages(outdatedPackages, { sortBy: opts.sortBy })
     .reduce((acc, outdatedPkg) => {
       acc[outdatedPkg.packageName] = {
         current: outdatedPkg.current,
@@ -311,9 +324,11 @@ function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts:
   return JSON.stringify(outdatedPackagesJSON, null, 2)
 }
 
-function sortOutdatedPackages (outdatedPackages: readonly OutdatedPackage[]) {
+function sortOutdatedPackages (outdatedPackages: readonly OutdatedPackage[], opts?: { sortBy?: 'name' }) {
+  const sortBy = opts?.sortBy
+  const comparators = (sortBy === 'name') ? [NAME_COMPARATOR] : DEFAULT_COMPARATORS
   return sortWith(
-    DEFAULT_COMPARATORS,
+    comparators,
     outdatedPackages.map(toOutdatedWithVersionDiff)
   )
 }

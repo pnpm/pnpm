@@ -13,16 +13,16 @@
       "path": "../../crypto/object-hasher"
     },
     {
-      "path": "../../lockfile/lockfile-types"
+      "path": "../../lockfile/types"
     },
     {
-      "path": "../../lockfile/lockfile-utils"
+      "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../object/key-sorting"
     },
     {
       "path": "../constants"
-    },
-    {
-      "path": "../crypto.base32-hash"
     },
     {
       "path": "../dependency-path"

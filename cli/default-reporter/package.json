@@ -1,9 +1,24 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "13.1.7",
+  "version": "1002.0.0",
   "description": "The default reporter of pnpm",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "pnpm-reporter"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/cli/default-reporter",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/default-reporter#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
@@ -17,22 +32,8 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/cli/default-reporter",
-  "keywords": [
-    "pnpm9",
-    "pnpm-reporter"
-  ],
-  "engines": {
-    "node": ">=18.12"
-  },
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
-  },
   "dependencies": {
+    "@pnpm/cli-meta": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/dedupe.issues-renderer": "workspace:*",
@@ -40,6 +41,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/render-peer-issues": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "ansi-diff": "catalog:",
     "boxen": "catalog:",
     "chalk": "catalog:",
@@ -53,19 +55,23 @@
     "stacktracey": "catalog:",
     "string-length": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
     "@pnpm/default-reporter": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
     "ghooks": "catalog:",
     "load-json-file": "catalog:",
-    "normalize-newline": "catalog:",
-    "strip-ansi": "catalog:"
+    "normalize-newline": "catalog:"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/default-reporter#readme",
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

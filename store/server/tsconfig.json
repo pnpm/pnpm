@@ -13,6 +13,9 @@
       "path": "../../network/fetch"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../packages/types"
     },
     {

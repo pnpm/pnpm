@@ -1,5 +1,7 @@
+import { cache } from '@pnpm/cache.commands'
 import { type CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
+import { approveBuilds, ignoredBuilds } from '@pnpm/exec.build-commands'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { generateCompletion, createCompletionServer } from '@pnpm/plugin-commands-completion'
 import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
@@ -7,6 +9,7 @@ import { doctor } from '@pnpm/plugin-commands-doctor'
 import { env } from '@pnpm/plugin-commands-env'
 import { deploy } from '@pnpm/plugin-commands-deploy'
 import { add, ci, dedupe, fetch, install, link, prune, remove, unlink, update, importCommand } from '@pnpm/plugin-commands-installation'
+import { selfUpdate } from '@pnpm/tools.plugin-commands-self-updater'
 import { list, ll, why } from '@pnpm/plugin-commands-listing'
 import { licenses } from '@pnpm/plugin-commands-licenses'
 import { outdated } from '@pnpm/plugin-commands-outdated'
@@ -19,7 +22,6 @@ import {
   exec,
   restart,
   run,
-  test,
 } from '@pnpm/plugin-commands-script-runners'
 import { server } from '@pnpm/plugin-commands-server'
 import { setup } from '@pnpm/plugin-commands-setup'
@@ -100,12 +102,18 @@ export interface CommandDefinition {
    * ```
    */
   shorthands?: Record<string, string | string[]>
+  /**
+   * If true, this command should not care about what package manager is specified in the "packageManager" field of "package.json".
+   */
+  skipPackageManagerCheck?: boolean
 }
 
 const commands: CommandDefinition[] = [
   add,
+  approveBuilds,
   audit,
   bin,
+  cache,
   ci,
   config,
   dedupe,
@@ -119,7 +127,9 @@ const commands: CommandDefinition[] = [
   exec,
   fetch,
   generateCompletion,
+  ignoredBuilds,
   importCommand,
+  selfUpdate,
   init,
   install,
   installTest,
@@ -146,7 +156,6 @@ const commands: CommandDefinition[] = [
   catFile,
   catIndex,
   findHash,
-  test,
   unlink,
   update,
   why,
@@ -159,6 +168,7 @@ const aliasToFullName = new Map<string, string>()
 const completionByCommandName: Record<string, CompletionFunc> = {}
 const shorthandsByCommandName: Record<string, Record<string, string | string[]>> = {}
 const rcOptionsTypes: Record<string, unknown> = {}
+const skipPackageManagerCheckForCommandArray = ['completion-server']
 
 for (let i = 0; i < commands.length; i++) {
   const {
@@ -169,6 +179,7 @@ for (let i = 0; i < commands.length; i++) {
     help,
     rcOptionsTypes,
     shorthands,
+    skipPackageManagerCheck,
   } = commands[i]
   if (!commandNames || commandNames.length === 0) {
     throw new Error(`The command at index ${i} doesn't have command names`)
@@ -182,6 +193,9 @@ for (let i = 0; i < commands.length; i++) {
       completionByCommandName[commandName] = completion
     }
     Object.assign(rcOptionsTypes, rcOptionsTypes())
+  }
+  if (skipPackageManagerCheck) {
+    skipPackageManagerCheckForCommandArray.push(...commandNames)
   }
   if (commandNames.length > 1) {
     const fullName = commandNames[0]
@@ -207,6 +221,8 @@ function initialCompletion (): Array<{ name: string }> {
 }
 
 export const pnpmCmds = handlerByCommandName
+
+export const skipPackageManagerCheckForCommand = new Set(skipPackageManagerCheckForCommandArray)
 
 export function getCliOptionsTypes (commandName: string): Record<string, unknown> {
   return cliOptionsTypesByCommandName[commandName]?.() || {}

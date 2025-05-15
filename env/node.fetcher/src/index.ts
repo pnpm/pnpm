@@ -15,7 +15,7 @@ import { isNonGlibcLinux } from 'detect-libc'
 import { getNodeTarball } from './getNodeTarball'
 
 export interface FetchNodeOptions {
-  cafsDir: string
+  storeDir: string
   fetchTimeout?: number
   nodeMirrorBaseUrl?: string
   retry?: RetryTimeoutOptions
@@ -39,10 +39,10 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
     rawConfig: {},
     unsafePerm: false,
   })
-  const cafs = createCafsStore(opts.cafsDir)
+  const cafs = createCafsStore(opts.storeDir)
   const fetchTarball = pickFetcher(fetchers, { tarball })
   const { filesIndex } = await fetchTarball(cafs, { tarball } as any, { // eslint-disable-line @typescript-eslint/no-explicit-any
-    filesIndexFile: path.join(opts.cafsDir, encodeURIComponent(tarball)), // TODO: change the name or don't save an index file for node.js tarballs
+    filesIndexFile: path.join(opts.storeDir, encodeURIComponent(tarball)), // TODO: change the name or don't save an index file for node.js tarballs
     lockfileDir: process.cwd(),
     pkg: {},
   })

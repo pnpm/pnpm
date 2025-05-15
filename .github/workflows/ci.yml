@@ -8,21 +8,22 @@ permissions:
 jobs:
   build:
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.platform }}-${{ matrix.node }}
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.platform }}-${{ matrix.node[0] }}
       cancel-in-progress: true
 
     strategy:
       fail-fast: false
       matrix:
         node:
-          - '18.12'
-          - '20'
-          - '21'
+          - [18, 12, 1]
+          - [20, 18, 1]
+          - [22, 12, 0]
+          - [24, 0, 0]
         platform:
           - ubuntu-latest
           - windows-latest
 
-    name: '${{matrix.platform}} / Node.js ${{ matrix.node }}'
+    name: ${{matrix.platform}} / Node.js ${{ matrix.node[0] }}
     runs-on: ${{matrix.platform}}
 
     steps:
@@ -34,21 +35,18 @@ jobs:
     - name: Checkout Commit
       uses: actions/checkout@v4
     - name: Install pnpm
-      uses: pnpm/action-setup@v4.0.0
+      uses: pnpm/action-setup@v4.1.0
       with:
-        version: next-9
         standalone: true
     - name: Setup Node
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node }}
-        cache: 'pnpm'
-    - name: Install npm@7
-      run: npm add --global npm@7
+      run: pnpm env use -g ${{ join(matrix.node, '.') }}
+      timeout-minutes: 1
+    - name: Install npm@8
+      run: pnpm add --global npm@8
+      timeout-minutes: 1
     - name: pnpm install
       run: pnpm install
-    - name: Audit
-      run: pnpm audit
+      timeout-minutes: 1
     # - name: Cache TypeScript and Jest
       # uses: actions/cache@v3
       # with:
@@ -63,13 +61,13 @@ jobs:
         # restore-keys: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-
     - name: run tests (main)
       timeout-minutes: 60
-      if: github.ref == 'refs/heads/main'
+      if: github.ref_name == 'main'
       run: pnpm run test-main
       env:
         PNPM_WORKERS: 3
     - name: run tests (branch)
       timeout-minutes: 60
-      if: github.ref != 'refs/heads/main'
+      if: github.ref_name != 'main'
       run: pnpm run test-branch
       env:
         PNPM_WORKERS: 3

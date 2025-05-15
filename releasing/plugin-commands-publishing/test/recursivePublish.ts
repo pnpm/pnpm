@@ -9,7 +9,7 @@ import { type ProjectManifest } from '@pnpm/types'
 import execa from 'execa'
 import crossSpawn from 'cross-spawn'
 import loadJsonFile from 'load-json-file'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS, checkPkgExists } from './utils'
 
 const CREDENTIALS = `\
 registry=http://localhost:${REGISTRY_MOCK_PORT}/
@@ -97,14 +97,8 @@ test('recursive publish', async () => {
     recursive: true,
   }, [])
 
-  {
-    const { stdout } = await execa('npm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    expect(JSON.parse(stdout.toString())).toStrictEqual(pkg1.version)
-  }
-  {
-    const { stdout } = await execa('npm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
-    expect(JSON.parse(stdout.toString())).toStrictEqual(pkg2.version)
-  }
+  await checkPkgExists(pkg1.name, pkg1.version)
+  await checkPkgExists(pkg2.name, pkg2.version)
 
   projects[pkg1.name].writePackageJson({ ...pkg1, version: '2.0.0' })
 
@@ -309,4 +303,58 @@ test('when publish some package throws an error, exit code should be non-zero', 
   }, [])
 
   expect(result?.exitCode).toBe(1)
+})
+
+test('recursive publish runs script with Node.js version specified by pnpm.executionEnv.nodeVersion', async () => {
+  preparePackages([
+    {
+      name: 'test-publish-node-version-unset',
+      version: '1.0.0',
+      scripts: {
+        prepublishOnly: 'node -v > node-version.txt',
+      },
+    },
+    {
+      name: 'test-publish-node-version-18',
+      version: '1.0.0',
+      scripts: {
+        prepublishOnly: 'node -v > node-version.txt',
+      },
+      pnpm: {
+        executionEnv: {
+          nodeVersion: '18.0.0',
+        },
+      },
+    },
+    {
+      name: 'test-publish-node-version-20',
+      version: '1.0.0',
+      scripts: {
+        prepublishOnly: 'node -v > node-version.txt',
+      },
+      pnpm: {
+        executionEnv: {
+          nodeVersion: '20.0.0',
+        },
+      },
+    },
+  ])
+
+  fs.writeFileSync('.npmrc', CREDENTIALS, 'utf8')
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await filterPackagesFromDir(process.cwd(), []),
+    dir: process.cwd(),
+    dryRun: true,
+    pnpmHomeDir: process.cwd(),
+    recursive: true,
+  }, [])
+
+  expect(
+    ['unset', '18', '20']
+      .map(suffix => `test-publish-node-version-${suffix}`)
+      .map(name => path.resolve(name, 'node-version.txt'))
+      .map(nodeVersionFile => fs.readFileSync(nodeVersionFile, 'utf-8').trim())
+  ).toStrictEqual([process.version, 'v18.0.0', 'v20.0.0'])
 })

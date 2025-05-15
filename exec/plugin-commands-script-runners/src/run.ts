@@ -6,14 +6,17 @@ import {
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { type CompletionFunc } from '@pnpm/command'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types as allTypes } from '@pnpm/config'
+import { type Config, types as allTypes, getWorkspaceConcurrency } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
+import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import {
   runLifecycleHook,
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
+import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
 import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
@@ -22,6 +25,7 @@ import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifie
 import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
+import { runDepsStatusCheck } from './runDepsStatusCheck'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,
@@ -155,12 +159,27 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export type RunOpts =
   & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
   & { recursive?: boolean }
-  & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts' | 'userAgent' | 'extraEnv' | 'nodeOptions'>
+  & Pick<Config,
+  | 'bin'
+  | 'verifyDepsBeforeRun'
+  | 'dir'
+  | 'enablePrePostScripts'
+  | 'engineStrict'
+  | 'executionEnv'
+  | 'extraBinPaths'
+  | 'extraEnv'
+  | 'nodeOptions'
+  | 'pnpmHomeDir'
+  | 'reporter'
+  | 'scriptShell'
+  | 'scriptsPrependNodePath'
+  | 'shellEmulator'
+  | 'syncInjectedDepsAfterScripts'
+  | 'userAgent'
+  >
   & (
-    & { recursive?: false }
-    & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
-    | { recursive: true }
-    & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
+    | { recursive?: false } & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
+    | { recursive: true } & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
   )
   & {
     argv?: {
@@ -168,13 +187,29 @@ export type RunOpts =
     }
     fallbackCommandUsed?: boolean
   }
+  & CheckDepsStatusOptions
 
 export async function handler (
   opts: RunOpts,
   params: string[]
 ): Promise<string | { exitCode: number } | undefined> {
   let dir: string
+  if (opts.fallbackCommandUsed && (params[0] === 't' || params[0] === 'tst')) {
+    params[0] = 'test'
+  }
   const [scriptName, ...passedThruArgs] = params
+
+  if (opts.verifyDepsBeforeRun) {
+    await runDepsStatusCheck(opts)
+  }
+
+  if (opts.nodeOptions) {
+    opts.extraEnv = {
+      ...opts.extraEnv,
+      NODE_OPTIONS: opts.nodeOptions,
+    }
+  }
+
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
       return runRecursive(params, opts) as Promise<undefined>
@@ -229,17 +264,12 @@ so you may run "pnpm -w run ${scriptName}"`,
       hint: buildCommandNotFoundHint(scriptName, manifest.scripts),
     })
   }
-  const concurrency = opts.workspaceConcurrency ?? 4
-
-  const extraEnv = {
-    ...opts.extraEnv,
-    ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
-  }
+  const concurrency = getWorkspaceConcurrency(opts.workspaceConcurrency)
 
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
     extraBinPaths: opts.extraBinPaths,
-    extraEnv,
+    extraEnv: opts.extraEnv,
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
@@ -249,6 +279,9 @@ so you may run "pnpm -w run ${scriptName}"`,
     shellEmulator: opts.shellEmulator,
     stdio: (specifiedScripts.length > 1 && concurrency > 1) ? 'pipe' : 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+  }
+  if (opts.executionEnv != null) {
+    lifecycleOpts.extraBinPaths = (await prepareExecutionEnv(opts, { executionEnv: opts.executionEnv })).extraBinPaths
   }
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const pnpPath = (opts.workspaceDir && existsPnp(opts.workspaceDir)) ?? existsPnp(dir)
@@ -261,7 +294,12 @@ so you may run "pnpm -w run ${scriptName}"`,
   try {
     const limitRun = pLimit(concurrency)
 
-    const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
+    const runScriptOptions: RunScriptOptions = {
+      enablePrePostScripts: opts.enablePrePostScripts ?? false,
+      syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
+      workspaceDir: opts.workspaceDir,
+    }
+    const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
 
     await Promise.all(specifiedScripts.map(script => limitRun(() => _runScript(script))))
   } catch (err: unknown) {
@@ -348,6 +386,8 @@ ${renderCommands(rootScripts)}`
 
 export interface RunScriptOptions {
   enablePrePostScripts: boolean
+  syncInjectedDepsAfterScripts: string[] | undefined
+  workspaceDir: string | undefined
 }
 
 export async function runScript (opts: {
@@ -370,6 +410,13 @@ export async function runScript (opts: {
     !opts.manifest.scripts[scriptName].includes(`post${scriptName}`)
   ) {
     await runLifecycleHook(`post${scriptName}`, opts.manifest, opts.lifecycleOpts)
+  }
+  if (opts.runScriptOptions.syncInjectedDepsAfterScripts?.includes(scriptName)) {
+    await syncInjectedDeps({
+      pkgName: opts.manifest.name,
+      pkgRootDir: opts.lifecycleOpts.pkgRoot,
+      workspaceDir: opts.runScriptOptions.workspaceDir,
+    })
   }
 }
 

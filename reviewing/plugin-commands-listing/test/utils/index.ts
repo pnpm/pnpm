@@ -10,6 +10,7 @@ export const DEFAULT_OPTS = {
   bin: 'node_modules/.bin',
   ca: undefined,
   cert: undefined,
+  excludeLinksFromLockfile: false,
   extraEnv: {},
   cliOptions: {},
   fetchRetries: 2,
@@ -34,6 +35,7 @@ export const DEFAULT_OPTS = {
   pnpmfile: './.pnpmfile.cjs',
   pnpmHomeDir: '',
   proxy: undefined,
+  preferWorkspacePackages: true,
   rawConfig: { registry: REGISTRY },
   rawLocalConfig: {},
   registries: { default: REGISTRY },
@@ -47,5 +49,5 @@ export const DEFAULT_OPTS = {
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }

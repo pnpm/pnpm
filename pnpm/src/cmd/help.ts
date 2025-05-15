@@ -1,4 +1,4 @@
-import { packageManager } from '@pnpm/cli-meta'
+import { packageManager, detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
 import renderHelp from 'render-help'
 
 export function createHelp (helpByCommandName: Record<string, () => string>): (opts: unknown, params: string[]) => string {
@@ -12,7 +12,7 @@ export function createHelp (helpByCommandName: Record<string, () => string>): (o
       helpText = `No results for "${params[0]}"`
     }
     return `Version ${packageManager.version}\
-${process['pkg'] != null ? ` (compiled to binary; bundled Node.js ${process.version})` : ''}\
+${detectIfCurrentPkgIsExecutable() != null ? ` (compiled to binary; bundled Node.js ${process.version})` : ''}\
 \n${helpText}\n`
   }
 }

@@ -1,6 +1,8 @@
 import type { IntegrityLike } from 'ssri'
 import type { DependencyManifest } from '@pnpm/types'
 
+export type PackageFiles = Record<string, PackageFileInfo>
+
 export interface PackageFileInfo {
   checkedAt?: number // Nullable for backward compatibility
   integrity: string
@@ -8,19 +10,26 @@ export interface PackageFileInfo {
   size: number
 }
 
+export type SideEffects = Record<string, SideEffectsDiff>
+
+export interface SideEffectsDiff {
+  deleted?: string[]
+  added?: PackageFiles
+}
+
 export type ResolvedFrom = 'store' | 'local-dir' | 'remote'
 
 export type PackageFilesResponse = {
   resolvedFrom: ResolvedFrom
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-  sideEffects?: Record<string, Record<string, PackageFileInfo>>
+  sideEffects?: SideEffects
   requiresBuild: boolean
 } & ({
   unprocessed?: false
   filesIndex: Record<string, string>
 } | {
   unprocessed: true
-  filesIndex: Record<string, PackageFileInfo>
+  filesIndex: PackageFiles
 })
 
 export interface ImportPackageOpts {
@@ -63,10 +72,10 @@ export interface AddToStoreResult {
 }
 
 export interface Cafs {
-  cafsDir: string
+  storeDir: string
   addFilesFromDir: (dir: string) => AddToStoreResult
   addFilesFromTarball: (buffer: Buffer) => AddToStoreResult
-  getFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string
+  getIndexFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string
   getFilePathByModeInCafs: (integrity: string | IntegrityLike, mode: number) => string
   importPackage: ImportPackageFunction
   tempDir: () => Promise<string>

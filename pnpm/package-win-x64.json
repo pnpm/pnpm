@@ -7,7 +7,7 @@
       "dist/refclone.win32-x64-*.node",
       "dist/templates/*"
     ],
-    "targets": ["node18-win-x64"],
+    "targets": ["node20-win-x64"],
     "outputPath": "../win-x64"
   }
 }

@@ -16,6 +16,9 @@
       "path": "../../packages/core-loggers"
     },
     {
+      "path": "../../packages/logger"
+    },
+    {
       "path": "../../store/store-controller-types"
     },
     {

@@ -1,7 +1,7 @@
 import { existsSync } from 'fs'
 import path from 'path'
+import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
-import gfs from '@pnpm/graceful-fs'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   type DirectoryResolution,
@@ -9,14 +9,13 @@ import {
   type TarballResolution,
 } from '@pnpm/resolver-base'
 import { type DependencyManifest } from '@pnpm/types'
-import ssri from 'ssri'
 import { logger } from '@pnpm/logger'
-import { parsePref, type WantedLocalDependency } from './parsePref'
+import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier'
 
 export type { WantedLocalDependency }
 
 export interface ResolveFromLocalResult extends ResolveResult {
-  normalizedPref: string
+  normalizedBareSpecifier: string
   resolution: TarballResolution | DirectoryResolution
   manifest?: DependencyManifest
 }
@@ -31,14 +30,14 @@ export async function resolveFromLocal (
     projectDir: string
   }
 ): Promise<ResolveFromLocalResult | null> {
-  const spec = parsePref(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir)
+  const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir)
   if (spec == null) return null
   if (spec.type === 'file') {
     return {
       id: spec.id,
-      normalizedPref: spec.normalizedPref,
+      normalizedBareSpecifier: spec.normalizedBareSpecifier,
       resolution: {
-        integrity: await getFileIntegrity(spec.fetchSpec),
+        integrity: await getTarballIntegrity(spec.fetchSpec),
         tarball: spec.id,
       },
       resolvedVia: 'local-filesystem',
@@ -85,15 +84,11 @@ export async function resolveFromLocal (
   return {
     id: spec.id,
     manifest: localDependencyManifest,
-    normalizedPref: spec.normalizedPref,
+    normalizedBareSpecifier: spec.normalizedBareSpecifier,
     resolution: {
       directory: spec.dependencyPath,
       type: 'directory',
     },
     resolvedVia: 'local-filesystem',
   }
-}
-
-async function getFileIntegrity (filename: string): Promise<string> {
-  return (await ssri.fromStream(gfs.createReadStream(filename))).toString()
 }

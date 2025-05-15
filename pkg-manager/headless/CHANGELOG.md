@@ -1,5 +1,834 @@
 # @pnpm/headless
 
+## 1004.0.4
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+- Updated dependencies [c24c66e]
+  - @pnpm/package-is-installable@1000.0.10
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.9
+  - @pnpm/package-requester@1004.0.1
+  - @pnpm/modules-cleaner@1001.0.13
+  - @pnpm/lockfile-to-pnp@1001.0.13
+  - @pnpm/symlink-dependency@1000.0.9
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/link-bins@1000.0.13
+  - @pnpm/deps.graph-builder@1002.0.4
+  - @pnpm/build-modules@1000.3.5
+  - @pnpm/lockfile.filtering@1001.0.12
+  - @pnpm/hoist@1001.0.15
+  - @pnpm/patching.config@1001.0.3
+  - @pnpm/lifecycle@1001.0.14
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/worker@1000.1.6
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/real-hoist@1001.0.11
+  - @pnpm/calc-dep-state@1001.0.13
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/modules-yaml@1000.3.3
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/read-project-manifest@1000.0.11
+
+## 1004.0.3
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+  - @pnpm/link-bins@1000.0.12
+  - @pnpm/build-modules@1000.3.4
+  - @pnpm/lifecycle@1001.0.13
+  - @pnpm/hoist@1001.0.14
+  - @pnpm/package-requester@1004.0.0
+
+## 1004.0.2
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/package-requester@1004.0.0
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/deps.graph-builder@1002.0.3
+  - @pnpm/build-modules@1000.3.3
+  - @pnpm/lifecycle@1001.0.12
+  - @pnpm/modules-cleaner@1001.0.12
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/package-is-installable@1000.0.9
+  - @pnpm/symlink-dependency@1000.0.8
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.8
+  - @pnpm/hoist@1001.0.13
+  - @pnpm/link-bins@1000.0.11
+  - @pnpm/lockfile.filtering@1001.0.11
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/lockfile-to-pnp@1001.0.12
+  - @pnpm/calc-dep-state@1001.0.12
+  - @pnpm/dependency-path@1000.0.8
+  - @pnpm/modules-yaml@1000.3.2
+  - @pnpm/real-hoist@1001.0.10
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.10
+  - @pnpm/worker@1000.1.5
+  - @pnpm/patching.config@1001.0.2
+
+## 1004.0.1
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.9
+- @pnpm/package-requester@1003.0.1
+- @pnpm/store-controller-types@1002.0.1
+- @pnpm/lifecycle@1001.0.11
+- @pnpm/deps.graph-builder@1002.0.2
+- @pnpm/lockfile.filtering@1001.0.10
+- @pnpm/lockfile.fs@1001.1.10
+- @pnpm/lockfile-to-pnp@1001.0.11
+- @pnpm/calc-dep-state@1001.0.11
+- @pnpm/hoist@1001.0.12
+- @pnpm/modules-cleaner@1001.0.11
+- @pnpm/real-hoist@1001.0.9
+- @pnpm/build-modules@1000.3.2
+- @pnpm/worker@1000.1.4
+- @pnpm/symlink-dependency@1000.0.7
+
+## 1004.0.0
+
+### Major Changes
+
+- 72cff38: The resolving function now takes a `registries` object, so it finds the required registry itself instead of receiving it from package requester.
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/package-requester@1003.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/package-is-installable@1000.0.8
+  - @pnpm/deps.graph-builder@1002.0.1
+  - @pnpm/build-modules@1000.3.1
+  - @pnpm/lifecycle@1001.0.10
+  - @pnpm/symlink-dependency@1000.0.7
+  - @pnpm/lockfile.filtering@1001.0.9
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/lockfile-to-pnp@1001.0.10
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/calc-dep-state@1001.0.10
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/hoist@1001.0.11
+  - @pnpm/link-bins@1000.0.10
+  - @pnpm/modules-cleaner@1001.0.10
+  - @pnpm/modules-yaml@1000.3.1
+  - @pnpm/real-hoist@1001.0.8
+  - @pnpm/read-package-json@1000.0.7
+  - @pnpm/read-project-manifest@1000.0.9
+  - @pnpm/worker@1000.1.3
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.7
+  - @pnpm/patching.config@1001.0.1
+
+## 1003.0.0
+
+### Major Changes
+
+- 5f7be64: Add an ability to patch dependencies by version ranges. Exact versions override version ranges, which in turn override name-only patches. Version range `*` is the same as name-only, except that patch application failure will not be ignored.
+
+  For example:
+
+  ```yaml
+  patchedDependencies:
+    foo: patches/foo-1.patch
+    foo@^2.0.0: patches/foo-2.patch
+    foo@2.1.0: patches/foo-3.patch
+  ```
+
+  The above configuration would apply `patches/foo-3.patch` to `foo@2.1.0`, `patches/foo-2.patch` to all `foo` versions which satisfy `^2.0.0` except `2.1.0`, and `patches/foo-1.patch` to the remaining `foo` versions.
+
+  > [!WARNING]
+  > The version ranges should not overlap. If you want to specialize a sub range, make sure to exclude it from the other keys. For example:
+  >
+  > ```yaml
+  > # pnpm-workspace.yaml
+  > patchedDependencies:
+  >   # the specialized sub range
+  >   'foo@2.2.0-2.8.0': patches/foo.2.2.0-2.8.0.patch
+  >   # the more general patch, excluding the sub range above
+  >   'foo@>=2.0.0 <2.2.0 || >2.8.0': 'patches/foo.gte2.patch
+  > ```
+  >
+  > In most cases, however, it's sufficient to just define an exact version to override the range.
+
+### Minor Changes
+
+- 5f7be64: Rename `pnpm.allowNonAppliedPatches` to `pnpm.allowUnusedPatches`. The old name is still supported but it would print a deprecation warning message.
+- 5f7be64: Add `pnpm.ignorePatchFailures` to manage whether pnpm would ignore patch application failures.
+
+  If `ignorePatchFailures` is not set, pnpm would throw an error when patches with exact versions or version ranges fail to apply, and it would ignore failures from name-only patches.
+
+  If `ignorePatchFailures` is explicitly set to `false`, pnpm would throw an error when any type of patch fails to apply.
+
+  If `ignorePatchFailures` is explicitly set to `true`, pnpm would print a warning when any type of patch fails to apply.
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+- Updated dependencies [64f6b4f]
+- Updated dependencies [5f7be64]
+  - @pnpm/deps.graph-builder@1002.0.0
+  - @pnpm/patching.config@1001.0.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/build-modules@1000.3.0
+  - @pnpm/modules-yaml@1000.3.0
+  - @pnpm/package-is-installable@1000.0.7
+  - @pnpm/lifecycle@1001.0.9
+  - @pnpm/symlink-dependency@1000.0.6
+  - @pnpm/lockfile.filtering@1001.0.8
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/lockfile-to-pnp@1001.0.9
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/calc-dep-state@1001.0.9
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/hoist@1001.0.10
+  - @pnpm/link-bins@1000.0.9
+  - @pnpm/modules-cleaner@1001.0.9
+  - @pnpm/package-requester@1002.0.2
+  - @pnpm/real-hoist@1001.0.7
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/read-project-manifest@1000.0.8
+  - @pnpm/store-controller-types@1001.0.5
+  - @pnpm/worker@1000.1.2
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.6
+
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [d612dcf]
+- Updated dependencies [d612dcf]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/deps.graph-builder@1001.0.10
+  - @pnpm/lockfile.utils@1001.0.6
+  - @pnpm/package-requester@1002.0.1
+  - @pnpm/store-controller-types@1001.0.4
+  - @pnpm/lifecycle@1001.0.8
+  - @pnpm/lockfile.filtering@1001.0.7
+  - @pnpm/lockfile.fs@1001.1.7
+  - @pnpm/lockfile-to-pnp@1001.0.8
+  - @pnpm/calc-dep-state@1001.0.8
+  - @pnpm/hoist@1001.0.9
+  - @pnpm/modules-cleaner@1001.0.8
+  - @pnpm/real-hoist@1001.0.6
+  - @pnpm/build-modules@1000.2.10
+  - @pnpm/symlink-dependency@1000.0.5
+  - @pnpm/worker@1000.1.1
+
+## 1002.0.0
+
+### Patch Changes
+
+- Updated dependencies [2e05789]
+  - @pnpm/worker@1000.1.0
+  - @pnpm/build-modules@1000.2.9
+  - @pnpm/package-requester@1002.0.0
+
+## 1001.2.5
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.8
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/build-modules@1000.2.8
+- @pnpm/package-requester@1001.0.4
+- @pnpm/deps.graph-builder@1001.0.9
+- @pnpm/lockfile.filtering@1001.0.6
+- @pnpm/lockfile.fs@1001.1.6
+- @pnpm/lockfile-to-pnp@1001.0.7
+- @pnpm/lockfile.utils@1001.0.5
+- @pnpm/calc-dep-state@1001.0.7
+- @pnpm/hoist@1001.0.8
+- @pnpm/modules-cleaner@1001.0.7
+- @pnpm/real-hoist@1001.0.5
+
+## 1001.2.4
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/link-bins@1000.0.8
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/package-is-installable@1000.0.6
+  - @pnpm/deps.graph-builder@1001.0.8
+  - @pnpm/build-modules@1000.2.7
+  - @pnpm/lifecycle@1001.0.7
+  - @pnpm/symlink-dependency@1000.0.5
+  - @pnpm/lockfile.filtering@1001.0.5
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/lockfile-to-pnp@1001.0.6
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/calc-dep-state@1001.0.6
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/hoist@1001.0.7
+  - @pnpm/modules-cleaner@1001.0.6
+  - @pnpm/modules-yaml@1000.1.4
+  - @pnpm/package-requester@1001.0.3
+  - @pnpm/real-hoist@1001.0.4
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.7
+  - @pnpm/store-controller-types@1001.0.3
+  - @pnpm/worker@1000.0.7
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.5
+
+## 1001.2.3
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/package-is-installable@1000.0.5
+  - @pnpm/deps.graph-builder@1001.0.7
+  - @pnpm/build-modules@1000.2.6
+  - @pnpm/lifecycle@1001.0.6
+  - @pnpm/symlink-dependency@1000.0.4
+  - @pnpm/lockfile.filtering@1001.0.4
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/lockfile-to-pnp@1001.0.5
+  - @pnpm/lockfile.utils@1001.0.3
+  - @pnpm/calc-dep-state@1001.0.5
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/dependency-path@1000.0.3
+  - @pnpm/hoist@1001.0.6
+  - @pnpm/link-bins@1000.0.7
+  - @pnpm/modules-cleaner@1001.0.5
+  - @pnpm/modules-yaml@1000.1.3
+  - @pnpm/package-requester@1001.0.2
+  - @pnpm/real-hoist@1001.0.3
+  - @pnpm/read-package-json@1000.0.4
+  - @pnpm/read-project-manifest@1000.0.6
+  - @pnpm/store-controller-types@1001.0.2
+  - @pnpm/worker@1000.0.6
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.4
+
+## 1001.2.2
+
+### Patch Changes
+
+- Updated dependencies [0205498]
+  - @pnpm/build-modules@1000.2.5
+  - @pnpm/lockfile.fs@1001.1.3
+  - @pnpm/calc-dep-state@1001.0.4
+  - @pnpm/deps.graph-builder@1001.0.6
+  - @pnpm/lockfile-to-pnp@1001.0.4
+  - @pnpm/real-hoist@1001.0.2
+
+## 1001.2.1
+
+### Patch Changes
+
+- a5b36b7: `pnpm approve-builds` should work after two consecutive `pnpm install` runs [#9083](https://github.com/pnpm/pnpm/pull/9083).
+- Updated dependencies [a5b36b7]
+  - @pnpm/build-modules@1000.2.4
+
+## 1001.2.0
+
+### Minor Changes
+
+- f6006f2: Added a new setting called `strict-dep-builds`. When enabled, the installation will exit with a non-zero exit code if any dependencies have unreviewed build scripts (aka postinstall scripts) [#9071](https://github.com/pnpm/pnpm/pull/9071).
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@1001.0.3
+- @pnpm/build-modules@1000.2.3
+
+## 1001.1.5
+
+### Patch Changes
+
+- 9843aed: Don't read a package from side-effects cache if it isn't allowed to be built [#9042](https://github.com/pnpm/pnpm/issues/9042).
+- Updated dependencies [9843aed]
+  - @pnpm/build-modules@1000.2.2
+
+## 1001.1.4
+
+### Patch Changes
+
+- Updated dependencies [c0d1c01]
+- Updated dependencies [1e229d7]
+  - @pnpm/lifecycle@1001.0.5
+  - @pnpm/read-project-manifest@1000.0.5
+  - @pnpm/build-modules@1000.2.1
+  - @pnpm/link-bins@1000.0.6
+  - @pnpm/hoist@1001.0.5
+  - @pnpm/package-requester@1001.0.1
+
+## 1001.1.3
+
+### Patch Changes
+
+- 2b49ee7: When running `pnpm install`, the `preprepare` and `postprepare` scripts of the project should be executed [#8989](https://github.com/pnpm/pnpm/pull/8989).
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+- Updated dependencies [7a9473b]
+- Updated dependencies [040e67b]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/build-modules@1000.2.0
+  - @pnpm/deps.graph-builder@1001.0.5
+  - @pnpm/lockfile.filtering@1001.0.3
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/calc-dep-state@1001.0.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/hoist@1001.0.4
+  - @pnpm/package-is-installable@1000.0.4
+  - @pnpm/lifecycle@1001.0.4
+  - @pnpm/symlink-dependency@1000.0.3
+  - @pnpm/lockfile-to-pnp@1001.0.3
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/link-bins@1000.0.5
+  - @pnpm/modules-cleaner@1001.0.4
+  - @pnpm/modules-yaml@1000.1.2
+  - @pnpm/package-requester@1001.0.1
+  - @pnpm/real-hoist@1001.0.2
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/store-controller-types@1001.0.1
+  - @pnpm/worker@1000.0.5
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.3
+
+## 1001.1.2
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+- Updated dependencies [dde650b]
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/package-requester@1001.0.0
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/link-bins@1000.0.4
+  - @pnpm/deps.graph-builder@1001.0.4
+  - @pnpm/build-modules@1000.1.2
+  - @pnpm/lifecycle@1001.0.3
+  - @pnpm/modules-cleaner@1001.0.3
+  - @pnpm/hoist@1001.0.3
+  - @pnpm/worker@1000.0.4
+  - @pnpm/symlink-dependency@1000.0.2
+
+## 1001.1.1
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/package-is-installable@1000.0.3
+  - @pnpm/deps.graph-builder@1001.0.3
+  - @pnpm/build-modules@1000.1.1
+  - @pnpm/lifecycle@1001.0.2
+  - @pnpm/symlink-dependency@1000.0.2
+  - @pnpm/lockfile.filtering@1001.0.2
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/lockfile-to-pnp@1001.0.2
+  - @pnpm/lockfile.utils@1001.0.1
+  - @pnpm/calc-dep-state@1001.0.1
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/dependency-path@1000.0.1
+  - @pnpm/hoist@1001.0.2
+  - @pnpm/link-bins@1000.0.3
+  - @pnpm/modules-cleaner@1001.0.2
+  - @pnpm/modules-yaml@1000.1.1
+  - @pnpm/package-requester@1000.1.2
+  - @pnpm/real-hoist@1001.0.1
+  - @pnpm/read-package-json@1000.0.2
+  - @pnpm/read-project-manifest@1000.0.2
+  - @pnpm/store-controller-types@1000.1.1
+  - @pnpm/worker@1000.0.3
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.2
+
+## 1001.1.0
+
+### Minor Changes
+
+- 4771813: Store the list of ignored builds in `node_modules/.modules.yaml`.
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+- Updated dependencies [7272992]
+- Updated dependencies [516c4b3]
+- Updated dependencies [4771813]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/worker@1000.0.2
+  - @pnpm/build-modules@1000.1.0
+  - @pnpm/modules-yaml@1000.1.0
+  - @pnpm/package-is-installable@1000.0.2
+  - @pnpm/deps.graph-builder@1001.0.2
+  - @pnpm/lifecycle@1001.0.1
+  - @pnpm/symlink-dependency@1000.0.1
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.1
+  - @pnpm/hoist@1001.0.1
+  - @pnpm/modules-cleaner@1001.0.1
+  - @pnpm/package-requester@1000.1.1
+  - @pnpm/lockfile.filtering@1001.0.1
+  - @pnpm/link-bins@1000.0.2
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [3f0e4f0]
+  - @pnpm/lockfile.fs@1001.1.0
+  - @pnpm/deps.graph-builder@1001.0.1
+  - @pnpm/lockfile-to-pnp@1001.0.1
+  - @pnpm/real-hoist@1001.0.0
+
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [3a6a417]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/package-requester@1000.1.0
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/lifecycle@1001.0.0
+  - @pnpm/modules-cleaner@1001.0.0
+  - @pnpm/lockfile-to-pnp@1001.0.0
+  - @pnpm/calc-dep-state@1001.0.0
+  - @pnpm/real-hoist@1001.0.0
+  - @pnpm/deps.graph-builder@1001.0.0
+  - @pnpm/lockfile.filtering@1001.0.0
+  - @pnpm/hoist@1001.0.0
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/build-modules@1000.0.1
+  - @pnpm/package-is-installable@1000.0.1
+  - @pnpm/link-bins@1000.0.1
+  - @pnpm/read-package-json@1000.0.1
+  - @pnpm/read-project-manifest@1000.0.1
+  - @pnpm/worker@1000.0.1
+  - @pnpm/symlink-dependency@1000.0.0
+
+## 24.0.0
+
+### Major Changes
+
+- d433cb9: Some registries allow identical content to be published under different package names or versions. To accommodate this, index files in the store are now stored using both the content hash and package identifier.
+
+  This approach ensures that we can:
+
+  1. Validate that the integrity in the lockfile corresponds to the correct package,
+     which might not be the case after a poorly resolved Git conflict.
+  2. Allow the same content to be referenced by different packages or different versions of the same package.
+
+  Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
+  Related issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
+
+- 099e6af: Changed the structure of the index files in the store to store side effects cache information more efficiently. In the new version, side effects do not list all the files of the package but just the differences [#8636](https://github.com/pnpm/pnpm/pull/8636).
+
+### Patch Changes
+
+- 7cd0d20: Don't attempt to apply patches when modules directory disabled (`enable-modules-dir` set to `false`) [#8727](https://github.com/pnpm/pnpm/pull/8727).
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [dcd2917]
+- Updated dependencies [d433cb9]
+- Updated dependencies [e476b07]
+- Updated dependencies [099e6af]
+- Updated dependencies [d55b259]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/package-requester@26.0.0
+  - @pnpm/package-is-installable@9.0.12
+  - @pnpm/worker@2.0.0
+  - @pnpm/deps.graph-builder@2.0.6
+  - @pnpm/lockfile.filtering@1.0.8
+  - @pnpm/lockfile.fs@1.0.6
+  - @pnpm/calc-dep-state@7.0.11
+  - @pnpm/error@6.0.3
+  - @pnpm/hoist@9.1.16
+  - @pnpm/lockfile-to-pnp@4.1.15
+  - @pnpm/lockfile.utils@1.0.5
+  - @pnpm/modules-cleaner@15.1.17
+  - @pnpm/real-hoist@3.0.15
+  - @pnpm/store-controller-types@18.1.6
+  - @pnpm/build-modules@14.0.6
+  - @pnpm/lifecycle@17.1.6
+  - @pnpm/link-bins@10.0.12
+  - @pnpm/read-package-json@9.0.10
+  - @pnpm/read-project-manifest@6.0.10
+  - @pnpm/symlink-dependency@8.0.8
+
+## 23.2.8
+
+### Patch Changes
+
+- Updated dependencies [222d10a]
+  - @pnpm/worker@1.0.13
+  - @pnpm/build-modules@14.0.5
+  - @pnpm/package-requester@25.2.10
+  - @pnpm/package-is-installable@9.0.11
+  - @pnpm/dependency-path@5.1.7
+  - @pnpm/deps.graph-builder@2.0.5
+  - @pnpm/lockfile.filtering@1.0.7
+  - @pnpm/lockfile.fs@1.0.5
+  - @pnpm/lockfile-to-pnp@4.1.14
+  - @pnpm/lockfile.utils@1.0.4
+  - @pnpm/calc-dep-state@7.0.10
+  - @pnpm/hoist@9.1.15
+  - @pnpm/modules-cleaner@15.1.16
+  - @pnpm/real-hoist@3.0.14
+  - @pnpm/lifecycle@17.1.5
+  - @pnpm/symlink-dependency@8.0.8
+  - @pnpm/link-bins@10.0.11
+
+## 23.2.7
+
+### Patch Changes
+
+- @pnpm/package-requester@25.2.9
+- @pnpm/worker@1.0.12
+- @pnpm/build-modules@14.0.4
+- @pnpm/lifecycle@17.1.5
+- @pnpm/symlink-dependency@8.0.8
+- @pnpm/link-bins@10.0.11
+- @pnpm/real-hoist@3.0.13
+
+## 23.2.6
+
+### Patch Changes
+
+- Updated dependencies [17b5088]
+  - @pnpm/lockfile.filtering@1.0.6
+  - @pnpm/modules-cleaner@15.1.15
+
+## 23.2.5
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+  - @pnpm/constants@9.0.0
+  - @pnpm/deps.graph-builder@2.0.4
+  - @pnpm/lockfile.filtering@1.0.5
+  - @pnpm/lockfile.fs@1.0.4
+  - @pnpm/calc-dep-state@7.0.9
+  - @pnpm/error@6.0.2
+  - @pnpm/hoist@9.1.14
+  - @pnpm/modules-cleaner@15.1.14
+  - @pnpm/lockfile-to-pnp@4.1.13
+  - @pnpm/real-hoist@3.0.13
+  - @pnpm/build-modules@14.0.3
+  - @pnpm/package-is-installable@9.0.10
+  - @pnpm/lifecycle@17.1.5
+  - @pnpm/link-bins@10.0.11
+  - @pnpm/package-requester@25.2.8
+  - @pnpm/read-package-json@9.0.9
+  - @pnpm/read-project-manifest@6.0.9
+  - @pnpm/worker@1.0.11
+  - @pnpm/symlink-dependency@8.0.8
+
+## 23.2.4
+
+### Patch Changes
+
+- ad1fd64: Fix a regression in which `pnpm deploy` with `node-linker=hoisted` produces an empty `node_modules` directory [#6682](https://github.com/pnpm/pnpm/issues/6682).
+
+## 23.2.3
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/package-is-installable@9.0.9
+  - @pnpm/deps.graph-builder@2.0.3
+  - @pnpm/build-modules@14.0.2
+  - @pnpm/lifecycle@17.1.4
+  - @pnpm/symlink-dependency@8.0.8
+  - @pnpm/lockfile.filtering@1.0.4
+  - @pnpm/lockfile.fs@1.0.3
+  - @pnpm/lockfile-to-pnp@4.1.12
+  - @pnpm/lockfile.utils@1.0.3
+  - @pnpm/calc-dep-state@7.0.8
+  - @pnpm/core-loggers@10.0.7
+  - @pnpm/dependency-path@5.1.6
+  - @pnpm/hoist@9.1.13
+  - @pnpm/link-bins@10.0.10
+  - @pnpm/modules-cleaner@15.1.13
+  - @pnpm/modules-yaml@13.1.7
+  - @pnpm/package-requester@25.2.7
+  - @pnpm/real-hoist@3.0.12
+  - @pnpm/read-package-json@9.0.8
+  - @pnpm/read-project-manifest@6.0.8
+  - @pnpm/store-controller-types@18.1.6
+  - @pnpm/worker@1.0.10
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.8
+
+## 23.2.2
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/package-is-installable@9.0.8
+  - @pnpm/deps.graph-builder@2.0.2
+  - @pnpm/build-modules@14.0.1
+  - @pnpm/lifecycle@17.1.3
+  - @pnpm/symlink-dependency@8.0.7
+  - @pnpm/lockfile.filtering@1.0.3
+  - @pnpm/lockfile.fs@1.0.2
+  - @pnpm/lockfile-to-pnp@4.1.11
+  - @pnpm/lockfile.utils@1.0.2
+  - @pnpm/calc-dep-state@7.0.7
+  - @pnpm/core-loggers@10.0.6
+  - @pnpm/dependency-path@5.1.5
+  - @pnpm/hoist@9.1.12
+  - @pnpm/link-bins@10.0.9
+  - @pnpm/modules-cleaner@15.1.12
+  - @pnpm/modules-yaml@13.1.6
+  - @pnpm/package-requester@25.2.6
+  - @pnpm/real-hoist@3.0.11
+  - @pnpm/read-package-json@9.0.7
+  - @pnpm/read-project-manifest@6.0.7
+  - @pnpm/store-controller-types@18.1.5
+  - @pnpm/worker@1.0.9
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.7
+
+## 23.2.1
+
+### Patch Changes
+
+- Updated dependencies [33ba536]
+  - @pnpm/package-is-installable@9.0.7
+  - @pnpm/deps.graph-builder@2.0.1
+  - @pnpm/lockfile.filtering@1.0.2
+  - @pnpm/package-requester@25.2.5
+  - @pnpm/modules-cleaner@15.1.11
+
+## 23.2.0
+
+### Minor Changes
+
+- cb006df: Add ability to apply patch to all versions:
+  If the key of `pnpm.patchedDependencies` is a package name without a version (e.g. `pkg`), pnpm will attempt to apply the patch to all versions of
+  the package, failure will be skipped.
+  If it is a package name and an exact version (e.g. `pkg@x.y.z`), pnpm will attempt to apply the patch to that exact version only, failure will
+  cause pnpm to fail.
+
+  If there's only one version of `pkg` installed, `pnpm patch pkg` and subsequent `pnpm patch-commit $edit_dir` will create an entry named `pkg` in
+  `pnpm.patchedDependencies`. And pnpm will attempt to apply this patch to other versions of `pkg` in the future.
+
+  If there's multiple versions of `pkg` installed, `pnpm patch pkg` will ask which version to edit and whether to attempt to apply the patch to all.
+  If the user chooses to apply the patch to all, `pnpm patch-commit $edit_dir` would create a `pkg` entry in `pnpm.patchedDependencies`.
+  If the user chooses not to apply the patch to all, `pnpm patch-commit $edit_dir` would create a `pkg@x.y.z` entry in `pnpm.patchedDependencies` with
+  `x.y.z` being the version the user chose to edit.
+
+  If the user runs `pnpm patch pkg@x.y.z` with `x.y.z` being the exact version of `pkg` that has been installed, `pnpm patch-commit $edit_dir` will always
+  create a `pkg@x.y.z` entry in `pnpm.patchedDependencies`.
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/build-modules@14.0.0
+  - @pnpm/deps.graph-builder@2.0.0
+  - @pnpm/patching.config@1.0.0
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.filtering@1.0.1
+  - @pnpm/lockfile.fs@1.0.1
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/calc-dep-state@7.0.6
+  - @pnpm/hoist@9.1.11
+  - @pnpm/modules-cleaner@15.1.10
+  - @pnpm/package-is-installable@9.0.6
+  - @pnpm/lifecycle@17.1.2
+  - @pnpm/symlink-dependency@8.0.6
+  - @pnpm/lockfile-to-pnp@4.1.10
+  - @pnpm/core-loggers@10.0.5
+  - @pnpm/dependency-path@5.1.4
+  - @pnpm/link-bins@10.0.8
+  - @pnpm/modules-yaml@13.1.5
+  - @pnpm/package-requester@25.2.4
+  - @pnpm/real-hoist@3.0.10
+  - @pnpm/read-package-json@9.0.6
+  - @pnpm/read-project-manifest@6.0.6
+  - @pnpm/store-controller-types@18.1.4
+  - @pnpm/worker@1.0.8
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.6
+
+## 23.1.11
+
+### Patch Changes
+
+- Updated dependencies [9899576]
+- Updated dependencies [8055a30]
+- Updated dependencies [c5ef9b0]
+- Updated dependencies [8055a30]
+  - @pnpm/lifecycle@17.1.1
+  - @pnpm/lockfile.filtering@1.0.0
+  - @pnpm/lockfile.utils@1.0.0
+  - @pnpm/lockfile.fs@1.0.0
+  - @pnpm/build-modules@13.0.8
+  - @pnpm/modules-cleaner@15.1.9
+  - @pnpm/hoist@9.1.10
+  - @pnpm/deps.graph-builder@1.1.9
+  - @pnpm/lockfile-to-pnp@4.1.9
+  - @pnpm/calc-dep-state@7.0.5
+  - @pnpm/real-hoist@3.0.9
+  - @pnpm/symlink-dependency@8.0.5
+  - @pnpm/package-requester@25.2.3
+  - @pnpm/link-bins@10.0.7
+
+## 23.1.10
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/lifecycle@17.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/build-modules@13.0.7
+  - @pnpm/package-is-installable@9.0.5
+  - @pnpm/deps.graph-builder@1.1.8
+  - @pnpm/symlink-dependency@8.0.5
+  - @pnpm/filter-lockfile@9.0.9
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/lockfile-to-pnp@4.1.8
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/calc-dep-state@7.0.4
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/dependency-path@5.1.3
+  - @pnpm/hoist@9.1.9
+  - @pnpm/link-bins@10.0.7
+  - @pnpm/modules-cleaner@15.1.8
+  - @pnpm/modules-yaml@13.1.4
+  - @pnpm/package-requester@25.2.3
+  - @pnpm/real-hoist@3.0.8
+  - @pnpm/read-package-json@9.0.5
+  - @pnpm/read-project-manifest@6.0.5
+  - @pnpm/store-controller-types@18.1.3
+  - @pnpm/worker@1.0.7
+  - @pnpm/pkg-manager.direct-dep-linker@3.0.5
+
 ## 23.1.9
 
 ### Patch Changes

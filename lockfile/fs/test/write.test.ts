@@ -1,0 +1,234 @@
+import fs from 'fs'
+import path from 'path'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import {
+  readCurrentLockfile,
+  readWantedLockfile,
+  writeLockfiles,
+} from '@pnpm/lockfile.fs'
+import tempy from 'tempy'
+import yaml from 'yaml-tag'
+import { getCurrentBranch } from '@pnpm/git-utils'
+
+jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
+
+test('writeLockfiles()', async () => {
+  const projectPath = tempy.directory()
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
+        },
+        specifiers: {
+          'is-negative': '^1.0.0',
+          'is-positive': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '/is-negative@1.0.0': {
+        os: ['darwin'],
+        dependencies: {
+          'is-positive': '2.0.0',
+        },
+        cpu: ['x86'],
+        libc: ['glibc'],
+        engines: {
+          node: '>=10',
+          npm: '\nfoo\n',
+        },
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      '/is-positive@1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      '/is-positive@2.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+  }
+  await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+  })
+  expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+  expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+
+  // Verifying the formatting of the lockfile
+  expect(fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')).toMatchSnapshot()
+})
+
+test('writeLockfiles() when no specifiers but dependencies present', async () => {
+  const projectPath = tempy.directory()
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': 'link:../is-positive',
+        },
+        specifiers: {},
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {},
+  }
+  await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+  })
+  expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+  expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+})
+
+test('write does not use yaml anchors/aliases', async () => {
+  const projectPath = tempy.directory()
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
+        },
+        specifiers: {
+          'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: yaml`
+      /react-dnd@2.5.4(react@15.6.1):
+        dependencies:
+          disposables: 1.0.2
+          dnd-core: 2.5.4
+          hoist-non-react-statics: 2.5.0
+          invariant: 2.2.3
+          lodash: 4.15.0
+          prop-types: 15.6.1
+          react: 15.6.1
+        dev: false
+        id: registry.npmjs.org/react-dnd/2.5.4
+        peerDependencies: &ref_11
+          react: '1'
+        resolution:
+          integrity: sha512-y9YmnusURc+3KPgvhYKvZ9oCucj51MSZWODyaeV0KFU0cquzA7dCD1g/OIYUKtNoZ+MXtacDngkdud2TklMSjw==
+      /react-dnd@2.5.4(react@15.6.2):
+        dependencies:
+          disposables: 1.0.2
+          dnd-core: 2.5.4
+          hoist-non-react-statics: 2.5.0
+          invariant: 2.2.3
+          lodash: 4.15.0
+          prop-types: 15.6.1
+          react: 15.6.2
+        dev: false
+        id: registry.npmjs.org/react-dnd/2.5.4
+        peerDependencies: *ref_11
+        resolution:
+          integrity: sha512-y9YmnusURc+3KPgvhYKvZ9oCucj51MSZWODyaeV0KFU0cquzA7dCD1g/OIYUKtNoZ+MXtacDngkdud2TklMSjw==
+    `,
+  }
+  await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+  })
+
+  const lockfileContent = fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')
+  expect(lockfileContent).not.toMatch('&')
+  expect(lockfileContent).not.toMatch('*')
+})
+
+test('writeLockfiles() does not fail if the lockfile has undefined properties', async () => {
+  const projectPath = tempy.directory()
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
+        },
+        specifiers: {
+          'is-negative': '^1.0.0',
+          'is-positive': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '/is-negative@1.0.0': {
+        // eslint-disable-next-line
+        dependencies: undefined as any,
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      '/is-positive@1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      '/is-positive@2.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+  }
+  await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+  })
+})
+
+test('writeLockfiles() when useGitBranchLockfile', async () => {
+  const branchName: string = 'branch'
+  ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
+  const projectPath = tempy.directory()
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        specifiers: {
+          foo: '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '/foo@1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+  }
+
+  await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+    useGitBranchLockfile: true,
+  })
+  expect(fs.existsSync(path.join(projectPath, WANTED_LOCKFILE))).toBeFalsy()
+  expect(fs.existsSync(path.join(projectPath, `pnpm-lock.${branchName}.yaml`))).toBeTruthy()
+})

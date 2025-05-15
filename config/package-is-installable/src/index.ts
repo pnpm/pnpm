@@ -2,9 +2,9 @@ import {
   installCheckLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
+import { getSystemNodeVersion } from '@pnpm/env.system-node-version'
 import { checkEngine, UnsupportedEngineError, type WantedEngine } from './checkEngine'
 import { checkPlatform, UnsupportedPlatformError } from './checkPlatform'
-import { getSystemNodeVersion } from './getSystemNodeVersion'
 import { type SupportedArchitectures } from '@pnpm/types'
 
 export type { Engine } from './checkEngine'
@@ -86,7 +86,7 @@ export function checkPackage (
     (manifest.engines == null)
       ? null
       : checkEngine(pkgId, manifest.engines, {
-        node: options.nodeVersion ?? getSystemNodeVersion(),
+        node: options.nodeVersion ?? getSystemNodeVersion() ?? process.version,
         pnpm: options.pnpmVersion,
       })
   )

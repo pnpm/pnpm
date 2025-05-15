@@ -12,7 +12,10 @@ import { build } from 'esbuild'
       bundle: true,
       platform: 'node',
       outfile: 'dist/pnpm.cjs',
-      external: ['node-gyp'],
+      external: [
+        'node-gyp',
+        './get-uid-gid.js', // traces back to: https://github.com/npm/uid-number/blob/6e9bdb302ae4799d05abf12e922ccdb4bd9ea023/uid-number.js#L31
+      ],
       define: {
         'process.env.npm_package_name': JSON.stringify(
           process.env.npm_package_name

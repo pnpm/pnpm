@@ -84,12 +84,11 @@ function sanitizeFilenames (filenames: Record<string, string>): SanitizeFilename
 function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Record<string, string>): void {
   makeEmptyDir(newDir, { recursive: true })
   const allDirs = new Set<string>()
-  Object.keys(filenames)
-    .forEach((f) => {
-      const dir = path.dirname(f)
-      if (dir === '.') return
-      allDirs.add(dir)
-    })
+  for (const f in filenames) {
+    const dir = path.dirname(f)
+    if (dir === '.') continue
+    allDirs.add(dir)
+  }
   Array.from(allDirs)
     .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
     .forEach((dir) => fs.mkdirSync(path.join(newDir, dir), { recursive: true }))

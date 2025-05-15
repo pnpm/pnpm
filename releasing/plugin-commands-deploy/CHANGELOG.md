@@ -1,5 +1,542 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.23
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/plugin-commands-installation@1004.0.2
+  - @pnpm/directory-fetcher@1000.1.7
+  - @pnpm/fs.indexed-pkg-importer@1000.1.7
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/dependency-path@1000.0.9
+
+## 1001.1.22
+
+### Patch Changes
+
+- Updated dependencies [7c7f0d6]
+  - @pnpm/common-cli-options-help@1000.0.1
+  - @pnpm/plugin-commands-installation@1004.0.1
+  - @pnpm/cli-utils@1000.1.3
+  - @pnpm/config@1003.0.1
+
+## 1001.1.21
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/plugin-commands-installation@1004.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/fs.indexed-pkg-importer@1000.1.6
+  - @pnpm/directory-fetcher@1000.1.6
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/lockfile.types@1001.0.7
+  - @pnpm/dependency-path@1000.0.8
+
+## 1001.1.20
+
+### Patch Changes
+
+- Updated dependencies [032fff8]
+- Updated dependencies [4d95e93]
+  - @pnpm/fs.indexed-pkg-importer@1000.1.5
+  - @pnpm/plugin-commands-installation@1003.0.1
+  - @pnpm/directory-fetcher@1000.1.5
+  - @pnpm/cli-utils@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.10
+  - @pnpm/config@1002.7.2
+
+## 1001.1.19
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [750ae7d]
+- Updated dependencies [8033854]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/plugin-commands-installation@1003.0.0
+  - @pnpm/cli-utils@1000.1.0
+  - @pnpm/directory-fetcher@1000.1.4
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/lockfile.types@1001.0.6
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/fs.indexed-pkg-importer@1000.1.4
+
+## 1001.1.18
+
+### Patch Changes
+
+- Updated dependencies [e57f1df]
+  - @pnpm/config@1002.7.0
+  - @pnpm/cli-utils@1000.0.19
+  - @pnpm/plugin-commands-installation@1002.2.4
+
+## 1001.1.17
+
+### Patch Changes
+
+- 9d30085: Removed a defunct special case to handle the `catalog:` protocol when deploying a package. This is no longer necessary with newer version of pnpm which handle injected workspace packages using the `catalog:` protocol out of the box.
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/cli-utils@1000.0.18
+  - @pnpm/plugin-commands-installation@1002.2.3
+  - @pnpm/lockfile.types@1001.0.5
+  - @pnpm/directory-fetcher@1000.1.3
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/fs.indexed-pkg-importer@1000.1.3
+
+## 1001.1.16
+
+### Patch Changes
+
+- Updated dependencies [936430a]
+  - @pnpm/config@1002.5.4
+  - @pnpm/plugin-commands-installation@1002.2.2
+  - @pnpm/cli-utils@1000.0.17
+  - @pnpm/directory-fetcher@1000.1.2
+  - @pnpm/lockfile.fs@1001.1.7
+  - @pnpm/fs.indexed-pkg-importer@1000.1.2
+
+## 1001.1.15
+
+### Patch Changes
+
+- Updated dependencies [e5b7bf4]
+  - @pnpm/plugin-commands-installation@1002.2.1
+
+## 1001.1.14
+
+### Patch Changes
+
+- cda1c43: An internal refactor was made to the `deploy` command to better handle a change in `plugin-commands-installation` when `node-linker=hoisted`. There are no behavior changes expected with this refactor.
+- Updated dependencies [b4efd0e]
+- Updated dependencies [6e4459c]
+- Updated dependencies [cda1c43]
+  - @pnpm/plugin-commands-installation@1002.2.0
+  - @pnpm/config@1002.5.3
+  - @pnpm/cli-utils@1000.0.16
+
+## 1001.1.13
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.15
+- @pnpm/plugin-commands-installation@1002.1.2
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/config@1002.5.2
+- @pnpm/lockfile.fs@1001.1.6
+
+## 1001.1.12
+
+### Patch Changes
+
+- Updated dependencies [c3aa4d8]
+  - @pnpm/config@1002.5.1
+  - @pnpm/cli-utils@1000.0.14
+  - @pnpm/plugin-commands-installation@1002.1.1
+
+## 1001.1.11
+
+### Patch Changes
+
+- f5940cc: `pnpm deploy` should not remove fields from the deployed package's `package.json` file [#9215](https://github.com/pnpm/pnpm/issues/9215).
+- a5e4965: Fix `pnpm deploy` creating a `package.json` without the `imports` and `license` field [#9193](https://github.com/pnpm/pnpm/issues/9193).
+- e4eeafd: Fix a bug causing entries in the `catalogs` section of the `pnpm-lock.yaml` file to be removed when `dedupe-peer-dependents=false` on a filtered install. [#9112](https://github.com/pnpm/pnpm/issues/9112)
+- Updated dependencies [6a59366]
+- Updated dependencies [a5e4965]
+- Updated dependencies [d9d7607]
+- Updated dependencies [d965748]
+- Updated dependencies [e4eeafd]
+  - @pnpm/plugin-commands-installation@1002.1.0
+  - @pnpm/types@1000.2.1
+  - @pnpm/config@1002.5.0
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/cli-utils@1000.0.13
+  - @pnpm/directory-fetcher@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/lockfile.types@1001.0.4
+  - @pnpm/fs.indexed-pkg-importer@1000.1.1
+
+## 1001.1.10
+
+### Patch Changes
+
+- Updated dependencies [76973d8]
+- Updated dependencies [1c2eb8c]
+  - @pnpm/plugin-commands-installation@1002.0.1
+  - @pnpm/config@1002.4.1
+  - @pnpm/cli-utils@1000.0.12
+
+## 1001.1.9
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [5296961]
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+  - @pnpm/plugin-commands-installation@1002.0.0
+  - @pnpm/config@1002.4.0
+  - @pnpm/fs.indexed-pkg-importer@1000.1.0
+  - @pnpm/types@1000.2.0
+  - @pnpm/directory-fetcher@1000.1.0
+  - @pnpm/cli-utils@1000.0.11
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/lockfile.types@1001.0.3
+  - @pnpm/dependency-path@1000.0.3
+
+## 1001.1.8
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+- Updated dependencies [546ab37]
+  - @pnpm/config@1002.3.1
+  - @pnpm/plugin-commands-installation@1001.5.1
+  - @pnpm/cli-utils@1000.0.10
+  - @pnpm/lockfile.fs@1001.1.3
+
+## 1001.1.7
+
+### Patch Changes
+
+- Updated dependencies [91d46ee]
+  - @pnpm/plugin-commands-installation@1001.5.0
+  - @pnpm/cli-utils@1000.0.9
+
+## 1001.1.6
+
+### Patch Changes
+
+- Updated dependencies [f6006f2]
+  - @pnpm/plugin-commands-installation@1001.4.0
+  - @pnpm/config@1002.3.0
+  - @pnpm/cli-utils@1000.0.8
+
+## 1001.1.5
+
+### Patch Changes
+
+- 96cdfa3: `pnpm deploy --legacy` should work without injected dependencies.
+- e9d8f48: Add information about how to deploy without "injected dependencies" to the "pnpm deploy" error message.
+  - @pnpm/plugin-commands-installation@1001.3.2
+
+## 1001.1.4
+
+### Patch Changes
+
+- a08a5a9: Fix a bug in which `pnpm deploy` fails to read the correct `projectId` when the deploy source is the same as the workspace directory [#9001](https://github.com/pnpm/pnpm/issues/9001).
+  - @pnpm/cli-utils@1000.0.7
+  - @pnpm/config@1002.2.1
+  - @pnpm/directory-fetcher@1000.0.5
+  - @pnpm/plugin-commands-installation@1001.3.1
+
+## 1001.1.3
+
+### Patch Changes
+
+- 9a44e6c: `pnpm deploy` should inherit the `pnpm` object from the root `package.json` [#8991](https://github.com/pnpm/pnpm/pull/8991).
+- b562deb: Fix `pnpm deploy` creating a package.json without the `"type"` key [#8962](https://github.com/pnpm/pnpm/issues/8962).
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/plugin-commands-installation@1001.3.0
+  - @pnpm/config@1002.2.0
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/directory-fetcher@1000.0.4
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/catalogs.resolver@1000.0.2
+  - @pnpm/fs.indexed-pkg-importer@1000.0.5
+
+## 1001.1.2
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/plugin-commands-installation@1001.2.1
+  - @pnpm/cli-utils@1000.0.5
+  - @pnpm/config@1002.1.2
+  - @pnpm/directory-fetcher@1000.0.3
+  - @pnpm/fs.indexed-pkg-importer@1000.0.4
+
+## 1001.1.1
+
+### Patch Changes
+
+- Updated dependencies [c7eefdd]
+- Updated dependencies [9591a18]
+- Updated dependencies [1f5169f]
+  - @pnpm/plugin-commands-installation@1001.2.0
+  - @pnpm/types@1000.1.0
+  - @pnpm/config@1002.1.1
+  - @pnpm/cli-utils@1000.0.4
+  - @pnpm/directory-fetcher@1000.0.2
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/lockfile.types@1001.0.1
+  - @pnpm/dependency-path@1000.0.1
+  - @pnpm/fs.indexed-pkg-importer@1000.0.3
+
+## 1001.1.0
+
+### Minor Changes
+
+- f891288: `pnpm deploy` now tries creating a dedicated lockfile from a shared lockfile for deployment. It will fallback to deployment without a lockfile if there is no shared lockfile or `force-legacy-deploy` is set to `true`.
+
+### Patch Changes
+
+- f891288: Fix an issue in which `pnpm deploy --prod` fails due to missing `devDependencies` [#8778](https://github.com/pnpm/pnpm/issues/8778).
+- Updated dependencies [f90a94b]
+- Updated dependencies [f891288]
+- Updated dependencies [f891288]
+  - @pnpm/config@1002.1.0
+  - @pnpm/plugin-commands-installation@1001.1.0
+  - @pnpm/cli-utils@1000.0.3
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [f685565]
+  - @pnpm/plugin-commands-installation@1001.0.2
+  - @pnpm/fs.indexed-pkg-importer@1000.0.2
+  - @pnpm/cli-utils@1000.0.2
+
+## 1001.0.1
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1001.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- ac5b9d8: All dependencies are installed even when the `NODE_ENV` environment variable is set to `production [#8827](https://github.com/pnpm/pnpm/issues/8827).
+- 31911f1: The deploy command works only in workspaces that use the `inject-workspace-packages=true` setting.
+
+### Patch Changes
+
+- Updated dependencies [ac5b9d8]
+- Updated dependencies [31911f1]
+- Updated dependencies [b8bda0a]
+- Updated dependencies [d47c426]
+- Updated dependencies [a76da0c]
+  - @pnpm/plugin-commands-installation@1001.0.0
+  - @pnpm/cli-utils@1000.0.1
+  - @pnpm/error@1000.0.1
+  - @pnpm/fs.indexed-pkg-importer@1000.0.1
+  - @pnpm/directory-fetcher@1000.0.1
+  - @pnpm/catalogs.resolver@1000.0.1
+
+## 5.1.32
+
+### Patch Changes
+
+- Updated dependencies [477e0c1]
+- Updated dependencies [19d5b51]
+- Updated dependencies [6b27c81]
+  - @pnpm/plugin-commands-installation@18.0.0
+  - @pnpm/error@6.0.3
+  - @pnpm/cli-utils@4.0.8
+  - @pnpm/catalogs.resolver@0.1.2
+  - @pnpm/fs.indexed-pkg-importer@6.0.9
+  - @pnpm/directory-fetcher@8.0.10
+
+## 5.1.31
+
+### Patch Changes
+
+- Updated dependencies [6014522]
+  - @pnpm/plugin-commands-installation@17.2.7
+  - @pnpm/cli-utils@4.0.7
+  - @pnpm/fs.indexed-pkg-importer@6.0.9
+  - @pnpm/directory-fetcher@8.0.9
+
+## 5.1.30
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.2.6
+- @pnpm/cli-utils@4.0.6
+- @pnpm/fs.indexed-pkg-importer@6.0.9
+- @pnpm/directory-fetcher@8.0.9
+
+## 5.1.29
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.2.5
+
+## 5.1.28
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+  - @pnpm/plugin-commands-installation@17.2.4
+  - @pnpm/error@6.0.2
+  - @pnpm/cli-utils@4.0.6
+  - @pnpm/catalogs.resolver@0.1.1
+  - @pnpm/fs.indexed-pkg-importer@6.0.9
+  - @pnpm/directory-fetcher@8.0.9
+
+## 5.1.27
+
+### Patch Changes
+
+- ad1fd64: Fix a regression in which `pnpm deploy` with `node-linker=hoisted` produces an empty `node_modules` directory [#6682](https://github.com/pnpm/pnpm/issues/6682).
+- eeb76cd: `pnpm deploy` should work in workspace with `shared-workspace-lockfile=false` [#8475](https://github.com/pnpm/pnpm/issues/8475).
+- Updated dependencies [ad1fd64]
+- Updated dependencies [eeb76cd]
+  - @pnpm/plugin-commands-installation@17.2.3
+
+## 5.1.26
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/cli-utils@4.0.5
+  - @pnpm/directory-fetcher@8.0.8
+  - @pnpm/plugin-commands-installation@17.2.2
+  - @pnpm/fs.indexed-pkg-importer@6.0.9
+
+## 5.1.25
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.2.1
+
+## 5.1.24
+
+### Patch Changes
+
+- 7ee59a1: `pnpm deploy` should write the `node_modules/.modules.yaml` to the `node_modules` directory within the deploy directory [#7731](https://github.com/pnpm/pnpm/issues/7731).
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/plugin-commands-installation@17.2.0
+  - @pnpm/cli-utils@4.0.4
+  - @pnpm/directory-fetcher@8.0.7
+  - @pnpm/fs.indexed-pkg-importer@6.0.8
+
+## 5.1.23
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.1.1
+
+## 5.1.22
+
+### Patch Changes
+
+- Updated dependencies [eb8bf2a]
+  - @pnpm/plugin-commands-installation@17.1.0
+  - @pnpm/cli-utils@4.0.3
+
+## 5.1.21
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.2
+- @pnpm/plugin-commands-installation@17.0.7
+
+## 5.1.20
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.0.6
+
+## 5.1.19
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.0.5
+
+## 5.1.18
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.1
+- @pnpm/plugin-commands-installation@17.0.4
+
+## 5.1.17
+
+### Patch Changes
+
+- Updated dependencies [26b065c]
+  - @pnpm/cli-utils@4.0.0
+  - @pnpm/plugin-commands-installation@17.0.3
+
+## 5.1.16
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+- Updated dependencies [98c8bd6]
+  - @pnpm/types@12.0.0
+  - @pnpm/cli-utils@3.1.7
+  - @pnpm/plugin-commands-installation@17.0.2
+  - @pnpm/directory-fetcher@8.0.6
+  - @pnpm/fs.indexed-pkg-importer@6.0.7
+
+## 5.1.15
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@17.0.1
+- @pnpm/cli-utils@3.1.6
+- @pnpm/fs.indexed-pkg-importer@6.0.6
+- @pnpm/directory-fetcher@8.0.5
+
+## 5.1.14
+
+### Patch Changes
+
+- 1e4dd79: The `pnpm deploy` command now supports the [`catalog:` protocol](https://pnpm.io/catalogs).
+- Updated dependencies [1e4dd79]
+- Updated dependencies [0ef168b]
+  - @pnpm/plugin-commands-installation@17.0.0
+  - @pnpm/types@11.1.0
+  - @pnpm/cli-utils@3.1.5
+  - @pnpm/directory-fetcher@8.0.5
+  - @pnpm/fs.indexed-pkg-importer@6.0.6
+
 ## 5.1.13
 
 ### Patch Changes

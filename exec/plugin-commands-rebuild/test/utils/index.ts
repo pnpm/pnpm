@@ -28,6 +28,7 @@ export const DEFAULT_OPTS = {
   localAddress: undefined,
   lock: false,
   lockStaleDuration: 90,
+  neverBuiltDependencies: [],
   networkConcurrency: 16,
   offline: false,
   pending: false,
@@ -52,5 +53,5 @@ export const DEFAULT_OPTS = {
     cpu: ['current'],
     libc: ['current'],
   },
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }

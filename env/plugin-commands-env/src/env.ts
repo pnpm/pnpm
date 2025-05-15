@@ -7,6 +7,8 @@ import { type NvmNodeCommandOptions } from './node'
 import { envList } from './envList'
 import { envAdd } from './envAdd'
 
+export const skipPackageManagerCheck = true
+
 export function rcOptionsTypes (): Record<string, unknown> {
   return {}
 }

@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs'
+import { STORE_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
 import canLink from 'can-link'
@@ -8,8 +9,6 @@ import pathAbsolute from 'path-absolute'
 import pathTemp from 'path-temp'
 import rootLinkTarget from 'root-link-target'
 import touch from 'touch'
-
-const STORE_VERSION = 'v3'
 
 export function getStorePath (
   {
@@ -68,7 +67,7 @@ async function storePathRelativeToHome (pkgRoot: string, relStore: string, homed
       return storeInHomeDir
     }
     return path.join(mountpoint, '.pnpm-store', STORE_VERSION)
-  } catch (err) {
+  } catch {
     // this is an unlikely situation but if there is no way to find
     // a linkable place on the disk, create the store in homedir
     return storeInHomeDir
@@ -83,7 +82,7 @@ async function canLinkToSubdir (fileToLink: string, dir: string): Promise<boolea
   try {
     await fs.mkdir(tmpDir, { recursive: true })
     result = await canLink(fileToLink, pathTemp(tmpDir))
-  } catch (err) {
+  } catch {
     result = false
   } finally {
     await safeRmdir(tmpDir)
@@ -97,7 +96,7 @@ async function safeRmdir (dir: string): Promise<void> {
     // sometimes might not remove the temporary file in time
     // and fs.rmdir can only remove an empty directory.
     await rimraf(dir)
-  } catch (err) {
+  } catch {
     // ignore
   }
 }

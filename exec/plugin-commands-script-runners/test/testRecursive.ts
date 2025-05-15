@@ -1,7 +1,7 @@
 import path from 'path'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { test as testCommand } from '@pnpm/plugin-commands-script-runners'
+import { run } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import execa from 'execa'
@@ -62,14 +62,14 @@ test('pnpm recursive test', async () => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  await testCommand.handler({
+  await run.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['test'])
 
   expect(server1.getLines()).toStrictEqual(['project-1', 'project-2'])
   expect(server2.getLines()).toStrictEqual(['project-1', 'project-3'])
@@ -116,14 +116,14 @@ test('`pnpm recursive test` does not fail if none of the packages has a test com
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
 
-  await testCommand.handler({
+  await run.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['test'])
 })
 
 test('pnpm recursive test with filtering', async () => {
@@ -166,14 +166,14 @@ test('pnpm recursive test with filtering', async () => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  await testCommand.handler({
+  await run.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['test'])
 
   expect(server.getLines()).toStrictEqual(['project-1'])
 })

@@ -1,30 +1,34 @@
 /* eslint-disable import/first */
+export type Global = typeof globalThis & {
+  pnpm__startedAt?: number
+  [REPORTER_INITIALIZED]?: ReporterType // eslint-disable-line @typescript-eslint/no-use-before-define
+}
+declare const global: Global
 if (!global['pnpm__startedAt']) {
   global['pnpm__startedAt'] = Date.now()
 }
 import loudRejection from 'loud-rejection'
-import { packageManager } from '@pnpm/cli-meta'
+import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
-import {
-  type Config,
-} from '@pnpm/config'
+import { type Config, type WantedPackageManager } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
+import { PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
-import { node } from '@pnpm/plugin-commands-env'
+import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
-import { checkForUpdates } from './checkForUpdates'
-import { pnpmCmds, rcOptionsTypes } from './cmd'
-import { formatUnknownOptionsError } from './formatError'
-import { parseCliArgs } from './parseCliArgs'
-import { initReporter, type ReporterType } from './reporter'
 import { isCI } from 'ci-info'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
-import stripAnsi from 'strip-ansi'
-import which from 'which'
+import { stripVTControlCharacters as stripAnsi } from 'util'
+import { checkForUpdates } from './checkForUpdates'
+import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd'
+import { formatUnknownOptionsError } from './formatError'
+import { parseCliArgs } from './parseCliArgs'
+import { initReporter, type ReporterType } from './reporter'
+import { switchCliVersion } from './switchCliVersion'
 
 export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 
@@ -69,9 +73,10 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (unknownOptionsArray.every((option) => DEPRECATED_OPTIONS.has(option))) {
       let deprecationMsg = `${chalk.bgYellow.black('\u2009WARN\u2009')}`
       if (unknownOptionsArray.length === 1) {
-        deprecationMsg += ` ${chalk.yellow(`Deprecated option: '${unknownOptionsArray[0]}'`)}`
+        const deprecatedOption = unknownOptionsArray[0] as string
+        deprecationMsg += ` ${chalk.yellow(`Deprecated option: '${deprecatedOption}'`)}`
       } else {
-        deprecationMsg += ` ${chalk.yellow(`Deprecated options: ${unknownOptionsArray.map(unknownOption => `'${unknownOption}'`).join(', ')}`)}`
+        deprecationMsg += ` ${chalk.yellow(`Deprecated options: ${unknownOptionsArray.map((unknownOption: string) => `'${unknownOption}'`).join(', ')}`)}`
       }
       console.log(deprecationMsg)
     } else {
@@ -84,12 +89,17 @@ export async function main (inputArgv: string[]): Promise<void> {
   let config: Config & {
     argv: { remain: string[], cooked: string[], original: string[] }
     fallbackCommandUsed: boolean
+    parseable?: boolean
+    json?: boolean
   }
   try {
     // When we just want to print the location of the global bin directory,
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
     const isDlxCommand = cmd === 'dlx'
+    if (cmd === 'link' && cliParams.length === 0) {
+      cliOptions.global = true
+    }
     config = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
@@ -98,6 +108,13 @@ export async function main (inputArgv: string[]): Promise<void> {
       checkUnknownSetting: false,
       ignoreNonAuthSettingsFromLocal: isDlxCommand,
     }) as typeof config
+    if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
+      if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm' && cmd !== 'self-update') {
+        await switchCliVersion(config)
+      } else if (!cmd || !skipPackageManagerCheckForCommand.has(cmd)) {
+        checkPackageManager(config.wantedPackageManager, config)
+      }
+    }
     if (isDlxCommand) {
       config.useStderr = true
     }
@@ -117,6 +134,10 @@ export async function main (inputArgv: string[]): Promise<void> {
     const hint = err['hint'] ? err['hint'] : `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`
     printError(err.message, hint)
     process.exitCode = 1
+    return
+  }
+  if (cmd == null && cliOptions.version) {
+    console.log(packageManager.version)
     return
   }
 
@@ -151,25 +172,12 @@ export async function main (inputArgv: string[]): Promise<void> {
     global[REPORTER_INITIALIZED] = reporterType
   }
 
-  const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && cliParams.includes(packageManager.name)
-
-  if (selfUpdate) {
+  if (cmd === 'self-update') {
     await pnpmCmds.server(config as any, ['stop']) // eslint-disable-line @typescript-eslint/no-explicit-any
-    try {
-      const currentPnpmDir = path.dirname(which.sync('pnpm'))
-      if (path.relative(currentPnpmDir, config.bin) !== '') {
-        console.log(`The location of the currently running pnpm differs from the location where pnpm will be installed
- Current pnpm location: ${currentPnpmDir}
- Target location: ${config.bin}
-`)
-      }
-    } catch (err) {
-      // if pnpm not found, then ignore
-    }
   }
 
   if (
-    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove') &&
+    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds') &&
     typeof workspaceDir === 'string'
   ) {
     cliOptions['recursive'] = true
@@ -242,7 +250,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     if (
       config.updateNotifier !== false &&
       !isCI &&
-      !selfUpdate &&
+      cmd !== 'self-update' &&
       !config.offline &&
       !config.preferOffline &&
       !config.fallbackCommandUsed &&
@@ -274,8 +282,14 @@ export async function main (inputArgv: string[]): Promise<void> {
       if ('webcontainer' in process.versions) {
         globalWarn('Automatic installation of different Node.js versions is not supported in WebContainer')
       } else {
-        const nodePath = await node.getNodeBinDir(config)
-        config.extraBinPaths.push(nodePath)
+        config.extraBinPaths = (
+          await prepareExecutionEnv(config, {
+            extraBinPaths: config.extraBinPaths,
+            executionEnv: {
+              nodeVersion: config.useNodeVersion,
+            },
+          })
+        ).extraBinPaths
         config.nodeVersion = config.useNodeVersion
       }
     }
@@ -285,8 +299,14 @@ export async function main (inputArgv: string[]): Promise<void> {
       config as Omit<typeof config, 'reporter'>,
       cliParams
     )
-    if (result instanceof Promise) {
-      result = await result
+    try {
+      if (result instanceof Promise) {
+        result = await result
+      }
+    } finally {
+      // When use-node-version is set and "pnpm run" is executed,
+      // this will be the only place where the tarball worker pool is finished.
+      await finishWorkers()
     }
     executionTimeLogger.debug({
       startedAt: global['pnpm__startedAt'],
@@ -300,9 +320,6 @@ export async function main (inputArgv: string[]): Promise<void> {
     }
     return result
   })()
-  // When use-node-version is set and "pnpm run" is executed,
-  // this will be the only place where the tarball worker pool is finished.
-  await finishWorkers()
   if (output) {
     if (!output.endsWith('\n')) {
       output = `${output}\n`
@@ -319,8 +336,33 @@ export async function main (inputArgv: string[]): Promise<void> {
 
 function printError (message: string, hint?: string): void {
   const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
-  console.log(`${message.startsWith(ERROR) ? '' : ERROR + ' '}${chalk.red(message)}`)
+  console.error(`${message.startsWith(ERROR) ? '' : ERROR + ' '}${chalk.red(message)}`)
   if (hint) {
-    console.log(hint)
+    console.error(hint)
+  }
+}
+
+function checkPackageManager (pm: WantedPackageManager, config: Config): void {
+  if (!pm.name) return
+  if (pm.name !== 'pnpm') {
+    const msg = `This project is configured to use ${pm.name}`
+    if (config.packageManagerStrict) {
+      throw new PnpmError('OTHER_PM_EXPECTED', msg)
+    }
+    globalWarn(msg)
+  } else {
+    const currentPnpmVersion = packageManager.name === 'pnpm'
+      ? packageManager.version
+      : undefined
+    if (currentPnpmVersion && config.packageManagerStrictVersion && pm.version && pm.version !== currentPnpmVersion) {
+      const msg = `This project is configured to use v${pm.version} of pnpm. Your current pnpm is v${currentPnpmVersion}`
+      if (config.packageManagerStrict) {
+        throw new PnpmError('BAD_PM_VERSION', msg, {
+          hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0"',
+        })
+      } else {
+        globalWarn(msg)
+      }
+    }
   }
 }
