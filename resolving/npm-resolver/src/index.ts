@@ -9,6 +9,7 @@ import {
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
+  type DirectoryResolution,
   type PkgResolutionId,
   type PreferredVersions,
   type ResolveResult,
@@ -18,7 +19,7 @@ import {
   type WorkspacePackages,
   type WorkspacePackagesByVersion,
 } from '@pnpm/resolver-base'
-import { type Registries, type PinnedVersion } from '@pnpm/types'
+import { type DependencyManifest, type Registries, type PinnedVersion } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'
@@ -90,6 +91,8 @@ export interface JsrResolveResult extends ResolveResult {
 }
 
 export interface WorkspaceResolveResult extends ResolveResult {
+  manifest: DependencyManifest
+  resolution: DirectoryResolution
   resolvedVia: 'workspace'
 }
 
