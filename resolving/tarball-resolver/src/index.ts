@@ -1,5 +1,11 @@
-import { type PkgResolutionId, type UrlResolveResult } from '@pnpm/resolver-base'
+import { type PkgResolutionId, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
+
+export interface UrlResolveResult extends ResolveResult {
+  normalizedBareSpecifier: string
+  resolution: TarballResolution
+  resolvedVia: 'url'
+}
 
 export async function resolveFromTarball (
   fetchFromRegistry: FetchFromRegistry,

@@ -15,10 +15,9 @@ import {
 import {
   type ResolveFunction,
   type ResolveOptions,
-  type UrlResolveResult,
   type WantedDependency,
 } from '@pnpm/resolver-base'
-import { resolveFromTarball } from '@pnpm/tarball-resolver'
+import { type UrlResolveResult, resolveFromTarball } from '@pnpm/tarball-resolver'
 
 export type {
   PackageMeta,

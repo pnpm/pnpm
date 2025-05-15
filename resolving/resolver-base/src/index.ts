@@ -57,12 +57,6 @@ export interface ResolveResult {
   alias?: string
 }
 
-export interface UrlResolveResult extends ResolveResult {
-  normalizedBareSpecifier: string
-  resolution: TarballResolution
-  resolvedVia: 'url'
-}
-
 export interface WorkspacePackage {
   rootDir: ProjectRootDir
   manifest: DependencyManifest
