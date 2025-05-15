@@ -177,12 +177,12 @@ function correctUrl (gitUrl: string): string {
       hash = _gitUrl.slice(hashIndex)
       _gitUrl = _gitUrl.slice(0, hashIndex)
     }
-    const [auth, pathname] = _gitUrl.slice(6).split('/')
+    const [auth, ...pathname] = _gitUrl.slice(6).split('/')
     const [, host] = auth.split('@')
     if (host.includes(':') && !/:\d+$/.test(host)) {
       const authArr = auth.split(':')
       const protocol = gitUrl.split('://')[0]
-      gitUrl = `${protocol}://${authArr.slice(0, -1).join(':') + '/' + authArr[authArr.length - 1]}${pathname ? '/' + pathname : ''}${hash}`
+      gitUrl = `${protocol}://${authArr.slice(0, -1).join(':') + '/' + authArr[authArr.length - 1]}${pathname.length ? '/' + pathname.join('/') : ''}${hash}`
     }
   }
   return gitUrl
