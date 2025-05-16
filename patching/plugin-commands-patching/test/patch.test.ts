@@ -1302,6 +1302,7 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
       saveLockfile: true,
       modulesDir: 'fake_modules',
       virtualStoreDir: 'fake_modules/.fake_store',
+      confirmModulesPurge: false,
     })
     const output = await patch.handler(defaultPatchOption, ['is-positive@1'])
     const patchDir = getPatchDirFromPatchOutput(output)
@@ -1326,6 +1327,7 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
       virtualStoreDir: 'fake_modules/.fake_store',
       lockfileDir: customModulesDirFixture,
       workspaceDir: customModulesDirFixture,
+      confirmModulesPurge: false,
     }, [patchDir])
     expect(fs.readFileSync(path.join(customModulesDirFixture, 'packages/bar/fake_modules/is-positive/index.js'), 'utf8')).toContain('// test patching')
   })
