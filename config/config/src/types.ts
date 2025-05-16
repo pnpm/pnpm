@@ -106,6 +106,7 @@ export const types = Object.assign({
   'strict-store-pkg-content-check': Boolean,
   'strict-peer-dependencies': Boolean,
   'use-beta-cli': Boolean,
+  'use-catalogs': ['always', 'prefer', 'manual'],
   'use-node-version': String,
   'use-running-store-server': Boolean,
   'use-store-server': Boolean,

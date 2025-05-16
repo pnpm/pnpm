@@ -7,6 +7,13 @@ import { type CatalogSnapshots } from '@pnpm/lockfile.types'
 import { sync as loadJsonFile } from 'load-json-file'
 import path from 'path'
 import { testDefaults } from './utils'
+import { logger } from '@pnpm/logger'
+
+jest.mock('@pnpm/logger', () => {
+  const originalModule = jest.requireActual('@pnpm/logger')
+  originalModule.logger.warn = jest.fn()
+  return originalModule
+})
 
 function preparePackagesAndReturnObjects (manifests: Array<ProjectManifest & Required<Pick<ProjectManifest, 'name'>>>) {
   const project = prepareEmpty()
@@ -1004,6 +1011,189 @@ describe('add', () => {
     expect(readLockfile().packages).toStrictEqual({
       'is-positive@2.0.0': expect.any(Object),
     })
+  })
+
+  test('adding with useCatalogs: always will add to or use from catalog', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+
+    const { updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive@1.0.0'],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          default: {},
+        },
+        useCatalogs: 'always',
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    })
+    expect(readLockfile()).toMatchObject({
+      catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
+      importers: { project1: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '1.0.0' } } } },
+      packages: { 'is-positive@1.0.0': expect.any(Object) },
+    })
+  })
+
+  test('adding with useCatalogs: prefer will add to or use from catalog', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+
+    const { updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive@1.0.0'],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          default: {},
+        },
+        useCatalogs: 'prefer',
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    })
+    expect(readLockfile()).toMatchObject({
+      catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
+      importers: { project1: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '1.0.0' } } } },
+      packages: { 'is-positive@1.0.0': expect.any(Object) },
+    })
+  })
+
+  test('adding mismatched version with useCatalogs: always will error', async () => {
+    const { options, projects } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    }])
+
+    await expect(addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive@2.0.0'],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          default: {
+            'is-positive': '1.0.0',
+          },
+        },
+        useCatalogs: 'always',
+      })
+    ).rejects.toThrow()
+  })
+
+  test('adding mismatched version with useCatalogs: prefer will warn and use direct', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    }, {
+      name: 'project2',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    }])
+
+    options.catalogs = {
+      default: {
+        'is-positive': '1.0.0',
+      },
+    }
+    options.lockfileOnly = true
+
+    await mutateModules(installProjects(projects), options)
+
+    expect(options.catalogs).toStrictEqual({
+      default: {
+        'is-positive': '1.0.0',
+      },
+    })
+
+    let installResult = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive@2.0.0'],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        allowNew: true,
+        useCatalogs: 'prefer',
+      })
+
+    expect(installResult.updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'is-positive': '2.0.0',
+      },
+    })
+
+    expect(logger.warn).toHaveBeenCalled()
+    expect(readLockfile().importers).toStrictEqual(
+      {
+        project1: { dependencies: { 'is-positive': { specifier: '2.0.0', version: '2.0.0' } } },
+        project2: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '1.0.0' } } },
+      }
+    )
+    expect(readLockfile().packages).toMatchObject(
+      { 'is-positive@2.0.0': expect.any(Object), 'is-positive@1.0.0': expect.any(Object) }
+    )
+    expect(options.catalogs).toStrictEqual(
+      { default: { 'is-positive': '1.0.0' } }
+    )
+
+    installResult = await addDependenciesToPackage(
+      projects['project2' as ProjectId],
+      ['is-positive@2.0.0'],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project2'),
+        allowNew: true,
+        useCatalogs: 'prefer',
+      })
+
+    expect(installResult.updatedManifest).toEqual({
+      name: 'project2',
+      dependencies: {
+        'is-positive': '2.0.0',
+      },
+    })
+
+    expect(logger.warn).toHaveBeenCalled()
+    expect(readLockfile().importers).toStrictEqual(
+      {
+        project1: { dependencies: { 'is-positive': { specifier: '2.0.0', version: '2.0.0' } } },
+        project2: { dependencies: { 'is-positive': { specifier: '2.0.0', version: '2.0.0' } } },
+      }
+    )
+    expect(readLockfile().packages).toMatchObject(
+      { 'is-positive@2.0.0': expect.any(Object) }
+    )
+    expect(options.catalogs).toStrictEqual(
+      { default: { 'is-positive': '1.0.0' } }
+    )
   })
 })
 

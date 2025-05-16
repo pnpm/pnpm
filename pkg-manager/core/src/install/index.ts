@@ -88,6 +88,8 @@ import { linkPackages } from './link'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
 import { validateModules } from './validateModules'
 import { isCI } from 'ci-info'
+import { intersects } from 'semver'
+import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -454,6 +456,10 @@ export async function mutateModules (
 
     let preferredSpecs: Record<string, string> | null = null
 
+    const saveCatalogName = opts.saveCatalogName ?? (
+      opts.useCatalogs === 'always' || opts.useCatalogs === 'prefer' ? 'default' : undefined
+    )
+
     // TODO: make it concurrent
     /* eslint-disable no-await-in-loop */
     for (const project of projects) {
@@ -566,14 +572,31 @@ export async function mutateModules (
         optionalDependencies,
         updateWorkspaceDependencies: project.update,
         preferredSpecs,
-        saveCatalogName: opts.saveCatalogName,
+        saveCatalogName,
         overrides: opts.overrides,
         defaultCatalog: opts.catalogs?.default,
       })
+
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
-        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true, nodeExecPath: opts.nodeExecPath })),
+        wantedDependencies: wantedDeps.map(wantedDep => {
+          if (saveCatalogName && !wantedDep.bareSpecifier.includes(':')) {
+            const catalogDep = opts.catalogs?.[saveCatalogName]?.[wantedDep.alias]
+            if (catalogDep && !intersects(wantedDep.bareSpecifier, catalogDep)) {
+              if (opts.useCatalogs === 'always') {
+                throw new CatalogVersionMismatchError({ catalogDep: `${wantedDep.alias}@${catalogDep}`, wantedDep: `${wantedDep.alias}@${wantedDep.bareSpecifier}` })
+              } else {
+                logger.warn({
+                  message: `Catalog version mismatch for "${wantedDep.alias}": using direct version "${wantedDep.bareSpecifier}" instead of catalog version "${catalogDep}".`,
+                  prefix: opts.lockfileDir,
+                })
+                return { ...wantedDep, saveCatalogName: undefined, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true, nodeExecPath: opts.nodeExecPath }
+              }
+            }
+          }
+          return { ...wantedDep, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true, nodeExecPath: opts.nodeExecPath }
+        }),
       } as ImporterToUpdate)
     }
 

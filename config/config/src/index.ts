@@ -189,6 +189,7 @@ export async function getConfig (opts: {
     'strict-peer-dependencies': false,
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'use-beta-cli': false,
+    'use-catalogs': 'manual',
     userconfig: npmDefaults.userconfig,
     'verify-deps-before-run': false,
     'verify-store-integrity': true,
