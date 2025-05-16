@@ -1,4 +1,4 @@
-import { type TarballResolution, type GitResolution, type ResolveResult, type PkgResolutionId } from '@pnpm/resolver-base'
+import { type TarballResolution, type GitResolution, type PkgResolutionId, type ResolveResult } from '@pnpm/resolver-base'
 import git from 'graceful-git'
 import semver from 'semver'
 import { parseBareSpecifier, type HostedPackageSpec } from './parseBareSpecifier'
@@ -9,14 +9,20 @@ export { createGitHostedPkgId }
 
 export type { HostedPackageSpec }
 
+export interface GitResolveResult extends ResolveResult {
+  normalizedBareSpecifier: string
+  resolution: GitResolution | TarballResolution
+  resolvedVia: 'git-repository'
+}
+
 export type GitResolver = (wantedDependency: {
   bareSpecifier: string
-}) => Promise<ResolveResult | null>
+}) => Promise<GitResolveResult | null>
 
 export function createGitResolver (
   opts: AgentOptions
 ): GitResolver {
-  return async function resolveGit (wantedDependency): Promise<ResolveResult | null> {
+  return async function resolveGit (wantedDependency): Promise<GitResolveResult | null> {
     const parsedSpec = await parseBareSpecifier(wantedDependency.bareSpecifier, opts)
 
     if (parsedSpec == null) return null
@@ -25,7 +31,7 @@ export function createGitResolver (
       ? 'HEAD'
       : parsedSpec.gitCommittish
     const commit = await resolveRef(parsedSpec.fetchSpec, bareSpecifier, parsedSpec.gitRange)
-    let resolution
+    let resolution: GitResolution | TarballResolution | undefined
 
     if ((parsedSpec.hosted != null) && !isSsh(parsedSpec.fetchSpec)) {
       // don't use tarball for ssh url, they are likely private repo
@@ -35,7 +41,7 @@ export function createGitResolver (
       const tarball = hosted.tarball?.()
 
       if (tarball) {
-        resolution = { tarball } as TarballResolution
+        resolution = { tarball }
       }
     }
 
@@ -44,7 +50,7 @@ export function createGitResolver (
         commit,
         repo: parsedSpec.fetchSpec,
         type: 'git',
-      } as GitResolution
+      }
     }
 
     if (parsedSpec.path) {

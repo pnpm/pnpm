@@ -44,21 +44,9 @@ export interface ResolveResult {
   publishedAt?: string
   manifest?: DependencyManifest
   resolution: Resolution
-  resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'workspace' | 'url' | string
+  resolvedVia: string
   normalizedBareSpecifier?: string
   alias?: string
-}
-
-/**
- * A dependency on a workspace package.
- */
-export interface WorkspaceResolveResult extends ResolveResult {
-  /**
-   * 'workspace' will be returned for workspace: protocol dependencies or a
-   * package in the workspace that matches the wanted dependency's name and
-   * version range.
-   */
-  resolvedVia: 'workspace'
 }
 
 export interface WorkspacePackage {
