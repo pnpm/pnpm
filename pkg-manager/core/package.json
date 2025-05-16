@@ -59,6 +59,7 @@
     "@pnpm/builder.policy": "catalog:",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/catalogs.protocol-parser": "workspace:*",
+    "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
