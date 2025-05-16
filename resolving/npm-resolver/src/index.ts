@@ -78,14 +78,14 @@ export interface ResolverFactoryOptions {
 
 export interface NpmResolveResult extends ResolveResult {
   latest: string
-  manifest: PackageInRegistry
+  manifest: DependencyManifest
   resolution: TarballResolution
   resolvedVia: 'npm-registry'
 }
 
 export interface JsrResolveResult extends ResolveResult {
   alias: string
-  manifest: PackageInRegistry
+  manifest: DependencyManifest
   resolution: TarballResolution
   resolvedVia: 'jsr-registry'
 }
