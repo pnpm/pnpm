@@ -1,7 +1,7 @@
 import { type PkgResolutionId, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
 
-export interface UrlResolveResult extends ResolveResult {
+export interface TarballResolveResult extends ResolveResult {
   normalizedBareSpecifier: string
   resolution: TarballResolution
   resolvedVia: 'url'
@@ -10,7 +10,7 @@ export interface UrlResolveResult extends ResolveResult {
 export async function resolveFromTarball (
   fetchFromRegistry: FetchFromRegistry,
   wantedDependency: { bareSpecifier: string }
-): Promise<UrlResolveResult | null> {
+): Promise<TarballResolveResult | null> {
   if (!wantedDependency.bareSpecifier.startsWith('http:') && !wantedDependency.bareSpecifier.startsWith('https:')) {
     return null
   }

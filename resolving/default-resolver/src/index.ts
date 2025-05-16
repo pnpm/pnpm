@@ -17,7 +17,7 @@ import {
   type ResolveOptions,
   type WantedDependency,
 } from '@pnpm/resolver-base'
-import { type UrlResolveResult, resolveFromTarball } from '@pnpm/tarball-resolver'
+import { type TarballResolveResult, resolveFromTarball } from '@pnpm/tarball-resolver'
 
 export type {
   PackageMeta,
@@ -31,7 +31,7 @@ export type DefaultResolveResult =
   | JsrResolveResult
   | GitResolveResult
   | LocalResolveResult
-  | UrlResolveResult
+  | TarballResolveResult
   | WorkspaceResolveResult
 
 export type DefaultResolver = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<DefaultResolveResult>
