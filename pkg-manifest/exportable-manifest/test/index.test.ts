@@ -87,7 +87,7 @@ test('readme added to published manifest', async () => {
 })
 
 test('workspace deps are replaced', async () => {
-  const workspaceProtocolPackageManifest: ProjectManifest = {
+  const manifest: ProjectManifest = {
     name: 'workspace-protocol-package',
     version: '1.0.0',
 
@@ -110,7 +110,7 @@ test('workspace deps are replaced', async () => {
   }
 
   preparePackages([
-    workspaceProtocolPackageManifest,
+    manifest,
     {
       name: 'baz',
       version: '1.2.3',
@@ -143,7 +143,7 @@ test('workspace deps are replaced', async () => {
 
   process.chdir('workspace-protocol-package')
 
-  expect(await createExportableManifest(process.cwd(), workspaceProtocolPackageManifest, defaultOpts)).toStrictEqual({
+  expect(await createExportableManifest(process.cwd(), manifest, defaultOpts)).toStrictEqual({
     name: 'workspace-protocol-package',
     version: '1.0.0',
     dependencies: {
@@ -166,7 +166,7 @@ test('workspace deps are replaced', async () => {
 })
 
 test('catalog deps are replaced', async () => {
-  const catalogProtocolPackageManifest: ProjectManifest = {
+  const manifest: ProjectManifest = {
     name: 'catalog-protocol-package',
     version: '1.0.0',
 
@@ -181,7 +181,7 @@ test('catalog deps are replaced', async () => {
     },
   }
 
-  preparePackages([catalogProtocolPackageManifest])
+  preparePackages([manifest])
 
   const workspaceManifest = {
     packages: ['**', '!store/**'],
@@ -204,7 +204,7 @@ test('catalog deps are replaced', async () => {
   process.chdir('catalog-protocol-package')
 
   const catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
-  expect(await createExportableManifest(process.cwd(), catalogProtocolPackageManifest, { catalogs })).toStrictEqual({
+  expect(await createExportableManifest(process.cwd(), manifest, { catalogs })).toStrictEqual({
     name: 'catalog-protocol-package',
     version: '1.0.0',
     dependencies: {
@@ -220,7 +220,7 @@ test('catalog deps are replaced', async () => {
 })
 
 test('jsr deps are replaced', async () => {
-  const jsrProtocolPackageManifest = {
+  const manifest = {
     name: 'jsr-protocol-manifest',
     version: '0.0.0',
     dependencies: {
@@ -234,11 +234,11 @@ test('jsr deps are replaced', async () => {
     },
   } satisfies ProjectManifest
 
-  preparePackages([jsrProtocolPackageManifest])
+  preparePackages([manifest])
 
-  process.chdir(jsrProtocolPackageManifest.name)
+  process.chdir(manifest.name)
 
-  expect(await createExportableManifest(process.cwd(), jsrProtocolPackageManifest, { catalogs: {} })).toStrictEqual({
+  expect(await createExportableManifest(process.cwd(), manifest, { catalogs: {} })).toStrictEqual({
     name: 'jsr-protocol-manifest',
     version: '0.0.0',
     dependencies: {
@@ -250,5 +250,5 @@ test('jsr deps are replaced', async () => {
     peerDependencies: {
       qux: 'npm:@jsr/foo__qux',
     },
-  } as Partial<typeof jsrProtocolPackageManifest>)
+  } as Partial<typeof manifest>)
 })
