@@ -337,9 +337,9 @@ test('the deploy manifest should inherit the pnpm object from the root manifest 
   const manifest = readPackageJson('deploy') as ProjectManifest
   expect(manifest.pnpm).toStrictEqual({
     onlyBuiltDependencies: preparedManifests.root.pnpm!.onlyBuiltDependencies,
+    overrides: preparedManifests.root.pnpm!.overrides,
     executionEnv: preparedManifests['project-0'].pnpm!.executionEnv,
   } as ProjectManifest['pnpm'])
-  expect(manifest.pnpm?.overrides).toBeUndefined() // by design
 
   expect(readPackageJson('deploy/node_modules/is-positive/')).toHaveProperty(['version'], preparedManifests.root.pnpm!.overrides!['is-positive'])
   expect(project.readLockfile().importers).toStrictEqual({
