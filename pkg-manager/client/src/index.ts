@@ -1,7 +1,7 @@
 import {
   createResolver as _createResolver,
   type ResolveFunction,
-  type ResolverFactoryOptions,
+  type CreateResolverOptions,
 } from '@pnpm/default-resolver'
 import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
 import { type SslConfig } from '@pnpm/types'
@@ -29,7 +29,7 @@ export type ClientOptions = {
   gitShallowHosts?: string[]
   resolveSymlinksInInjectedDirs?: boolean
   includeOnlyPackageFiles?: boolean
-} & ResolverFactoryOptions & AgentOptions
+} & CreateResolverOptions & AgentOptions
 
 export interface Client {
   fetchers: Fetchers

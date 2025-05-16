@@ -46,7 +46,8 @@
   "devDependencies": {
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/logger": "workspace:*",
-    "@pnpm/pnpmfile": "workspace:*"
+    "@pnpm/pnpmfile": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*"
   },
   "engines": {
     "node": ">=18.12"

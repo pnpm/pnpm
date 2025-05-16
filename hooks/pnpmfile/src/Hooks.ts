@@ -2,6 +2,7 @@ import { type PreResolutionHook } from '@pnpm/hooks.types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { type Log } from '@pnpm/core-loggers'
 import { type CustomFetchers } from '@pnpm/fetcher-base'
+import { type ResolveFunction } from '@pnpm/resolver-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
 
 export interface HookContext {
@@ -16,6 +17,7 @@ export interface Hooks {
   filterLog?: (log: Log) => boolean
   importPackage?: ImportIndexedPackageAsync
   fetchers?: CustomFetchers
+  resolver?: ResolveFunction
   // eslint-disable-next-line
   updateConfig?: (config: any) => any
 }
