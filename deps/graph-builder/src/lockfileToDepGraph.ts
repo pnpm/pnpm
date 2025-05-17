@@ -1,4 +1,5 @@
 import path from 'path'
+import { calcDepState, type DepsStateCache, lockfileToDepGraphWithHashes } from '@pnpm/calc-dep-state'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   progressLogger,
@@ -102,14 +103,17 @@ export async function lockfileToDepGraph (
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {}
   if (lockfile.packages != null) {
     const pkgSnapshotByLocation: Record<string, PackageSnapshot> = {}
+    const gg = lockfileToDepGraphWithHashes(lockfile)
+    const locationByDepPath = {} as Record<string, string>
     const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
     await Promise.all(
-      (Object.entries(lockfile.packages) as Array<[DepPath, PackageSnapshot]>).map(async ([depPath, pkgSnapshot]) => {
+      Object.entries(gg).map(async ([key, { depPath, children }]) => {
         if (opts.skipped.has(depPath)) return
+        const pkgSnapshot = lockfile.packages![depPath]
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules')
         const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
+        const modules = path.join('/Users/zoltan/src/sandbox/_store', `${pkgName}@${pkgVersion}_${key}`, 'node_modules')
         const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)
 
         const pkg = {
@@ -202,6 +206,7 @@ export async function lockfileToDepGraph (
           patch: _getPatchInfo(pkgName, pkgVersion),
         }
         pkgSnapshotByLocation[dir] = pkgSnapshot
+        locationByDepPath[depPath] = dir
       })
     )
     const ctx = {
@@ -215,6 +220,7 @@ export async function lockfileToDepGraph (
       storeController: opts.storeController,
       storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
+      locationByDepPath,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     }
     for (const [dir, node] of Object.entries(graph)) {
@@ -252,6 +258,7 @@ function getChildrenPaths (
     lockfileDir: string
     sideEffectsCacheRead: boolean
     storeController: StoreController
+    locationByDepPath: Record<string, string>
     virtualStoreDirMaxLength: number
   },
   allDeps: { [alias: string]: string },
@@ -267,7 +274,9 @@ function getChildrenPaths (
     }
     const childRelDepPath = dp.refToRelative(ref, alias)!
     const childPkgSnapshot = ctx.pkgSnapshotsByDepPaths[childRelDepPath]
-    if (ctx.graph[childRelDepPath]) {
+    if (ctx.locationByDepPath[childRelDepPath]) {
+      children[alias] = ctx.locationByDepPath[childRelDepPath]
+    } else if (ctx.graph[childRelDepPath]) {
       children[alias] = ctx.graph[childRelDepPath].dir
     } else if (childPkgSnapshot) {
       if (ctx.skipped.has(childRelDepPath)) continue

@@ -1914,6 +1914,9 @@ importers:
 
   deps/graph-builder:
     dependencies:
+      '@pnpm/calc-dep-state':
+        specifier: workspace:*
+        version: link:../../packages/calc-dep-state
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
@@ -3979,6 +3982,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
+      sort-keys:
+        specifier: 'catalog:'
+        version: 4.2.0
     devDependencies:
       '@pnpm/calc-dep-state':
         specifier: workspace:*
