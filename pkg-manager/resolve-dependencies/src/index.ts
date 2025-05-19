@@ -306,17 +306,7 @@ export async function resolveDependencies (
     }
   }
 
-  // Q: Why would `newLockfile.catalogs` be constructed twice?
-  // A: `getCatalogSnapshots` handles new dependencies that were resolved as `catalog:*` (e.g. new entries in `package.json` whose values were `catalog:*`),
-  //    and `updatedCatalogs` handles dependencies that were added as CLI parameters from `pnpm add --save-catalog`.
   newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
-  for (const catalogName in updatedCatalogs) {
-    for (const dependencyName in updatedCatalogs[catalogName]) {
-      newLockfile.catalogs ??= {}
-      newLockfile.catalogs[catalogName] ??= {}
-      newLockfile.catalogs[catalogName][dependencyName] = updatedCatalogs[catalogName][dependencyName]
-    }
-  }
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
