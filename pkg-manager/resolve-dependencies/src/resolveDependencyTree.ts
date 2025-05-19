@@ -251,7 +251,18 @@ export async function resolveDependencyTree<T> (
         updatedCatalogs ??= {}
         updatedCatalogs[saveCatalogName] ??= {}
         updatedCatalogs[saveCatalogName][alias] = normalizedBareSpecifier
-        directDep.normalizedBareSpecifier = `catalog:${saveCatalogName === 'default' ? '' : saveCatalogName}`
+
+        const userSpecifiedBareSpecifier = `catalog:${saveCatalogName === 'default' ? '' : saveCatalogName}`
+        directDep.normalizedBareSpecifier = userSpecifiedBareSpecifier
+
+        // Attach metadata about how this new catalog dependency should be
+        // resolved so the pnpm-lock.yaml file's catalogs section can be updated
+        // to reflect this newly added entry.
+        directDep.catalogLookup = {
+          catalogName: saveCatalogName,
+          specifier: normalizedBareSpecifier,
+          userSpecifiedBareSpecifier,
+        }
       }
     }
   }
