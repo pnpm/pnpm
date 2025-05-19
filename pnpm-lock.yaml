@@ -5370,6 +5370,9 @@ importers:
 
   pkg-manager/plugin-commands-installation:
     dependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
@@ -8276,6 +8279,9 @@ importers:
 
   workspace/manifest-writer:
     dependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
