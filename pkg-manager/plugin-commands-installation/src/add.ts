@@ -253,6 +253,7 @@ export async function handler (
     if (opts.argv.original.includes('--allow-build')) {
       throw new PnpmError('ALLOW_BUILD_MISSING_PACKAGE', 'The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
     }
+    opts.allowBuild = opts.allowBuild.map((pkg) => pkg.split(',')).flat()
     if (opts.rootProjectManifest?.pnpm?.ignoredBuiltDependencies?.length) {
       const overlapDependencies = opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.filter((dep) => opts.allowBuild?.includes(dep))
       if (overlapDependencies.length) {
