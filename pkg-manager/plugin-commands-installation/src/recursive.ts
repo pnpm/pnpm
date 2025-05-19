@@ -280,7 +280,7 @@ export async function recursive (
         'None of the specified packages were found in the dependencies of any of the projects.')
     }
     const {
-      newCatalogs,
+      updatedCatalogs,
       updatedProjects: mutatedPkgs,
       ignoredBuilds,
     } = await mutateModules(mutatedImporters, {
@@ -291,8 +291,8 @@ export async function recursive (
       const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
         return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
       })
-      if (newCatalogs) {
-        promises.push(addCatalogs(opts.workspaceDir, newCatalogs))
+      if (updatedCatalogs) {
+        promises.push(addCatalogs(opts.workspaceDir, updatedCatalogs))
       }
       await Promise.all(promises)
     }
@@ -304,7 +304,7 @@ export async function recursive (
 
   const pkgPaths = (Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()
 
-  let newCatalogs: CatalogSnapshots | undefined
+  let updatedCatalogs: CatalogSnapshots | undefined
 
   const limitInstallation = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   await Promise.all(pkgPaths.map(async (rootDir) =>
@@ -350,7 +350,7 @@ export async function recursive (
           & { pinnedVersion: 'major' | 'minor' | 'patch' }
 
         interface ActionResult {
-          newCatalogs?: CatalogSnapshots
+          updatedCatalogs?: CatalogSnapshots
           updatedManifest: ProjectManifest
           ignoredBuilds: string[] | undefined
         }
@@ -369,7 +369,7 @@ export async function recursive (
               },
             ], opts)
             return {
-              newCatalogs: undefined, // there's no reason to add new catalogs on `pnpm remove`
+              updatedCatalogs: undefined, // there's no reason to add new or update catalogs on `pnpm remove`
               updatedManifest: mutationResult.updatedProjects[0].manifest,
               ignoredBuilds: mutationResult.ignoredBuilds,
             }
@@ -384,7 +384,7 @@ export async function recursive (
 
         const localConfig = await memReadLocalConfig(rootDir)
         const {
-          newCatalogs: newCatalogsAddition,
+          updatedCatalogs: newCatalogsAddition,
           updatedManifest: newManifest,
           ignoredBuilds,
         } = await action(
@@ -412,8 +412,8 @@ export async function recursive (
         if (opts.save !== false) {
           await writeProjectManifest(newManifest)
           if (newCatalogsAddition) {
-            newCatalogs ??= {}
-            Object.assign(newCatalogs, newCatalogsAddition)
+            updatedCatalogs ??= {}
+            Object.assign(updatedCatalogs, newCatalogsAddition)
           }
         }
         if (opts.strictDepBuilds && ignoredBuilds?.length) {
@@ -439,8 +439,8 @@ export async function recursive (
     })
   ))
 
-  if (newCatalogs) {
-    await addCatalogs(opts.workspaceDir, newCatalogs)
+  if (updatedCatalogs) {
+    await addCatalogs(opts.workspaceDir, updatedCatalogs)
   }
 
   if (

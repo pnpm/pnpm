@@ -314,11 +314,11 @@ when running add/update with the --workspace option')
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { newCatalogs, updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const { updatedCatalogs, updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false) {
       await Promise.all([
         writeProjectManifest(updatedProject.manifest),
-        newCatalogs && addCatalogs(opts.workspaceDir ?? opts.dir, newCatalogs),
+        updatedCatalogs && addCatalogs(opts.workspaceDir ?? opts.dir, updatedCatalogs),
       ])
     }
     if (!opts.lockfileOnly) {
@@ -337,11 +337,11 @@ when running add/update with the --workspace option')
     return
   }
 
-  const { newCatalogs, updatedManifest, ignoredBuilds } = await install(manifest, installOpts)
+  const { updatedCatalogs, updatedManifest, ignoredBuilds } = await install(manifest, installOpts)
   if (opts.update === true && opts.save !== false) {
     await Promise.all([
       writeProjectManifest(updatedManifest),
-      newCatalogs && addCatalogs(opts.workspaceDir ?? opts.dir, newCatalogs),
+      updatedCatalogs && addCatalogs(opts.workspaceDir ?? opts.dir, updatedCatalogs),
     ])
   }
   if (opts.strictDepBuilds && ignoredBuilds?.length) {

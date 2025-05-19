@@ -137,7 +137,7 @@ export interface ResolveDependenciesOptions {
 export interface ResolveDependencyTreeResult {
   allPeerDepNames: Set<string>
   dependenciesTree: DependenciesTree<ResolvedPackage>
-  newCatalogs?: CatalogSnapshots
+  updatedCatalogs?: CatalogSnapshots
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -236,7 +236,7 @@ export async function resolveDependencyTree<T> (
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)
   const directDepsByImporterId = zipObj(importers.map(({ id }) => id), pkgAddressesByImporters)
 
-  let newCatalogs: CatalogSnapshots | undefined
+  let updatedCatalogs: CatalogSnapshots | undefined
   for (const directDependencies of pkgAddressesByImporters) {
     for (const directDep of directDependencies as PkgAddress[]) {
       const { alias, normalizedBareSpecifier, version, saveCatalogName } = directDep
@@ -248,9 +248,9 @@ export async function resolveDependencyTree<T> (
           )
         }
       } else if (saveCatalogName != null && normalizedBareSpecifier != null && version != null) {
-        newCatalogs ??= {}
-        newCatalogs[saveCatalogName] ??= {}
-        newCatalogs[saveCatalogName][alias] = {
+        updatedCatalogs ??= {}
+        updatedCatalogs[saveCatalogName] ??= {}
+        updatedCatalogs[saveCatalogName][alias] = {
           specifier: normalizedBareSpecifier,
           version,
         }
@@ -301,7 +301,7 @@ export async function resolveDependencyTree<T> (
 
   return {
     dependenciesTree: ctx.dependenciesTree,
-    newCatalogs,
+    updatedCatalogs,
     outdatedDependencies: ctx.outdatedDependencies,
     resolvedImporters,
     resolvedPkgsById: ctx.resolvedPkgsById,
