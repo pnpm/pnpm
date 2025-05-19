@@ -27,7 +27,7 @@ export interface StrictInstallOptions {
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
   catalogs: Catalogs
-  catalogMode?: 'strict' | 'prefer' | 'manual'
+  catalogMode: 'strict' | 'prefer' | 'manual'
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enablePnp: boolean

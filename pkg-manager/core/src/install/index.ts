@@ -89,7 +89,7 @@ import { linkPackages } from './link'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
 import { validateModules } from './validateModules'
 import { isCI } from 'ci-info'
-import { eq, validRange } from 'semver'
+import semver from 'semver'
 import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError'
 
 class LockfileConfigMismatchError extends PnpmError {
@@ -245,7 +245,7 @@ export interface MutateModulesResult {
   ignoredBuilds: string[] | undefined
 }
 
-const catalogResultMatcher: CatalogResultMatcher<string | undefined> = {
+const pickCatalogSpecifier: CatalogResultMatcher<string | undefined> = {
   found: (found) =>
     found.resolution.specifier,
   misconfiguration: () => undefined,
@@ -581,16 +581,20 @@ export async function mutateModules (
         defaultCatalog: opts.catalogs?.default,
       })
 
-      if (!opts.saveCatalogName && (opts.catalogMode ?? 'manual') !== 'manual') {
+      if (opts.catalogMode !== 'manual') {
+        const catalogBareSpecifier = `catalog:${opts.saveCatalogName == null || opts.saveCatalogName === 'default' ? '' : opts.saveCatalogName}`
         for (const wantedDep of wantedDeps) {
-          if (!validRange(wantedDep.bareSpecifier)) {
-            continue
-          }
+          const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })
+          const catalogDepSpecifier = matchCatalogResolveResult(catalog, pickCatalogSpecifier)
 
-          const catalogDepSpecifier = matchCatalogResolveResult(resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: 'catalog:' }), catalogResultMatcher)
-
-          if (!catalogDepSpecifier || eq(wantedDep.bareSpecifier, catalogDepSpecifier)) {
-            wantedDep.saveCatalogName = 'default'
+          if (
+            !catalogDepSpecifier ||
+            wantedDep.bareSpecifier === catalogBareSpecifier ||
+            semver.validRange(wantedDep.bareSpecifier) &&
+            semver.validRange(catalogDepSpecifier) &&
+            semver.eq(wantedDep.bareSpecifier, catalogDepSpecifier)
+          ) {
+            wantedDep.saveCatalogName = opts.saveCatalogName ?? 'default'
             continue
           }
 
