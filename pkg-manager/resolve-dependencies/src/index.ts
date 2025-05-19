@@ -1,9 +1,9 @@
 import path from 'path'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
 import {
-  type CatalogSnapshots,
   type LockfileObject,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.types'
@@ -94,7 +94,7 @@ export interface ImporterToResolve extends Importer<{
 export interface ResolveDependenciesResult {
   dependenciesByProjectId: DependenciesByProjectId
   dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
-  updatedCatalogs?: CatalogSnapshots | undefined
+  updatedCatalogs?: Catalogs | undefined
   outdatedDependencies: {
     [pkgId: string]: string
   }
