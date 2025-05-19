@@ -31,6 +31,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/colorize-semver-diff": "catalog:",
     "@pnpm/command": "workspace:*",

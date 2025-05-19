@@ -148,7 +148,7 @@ export interface InstallResult {
    * updated during this install. To obtain the full catalog, callers should
    * merge this object with the current catalog configs in pnpm-workspace.yaml.
    */
-  updatedCatalogs: CatalogSnapshots | undefined
+  updatedCatalogs: Catalogs | undefined
   updatedManifest: ProjectManifest
   ignoredBuilds: string[] | undefined
 }
@@ -201,7 +201,7 @@ export type MutateModulesOptions = InstallOptions & {
 }
 
 export interface MutateModulesInSingleProjectResult {
-  updatedCatalogs: CatalogSnapshots | undefined
+  updatedCatalogs: Catalogs | undefined
   updatedProject: UpdatedProject
   ignoredBuilds: string[] | undefined
 }
@@ -241,7 +241,7 @@ export async function mutateModulesInSingleProject (
 }
 
 export interface MutateModulesResult {
-  updatedCatalogs?: CatalogSnapshots
+  updatedCatalogs?: Catalogs
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
@@ -346,7 +346,7 @@ export async function mutateModules (
   }
 
   interface InnerInstallResult {
-    readonly updatedCatalogs?: CatalogSnapshots
+    readonly updatedCatalogs?: Catalogs
     readonly updatedProjects: UpdatedProject[]
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
@@ -963,7 +963,7 @@ export interface UpdatedProject {
 }
 
 interface InstallFunctionResult {
-  updatedCatalogs?: CatalogSnapshots
+  updatedCatalogs?: Catalogs
   newLockfile: LockfileObject
   projects: UpdatedProject[]
   stats?: InstallationResultStats
