@@ -189,8 +189,9 @@ export async function parseCliArgs (
   }
 
   const knownOptions = new Set(Object.keys(types))
+  const allowConvertOptions = ['allow-build']
   for (const [optionName, optionValue] of Object.entries(options)) {
-    if (Array.isArray(optionValue) && optionValue.every((v) => typeof v === 'string')) {
+    if (allowConvertOptions.includes(optionName) && Array.isArray(optionValue) && optionValue.every((v) => typeof v === 'string')) {
       options[optionName] = optionValue.map((v) => v.split(',')).flat()
     }
   }
