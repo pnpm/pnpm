@@ -2,6 +2,7 @@ import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
+import { resolveFromCatalog, matchCatalogResolveResult, type CatalogResultMatcher } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   LAYOUT_VERSION,
@@ -88,6 +89,8 @@ import { linkPackages } from './link'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
 import { validateModules } from './validateModules'
 import { isCI } from 'ci-info'
+import semver from 'semver'
+import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -246,6 +249,13 @@ export interface MutateModulesResult {
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
   ignoredBuilds: string[] | undefined
+}
+
+const pickCatalogSpecifier: CatalogResultMatcher<string | undefined> = {
+  found: (found) =>
+    found.resolution.specifier,
+  misconfiguration: () => undefined,
+  unused: () => undefined,
 }
 
 export async function mutateModules (
@@ -576,6 +586,37 @@ export async function mutateModules (
         overrides: opts.overrides,
         defaultCatalog: opts.catalogs?.default,
       })
+
+      if (opts.catalogMode !== 'manual') {
+        const catalogBareSpecifier = `catalog:${opts.saveCatalogName == null || opts.saveCatalogName === 'default' ? '' : opts.saveCatalogName}`
+        for (const wantedDep of wantedDeps) {
+          const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })
+          const catalogDepSpecifier = matchCatalogResolveResult(catalog, pickCatalogSpecifier)
+
+          if (
+            !catalogDepSpecifier ||
+            wantedDep.bareSpecifier === catalogBareSpecifier ||
+            semver.validRange(wantedDep.bareSpecifier) &&
+            semver.validRange(catalogDepSpecifier) &&
+            semver.eq(wantedDep.bareSpecifier, catalogDepSpecifier)
+          ) {
+            wantedDep.saveCatalogName = opts.saveCatalogName ?? 'default'
+            continue
+          }
+
+          switch (opts.catalogMode) {
+          case 'strict':
+            throw new CatalogVersionMismatchError({ catalogDep: `${wantedDep.alias}@${catalogDepSpecifier}`, wantedDep: `${wantedDep.alias}@${wantedDep.bareSpecifier}` })
+
+          case 'prefer':
+            logger.warn({
+              message: `Catalog version mismatch for "${wantedDep.alias}": using direct version "${wantedDep.bareSpecifier}" instead of catalog version "${catalogDepSpecifier}".`,
+              prefix: opts.lockfileDir,
+            })
+          }
+        }
+      }
+
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,

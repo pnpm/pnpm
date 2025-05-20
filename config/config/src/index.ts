@@ -121,6 +121,7 @@ export async function getConfig (opts: {
   const defaultOptions: Partial<KebabCaseConfig> | typeof npmTypes.types = {
     'auto-install-peers': true,
     bail: true,
+    'catalog-mode': 'manual',
     color: 'auto',
     'dangerously-allow-all-builds': false,
     'deploy-all-files': false,

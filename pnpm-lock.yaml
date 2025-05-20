@@ -4499,6 +4499,9 @@ importers:
       '@pnpm/catalogs.protocol-parser':
         specifier: workspace:*
         version: link:../../catalogs/protocol-parser
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types

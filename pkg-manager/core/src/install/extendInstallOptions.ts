@@ -27,6 +27,7 @@ export interface StrictInstallOptions {
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
   catalogs: Catalogs
+  catalogMode: 'strict' | 'prefer' | 'manual'
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enablePnp: boolean
@@ -177,6 +178,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     ignorePatchFailures: undefined,
     autoInstallPeers: true,
     autoInstallPeersFromHighestMatch: false,
+    catalogs: {},
     childConcurrency: 5,
     confirmModulesPurge: !opts.force,
     depth: 0,
@@ -237,6 +239,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
       process.platform === 'cygwin' ||
       !process.setgid ||
       process.getuid?.() !== 0,
+    catalogMode: 'manual',
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,
