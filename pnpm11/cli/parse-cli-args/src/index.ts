@@ -100,8 +100,9 @@ export async function parseCliArgs (
 
   const { cmd, params } = adjustPostParseCommands(rawOptions, argv, resolution, opts)
   validateWorkspaceOptions(rawOptions, workspaceDir)
+  const allowConvertOptions = ['allow-build']
   for (const [optionName, optionValue] of Object.entries(rawOptions)) {
-    if (Array.isArray(optionValue) && optionValue.every((v) => typeof v === 'string')) {
+    if (allowConvertOptions.includes(optionName) && Array.isArray(optionValue) && optionValue.every((v) => typeof v === 'string')) {
       rawOptions[optionName] = optionValue.map((v) => v.split(',')).flat()
     }
   }
