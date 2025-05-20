@@ -142,6 +142,12 @@ type Opts = Omit<InstallOptions, 'allProjects'> & {
 } & InstallMutationOptions
 
 export interface InstallResult {
+  /**
+   * A partial of new or updated catalog config entries. A change will be
+   * produced if a dependency using the catalog protocol was newly added or
+   * updated during this install. To obtain the full catalog, callers should
+   * merge this object with the current catalog configs in pnpm-workspace.yaml.
+   */
   updatedCatalogs: CatalogSnapshots | undefined
   updatedManifest: ProjectManifest
   ignoredBuilds: string[] | undefined
