@@ -94,7 +94,7 @@ export interface ImporterToResolve extends Importer<{
 export interface ResolveDependenciesResult {
   dependenciesByProjectId: DependenciesByProjectId
   dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
-  newCatalogs?: CatalogSnapshots | undefined
+  updatedCatalogs?: CatalogSnapshots | undefined
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -137,7 +137,7 @@ export async function resolveDependencies (
     appliedPatches,
     time,
     allPeerDepNames,
-    newCatalogs,
+    updatedCatalogs,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   opts.storeController.clearResolutionCache()
@@ -308,13 +308,13 @@ export async function resolveDependencies (
 
   // Q: Why would `newLockfile.catalogs` be constructed twice?
   // A: `getCatalogSnapshots` handles new dependencies that were resolved as `catalog:*` (e.g. new entries in `package.json` whose values were `catalog:*`),
-  //    and `newCatalogs` handles dependencies that were added as CLI parameters from `pnpm add --save-catalog`.
+  //    and `updatedCatalogs` handles dependencies that were added as CLI parameters from `pnpm add --save-catalog`.
   newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
-  for (const catalogName in newCatalogs) {
-    for (const dependencyName in newCatalogs[catalogName]) {
+  for (const catalogName in updatedCatalogs) {
+    for (const dependencyName in updatedCatalogs[catalogName]) {
       newLockfile.catalogs ??= {}
       newLockfile.catalogs[catalogName] ??= {}
-      newLockfile.catalogs[catalogName][dependencyName] = newCatalogs[catalogName][dependencyName]
+      newLockfile.catalogs[catalogName][dependencyName] = updatedCatalogs[catalogName][dependencyName]
     }
   }
 
@@ -332,7 +332,7 @@ export async function resolveDependencies (
     dependenciesGraph,
     outdatedDependencies,
     linkedDependenciesByProjectId,
-    newCatalogs,
+    updatedCatalogs,
     newLockfile,
     peerDependencyIssuesByProjects,
     waitTillAllFetchingsFinish,
