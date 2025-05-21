@@ -145,7 +145,7 @@ export async function runRecursive (
             workspaceDir: opts.workspaceDir,
           }
           const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
-          const groupEnd = getWorkspaceConcurrency(opts.workspaceConcurrency) > 1
+          const groupEnd = lifecycleOpts.silent || getWorkspaceConcurrency(opts.workspaceConcurrency) > 1
             ? undefined
             : groupStart(formatSectionName({
               name: pkg.package.manifest.name,
