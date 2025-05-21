@@ -137,7 +137,6 @@ export async function resolveDependencies (
     appliedPatches,
     time,
     allPeerDepNames,
-    updatedCatalogs,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   opts.storeController.clearResolutionCache()
@@ -278,6 +277,18 @@ export async function resolveDependencies (
     }
   }))
 
+  let updatedCatalogs: Record<string, Record<string, string>> | undefined
+  for (const project of projectsToResolve.filter(project => project.updatePackageManifest)) {
+    const resolvedImporter = resolvedImporters[project.id]
+    for (const dep of resolvedImporter.directDependencies) {
+      if (dep.catalogLookup?.updateSpec) {
+        updatedCatalogs ??= {}
+        updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
+        updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier ?? dep.catalogLookup.userSpecifiedBareSpecifier
+      }
+    }
+  }
+
   if (opts.dedupeDirectDeps) {
     const rootDeps = dependenciesByProjectId['.']
     if (rootDeps) {
@@ -306,7 +317,9 @@ export async function resolveDependencies (
     }
   }
 
-  newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
+  newLockfile.catalogs = getCatalogSnapshots(
+    Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies),
+    updatedCatalogs)
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
