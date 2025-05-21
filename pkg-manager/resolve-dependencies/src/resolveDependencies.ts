@@ -568,12 +568,6 @@ async function resolveDependenciesOfImporterDependency (
       ...importer.options,
       parentPkgAliases: importer.parentPkgAliases,
       pickLowestVersion: pickLowestVersion && !importer.updatePackageManifest,
-      // Cataloged dependencies cannot be upgraded yet since they require
-      // updating the pnpm-workspace.yaml file. This will be handled in a future
-      // version of pnpm.
-      updateToLatest: catalogLookup != null
-        ? false
-        : importer.options.updateToLatest,
       pinnedVersion: importer.pinnedVersion,
     },
     extendedWantedDep
@@ -585,6 +579,7 @@ async function resolveDependenciesOfImporterDependency (
     result.resolveDependencyResult.catalogLookup = {
       ...catalogLookup,
       userSpecifiedBareSpecifier: originalBareSpecifier,
+      updateSpec: extendedWantedDep.wantedDependency.updateSpec,
     }
   }
 
@@ -1709,7 +1704,13 @@ function getCatalogReplacementBareSpecifier (
   const existingCatalogResolution = wantedLockfile.catalogs
     ?.[catalogLookup.catalogName]
     ?.[wantedDependency.alias]
-  const replacementBareSpecifier = !wantedDependency.updateSpec && existingCatalogResolution?.specifier === catalogLookup.specifier
+
+  // Hard-coding this to true to test pnpm update code paths. We'll need to
+  // either change how the existing catalog resolution is reused or check
+  // whether this dependency is being updated.
+  const isUpdating = true
+
+  const replacementBareSpecifier = !isUpdating && existingCatalogResolution?.specifier === catalogLookup.specifier
     ? replaceVersionInBareSpecifier(catalogLookup.specifier, existingCatalogResolution.version)
     : catalogLookup.specifier
 
