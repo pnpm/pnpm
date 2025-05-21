@@ -140,7 +140,6 @@ export async function resolveDependencies (
     appliedPatches,
     time,
     allPeerDepNames,
-    updatedCatalogs,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   opts.storeController.clearResolutionCache()
@@ -280,6 +279,20 @@ export async function resolveDependencies (
       }
     }
   }))
+
+  let updatedCatalogs: Record<string, Record<string, string>> | undefined
+  for (const project of projectsToResolve.filter(project => project.updatePackageManifest)) {
+    const resolvedImporter = resolvedImporters[project.id]
+    const specsToUpsert = resolvedImporter.directDependencies
+      .filter((_rdd, index) => project.wantedDependencies[index]?.updateSpec)
+    for (const dep of specsToUpsert) {
+      if (dep.catalogLookup) {
+        updatedCatalogs ??= {}
+        updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
+        updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier ?? dep.catalogLookup.userSpecifiedBareSpecifier
+      }
+    }
+  }
 
   if (opts.dedupeDirectDeps) {
     const rootDeps = dependenciesByProjectId['.']
