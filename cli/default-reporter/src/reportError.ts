@@ -444,7 +444,12 @@ function reportPeerDependencyIssuesError (
   strictPeerDependencies: false
 `)
   const rendered = renderPeerIssues(msg.issuesByProjects)
-  if (!rendered) return null
+  if (!rendered) {
+    // This should never happen.
+    return {
+      title: err.message,
+    }
+  }
   return {
     title: err.message,
     body: `${rendered}
