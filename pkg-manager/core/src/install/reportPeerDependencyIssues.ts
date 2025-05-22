@@ -45,7 +45,7 @@ export function filterPeerDependencyIssues (
     newPeerDependencyIssuesByProjects[projectId] = { bad: {}, missing: {}, conflicts, intersections }
     for (const [peerName, issues] of Object.entries(missing)) {
       if (
-        ignoreMissingMatcher(peerName)
+        ignoreMissingMatcher(peerName) || issues.every(({ optional }) => optional)
       ) {
         continue
       }
