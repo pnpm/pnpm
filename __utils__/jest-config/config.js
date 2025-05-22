@@ -12,7 +12,7 @@ const config = {
   },
   testMatch: ["**/test/**/*.[jt]s?(x)", "**/src/**/*.test.ts"],
   testEnvironment: "node",
-  collectCoverage: true,
+  // collectCoverage: true,
   coveragePathIgnorePatterns: ["/node_modules/"],
   testPathIgnorePatterns: ["/fixtures/", "/__fixtures__/", "<rootDir>/test/utils/.+"],
   modulePathIgnorePatterns: ['\/__fixtures__\/.*'],
