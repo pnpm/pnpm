@@ -336,6 +336,15 @@ export type InstallCommandOptions = Pick<Config,
   confirmModulesPurge?: boolean
 } & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'useLockfile' | 'symlink'>>
 
+export function shouldFreezeLockfileIfExists (opts: InstallCommandOptions, onCI: boolean): boolean {
+  if (opts.frozenLockfileIfExists != null) {
+    return opts.frozenLockfileIfExists
+  }
+  return onCI && !opts.lockfileOnly &&
+    opts.rawLocalConfig['frozen-lockfile'] !== false &&
+    opts.rawLocalConfig['prefer-frozen-lockfile'] !== false
+}
+
 export async function handler (opts: InstallCommandOptions): Promise<void> {
   const include = {
     dependencies: opts.production !== false,
@@ -347,11 +356,7 @@ export async function handler (opts: InstallCommandOptions): Promise<void> {
   const fetchFullMetadata: true | undefined = opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc && true
   const installDepsOptions: InstallDepsOptions = {
     ...opts,
-    frozenLockfileIfExists: opts.frozenLockfileIfExists ?? (
-      isCI && !opts.lockfileOnly &&
-      typeof opts.rawLocalConfig['frozen-lockfile'] === 'undefined' &&
-      typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined'
-    ),
+    frozenLockfileIfExists: shouldFreezeLockfileIfExists(opts, isCI),
     include,
     includeDirect: include,
     prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
