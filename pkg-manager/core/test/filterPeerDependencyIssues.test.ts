@@ -207,3 +207,36 @@ test('filterPeerDependencyIssues() allowed versions', () => {
     },
   })
 })
+
+test('filterPeerDependencyIssues() ignores missing optional dependency issues', () => {
+  expect(filterPeerDependencyIssues({
+    '.': {
+      missing: {
+        aaa: [
+          {
+            parents: [
+              {
+                name: 'xxx',
+                version: '1.0.0',
+              }],
+
+            optional: true,
+            wantedRange: '>=1.0.0 <3.0.0',
+          },
+        ],
+      },
+      bad: {},
+      conflicts: [],
+      intersections: {},
+    },
+  }, {
+    allowAny: [],
+  })).toStrictEqual({
+    '.': {
+      bad: {},
+      conflicts: [],
+      intersections: {},
+      missing: {},
+    },
+  })
+})
