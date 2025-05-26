@@ -395,7 +395,8 @@ export async function getConfig (opts: {
   }
 
   pnpmConfig.extraEnv = {
-    npm_config_verify_deps_before_run: 'false',
+    npm_config_verify_deps_before_run: 'false', // This should be removed in pnpm v11
+    pnpm_config_verify_deps_before_run: 'false',
   }
   if (pnpmConfig.preferSymlinkedExecutables && !isWindows()) {
     const cwd = pnpmConfig.lockfileDir ?? pnpmConfig.dir
