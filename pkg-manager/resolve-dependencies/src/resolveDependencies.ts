@@ -559,16 +559,8 @@ async function resolveDependenciesOfImporterDependency (
   // snapshot to ensure all projects using the same cataloged dependency get the
   // same version.
   if (catalogLookup != null) {
-    const existingVersion = getCatalogExistingVersionFromSnapshot(catalogLookup, ctx.wantedLockfile, extendedWantedDep.wantedDependency)
-
-    // If there's an existing version, always use it to prevent "pnpm update"
-    // from updating the catalog protocol. A future change will remove this
-    // condition to support updating specifiers in pnpm-workspace.yaml
-    // functionality.
-    extendedWantedDep.wantedDependency.bareSpecifier = existingVersion != null
-      ? replaceVersionInBareSpecifier(catalogLookup.specifier, existingVersion)
-      : catalogLookup.specifier
-    extendedWantedDep.preferredVersion = existingVersion
+    extendedWantedDep.wantedDependency.bareSpecifier = catalogLookup.specifier
+    extendedWantedDep.preferredVersion = getCatalogExistingVersionFromSnapshot(catalogLookup, ctx.wantedLockfile, extendedWantedDep.wantedDependency)
   }
 
   const result = await resolveDependenciesOfDependency(
@@ -578,12 +570,6 @@ async function resolveDependenciesOfImporterDependency (
       ...importer.options,
       parentPkgAliases: importer.parentPkgAliases,
       pickLowestVersion: pickLowestVersion && !importer.updatePackageManifest,
-      // Cataloged dependencies cannot be upgraded yet since they require
-      // updating the pnpm-workspace.yaml file. This will be handled in a future
-      // version of pnpm.
-      updateToLatest: catalogLookup != null
-        ? false
-        : importer.options.updateToLatest,
       pinnedVersion: importer.pinnedVersion,
     },
     extendedWantedDep
@@ -881,16 +867,8 @@ async function resolveDependenciesOfDependency (
     // as an importer separately, and we can rely on that process keeping the
     // importers lockfile catalog snapshots up to date.
     if (catalogLookup != null) {
-      const existingVersion = getCatalogExistingVersionFromSnapshot(catalogLookup, ctx.wantedLockfile, extendedWantedDep.wantedDependency)
-
-      // If there's an existing version, always use it to prevent "pnpm update"
-      // from updating the catalog protocol. A future change will remove this
-      // condition to support updating specifiers in pnpm-workspace.yaml
-      // functionality.
-      extendedWantedDep.wantedDependency.bareSpecifier = existingVersion != null
-        ? replaceVersionInBareSpecifier(catalogLookup.specifier, existingVersion)
-        : catalogLookup.specifier
-      extendedWantedDep.preferredVersion = existingVersion
+      extendedWantedDep.wantedDependency.bareSpecifier = catalogLookup.specifier
+      extendedWantedDep.preferredVersion = getCatalogExistingVersionFromSnapshot(catalogLookup, ctx.wantedLockfile, extendedWantedDep.wantedDependency)
     }
   }
 
