@@ -555,10 +555,12 @@ async function resolveDependenciesOfImporterDependency (
   const originalBareSpecifier = extendedWantedDep.wantedDependency.bareSpecifier
 
   if (catalogLookup != null) {
-    extendedWantedDep.wantedDependency.bareSpecifier = getCatalogReplacementBareSpecifier(
-      catalogLookup,
-      ctx.wantedLockfile,
-      extendedWantedDep.wantedDependency)
+    extendedWantedDep.wantedDependency.bareSpecifier = catalogLookup.specifier
+
+    const existingVersion = getCatalogExistingVersionFromSnapshot(catalogLookup, ctx.wantedLockfile, extendedWantedDep.wantedDependency)
+    if (existingVersion != null) {
+      extendedWantedDep.preferredVersion = existingVersion
+    }
   }
 
   const result = await resolveDependenciesOfDependency(
@@ -775,6 +777,7 @@ function mergePkgsDeps (pkgsDeps: MissingPeers[], opts: { autoInstallPeersFromHi
 
 interface ExtendedWantedDependency {
   infoFromLockfile?: InfoFromLockfile
+  preferredVersion?: string
   proceed: boolean
   wantedDependency: WantedDependency & { updateDepth?: number }
 }
@@ -823,6 +826,7 @@ async function resolveDependenciesOfDependency (
     parentPkgAliases: options.parentPkgAliases,
     preferredVersions,
     currentPkg: extendedWantedDep.infoFromLockfile ?? undefined,
+    preferredVersion: extendedWantedDep.preferredVersion,
     pickLowestVersion: options.pickLowestVersion,
     prefix: options.prefix,
     proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
@@ -865,10 +869,8 @@ async function resolveDependenciesOfDependency (
     // as an importer separately, and we can rely on that process keeping the
     // importers lockfile catalog snapshots up to date.
     if (catalogLookup != null) {
-      extendedWantedDep.wantedDependency.bareSpecifier = getCatalogReplacementBareSpecifier(
-        catalogLookup,
-        ctx.wantedLockfile,
-        extendedWantedDep.wantedDependency)
+      const existingVersion = getCatalogExistingVersionFromSnapshot(catalogLookup, ctx.wantedLockfile, extendedWantedDep.wantedDependency)
+      extendedWantedDep.wantedDependency.bareSpecifier = existingVersion ?? catalogLookup.specifier
     }
   }
 
@@ -1208,6 +1210,7 @@ interface ResolveDependencyOptions {
     resolution?: Resolution
     dependencyLockfile?: PackageSnapshot
   }
+  preferredVersion?: string
   parentPkg: ParentPkg
   parentIds: PkgResolutionId[]
   parentPkgAliases: ParentPkgAliases
@@ -1268,6 +1271,9 @@ async function resolveDependency (
     const calcSpecifier = options.currentDepth === 0
     if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifier) {
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version)
+    }
+    if (!options.updateRequested && options.preferredVersion !== undefined) {
+      wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
@@ -1705,11 +1711,11 @@ function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {
   return result
 }
 
-function getCatalogReplacementBareSpecifier (
+function getCatalogExistingVersionFromSnapshot (
   catalogLookup: CatalogResolution,
   wantedLockfile: LockfileObject,
   wantedDependency: WantedDependency
-): string {
+): string | undefined {
   // The lockfile from a previous installation may have already resolved this
   // cataloged dependency. Reuse the exact version in the lockfile catalog
   // snapshot to ensure all projects using the same cataloged dependency get the
@@ -1717,9 +1723,8 @@ function getCatalogReplacementBareSpecifier (
   const existingCatalogResolution = wantedLockfile.catalogs
     ?.[catalogLookup.catalogName]
     ?.[wantedDependency.alias]
-  const replacementBareSpecifier = existingCatalogResolution?.specifier === catalogLookup.specifier
-    ? replaceVersionInBareSpecifier(catalogLookup.specifier, existingCatalogResolution.version)
-    : catalogLookup.specifier
 
-  return replacementBareSpecifier
+  return existingCatalogResolution?.specifier === catalogLookup.specifier
+    ? existingCatalogResolution.version
+    : undefined
 }
