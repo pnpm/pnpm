@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Use "pnpm*config*" env variables instead of "npm*config*".
+Use `pnpm_config_` env variables instead of `npm_config_` [#9571](https://github.com/pnpm/pnpm/pull/9571).
