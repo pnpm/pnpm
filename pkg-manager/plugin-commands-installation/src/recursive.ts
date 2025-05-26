@@ -4,9 +4,16 @@ import {
   type RecursiveSummary,
   throwOnCommandFail,
 } from '@pnpm/cli-utils'
-import { type Config, getOptionsFromRootManifest, readLocalConfig } from '@pnpm/config'
+import {
+  type Config,
+  type OptionsFromRootManifest,
+  getOptionsFromRootManifest,
+  getWorkspaceConcurrency,
+  readLocalConfig,
+} from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
+import { type CatalogSnapshots } from '@pnpm/lockfile.types'
 import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { createMatcherWithIndex } from '@pnpm/matcher'
@@ -24,6 +31,7 @@ import {
   type ProjectRootDir,
   type ProjectRootDirRealPath,
 } from '@pnpm/types'
+import { addCatalogs } from '@pnpm/workspace.manifest-writer'
 import {
   addDependenciesToPackage,
   install,
@@ -64,6 +72,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 | 'save'
+| 'saveCatalogName'
 | 'saveDev'
 | 'saveExact'
 | 'saveOptional'
@@ -143,6 +152,7 @@ export async function recursive (
     pruneLockfileImporters: opts.pruneLockfileImporters ??
       (((opts.ignoredPackages == null) || opts.ignoredPackages.size === 0) &&
         pkgs.length === allProjects.length),
+    saveCatalogName: opts.saveCatalogName,
     storeController: store.ctrl,
     storeDir: store.dir,
     targetDependenciesField,
@@ -269,17 +279,22 @@ export async function recursive (
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies of any of the projects.')
     }
-    const { updatedProjects: mutatedPkgs, ignoredBuilds } = await mutateModules(mutatedImporters, {
+    const {
+      updatedCatalogs,
+      updatedProjects: mutatedPkgs,
+      ignoredBuilds,
+    } = await mutateModules(mutatedImporters, {
       ...installOpts,
       storeController: store.ctrl,
     })
     if (opts.save !== false) {
-      await Promise.all(
-        mutatedPkgs
-          .map(async ({ originalManifest, manifest, rootDir }) => {
-            return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
-          })
-      )
+      const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
+        return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
+      })
+      if (updatedCatalogs) {
+        promises.push(addCatalogs(opts.workspaceDir, updatedCatalogs))
+      }
+      await Promise.all(promises)
     }
     if (opts.strictDepBuilds && ignoredBuilds?.length) {
       throw new IgnoredBuildsError(ignoredBuilds)
@@ -289,7 +304,9 @@ export async function recursive (
 
   const pkgPaths = (Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()
 
-  const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
+  let updatedCatalogs: CatalogSnapshots | undefined
+
+  const limitInstallation = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   await Promise.all(pkgPaths.map(async (rootDir) =>
     limitInstallation(async () => {
       const hooks = opts.ignorePnpmfile
@@ -325,10 +342,25 @@ export async function recursive (
           }
         }
 
-        let action!: any // eslint-disable-line @typescript-eslint/no-explicit-any
+        type ActionOpts =
+          & Omit<InstallOptions, 'allProjects'>
+          & OptionsFromRootManifest
+          & Project
+          & Pick<Config, 'bin'>
+          & { pinnedVersion: 'major' | 'minor' | 'patch' }
+
+        interface ActionResult {
+          updatedCatalogs?: CatalogSnapshots
+          updatedManifest: ProjectManifest
+          ignoredBuilds: string[] | undefined
+        }
+
+        type ActionFunction = (manifest: PackageManifest | ProjectManifest, opts: ActionOpts) => Promise<ActionResult>
+
+        let action: ActionFunction
         switch (cmdFullName) {
         case 'remove':
-          action = async (manifest: PackageManifest, opts: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+          action = async (manifest, opts) => {
             const mutationResult = await mutateModules([
               {
                 dependencyNames: currentInput,
@@ -336,18 +368,26 @@ export async function recursive (
                 rootDir,
               },
             ], opts)
-            return { updatedManifest: mutationResult.updatedProjects[0].manifest, ignoredBuilds: mutationResult.ignoredBuilds }
+            return {
+              updatedCatalogs: undefined, // there's no reason to add new or update catalogs on `pnpm remove`
+              updatedManifest: mutationResult.updatedProjects[0].manifest,
+              ignoredBuilds: mutationResult.ignoredBuilds,
+            }
           }
           break
         default:
           action = currentInput.length === 0
             ? install
-            : async (manifest: PackageManifest, opts: any) => addDependenciesToPackage(manifest, currentInput, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
+            : async (manifest, opts) => addDependenciesToPackage(manifest, currentInput, opts)
           break
         }
 
         const localConfig = await memReadLocalConfig(rootDir)
-        const { updatedManifest: newManifest, ignoredBuilds } = await action(
+        const {
+          updatedCatalogs: newCatalogsAddition,
+          updatedManifest: newManifest,
+          ignoredBuilds,
+        } = await action(
           manifest,
           {
             ...installOpts,
@@ -371,6 +411,10 @@ export async function recursive (
         )
         if (opts.save !== false) {
           await writeProjectManifest(newManifest)
+          if (newCatalogsAddition) {
+            updatedCatalogs ??= {}
+            Object.assign(updatedCatalogs, newCatalogsAddition)
+          }
         }
         if (opts.strictDepBuilds && ignoredBuilds?.length) {
           throw new IgnoredBuildsError(ignoredBuilds)
@@ -394,6 +438,10 @@ export async function recursive (
       }
     })
   ))
+
+  if (updatedCatalogs) {
+    await addCatalogs(opts.workspaceDir, updatedCatalogs)
+  }
 
   if (
     !opts.lockfileOnly && !opts.ignoreScripts && (

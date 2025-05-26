@@ -22,6 +22,7 @@ import {
 } from '@pnpm/core'
 import { globalInfo, logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
+import { addCatalogs } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import isSubdir from 'is-subdir'
@@ -52,6 +53,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'bail'
 | 'bin'
 | 'catalogs'
+| 'catalogMode'
 | 'cliOptions'
 | 'dedupePeerDependents'
 | 'depth'
@@ -61,7 +63,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'global'
 | 'globalPnpmfile'
 | 'hooks'
-| 'ignoreCurrentPrefs'
+| 'ignoreCurrentSpecifiers'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'optimisticRepeatInstall'
@@ -101,6 +103,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
 | 'configDependencies'
+| 'updateConfig'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -270,7 +273,7 @@ when running add/update with the --workspace option')
   let updateMatch: UpdateDepsMatcher | null
   if (opts.update) {
     if (params.length === 0) {
-      const ignoreDeps = manifest.pnpm?.updateConfig?.ignoreDependencies
+      const ignoreDeps = opts.updateConfig?.ignoreDependencies
       if (ignoreDeps?.length) {
         params = makeIgnorePatterns(ignoreDeps)
       }
@@ -312,9 +315,12 @@ when running add/update with the --workspace option')
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const { updatedCatalogs, updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false) {
-      await writeProjectManifest(updatedProject.manifest)
+      await Promise.all([
+        writeProjectManifest(updatedProject.manifest),
+        updatedCatalogs && addCatalogs(opts.workspaceDir ?? opts.dir, updatedCatalogs),
+      ])
     }
     if (!opts.lockfileOnly) {
       await updateWorkspaceState({
@@ -332,9 +338,12 @@ when running add/update with the --workspace option')
     return
   }
 
-  const { updatedManifest, ignoredBuilds } = await install(manifest, installOpts)
+  const { updatedCatalogs, updatedManifest, ignoredBuilds } = await install(manifest, installOpts)
   if (opts.update === true && opts.save !== false) {
-    await writeProjectManifest(updatedManifest)
+    await Promise.all([
+      writeProjectManifest(updatedManifest),
+      updatedCatalogs && addCatalogs(opts.workspaceDir ?? opts.dir, updatedCatalogs),
+    ])
   }
   if (opts.strictDepBuilds && ignoredBuilds?.length) {
     throw new IgnoredBuildsError(ignoredBuilds)

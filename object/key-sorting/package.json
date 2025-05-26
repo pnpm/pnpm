@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/object.key-sorting",
-  "version": "1000.0.0",
+  "version": "1000.0.1",
   "description": "Sorting the keys of an object",
   "keywords": [
     "pnpm",

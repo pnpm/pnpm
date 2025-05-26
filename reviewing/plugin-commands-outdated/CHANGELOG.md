@@ -1,5 +1,52 @@
 # @pnpm/plugin-commands-outdated
 
+## 1000.0.26
+
+### Patch Changes
+
+- 9362b5f: Read `updateConfig` from `pnpm-workspace.yaml` [#9500](https://github.com/pnpm/pnpm/issues/9500).
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/outdated@1001.0.19
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/default-resolver@1002.0.1
+  - @pnpm/modules-yaml@1000.3.3
+
+## 1000.0.25
+
+### Patch Changes
+
+- Updated dependencies [7c7f0d6]
+  - @pnpm/common-cli-options-help@1000.0.1
+  - @pnpm/cli-utils@1000.1.3
+  - @pnpm/config@1003.0.1
+  - @pnpm/outdated@1001.0.18
+
+## 1000.0.24
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/default-resolver@1002.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/outdated@1001.0.17
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/modules-yaml@1000.3.2
+
 ## 1000.0.23
 
 ### Patch Changes

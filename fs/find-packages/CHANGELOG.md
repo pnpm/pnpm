@@ -1,5 +1,22 @@
 # @pnpm/fs.find-packages
 
+## 1000.0.11
+
+### Patch Changes
+
+- c00360b: Update `@pnpm/util.lex-comparator` to v3.0.2.
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+  - @pnpm/read-project-manifest@1000.0.11
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [5b73df1]
+  - @pnpm/types@1000.5.0
+  - @pnpm/read-project-manifest@1000.0.10
+
 ## 1000.0.9
 
 ### Patch Changes

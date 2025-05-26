@@ -1,5 +1,11 @@
 # @pnpm/patching.apply-patch
 
+## 1000.0.4
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+
 ## 1000.0.3
 
 ### Patch Changes

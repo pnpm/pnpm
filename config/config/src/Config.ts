@@ -52,6 +52,7 @@ export interface Config extends OptionsFromRootManifest {
   saveDev?: boolean
   saveOptional?: boolean
   savePeer?: boolean
+  saveCatalogName?: string
   saveWorkspaceProtocol?: boolean | 'rolling'
   lockfileIncludeTarballUrl?: boolean
   scriptShell?: string
@@ -92,7 +93,7 @@ export interface Config extends OptionsFromRootManifest {
   sideEffectsCacheWrite?: boolean
   shamefullyHoist?: boolean
   dev?: boolean
-  ignoreCurrentPrefs?: boolean
+  ignoreCurrentSpecifiers?: boolean
   recursive?: boolean
   enablePrePostScripts?: boolean
   useNodeVersion?: string
@@ -148,6 +149,7 @@ export interface Config extends OptionsFromRootManifest {
   workspaceDir?: string
   workspacePackagePatterns?: string[]
   catalogs?: Catalogs
+  catalogMode?: 'strict' | 'prefer' | 'manual'
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
@@ -218,6 +220,8 @@ export interface Config extends OptionsFromRootManifest {
   strictDepBuilds: boolean
   syncInjectedDepsAfterScripts?: string[]
   initPackageManager: boolean
+  initType: 'commonjs' | 'module'
+  dangerouslyAllowAllBuilds: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

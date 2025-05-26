@@ -1,5 +1,122 @@
 # pnpm
 
+## 10.11.0
+
+### Minor Changes
+
+- A new setting added for `pnpm init` to create a `package.json` with `type=module`, when `init-type` is `module`. Works as a flag for the init command too [#9463](https://github.com/pnpm/pnpm/pull/9463).
+- Added support for Nushell to `pnpm setup` [#6476](https://github.com/pnpm/pnpm/issues/6476).
+- Added two new flags to the `pnpm audit` command, `--ignore` and `--ignore-unfixable` [#8474](https://github.com/pnpm/pnpm/pull/8474).
+
+  Ignore all vulnerabilities that have no solution:
+
+  ```shell
+  > pnpm audit --ignore-unfixable
+  ```
+
+  Provide a list of CVE's to ignore those specifically, even if they have a resolution.
+
+  ```shell
+  > pnpm audit --ignore=CVE-2021-1234 --ignore=CVE-2021-5678
+  ```
+
+- Added support for recursively running pack in every project of a workspace [#4351](https://github.com/pnpm/pnpm/issues/4351).
+
+  Now you can run `pnpm -r pack` to pack all packages in the workspace.
+
+### Patch Changes
+
+- pnpm version management should work, when `dangerouslyAllowAllBuilds` is set to `true` [#9472](https://github.com/pnpm/pnpm/issues/9472).
+- `pnpm link` should work from inside a workspace [#9506](https://github.com/pnpm/pnpm/issues/9506).
+- Set the default `workspaceConcurrency` to `Math.min(os.availableParallelism(), 4)` [#9493](https://github.com/pnpm/pnpm/pull/9493).
+- Installation should not exit with an error if `strictPeerDependencies` is `true` but all issues are ignored by `peerDependencyRules` [#9505](https://github.com/pnpm/pnpm/pull/9505).
+- Read `updateConfig` from `pnpm-workspace.yaml` [#9500](https://github.com/pnpm/pnpm/issues/9500).
+- Add support for `recursive pack`
+- Remove `url.parse` usage to fix warning on Node.js 24 [#9492](https://github.com/pnpm/pnpm/issues/9492).
+- `pnpm run` should be able to run commands from the workspace root, if `ignoreScripts` is set tot `true` [#4858](https://github.com/pnpm/pnpm/issues/4858).
+
+## 10.10.0
+
+### Minor Changes
+
+- Allow loading the `preResolution`, `importPackage`, and `fetchers` hooks from local pnpmfile.
+
+### Patch Changes
+
+- Fix `cd` command, when `shellEmulator` is `true` [#7838](https://github.com/pnpm/pnpm/issues/7838).
+- Sort keys in `pnpm-workspace.yaml` [#9453](https://github.com/pnpm/pnpm/pull/9453).
+- Pass the `npm_package_json` environment variable to the executed scripts [#9452](https://github.com/pnpm/pnpm/issues/9452).
+- Fixed a mistake in the description of the `--reporter=silent` option.
+
+## 10.9.0
+
+### Minor Changes
+
+- **Added support for installing JSR packages.** You can now install JSR packages using the following syntax:
+
+  ```
+  pnpm add jsr:<pkg_name>
+  ```
+
+  or with a version range:
+
+  ```
+  pnpm add jsr:<pkg_name>@<range>
+  ```
+
+  For example, running:
+
+  ```
+  pnpm add jsr:@foo/bar
+  ```
+
+  will add the following entry to your `package.json`:
+
+  ```json
+  {
+    "dependencies": {
+      "@foo/bar": "jsr:^0.1.2"
+    }
+  }
+  ```
+
+  When publishing, this entry will be transformed into a format compatible with npm, older versions of Yarn, and previous pnpm versions:
+
+  ```json
+  {
+    "dependencies": {
+      "@foo/bar": "npm:@jsr/foo__bar@^0.1.2"
+    }
+  }
+  ```
+
+  Related issue: [#8941](https://github.com/pnpm/pnpm/issues/8941).
+
+  Note: The `@jsr` scope defaults to <https://npm.jsr.io/> if the `@jsr:registry` setting is not defined.
+
+- Added a new setting, `dangerouslyAllowAllBuilds`, for automatically running any scripts of dependencies without the need to approve any builds. It was already possible to allow all builds by adding this to `pnpm-workspace.yaml`:
+
+  ```yaml
+  neverBuiltDependencies: []
+  ```
+
+  `dangerouslyAllowAllBuilds` has the same effect but also allows to be set globally via:
+
+  ```
+  pnpm config set dangerouslyAllowAllBuilds true
+  ```
+
+  It can also be set when running a command:
+
+  ```
+  pnpm install --dangerously-allow-all-builds
+  ```
+
+### Patch Changes
+
+- Fix a false negative in `verifyDepsBeforeRun` when `nodeLinker` is `hoisted` and there is a workspace package without dependencies and `node_modules` directory [#9424](https://github.com/pnpm/pnpm/issues/9424).
+- Explicitly drop `verifyDepsBeforeRun` support for `nodeLinker: pnp`. Combining `verifyDepsBeforeRun` and `nodeLinker: pnp` will now print a warning.
+
 ## 10.8.1
 
 ### Patch Changes

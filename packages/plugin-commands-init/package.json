@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-init",
-  "version": "1000.1.12",
+  "version": "1000.2.0",
   "description": "Create a package.json file",
   "keywords": [
     "pnpm",
@@ -40,12 +40,14 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
     "camelcase-keys": "catalog:",
+    "ramda": "catalog:",
     "render-help": "catalog:"
   },
   "devDependencies": {
     "@pnpm/plugin-commands-init": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@types/ramda": "catalog:",
     "load-json-file": "catalog:"
   },
   "engines": {

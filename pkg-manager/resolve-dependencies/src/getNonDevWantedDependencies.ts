@@ -3,10 +3,11 @@ import pickBy from 'ramda/src/pickBy'
 
 export interface WantedDependency {
   alias: string
-  pref: string // package reference
+  bareSpecifier: string // package reference
   dev: boolean
   optional: boolean
   injected?: boolean
+  saveCatalogName?: string
 }
 
 type GetNonDevWantedDependenciesManifest = Pick<DependencyManifest, 'bundleDependencies' | 'bundledDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'>
@@ -37,12 +38,12 @@ function getWantedDependenciesFromGivenSet (
   }
 ): WantedDependency[] {
   if (!deps) return []
-  return Object.entries(deps).map(([alias, pref]) => ({
+  return Object.entries(deps).map(([alias, bareSpecifier]) => ({
     alias,
     dev: !!opts.devDependencies[alias],
     injected: opts.dependenciesMeta[alias]?.injected,
     optional: !!opts.optionalDependencies[alias],
-    pref,
+    bareSpecifier,
   }))
 }
 

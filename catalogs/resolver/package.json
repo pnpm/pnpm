@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/catalogs.resolver",
-  "version": "1000.0.2",
+  "version": "1000.0.3",
   "description": "Dereferences catalog protocol specifiers into usable specifiers.",
   "keywords": [
     "pnpm",

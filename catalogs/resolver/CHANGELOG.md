@@ -1,5 +1,12 @@
 # @pnpm/catalogs.resolver
 
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+  - @pnpm/catalogs.protocol-parser@1001.0.0
+
 ## 1000.0.2
 
 ### Patch Changes

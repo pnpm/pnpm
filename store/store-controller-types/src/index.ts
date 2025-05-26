@@ -28,6 +28,7 @@ DependencyManifest,
 | 'bin'
 | 'bundledDependencies'
 | 'bundleDependencies'
+| 'cpu'
 | 'dependencies'
 | 'directories'
 | 'engines'
@@ -147,7 +148,7 @@ export interface PackageResponse {
     resolution: Resolution
     manifest?: PackageManifest
     id: PkgResolutionId
-    specifier?: string
+    normalizedBareSpecifier?: string
     updated: boolean
     publishedAt?: string
     resolvedVia?: string
@@ -155,6 +156,7 @@ export interface PackageResponse {
     // If latest does not equal the version of the
     // resolved package, it is out-of-date.
     latest?: string
+    alias?: string
   } & (
     {
       isLocal: true

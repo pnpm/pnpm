@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/parse-overrides",
-  "version": "1000.0.2",
+  "version": "1001.0.0",
   "description": "Parse overrides",
   "keywords": [
     "pnpm",

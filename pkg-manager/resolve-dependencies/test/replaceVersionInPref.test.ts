@@ -1,9 +1,9 @@
-import { replaceVersionInPref } from '../lib/replaceVersionInPref'
+import { replaceVersionInBareSpecifier } from '../lib/replaceVersionInBareSpecifier'
 
-test('replaceVersionInPref()', () => {
-  expect(replaceVersionInPref('^1.0.0', '1.1.0')).toBe('1.1.0')
-  expect(replaceVersionInPref('npm:foo@^1.0.0', '1.1.0')).toBe('npm:foo@1.1.0')
-  expect(replaceVersionInPref('npm:@foo/bar@^1.0.0', '1.1.0')).toBe('npm:@foo/bar@1.1.0')
-  expect(replaceVersionInPref('npm:foo', '1.1.0')).toBe('npm:foo@1.1.0')
-  expect(replaceVersionInPref('npm:@foo/bar', '1.1.0')).toBe('npm:@foo/bar@1.1.0')
+test('replaceVersionInBareSpecifier()', () => {
+  expect(replaceVersionInBareSpecifier('^1.0.0', '1.1.0')).toBe('1.1.0')
+  expect(replaceVersionInBareSpecifier('npm:foo@^1.0.0', '1.1.0')).toBe('npm:foo@1.1.0')
+  expect(replaceVersionInBareSpecifier('npm:@foo/bar@^1.0.0', '1.1.0')).toBe('npm:@foo/bar@1.1.0')
+  expect(replaceVersionInBareSpecifier('npm:foo', '1.1.0')).toBe('npm:foo@1.1.0')
+  expect(replaceVersionInBareSpecifier('npm:@foo/bar', '1.1.0')).toBe('npm:@foo/bar@1.1.0')
 })

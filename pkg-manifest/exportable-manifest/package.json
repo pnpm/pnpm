@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exportable-manifest",
-  "version": "1000.0.10",
+  "version": "1000.1.1",
   "description": "Creates an exportable manifest",
   "keywords": [
     "pnpm",
@@ -33,6 +33,7 @@
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
     "p-map-values": "catalog:",
     "ramda": "catalog:"

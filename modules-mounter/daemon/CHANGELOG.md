@@ -1,5 +1,47 @@
 # @pnpm/mount-modules
 
+## 1001.0.23
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/store.cafs@1000.0.12
+
+## 1001.0.22
+
+### Patch Changes
+
+- @pnpm/config@1003.0.1
+
+## 1001.0.21
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/dependency-path@1000.0.8
+
 ## 1001.0.20
 
 ### Patch Changes

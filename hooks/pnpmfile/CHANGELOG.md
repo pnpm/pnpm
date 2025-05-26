@@ -1,5 +1,42 @@
 # @pnpm/pnpmfile
 
+## 1001.2.1
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [c24c66e]
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/hooks.types@1001.0.8
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.2.0
+
+### Minor Changes
+
+- e5c58f0: Allow loading the `preResolution`, `importPackage`, and `fetchers` hooks from local pnpmfile.
+
+## 1001.1.2
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/hooks.types@1001.0.7
+  - @pnpm/lockfile.types@1001.0.7
+  - @pnpm/crypto.hash@1000.1.1
+
 ## 1001.1.1
 
 ### Patch Changes

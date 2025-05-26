@@ -6,8 +6,7 @@
 | ------- | ------------------ |
 | 10.x  | :white_check_mark: |
 | 9.x   | :white_check_mark: till 2026 April 30 |
-| 8.x   | :white_check_mark: till 2025 April 30 |
-| <= 7.x   | :x:                |
+| <= 8.x   | :x:                |
 
 ## Reporting a Vulnerability
 

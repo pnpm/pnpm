@@ -1,5 +1,50 @@
 # @pnpm/store-connection-manager
 
+## 1002.0.2
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/package-store@1002.0.3
+  - @pnpm/server@1001.0.3
+  - @pnpm/client@1000.0.18
+  - @pnpm/cli-meta@1000.0.8
+
+## 1002.0.1
+
+### Patch Changes
+
+- @pnpm/config@1003.0.1
+- @pnpm/client@1000.0.17
+- @pnpm/package-store@1002.0.2
+- @pnpm/server@1001.0.2
+
+## 1002.0.0
+
+### Major Changes
+
+- 5b73df1: Renamed `normalizedPref` to `specifiers`.
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+  - @pnpm/config@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/package-store@1002.0.2
+  - @pnpm/server@1001.0.2
+  - @pnpm/client@1000.0.16
+  - @pnpm/cli-meta@1000.0.7
+
 ## 1001.0.1
 
 ### Patch Changes

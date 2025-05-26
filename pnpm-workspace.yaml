@@ -62,22 +62,24 @@ catalog:
   "@pnpm/builder.policy": 3.0.1
   "@pnpm/byline": ^1.0.0
   "@pnpm/colorize-semver-diff": ^1.0.1
-  "@pnpm/config.env-replace": 3.0.1
+  "@pnpm/config.env-replace": ^3.0.2
+  '@pnpm/config.nerf-dart': ^1.0.0
   "@pnpm/exec": ^2.0.0
   "@pnpm/fs.packlist": 2.0.0
   "@pnpm/log.group": 3.0.1
+  "@pnpm/logger": ">=1001.0.0 <1002.0.0"
   "@pnpm/meta-updater": 2.0.5
-  "@pnpm/network.agent": ^2.0.2
+  "@pnpm/network.agent": ^2.0.3
   "@pnpm/nopt": ^0.2.1
   "@pnpm/npm-conf": 3.0.0
-  "@pnpm/npm-lifecycle": ^1000.0.2
+  "@pnpm/npm-lifecycle": ^1000.0.4
   "@pnpm/npm-package-arg": ^1.0.0
-  "@pnpm/os.env.path-extender": ^2.0.2
+  "@pnpm/os.env.path-extender": ^2.0.3
   "@pnpm/patch-package": 0.0.1
-  "@pnpm/registry-mock": 4.3.0
+  "@pnpm/registry-mock": 4.4.0
   "@pnpm/semver-diff": ^1.1.0
   "@pnpm/tabtab": ^0.5.4
-  "@pnpm/util.lex-comparator": 3.0.1
+  "@pnpm/util.lex-comparator": ^3.0.2
   "@reflink/reflink": 0.1.19
   "@rushstack/worker-pool": 0.4.9
   "@types/adm-zip": ^0.5.7
@@ -123,7 +125,7 @@ catalog:
   "@yarnpkg/nm": 4.0.5
   "@yarnpkg/parsers": 3.0.0
   "@yarnpkg/pnp": ^4.0.8
-  "@zkochan/cmd-shim": ^6.0.0
+  "@zkochan/cmd-shim": ^7.0.0
   "@zkochan/diable": ^1.0.2
   "@zkochan/retry": ^0.2.0
   "@zkochan/rimraf": ^3.0.2
@@ -194,7 +196,6 @@ catalog:
   mem: ^8.1.1
   micromatch: ^4.0.8
   ndjson: ^2.0.0
-  nerf-dart: 1.0.0
   nock: 13.3.4
   node-fetch: npm:@pnpm/node-fetch@1.0.0
   node-gyp: ^11.0.0

@@ -1,5 +1,69 @@
 # @pnpm/deps.status
 
+## 1002.1.2
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/get-context@1001.0.14
+  - @pnpm/workspace.find-packages@1000.0.24
+  - @pnpm/lockfile.verification@1001.1.7
+  - @pnpm/workspace.state@1001.1.20
+  - @pnpm/pnpmfile@1001.2.1
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/workspace.read-manifest@1000.1.5
+  - @pnpm/lockfile.settings-checker@1001.0.9
+
+## 1002.1.1
+
+### Patch Changes
+
+- Updated dependencies [e5c58f0]
+  - @pnpm/pnpmfile@1001.2.0
+  - @pnpm/config@1003.0.1
+  - @pnpm/workspace.find-packages@1000.0.23
+  - @pnpm/workspace.state@1001.1.19
+
+## 1002.1.0
+
+### Minor Changes
+
+- 3cf337b: Fix a false negative in `verify-deps-before-run` when `node-linker` is `hoisted` and there is a workspace package without dependencies and `node_modules` directory [#9424](https://github.com/pnpm/pnpm/issues/9424).
+- 3cf337b: Explicitly drop `verify-deps-before-run` support for `node-linker=pnp`. Combining `verify-deps-before-run` and `node-linker=pnp` will now print a warning.
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/parse-overrides@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/workspace.state@1001.1.18
+  - @pnpm/pnpmfile@1001.1.2
+  - @pnpm/lockfile.verification@1001.1.6
+  - @pnpm/get-context@1001.0.13
+  - @pnpm/lockfile.settings-checker@1001.0.8
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/workspace.find-packages@1000.0.22
+  - @pnpm/workspace.read-manifest@1000.1.4
+
 ## 1002.0.11
 
 ### Patch Changes

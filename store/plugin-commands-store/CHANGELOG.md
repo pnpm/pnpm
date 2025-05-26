@@ -1,5 +1,60 @@
 # @pnpm/plugin-commands-store
 
+## 1000.0.26
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+- Updated dependencies [c24c66e]
+  - @pnpm/config@1003.1.0
+  - @pnpm/store-connection-manager@1002.0.2
+  - @pnpm/get-context@1001.0.14
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/normalize-registries@1000.1.1
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/store.cafs@1000.0.12
+
+## 1000.0.25
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.1.3
+- @pnpm/config@1003.0.1
+- @pnpm/store-connection-manager@1002.0.1
+
+## 1000.0.24
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/parse-wanted-dependency@1001.0.0
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/store-connection-manager@1002.0.0
+  - @pnpm/normalize-registries@1000.1.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/get-context@1001.0.13
+  - @pnpm/dependency-path@1000.0.8
+
 ## 1000.0.23
 
 ### Patch Changes

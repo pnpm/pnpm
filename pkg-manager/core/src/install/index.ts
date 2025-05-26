@@ -2,6 +2,7 @@ import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
+import { resolveFromCatalog, matchCatalogResolveResult, type CatalogResultMatcher } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   LAYOUT_VERSION,
@@ -88,6 +89,8 @@ import { linkPackages } from './link'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
 import { validateModules } from './validateModules'
 import { isCI } from 'ci-info'
+import semver from 'semver'
+import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -141,12 +144,24 @@ type Opts = Omit<InstallOptions, 'allProjects'> & {
   binsDir?: string
 } & InstallMutationOptions
 
+export interface InstallResult {
+  /**
+   * A partial of new or updated catalog config entries. A change will be
+   * produced if a dependency using the catalog protocol was newly added or
+   * updated during this install. To obtain the full catalog, callers should
+   * merge this object with the current catalog configs in pnpm-workspace.yaml.
+   */
+  updatedCatalogs: CatalogSnapshots | undefined
+  updatedManifest: ProjectManifest
+  ignoredBuilds: string[] | undefined
+}
+
 export async function install (
   manifest: ProjectManifest,
   opts: Opts
-): Promise<{ updatedManifest: ProjectManifest, ignoredBuilds: string[] | undefined }> {
+): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { updatedProjects: projects, ignoredBuilds } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds } = await mutateModules(
     [
       {
         mutation: 'install',
@@ -168,7 +183,7 @@ export async function install (
       }],
     }
   )
-  return { updatedManifest: projects[0].manifest, ignoredBuilds }
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds }
 }
 
 interface ProjectToBeInstalled {
@@ -188,6 +203,12 @@ export type MutateModulesOptions = InstallOptions & {
   } | InstallOptions['hooks']
 }
 
+export interface MutateModulesInSingleProjectResult {
+  updatedCatalogs: CatalogSnapshots | undefined
+  updatedProject: UpdatedProject
+  ignoredBuilds: string[] | undefined
+}
+
 export async function mutateModulesInSingleProject (
   project: MutatedProject & {
     binsDir?: string
@@ -196,7 +217,7 @@ export async function mutateModulesInSingleProject (
     modulesDir?: string
   },
   maybeOpts: Omit<MutateModulesOptions, 'allProjects'> & InstallMutationOptions
-): Promise<{ updatedProject: UpdatedProject, ignoredBuilds: string[] | undefined }> {
+): Promise<MutateModulesInSingleProjectResult> {
   const result = await mutateModules(
     [
       {
@@ -215,14 +236,26 @@ export async function mutateModulesInSingleProject (
       }],
     }
   )
-  return { updatedProject: result.updatedProjects[0], ignoredBuilds: result.ignoredBuilds }
+  return {
+    updatedCatalogs: result.updatedCatalogs,
+    updatedProject: result.updatedProjects[0],
+    ignoredBuilds: result.ignoredBuilds,
+  }
 }
 
 export interface MutateModulesResult {
+  updatedCatalogs?: CatalogSnapshots
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
   ignoredBuilds: string[] | undefined
+}
+
+const pickCatalogSpecifier: CatalogResultMatcher<string | undefined> = {
+  found: (found) =>
+    found.resolution.specifier,
+  misconfiguration: () => undefined,
+  unused: () => undefined,
 }
 
 export async function mutateModules (
@@ -315,6 +348,7 @@ export async function mutateModules (
   }
 
   return {
+    updatedCatalogs: result.updatedCatalogs,
     updatedProjects: result.updatedProjects,
     stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     depsRequiringBuild: result.depsRequiringBuild,
@@ -322,6 +356,7 @@ export async function mutateModules (
   }
 
   interface InnerInstallResult {
+    readonly updatedCatalogs?: CatalogSnapshots
     readonly updatedProjects: UpdatedProject[]
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
@@ -390,7 +425,7 @@ export async function mutateModules (
         throw new LockfileConfigMismatchError(outdatedLockfileSettingName!)
       }
     }
-    const _isWantedDepPrefSame = isWantedDepPrefSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
+    const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
@@ -455,13 +490,13 @@ export async function mutateModules (
       case 'install': {
         await installCase({
           ...projectOpts,
-          updatePackageManifest: (projectOpts as InstallDepsMutation).updatePackageManifest ?? (projectOpts as InstallDepsMutation).update,
+          updatePackageManifest: (projectOpts as InstallDepsMutation).updatePackageManifest ?? (projectOpts as InstallDepsMutation).update!,
         })
         break
       }
       case 'installSome': {
         await installSome({
-          ...projectOpts,
+          ...projectOpts as InstallSomeProject,
           updatePackageManifest: (projectOpts as InstallSomeDepsMutation).updatePackageManifest !== false,
         })
         break
@@ -470,7 +505,18 @@ export async function mutateModules (
     }
     /* eslint-enable no-await-in-loop */
 
-    async function installCase (project: any) { // eslint-disable-line
+    type InstallCaseProject = Pick<ImporterToUpdate,
+    | 'binsDir'
+    | 'buildIndex'
+    | 'id'
+    | 'manifest'
+    | 'modulesDir'
+    | 'mutation'
+    | 'rootDir'
+    | 'updatePackageManifest'
+    >
+
+    async function installCase (project: InstallCaseProject) {
       const wantedDependencies = getWantedDependencies(project.manifest, {
         autoInstallPeers: opts.autoInstallPeers,
         includeDirect: opts.includeDirect,
@@ -479,12 +525,12 @@ export async function mutateModules (
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
 
       if (ctx.wantedLockfile?.importers) {
-        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepPrefSame)
+        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepBareSpecifierSame)
       }
       if (opts.ignoreScripts && project.manifest?.scripts &&
-        (project.manifest.scripts.preinstall ||
-          project.manifest.scripts.install ||
-          project.manifest.scripts.postinstall ||
+        (project.manifest.scripts.preinstall != null ||
+          project.manifest.scripts.install != null ||
+          project.manifest.scripts.postinstall != null ||
           project.manifest.scripts.prepare)
       ) {
         ctx.pendingBuilds.push(project.id)
@@ -494,13 +540,29 @@ export async function mutateModules (
         pruneDirectDependencies: false,
         ...project,
         wantedDependencies,
-      })
+      } as ImporterToUpdate)
     }
 
-    async function installSome (project: any) { // eslint-disable-line
-      const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromManifest(project.manifest)
-      const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies || {}
-      const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies || {}
+    type InstallSomeProject = Pick<ImporterToUpdate,
+    | 'binsDir'
+    | 'buildIndex'
+    | 'id'
+    | 'manifest'
+    | 'modulesDir'
+    | 'mutation'
+    | 'rootDir'
+    | 'updatePackageManifest'
+    > & Pick<InstallSomeDepsMutation,
+    | 'allowNew'
+    | 'dependencySelectors'
+    | 'targetDependenciesField'
+    | 'update'
+    >
+
+    async function installSome (project: InstallSomeProject) {
+      const currentBareSpecifiers = opts.ignoreCurrentSpecifiers ? {} : getAllDependenciesFromManifest(project.manifest)
+      const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies ?? {}
+      const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies ?? {}
       if (preferredSpecs == null) {
         const manifests = []
         for (const versions of ctx.workspacePackages.values()) {
@@ -512,7 +574,7 @@ export async function mutateModules (
       }
       const wantedDeps = parseWantedDependencies(project.dependencySelectors, {
         allowNew: project.allowNew !== false,
-        currentPrefs,
+        currentBareSpecifiers,
         defaultTag: opts.tag,
         dev: project.targetDependenciesField === 'devDependencies',
         devDependencies,
@@ -520,14 +582,46 @@ export async function mutateModules (
         optionalDependencies,
         updateWorkspaceDependencies: project.update,
         preferredSpecs,
+        saveCatalogName: opts.saveCatalogName,
         overrides: opts.overrides,
         defaultCatalog: opts.catalogs?.default,
       })
+
+      if (opts.catalogMode !== 'manual') {
+        const catalogBareSpecifier = `catalog:${opts.saveCatalogName == null || opts.saveCatalogName === 'default' ? '' : opts.saveCatalogName}`
+        for (const wantedDep of wantedDeps) {
+          const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })
+          const catalogDepSpecifier = matchCatalogResolveResult(catalog, pickCatalogSpecifier)
+
+          if (
+            !catalogDepSpecifier ||
+            wantedDep.bareSpecifier === catalogBareSpecifier ||
+            semver.validRange(wantedDep.bareSpecifier) &&
+            semver.validRange(catalogDepSpecifier) &&
+            semver.eq(wantedDep.bareSpecifier, catalogDepSpecifier)
+          ) {
+            wantedDep.saveCatalogName = opts.saveCatalogName ?? 'default'
+            continue
+          }
+
+          switch (opts.catalogMode) {
+          case 'strict':
+            throw new CatalogVersionMismatchError({ catalogDep: `${wantedDep.alias}@${catalogDepSpecifier}`, wantedDep: `${wantedDep.alias}@${wantedDep.bareSpecifier}` })
+
+          case 'prefer':
+            logger.warn({
+              message: `Catalog version mismatch for "${wantedDep.alias}": using direct version "${wantedDep.bareSpecifier}" instead of catalog version "${catalogDepSpecifier}".`,
+              prefix: opts.lockfileDir,
+            })
+          }
+        }
+      }
+
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
-        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentPrefs[wantedDep.alias], updateSpec: true, nodeExecPath: opts.nodeExecPath })),
-      })
+        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true, nodeExecPath: opts.nodeExecPath })),
+      } as ImporterToUpdate)
     }
 
     // Unfortunately, the private lockfile may differ from the public one.
@@ -548,6 +642,7 @@ export async function mutateModules (
     })
 
     return {
+      updatedCatalogs: result.updatedCatalogs,
       updatedProjects: result.projects,
       stats: result.stats,
       depsRequiringBuild: result.depsRequiringBuild,
@@ -770,14 +865,14 @@ function pkgHasDependencies (manifest: ProjectManifest): boolean {
 function forgetResolutionsOfPrevWantedDeps (
   importer: ProjectSnapshot,
   wantedDeps: WantedDependency[],
-  isWantedDepPrefSame: (alias: string, prevPref: string | undefined, nextPref: string) => boolean
+  isWantedDepBareSpecifierSame: (alias: string, prevBareSpecifier: string | undefined, nextBareSpecifier: string) => boolean
 ): void {
   if (!importer.specifiers) return
   importer.dependencies = importer.dependencies ?? {}
   importer.devDependencies = importer.devDependencies ?? {}
   importer.optionalDependencies = importer.optionalDependencies ?? {}
-  for (const { alias, pref } of wantedDeps) {
-    if (alias && !isWantedDepPrefSame(alias, importer.specifiers[alias], pref)) {
+  for (const { alias, bareSpecifier } of wantedDeps) {
+    if (alias && !isWantedDepBareSpecifierSame(alias, importer.specifiers[alias], bareSpecifier)) {
       if (!importer.dependencies[alias]?.startsWith('link:')) {
         delete importer.dependencies[alias]
       }
@@ -809,31 +904,31 @@ function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): 
 }
 
 /**
- * Check if a wanted pref is the same.
+ * Check if a wanted bareSpecifier is the same.
  *
  * It would be different if the user modified a dependency in package.json or a
  * catalog entry in pnpm-workspace.yaml. This is normally a simple check to see
  * if the specifier strings match, but catalogs make this more involved since we
  * also have to check if the catalog config in pnpm-workspace.yaml is the same.
  */
-function isWantedDepPrefSame (
+function isWantedDepBareSpecifierSame (
   prevCatalogs: CatalogSnapshots | undefined,
   catalogsConfig: Catalogs | undefined,
   alias: string,
-  prevPref: string | undefined,
-  nextPref: string
+  prevBareSpecifier: string | undefined,
+  nextBareSpecifier: string
 ): boolean {
-  if (prevPref !== nextPref) {
+  if (prevBareSpecifier !== nextBareSpecifier) {
     return false
   }
 
   // When pnpm catalogs are used, the specifiers can be the same (e.g.
   // "catalog:default"), but the wanted versions for the dependency can be
   // different after resolution if the catalog config was just edited.
-  const catalogName = parseCatalogProtocol(prevPref)
+  const catalogName = parseCatalogProtocol(prevBareSpecifier)
 
   // If there's no catalog name, the catalog protocol was not used and we
-  // can assume the pref is the same since prevPref and nextPref match.
+  // can assume the bareSpecifier is the same since prevBareSpecifier and nextBareSpecifier match.
   if (catalogName === null) {
     return true
   }
@@ -854,9 +949,9 @@ export async function addDependenciesToPackage (
     pinnedVersion?: 'major' | 'minor' | 'patch'
     targetDependenciesField?: DependenciesField
   } & InstallMutationOptions
-): Promise<{ updatedManifest: ProjectManifest, ignoredBuilds: string[] | undefined }> {
+): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { updatedProjects: projects, ignoredBuilds } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds } = await mutateModules(
     [
       {
         allowNew: opts.allowNew,
@@ -884,7 +979,7 @@ export async function addDependenciesToPackage (
         },
       ],
     })
-  return { updatedManifest: projects[0].manifest, ignoredBuilds }
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds }
 }
 
 export type ImporterToUpdate = {
@@ -909,6 +1004,7 @@ export interface UpdatedProject {
 }
 
 interface InstallFunctionResult {
+  updatedCatalogs?: CatalogSnapshots
   newLockfile: LockfileObject
   projects: UpdatedProject[]
   stats?: InstallationResultStats
@@ -1023,6 +1119,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     dependenciesGraph,
     dependenciesByProjectId,
     linkedDependenciesByProjectId,
+    updatedCatalogs,
     newLockfile,
     outdatedDependencies,
     peerDependencyIssuesByProjects,
@@ -1403,6 +1500,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   reportPeerDependencyIssues(peerDependencyIssuesByProjects, {
     lockfileDir: opts.lockfileDir,
     strictPeerDependencies: opts.strictPeerDependencies,
+    rules: opts.peerDependencyRules,
   })
 
   summaryLogger.debug({ prefix: opts.lockfileDir })
@@ -1416,6 +1514,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 
   return {
+    updatedCatalogs,
     newLockfile,
     projects: projects.map(({ id, manifest, rootDir }) => ({
       manifest,
@@ -1447,7 +1546,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           nodeExecPath: opts.nodeExecPath,
           injectWorkspacePackages: opts.injectWorkspacePackages,
         }
-        const _isWantedDepPrefSame = isWantedDepPrefSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
+        const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
         for (const project of allProjectsLocatedInsideWorkspace) {
           if (!newProjects.some(({ rootDir }) => rootDir === project.rootDir)) {
             // This code block mirrors the installCase() function in
@@ -1455,7 +1554,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
             // deduplicate code.
             const wantedDependencies = getWantedDependencies(project.manifest, getWantedDepsOpts)
               .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
-            forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepPrefSame)
+            forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepBareSpecifierSame)
             newProjects.push({
               mutation: 'install',
               ...project,

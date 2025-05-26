@@ -6,16 +6,16 @@ test('createVersionsOverrider() matches sub-ranges', () => {
     {
       targetPkg: {
         name: 'foo',
-        pref: '2',
+        bareSpecifier: '2',
       },
-      newPref: '2.12.0',
+      newBareSpecifier: '2.12.0',
     },
     {
       targetPkg: {
         name: 'qar',
-        pref: '>2',
+        bareSpecifier: '>2',
       },
-      newPref: '1.0.0',
+      newBareSpecifier: '1.0.0',
     },
   ], process.cwd())
   expect(
@@ -34,16 +34,16 @@ test('createVersionsOverrider() does not fail on non-range selectors', () => {
     {
       targetPkg: {
         name: 'foo',
-        pref: '2',
+        bareSpecifier: '2',
       },
-      newPref: '2.12.0',
+      newBareSpecifier: '2.12.0',
     },
     {
       targetPkg: {
         name: 'bar',
-        pref: 'github:org/bar',
+        bareSpecifier: 'github:org/bar',
       },
-      newPref: '2.12.0',
+      newBareSpecifier: '2.12.0',
     },
   ], process.cwd())
   expect(
@@ -66,24 +66,24 @@ test('createVersionsOverrider() overrides dependencies of specified packages onl
     {
       parentPkg: {
         name: 'foo',
-        pref: '1',
+        bareSpecifier: '1',
       },
       targetPkg: {
         name: 'bar',
-        pref: '^1.2.0',
+        bareSpecifier: '^1.2.0',
       },
-      newPref: '3.0.0',
+      newBareSpecifier: '3.0.0',
     },
     {
       parentPkg: {
         name: 'qar',
-        pref: '1',
+        bareSpecifier: '1',
       },
       targetPkg: {
         name: 'bar',
-        pref: '>4',
+        bareSpecifier: '>4',
       },
-      newPref: '3.0.0',
+      newBareSpecifier: '3.0.0',
     },
   ], process.cwd())
   expect(overrider({
@@ -146,19 +146,19 @@ test('createVersionsOverrider() overrides all types of dependencies', () => {
       targetPkg: {
         name: 'foo',
       },
-      newPref: '3.0.0',
+      newBareSpecifier: '3.0.0',
     },
     {
       targetPkg: {
         name: 'bar',
       },
-      newPref: '3.0.0',
+      newBareSpecifier: '3.0.0',
     },
     {
       targetPkg: {
         name: 'qar',
       },
-      newPref: '3.0.0',
+      newBareSpecifier: '3.0.0',
     },
   ], process.cwd())
   expect(overrider({
@@ -194,7 +194,7 @@ test('createVersionsOverrider() overrides dependencies with links', () => {
       targetPkg: {
         name: 'qar',
       },
-      newPref: 'link:../qar',
+      newBareSpecifier: 'link:../qar',
     },
   ], process.cwd())
   expect(overrider({
@@ -219,7 +219,7 @@ test('createVersionsOverrider() overrides dependencies with absolute links', () 
       targetPkg: {
         name: 'qar',
       },
-      newPref: `link:${qarAbsolutePath}`,
+      newBareSpecifier: `link:${qarAbsolutePath}`,
     },
   ], process.cwd())
 
@@ -243,12 +243,12 @@ test('createVersionsOverrider() overrides dependency of pkg matched by name and 
     {
       parentPkg: {
         name: 'yargs',
-        pref: '^7.1.0',
+        bareSpecifier: '^7.1.0',
       },
       targetPkg: {
         name: 'yargs-parser',
       },
-      newPref: '^20.0.0',
+      newBareSpecifier: '^20.0.0',
     },
   ], process.cwd())
   expect(
@@ -273,12 +273,12 @@ test('createVersionsOverrider() does not override dependency of pkg matched by n
     {
       parentPkg: {
         name: 'yargs',
-        pref: '^8.1.0',
+        bareSpecifier: '^8.1.0',
       },
       targetPkg: {
         name: 'yargs-parser',
       },
-      newPref: '^20.0.0',
+      newBareSpecifier: '^20.0.0',
     },
   ], process.cwd())
   expect(
@@ -307,7 +307,7 @@ test('createVersionsOverrider() should work for scoped parent and unscoped child
       targetPkg: {
         name: 'unscoped-package',
       },
-      newPref: 'workspace:*',
+      newBareSpecifier: 'workspace:*',
     },
   ], process.cwd())
   expect(
@@ -336,7 +336,7 @@ test('createVersionsOverrider() should work for unscoped parent and scoped child
       targetPkg: {
         name: '@scoped/package',
       },
-      newPref: 'workspace:*',
+      newBareSpecifier: 'workspace:*',
     },
   ], process.cwd())
   expect(
@@ -365,7 +365,7 @@ test('createVersionsOverrider() should work for scoped parent and scoped child',
       targetPkg: {
         name: '@scoped/package2',
       },
-      newPref: 'workspace:*',
+      newBareSpecifier: 'workspace:*',
     },
   ], process.cwd())
   expect(
@@ -392,7 +392,7 @@ test('createVersionsOverrider() overrides dependencies with file with relative p
       targetPkg: {
         name: 'qar',
       },
-      newPref: 'file:../qar',
+      newBareSpecifier: 'file:../qar',
     },
   ], rootDir)
   expect(overrider({
@@ -417,7 +417,7 @@ test('createVersionsOverrider() overrides dependencies with file with relative p
       targetPkg: {
         name: 'qar',
       },
-      newPref: 'file:../qar',
+      newBareSpecifier: 'file:../qar',
     },
   ], rootDir)
   expect(overrider({
@@ -442,7 +442,7 @@ test('createVersionsOverrider() overrides dependencies with file specified with 
       targetPkg: {
         name: 'qar',
       },
-      newPref: `file:${absolutePath}`,
+      newBareSpecifier: `file:${absolutePath}`,
     },
   ], process.cwd())
   expect(overrider({
@@ -466,31 +466,21 @@ test('createVersionOverride() should use the most specific rule when both overri
       targetPkg: {
         name: 'foo',
       },
-      newPref: '3.0.0',
+      newBareSpecifier: '3.0.0',
     },
     {
       targetPkg: {
         name: 'foo',
-        pref: '3',
+        bareSpecifier: '3',
       },
-      newPref: '4.0.0',
+      newBareSpecifier: '4.0.0',
     },
     {
       targetPkg: {
         name: 'foo',
-        pref: '2',
+        bareSpecifier: '2',
       },
-      newPref: '2.12.0',
-    },
-    {
-      parentPkg: {
-        name: 'bar',
-      },
-      targetPkg: {
-        name: 'foo',
-        pref: '2',
-      },
-      newPref: 'github:org/foo',
+      newBareSpecifier: '2.12.0',
     },
     {
       parentPkg: {
@@ -498,9 +488,19 @@ test('createVersionOverride() should use the most specific rule when both overri
       },
       targetPkg: {
         name: 'foo',
-        pref: '3',
+        bareSpecifier: '2',
       },
-      newPref: '5.0.0',
+      newBareSpecifier: 'github:org/foo',
+    },
+    {
+      parentPkg: {
+        name: 'bar',
+      },
+      targetPkg: {
+        name: 'foo',
+        bareSpecifier: '3',
+      },
+      newBareSpecifier: '5.0.0',
     },
   ], process.cwd())
   expect(
@@ -573,9 +573,9 @@ test('createVersionsOverrider() matches intersections', () => {
     {
       targetPkg: {
         name: 'foo',
-        pref: '<1.2.4',
+        bareSpecifier: '<1.2.4',
       },
-      newPref: '>=1.2.4',
+      newBareSpecifier: '>=1.2.4',
     },
   ], process.cwd())
   expect(
@@ -596,7 +596,7 @@ test('createVersionsOverrider() overrides peerDependencies of another dependency
       targetPkg: {
         name: 'react',
       },
-      newPref: '18.1.0',
+      newBareSpecifier: '18.1.0',
     },
   ], process.cwd())
   expect(
@@ -623,7 +623,7 @@ test('createVersionsOverrider() removes dependencies', () => {
       targetPkg: {
         name: 'foo',
       },
-      newPref: '-',
+      newBareSpecifier: '-',
     },
     {
       parentPkg: {
@@ -632,14 +632,14 @@ test('createVersionsOverrider() removes dependencies', () => {
       targetPkg: {
         name: 'baz',
       },
-      newPref: '-',
+      newBareSpecifier: '-',
     },
     {
       targetPkg: {
         name: 'qux',
-        pref: '2',
+        bareSpecifier: '2',
       },
-      newPref: '-',
+      newBareSpecifier: '-',
     },
   ], process.cwd())
   expect(
@@ -697,19 +697,19 @@ test('createVersionsOverrider() moves invalid versions from peerDependencies to 
       targetPkg: {
         name: 'foo',
       },
-      newPref: 'link:foo',
+      newBareSpecifier: 'link:foo',
     },
     {
       targetPkg: {
         name: 'bar',
       },
-      newPref: 'file:bar',
+      newBareSpecifier: 'file:bar',
     },
     {
       targetPkg: {
         name: 'baz',
       },
-      newPref: '7.7.7',
+      newBareSpecifier: '7.7.7',
     },
   ], process.cwd())
   expect(

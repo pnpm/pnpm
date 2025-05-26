@@ -9,16 +9,17 @@ import {
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
+  type DirectoryResolution,
   type PkgResolutionId,
   type PreferredVersions,
   type ResolveResult,
+  type TarballResolution,
   type WantedDependency,
   type WorkspacePackage,
   type WorkspacePackages,
   type WorkspacePackagesByVersion,
-  type WorkspaceResolveResult,
 } from '@pnpm/resolver-base'
-import { type Registries, type PinnedVersion } from '@pnpm/types'
+import { type DependencyManifest, type Registries, type PinnedVersion } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'
@@ -34,9 +35,11 @@ import {
   pickPackage,
 } from './pickPackage'
 import {
-  parsePref,
+  parseJsrSpecifierToRegistryPackageSpec,
+  parseBareSpecifier,
+  type JsrRegistryPackageSpec,
   type RegistryPackageSpec,
-} from './parsePref'
+} from './parseBareSpecifier'
 import { fromRegistry, RegistryResponseError } from './fetch'
 import { workspacePrefToNpm } from './workspacePrefToNpm'
 import { whichVersionIsPinned } from './whichVersionIsPinned'
@@ -45,15 +48,15 @@ export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
   constructor (opts: { wantedDependency: WantedDependency, packageMeta: PackageMeta, registry: string }) {
     const dep = opts.wantedDependency.alias
-      ? `${opts.wantedDependency.alias}@${opts.wantedDependency.pref ?? ''}`
-      : opts.wantedDependency.pref!
+      ? `${opts.wantedDependency.alias}@${opts.wantedDependency.bareSpecifier ?? ''}`
+      : opts.wantedDependency.bareSpecifier!
     super('NO_MATCHING_VERSION', `No matching version found for ${dep} while fetching it from ${opts.registry}`)
     this.packageMeta = opts.packageMeta
   }
 }
 
 export {
-  parsePref,
+  parseBareSpecifier,
   workspacePrefToNpm,
   type PackageMeta,
   type PackageMetaCache,
@@ -73,13 +76,36 @@ export interface ResolverFactoryOptions {
   saveWorkspaceProtocol?: boolean | 'rolling'
 }
 
-export type NpmResolver = (wantedDependency: WantedDependency, opts: ResolveFromNpmOptions) => Promise<ResolveResult | null>
+export interface NpmResolveResult extends ResolveResult {
+  latest: string
+  manifest: DependencyManifest
+  resolution: TarballResolution
+  resolvedVia: 'npm-registry'
+}
+
+export interface JsrResolveResult extends ResolveResult {
+  alias: string
+  manifest: DependencyManifest
+  resolution: TarballResolution
+  resolvedVia: 'jsr-registry'
+}
+
+export interface WorkspaceResolveResult extends ResolveResult {
+  manifest: DependencyManifest
+  resolution: DirectoryResolution
+  resolvedVia: 'workspace'
+}
+
+export type NpmResolver = (
+  wantedDependency: WantedDependency,
+  opts: ResolveFromNpmOptions
+) => Promise<NpmResolveResult | JsrResolveResult | WorkspaceResolveResult | null>
 
 export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: ResolverFactoryOptions
-): { resolveFromNpm: NpmResolver, clearCache: () => void } {
+): { resolveFromNpm: NpmResolver, resolveFromJsr: NpmResolver, clearCache: () => void } {
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
@@ -95,25 +121,34 @@ export function createNpmResolver (
     max: 10000,
     ttl: 120 * 1000, // 2 minutes
   })
-  return {
-    resolveFromNpm: resolveNpm.bind(null, {
-      getAuthHeaderValueByURI: getAuthHeader,
-      pickPackage: pickPackage.bind(null, {
-        fetch,
-        filterMetadata: opts.filterMetadata,
-        metaCache,
-        metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : ABBREVIATED_META_DIR,
-        offline: opts.offline,
-        preferOffline: opts.preferOffline,
-        cacheDir: opts.cacheDir,
-      }),
-      registries: opts.registries,
-      saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+  const ctx = {
+    getAuthHeaderValueByURI: getAuthHeader,
+    pickPackage: pickPackage.bind(null, {
+      fetch,
+      filterMetadata: opts.filterMetadata,
+      metaCache,
+      metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : ABBREVIATED_META_DIR,
+      offline: opts.offline,
+      preferOffline: opts.preferOffline,
+      cacheDir: opts.cacheDir,
     }),
+    registries: opts.registries,
+    saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+  }
+  return {
+    resolveFromNpm: resolveNpm.bind(null, ctx),
+    resolveFromJsr: resolveJsr.bind(null, ctx),
     clearCache: () => {
       metaCache.clear()
     },
   }
+}
+
+export interface ResolveFromNpmContext {
+  pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
+  getAuthHeaderValueByURI: (registry: string) => string | undefined
+  registries: Registries
+  saveWorkspaceProtocol?: boolean | 'rolling'
 }
 
 export type ResolveFromNpmOptions = {
@@ -138,21 +173,16 @@ export type ResolveFromNpmOptions = {
 })
 
 async function resolveNpm (
-  ctx: {
-    pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
-    getAuthHeaderValueByURI: (registry: string) => string | undefined
-    registries: Registries
-    saveWorkspaceProtocol?: boolean | 'rolling'
-  },
+  ctx: ResolveFromNpmContext,
   wantedDependency: WantedDependency,
   opts: ResolveFromNpmOptions
-): Promise<ResolveResult | null> {
+): Promise<NpmResolveResult | WorkspaceResolveResult | null> {
   const defaultTag = opts.defaultTag ?? 'latest'
   const registry = wantedDependency.alias
-    ? pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.pref)
+    ? pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.bareSpecifier)
     : ctx.registries.default
-  if (wantedDependency.pref?.startsWith('workspace:')) {
-    if (wantedDependency.pref.startsWith('workspace:.')) return null
+  if (wantedDependency.bareSpecifier?.startsWith('workspace:')) {
+    if (wantedDependency.bareSpecifier.startsWith('workspace:.')) return null
     const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
       defaultTag,
       lockfileDir: opts.lockfileDir,
@@ -170,8 +200,8 @@ async function resolveNpm (
     }
   }
   const workspacePackages = opts.alwaysTryWorkspacePackages !== false ? opts.workspacePackages : undefined
-  const spec = wantedDependency.pref
-    ? parsePref(wantedDependency.pref, wantedDependency.alias, defaultTag, registry)
+  const spec = wantedDependency.bareSpecifier
+    ? parseBareSpecifier(wantedDependency.bareSpecifier, wantedDependency.alias, defaultTag, registry)
     : defaultTagForAlias(wantedDependency.alias!, defaultTag)
   if (spec == null) return null
 
@@ -267,9 +297,9 @@ async function resolveNpm (
     integrity: getIntegrity(pickedPackage.dist),
     tarball: pickedPackage.dist.tarball,
   }
-  let specifier: string | undefined
+  let normalizedBareSpecifier: string | undefined
   if (opts.calcSpecifier) {
-    specifier = spec.normalizedPref ?? calcSpecifier({
+    normalizedBareSpecifier = spec.normalizedBareSpecifier ?? calcSpecifier({
       wantedDependency,
       spec,
       version: pickedPackage.version,
@@ -283,8 +313,75 @@ async function resolveNpm (
     resolution,
     resolvedVia: 'npm-registry',
     publishedAt: meta.time?.[pickedPackage.version],
-    specifier,
+    normalizedBareSpecifier,
   }
+}
+
+async function resolveJsr (
+  ctx: ResolveFromNpmContext,
+  wantedDependency: WantedDependency,
+  opts: Omit<ResolveFromNpmOptions, 'registry'>
+): Promise<JsrResolveResult | null> {
+  if (!wantedDependency.bareSpecifier) return null
+  const defaultTag = opts.defaultTag ?? 'latest'
+
+  const registry = ctx.registries['@jsr']! // '@jsr' is always defined
+  const spec = parseJsrSpecifierToRegistryPackageSpec(wantedDependency.bareSpecifier, wantedDependency.alias, defaultTag)
+  if (spec == null) return null
+
+  const authHeaderValue = ctx.getAuthHeaderValueByURI(registry)
+  const { meta, pickedPackage } = await ctx.pickPackage(spec, {
+    pickLowestVersion: opts.pickLowestVersion,
+    publishedBy: opts.publishedBy,
+    authHeaderValue,
+    dryRun: opts.dryRun === true,
+    preferredVersionSelectors: opts.preferredVersions?.[spec.name],
+    registry,
+    updateToLatest: opts.update === 'latest',
+  })
+
+  if (pickedPackage == null) {
+    throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
+  }
+
+  const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
+  const resolution = {
+    integrity: getIntegrity(pickedPackage.dist),
+    tarball: pickedPackage.dist.tarball,
+  }
+  return {
+    id,
+    latest: meta['dist-tags'].latest,
+    manifest: pickedPackage,
+    normalizedBareSpecifier: opts.calcSpecifier
+      ? calcJsrSpecifier({
+        wantedDependency,
+        spec,
+        version: pickedPackage.version,
+        defaultPinnedVersion: opts.pinnedVersion,
+      })
+      : undefined,
+    resolution,
+    resolvedVia: 'jsr-registry',
+    publishedAt: meta.time?.[pickedPackage.version],
+    alias: spec.jsrPkgName,
+  }
+}
+
+function calcJsrSpecifier ({
+  wantedDependency,
+  spec,
+  version,
+  defaultPinnedVersion,
+}: {
+  wantedDependency: WantedDependency
+  spec: JsrRegistryPackageSpec
+  version: string
+  defaultPinnedVersion?: PinnedVersion
+}): string {
+  const range = calcRange(version, wantedDependency, defaultPinnedVersion)
+  if (!wantedDependency.alias || spec.jsrPkgName === wantedDependency.alias) return `jsr:${range}`
+  return `jsr:${spec.jsrPkgName}@${range}`
 }
 
 function calcSpecifier ({
@@ -298,7 +395,7 @@ function calcSpecifier ({
   version: string
   defaultPinnedVersion?: PinnedVersion
 }): string {
-  if (wantedDependency.prevSpecifier === wantedDependency.pref && wantedDependency.prevSpecifier && versionSelectorType(wantedDependency.prevSpecifier)?.type === 'tag') {
+  if (wantedDependency.prevSpecifier === wantedDependency.bareSpecifier && wantedDependency.prevSpecifier && versionSelectorType(wantedDependency.prevSpecifier)?.type === 'tag') {
     return wantedDependency.prevSpecifier
   }
   const range = calcRange(version, wantedDependency, defaultPinnedVersion)
@@ -311,7 +408,7 @@ function calcRange (version: string, wantedDependency: WantedDependency, default
     return version
   }
   const pinnedVersion = (wantedDependency.prevSpecifier ? whichVersionIsPinned(wantedDependency.prevSpecifier) : undefined) ??
-    (wantedDependency.pref ? whichVersionIsPinned(wantedDependency.pref) : undefined) ??
+    (wantedDependency.bareSpecifier ? whichVersionIsPinned(wantedDependency.bareSpecifier) : undefined) ??
     defaultPinnedVersion
   return createVersionSpec(version, pinnedVersion)
 }
@@ -331,13 +428,13 @@ function tryResolveFromWorkspace (
     pinnedVersion?: PinnedVersion
   }
 ): WorkspaceResolveResult | null {
-  if (!wantedDependency.pref?.startsWith('workspace:')) {
+  if (!wantedDependency.bareSpecifier?.startsWith('workspace:')) {
     return null
   }
-  const pref = workspacePrefToNpm(wantedDependency.pref)
+  const bareSpecifier = workspacePrefToNpm(wantedDependency.bareSpecifier)
 
-  const spec = parsePref(pref, wantedDependency.alias, opts.defaultTag, opts.registry)
-  if (spec == null) throw new Error(`Invalid workspace: spec (${wantedDependency.pref})`)
+  const spec = parseBareSpecifier(bareSpecifier, wantedDependency.alias, opts.defaultTag, opts.registry)
+  if (spec == null) throw new Error(`Invalid workspace: spec (${wantedDependency.bareSpecifier})`)
   if (opts.workspacePackages == null) {
     throw new Error('Cannot resolve package from workspace because opts.workspacePackages is not defined')
   }
@@ -374,7 +471,7 @@ function tryResolveFromWorkspacePackages (
   if (!workspacePkgsMatchingName) {
     throw new PnpmError(
       'WORKSPACE_PKG_NOT_FOUND',
-      `In ${path.relative(process.cwd(), opts.projectDir)}: "${spec.name}@${opts.wantedDependency.pref ?? ''}" is in the dependencies but no package named "${spec.name}" is present in the workspace`,
+      `In ${path.relative(process.cwd(), opts.projectDir)}: "${spec.name}@${opts.wantedDependency.bareSpecifier ?? ''}" is in the dependencies but no package named "${spec.name}" is present in the workspace`,
       {
         hint: 'Packages found in the workspace: ' + Object.keys(workspacePackages).join(', '),
       }
@@ -387,7 +484,7 @@ function tryResolveFromWorkspacePackages (
   if (!localVersion) {
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
-      `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${opts.wantedDependency.alias ?? ''}@${opts.wantedDependency.pref ?? ''} inside the workspace`
+      `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${opts.wantedDependency.alias ?? ''}@${opts.wantedDependency.bareSpecifier ?? ''} inside the workspace`
     )
   }
   return resolveFromLocalPackage(workspacePkgsMatchingName.get(localVersion)!, spec, opts)
@@ -434,9 +531,9 @@ function resolveFromLocalPackage (
     directory = localPackageDir
     id = `link:${normalize(path.relative(opts.projectDir, localPackageDir))}` as PkgResolutionId
   }
-  let specifier: string | undefined
+  let normalizedBareSpecifier: string | undefined
   if (opts.calcSpecifier) {
-    specifier = spec.normalizedPref ?? calcSpecifierForWorkspaceDep({
+    normalizedBareSpecifier = spec.normalizedBareSpecifier ?? calcSpecifierForWorkspaceDep({
       wantedDependency: opts.wantedDependency,
       spec,
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
@@ -452,7 +549,7 @@ function resolveFromLocalPackage (
       type: 'directory',
     },
     resolvedVia: 'workspace',
-    specifier,
+    normalizedBareSpecifier,
   }
 }
 
@@ -469,12 +566,12 @@ function calcSpecifierForWorkspaceDep ({
   version: string
   defaultPinnedVersion?: PinnedVersion
 }): string {
-  if (!saveWorkspaceProtocol && !wantedDependency.pref?.startsWith('workspace:')) {
+  if (!saveWorkspaceProtocol && !wantedDependency.bareSpecifier?.startsWith('workspace:')) {
     return calcSpecifier({ wantedDependency, spec, version, defaultPinnedVersion })
   }
   const prefix = (!wantedDependency.alias || spec.name === wantedDependency.alias) ? 'workspace:' : `workspace:${spec.name}@`
   if (saveWorkspaceProtocol === 'rolling') {
-    const specifier = wantedDependency.prevSpecifier ?? wantedDependency.pref
+    const specifier = wantedDependency.prevSpecifier ?? wantedDependency.bareSpecifier
     if (specifier) {
       if ([`${prefix}*`, `${prefix}^`, `${prefix}~`].includes(specifier)) return specifier
       const pinnedVersion = whichVersionIsPinned(specifier)

@@ -1,5 +1,43 @@
 # @pnpm/lifecycle
 
+## 1001.0.14
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [c24c66e]
+  - @pnpm/directory-fetcher@1000.1.7
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/link-bins@1000.0.13
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/read-package-json@1000.0.9
+
+## 1001.0.13
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+  - @pnpm/link-bins@1000.0.12
+
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/directory-fetcher@1000.1.6
+  - @pnpm/link-bins@1000.0.11
+  - @pnpm/read-package-json@1000.0.8
+
 ## 1001.0.11
 
 ### Patch Changes

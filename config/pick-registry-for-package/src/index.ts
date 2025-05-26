@@ -1,15 +1,15 @@
 import { type Registries } from '@pnpm/types'
 
-export function pickRegistryForPackage (registries: Registries, packageName: string, pref?: string): string {
-  const scope = getScope(packageName, pref)
+export function pickRegistryForPackage (registries: Registries, packageName: string, bareSpecifier?: string): string {
+  const scope = getScope(packageName, bareSpecifier)
   return (scope && registries[scope]) ?? registries.default
 }
 
-function getScope (pkgName: string, pref?: string): string | null {
-  if (pref?.startsWith('npm:')) {
-    pref = pref.slice(4)
-    if (pref[0] === '@') {
-      return pref.substring(0, pref.indexOf('/'))
+function getScope (pkgName: string, bareSpecifier?: string): string | null {
+  if (bareSpecifier?.startsWith('npm:')) {
+    bareSpecifier = bareSpecifier.slice(4)
+    if (bareSpecifier[0] === '@') {
+      return bareSpecifier.substring(0, bareSpecifier.indexOf('/'))
     }
   }
   if (pkgName[0] === '@') {

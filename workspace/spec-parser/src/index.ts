@@ -9,8 +9,8 @@ export class WorkspaceSpec {
     this.alias = alias
   }
 
-  static parse (pref: string): WorkspaceSpec | null {
-    const parts = WORKSPACE_PREF_REGEX.exec(pref)
+  static parse (bareSpecifier: string): WorkspaceSpec | null {
+    const parts = WORKSPACE_PREF_REGEX.exec(bareSpecifier)
     if (!parts?.groups) return null
     return new WorkspaceSpec(parts.groups.version, parts.groups.alias)
   }

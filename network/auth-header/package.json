@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/network.auth-header",
-  "version": "1000.0.2",
+  "version": "1000.0.3",
   "description": "Gets the authorization header for the given URI",
   "keywords": [
     "pnpm",
@@ -31,8 +31,8 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:*",
-    "nerf-dart": "catalog:"
+    "@pnpm/config.nerf-dart": "catalog:",
+    "@pnpm/error": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/network.auth-header": "workspace:*",

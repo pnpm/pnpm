@@ -11,10 +11,15 @@ import { type InstallCommandOptions } from './install'
 import { installDeps } from './installDeps'
 import { writeSettings } from '@pnpm/config.config-writer'
 
+export const shorthands: Record<string, string> = {
+  'save-catalog': '--save-catalog-name=default',
+}
+
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
     'child-concurrency',
+    'dangerously-allow-all-builds',
     'engine-strict',
     'fetch-retries',
     'fetch-retry-factor',
@@ -50,6 +55,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'public-hoist-pattern',
     'registry',
     'reporter',
+    'save-catalog-name',
     'save-dev',
     'save-exact',
     'save-optional',
@@ -114,6 +120,14 @@ export function help (): string {
           {
             description: 'Save package to your `peerDependencies` and `devDependencies`',
             name: '--save-peer',
+          },
+          {
+            description: 'Save package to the default catalog',
+            name: '--save-catalog',
+          },
+          {
+            description: 'Save package to the specified catalog',
+            name: '--save-catalog-name=<name>',
           },
           {
             description: 'Install exact version',
@@ -236,6 +250,9 @@ export async function handler (
     optionalDependencies: opts.optional !== false,
   }
   if (opts.allowBuild?.length) {
+    if (opts.argv.original.includes('--allow-build')) {
+      throw new PnpmError('ALLOW_BUILD_MISSING_PACKAGE', 'The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
+    }
     if (opts.rootProjectManifest?.pnpm?.ignoredBuiltDependencies?.length) {
       const overlapDependencies = opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.filter((dep) => opts.allowBuild?.includes(dep))
       if (overlapDependencies.length) {

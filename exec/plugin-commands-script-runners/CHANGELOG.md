@@ -1,5 +1,78 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1000.2.14
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- 36d1448: Set the default `workspaceConcurrency` to `Math.min(os.availableParallelism(), 4)` [#9493](https://github.com/pnpm/pnpm/pull/9493).
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/plugin-commands-installation@1004.0.2
+  - @pnpm/workspace.injected-deps-syncer@1000.0.8
+  - @pnpm/plugin-commands-env@1000.0.25
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/lifecycle@1001.0.14
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/deps.status@1002.1.2
+  - @pnpm/types@1000.6.0
+  - @pnpm/client@1000.0.18
+  - @pnpm/package-bins@1000.0.8
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/read-project-manifest@1000.0.11
+  - @pnpm/sort-packages@1000.0.8
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.2.13
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+- Updated dependencies [7c7f0d6]
+  - @pnpm/plugin-commands-env@1000.0.24
+  - @pnpm/common-cli-options-help@1000.0.1
+  - @pnpm/plugin-commands-installation@1004.0.1
+  - @pnpm/lifecycle@1001.0.13
+  - @pnpm/cli-utils@1000.1.3
+  - @pnpm/config@1003.0.1
+  - @pnpm/deps.status@1002.1.1
+  - @pnpm/client@1000.0.17
+
+## 1000.2.12
+
+### Patch Changes
+
+- Updated dependencies [3cf337b]
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [3cf337b]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/deps.status@1002.1.0
+  - @pnpm/config@1003.0.0
+  - @pnpm/plugin-commands-installation@1004.0.0
+  - @pnpm/parse-wanted-dependency@1001.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/plugin-commands-env@1000.0.23
+  - @pnpm/lifecycle@1001.0.12
+  - @pnpm/client@1000.0.16
+  - @pnpm/package-bins@1000.0.7
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.10
+  - @pnpm/sort-packages@1000.0.7
+  - @pnpm/workspace.injected-deps-syncer@1000.0.7
+  - @pnpm/crypto.hash@1000.1.1
+
 ## 1000.2.11
 
 ### Patch Changes

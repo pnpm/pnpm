@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "1000.2.11",
+  "version": "1000.2.14",
   "description": "Commands for running scripts",
   "keywords": [
     "pnpm",
@@ -68,7 +68,7 @@
     "write-json-file": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": ">=5.1.0 <1001.0.0"
+    "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:*",

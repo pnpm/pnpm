@@ -19,8 +19,11 @@ catalogs:
       specifier: ^1.0.1
       version: 1.0.1
     '@pnpm/config.env-replace':
-      specifier: 3.0.1
-      version: 3.0.1
+      specifier: ^3.0.2
+      version: 3.0.2
+    '@pnpm/config.nerf-dart':
+      specifier: ^1.0.0
+      version: 1.0.0
     '@pnpm/exec':
       specifier: ^2.0.0
       version: 2.0.0
@@ -30,12 +33,15 @@ catalogs:
     '@pnpm/log.group':
       specifier: 3.0.1
       version: 3.0.1
+    '@pnpm/logger':
+      specifier: '>=1001.0.0 <1002.0.0'
+      version: 1001.0.0
     '@pnpm/meta-updater':
       specifier: 2.0.5
       version: 2.0.5
     '@pnpm/network.agent':
-      specifier: ^2.0.2
-      version: 2.0.2
+      specifier: ^2.0.3
+      version: 2.0.3
     '@pnpm/nopt':
       specifier: ^0.2.1
       version: 0.2.1
@@ -43,20 +49,20 @@ catalogs:
       specifier: 3.0.0
       version: 3.0.0
     '@pnpm/npm-lifecycle':
-      specifier: ^1000.0.2
-      version: 1000.0.2
+      specifier: ^1000.0.4
+      version: 1000.0.4
     '@pnpm/npm-package-arg':
       specifier: ^1.0.0
       version: 1.0.0
     '@pnpm/os.env.path-extender':
-      specifier: ^2.0.2
-      version: 2.0.2
+      specifier: ^2.0.3
+      version: 2.0.3
     '@pnpm/patch-package':
       specifier: 0.0.1
       version: 0.0.1
     '@pnpm/registry-mock':
-      specifier: 4.3.0
-      version: 4.3.0
+      specifier: 4.4.0
+      version: 4.4.0
     '@pnpm/semver-diff':
       specifier: ^1.1.0
       version: 1.1.0
@@ -64,8 +70,8 @@ catalogs:
       specifier: ^0.5.4
       version: 0.5.4
     '@pnpm/util.lex-comparator':
-      specifier: 3.0.1
-      version: 3.0.1
+      specifier: ^3.0.2
+      version: 3.0.2
     '@reflink/reflink':
       specifier: 0.1.19
       version: 0.1.19
@@ -202,8 +208,8 @@ catalogs:
       specifier: ^4.0.8
       version: 4.0.8
     '@zkochan/cmd-shim':
-      specifier: ^6.0.0
-      version: 6.0.0
+      specifier: ^7.0.0
+      version: 7.0.0
     '@zkochan/diable':
       specifier: ^1.0.2
       version: 1.0.2
@@ -414,9 +420,6 @@ catalogs:
     ndjson:
       specifier: ^2.0.0
       version: 2.0.0
-    nerf-dart:
-      specifier: 1.0.0
-      version: 1.0.0
     nock:
       specifier: 13.3.4
       version: 13.3.4
@@ -865,7 +868,7 @@ importers:
         version: link:../../pkg-manager/modules-yaml
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -899,7 +902,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -974,7 +977,7 @@ importers:
     dependencies:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
@@ -1160,7 +1163,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
@@ -1327,7 +1330,7 @@ importers:
         version: link:../../packages/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.1
+        version: 3.0.2
       ansi-diff:
         specifier: 'catalog:'
         version: 1.2.0
@@ -1468,7 +1471,7 @@ importers:
         version: link:../../catalogs/types
       '@pnpm/config.env-replace':
         specifier: 'catalog:'
-        version: 3.0.1
+        version: 3.0.2
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
@@ -1479,8 +1482,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/git-utils
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../matcher
@@ -1604,8 +1607,8 @@ importers:
         specifier: workspace:*
         version: link:../../network/fetch
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header
@@ -1645,7 +1648,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/testing.temp-store':
         specifier: workspace:*
         version: link:../../testing/temp-store
@@ -1994,8 +1997,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/verification
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides
@@ -2152,7 +2155,7 @@ importers:
         version: link:../../packages/types
       '@zkochan/cmd-shim':
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 7.0.0
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -2246,8 +2249,8 @@ importers:
         specifier: workspace:*
         version: link:../../config/config-writer
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
@@ -2259,7 +2262,7 @@ importers:
         version: link:../../__utils__/prepare-temp-dir
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.1
+        version: 3.0.2
       chalk:
         specifier: 'catalog:'
         version: 4.1.2
@@ -2281,7 +2284,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2309,6 +2312,9 @@ importers:
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
@@ -2378,7 +2384,7 @@ importers:
         version: link:../../pkg-manager/link-bins
       '@pnpm/npm-lifecycle':
         specifier: 'catalog:'
-        version: 1000.0.2(typanion@3.14.0)
+        version: 1000.0.4(typanion@3.14.0)
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -2567,7 +2573,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -2715,7 +2721,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -3013,7 +3019,7 @@ importers:
         version: link:../../packages/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.1
+        version: 3.0.2
       p-filter:
         specifier: 'catalog:'
         version: 2.1.0
@@ -3876,12 +3882,12 @@ importers:
 
   network/auth-header:
     dependencies:
+      '@pnpm/config.nerf-dart':
+        specifier: 'catalog:'
+        version: 1.0.0
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      nerf-dart:
-        specifier: 'catalog:'
-        version: 1.0.0
     devDependencies:
       '@pnpm/network.auth-header':
         specifier: workspace:*
@@ -3900,7 +3906,7 @@ importers:
         version: link:../fetching-types
       '@pnpm/network.agent':
         specifier: 'catalog:'
-        version: 2.0.2
+        version: 2.0.3
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -3941,7 +3947,7 @@ importers:
     dependencies:
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.1
+        version: 3.0.2
       sort-keys:
         specifier: 'catalog:'
         version: 4.2.0
@@ -4159,6 +4165,9 @@ importers:
       camelcase-keys:
         specifier: 'catalog:'
         version: 6.2.2
+      ramda:
+        specifier: 'catalog:'
+        version: '@pnpm/ramda@0.28.1'
       render-help:
         specifier: 'catalog:'
         version: 1.0.3
@@ -4172,6 +4181,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@types/ramda':
+        specifier: 'catalog:'
+        version: 0.29.12
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
@@ -4186,7 +4198,7 @@ importers:
         version: link:../../cli/cli-utils
       '@pnpm/os.env.path-extender':
         specifier: 'catalog:'
-        version: 2.0.2
+        version: 2.0.3
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -4212,12 +4224,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../error
-      '@pnpm/matcher':
-        specifier: workspace:*
-        version: link:../../config/matcher
-      '@pnpm/parse-overrides':
-        specifier: workspace:*
-        version: link:../../config/parse-overrides
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
@@ -4230,9 +4236,6 @@ importers:
       cli-columns:
         specifier: 'catalog:'
         version: 4.0.0
-      semver:
-        specifier: 'catalog:'
-        version: 7.7.1
     devDependencies:
       '@pnpm/render-peer-issues':
         specifier: workspace:*
@@ -4240,9 +4243,6 @@ importers:
       '@types/archy':
         specifier: 'catalog:'
         version: 0.0.33
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.5.3
 
   packages/types:
     devDependencies:
@@ -4281,8 +4281,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/error
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/patching.types':
         specifier: workspace:*
         version: link:../types
@@ -4410,7 +4410,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -4499,6 +4499,9 @@ importers:
       '@pnpm/catalogs.protocol-parser':
         specifier: workspace:*
         version: link:../../catalogs/protocol-parser
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
@@ -4697,7 +4700,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -4970,7 +4973,7 @@ importers:
         version: link:../read-projects-context
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -5048,7 +5051,7 @@ importers:
         version: link:../../packages/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.1
+        version: 3.0.2
       is-subdir:
         specifier: 'catalog:'
         version: 1.2.0
@@ -5097,7 +5100,7 @@ importers:
         version: link:../../packages/types
       '@zkochan/cmd-shim':
         specifier: 'catalog:'
-        version: 6.0.0
+        version: 7.0.0
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -5333,7 +5336,7 @@ importers:
         version: 'link:'
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5472,6 +5475,9 @@ importers:
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: link:../../workspace/find-packages
+      '@pnpm/workspace.manifest-writer':
+        specifier: workspace:*
+        version: link:../../workspace/manifest-writer
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../../workspace/pkgs-graph
@@ -5556,7 +5562,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5852,6 +5858,9 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../read-project-manifest
+      '@pnpm/resolving.jsr-specifier-parser':
+        specifier: workspace:*
+        version: link:../../resolving/jsr-specifier-parser
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -6151,7 +6160,7 @@ importers:
         version: link:../pkg-manifest/read-project-manifest
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../exec/run-npm
@@ -6464,7 +6473,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -6549,6 +6558,9 @@ importers:
       p-filter:
         specifier: 'catalog:'
         version: 2.1.0
+      p-limit:
+        specifier: 'catalog:'
+        version: 3.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -6588,7 +6600,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
@@ -6692,7 +6704,7 @@ importers:
         version: 'link:'
       '@pnpm/network.agent':
         specifier: 'catalog:'
-        version: 2.0.2
+        version: 2.0.3
       '@types/hosted-git-info':
         specifier: 'catalog:'
         version: 3.0.5
@@ -6705,6 +6717,16 @@ importers:
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
+
+  resolving/jsr-specifier-parser:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+    devDependencies:
+      '@pnpm/resolving.jsr-specifier-parser':
+        specifier: workspace:*
+        version: 'link:'
 
   resolving/local-resolver:
     dependencies:
@@ -6766,6 +6788,9 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
+      '@pnpm/resolving.jsr-specifier-parser':
+        specifier: workspace:*
+        version: link:../jsr-specifier-parser
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -7187,7 +7212,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -7251,7 +7276,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/workspace.filter-packages-from-dir':
         specifier: workspace:*
         version: link:../../workspace/filter-packages-from-dir
@@ -7336,7 +7361,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -7690,7 +7715,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@types/archy':
         specifier: 'catalog:'
         version: 0.0.33
@@ -7944,7 +7969,7 @@ importers:
         version: link:../../store/package-store
       '@pnpm/registry-mock':
         specifier: 'catalog:'
-        version: 4.3.0(encoding@0.1.13)(typanion@3.14.0)
+        version: 4.4.0(encoding@0.1.13)(typanion@3.14.0)
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -7993,8 +8018,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
       '@pnpm/logger':
-        specifier: '>=5.1.0 <1001.0.0'
-        version: 1000.0.0
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -8196,7 +8221,7 @@ importers:
         version: link:../../packages/types
       '@pnpm/util.lex-comparator':
         specifier: 'catalog:'
-        version: 3.0.1
+        version: 3.0.2
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -8254,6 +8279,12 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
+      '@pnpm/lockfile.types':
+        specifier: workspace:*
+        version: link:../../lockfile/types
+      '@pnpm/object.key-sorting':
+        specifier: workspace:*
+        version: link:../../object/key-sorting
       '@pnpm/workspace.read-manifest':
         specifier: workspace:*
         version: link:../read-manifest
@@ -9349,6 +9380,18 @@ packages:
     resolution: {integrity: sha512-/raU9tmnv1wEw1LdTTCvopwjUMXlLvGP5214sKSpIFC6w41hPS4f1oODDy0nNVteXwa8ewu85xpHQeMFgXdmxQ==}
     engines: {node: '>=18.12'}
 
+  '@pnpm/config.env-replace@3.0.2':
+    resolution: {integrity: sha512-GD6nKLyKF+ev15Tj3pS8y6cTVPIuAqTyhPrUFMfmodFvhEDdYKN/gdGimkc9GJLfHVC/SuCVFg49YNJyoW7niA==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/config.nerf-dart@1.0.0':
+    resolution: {integrity: sha512-/jnjwmeLVEXzfk+za2qJams03KtFe4C5s2fT623SZ6UxhYqzHd+Zin/NzrCFY1/IHMHMP1ScFDDgAd36GrKxEA==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/config.nerf-dart@1.0.1':
+    resolution: {integrity: sha512-03d2l21gAyzGVr9SR6rS5pvCTnZ4HaNdi8jB2Y/UGvszzrNbA+AJVObVw6SulNQ1Eah3SHB9wCezJwtP+jYIcA==}
+    engines: {node: '>=18.12'}
+
   '@pnpm/config@1002.5.2':
     resolution: {integrity: sha512-VLo2C/bDoXTla8b/EIrbQoUoETvgGXWnpF/Zl72Qc/m7rZ4UI8J5UC6TraGEjG24dSPqdrjrHv7TvkJfmEVlYQ==}
     engines: {node: '>=18.12'}
@@ -9441,6 +9484,10 @@ packages:
     resolution: {integrity: sha512-v5WO9L4pT7ZjZpf7a/a3H3Xj59JPHNMFJwRS7m/01VMWrKjs89CdVIE5e/N6DwuzP750j0iKozTw6UrCVEfQjA==}
     engines: {node: '>=18.12'}
 
+  '@pnpm/logger@1001.0.0':
+    resolution: {integrity: sha512-nj80XtTHHt7T+b5stLWszzd166MbGx4eTOu9+6h6RdelKMlSWhrb7KUb0j90tYk+yoGx8TeMVdJCaoBnkLp8xw==}
+    engines: {node: '>=18.12'}
+
   '@pnpm/manifest-utils@1000.0.6':
     resolution: {integrity: sha512-hHRb0HJQ6VgknkEgEs4FDho69QRETn64QurXm75i+pPuoYkI12vDPXkBmoJQfdHSsA23uGvtadjBueHLx608GQ==}
     engines: {node: '>=18.12'}
@@ -9454,20 +9501,20 @@ packages:
     engines: {node: '>=18.12.0'}
     hasBin: true
 
-  '@pnpm/network.agent@2.0.2':
-    resolution: {integrity: sha512-F+jK0LcYH/Px2RmVR5PP/rFpoTLAUZqfbSQcF/A4+4SZDN7ega2UeDFOmXAvVKF2QDuwmZ3qA+skV/0bt/8kBg==}
+  '@pnpm/network.agent@2.0.3':
+    resolution: {integrity: sha512-YITr8VrjPPULdQWAA17oU0M4j4286OmRnk0XA1ntoR+v0FbdGRKmRQmOHx86s1eM3eGCh1UF8WPHNkbgjjBN3Q==}
     engines: {node: '>=18.12'}
 
   '@pnpm/network.ca-file@1.0.2':
     resolution: {integrity: sha512-YcPQ8a0jwYU9bTdJDpXjMi7Brhkr1mXsXrUJvjqM2mQDgkRiz8jFaQGOdaLxgjtUfQgZhKy/O3cG/YwmgKaxLA==}
     engines: {node: '>=12.22.0'}
 
-  '@pnpm/network.config@2.0.1':
-    resolution: {integrity: sha512-7hFqy3ixKy/7G0pDp4PkVAfS4bRTHO7AV7a4noK0ehpR4Qq7ZliTFFSWOvDNfPh+P71RnmDGLWQ+cczYNYIpZw==}
+  '@pnpm/network.config@2.1.0':
+    resolution: {integrity: sha512-3Z4suyclrd1NOp1ue+xf5VCEd7Pu1R16wXg8wCmKIiQD7E69BE4WA3ralxrkPx0B0OtqM1H8lBPINsipZaUcuQ==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/network.proxy-agent@2.0.2':
-    resolution: {integrity: sha512-ayCPw0Q57JjjbfiwAqlAGMRUbbqs6ju/pr8B3FgnvIBd5BIhNnCzXtrryZYeesFhCWttvNoD5zMh2hvxBc8UIg==}
+  '@pnpm/network.proxy-agent@2.0.3':
+    resolution: {integrity: sha512-x6lyFMJFgf/8dArUfPBtEqieKm8J7Vab/hIiNCCqcziEucJwNgFUF1xwLUuypn/oSB9XvGQa4nxPZ0dyFZzOrQ==}
     engines: {node: '>=18.12'}
 
   '@pnpm/node-fetch@1.0.0':
@@ -9483,24 +9530,24 @@ packages:
     resolution: {integrity: sha512-LdFkv/+4ONkQ9ZyE8ihC2L2RcPjvNcOTQq6pvvvZp8KeDYATCJeJX7gpHZF3Bx1XvUSU35dyF9Q9dS+JShtOFA==}
     engines: {node: '>=12'}
 
-  '@pnpm/npm-lifecycle@1000.0.2':
-    resolution: {integrity: sha512-+MID5PrMc0hZyIG4GBkNt2a0BG50wX94IS+3Md/FTUJ+H0+BMkdkUGJJbbQhdIPxQD1eAhm+a/3bZuAhnuCNVA==}
+  '@pnpm/npm-lifecycle@1000.0.4':
+    resolution: {integrity: sha512-sN7dG1UV7jZvMgH2C/qtvriq4PsDkJQekuAHWO3DCw4n9Ef5Edv5nNoyg5I288FFzDsEV963HpyVOqB7x94DNw==}
     engines: {node: '>=18.12'}
 
   '@pnpm/npm-package-arg@1.0.0':
     resolution: {integrity: sha512-oQYP08exi6mOPdAZZWcNIGS+KKPsnNwUBzSuAEGWuCcqwMAt3k/WVCqVIXzBxhO5sP2b43og69VHmPj6IroKqw==}
     engines: {node: '>=14.6'}
 
-  '@pnpm/os.env.path-extender-posix@2.0.1':
-    resolution: {integrity: sha512-UA+17CyARGyvzZFiHRN2Yftl8ZSPjwxEWkd+PQldWyK8ptWUsYYusnCpQ5Prufk8WSFGBZFQFlll2O/YnomPWg==}
+  '@pnpm/os.env.path-extender-posix@2.1.0':
+    resolution: {integrity: sha512-oE0WCU2GCdOS/ChBi0dAFkktpxe0EPvCswP6+15yaHuydrCBTAaoB9cqSQaQCYrrDbabhn3kSxTex2T5xhq9fg==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/os.env.path-extender-windows@2.0.2':
-    resolution: {integrity: sha512-CWpnyz8WZwRMEchWYMUxavJF4LSrKIz4LBNaif4pgeL+ahZEb6osVKuw10YHKalC1lhQ5HNUbljlarufB/zxhA==}
+  '@pnpm/os.env.path-extender-windows@2.0.3':
+    resolution: {integrity: sha512-zJlGIoRLNpZh9xhCgC6nTvqvXzw1wKhiH3TuroJQ0xHxDwVxk7kAbF4wSROBcVcdOnK4zlxsA1Vc0jAPjxInog==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/os.env.path-extender@2.0.2':
-    resolution: {integrity: sha512-hLSkfzaDO3/yknezXSeNTsZ8bD6YnoXT7ISTFyjSmJxa40pj2O0tz7oLSVoTQM4jxuqdAKtejeSUY7zMf8Hywg==}
+  '@pnpm/os.env.path-extender@2.0.3':
+    resolution: {integrity: sha512-Tnrcwi0kGBaMPT9amiWg2ANbdIWMxVJS/d62lNMHbWX3erY2MAG9Y7Si46qdshrYlOzeqHX/lrW5AjlgF/zNeQ==}
     engines: {node: '>=18.12'}
 
   '@pnpm/package-is-installable@1000.0.6':
@@ -9539,8 +9586,8 @@ packages:
     resolution: {integrity: sha512-UY5ZFl8jTgWpPMp3qwVt1z455gDLGh4aAna7ufqsJP9qhI6lr9scFpnEamjpA51Y3MJMBtnML8KATmH6RY+NHQ==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/registry-mock@4.3.0':
-    resolution: {integrity: sha512-u2SG2b/yVgeA+Nt+Wvzl6dOFBUx/l6/zCq3vX2VbWOgibTqiJwMY7ks9aXxldyE3Hk8ZZLX5FYcYIKVrC6r1/g==}
+  '@pnpm/registry-mock@4.4.0':
+    resolution: {integrity: sha512-OOHciXVfvqt4U70C0w+GyYnT3KrIvLG/1O1OE9fZQRji+/XdhiJd68kfhLhnTvlgi++r3mO1URlKldvi2zV/Yw==}
     engines: {node: '>=18.12'}
     hasBin: true
 
@@ -9589,6 +9636,10 @@ packages:
 
   '@pnpm/util.lex-comparator@3.0.1':
     resolution: {integrity: sha512-jUR0XFKlYcwexqNl+Qbkw8XqQw3+wjwKz72uREqVf4OiV9Hi67IoVu8q1gz0LvHgZmqruisiar+873HcJW9dHw==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/util.lex-comparator@3.0.2':
+    resolution: {integrity: sha512-blFO4Ws97tWv/SNE6N39ZdGmZBrocXnBOfVp0ln4kELmns4pGPZizqyRtR8EjfOLMLstbmNCTReBoDvLz1isVg==}
     engines: {node: '>=18.12'}
 
   '@pnpm/which@3.0.1':
@@ -10089,9 +10140,9 @@ packages:
     resolution: {integrity: sha512-MRUN24GOMTa14zkZ4Jd1BPmlagbk10+C6gegE5FgxzTVqiYMcm3KD+2qJs6OmlpEhqUKmm4pu/oTdn0KcMqbXg==}
     engines: {node: '>=10'}
 
-  '@zkochan/cmd-shim@6.0.0':
-    resolution: {integrity: sha512-kLBj0hJjqIw/KkIs8tvFaG1AY/yX2iUJqj47Jgoo5WoeQJd552ijJsj4GAOQnmyfoFLLEKZ+aSYfCpMjyg2hJw==}
-    engines: {node: '>=14.6'}
+  '@zkochan/cmd-shim@7.0.0':
+    resolution: {integrity: sha512-E5mgrRS8Kk80n19Xxmrx5qO9UG03FyZd8Me5gxYi++VPZsOv8+OsclA+0Fth4KTDCrQ/FkJryNFKJ6/642lo4g==}
+    engines: {node: '>=18.12'}
 
   '@zkochan/diable@1.0.2':
     resolution: {integrity: sha512-LvXkwkWyrsRulnXVfp0BfuEQqV6I2j0l3kQwvBHKFMI6Sg5j2GrUCLsEKqYB3jlxM+0ofScvlE4vB6knevdBmg==}
@@ -11980,8 +12031,8 @@ packages:
     resolution: {integrity: sha512-T1gkAiYYDWYx3V5Bmyu7HcfcvL7mUrTWiM6yOfa3PIphViJ/gFPbvidQ+veqSOHci/PxBcDabeUNCzpOODJZig==}
     engines: {node: '>= 14'}
 
-  http-proxy-middleware@2.0.7:
-    resolution: {integrity: sha512-fgVY8AV7qU7z/MmXJ/rxwbrtQH4jBQ9m7kp3llF0liB7glmFeVZFBepQb32T3y8n8k2+AEYuMPCpinYW+/CuRA==}
+  http-proxy-middleware@2.0.9:
+    resolution: {integrity: sha512-c1IyJYLYppU574+YI7R4QyX2ystMtVXZwIdzazUIPIJsHuWNd+mho2j+bKoHftndicGj9yh+xjd+l0yj7VeT1Q==}
     engines: {node: '>=12.0.0'}
     peerDependencies:
       '@types/express': ^4.17.13
@@ -13085,9 +13136,6 @@ packages:
 
   neo-async@2.6.2:
     resolution: {integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==}
-
-  nerf-dart@1.0.0:
-    resolution: {integrity: sha512-EZSPZB70jiVsivaBLYDCyntd5eH8NTSMOn3rB+HxwdmKThGELLdYv8qVIMWvZEFy9w8ZZpW9h9OB32l1rGtj7g==}
 
   next-path@1.0.0:
     resolution: {integrity: sha512-oWgXcUL3zi7KsPNoWLM2Z/EVaOMsZO8em4iAzJmqoo08zinMwsMvkrNbeLDztMdaPJryfYJvbx2OBoBYnPQKpg==}
@@ -16234,6 +16282,12 @@ snapshots:
 
   '@pnpm/config.env-replace@3.0.1': {}
 
+  '@pnpm/config.env-replace@3.0.2': {}
+
+  '@pnpm/config.nerf-dart@1.0.0': {}
+
+  '@pnpm/config.nerf-dart@1.0.1': {}
+
   '@pnpm/config@1002.5.2(@pnpm/logger@1000.0.0)':
     dependencies:
       '@pnpm/catalogs.config': 1000.0.2
@@ -16382,6 +16436,11 @@ snapshots:
       bole: 5.0.17
       ndjson: 2.0.0
 
+  '@pnpm/logger@1001.0.0':
+    dependencies:
+      bole: 5.0.17
+      ndjson: 2.0.0
+
   '@pnpm/manifest-utils@1000.0.6(@pnpm/logger@1000.0.0)':
     dependencies:
       '@pnpm/core-loggers': 1000.1.4(@pnpm/logger@1000.0.0)
@@ -16406,10 +16465,10 @@ snapshots:
       print-diff: 2.0.0
       write-json-file: 5.0.0
 
-  '@pnpm/network.agent@2.0.2':
+  '@pnpm/network.agent@2.0.3':
     dependencies:
-      '@pnpm/network.config': 2.0.1
-      '@pnpm/network.proxy-agent': 2.0.2
+      '@pnpm/network.config': 2.1.0
+      '@pnpm/network.proxy-agent': 2.0.3
       agentkeepalive: 4.6.0
       lru-cache: 7.18.3
     transitivePeerDependencies:
@@ -16419,11 +16478,11 @@ snapshots:
     dependencies:
       graceful-fs: 4.2.10
 
-  '@pnpm/network.config@2.0.1':
+  '@pnpm/network.config@2.1.0':
     dependencies:
-      nerf-dart: 1.0.0
+      '@pnpm/config.nerf-dart': 1.0.1
 
-  '@pnpm/network.proxy-agent@2.0.2':
+  '@pnpm/network.proxy-agent@2.0.3':
     dependencies:
       '@pnpm/error': 1000.0.2
       http-proxy-agent: 7.0.2
@@ -16450,10 +16509,11 @@ snapshots:
       '@pnpm/network.ca-file': 1.0.2
       config-chain: 1.1.13
 
-  '@pnpm/npm-lifecycle@1000.0.2(typanion@3.14.0)':
+  '@pnpm/npm-lifecycle@1000.0.4(typanion@3.14.0)':
     dependencies:
       '@pnpm/byline': 1.0.0
       '@pnpm/error': 1000.0.2
+      '@yarnpkg/fslib': 3.1.2
       '@yarnpkg/shell': 4.0.0(typanion@3.14.0)
       node-gyp: 11.1.0
       resolve-from: 5.0.0
@@ -16471,20 +16531,20 @@ snapshots:
       semver: 7.7.1
       validate-npm-package-name: 4.0.0
 
-  '@pnpm/os.env.path-extender-posix@2.0.1':
+  '@pnpm/os.env.path-extender-posix@2.1.0':
     dependencies:
       '@pnpm/error': 1000.0.2
 
-  '@pnpm/os.env.path-extender-windows@2.0.2':
+  '@pnpm/os.env.path-extender-windows@2.0.3':
     dependencies:
       '@pnpm/error': 1000.0.2
       safe-execa: 0.1.4
       string.prototype.matchall: 4.0.12
 
-  '@pnpm/os.env.path-extender@2.0.2':
+  '@pnpm/os.env.path-extender@2.0.3':
     dependencies:
-      '@pnpm/os.env.path-extender-posix': 2.0.1
-      '@pnpm/os.env.path-extender-windows': 2.0.2
+      '@pnpm/os.env.path-extender-posix': 2.1.0
+      '@pnpm/os.env.path-extender-windows': 2.0.3
 
   '@pnpm/package-is-installable@1000.0.6(@pnpm/logger@1000.0.0)':
     dependencies:
@@ -16559,7 +16619,7 @@ snapshots:
       read-yaml-file: 2.1.0
       strip-bom: 4.0.0
 
-  '@pnpm/registry-mock@4.3.0(encoding@0.1.13)(typanion@3.14.0)':
+  '@pnpm/registry-mock@4.4.0(encoding@0.1.13)(typanion@3.14.0)':
     dependencies:
       anonymous-npm-registry-client: 0.3.2
       execa: 5.1.1
@@ -16623,6 +16683,8 @@ snapshots:
   '@pnpm/util.lex-comparator@3.0.0': {}
 
   '@pnpm/util.lex-comparator@3.0.1': {}
+
+  '@pnpm/util.lex-comparator@3.0.2': {}
 
   '@pnpm/which@3.0.1':
     dependencies:
@@ -17297,7 +17359,7 @@ snapshots:
       widest-line: 3.1.0
       wrap-ansi: 7.0.0
 
-  '@zkochan/cmd-shim@6.0.0':
+  '@zkochan/cmd-shim@7.0.0':
     dependencies:
       cmd-extension: 1.0.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -19479,7 +19541,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  http-proxy-middleware@2.0.7:
+  http-proxy-middleware@2.0.9:
     dependencies:
       '@types/http-proxy': 1.17.16
       http-proxy: 1.18.1
@@ -19527,7 +19589,7 @@ snapshots:
   https-proxy-server-express@0.1.2:
     dependencies:
       express: 4.21.2
-      http-proxy-middleware: 2.0.7
+      http-proxy-middleware: 2.0.9
     transitivePeerDependencies:
       - '@types/express'
       - debug
@@ -20783,8 +20845,6 @@ snapshots:
   negotiator@1.0.0: {}
 
   neo-async@2.6.2: {}
-
-  nerf-dart@1.0.0: {}
 
   next-path@1.0.0: {}
 

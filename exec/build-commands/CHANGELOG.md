@@ -1,5 +1,44 @@
 # @pnpm/exec.build-commands
 
+## 1001.0.14
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- c00360b: Update `@pnpm/util.lex-comparator` to v3.0.2.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/plugin-commands-rebuild@1002.0.14
+  - @pnpm/config.config-writer@1000.0.5
+  - @pnpm/modules-yaml@1000.3.3
+
+## 1001.0.13
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@1002.0.13
+- @pnpm/config.config-writer@1000.0.4
+- @pnpm/config@1003.0.1
+
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+  - @pnpm/config@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/plugin-commands-rebuild@1002.0.12
+  - @pnpm/config.config-writer@1000.0.3
+  - @pnpm/modules-yaml@1000.3.2
+
 ## 1001.0.11
 
 ### Patch Changes

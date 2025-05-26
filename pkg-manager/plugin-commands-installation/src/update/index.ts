@@ -25,6 +25,7 @@ import { parseUpdateParam } from '../recursive'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
+    'dangerously-allow-all-builds',
     'depth',
     'dev',
     'engine-strict',
@@ -193,12 +194,10 @@ async function interactiveUpdate (
         manifest: await readProjectManifestOnly(opts.dir, opts),
       },
     ]
-  const rootDir = opts.workspaceDir ?? opts.dir
-  const rootProject = projects.find((project) => project.rootDir === rootDir)
   const outdatedPkgsOfProjects = await outdatedDepsOfProjects(projects, input, {
     ...opts,
     compatible: opts.latest !== true,
-    ignoreDependencies: rootProject?.manifest?.pnpm?.updateConfig?.ignoreDependencies,
+    ignoreDependencies: opts.updateConfig?.ignoreDependencies,
     include,
     retry: {
       factor: opts.fetchRetryFactor,
@@ -298,7 +297,7 @@ async function update (
     ...opts,
     allowNew: false,
     depth,
-    ignoreCurrentPrefs: false,
+    ignoreCurrentSpecifiers: false,
     includeDirect,
     include,
     update: true,

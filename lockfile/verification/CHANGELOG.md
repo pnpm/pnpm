@@ -1,5 +1,39 @@
 # @pnpm/lockfile.verification
 
+## 1001.1.7
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/get-context@1001.0.14
+  - @pnpm/types@1000.6.0
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.1.6
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/get-context@1001.0.13
+  - @pnpm/lockfile.types@1001.0.7
+  - @pnpm/dependency-path@1000.0.8
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/crypto.hash@1000.1.1
+
 ## 1001.1.5
 
 ### Patch Changes

@@ -1,5 +1,55 @@
 # @pnpm/plugin-commands-env
 
+## 1000.0.25
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/remove-bins@1000.0.10
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/fetch@1000.2.2
+  - @pnpm/types@1000.6.0
+  - @pnpm/node.fetcher@1000.0.17
+  - @pnpm/node.resolver@1000.0.17
+  - @pnpm/env.system-node-version@1000.0.8
+
+## 1000.0.24
+
+### Patch Changes
+
+- fa1e69b: Fix command shim generation in Cygwin/MSYS2/MinGW envs [#9442](https://github.com/pnpm/pnpm/issues/9442).
+  - @pnpm/cli-utils@1000.1.3
+  - @pnpm/config@1003.0.1
+  - @pnpm/node.fetcher@1000.0.16
+  - @pnpm/node.resolver@1000.0.16
+
+## 1000.0.23
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/fetch@1000.2.1
+  - @pnpm/remove-bins@1000.0.9
+  - @pnpm/node.fetcher@1000.0.15
+  - @pnpm/node.resolver@1000.0.15
+  - @pnpm/env.system-node-version@1000.0.7
+
 ## 1000.0.22
 
 ### Patch Changes

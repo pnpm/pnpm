@@ -70,17 +70,7 @@ export async function findPackages (root: string, opts?: Options): Promise<Proje
 function normalizePatterns (patterns: readonly string[]): string[] {
   const normalizedPatterns: string[] = []
   for (const pattern of patterns) {
-    // We should add separate pattern for each extension
-    // for some reason, fast-glob is buggy with /package.{json,yaml,json5} pattern
-    normalizedPatterns.push(
-      pattern.replace(/\/?$/, '/package.json')
-    )
-    normalizedPatterns.push(
-      pattern.replace(/\/?$/, '/package.json5')
-    )
-    normalizedPatterns.push(
-      pattern.replace(/\/?$/, '/package.yaml')
-    )
+    normalizedPatterns.push(pattern.replace(/\/?$/, '/package.{json,yaml,json5}'))
   }
   return normalizedPatterns
 }

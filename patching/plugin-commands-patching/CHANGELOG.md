@@ -1,5 +1,71 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.2.4
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/plugin-commands-installation@1004.0.2
+  - @pnpm/store-connection-manager@1002.0.2
+  - @pnpm/patching.apply-patch@1000.0.4
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/config.config-writer@1000.0.5
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/modules-yaml@1000.3.3
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/read-project-manifest@1000.0.11
+  - @pnpm/workspace.read-manifest@1000.1.5
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1000.2.3
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.0.1
+- @pnpm/config.config-writer@1000.0.4
+- @pnpm/cli-utils@1000.1.3
+- @pnpm/config@1003.0.1
+- @pnpm/store-connection-manager@1002.0.1
+
+## 1000.2.2
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/plugin-commands-installation@1004.0.0
+  - @pnpm/parse-wanted-dependency@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/store-connection-manager@1002.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/config.config-writer@1000.0.3
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/modules-yaml@1000.3.2
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.10
+  - @pnpm/workspace.read-manifest@1000.1.4
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/patching.apply-patch@1000.0.3
+
 ## 1000.2.1
 
 ### Patch Changes

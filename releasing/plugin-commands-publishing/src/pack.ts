@@ -3,12 +3,12 @@ import path from 'path'
 import { createGzip } from 'zlib'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
-import { types as allTypes, type UniversalOptions, type Config } from '@pnpm/config'
+import { types as allTypes, type UniversalOptions, type Config, getWorkspaceConcurrency, getDefaultWorkspaceConcurrency } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
 import { createExportableManifest } from '@pnpm/exportable-manifest'
 import { packlist } from '@pnpm/fs.packlist'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { type ProjectManifest, type DependencyManifest } from '@pnpm/types'
+import { type ProjectManifest, type Project, type ProjectRootDir, type ProjectsGraph, type DependencyManifest } from '@pnpm/types'
 import { glob } from 'tinyglobby'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
@@ -17,6 +17,10 @@ import tar from 'tar-stream'
 import { runScriptsIfPresent } from './publish'
 import chalk from 'chalk'
 import validateNpmPackageName from 'validate-npm-package-name'
+import pLimit from 'p-limit'
+import { FILTERING } from '@pnpm/common-cli-options-help'
+import { sortPackages } from '@pnpm/sort-packages'
+import { logger } from '@pnpm/logger'
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
 
@@ -31,11 +35,13 @@ export function rcOptionsTypes (): Record<string, unknown> {
 
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
-    'pack-destination': String,
     out: String,
+    recursive: Boolean,
     ...pick([
+      'pack-destination',
       'pack-gzip-level',
       'json',
+      'workspace-concurrency',
     ], allTypes),
   }
 }
@@ -63,38 +69,113 @@ export function help (): string {
             description: 'Customizes the output path for the tarball. Use `%s` and `%v` to include the package name and version, e.g., `%s.tgz` or `some-dir/%s-%v.tgz`. By default, the tarball is saved in the current working directory with the name `<package-name>-<version>.tgz`.',
             name: '--out <path>',
           },
+          {
+            description: 'Pack all packages from the workspace',
+            name: '--recursive',
+            shortAlias: '-r',
+          },
+          {
+            description: `Set the maximum number of concurrency. Default is ${getDefaultWorkspaceConcurrency()}. For unlimited concurrency use Infinity.`,
+            name: '--workspace-concurrency <number>',
+          },
         ],
       },
+      FILTERING,
     ],
   })
 }
 
-export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs' | 'ignoreScripts' | 'rawConfig' | 'embedReadme' | 'packGzipLevel' | 'nodeLinker'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
+export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs'
+| 'ignoreScripts'
+| 'rawConfig'
+| 'embedReadme'
+| 'packGzipLevel'
+| 'nodeLinker'
+> & Partial<Pick<Config, 'extraBinPaths'
+| 'extraEnv'
+| 'recursive'
+| 'selectedProjectsGraph'
+| 'workspaceConcurrency'
+| 'workspaceDir'
+>> & {
   argv: {
     original: string[]
   }
   engineStrict?: boolean
   packDestination?: string
   out?: string
-  workspaceDir?: string
   json?: boolean
+  unicode?: boolean
+}
+
+export interface PackResultJson {
+  name: string
+  version: string
+  filename: string
+  files: Array<{ path: string }>
 }
 
 export async function handler (opts: PackOptions): Promise<string> {
-  const { publishedManifest, tarballPath, contents } = await api(opts)
-  if (opts.json) {
-    return JSON.stringify({
-      name: publishedManifest.name,
-      version: publishedManifest.version,
-      filename: tarballPath,
-      files: contents.map((path) => ({ path })),
-    }, null, 2)
-  }
-  return `${chalk.blueBright('Tarball Contents')}
-${contents.join('\n')}
+  const packedPackages: PackResultJson[] = []
 
+  if (opts.recursive) {
+    const selectedProjectsGraph = opts.selectedProjectsGraph as ProjectsGraph
+    const pkgsToPack: Project[] = []
+    for (const { package: pkg } of Object.values(selectedProjectsGraph)) {
+      if (pkg.manifest.name && pkg.manifest.version) {
+        pkgsToPack.push(pkg)
+      }
+    }
+    const packedPkgDirs = new Set<ProjectRootDir>(pkgsToPack.map(({ rootDir }) => rootDir))
+
+    if (packedPkgDirs.size === 0) {
+      logger.info({
+        message: 'There are no packages that should be packed',
+        prefix: opts.dir,
+      })
+    }
+
+    const chunks = sortPackages(selectedProjectsGraph)
+
+    const limitPack = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
+    const resolvedOpts = { ...opts }
+    if (opts.out) {
+      resolvedOpts.out = path.resolve(opts.dir, opts.out)
+    } else if (opts.packDestination) {
+      resolvedOpts.packDestination = path.resolve(opts.dir, opts.packDestination)
+    } else {
+      resolvedOpts.packDestination = path.resolve(opts.dir)
+    }
+    for (const chunk of chunks) {
+      // eslint-disable-next-line no-await-in-loop
+      await Promise.all(chunk.map(pkgDir =>
+        limitPack(async () => {
+          if (!packedPkgDirs.has(pkgDir)) return
+          const pkg = selectedProjectsGraph[pkgDir].package
+          const packResult = await api({
+            ...resolvedOpts,
+            dir: pkg.rootDir,
+          })
+          packedPackages.push(toPackResultJson(packResult))
+        })
+      ))
+    }
+  } else {
+    const packResult = await api(opts)
+    packedPackages.push(toPackResultJson(packResult))
+  }
+
+  if (opts.json) {
+    return JSON.stringify(packedPackages.length > 1 ? packedPackages : packedPackages[0], null, 2)
+  }
+
+  return packedPackages.map(
+    ({ name, version, filename, files }) => `${opts.unicode ? '📦 ' : 'package:'} ${name}@${version}
+${chalk.blueBright('Tarball Contents')}
+${files.map(({ path }) => path).join('\n')}
 ${chalk.blueBright('Tarball Details')}
-${tarballPath}`
+${filename}`
+  ).join('\n\n')
 }
 
 export async function api (opts: PackOptions): Promise<PackResult> {
@@ -210,8 +291,8 @@ function preventBundledDependenciesWithoutHoistedNodeLinker (nodeLinker: Config[
   for (const key of ['bundledDependencies', 'bundleDependencies'] as const) {
     const bundledDependencies = manifest[key]
     if (bundledDependencies) {
-      throw new PnpmError('BUNDLED_DEPENDENCIES_WITHOUT_HOISTED', `${key} does not work with node-linker=${nodeLinker}`, {
-        hint: `Add node-linker=hoisted to .npmrc or delete ${key} from the root package.json to resolve this error`,
+      throw new PnpmError('BUNDLED_DEPENDENCIES_WITHOUT_HOISTED', `${key} does not work with "nodeLinker: ${nodeLinker}"`, {
+        hint: `Add "nodeLinker: hoisted" to pnpm-workspace.yaml or delete ${key} from the root package.json to resolve this error`,
       })
     }
   }
@@ -274,4 +355,14 @@ async function createPublishManifest (opts: {
     readmeFile,
     modulesDir,
   })
+}
+
+function toPackResultJson (packResult: PackResult): PackResultJson {
+  const { publishedManifest, contents, tarballPath } = packResult
+  return {
+    name: publishedManifest.name as string,
+    version: publishedManifest.version as string,
+    filename: tarballPath,
+    files: contents.map((file) => ({ path: file })),
+  }
 }

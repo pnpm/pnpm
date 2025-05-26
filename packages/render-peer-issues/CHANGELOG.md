@@ -1,5 +1,29 @@
 # @pnpm/render-peer-issues
 
+## 1002.0.0
+
+### Major Changes
+
+- f0c3ed6: Remove filtering of peer dependency issues.
+
+### Patch Changes
+
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+
+## 1001.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+  - @pnpm/parse-overrides@1001.0.0
+  - @pnpm/types@1000.5.0
+
 ## 1000.0.8
 
 ### Patch Changes

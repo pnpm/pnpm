@@ -59,7 +59,7 @@ import { parentIdsContainSequence } from './parentIdsContainSequence'
 import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
 import { type CatalogLookupMetadata } from './resolveDependencyTree'
-import { replaceVersionInPref } from './replaceVersionInPref'
+import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier'
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
 
@@ -113,7 +113,7 @@ export interface LinkedDependency {
   name: string
   alias: string
   catalogLookup?: CatalogLookupMetadata
-  specifier?: string
+  normalizedBareSpecifier?: string
 }
 
 export interface PendingNode {
@@ -203,7 +203,8 @@ export type PkgAddress = {
   publishedAt?: string
   catalogLookup?: CatalogLookupMetadata
   optional: boolean
-  specifier?: string
+  normalizedBareSpecifier?: string
+  saveCatalogName?: string
 } & ({
   isLinkedDependency: true
   version: string
@@ -551,10 +552,10 @@ async function resolveDependenciesOfImporterDependency (
       throw result.error
     },
   })
-  const originalPref = extendedWantedDep.wantedDependency.pref
+  const originalBareSpecifier = extendedWantedDep.wantedDependency.bareSpecifier
 
   if (catalogLookup != null) {
-    extendedWantedDep.wantedDependency.pref = getCatalogReplacementPref(
+    extendedWantedDep.wantedDependency.bareSpecifier = getCatalogReplacementBareSpecifier(
       catalogLookup,
       ctx.wantedLockfile,
       extendedWantedDep.wantedDependency)
@@ -583,7 +584,7 @@ async function resolveDependenciesOfImporterDependency (
   if (result.resolveDependencyResult != null && catalogLookup != null) {
     result.resolveDependencyResult.catalogLookup = {
       ...catalogLookup,
-      userSpecifiedPref: originalPref,
+      userSpecifiedBareSpecifier: originalBareSpecifier,
     }
   }
 
@@ -638,7 +639,7 @@ export async function resolveDependencies (
   const postponedResolutionsQueue: PostponedResolutionFunction[] = []
   const postponedPeersResolutionQueue: PostponedPeersResolutionFunction[] = []
   const pkgAddresses: PkgAddress[] = []
-  ;(await Promise.all(
+  await Promise.all(
     extendedWantedDeps.map(async (extendedWantedDep) => {
       const {
         resolveDependencyResult,
@@ -660,7 +661,7 @@ export async function resolveDependencies (
         postponedPeersResolutionQueue.push(postponedPeersResolution)
       }
     })
-  ))
+  )
   const newPreferredVersions = Object.create(preferredVersions) as PreferredVersions
   const currentParentPkgAliases: Record<string, PkgAddress | true> = {}
   for (const pkgAddress of pkgAddresses) {
@@ -858,7 +859,7 @@ async function resolveDependenciesOfDependency (
     // as an importer separately, and we can rely on that process keeping the
     // importers lockfile catalog snapshots up to date.
     if (catalogLookup != null) {
-      extendedWantedDep.wantedDependency.pref = getCatalogReplacementPref(
+      extendedWantedDep.wantedDependency.bareSpecifier = getCatalogReplacementBareSpecifier(
         catalogLookup,
         ctx.wantedLockfile,
         extendedWantedDep.wantedDependency)
@@ -1065,7 +1066,7 @@ function getDepsToResolve (
         // So for example, if foo@1.0.0 had bar@1.0.0 as a dependency
         // and foo was updated to 1.1.0 which depends on bar ^1.0.0
         // then bar@1.0.0 can be reused for foo@1.1.0
-        semver.validRange(wantedDependency.pref) !== null &&
+        semver.validRange(wantedDependency.bareSpecifier) !== null &&
         preferredDependencies[wantedDependency.alias] &&
         satisfiesWanted(preferredDependencies[wantedDependency.alias])
       ) {
@@ -1106,7 +1107,7 @@ function referenceSatisfiesWantedSpec (
     lockfile: LockfileObject
     prefix: string
   },
-  wantedDep: { alias: string, pref: string },
+  wantedDep: { alias: string, bareSpecifier: string },
   preferredRef: string
 ) {
   const depPath = dp.refToRelative(preferredRef, wantedDep.alias)
@@ -1120,10 +1121,10 @@ function referenceSatisfiesWantedSpec (
     return false
   }
   const { version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-  if (!semver.validRange(wantedDep.pref) && Object.values(opts.lockfile.importers).filter(importer => importer.specifiers[wantedDep.alias] === wantedDep.pref).length) {
+  if (!semver.validRange(wantedDep.bareSpecifier) && Object.values(opts.lockfile.importers).filter(importer => importer.specifiers[wantedDep.alias] === wantedDep.bareSpecifier).length) {
     return true
   }
-  return semver.satisfies(version, wantedDep.pref, true)
+  return semver.satisfies(version, wantedDep.bareSpecifier, true)
 }
 
 type InfoFromLockfile = {
@@ -1260,7 +1261,7 @@ async function resolveDependency (
   try {
     const calcSpecifier = options.currentDepth === 0
     if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifier) {
-      wantedDependency.pref = replaceVersionInPref(wantedDependency.pref, currentPkg.version)
+      wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
@@ -1281,7 +1282,7 @@ async function resolveDependency (
       preferWorkspacePackages: ctx.preferWorkspacePackages,
       projectDir: (
         options.currentDepth > 0 &&
-        !wantedDependency.pref.startsWith('file:')
+        !wantedDependency.bareSpecifier.startsWith('file:')
       )
         ? ctx.lockfileDir
         : options.parentPkg.rootDir,
@@ -1301,8 +1302,8 @@ async function resolveDependency (
   } catch (err: any) { // eslint-disable-line
     const wantedDependencyDetails = {
       name: wantedDependency.alias,
-      pref: wantedDependency.pref,
-      version: wantedDependency.alias ? wantedDependency.pref : undefined,
+      bareSpecifier: wantedDependency.bareSpecifier,
+      version: wantedDependency.alias ? wantedDependency.bareSpecifier : undefined,
     }
     if (wantedDependency.optional) {
       skippedOptionalDependencyLogger.debug({
@@ -1325,7 +1326,7 @@ async function resolveDependency (
     wanted: {
       dependentId: options.parentPkg.pkgId,
       name: wantedDependency.alias,
-      rawSpec: wantedDependency.pref,
+      rawSpec: wantedDependency.bareSpecifier,
     },
   })
 
@@ -1348,10 +1349,10 @@ async function resolveDependency (
     if (!pkgResponse.body.manifest) {
       // This should actually never happen because the local-resolver returns a manifest
       // even if no real manifest exists in the filesystem.
-      throw new PnpmError('MISSING_PACKAGE_JSON', `Can't install ${wantedDependency.pref}: Missing package.json file`)
+      throw new PnpmError('MISSING_PACKAGE_JSON', `Can't install ${wantedDependency.bareSpecifier}: Missing package.json file`)
     }
     return {
-      alias: wantedDependency.alias || pkgResponse.body.manifest.name || path.basename(pkgResponse.body.resolution.directory),
+      alias: wantedDependency.alias ?? pkgResponse.body.alias ?? pkgResponse.body.manifest.name ?? path.basename(pkgResponse.body.resolution.directory),
       dev: wantedDependency.dev,
       isLinkedDependency: true,
       name: pkgResponse.body.manifest.name,
@@ -1359,7 +1360,7 @@ async function resolveDependency (
       pkgId: pkgResponse.body.id,
       resolution: pkgResponse.body.resolution,
       version: pkgResponse.body.manifest.version,
-      specifier: pkgResponse.body.specifier,
+      normalizedBareSpecifier: pkgResponse.body.normalizedBareSpecifier,
     }
   }
 
@@ -1389,7 +1390,7 @@ async function resolveDependency (
     }
   }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
-    throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
+    throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.bareSpecifier}: Missing package name`)
   }
   let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
   const patch = getPatchInfo(ctx.patchedDependencies, pkg.name, pkg.version)
@@ -1527,7 +1528,7 @@ async function resolveDependency (
       ctx.dependenciesTree.get(nodeId)!.depth = Math.min(ctx.dependenciesTree.get(nodeId)!.depth, options.currentDepth)
     } else {
       ctx.pendingNodes.push({
-        alias: wantedDependency.alias || pkg.name,
+        alias: wantedDependency.alias ?? pkgResponse.body.alias ?? pkg.name,
         depth: options.currentDepth,
         parentIds: options.parentIds,
         installable,
@@ -1565,18 +1566,23 @@ async function resolveDependency (
       }
     }
   }
+
+  const resolvedPkg = ctx.resolvedPkgsById[pkgResponse.body.id]
+
   return {
-    alias: wantedDependency.alias || pkg.name,
+    alias: wantedDependency.alias ?? pkgResponse.body.alias ?? pkg.name,
     depIsLinked,
     resolvedVia: pkgResponse.body.resolvedVia,
     isNew,
     nodeId,
-    specifier: pkgResponse.body.specifier,
+    normalizedBareSpecifier: pkgResponse.body.normalizedBareSpecifier,
     missingPeersOfChildren,
     pkgId: pkgResponse.body.id,
     rootDir,
     missingPeers: getMissingPeers(pkg),
-    optional: ctx.resolvedPkgsById[pkgResponse.body.id].optional,
+    optional: resolvedPkg.optional,
+    version: resolvedPkg.version,
+    saveCatalogName: wantedDependency.saveCatalogName,
 
     // Next fields are actually only needed when isNew = true
     installable,
@@ -1593,7 +1599,7 @@ function getManifestFromResponse (
 ): PackageManifest {
   if (pkgResponse.body.manifest) return pkgResponse.body.manifest
   return {
-    name: wantedDependency.pref.split('/').pop()!,
+    name: wantedDependency.bareSpecifier.split('/').pop()!,
     version: '0.0.0',
   }
 }
@@ -1691,7 +1697,7 @@ function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {
   return result
 }
 
-function getCatalogReplacementPref (
+function getCatalogReplacementBareSpecifier (
   catalogLookup: CatalogResolution,
   wantedLockfile: LockfileObject,
   wantedDependency: WantedDependency
@@ -1703,9 +1709,9 @@ function getCatalogReplacementPref (
   const existingCatalogResolution = wantedLockfile.catalogs
     ?.[catalogLookup.catalogName]
     ?.[wantedDependency.alias]
-  const replacementPref = existingCatalogResolution?.specifier === catalogLookup.specifier
-    ? replaceVersionInPref(catalogLookup.specifier, existingCatalogResolution.version)
+  const replacementBareSpecifier = existingCatalogResolution?.specifier === catalogLookup.specifier
+    ? replaceVersionInBareSpecifier(catalogLookup.specifier, existingCatalogResolution.version)
     : catalogLookup.specifier
 
-  return replacementPref
+  return replacementBareSpecifier
 }

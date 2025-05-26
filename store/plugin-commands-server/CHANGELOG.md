@@ -1,5 +1,49 @@
 # @pnpm/plugin-commands-server
 
+## 1000.0.25
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/store-connection-manager@1002.0.2
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/server@1001.0.3
+  - @pnpm/cli-meta@1000.0.8
+
+## 1000.0.24
+
+### Patch Changes
+
+- Updated dependencies [7c7f0d6]
+  - @pnpm/common-cli-options-help@1000.0.1
+  - @pnpm/cli-utils@1000.1.3
+  - @pnpm/config@1003.0.1
+  - @pnpm/store-connection-manager@1002.0.1
+  - @pnpm/server@1001.0.2
+
+## 1000.0.23
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+  - @pnpm/config@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/store-connection-manager@1002.0.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/server@1001.0.2
+  - @pnpm/cli-meta@1000.0.7
+
 ## 1000.0.22
 
 ### Patch Changes

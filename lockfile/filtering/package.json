@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.filtering",
-  "version": "1001.0.10",
+  "version": "1001.0.12",
   "description": "Filters a lockfile",
   "keywords": [
     "pnpm",
@@ -43,7 +43,7 @@
     "ramda": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": ">=5.1.0 <1001.0.0"
+    "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
     "@pnpm/lockfile.filtering": "workspace:*",

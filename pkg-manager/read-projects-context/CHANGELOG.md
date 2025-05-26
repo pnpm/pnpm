@@ -1,5 +1,30 @@
 # @pnpm/read-projects-context
 
+## 1000.0.15
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/normalize-registries@1000.1.1
+  - @pnpm/modules-yaml@1000.3.3
+
+## 1000.0.14
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/logger@1001.0.0
+  - @pnpm/normalize-registries@1000.1.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/modules-yaml@1000.3.2
+
 ## 1000.0.13
 
 ### Patch Changes

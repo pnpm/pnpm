@@ -1,5 +1,41 @@
 # @pnpm/cache.commands
 
+## 1000.0.24
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/cache.api@1000.0.23
+
+## 1000.0.23
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.1.3
+- @pnpm/config@1003.0.1
+- @pnpm/cache.api@1000.0.22
+
+## 1000.0.22
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+  - @pnpm/config@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/cache.api@1000.0.21
+  - @pnpm/cli-utils@1000.1.2
+
 ## 1000.0.21
 
 ### Patch Changes

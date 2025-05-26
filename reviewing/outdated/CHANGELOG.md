@@ -1,5 +1,52 @@
 # @pnpm/outdated
 
+## 1001.0.19
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/npm-resolver@1004.0.1
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/client@1000.0.18
+  - @pnpm/manifest-utils@1001.0.1
+  - @pnpm/pick-registry-for-package@1000.0.8
+  - @pnpm/hooks.read-package-hook@1000.0.10
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/modules-yaml@1000.3.3
+
+## 1001.0.18
+
+### Patch Changes
+
+- @pnpm/client@1000.0.17
+
+## 1001.0.17
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/parse-overrides@1001.0.0
+  - @pnpm/npm-resolver@1004.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/manifest-utils@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/hooks.read-package-hook@1000.0.9
+  - @pnpm/client@1000.0.16
+  - @pnpm/catalogs.resolver@1000.0.3
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/pick-registry-for-package@1000.0.7
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/dependency-path@1000.0.8
+  - @pnpm/modules-yaml@1000.3.2
+
 ## 1001.0.16
 
 ### Patch Changes

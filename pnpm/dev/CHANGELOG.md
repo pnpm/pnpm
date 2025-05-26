@@ -1,5 +1,27 @@
 # pd
 
+## 1.0.26
+
+### Patch Changes
+
+- Updated dependencies [09cf46f]
+- Updated dependencies [c00360b]
+  - @pnpm/workspace.find-packages@1000.0.24
+  - @pnpm/workspace.read-manifest@1000.1.5
+
+## 1.0.25
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.23
+
+## 1.0.24
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.22
+- @pnpm/workspace.read-manifest@1000.1.4
+
 ## 1.0.23
 
 ### Patch Changes

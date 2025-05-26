@@ -3,7 +3,7 @@ import { type LogLevel } from './LogLevel'
 export interface OptionalErrorProperties {
   pkgsStack?: Array<{ id: string, name: string, version: string }>
   hint?: string
-  package?: { name?: string, pref?: string, version?: string }
+  package?: { name?: string, bareSpecifier?: string, version?: string }
   err?: NodeJS.ErrnoException
 }
 

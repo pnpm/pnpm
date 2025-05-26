@@ -589,8 +589,10 @@ test('readPackage hook is used during removal inside a workspace', async () => {
     },
   ])
 
-  fs.writeFileSync('.npmrc', 'auto-install-peers=false', 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['project-1'],
+    autoInstallPeers: false,
+  })
   fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
@@ -646,7 +648,7 @@ test('preResolution hook', async () => {
   expect(ctx.existsCurrentLockfile).toBe(false)
   expect(ctx.existsNonEmptyWantedLockfile).toBe(false)
 
-  expect(ctx.registries).toEqual({
+  expect(ctx.registries).toMatchObject({
     default: `http://localhost:${REGISTRY_MOCK_PORT}/`,
     '@foo': 'https://foo.com/',
   })

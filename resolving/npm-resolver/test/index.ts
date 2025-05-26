@@ -16,6 +16,7 @@ import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import omit from 'ramda/src/omit'
 import tempy from 'tempy'
+import { delay, retryLoadJsonFile } from './utils'
 
 const f = fixtures(__dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -28,32 +29,14 @@ const jsonMeta = loadJsonFile.sync<any>(f.find('JSON.json'))
 const brokenIntegrity = loadJsonFile.sync<any>(f.find('broken-integrity.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-const registries: Registries = {
+const registries = {
   default: 'https://registry.npmjs.org/',
-}
-
-const delay = async (time: number) => new Promise<void>((resolve) => setTimeout(() => {
-  resolve()
-}, time))
+  '@jsr': 'https://npm.jsr.io/',
+} satisfies Registries
 
 const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
-
-async function retryLoadJsonFile<T> (filePath: string) {
-  let retry = 0
-  /* eslint-disable no-await-in-loop */
-  while (true) {
-    await delay(500)
-    try {
-      return await loadJsonFile<T>(filePath)
-    } catch (err: any) { // eslint-disable-line
-      if (retry > 2) throw err
-      retry++
-    }
-  }
-  /* eslint-enable no-await-in-loop */
-}
 
 afterEach(() => {
   nock.cleanAll()
@@ -74,11 +57,11 @@ test('resolveFromNpm()', async () => {
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, { calcSpecifier: true })
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, { calcSpecifier: true })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
-  expect(resolveResult!.specifier).toBe('1.0.0')
+  expect(resolveResult!.normalizedBareSpecifier).toBe('1.0.0')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
@@ -106,7 +89,7 @@ test('resolveFromNpm() does not save mutated meta to the cache', async () => {
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {})
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
 
   resolveResult!.manifest!.version = '1000'
 
@@ -126,7 +109,7 @@ test('resolveFromNpm() should save metadata to a unique file when the package na
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'JSON', pref: '1.0.0' }, {})
+  const resolveResult = await resolveFromNpm({ alias: 'JSON', bareSpecifier: '1.0.0' }, {})
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('JSON@1.0.0')
@@ -145,7 +128,7 @@ test('relative workspace protocol is skipped', async () => {
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ pref: 'workspace:../is-positive' }, {
+  const resolveResult = await resolveFromNpm({ bareSpecifier: 'workspace:../is-positive' }, {
     projectDir: '/home/istvan/src',
   })
 
@@ -162,7 +145,7 @@ test('dry run', async () => {
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
     dryRun: true,
   })
 
@@ -182,7 +165,7 @@ test('dry run', async () => {
   expect(fs.existsSync(path.join(cacheDir, resolveResult!.id, '..', 'index.json'))).toBeFalsy()
 })
 
-test('resolve to latest when no pref specified', async () => {
+test('resolve to latest when no bareSpecifier specified', async () => {
   nock(registries.default)
     .get('/is-positive')
     .reply(200, isPositiveMeta)
@@ -195,7 +178,7 @@ test('resolve to latest when no pref specified', async () => {
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
-test('resolve to defaultTag when no pref specified', async () => {
+test('resolve to defaultTag when no bareSpecifier specified', async () => {
   nock(registries.default)
     .get('/is-positive')
     .reply(200, isPositiveMeta)
@@ -219,7 +202,7 @@ test('resolve to biggest non-deprecated version that satisfies the range', async
     cacheDir: tempy.directory(),
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '3' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3' }, {
   })
   expect(resolveResult!.id).toBe('is-positive@3.0.0')
 })
@@ -233,7 +216,7 @@ test('resolve to a deprecated version if there are no non-deprecated ones that s
     cacheDir: tempy.directory(),
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '2' }, {})
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '2' }, {})
   expect(resolveResult!.id).toBe('is-positive@2.0.0')
 })
 
@@ -246,7 +229,7 @@ test('can resolve aliased dependency', async () => {
     cacheDir: tempy.directory(),
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'positive', pref: 'npm:is-positive@1.0.0' }, {})
+  const resolveResult = await resolveFromNpm({ alias: 'positive', bareSpecifier: 'npm:is-positive@1.0.0' }, {})
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
 })
 
@@ -259,7 +242,7 @@ test('can resolve aliased dependency w/o version specifier', async () => {
     cacheDir: tempy.directory(),
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'positive', pref: 'npm:is-positive' }, {})
+  const resolveResult = await resolveFromNpm({ alias: 'positive', bareSpecifier: 'npm:is-positive' }, {})
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
@@ -272,12 +255,12 @@ test('can resolve aliased dependency w/o version specifier to default tag', asyn
     cacheDir: tempy.directory(),
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'positive', pref: 'npm:is-positive' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'positive', bareSpecifier: 'npm:is-positive' }, {
     defaultTag: 'stable',
     calcSpecifier: true,
   })
   expect(resolveResult!.id).toBe('is-positive@3.0.0')
-  expect(resolveResult!.specifier).toBe('npm:is-positive@^3.0.0')
+  expect(resolveResult!.normalizedBareSpecifier).toBe('npm:is-positive@^3.0.0')
 })
 
 test('can resolve aliased scoped dependency', async () => {
@@ -289,7 +272,7 @@ test('can resolve aliased scoped dependency', async () => {
     cacheDir: tempy.directory(),
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is', pref: 'npm:@sindresorhus/is@0.6.0' }, {})
+  const resolveResult = await resolveFromNpm({ alias: 'is', bareSpecifier: 'npm:@sindresorhus/is@0.6.0' }, {})
   expect(resolveResult!.id).toBe('@sindresorhus/is@0.6.0')
 })
 
@@ -302,7 +285,7 @@ test('can resolve aliased scoped dependency w/o version specifier', async () => 
     cacheDir: tempy.directory(),
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is', pref: 'npm:@sindresorhus/is' }, {})
+  const resolveResult = await resolveFromNpm({ alias: 'is', bareSpecifier: 'npm:@sindresorhus/is' }, {})
   expect(resolveResult!.id).toBe('@sindresorhus/is@0.7.0')
 })
 
@@ -315,7 +298,7 @@ test('can resolve package with version prefixed with v', async () => {
     cacheDir: tempy.directory(),
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: 'v1.0.0' }, {})
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'v1.0.0' }, {})
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
 })
 
@@ -328,7 +311,7 @@ test('can resolve package version loosely', async () => {
     cacheDir: tempy.directory(),
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '= 1.0.0' }, {})
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '= 1.0.0' }, {})
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
 })
 
@@ -346,7 +329,7 @@ test("resolves to latest if it's inside the wanted range. Even if there are newe
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '^3.0.0',
+    bareSpecifier: '^3.0.0',
   }, {})
 
   // 3.1.0 is available but latest is 3.0.0, so preferring it
@@ -367,7 +350,7 @@ test("resolves to latest if it's inside the preferred range. Even if there are n
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '^3.0.0',
+    bareSpecifier: '^3.0.0',
   }, {
     preferredVersions: {
       'is-positive': { '^3.0.0': 'range' },
@@ -392,7 +375,7 @@ test("resolve using the wanted range, when it doesn't intersect with the preferr
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '^3.0.0',
+    bareSpecifier: '^3.0.0',
   }, {
     preferredVersions: {
       'is-positive': { '^2.0.0': 'range' },
@@ -416,7 +399,7 @@ test("use the preferred version if it's inside the wanted range", async () => {
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '^3.0.0',
+    bareSpecifier: '^3.0.0',
   }, {
     preferredVersions: {
       'is-positive': { '3.0.0': 'version' },
@@ -441,7 +424,7 @@ test("ignore the preferred version if it's not inside the wanted range", async (
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '^3.0.0',
+    bareSpecifier: '^3.0.0',
   }, {
     preferredVersions: {
       'is-positive': { '2.0.0': 'version' },
@@ -464,7 +447,7 @@ test('use the preferred range if it intersects with the wanted range', async () 
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '>=1.0.0',
+    bareSpecifier: '>=1.0.0',
   }, {
     preferredVersions: {
       'is-positive': { '^3.0.0': 'range' },
@@ -489,7 +472,7 @@ test('use the preferred range if it intersects with the wanted range (an array o
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '>=1.0.0',
+    bareSpecifier: '>=1.0.0',
   }, {
     preferredVersions: {
       'is-positive': {
@@ -517,7 +500,7 @@ test("ignore the preferred range if it doesn't intersect with the wanted range",
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '^3.0.0',
+    bareSpecifier: '^3.0.0',
   }, {
     preferredVersions: {
       'is-positive': { '^2.0.0': 'range' },
@@ -543,7 +526,7 @@ test("use the preferred dist-tag if it's inside the wanted range", async () => {
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '^3.0.0',
+    bareSpecifier: '^3.0.0',
   }, {
     preferredVersions: {
       'is-positive': { stable: 'tag' },
@@ -569,7 +552,7 @@ test("ignore the preferred dist-tag if it's not inside the wanted range", async 
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '^3.0.0',
+    bareSpecifier: '^3.0.0',
   }, {
     preferredVersions: {
       'is-positive': { stable: 'tag' },
@@ -594,7 +577,7 @@ test("prefer a version that is both inside the wanted and preferred ranges. Even
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '1.0.0 || 2.0.0',
+    bareSpecifier: '1.0.0 || 2.0.0',
   }, {
     preferredVersions: {
       'is-positive': { '1.0.0 || 3.0.0': 'range' },
@@ -614,7 +597,7 @@ test('prefer the version that is matched by more preferred selectors', async () 
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '^3.0.0',
+    bareSpecifier: '^3.0.0',
   }, {
     preferredVersions: {
       'is-positive': { '^3.0.0': 'range', '3.0.0': 'version' },
@@ -635,7 +618,7 @@ test('prefer the version that has bigger weight in preferred selectors', async (
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '^3.0.0',
+    bareSpecifier: '^3.0.0',
   }, {
     preferredVersions: {
       'is-positive': {
@@ -657,7 +640,7 @@ test('offline resolution fails when package meta not found in the store', async 
     registries,
   })
 
-  await expect(resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {})).rejects
+  await expect(resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})).rejects
     .toThrow(
       new PnpmError('NO_OFFLINE_META', `Failed to resolve is-positive@1.0.0 in package mirror ${path.join(cacheDir, ABBREVIATED_META_DIR, 'registry.npmjs.org/is-positive.json')}`)
     )
@@ -678,7 +661,7 @@ test('offline resolution succeeds when package meta is found in the store', asyn
     })
 
     // This request will save the package's meta in the store
-    await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {})
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
   }
 
   {
@@ -688,7 +671,7 @@ test('offline resolution succeeds when package meta is found in the store', asyn
       registries,
     })
 
-    const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {})
+    const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
     expect(resolveResult!.id).toBe('is-positive@1.0.0')
   }
 })
@@ -704,7 +687,7 @@ test('prefer offline resolution does not fail when package meta not found in the
     registries,
   })
 
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {})
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
 })
 
@@ -725,7 +708,7 @@ test('when prefer offline is used, meta from store is used, where latest might b
     })
 
     // This request will save the package's meta in the store
-    await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {})
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
   }
 
   nock(registries.default)
@@ -742,7 +725,7 @@ test('when prefer offline is used, meta from store is used, where latest might b
       registries,
     })
 
-    const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '^3.0.0' }, {})
+    const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '^3.0.0' }, {})
     expect(resolveResult!.id).toBe('is-positive@3.0.0')
   }
 
@@ -760,7 +743,7 @@ test('error is thrown when package is not found in the registry', async () => {
     cacheDir: tempy.directory(),
     registries,
   })
-  await expect(resolveFromNpm({ alias: notExistingPackage, pref: '1.0.0' }, {})).rejects
+  await expect(resolveFromNpm({ alias: notExistingPackage, bareSpecifier: '1.0.0' }, {})).rejects
     .toThrow(
       new RegistryResponseError(
         {
@@ -787,7 +770,7 @@ test('error is thrown when registry not responding', async () => {
       default: notExistingRegistry,
     },
   })
-  await expect(resolveFromNpm({ alias: notExistingPackage, pref: '1.0.0' }, {})).rejects
+  await expect(resolveFromNpm({ alias: notExistingPackage, bareSpecifier: '1.0.0' }, {})).rejects
     .toThrow(new PnpmError('META_FETCH_FAIL', `GET ${notExistingRegistry}/${notExistingPackage}: request to ${notExistingRegistry}/${notExistingPackage} failed, reason: getaddrinfo ENOTFOUND not-existing.pnpm.io`, { attempts: 1 }))
 })
 
@@ -802,7 +785,7 @@ test('extra info is shown if package has valid semver appended', async () => {
     cacheDir: tempy.directory(),
     registries,
   })
-  await expect(resolveFromNpm({ alias: notExistingPackage, pref: '1.0.0' }, {})).rejects
+  await expect(resolveFromNpm({ alias: notExistingPackage, bareSpecifier: '1.0.0' }, {})).rejects
     .toThrow(
       new RegistryResponseError(
         {
@@ -827,7 +810,7 @@ test('error is thrown when there is no package found for the requested version',
     cacheDir: tempy.directory(),
     registries,
   })
-  const wantedDependency = { alias: 'is-positive', pref: '1000.0.0' }
+  const wantedDependency = { alias: 'is-positive', bareSpecifier: '1000.0.0' }
   await expect(resolveFromNpm(wantedDependency, {})).rejects
     .toThrow(
       new NoMatchingVersionError({
@@ -847,7 +830,7 @@ test('error is thrown when package needs authorization', async () => {
     cacheDir: tempy.directory(),
     registries,
   })
-  await expect(resolveFromNpm({ alias: 'needs-auth', pref: '*' }, {})).rejects
+  await expect(resolveFromNpm({ alias: 'needs-auth', bareSpecifier: '*' }, {})).rejects
     .toThrow(
       new RegistryResponseError(
         {
@@ -872,7 +855,7 @@ test('error is thrown when there is no package found for the requested range', a
     cacheDir: tempy.directory(),
     registries,
   })
-  const wantedDependency = { alias: 'is-positive', pref: '^1000.0.0' }
+  const wantedDependency = { alias: 'is-positive', bareSpecifier: '^1000.0.0' }
   await expect(resolveFromNpm(wantedDependency, {})).rejects
     .toThrow(
       new NoMatchingVersionError({
@@ -892,7 +875,7 @@ test('error is thrown when there is no package found for the requested tag', asy
     cacheDir: tempy.directory(),
     registries,
   })
-  const wantedDependency = { alias: 'is-positive', pref: 'unknown-tag' }
+  const wantedDependency = { alias: 'is-positive', bareSpecifier: 'unknown-tag' }
   await expect(resolveFromNpm(wantedDependency, {})).rejects
     .toThrow(
       new NoMatchingVersionError({
@@ -918,7 +901,7 @@ test('resolveFromNpm() loads full metadata even if non-full metadata is already 
       cacheDir,
       registries,
     })
-    const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {})
+    const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
     expect(resolveResult!.manifest!['scripts']).toBeFalsy()
   }
 
@@ -928,7 +911,7 @@ test('resolveFromNpm() loads full metadata even if non-full metadata is already 
       cacheDir,
       registries,
     })
-    const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {})
+    const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
     expect(resolveResult!.manifest!['scripts']).toBeTruthy()
   }
 })
@@ -945,7 +928,7 @@ test('resolve when tarball URL is requested from the registry', async () => {
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: `${registries.default}is-positive/-/is-positive-1.0.0.tgz`,
+    bareSpecifier: `${registries.default}is-positive/-/is-positive-1.0.0.tgz`,
   }, {
     calcSpecifier: true,
   })
@@ -960,7 +943,7 @@ test('resolve when tarball URL is requested from the registry', async () => {
   expect(resolveResult!.manifest).toBeTruthy()
   expect(resolveResult!.manifest!.name).toBe('is-positive')
   expect(resolveResult!.manifest!.version).toBe('1.0.0')
-  expect(resolveResult!.specifier).toBe(`${registries.default}is-positive/-/is-positive-1.0.0.tgz`)
+  expect(resolveResult!.normalizedBareSpecifier).toBe(`${registries.default}is-positive/-/is-positive-1.0.0.tgz`)
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
@@ -980,7 +963,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ pref: `${registries.default}is-positive/-/is-positive-1.0.0.tgz` }, { calcSpecifier: true })
+  const resolveResult = await resolveFromNpm({ bareSpecifier: `${registries.default}is-positive/-/is-positive-1.0.0.tgz` }, { calcSpecifier: true })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
@@ -992,7 +975,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
   expect(resolveResult!.manifest).toBeTruthy()
   expect(resolveResult!.manifest!.name).toBe('is-positive')
   expect(resolveResult!.manifest!.version).toBe('1.0.0')
-  expect(resolveResult!.specifier).toBe(`${registries.default}is-positive/-/is-positive-1.0.0.tgz`)
+  expect(resolveResult!.normalizedBareSpecifier).toBe(`${registries.default}is-positive/-/is-positive-1.0.0.tgz`)
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
@@ -1012,7 +995,7 @@ test('resolve from local directory when it matches the latest version of the pac
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
     projectDir: '/home/istvan/src',
     workspacePackages: new Map([
       ['is-positive', new Map([
@@ -1049,7 +1032,7 @@ test('resolve injected dependency from local directory when it matches the lates
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', injected: true, pref: '1.0.0' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', injected: true, bareSpecifier: '1.0.0' }, {
     projectDir: '/home/istvan/src',
     lockfileDir: '/home/istvan/src',
     workspacePackages: new Map([
@@ -1089,7 +1072,7 @@ test('do not resolve from local directory when alwaysTryWorkspacePackages is fal
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
     alwaysTryWorkspacePackages: false,
     projectDir: '/home/istvan/src',
     workspacePackages: new Map([
@@ -1123,7 +1106,7 @@ test('resolve from local directory when alwaysTryWorkspacePackages is false but 
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: 'workspace:*' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'workspace:*' }, {
     alwaysTryWorkspacePackages: false,
     projectDir: '/home/istvan/src',
     workspacePackages: new Map([
@@ -1156,7 +1139,7 @@ test('resolve from local directory when alwaysTryWorkspacePackages is false but 
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'positive', pref: 'workspace:is-positive@*' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'positive', bareSpecifier: 'workspace:is-positive@*' }, {
     alwaysTryWorkspacePackages: false,
     projectDir: '/home/istvan/src',
     workspacePackages: new Map([
@@ -1197,7 +1180,7 @@ test('use version from the registry if it is newer than the local one', async ()
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '^3.0.0',
+    bareSpecifier: '^3.0.0',
   }, {
     projectDir: '/home/istvan/src',
     workspacePackages: new Map([
@@ -1239,7 +1222,7 @@ test('preferWorkspacePackages: use version from the workspace even if there is n
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '^3.0.0',
+    bareSpecifier: '^3.0.0',
   }, {
     preferWorkspacePackages: true,
     projectDir: '/home/istvan/src',
@@ -1279,7 +1262,7 @@ test('use local version if it is newer than the latest in the registry', async (
   })
   const resolveResult = await resolveFromNpm({
     alias: 'is-positive',
-    pref: '^3.0.0',
+    bareSpecifier: '^3.0.0',
   }, {
     projectDir: '/home/istvan/src',
     workspacePackages: new Map([
@@ -1317,7 +1300,7 @@ test('resolve from local directory when package is not found in the registry', a
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1' }, {
     projectDir: '/home/istvan/src/foo',
     workspacePackages: new Map([
       ['is-positive', new Map([
@@ -1368,7 +1351,7 @@ test('resolve from local directory when package is not found in the registry and
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: 'latest' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'latest' }, {
     projectDir: '/home/istvan/src',
     workspacePackages: new Map([
       ['is-positive', new Map([
@@ -1419,7 +1402,7 @@ test('resolve from local directory when package is not found in the registry and
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: 'latest' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'latest' }, {
     projectDir: '/home/istvan/src',
     workspacePackages: new Map([
       ['is-positive', new Map([
@@ -1456,7 +1439,7 @@ test('resolve from local directory when package is not found in the registry and
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.1.0' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.1.0' }, {
     projectDir: '/home/istvan/src/foo',
     workspacePackages: new Map([
       ['is-positive', new Map([
@@ -1507,7 +1490,7 @@ test('resolve from local directory when the requested version is not found in th
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '100.0.0' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '100.0.0' }, {
     projectDir: '/home/istvan/src/foo',
     workspacePackages: new Map([
       ['is-positive', new Map([
@@ -1540,7 +1523,7 @@ test('workspace protocol: resolve from local directory even when it does not mat
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: 'workspace:^3.0.0' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'workspace:^3.0.0' }, {
     projectDir: '/home/istvan/src',
     workspacePackages: new Map([
       ['is-positive', new Map([
@@ -1577,7 +1560,7 @@ test('workspace protocol: resolve from local package that has a pre-release vers
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: 'workspace:*' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'workspace:*' }, {
     projectDir: '/home/istvan/src',
     workspacePackages: new Map([
       ['is-positive', new Map([
@@ -1614,7 +1597,7 @@ test("workspace protocol: don't resolve from local package that has a pre-releas
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '2' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '2' }, {
     projectDir: '/home/istvan/src',
     workspacePackages: new Map([
       ['is-positive', new Map([
@@ -1647,7 +1630,7 @@ test('workspace protocol: resolution fails if there is no matching local package
   const projectDir = '/home/istvan/src'
   let err!: Error & { code: string }
   try {
-    await resolveFromNpm({ alias: 'is-positive', pref: 'workspace:^3.0.0' }, {
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'workspace:^3.0.0' }, {
       projectDir,
       workspacePackages: new Map(),
     })
@@ -1670,7 +1653,7 @@ test('workspace protocol: resolution fails if there is no matching local package
   const projectDir = '/home/istvan/src'
   let err!: Error & { code: string }
   try {
-    await resolveFromNpm({ alias: 'is-positive', pref: 'workspace:^3.0.0' }, {
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'workspace:^3.0.0' }, {
       projectDir,
       workspacePackages: new Map([
         ['is-positive', new Map([
@@ -1702,7 +1685,7 @@ test('workspace protocol: resolution fails if there are no local packages', asyn
 
   let err!: Error
   try {
-    await resolveFromNpm({ alias: 'is-positive', pref: 'workspace:^3.0.0' }, {
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'workspace:^3.0.0' }, {
       projectDir: '/home/istvan/src',
     })
   } catch (_err: any) { // eslint-disable-line
@@ -1734,7 +1717,7 @@ test('resolveFromNpm() should always return the name of the package that is spec
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '3.1.0' }, {})
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3.1.0' }, {})
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
@@ -1773,7 +1756,7 @@ test('request to metadata is retried if the received JSON is broken', async () =
     registries,
     cacheDir,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {})!
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})!
 
   expect(resolveResult?.id).toBe('is-positive@1.0.0')
 })
@@ -1840,7 +1823,7 @@ test('resolveFromNpm() does not fail if the meta file contains no integrity info
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '2.0.0' }, {})
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '2.0.0' }, {})
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@2.0.0')
@@ -1865,7 +1848,7 @@ test('resolveFromNpm() fails if the meta file contains invalid shasum', async ()
     registries,
   })
   await expect(
-    resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {})
+    resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
   ).rejects.toThrow('Tarball "https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz" has invalid shasum specified in its metadata: a')
 })
 
@@ -1881,7 +1864,7 @@ test('resolveFromNpm() should normalize the registry', async () => {
       default: 'https://reg.com/owner',
     },
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '1.0.0' }, {})
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {})
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
@@ -1918,7 +1901,7 @@ test('pick lowest version by * when there are only prerelease versions', async (
     cacheDir,
     registries,
   })
-  const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '*' }, {
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '*' }, {
     pickLowestVersion: true,
   })
 

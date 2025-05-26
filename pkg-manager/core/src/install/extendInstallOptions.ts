@@ -13,6 +13,7 @@ import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type PackageExtension,
+  type PeerDependencyRules,
   type ReadPackageHook,
   type Registries,
   type PrepareExecutionEnv,
@@ -26,6 +27,7 @@ export interface StrictInstallOptions {
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
   catalogs: Catalogs
+  catalogMode: 'strict' | 'prefer' | 'manual'
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enablePnp: boolean
@@ -51,6 +53,7 @@ export interface StrictInstallOptions {
   lockfileIncludeTarballUrl: boolean
   preferWorkspacePackages: boolean
   preserveWorkspaceProtocol: boolean
+  saveCatalogName?: string
   scriptsPrependNodePath: boolean | 'warn-only'
   scriptShell?: string
   shellEmulator: boolean
@@ -92,7 +95,7 @@ export interface StrictInstallOptions {
   strictPeerDependencies: boolean
   include: IncludedDependencies
   includeDirect: IncludedDependencies
-  ignoreCurrentPrefs: boolean
+  ignoreCurrentSpecifiers: boolean
   ignoreScripts: boolean
   childConcurrency: number
   userAgent: string
@@ -111,6 +114,7 @@ export interface StrictInstallOptions {
   symlink: boolean
   enableModulesDir: boolean
   modulesCacheMaxAge: number
+  peerDependencyRules: PeerDependencyRules
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   ignorePatchFailures?: boolean
   allowUnusedPatches: boolean
@@ -174,6 +178,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     ignorePatchFailures: undefined,
     autoInstallPeers: true,
     autoInstallPeersFromHighestMatch: false,
+    catalogs: {},
     childConcurrency: 5,
     confirmModulesPurge: !opts.force,
     depth: 0,
@@ -186,7 +191,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     hoistPattern: undefined,
     publicHoistPattern: undefined,
     hooks: {},
-    ignoreCurrentPrefs: false,
+    ignoreCurrentSpecifiers: false,
     ignoreDepScripts: false,
     ignoreScripts: false,
     include: {
@@ -234,6 +239,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
       process.platform === 'cygwin' ||
       !process.setgid ||
       process.getuid?.() !== 0,
+    catalogMode: 'manual',
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,

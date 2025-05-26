@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/logger",
-  "version": "1000.0.0",
+  "version": "1001.0.0",
   "description": "Logger for pnpm",
   "keywords": [
     "pnpm",

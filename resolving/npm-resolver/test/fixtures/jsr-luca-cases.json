@@ -1,0 +1,25 @@
+{
+  "name": "@jsr/luca__cases",
+  "description": "A collection of functions for converting strings between different cases.",
+  "dist-tags": {
+    "latest": "1.0.0"
+  },
+  "versions": {
+    "1.0.0": {
+      "name": "@jsr/luca__cases",
+      "version": "1.0.0",
+      "description": "A collection of functions for converting strings between different cases.",
+      "dist": {
+        "tarball": "https://npm.jsr.io/~/11/@jsr/luca__cases/1.0.0.tgz",
+        "shasum": "2D36BC80F4D7FA0E2F00111925746808D4AF2DB7",
+        "integrity": "sha512-h3nOT3+JVCXBsLd+st9cytZO+iqJYTTsm3rOrtZZXBgJ0nzBA5mDR9dI3k8wBDQ5AAqqJjD3UkhLxoRCEKwzgg=="
+      },
+      "dependencies": {}
+    }
+  },
+  "time": {
+    "created": "2024-03-06T12:28:36.287Z",
+    "modified": "2024-03-06T12:30:42.072Z",
+    "1.0.0": "2024-03-06T12:30:12.551Z"
+  }
+}

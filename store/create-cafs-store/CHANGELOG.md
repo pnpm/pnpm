@@ -1,5 +1,32 @@
 # @pnpm/create-cafs-store
 
+## 1000.0.13
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [c24c66e]
+  - @pnpm/fs.indexed-pkg-importer@1000.1.7
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/exec.pkg-requires-build@1000.0.8
+  - @pnpm/fetcher-base@1000.0.11
+  - @pnpm/store.cafs@1000.0.12
+
+## 1000.0.12
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/fs.indexed-pkg-importer@1000.1.6
+  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/fetcher-base@1000.0.10
+  - @pnpm/exec.pkg-requires-build@1000.0.7
+
 ## 1000.0.11
 
 ### Patch Changes

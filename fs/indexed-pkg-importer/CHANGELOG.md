@@ -1,5 +1,26 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 1000.1.7
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [c24c66e]
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/store-controller-types@1003.0.1
+
+## 1000.1.6
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+
 ## 1000.1.5
 
 ### Patch Changes

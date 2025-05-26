@@ -1,7 +1,7 @@
-import { type TarballResolution, type GitResolution, type ResolveResult, type PkgResolutionId } from '@pnpm/resolver-base'
+import { type TarballResolution, type GitResolution, type PkgResolutionId, type ResolveResult } from '@pnpm/resolver-base'
 import git from 'graceful-git'
 import semver from 'semver'
-import { parsePref, type HostedPackageSpec } from './parsePref'
+import { parseBareSpecifier, type HostedPackageSpec } from './parseBareSpecifier'
 import { createGitHostedPkgId } from './createGitHostedPkgId'
 import { type AgentOptions } from '@pnpm/network.agent'
 
@@ -9,23 +9,29 @@ export { createGitHostedPkgId }
 
 export type { HostedPackageSpec }
 
+export interface GitResolveResult extends ResolveResult {
+  normalizedBareSpecifier: string
+  resolution: GitResolution | TarballResolution
+  resolvedVia: 'git-repository'
+}
+
 export type GitResolver = (wantedDependency: {
-  pref: string
-}) => Promise<ResolveResult | null>
+  bareSpecifier: string
+}) => Promise<GitResolveResult | null>
 
 export function createGitResolver (
   opts: AgentOptions
 ): GitResolver {
-  return async function resolveGit (wantedDependency): Promise<ResolveResult | null> {
-    const parsedSpec = await parsePref(wantedDependency.pref, opts)
+  return async function resolveGit (wantedDependency): Promise<GitResolveResult | null> {
+    const parsedSpec = await parseBareSpecifier(wantedDependency.bareSpecifier, opts)
 
     if (parsedSpec == null) return null
 
-    const pref = parsedSpec.gitCommittish == null || parsedSpec.gitCommittish === ''
+    const bareSpecifier = parsedSpec.gitCommittish == null || parsedSpec.gitCommittish === ''
       ? 'HEAD'
       : parsedSpec.gitCommittish
-    const commit = await resolveRef(parsedSpec.fetchSpec, pref, parsedSpec.gitRange)
-    let resolution
+    const commit = await resolveRef(parsedSpec.fetchSpec, bareSpecifier, parsedSpec.gitRange)
+    let resolution: GitResolution | TarballResolution | undefined
 
     if ((parsedSpec.hosted != null) && !isSsh(parsedSpec.fetchSpec)) {
       // don't use tarball for ssh url, they are likely private repo
@@ -35,7 +41,7 @@ export function createGitResolver (
       const tarball = hosted.tarball?.()
 
       if (tarball) {
-        resolution = { tarball } as TarballResolution
+        resolution = { tarball }
       }
     }
 
@@ -44,7 +50,7 @@ export function createGitResolver (
         commit,
         repo: parsedSpec.fetchSpec,
         type: 'git',
-      } as GitResolution
+      }
     }
 
     if (parsedSpec.path) {
@@ -63,7 +69,7 @@ export function createGitResolver (
 
     return {
       id,
-      specifier: parsedSpec.normalizedPref,
+      normalizedBareSpecifier: parsedSpec.normalizedBareSpecifier,
       resolution,
       resolvedVia: 'git-repository',
     }

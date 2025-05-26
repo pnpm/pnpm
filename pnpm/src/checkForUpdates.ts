@@ -31,7 +31,7 @@ export async function checkForUpdates (config: Config): Promise<void> {
       retries: 0,
     },
   })
-  const resolution = await resolve({ alias: packageManager.name, pref: 'latest' }, {
+  const resolution = await resolve({ alias: packageManager.name, bareSpecifier: 'latest' }, {
     lockfileDir: config.lockfileDir ?? config.dir,
     preferredVersions: {},
     projectDir: config.dir,

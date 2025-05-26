@@ -1,5 +1,91 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1002.0.14
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- 36d1448: Set the default `workspaceConcurrency` to `Math.min(os.availableParallelism(), 4)` [#9493](https://github.com/pnpm/pnpm/pull/9493).
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+- Updated dependencies [c24c66e]
+  - @pnpm/config@1003.1.0
+  - @pnpm/store-connection-manager@1002.0.2
+  - @pnpm/get-context@1001.0.14
+  - @pnpm/workspace.find-packages@1000.0.24
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/link-bins@1000.0.13
+  - @pnpm/lifecycle@1001.0.14
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/worker@1000.1.6
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/calc-dep-state@1001.0.13
+  - @pnpm/normalize-registries@1000.1.1
+  - @pnpm/exec.pkg-requires-build@1000.0.8
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/lockfile.walker@1001.0.9
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/modules-yaml@1000.3.3
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/store.cafs@1000.0.12
+  - @pnpm/sort-packages@1000.0.8
+
+## 1002.0.13
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+- Updated dependencies [7c7f0d6]
+  - @pnpm/link-bins@1000.0.12
+  - @pnpm/common-cli-options-help@1000.0.1
+  - @pnpm/lifecycle@1001.0.13
+  - @pnpm/cli-utils@1000.1.3
+  - @pnpm/config@1003.0.1
+  - @pnpm/workspace.find-packages@1000.0.23
+  - @pnpm/store-connection-manager@1002.0.1
+
+## 1002.0.12
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/store-connection-manager@1002.0.0
+  - @pnpm/normalize-registries@1000.1.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/lifecycle@1001.0.12
+  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/get-context@1001.0.13
+  - @pnpm/link-bins@1000.0.11
+  - @pnpm/exec.pkg-requires-build@1000.0.7
+  - @pnpm/lockfile.types@1001.0.7
+  - @pnpm/lockfile.walker@1001.0.8
+  - @pnpm/calc-dep-state@1001.0.12
+  - @pnpm/dependency-path@1000.0.8
+  - @pnpm/modules-yaml@1000.3.2
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/worker@1000.1.5
+  - @pnpm/workspace.find-packages@1000.0.22
+  - @pnpm/sort-packages@1000.0.7
+
 ## 1002.0.11
 
 ### Patch Changes

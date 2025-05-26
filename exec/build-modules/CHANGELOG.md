@@ -1,5 +1,60 @@
 # @pnpm/build-modules
 
+## 1000.3.5
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- 36d1448: Set the default `workspaceConcurrency` to `Math.min(os.availableParallelism(), 4)` [#9493](https://github.com/pnpm/pnpm/pull/9493).
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+- Updated dependencies [c24c66e]
+  - @pnpm/config@1003.1.0
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/link-bins@1000.0.13
+  - @pnpm/patching.apply-patch@1000.0.4
+  - @pnpm/fs.hard-link-dir@1000.0.1
+  - @pnpm/lifecycle@1001.0.14
+  - @pnpm/worker@1000.1.6
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/calc-dep-state@1001.0.13
+  - @pnpm/read-package-json@1000.0.9
+
+## 1000.3.4
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+  - @pnpm/link-bins@1000.0.12
+  - @pnpm/lifecycle@1001.0.13
+
+## 1000.3.3
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/lifecycle@1001.0.12
+  - @pnpm/link-bins@1000.0.11
+  - @pnpm/calc-dep-state@1001.0.12
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/worker@1000.1.5
+  - @pnpm/fs.hard-link-dir@1000.0.0
+  - @pnpm/patching.apply-patch@1000.0.3
+
 ## 1000.3.2
 
 ### Patch Changes
