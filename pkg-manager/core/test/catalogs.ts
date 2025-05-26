@@ -1463,6 +1463,95 @@ describe('update', () => {
 
     expect(Object.keys(readLockfile().snapshots)).toEqual(['@pnpm.e2e/foo@100.1.0'])
   })
+
+  // This test will update @pnpm.e2e/bar, but make sure @pnpm.e2e/foo is
+  // untouched. On the registry-mock, the versions for @pnpm.e2e/bar are:
+  //
+  //   - 100.0.0
+  //   - 100.1.0
+  test('update only affects matching filter', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+        '@pnpm.e2e/bar': 'catalog:',
+      },
+    }])
+
+    // Start by using 1.0.0 as the specifier. We'll then change this to ^1.0.0.
+    const catalogs = {
+      default: {
+        '@pnpm.e2e/foo': '1.0.0',
+        '@pnpm.e2e/bar': '100.0.0',
+      },
+    }
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Adding ^ to the catalog config entries. This allows the update process to
+    // consider newer versions to update to for this test.
+    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
+    catalogs.default['@pnpm.e2e/bar'] = '^100.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Sanity check dependencies are still installed on older requested version
+    // and not accidentally updated due to adding ^ above.
+    expect(readLockfile().catalogs.default).toEqual({
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.0.0' },
+    })
+
+    const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/bar'],
+      {
+        ...mutateOpts,
+        dir: path.join(options.lockfileDir, 'project1'),
+        update: true,
+        updateMatching: (pkgName) => pkgName === '@pnpm.e2e/bar',
+      })
+
+    // Expecting the manifest to remain unchanged after running an update. The
+    // change should be reflected in the returned updatedCatalogs object
+    // instead.
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+        '@pnpm.e2e/bar': 'catalog:',
+      },
+    })
+    expect(updatedCatalogs).toEqual({
+      default: {
+        '@pnpm.e2e/bar': '^100.1.0',
+      },
+    })
+
+    // The lockfile should also contain the updated ^100.1.0 reference.
+    expect(readLockfile()).toEqual(expect.objectContaining({
+      catalogs: {
+        default: {
+          '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
+          '@pnpm.e2e/bar': { specifier: '^100.1.0', version: '100.1.0' },
+        },
+      },
+      packages: {
+        '@pnpm.e2e/foo@1.0.0': expect.objectContaining({}),
+        '@pnpm.e2e/bar@100.1.0': expect.objectContaining({}),
+      },
+    }))
+
+    // Ensure the old 1.0.0 version is no longer used.
+    expect(Object.keys(readLockfile().snapshots)).toEqual([
+      '@pnpm.e2e/bar@100.1.0',
+      '@pnpm.e2e/foo@1.0.0',
+    ])
+  })
 })
 
 test('catalogs work in overrides', async () => {
