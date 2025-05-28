@@ -5,6 +5,7 @@ import { sync as loadJsonFile } from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm } from './utils'
 
+// Covers https://github.com/pnpm/pnpm/issues/9550
 test('legacy deploy creates only necessary directories when the root manifest has a workspace package as a peer dependency (#9550)', async () => {
   preparePackages([
     {
@@ -13,7 +14,7 @@ test('legacy deploy creates only necessary directories when the root manifest ha
         name: 'root',
         version: '0.0.0',
         peerDependencies: {
-          bar: 'workspace:^', // having 'workspace:' as peer is illogical, but the issue's repro was this way
+          bar: 'workspace:^',
         },
       },
     },
