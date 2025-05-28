@@ -179,6 +179,7 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     useLockfile: opts.nodeLinker !== 'hoisted',
     saveLockfile: false,
     virtualStoreDir: path.join(deployDir, 'node_modules/.pnpm'),
+    workspaceDir: deployDir,
     modulesDir: path.relative(opts.workspaceDir, path.join(deployDir, 'node_modules')),
     rawLocalConfig: {
       ...opts.rawLocalConfig,
