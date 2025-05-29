@@ -24,6 +24,6 @@ test.each([
 
 test('should fail to pick fetcher if the type is not defined', () => {
   expect(() => {
-    pickFetcher({}, { type: 'directory' })
+    pickFetcher({}, { type: 'directory', directory: expect.anything() })
   }).toThrow('Fetching for dependency type "directory" is not supported')
 })
