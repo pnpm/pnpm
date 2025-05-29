@@ -23,6 +23,17 @@ export interface WantedLocalDependency {
   injected?: boolean
 }
 
+class PathIsUnsupportedProtocolError extends PnpmError {
+  bareSpecifier: string
+  protocol: string
+  constructor (bareSpecifier: string, protocol: string) {
+    super('PATH_IS_UNSUPPORTED_PROTOCOL', 'Local dependencies via `path:` protocol are not supported. ' +
+      'Use the `link:` protocol for folder dependencies and `file:` for local tarballs')
+    this.bareSpecifier = bareSpecifier
+    this.protocol = protocol
+  }
+}
+
 export function parseBareSpecifier (
   wd: WantedLocalDependency,
   projectDir: string,
@@ -42,14 +53,7 @@ export function parseBareSpecifier (
     return fromLocal(wd, projectDir, lockfileDir, type)
   }
   if (wd.bareSpecifier.startsWith('path:')) {
-    throw Object.assign(
-      new PnpmError('PATH_IS_UNSUPPORTED_PROTOCOL', 'Local dependencies via `path:` protocol are not supported. ' +
-        'Use the `link:` protocol for folder dependencies and `file:` for local tarballs'),
-      {
-        bareSpecifier: wd.bareSpecifier,
-        protocol: 'path:',
-      }
-    )
+    throw new PathIsUnsupportedProtocolError(wd.bareSpecifier, 'path:')
   }
   return null
 }
