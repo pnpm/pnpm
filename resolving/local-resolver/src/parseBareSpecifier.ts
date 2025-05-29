@@ -42,14 +42,14 @@ export function parseBareSpecifier (
     return fromLocal(wd, projectDir, lockfileDir, type)
   }
   if (wd.bareSpecifier.startsWith('path:')) {
-    const err = new PnpmError('PATH_IS_UNSUPPORTED_PROTOCOL', 'Local dependencies via `path:` protocol are not supported. ' +
-      'Use the `link:` protocol for folder dependencies and `file:` for local tarballs')
-    // @ts-expect-error
-    err['bareSpecifier'] = wd.bareSpecifier
-    // @ts-expect-error
-    err['protocol'] = 'path:'
-
-    throw err
+    throw Object.assign(
+      new PnpmError('PATH_IS_UNSUPPORTED_PROTOCOL', 'Local dependencies via `path:` protocol are not supported. ' +
+        'Use the `link:` protocol for folder dependencies and `file:` for local tarballs'),
+      {
+        bareSpecifier: wd.bareSpecifier,
+        protocol: 'path:',
+      }
+    )
   }
   return null
 }
