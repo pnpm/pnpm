@@ -70,7 +70,7 @@ function calcDepStateObj<T extends string> (
 export function lockfileToDepGraphWithHashes (lockfile: LockfileObject): DepsGraph<DepPath> {
   const graph: DepsGraph<DepPath> = {}
   if (lockfile.packages != null) {
-    Object.entries(lockfile.packages).map(async ([depPath, pkgSnapshot]) => {
+    for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages)) {
       const children = lockfileDepsToGraphChildren({
         ...pkgSnapshot.dependencies,
         ...pkgSnapshot.optionalDependencies,
@@ -79,7 +79,7 @@ export function lockfileToDepGraphWithHashes (lockfile: LockfileObject): DepsGra
         children,
         pkgIdWithPatchHash: depPath as PkgIdWithPatchHash,
       }
-    })
+    }
   }
   const newGraph: DepsGraph<DepPath> = {}
   const cache: DepsStateCache = {}

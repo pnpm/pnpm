@@ -460,27 +460,14 @@ function extendGraph (graph: DependenciesGraph, virtualStoreDir: string): Depend
   const newGraph: DependenciesGraph = {}
   const cache: DepsStateCache = {}
   for (const [depPath, gv] of Object.entries(graph)) {
-    const { name: pkgName, version: pkgVersion } = gv // nameVerFromPkgSnapshot(depPath, lockfile.packages![depPath as DepPath])
+    const { name: pkgName, version: pkgVersion } = gv
     const h = `${pkgName}/${pkgVersion}/${hashObjectWithoutSorting(calcDepState(graph, cache, depPath, { isBuilt: true }), { encoding: 'hex' })}`
-    // const newChildren: Record<string, DepPath> = {}
     const modules = path.join(virtualStoreDir, h, 'node_modules')
     newGraph[depPath as DepPath] = {
-      // pkgIdWithPatchHash: depPath as PkgIdWithPatchHash,
       ...gv,
       modules,
-      dir: path.join(modules, pkgName)
+      dir: path.join(modules, pkgName),
     }
-    /*
-    for (const [alias, depPathChild] of Object.entries(gv.children)) {
-      const { name: pkgNameC, version: pkgVersionC } = graph[depPathChild as DepPath] // nameVerFromPkgSnapshot(depPathChild, lockfile.packages![depPathChild])
-      newChildren[alias] = `${pkgNameC}@${pkgVersionC}_${hashObjectWithoutSorting(calcDepState(graph, cache, depPathChild as string, { isBuilt: true }), { encoding: 'hex' })}` as DepPath
-    }
-    newGraph[h as DepPath] = {
-      // pkgIdWithPatchHash: depPath as PkgIdWithPatchHash,
-      ...gv,
-      children: newChildren,
-    }
-    */
   }
   return newGraph
 }

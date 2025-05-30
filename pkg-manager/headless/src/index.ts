@@ -344,15 +344,18 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         currentLockfile,
         lockfileToDepGraphOpts
       )
-      : (opts.enableGlobalVirtualStore ? lockfileToDepGraphWithEnabledGlobalVirtualStore(
-        filteredLockfile,
-        opts.force ? null : currentLockfile,
-        lockfileToDepGraphOpts
-      ) : lockfileToDepGraph(
-        filteredLockfile,
-        opts.force ? null : currentLockfile,
-        lockfileToDepGraphOpts
-      )
+      : (
+        opts.enableGlobalVirtualStore
+          ? lockfileToDepGraphWithEnabledGlobalVirtualStore(
+            filteredLockfile,
+            opts.force ? null : currentLockfile,
+            lockfileToDepGraphOpts
+          )
+          : lockfileToDepGraph(
+            filteredLockfile,
+            opts.force ? null : currentLockfile,
+            lockfileToDepGraphOpts
+          )
       )
   )
   if (opts.enablePnp) {

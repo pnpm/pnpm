@@ -1,5 +1,5 @@
 import path from 'path'
-import { calcDepState, type DepsStateCache, lockfileToDepGraphWithHashes } from '@pnpm/calc-dep-state'
+import { lockfileToDepGraphWithHashes } from '@pnpm/calc-dep-state'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   progressLogger,
