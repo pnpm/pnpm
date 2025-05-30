@@ -336,3 +336,11 @@ test('should not swallows empty string in params', async () => {
   expect(cmd).toBe('run')
   expect(params).toStrictEqual(['echo', '', 'foo', '', 'bar'])
 })
+
+test('the allow build option can be comma separated', async () => {
+  const { options } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    universalOptionsTypes: { 'allow-build': [String, Array] },
+  }, ['--allow-build', 'foo,bar', '--allow-build', 'qar', 'install'])
+  expect(options['allow-build']).toStrictEqual(['foo', 'bar', 'qar'])
+})
