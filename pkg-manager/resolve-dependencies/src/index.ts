@@ -465,7 +465,8 @@ function extendGraph (graph: DependenciesGraph): DependenciesGraph {
     newGraph[depPath as DepPath] = {
       // pkgIdWithPatchHash: depPath as PkgIdWithPatchHash,
       ...gv,
-      dir: h,
+      modules: path.join('/Users/zoltan/src/sandbox/_store', h, 'node_modules'),
+      dir: path.join('/Users/zoltan/src/sandbox/_store', h, 'node_modules', pkgName)
     }
     /*
     for (const [alias, depPathChild] of Object.entries(gv.children)) {
