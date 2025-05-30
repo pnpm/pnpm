@@ -16,6 +16,9 @@
       "path": "../../catalogs/types"
     },
     {
+      "path": "../../crypto/object-hasher"
+    },
+    {
       "path": "../../fetching/pick-fetcher"
     },
     {
@@ -29,6 +32,9 @@
     },
     {
       "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../packages/calc-dep-state"
     },
     {
       "path": "../../packages/constants"

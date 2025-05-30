@@ -126,6 +126,7 @@ export interface ResolveDependenciesOptions {
   lockfileDir: string
   storeController: StoreController
   tag: string
+  globalVirtualStoreDir: string
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
   wantedLockfile: LockfileObject

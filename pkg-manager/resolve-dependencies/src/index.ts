@@ -2,6 +2,8 @@ import path from 'path'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
+import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
+import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   type CatalogSnapshots,
   type LockfileObject,
@@ -22,6 +24,7 @@ import {
   type ProjectManifest,
   type ProjectId,
   type ProjectRootDir,
+  type DepPath,
 } from '@pnpm/types'
 import difference from 'ramda/src/difference'
 import zipWith from 'ramda/src/zipWith'
@@ -117,6 +120,7 @@ export async function resolveDependencies (
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
     allowUnusedPatches?: boolean
+    enableGlobalVirtualStore?: boolean
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -329,7 +333,7 @@ export async function resolveDependencies (
 
   return {
     dependenciesByProjectId,
-    dependenciesGraph,
+    dependenciesGraph: opts.enableGlobalVirtualStore ? extendGraph(dependenciesGraph, opts.globalVirtualStoreDir) : dependenciesGraph,
     outdatedDependencies,
     linkedDependenciesByProjectId,
     updatedCatalogs,
@@ -450,4 +454,20 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
     }
   }, pkgs, pkgAliases)
     .filter(Boolean) as DependencyManifest[]
+}
+
+function extendGraph (graph: DependenciesGraph, virtualStoreDir: string): DependenciesGraph {
+  const newGraph: DependenciesGraph = {}
+  const cache: DepsStateCache = {}
+  for (const [depPath, gv] of Object.entries(graph)) {
+    const { name: pkgName, version: pkgVersion } = gv
+    const h = `${pkgName}/${pkgVersion}/${hashObjectWithoutSorting(calcDepState(graph, cache, depPath, { isBuilt: true }), { encoding: 'hex' })}`
+    const modules = path.join(virtualStoreDir, h, 'node_modules')
+    newGraph[depPath as DepPath] = {
+      ...gv,
+      modules,
+      dir: path.join(modules, pkgName),
+    }
+  }
+  return newGraph
 }

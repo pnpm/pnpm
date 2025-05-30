@@ -320,9 +320,10 @@ export async function mutateModules (
     })
   }
 
-  const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
+  const pruneVirtualStore = !opts.enableGlobalVirtualStore && (ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
     ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
     : true
+  )
 
   if (!maybeOpts.ignorePackageManifest) {
     for (const { manifest, rootDir } of Object.values(ctx.projects)) {
@@ -1139,6 +1140,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dedupeInjectedDeps: opts.dedupeInjectedDeps,
       dedupePeerDependents: opts.dedupePeerDependents,
       dryRun: opts.lockfileOnly,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
+      globalVirtualStoreDir: opts.globalVirtualStoreDir ?? ctx.virtualStoreDir,
       engineStrict: opts.engineStrict,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,

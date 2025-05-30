@@ -130,6 +130,8 @@ export interface Config extends OptionsFromRootManifest {
   stateDir: string
   storeDir?: string
   virtualStoreDir?: string
+  globalVirtualStoreDir?: string
+  enableGlobalVirtualStore?: boolean
   verifyStoreIntegrity?: boolean
   maxSockets?: number
   networkConcurrency?: number

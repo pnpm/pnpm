@@ -1,8 +1,11 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
-import { type LockfileObject } from '@pnpm/lockfile.types'
+import {
+  nameVerFromPkgSnapshot,
+} from '@pnpm/lockfile.utils'
 import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
 import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
 
 export type DepsGraph<T extends string> = Record<T, DepsGraphNode<T>>
@@ -62,6 +65,38 @@ function calcDepStateObj<T extends string> (
   }
   cache[depPath] = sortDirectKeys(state)
   return cache[depPath]
+}
+
+export function lockfileToDepGraphWithHashes (lockfile: LockfileObject): DepsGraph<DepPath> {
+  const graph: DepsGraph<DepPath> = {}
+  if (lockfile.packages != null) {
+    for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages)) {
+      const children = lockfileDepsToGraphChildren({
+        ...pkgSnapshot.dependencies,
+        ...pkgSnapshot.optionalDependencies,
+      })
+      graph[depPath as DepPath] = {
+        children,
+        pkgIdWithPatchHash: depPath as PkgIdWithPatchHash,
+      }
+    }
+  }
+  const newGraph: DepsGraph<DepPath> = {}
+  const cache: DepsStateCache = {}
+  for (const [depPath, gv] of Object.entries(graph)) {
+    const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, lockfile.packages![depPath as DepPath])
+    const h = `${pkgName}/${pkgVersion}/${hashObjectWithoutSorting(calcDepState(graph, cache, depPath, { isBuilt: true }), { encoding: 'hex' })}`
+    const newChildren: Record<string, DepPath> = {}
+    for (const [alias, depPathChild] of Object.entries(gv.children)) {
+      const { name: pkgNameC, version: pkgVersionC } = nameVerFromPkgSnapshot(depPathChild, lockfile.packages![depPathChild])
+      newChildren[alias] = `${pkgNameC}/${pkgVersionC}/${hashObjectWithoutSorting(calcDepState(graph, cache, depPathChild, { isBuilt: true }), { encoding: 'hex' })}` as DepPath
+    }
+    newGraph[h as DepPath] = {
+      pkgIdWithPatchHash: depPath as PkgIdWithPatchHash,
+      children: newChildren,
+    }
+  }
+  return newGraph
 }
 
 export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath> {

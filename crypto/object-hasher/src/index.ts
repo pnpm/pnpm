@@ -33,7 +33,12 @@ function hashUnknown (object: unknown, options: hash.BaseOptions): string {
   return hash(object, options)
 }
 
-export const hashObjectWithoutSorting = (object: unknown): string => hashUnknown(object, withoutSortingOptions)
+export type HashObjectOptions = Pick<hash.NormalOption, 'encoding'>
+
+export const hashObjectWithoutSorting = (object: unknown, opts?: HashObjectOptions): string => hashUnknown(object, {
+  ...withoutSortingOptions,
+  ...opts,
+})
 export const hashObject = (object: unknown): string => hashUnknown(object, withSortingOptions)
 
 export type PrefixedHash = `sha256-${string}`
