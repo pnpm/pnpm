@@ -460,13 +460,14 @@ function extendGraph (graph: DependenciesGraph): DependenciesGraph {
   const cache: DepsStateCache = {}
   for (const [depPath, gv] of Object.entries(graph)) {
     const { name: pkgName, version: pkgVersion } = gv // nameVerFromPkgSnapshot(depPath, lockfile.packages![depPath as DepPath])
-    const h = `${pkgName}@${pkgVersion}_${hashObjectWithoutSorting(calcDepState(graph, cache, depPath, { isBuilt: true }), { encoding: 'hex' })}`
+    const h = `${pkgName}/${pkgVersion}/${hashObjectWithoutSorting(calcDepState(graph, cache, depPath, { isBuilt: true }), { encoding: 'hex' })}`
     // const newChildren: Record<string, DepPath> = {}
+    const modules = path.join('/Users/zoltan/src/sandbox/_store', h, 'node_modules')
     newGraph[depPath as DepPath] = {
       // pkgIdWithPatchHash: depPath as PkgIdWithPatchHash,
       ...gv,
-      modules: path.join('/Users/zoltan/src/sandbox/_store', h, 'node_modules'),
-      dir: path.join('/Users/zoltan/src/sandbox/_store', h, 'node_modules', pkgName)
+      modules,
+      dir: path.join(modules, pkgName)
     }
     /*
     for (const [alias, depPathChild] of Object.entries(gv.children)) {
