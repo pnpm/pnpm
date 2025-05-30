@@ -85,11 +85,11 @@ export function lockfileToDepGraphWithHashes (lockfile: LockfileObject): DepsGra
   const cache: DepsStateCache = {}
   for (const [depPath, gv] of Object.entries(graph)) {
     const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, lockfile.packages![depPath as DepPath])
-    const h = `${pkgName}@${pkgVersion}_${hashObjectWithoutSorting(calcDepState(graph, cache, depPath, { isBuilt: true }))}`
+    const h = `${pkgName}@${pkgVersion}_${hashObjectWithoutSorting(calcDepState(graph, cache, depPath, { isBuilt: true }), { encoding: 'hex' })}`
     const newChildren: Record<string, DepPath> = {}
     for (const [alias, depPathChild] of Object.entries(gv.children)) {
       const { name: pkgNameC, version: pkgVersionC } = nameVerFromPkgSnapshot(depPathChild, lockfile.packages![depPathChild])
-      newChildren[alias] = `${pkgNameC}@${pkgVersionC}_${hashObjectWithoutSorting(calcDepState(graph, cache, depPathChild, { isBuilt: true }))}` as DepPath
+      newChildren[alias] = `${pkgNameC}@${pkgVersionC}_${hashObjectWithoutSorting(calcDepState(graph, cache, depPathChild, { isBuilt: true }), { encoding: 'hex' })}` as DepPath
     }
     newGraph[h as DepPath] = {
       pkgIdWithPatchHash: depPath as PkgIdWithPatchHash,
