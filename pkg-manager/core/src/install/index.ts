@@ -304,9 +304,10 @@ export async function mutateModules (
     })
   }
 
-  const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
+  const pruneVirtualStore = !opts.enableGlobalVirtualStore && (ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
     ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
     : true
+  )
 
   if (!maybeOpts.ignorePackageManifest) {
     for (const { manifest, rootDir } of Object.values(ctx.projects)) {
