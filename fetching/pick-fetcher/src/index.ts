@@ -14,7 +14,7 @@ export function pickFetcher (fetcherByHostingType: Partial<Fetchers>, resolution
     }
   }
 
-  const fetch = fetcherByHostingType[fetcherType as keyof Fetchers]
+  const fetch = fetcherByHostingType[fetcherType!]
 
   if (!fetch) {
     throw new Error(`Fetching for dependency type "${resolution.type ?? 'undefined'}" is not supported`)
