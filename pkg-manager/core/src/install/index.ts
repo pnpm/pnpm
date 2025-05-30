@@ -1093,6 +1093,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dedupePeerDependents: opts.dedupePeerDependents,
       dryRun: opts.lockfileOnly,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
+      globalVirtualStoreDir: opts.globalVirtualStoreDir ?? ctx.virtualStoreDir,
       engineStrict: opts.engineStrict,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,

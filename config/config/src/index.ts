@@ -372,8 +372,8 @@ export async function getConfig (opts: {
       }
     }
   }
-  if (pnpmConfig.enableGlobalVirtualStore) {
-    pnpmConfig.virtualStoreDir = path.join(pnpmConfig.pnpmHomeDir, 'deps')
+  if (pnpmConfig.enableGlobalVirtualStore && !pnpmConfig.globalVirtualStoreDir) {
+    pnpmConfig.globalVirtualStoreDir = path.join(pnpmConfig.pnpmHomeDir, 'deps')
   }
   if (opts.cliOptions['save-peer']) {
     if (opts.cliOptions['save-prod']) {

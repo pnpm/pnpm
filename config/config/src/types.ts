@@ -113,6 +113,7 @@ export const types = Object.assign({
   'use-stderr': Boolean,
   'verify-deps-before-run': Boolean,
   'verify-store-integrity': Boolean,
+  'global-virtual-store-dir': String,
   'virtual-store-dir': String,
   'virtual-store-dir-max-length': Number,
   'peers-suffix-max-length': Number,

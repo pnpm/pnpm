@@ -144,6 +144,7 @@ export interface HeadlessOptions {
   lockfileDir: string
   modulesDir?: string
   enableGlobalVirtualStore: boolean
+  globalVirtualStoreDir?: string
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
   patchedDependencies?: PatchGroupRecord
@@ -349,7 +350,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           ? lockfileToDepGraphWithEnabledGlobalVirtualStore(
             filteredLockfile,
             opts.force ? null : currentLockfile,
-            lockfileToDepGraphOpts
+            {
+              ...lockfileToDepGraphOpts,
+              virtualStoreDir: opts.globalVirtualStoreDir ?? virtualStoreDir,
+            }
           )
           : lockfileToDepGraph(
             filteredLockfile,

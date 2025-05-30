@@ -30,6 +30,7 @@ export interface StrictInstallOptions {
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enableGlobalVirtualStore: boolean
+  globalVirtualStoreDir?: string
   enablePnp: boolean
   extraBinPaths: string[]
   extraEnv: Record<string, string>
