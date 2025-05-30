@@ -259,7 +259,7 @@ export async function readPackageIndexFile (
     pkgIndexFilePath = getIndexFilePathInCafs(
       opts.storeDir,
       packageResolution.integrity as string,
-      `${parsedId.name}@${parsedId.version}`
+      parsedId.nonSemverVersion ?? `${parsedId.name}@${parsedId.version}`
     )
   } else if (!packageResolution.type && packageResolution.tarball) {
     const packageDirInStore = depPathToFilename(parse(id).nonSemverVersion ?? id, opts.virtualStoreDirMaxLength)
