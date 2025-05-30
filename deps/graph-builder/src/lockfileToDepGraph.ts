@@ -107,14 +107,14 @@ export async function lockfileToDepGraph (
     const locationByDepPath = {} as Record<string, string>
     const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
     await Promise.all(
-      Object.entries(gg).map(async ([key, { depPath, children }]) => {
-        if (opts.skipped.has(depPath)) return
-        const pkgSnapshot = lockfile.packages![depPath]
+      Object.entries(gg).map(async ([hash, { pkgIdWithPatchHash, children }]) => {
+        const depPath = pkgIdWithPatchHash as unknown as DepPath
+        if (opts.skipped.has(depPath as DepPath)) return
+        const pkgSnapshot = lockfile.packages![depPath as DepPath]
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
-        const modules = path.join('/Users/zoltan/src/sandbox/_store', `${pkgName}@${pkgVersion}_${key}`, 'node_modules')
-        const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)
+        const packageId = packageIdFromSnapshot(depPath as DepPath, pkgSnapshot)
+        const modules = path.join('/Users/zoltan/src/sandbox/_store', `${pkgName}@${pkgVersion}_${hash}`, 'node_modules')
 
         const pkg = {
           name: pkgName,
