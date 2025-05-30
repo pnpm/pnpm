@@ -88,6 +88,7 @@ import {
   type DependenciesGraphNode,
   type LockfileToDepGraphOptions,
   lockfileToDepGraph,
+  lockfileToDepGraphWithEnabledGlobalVirtualStore,
 } from '@pnpm/deps.graph-builder'
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
@@ -142,6 +143,7 @@ export interface HeadlessOptions {
   currentHoistedLocations?: Record<string, string[]>
   lockfileDir: string
   modulesDir?: string
+  enableGlobalVirtualStore: boolean
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
   patchedDependencies?: PatchGroupRecord
@@ -342,10 +344,15 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         currentLockfile,
         lockfileToDepGraphOpts
       )
-      : lockfileToDepGraph(
+      : (opts.enableGlobalVirtualStore ? lockfileToDepGraphWithEnabledGlobalVirtualStore(
         filteredLockfile,
         opts.force ? null : currentLockfile,
         lockfileToDepGraphOpts
+      ) : lockfileToDepGraph(
+        filteredLockfile,
+        opts.force ? null : currentLockfile,
+        lockfileToDepGraphOpts
+      )
       )
   )
   if (opts.enablePnp) {

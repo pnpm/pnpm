@@ -372,6 +372,9 @@ export async function getConfig (opts: {
       }
     }
   }
+  if (pnpmConfig.enableGlobalVirtualStore) {
+    pnpmConfig.virtualStoreDir = path.join(pnpmConfig.pnpmHomeDir, 'deps')
+  }
   if (opts.cliOptions['save-peer']) {
     if (opts.cliOptions['save-prod']) {
       throw new PnpmError('CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP', 'A package cannot be a peer dependency and a prod dependency at the same time')

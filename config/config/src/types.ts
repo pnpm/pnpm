@@ -19,6 +19,7 @@ export const types = Object.assign({
   'disallow-workspace-cycles': Boolean,
   'enable-modules-dir': Boolean,
   'enable-pre-post-scripts': Boolean,
+  'enable-global-virtual-store': Boolean,
   'exclude-links-from-lockfile': Boolean,
   'extend-node-path': Boolean,
   'fetch-timeout': Number,

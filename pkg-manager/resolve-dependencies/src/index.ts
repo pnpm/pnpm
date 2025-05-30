@@ -120,6 +120,7 @@ export async function resolveDependencies (
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
     allowUnusedPatches?: boolean
+    enableGlobalVirtualStore?: boolean
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -332,7 +333,7 @@ export async function resolveDependencies (
 
   return {
     dependenciesByProjectId,
-    dependenciesGraph: extendGraph(dependenciesGraph),
+    dependenciesGraph: opts.enableGlobalVirtualStore ? extendGraph(dependenciesGraph, opts.virtualStoreDir) : dependenciesGraph,
     outdatedDependencies,
     linkedDependenciesByProjectId,
     newCatalogs,
@@ -455,14 +456,14 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
     .filter(Boolean) as DependencyManifest[]
 }
 
-function extendGraph (graph: DependenciesGraph): DependenciesGraph {
+function extendGraph (graph: DependenciesGraph, virtualStoreDir: string): DependenciesGraph {
   const newGraph: DependenciesGraph = {}
   const cache: DepsStateCache = {}
   for (const [depPath, gv] of Object.entries(graph)) {
     const { name: pkgName, version: pkgVersion } = gv // nameVerFromPkgSnapshot(depPath, lockfile.packages![depPath as DepPath])
     const h = `${pkgName}/${pkgVersion}/${hashObjectWithoutSorting(calcDepState(graph, cache, depPath, { isBuilt: true }), { encoding: 'hex' })}`
     // const newChildren: Record<string, DepPath> = {}
-    const modules = path.join('/Users/zoltan/src/sandbox/_store', h, 'node_modules')
+    const modules = path.join(virtualStoreDir, h, 'node_modules')
     newGraph[depPath as DepPath] = {
       // pkgIdWithPatchHash: depPath as PkgIdWithPatchHash,
       ...gv,
