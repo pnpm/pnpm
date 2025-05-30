@@ -2,6 +2,8 @@ import path from 'path'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
+import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
+import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   type CatalogSnapshots,
   type LockfileObject,
@@ -22,6 +24,7 @@ import {
   type ProjectManifest,
   type ProjectId,
   type ProjectRootDir,
+  type DepPath,
 } from '@pnpm/types'
 import difference from 'ramda/src/difference'
 import zipWith from 'ramda/src/zipWith'
@@ -329,7 +332,7 @@ export async function resolveDependencies (
 
   return {
     dependenciesByProjectId,
-    dependenciesGraph,
+    dependenciesGraph: extendGraph(dependenciesGraph),
     outdatedDependencies,
     linkedDependenciesByProjectId,
     newCatalogs,
@@ -450,4 +453,31 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
     }
   }, pkgs, pkgAliases)
     .filter(Boolean) as DependencyManifest[]
+}
+
+function extendGraph (graph: DependenciesGraph): DependenciesGraph {
+  const newGraph: DependenciesGraph = {}
+  const cache: DepsStateCache = {}
+  for (const [depPath, gv] of Object.entries(graph)) {
+    const { name: pkgName, version: pkgVersion } = gv // nameVerFromPkgSnapshot(depPath, lockfile.packages![depPath as DepPath])
+    const h = `${pkgName}@${pkgVersion}_${hashObjectWithoutSorting(calcDepState(graph, cache, depPath, { isBuilt: true }), { encoding: 'hex' })}`
+    // const newChildren: Record<string, DepPath> = {}
+    newGraph[depPath as DepPath] = {
+      // pkgIdWithPatchHash: depPath as PkgIdWithPatchHash,
+      ...gv,
+      dir: h,
+    }
+    /*
+    for (const [alias, depPathChild] of Object.entries(gv.children)) {
+      const { name: pkgNameC, version: pkgVersionC } = graph[depPathChild as DepPath] // nameVerFromPkgSnapshot(depPathChild, lockfile.packages![depPathChild])
+      newChildren[alias] = `${pkgNameC}@${pkgVersionC}_${hashObjectWithoutSorting(calcDepState(graph, cache, depPathChild as string, { isBuilt: true }), { encoding: 'hex' })}` as DepPath
+    }
+    newGraph[h as DepPath] = {
+      // pkgIdWithPatchHash: depPath as PkgIdWithPatchHash,
+      ...gv,
+      children: newChildren,
+    }
+    */
+  }
+  return newGraph
 }
