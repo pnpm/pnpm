@@ -5,6 +5,17 @@ import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
 import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
 
+const argv = process.argv.slice(2);
+
+if (argv.includes('--help') || argv.includes('-h')) {
+  console.log(`Usage: pnpm create <project-name> [options]
+
+Options:
+  --help, -h     Show this help message
+`);
+  process.exit(0);
+}
+
 export type DepsGraph<T extends string> = Record<T, DepsGraphNode<T>>
 
 export interface DepsGraphNode<T extends string> {
