@@ -22,6 +22,7 @@ import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { readPackageJson } from '@pnpm/read-package-json'
 import {
   type DirectoryResolution,
+  type PreferredVersions,
   type Resolution,
   type ResolveFunction,
   type ResolveResult,
@@ -178,13 +179,30 @@ async function resolveAndFetch (
   //
   // The resolution step is never skipped for local dependencies.
   if (!skipResolution || options.skipFetch === true || Boolean(pkgId?.startsWith('file:')) || wantedDependency.optional === true) {
+    // When skipResolution is set but a resolution is still performed due to
+    // options.skipFetch, it's necessary to make sure the resolution doesn't
+    // accidentally return a newer version of the package. When skipFetch is
+    // set, the resolved package shouldn't be different. This is done by
+    // overriding the preferredVersions object to only contain the current
+    // package's version.
+    //
+    // A naive approach would be to change the bare specifier to be the exact
+    // version of the current pkg if the bare specifier is a range, but this
+    // would cause the version returned for calcSpecifier to be different.
+    const preferredVersions: PreferredVersions = (skipResolution && options.currentPkg?.name != null && options.currentPkg?.version != null)
+      ? {
+        ...options.preferredVersions,
+        [options.currentPkg.name]: { [options.currentPkg.version]: 'version' },
+      }
+      : options.preferredVersions
+
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
       publishedBy: options.publishedBy,
       pickLowestVersion: options.pickLowestVersion,
       lockfileDir: options.lockfileDir,
-      preferredVersions: options.preferredVersions,
+      preferredVersions,
       preferWorkspacePackages: options.preferWorkspacePackages,
       projectDir: options.projectDir,
       workspacePackages: options.workspacePackages,

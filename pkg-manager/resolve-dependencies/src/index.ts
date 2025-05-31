@@ -1,9 +1,9 @@
 import path from 'path'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
 import {
-  type CatalogSnapshots,
   type LockfileObject,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.types'
@@ -94,7 +94,7 @@ export interface ImporterToResolve extends Importer<{
 export interface ResolveDependenciesResult {
   dependenciesByProjectId: DependenciesByProjectId
   dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
-  updatedCatalogs?: CatalogSnapshots | undefined
+  updatedCatalogs?: Catalogs | undefined
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -137,7 +137,6 @@ export async function resolveDependencies (
     appliedPatches,
     time,
     allPeerDepNames,
-    updatedCatalogs,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   opts.storeController.clearResolutionCache()
@@ -278,6 +277,18 @@ export async function resolveDependencies (
     }
   }))
 
+  let updatedCatalogs: Record<string, Record<string, string>> | undefined
+  for (const project of projectsToResolve.filter(project => project.updatePackageManifest)) {
+    const resolvedImporter = resolvedImporters[project.id]
+    for (const dep of resolvedImporter.directDependencies) {
+      if (dep.catalogLookup?.updateSpec) {
+        updatedCatalogs ??= {}
+        updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
+        updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier ?? dep.catalogLookup.userSpecifiedBareSpecifier
+      }
+    }
+  }
+
   if (opts.dedupeDirectDeps) {
     const rootDeps = dependenciesByProjectId['.']
     if (rootDeps) {
@@ -306,17 +317,9 @@ export async function resolveDependencies (
     }
   }
 
-  // Q: Why would `newLockfile.catalogs` be constructed twice?
-  // A: `getCatalogSnapshots` handles new dependencies that were resolved as `catalog:*` (e.g. new entries in `package.json` whose values were `catalog:*`),
-  //    and `updatedCatalogs` handles dependencies that were added as CLI parameters from `pnpm add --save-catalog`.
-  newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
-  for (const catalogName in updatedCatalogs) {
-    for (const dependencyName in updatedCatalogs[catalogName]) {
-      newLockfile.catalogs ??= {}
-      newLockfile.catalogs[catalogName] ??= {}
-      newLockfile.catalogs[catalogName][dependencyName] = updatedCatalogs[catalogName][dependencyName]
-    }
-  }
+  newLockfile.catalogs = getCatalogSnapshots(
+    Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies),
+    updatedCatalogs)
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
