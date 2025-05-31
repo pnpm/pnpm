@@ -795,12 +795,18 @@ async function resolveDependenciesOfDependency (
     ? extendedWantedDep.wantedDependency.updateDepth
     : options.updateDepth
   const updateShouldContinue = options.currentDepth <= updateDepth
-  const update = ((extendedWantedDep.infoFromLockfile?.dependencyLockfile) == null) ||
-  (
-    updateShouldContinue && (
+  const updateRequested =
+    updateShouldContinue &&
+    (
       (options.updateMatching == null) ||
-      options.updateMatching(extendedWantedDep.infoFromLockfile.name!)
+      (
+        extendedWantedDep.infoFromLockfile?.name != null &&
+        options.updateMatching(extendedWantedDep.infoFromLockfile.name!)
+      )
     )
+  const update = updateRequested ||
+  (
+    (extendedWantedDep.infoFromLockfile?.dependencyLockfile) == null
   ) || Boolean(
     (ctx.workspacePackages != null) &&
     ctx.linkWorkspacePackagesDepth !== -1 &&
@@ -823,7 +829,7 @@ async function resolveDependenciesOfDependency (
     publishedBy: options.publishedBy,
     update: update ? options.updateToLatest ? 'latest' : 'compatible' : false,
     updateDepth,
-    updateMatching: options.updateMatching,
+    updateRequested,
     supportedArchitectures: options.supportedArchitectures,
     parentIds: options.parentIds,
     pinnedVersion: options.pinnedVersion,
@@ -1212,7 +1218,7 @@ interface ResolveDependencyOptions {
   pickLowestVersion?: boolean
   update: false | 'compatible' | 'latest'
   updateDepth: number
-  updateMatching?: UpdateMatchingFunction
+  updateRequested: boolean
   supportedArchitectures?: SupportedArchitectures
   pinnedVersion?: PinnedVersion
 }
