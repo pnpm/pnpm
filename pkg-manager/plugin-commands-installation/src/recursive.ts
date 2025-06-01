@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   type RecursiveSummary,
   throwOnCommandFail,
@@ -13,7 +14,6 @@ import {
 } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
-import { type CatalogSnapshots } from '@pnpm/lockfile.types'
 import { logger } from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { createMatcherWithIndex } from '@pnpm/matcher'
@@ -304,7 +304,7 @@ export async function recursive (
 
   const pkgPaths = (Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()
 
-  let updatedCatalogs: CatalogSnapshots | undefined
+  let updatedCatalogs: Catalogs | undefined
 
   const limitInstallation = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   await Promise.all(pkgPaths.map(async (rootDir) =>
@@ -350,7 +350,7 @@ export async function recursive (
           & { pinnedVersion: 'major' | 'minor' | 'patch' }
 
         interface ActionResult {
-          updatedCatalogs?: CatalogSnapshots
+          updatedCatalogs?: Catalogs
           updatedManifest: ProjectManifest
           ignoredBuilds: string[] | undefined
         }
