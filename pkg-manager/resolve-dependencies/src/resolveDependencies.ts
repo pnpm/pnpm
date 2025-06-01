@@ -1267,7 +1267,9 @@ async function resolveDependency (
       currentPkg: currentPkg
         ? {
           id: currentPkg.pkgId,
+          name: currentPkg.name,
           resolution: currentPkg.resolution,
+          version: currentPkg.version,
         }
         : undefined,
       expectedPkg: currentPkg,

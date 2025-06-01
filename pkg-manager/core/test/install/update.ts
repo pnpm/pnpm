@@ -211,6 +211,42 @@ test('update only the specified package', async () => {
   })
 })
 
+test.each([false, true])('update only the specified package with --lockfile-only=%p', async (lockfileOnly) => {
+  const project = prepareEmpty()
+
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' }),
+  ])
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [
+    '@pnpm.e2e/bar',
+    '@pnpm.e2e/foo',
+    // Ensure aliases also stay on the same version.
+    'bar-alias@npm:@pnpm.e2e/bar',
+  ], testDefaults())
+
+  await Promise.all([
+    addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' }),
+    addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' }),
+  ])
+
+  await install(manifest, testDefaults({
+    depth: Infinity,
+    update: true,
+    updateMatching: (pkgName: string) => pkgName === '@pnpm.e2e/foo',
+
+    // This test specifically tests this flag.
+    lockfileOnly,
+  }))
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.snapshots).toStrictEqual({
+    '@pnpm.e2e/bar@100.0.0': expect.anything(),
+    '@pnpm.e2e/foo@100.1.0': expect.anything(),
+  })
+})
+
 test('peer dependency is not added to prod deps on update', async () => {
   prepareEmpty()
   const { updatedManifest: manifest } = await install({
