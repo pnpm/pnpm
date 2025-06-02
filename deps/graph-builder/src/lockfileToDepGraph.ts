@@ -269,13 +269,10 @@ function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
   virtualStoreDirMaxLength: number
 }): IterableIterator<PkgSnapshotWithLocation> {
   if (opts.enableGlobalVirtualStore) {
-    for (const [hash, { pkgIdWithPatchHash }] of Object.entries(
-      lockfileToDepGraphWithHashes(lockfile)
-    )) {
-      const depPath = pkgIdWithPatchHash as unknown as DepPath
+    for (const { depPath, hash } of lockfileToDepGraphWithHashes(lockfile)) {
       yield {
-        depPath,
-        pkgSnapshot: lockfile.packages![depPath],
+        depPath: depPath as DepPath,
+        pkgSnapshot: lockfile.packages![depPath as DepPath],
         dirNameInVirtualStore: hash,
       }
     }

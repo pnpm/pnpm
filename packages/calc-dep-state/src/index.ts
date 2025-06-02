@@ -67,27 +67,19 @@ function calcDepStateObj<T extends string> (
   return cache[depPath]
 }
 
-export function lockfileToDepGraphWithHashes (lockfile: LockfileObject): DepsGraph<DepPath> {
+export function lockfileToDepGraphWithHashes (lockfile: LockfileObject): Array<{ depPath: DepPath, hash: string }> {
   const graph = lockfileToDepGraph(lockfile)
-  const newGraph: DepsGraph<DepPath> = {}
+  const entries: Array<{ depPath: DepPath, hash: string }> = []
   const cache: DepsStateCache = {}
-  const depPathToHash = new Map<DepPath, DepPath>()
   for (const depPath of Object.keys(graph)) {
     const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, lockfile.packages![depPath as DepPath])
     const hash = `${pkgName}/${pkgVersion}/${hashObjectWithoutSorting(calcDepState(graph, cache, depPath, { isBuilt: true }), { encoding: 'hex' })}` as DepPath
-    depPathToHash.set(depPath as DepPath, hash)
+    entries.push({
+      depPath: depPath as DepPath,
+      hash,
+    })
   }
-  for (const [depPath, node] of Object.entries(graph)) {
-    const newChildren: Record<string, DepPath> = {}
-    for (const [alias, depPathChild] of Object.entries(node.children)) {
-      newChildren[alias] = depPathToHash.get(depPathChild) as DepPath
-    }
-    newGraph[depPathToHash.get(depPath as DepPath)!] = {
-      pkgIdWithPatchHash: node.pkgIdWithPatchHash,
-      children: newChildren,
-    }
-  }
-  return newGraph
+  return entries
 }
 
 export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath> {
