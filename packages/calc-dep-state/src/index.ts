@@ -81,22 +81,21 @@ export function * iterateHashedGraphNodes (
   pkgMetaIterator: PkgMetaIterator
 ): IterableIterator<HashedDepPath> {
   const cache: DepsStateCache = {}
-  for (const { pkgName, pkgVersion, depPath, pkgIdWithPatchHash } of pkgMetaIterator) {
+  for (const pkgMeta of pkgMetaIterator) {
+    const { pkgName, pkgVersion, depPath } = pkgMeta
     const state = calcDepState(graph, cache, depPath, { isBuilt: true })
     const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
     const hash = `${pkgName}/${pkgVersion}/${hexDigest}` as DepPath
     yield {
-      depPath: depPath as DepPath,
       hash,
-      pkgIdWithPatchHash,
+      pkgMeta,
     }
   }
 }
 
 export interface HashedDepPath {
-  depPath: DepPath
+  pkgMeta: PkgMeta
   hash: string
-  pkgIdWithPatchHash: PkgIdWithPatchHash
 }
 
 export function hashDependencyPaths (lockfile: LockfileObject): IterableIterator<HashedDepPath> {

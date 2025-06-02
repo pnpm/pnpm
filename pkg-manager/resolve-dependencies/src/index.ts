@@ -469,7 +469,7 @@ function extendGraph (graph: DependenciesGraph, virtualStoreDir: string): Depend
       }
     }
   })()
-  for (const { depPath, hash } of iterateHashedGraphNodes(graph, pkgMetaIter)) {
+  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter)) {
     const modules = path.join(virtualStoreDir, hash, 'node_modules')
     const node = graph[depPath]
     Object.assign(node, {
