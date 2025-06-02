@@ -2,8 +2,7 @@ import path from 'path'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
-import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
-import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
+import { iterateHashedGraphNodes } from '@pnpm/calc-dep-state'
 import {
   type CatalogSnapshots,
   type LockfileObject,
@@ -457,17 +456,18 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
 }
 
 function extendGraph (graph: DependenciesGraph, virtualStoreDir: string): DependenciesGraph {
-  const newGraph: DependenciesGraph = {}
-  const cache: DepsStateCache = {}
-  for (const [depPath, gv] of Object.entries(graph)) {
-    const { name: pkgName, version: pkgVersion } = gv
-    const h = `${pkgName}/${pkgVersion}/${hashObjectWithoutSorting(calcDepState(graph, cache, depPath, { isBuilt: true }), { encoding: 'hex' })}`
-    const modules = path.join(virtualStoreDir, h, 'node_modules')
-    newGraph[depPath as DepPath] = {
-      ...gv,
-      modules,
-      dir: path.join(modules, pkgName),
+  const pkgMetaIter = (function * () {
+    for (const [depPath, { name, version }] of Object.entries(graph)) {
+      yield { pkgName: name, pkgVersion: version, depPath: depPath as DepPath }
     }
+  })()
+  for (const { depPath, hash } of iterateHashedGraphNodes(graph, pkgMetaIter)) {
+    const modules = path.join(virtualStoreDir, hash, 'node_modules')
+    const node = graph[depPath]
+    Object.assign(node, {
+      modules,
+      dir: path.join(modules, node.name),
+    })
   }
-  return newGraph
+  return graph
 }
