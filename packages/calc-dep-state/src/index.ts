@@ -1,11 +1,8 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
-import {
-  nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile.utils'
 import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
 import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
-import { type PackageSnapshot, type LockfileObject } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
 
 export type DepsGraph<T extends string> = Record<T, DepsGraphNode<T>>
@@ -75,6 +72,11 @@ export interface PkgMeta {
 
 export type PkgMetaIterator<T extends PkgMeta> = IterableIterator<T>
 
+export interface HashedDepPath<T extends PkgMeta> {
+  pkgMeta: T
+  hash: string
+}
+
 export function * iterateHashedGraphNodes<T extends PkgMeta> (
   graph: DepsGraph<DepPath>,
   pkgMetaIterator: PkgMetaIterator<T>
@@ -87,39 +89,6 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
     yield {
       hash: `${name}/${version}/${hexDigest}`,
       pkgMeta,
-    }
-  }
-}
-
-export interface HashedDepPath<T extends PkgMeta> {
-  pkgMeta: T
-  hash: string
-}
-
-export interface PkgMetaAndSnapshot extends PkgMeta {
-  pkgSnapshot: PackageSnapshot
-  pkgIdWithPatchHash: PkgIdWithPatchHash
-}
-
-export function hashDependencyPaths (lockfile: LockfileObject): IterableIterator<HashedDepPath<PkgMetaAndSnapshot>> {
-  const graph = lockfileToDepGraph(lockfile)
-  return iterateHashedGraphNodes(graph, iteratedPkgMeta(lockfile, graph))
-}
-
-function * iteratedPkgMeta (lockfile: LockfileObject, graph: DepsGraph<DepPath>): PkgMetaIterator<PkgMetaAndSnapshot> {
-  if (lockfile.packages) {
-    for (const depPath in lockfile.packages) {
-      if (Object.prototype.hasOwnProperty.call(lockfile.packages, depPath)) {
-        const pkgSnapshot = lockfile.packages[depPath as DepPath]
-        const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        yield {
-          name,
-          version,
-          depPath: depPath as DepPath,
-          pkgIdWithPatchHash: graph[depPath as DepPath].pkgIdWithPatchHash,
-          pkgSnapshot,
-        }
-      }
     }
   }
 }

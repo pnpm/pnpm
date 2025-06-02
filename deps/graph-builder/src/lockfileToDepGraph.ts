@@ -1,10 +1,10 @@
 import path from 'path'
-import { hashDependencyPaths, type PkgMetaAndSnapshot } from '@pnpm/calc-dep-state'
+import { iterateHashedGraphNodes, lockfileToDepGraph as _lockfileToDepGraph, type PkgMeta, type DepsGraph, type PkgMetaIterator, type HashedDepPath } from '@pnpm/calc-dep-state'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   progressLogger,
 } from '@pnpm/core-loggers'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
+import { type LockfileObject, type PackageSnapshot } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
@@ -276,6 +276,34 @@ function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
             pkgSnapshot,
           },
           dirNameInVirtualStore: dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength),
+        }
+      }
+    }
+  }
+}
+
+interface PkgMetaAndSnapshot extends PkgMeta {
+  pkgSnapshot: PackageSnapshot
+  pkgIdWithPatchHash: PkgIdWithPatchHash
+}
+
+function hashDependencyPaths (lockfile: LockfileObject): IterableIterator<HashedDepPath<PkgMetaAndSnapshot>> {
+  const graph = _lockfileToDepGraph(lockfile)
+  return iterateHashedGraphNodes(graph, iteratedPkgMeta(lockfile, graph))
+}
+
+function * iteratedPkgMeta (lockfile: LockfileObject, graph: DepsGraph<DepPath>): PkgMetaIterator<PkgMetaAndSnapshot> {
+  if (lockfile.packages) {
+    for (const depPath in lockfile.packages) {
+      if (Object.prototype.hasOwnProperty.call(lockfile.packages, depPath)) {
+        const pkgSnapshot = lockfile.packages[depPath as DepPath]
+        const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+        yield {
+          name,
+          version,
+          depPath: depPath as DepPath,
+          pkgIdWithPatchHash: graph[depPath as DepPath].pkgIdWithPatchHash,
+          pkgSnapshot,
         }
       }
     }
