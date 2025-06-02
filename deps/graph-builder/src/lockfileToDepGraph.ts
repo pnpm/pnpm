@@ -4,10 +4,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   progressLogger,
 } from '@pnpm/core-loggers'
-import {
-  type LockfileObject,
-  type PackageSnapshot,
-} from '@pnpm/lockfile.fs'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
@@ -102,7 +99,6 @@ export async function lockfileToDepGraph (
   const {
     graph,
     locationByDepPath,
-    pkgSnapshotByLocation,
   } = await buildGraphFromPackages(lockfile, currentLockfile, opts)
 
   const _getChildrenPaths = getChildrenPaths.bind(null, {
@@ -119,8 +115,8 @@ export async function lockfileToDepGraph (
     locationByDepPath,
   } satisfies GetChildrenPathsContext)
 
-  for (const [dir, node] of Object.entries(graph)) {
-    const pkgSnapshot = pkgSnapshotByLocation[dir]
+  for (const node of Object.values(graph)) {
+    const pkgSnapshot = lockfile.packages![node.depPath]
     const allDeps = {
       ...pkgSnapshot.dependencies,
       ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
@@ -154,12 +150,10 @@ async function buildGraphFromPackages (
   opts: LockfileToDepGraphOptions
 ): Promise<{
     graph: DependenciesGraph
-    pkgSnapshotByLocation: Record<string, PackageSnapshot>
     locationByDepPath: Record<string, string>
   }> {
   const currentPackages = currentLockfile?.packages ?? {}
   const graph: DependenciesGraph = {}
-  const pkgSnapshotByLocation: Record<string, PackageSnapshot> = {}
   const locationByDepPath: Record<string, string> = {}
 
   const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
@@ -251,12 +245,10 @@ async function buildGraphFromPackages (
         optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
         patch: _getPatchInfo(pkgName, pkgVersion),
       }
-
-      pkgSnapshotByLocation[dir] = pkgSnapshot
     })())
   }
   await Promise.all(promises)
-  return { graph, pkgSnapshotByLocation, locationByDepPath }
+  return { graph, locationByDepPath }
 }
 
 function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
