@@ -5,7 +5,7 @@ import {
 } from '@pnpm/lockfile.utils'
 import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
 import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
-import { type LockfileObject } from '@pnpm/lockfile.types'
+import { type PackageSnapshot, type LockfileObject } from '@pnpm/lockfile.types'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
 
 export type DepsGraph<T extends string> = Record<T, DepsGraphNode<T>>
@@ -74,12 +74,16 @@ export interface PkgMeta {
   pkgIdWithPatchHash: PkgIdWithPatchHash
 }
 
-export type PkgMetaIterator = IterableIterator<PkgMeta>
+export interface PkgMetaAndSnapshot extends PkgMeta {
+  pkgSnapshot: PackageSnapshot
+}
 
-export function * iterateHashedGraphNodes (
+export type PkgMetaIterator<T extends PkgMeta> = IterableIterator<T>
+
+export function * iterateHashedGraphNodes<T extends PkgMeta> (
   graph: DepsGraph<DepPath>,
-  pkgMetaIterator: PkgMetaIterator
-): IterableIterator<HashedDepPath> {
+  pkgMetaIterator: PkgMetaIterator<T>
+): IterableIterator<HashedDepPath<T>> {
   const cache: DepsStateCache = {}
   for (const pkgMeta of pkgMetaIterator) {
     const { pkgName, pkgVersion, depPath } = pkgMeta
@@ -93,26 +97,28 @@ export function * iterateHashedGraphNodes (
   }
 }
 
-export interface HashedDepPath {
-  pkgMeta: PkgMeta
+export interface HashedDepPath<T extends PkgMeta> {
+  pkgMeta: T
   hash: string
 }
 
-export function hashDependencyPaths (lockfile: LockfileObject): IterableIterator<HashedDepPath> {
+export function hashDependencyPaths (lockfile: LockfileObject): IterableIterator<HashedDepPath<PkgMetaAndSnapshot>> {
   const graph = lockfileToDepGraph(lockfile)
   return iterateHashedGraphNodes(graph, iteratedPkgMeta(lockfile, graph))
 }
 
-function * iteratedPkgMeta (lockfile: LockfileObject, graph: DepsGraph<DepPath>): PkgMetaIterator {
+function * iteratedPkgMeta (lockfile: LockfileObject, graph: DepsGraph<DepPath>): PkgMetaIterator<PkgMetaAndSnapshot> {
   if (lockfile.packages) {
     for (const depPath in lockfile.packages) {
       if (Object.prototype.hasOwnProperty.call(lockfile.packages, depPath)) {
-        const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, lockfile.packages[depPath as DepPath])
+        const pkgSnapshot = lockfile.packages[depPath as DepPath]
+        const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         yield {
           pkgName,
           pkgVersion,
           depPath: depPath as DepPath,
           pkgIdWithPatchHash: graph[depPath as DepPath].pkgIdWithPatchHash,
+          pkgSnapshot,
         }
       }
     }

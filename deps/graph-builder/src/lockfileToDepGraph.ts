@@ -1,5 +1,5 @@
 import path from 'path'
-import { hashDependencyPaths, PkgMeta } from '@pnpm/calc-dep-state'
+import { hashDependencyPaths, type PkgMetaAndSnapshot } from '@pnpm/calc-dep-state'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   progressLogger,
@@ -144,7 +144,7 @@ export async function lockfileToDepGraph (
 }
 
 interface PkgSnapshotWithLocation {
-  pkgMeta: PkgMeta
+  pkgMeta: PkgMetaAndSnapshot
   dirNameInVirtualStore: string
 }
 
@@ -168,10 +168,9 @@ async function buildGraphFromPackages (
 
   for (const { dirNameInVirtualStore, pkgMeta } of pkgSnapshotsWithLocations) {
     promises.push((async () => {
-      const { pkgIdWithPatchHash, pkgName, pkgVersion, depPath } = pkgMeta
+      const { pkgIdWithPatchHash, pkgName, pkgVersion, depPath, pkgSnapshot } = pkgMeta
       if (opts.skipped.has(depPath)) return
 
-      const pkgSnapshot = lockfile.packages![depPath]
       const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
       const modules = path.join(opts.virtualStoreDir, dirNameInVirtualStore, 'node_modules')
       const dir = path.join(modules, pkgName)
@@ -274,13 +273,15 @@ function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
   } else if (lockfile.packages) {
     for (const depPath in lockfile.packages) {
       if (Object.prototype.hasOwnProperty.call(lockfile.packages, depPath)) {
-        const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, lockfile.packages[depPath as DepPath])
+        const pkgSnapshot = lockfile.packages[depPath as DepPath]
+        const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         yield {
           pkgMeta: {
             depPath: depPath as DepPath,
             pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
             pkgName,
             pkgVersion,
+            pkgSnapshot,
           },
           dirNameInVirtualStore: dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength),
         }
