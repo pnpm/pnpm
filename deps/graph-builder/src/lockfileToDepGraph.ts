@@ -139,11 +139,6 @@ export async function lockfileToDepGraph (
   return { graph, directDependenciesByImporterId }
 }
 
-interface PkgSnapshotWithLocation {
-  pkgMeta: PkgMetaAndSnapshot
-  dirNameInVirtualStore: string
-}
-
 async function buildGraphFromPackages (
   lockfile: LockfileObject,
   currentLockfile: LockfileObject | null,
@@ -249,6 +244,11 @@ async function buildGraphFromPackages (
   }
   await Promise.all(promises)
   return { graph, locationByDepPath }
+}
+
+interface PkgSnapshotWithLocation {
+  pkgMeta: PkgMetaAndSnapshot
+  dirNameInVirtualStore: string
 }
 
 function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
