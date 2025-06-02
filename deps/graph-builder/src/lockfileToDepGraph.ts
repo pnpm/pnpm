@@ -104,11 +104,7 @@ export async function lockfileToDepGraph (
   const pkgSnapshotByLocation: Record<string, PackageSnapshot> = {}
   const locationByDepPath: Record<string, string> | undefined = opts.enableGlobalVirtualStore ? {} : undefined
 
-  const computeModulesDir = opts.enableGlobalVirtualStore
-    ? (_: DepPath, hash: string) => path.join(opts.virtualStoreDir, hash)
-    : (depPath: DepPath) => path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength))
-
-  await buildGraphFromPackages(getEntries(), computeModulesDir, opts, currentPackages, graph, pkgSnapshotByLocation, locationByDepPath)
+  await buildGraphFromPackages(getEntries(), opts, currentPackages, graph, pkgSnapshotByLocation, locationByDepPath)
 
   const ctx = {
     force: opts.force,
@@ -148,7 +144,7 @@ export async function lockfileToDepGraph (
   return { graph, directDependenciesByImporterId }
 
   function * getEntries (): IterableIterator<
-  [DepPath, PackageSnapshot & { hash?: string }]
+  [DepPath, { pkgSnapshot: PackageSnapshot, dirNameInVirtualStore: string }]
   > {
     if (opts.enableGlobalVirtualStore) {
       for (const [hash, { pkgIdWithPatchHash }] of Object.entries(
@@ -158,8 +154,8 @@ export async function lockfileToDepGraph (
         yield [
           depPath,
           {
-            ...lockfile.packages![depPath],
-            hash,
+            pkgSnapshot: lockfile.packages![depPath],
+            dirNameInVirtualStore: hash,
           },
         ]
       }
@@ -167,15 +163,14 @@ export async function lockfileToDepGraph (
       for (const [depPath, pkgSnapshot] of Object.entries(
         lockfile.packages ?? {}
       )) {
-        yield [depPath as DepPath, pkgSnapshot]
+        yield [depPath as DepPath, { pkgSnapshot, dirNameInVirtualStore: dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength) }]
       }
     }
   }
 }
 
 async function buildGraphFromPackages (
-  entries: Iterable<[DepPath, PackageSnapshot & { hash?: string }]>,
-  computeModulesDir: (depPath: DepPath, pkgIdWithPatchHash: string) => string,
+  entries: Iterable<[DepPath, { pkgSnapshot: PackageSnapshot, dirNameInVirtualStore: string }]>,
   opts: LockfileToDepGraphOptions,
   currentPackages: Record<DepPath, PackageSnapshot>,
   graph: DependenciesGraph,
@@ -185,14 +180,14 @@ async function buildGraphFromPackages (
   const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
   const promises: Array<Promise<void>> = []
 
-  for (const [depPath, pkgSnapshot] of entries) {
+  for (const [depPath, { pkgSnapshot, dirNameInVirtualStore }] of entries) {
     promises.push((async () => {
       if (opts.skipped.has(depPath)) return
 
       const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
       const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)
-      const modules = path.join(computeModulesDir(depPath, pkgSnapshot.hash!), 'node_modules')
+      const modules = path.join(opts.virtualStoreDir, dirNameInVirtualStore, 'node_modules')
       const dir = path.join(modules, pkgName)
 
       const pkg = {
