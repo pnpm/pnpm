@@ -68,31 +68,22 @@ function calcDepStateObj<T extends string> (
 }
 
 export function lockfileToDepGraphWithHashes (lockfile: LockfileObject): DepsGraph<DepPath> {
-  const graph: DepsGraph<DepPath> = {}
-  if (lockfile.packages != null) {
-    for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages)) {
-      const children = lockfileDepsToGraphChildren({
-        ...pkgSnapshot.dependencies,
-        ...pkgSnapshot.optionalDependencies,
-      })
-      graph[depPath as DepPath] = {
-        children,
-        pkgIdWithPatchHash: depPath as PkgIdWithPatchHash,
-      }
-    }
-  }
+  const graph = lockfileToDepGraph(lockfile)
   const newGraph: DepsGraph<DepPath> = {}
   const cache: DepsStateCache = {}
-  for (const [depPath, gv] of Object.entries(graph)) {
+  const depPathToHash = new Map<DepPath, DepPath>()
+  for (const depPath of Object.keys(graph)) {
     const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, lockfile.packages![depPath as DepPath])
-    const h = `${pkgName}/${pkgVersion}/${hashObjectWithoutSorting(calcDepState(graph, cache, depPath, { isBuilt: true }), { encoding: 'hex' })}`
+    const hash = `${pkgName}/${pkgVersion}/${hashObjectWithoutSorting(calcDepState(graph, cache, depPath, { isBuilt: true }), { encoding: 'hex' })}` as DepPath
+    depPathToHash.set(depPath as DepPath, hash)
+  }
+  for (const [depPath, node] of Object.entries(graph)) {
     const newChildren: Record<string, DepPath> = {}
-    for (const [alias, depPathChild] of Object.entries(gv.children)) {
-      const { name: pkgNameC, version: pkgVersionC } = nameVerFromPkgSnapshot(depPathChild, lockfile.packages![depPathChild])
-      newChildren[alias] = `${pkgNameC}/${pkgVersionC}/${hashObjectWithoutSorting(calcDepState(graph, cache, depPathChild, { isBuilt: true }), { encoding: 'hex' })}` as DepPath
+    for (const [alias, depPathChild] of Object.entries(node.children)) {
+      newChildren[alias] = depPathToHash.get(depPathChild) as DepPath
     }
-    newGraph[h as DepPath] = {
-      pkgIdWithPatchHash: depPath as PkgIdWithPatchHash,
+    newGraph[depPathToHash.get(depPath as DepPath)!] = {
+      pkgIdWithPatchHash: node.pkgIdWithPatchHash,
       children: newChildren,
     }
   }
