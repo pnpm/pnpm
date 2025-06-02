@@ -158,12 +158,12 @@ async function buildGraphFromPackages (
 ): Promise<{
     graph: DependenciesGraph
     pkgSnapshotByLocation: Record<string, PackageSnapshot>
-    locationByDepPath: Record<string, string> | undefined
+    locationByDepPath: Record<string, string>
   }> {
   const currentPackages = currentLockfile?.packages ?? {}
   const graph: DependenciesGraph = {}
   const pkgSnapshotByLocation: Record<string, PackageSnapshot> = {}
-  const locationByDepPath: Record<string, string> | undefined = opts.enableGlobalVirtualStore ? {} : undefined
+  const locationByDepPath: Record<string, string> = {}
 
   const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
   const promises: Array<Promise<void>> = []
@@ -255,9 +255,7 @@ async function buildGraphFromPackages (
       }
 
       pkgSnapshotByLocation[dir] = pkgSnapshot
-      if (locationByDepPath) {
-        locationByDepPath[depPath] = dir
-      }
+      locationByDepPath[depPath] = dir
     })())
   }
   await Promise.all(promises)
@@ -302,7 +300,7 @@ interface GetChildrenPathsContext {
   lockfileDir: string
   sideEffectsCacheRead: boolean
   storeController: StoreController
-  locationByDepPath?: Record<string, string>
+  locationByDepPath: Record<string, string>
   virtualStoreDirMaxLength: number
 }
 
@@ -321,7 +319,7 @@ function getChildrenPaths (
     }
     const childRelDepPath = dp.refToRelative(ref, alias)!
     const childPkgSnapshot = ctx.pkgSnapshotsByDepPaths?.[childRelDepPath]
-    if (ctx.locationByDepPath?.[childRelDepPath]) {
+    if (ctx.locationByDepPath[childRelDepPath]) {
       children[alias] = ctx.locationByDepPath[childRelDepPath]
     } else if (ctx.graph[childRelDepPath]) {
       children[alias] = ctx.graph[childRelDepPath].dir
