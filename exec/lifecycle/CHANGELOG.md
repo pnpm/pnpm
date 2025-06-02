@@ -1,5 +1,12 @@
 # @pnpm/lifecycle
 
+## 1001.0.15
+
+### Patch Changes
+
+- Updated dependencies [509948d]
+  - @pnpm/store-controller-types@1003.0.2
+
 ## 1001.0.14
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1000.2.15
+
+### Patch Changes
+
+- 55424eb: `pnpm -r --silent run` should not print out section [#9563](https://github.com/pnpm/pnpm/issues/9563).
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/plugin-commands-installation@1004.0.3
+  - @pnpm/cli-utils@1000.1.5
+  - @pnpm/deps.status@1002.1.3
+  - @pnpm/plugin-commands-env@1000.0.26
+  - @pnpm/lifecycle@1001.0.15
+  - @pnpm/client@1000.0.19
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/workspace.injected-deps-syncer@1000.0.8
+
 ## 1000.2.14
 
 ### Patch Changes

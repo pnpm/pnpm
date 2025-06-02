@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.24
+
+### Patch Changes
+
+- 3387aa9: Fix an issue in which `pnpm deploy --legacy` creates unexpected directories when the root `package.json` has a workspace package as a peer dependency [#9550](https://github.com/pnpm/pnpm/issues/9550).
+- 3f268ff: Let `pnpm deploy` work in repos with `overrides` when `inject-workspace-packages=true` [#9283](https://github.com/pnpm/pnpm/issues/9283).
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/plugin-commands-installation@1004.0.3
+  - @pnpm/cli-utils@1000.1.5
+  - @pnpm/fs.indexed-pkg-importer@1000.1.8
+
 ## 1001.1.23
 
 ### Patch Changes
