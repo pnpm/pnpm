@@ -68,8 +68,8 @@ function calcDepStateObj<T extends string> (
 }
 
 export interface PkgMeta {
-  pkgName: string
-  pkgVersion: string
+  name: string
+  version: string
   depPath: DepPath
   pkgIdWithPatchHash: PkgIdWithPatchHash
 }
@@ -86,10 +86,10 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
 ): IterableIterator<HashedDepPath<T>> {
   const cache: DepsStateCache = {}
   for (const pkgMeta of pkgMetaIterator) {
-    const { pkgName, pkgVersion, depPath } = pkgMeta
+    const { name, version, depPath } = pkgMeta
     const state = calcDepState(graph, cache, depPath, { isBuilt: true })
     const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
-    const hash = `${pkgName}/${pkgVersion}/${hexDigest}` as DepPath
+    const hash = `${name}/${version}/${hexDigest}` as DepPath
     yield {
       hash,
       pkgMeta,
@@ -112,10 +112,10 @@ function * iteratedPkgMeta (lockfile: LockfileObject, graph: DepsGraph<DepPath>)
     for (const depPath in lockfile.packages) {
       if (Object.prototype.hasOwnProperty.call(lockfile.packages, depPath)) {
         const pkgSnapshot = lockfile.packages[depPath as DepPath]
-        const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+        const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         yield {
-          pkgName,
-          pkgVersion,
+          name,
+          version,
           depPath: depPath as DepPath,
           pkgIdWithPatchHash: graph[depPath as DepPath].pkgIdWithPatchHash,
           pkgSnapshot,

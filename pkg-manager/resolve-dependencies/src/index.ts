@@ -459,10 +459,10 @@ function extendGraph (graph: DependenciesGraph, virtualStoreDir: string): Depend
   const pkgMetaIter = (function * () {
     for (const depPath in graph) {
       if (Object.prototype.hasOwnProperty.call(graph, depPath)) {
-        const { name: pkgName, version: pkgVersion, pkgIdWithPatchHash } = graph[depPath as DepPath]
+        const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
         yield {
-          pkgName,
-          pkgVersion,
+          name,
+          version,
           depPath: depPath as DepPath,
           pkgIdWithPatchHash,
         }

@@ -168,13 +168,8 @@ async function buildGraphFromPackages (
 
   for (const { dirNameInVirtualStore, pkgMeta } of pkgSnapshotsWithLocations) {
     promises.push((async () => {
-      const { pkgIdWithPatchHash, pkgName, pkgVersion, depPath, pkgSnapshot } = pkgMeta
+      const { pkgIdWithPatchHash, name: pkgName, version: pkgVersion, depPath, pkgSnapshot } = pkgMeta
       if (opts.skipped.has(depPath)) return
-
-      const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
-      const modules = path.join(opts.virtualStoreDir, dirNameInVirtualStore, 'node_modules')
-      const dir = path.join(modules, pkgName)
-      locationByDepPath[depPath] = dir
 
       const pkg = {
         name: pkgName,
@@ -185,6 +180,7 @@ async function buildGraphFromPackages (
         libc: pkgSnapshot.libc,
       }
 
+      const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
       if (!opts.force && packageIsInstallable(packageId, pkg, {
         engineStrict: opts.engineStrict,
         lockfileDir: opts.lockfileDir,
@@ -199,6 +195,10 @@ async function buildGraphFromPackages (
       const depIsPresent = !('directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null) &&
         currentPackages[depPath] &&
         equals(currentPackages[depPath].dependencies, pkgSnapshot.dependencies)
+
+      const modules = path.join(opts.virtualStoreDir, dirNameInVirtualStore, 'node_modules')
+      const dir = path.join(modules, pkgName)
+      locationByDepPath[depPath] = dir
 
       let dirExists: boolean | undefined
       if (depIsPresent &&
@@ -274,13 +274,13 @@ function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
     for (const depPath in lockfile.packages) {
       if (Object.prototype.hasOwnProperty.call(lockfile.packages, depPath)) {
         const pkgSnapshot = lockfile.packages[depPath as DepPath]
-        const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+        const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         yield {
           pkgMeta: {
             depPath: depPath as DepPath,
             pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
-            pkgName,
-            pkgVersion,
+            name,
+            version,
             pkgSnapshot,
           },
           dirNameInVirtualStore: dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength),
