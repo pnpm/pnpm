@@ -1,5 +1,19 @@
 # @pnpm/headless
 
+## 1004.0.5
+
+### Patch Changes
+
+- Updated dependencies [509948d]
+  - @pnpm/package-requester@1004.0.2
+  - @pnpm/store-controller-types@1003.0.2
+  - @pnpm/build-modules@1000.3.6
+  - @pnpm/deps.graph-builder@1002.0.5
+  - @pnpm/lifecycle@1001.0.15
+  - @pnpm/modules-cleaner@1001.0.14
+  - @pnpm/worker@1000.1.7
+  - @pnpm/symlink-dependency@1000.0.9
+
 ## 1004.0.4
 
 ### Patch Changes

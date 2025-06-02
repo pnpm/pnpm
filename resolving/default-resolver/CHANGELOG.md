@@ -1,5 +1,14 @@
 # @pnpm/default-resolver
 
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [c307634]
+- Updated dependencies [5055399]
+  - @pnpm/tarball-resolver@1002.0.2
+  - @pnpm/git-resolver@1001.0.2
+
 ## 1002.0.1
 
 ### Patch Changes

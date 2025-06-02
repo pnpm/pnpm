@@ -1,5 +1,18 @@
 # @pnpm/build-modules
 
+## 1000.3.6
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+- Updated dependencies [509948d]
+  - @pnpm/config@1003.1.1
+  - @pnpm/store-controller-types@1003.0.2
+  - @pnpm/lifecycle@1001.0.15
+  - @pnpm/worker@1000.1.7
+  - @pnpm/fs.hard-link-dir@1000.0.1
+  - @pnpm/patching.apply-patch@1000.0.4
+
 ## 1000.3.5
 
 ### Patch Changes
