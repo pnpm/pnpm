@@ -1,12 +1,10 @@
 import path from 'path'
-import { iterateHashedGraphNodes, lockfileToDepGraph as _lockfileToDepGraph, type PkgMeta, type DepsGraph, type PkgMetaIterator, type HashedDepPath } from '@pnpm/calc-dep-state'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   progressLogger,
 } from '@pnpm/core-loggers'
-import { type LockfileObject, type PackageSnapshot } from '@pnpm/lockfile.fs'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import {
-  nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
@@ -25,6 +23,7 @@ import * as dp from '@pnpm/dependency-path'
 import pathExists from 'path-exists'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
+import { iteratePkgsForVirtualStore } from './iteratePkgsForVirtualStore'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
@@ -244,70 +243,6 @@ async function buildGraphFromPackages (
   }
   await Promise.all(promises)
   return { graph, locationByDepPath }
-}
-
-interface PkgSnapshotWithLocation {
-  pkgMeta: PkgMetaAndSnapshot
-  dirNameInVirtualStore: string
-}
-
-function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
-  enableGlobalVirtualStore?: boolean
-  virtualStoreDirMaxLength: number
-}): IterableIterator<PkgSnapshotWithLocation> {
-  if (opts.enableGlobalVirtualStore) {
-    for (const { hash, pkgMeta } of hashDependencyPaths(lockfile)) {
-      yield {
-        dirNameInVirtualStore: hash,
-        pkgMeta,
-      }
-    }
-  } else if (lockfile.packages) {
-    for (const depPath in lockfile.packages) {
-      if (Object.prototype.hasOwnProperty.call(lockfile.packages, depPath)) {
-        const pkgSnapshot = lockfile.packages[depPath as DepPath]
-        const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        yield {
-          pkgMeta: {
-            depPath: depPath as DepPath,
-            pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
-            name,
-            version,
-            pkgSnapshot,
-          },
-          dirNameInVirtualStore: dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength),
-        }
-      }
-    }
-  }
-}
-
-interface PkgMetaAndSnapshot extends PkgMeta {
-  pkgSnapshot: PackageSnapshot
-  pkgIdWithPatchHash: PkgIdWithPatchHash
-}
-
-function hashDependencyPaths (lockfile: LockfileObject): IterableIterator<HashedDepPath<PkgMetaAndSnapshot>> {
-  const graph = _lockfileToDepGraph(lockfile)
-  return iterateHashedGraphNodes(graph, iteratedPkgMeta(lockfile, graph))
-}
-
-function * iteratedPkgMeta (lockfile: LockfileObject, graph: DepsGraph<DepPath>): PkgMetaIterator<PkgMetaAndSnapshot> {
-  if (lockfile.packages) {
-    for (const depPath in lockfile.packages) {
-      if (Object.prototype.hasOwnProperty.call(lockfile.packages, depPath)) {
-        const pkgSnapshot = lockfile.packages[depPath as DepPath]
-        const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        yield {
-          name,
-          version,
-          depPath: depPath as DepPath,
-          pkgIdWithPatchHash: graph[depPath as DepPath].pkgIdWithPatchHash,
-          pkgSnapshot,
-        }
-      }
-    }
-  }
 }
 
 interface GetChildrenPathsContext {
