@@ -103,9 +103,9 @@ export async function lockfileToDepGraph (
     graph,
     locationByDepPath,
     pkgSnapshotByLocation,
-  } = await buildGraphFromPackages(getEntries(), currentLockfile, opts)
+  } = await buildGraphFromPackages(lockfile, currentLockfile, opts)
 
-  const ctx = {
+  const _getChildrenPaths = getChildrenPaths.bind(null, {
     force: opts.force,
     graph,
     lockfileDir: opts.lockfileDir,
@@ -117,8 +117,8 @@ export async function lockfileToDepGraph (
     storeDir: opts.storeDir,
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-    ...(opts.enableGlobalVirtualStore && { locationByDepPath }),
-  }
+    locationByDepPath,
+  } satisfies GetChildrenPathsContext)
 
   for (const [dir, node] of Object.entries(graph)) {
     const pkgSnapshot = pkgSnapshotByLocation[dir]
@@ -127,7 +127,7 @@ export async function lockfileToDepGraph (
       ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
     }
     const peerDeps = pkgSnapshot.peerDependencies ? new Set(Object.keys(pkgSnapshot.peerDependencies)) : null
-    node.children = getChildrenPaths(ctx, allDeps, peerDeps, '.')
+    node.children = _getChildrenPaths(allDeps, peerDeps, '.')
   }
 
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {}
@@ -138,35 +138,10 @@ export async function lockfileToDepGraph (
       ...(opts.include.dependencies ? projectSnapshot.dependencies : {}),
       ...(opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
     }
-    directDependenciesByImporterId[importerId] = getChildrenPaths(ctx, rootDeps, null, importerId)
+    directDependenciesByImporterId[importerId] = _getChildrenPaths(rootDeps, null, importerId)
   }
 
   return { graph, directDependenciesByImporterId }
-
-  function * getEntries (): IterableIterator<PkgSnapshotWithLocation> {
-    if (opts.enableGlobalVirtualStore) {
-      for (const [hash, { pkgIdWithPatchHash }] of Object.entries(
-        lockfileToDepGraphWithHashes(lockfile)
-      )) {
-        const depPath = pkgIdWithPatchHash as unknown as DepPath
-        yield {
-          depPath,
-          pkgSnapshot: lockfile.packages![depPath],
-          dirNameInVirtualStore: hash,
-        }
-      }
-    } else {
-      for (const [depPath, pkgSnapshot] of Object.entries(
-        lockfile.packages ?? {}
-      )) {
-        yield {
-          depPath: depPath as DepPath,
-          pkgSnapshot,
-          dirNameInVirtualStore: dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength),
-        }
-      }
-    }
-  }
 }
 
 interface PkgSnapshotWithLocation {
@@ -176,7 +151,7 @@ interface PkgSnapshotWithLocation {
 }
 
 async function buildGraphFromPackages (
-  entries: Iterable<PkgSnapshotWithLocation>,
+  lockfile: LockfileObject,
   currentLockfile: LockfileObject | null,
   opts: LockfileToDepGraphOptions
 ): Promise<{
@@ -191,8 +166,9 @@ async function buildGraphFromPackages (
 
   const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
   const promises: Array<Promise<void>> = []
+  const pkgSnapshotsWithLocations = iteratePkgsForVirtualStore(lockfile, opts)
 
-  for (const { depPath, pkgSnapshot, dirNameInVirtualStore } of entries) {
+  for (const { depPath, pkgSnapshot, dirNameInVirtualStore } of pkgSnapshotsWithLocations) {
     promises.push((async () => {
       if (opts.skipped.has(depPath)) return
 
@@ -288,21 +264,51 @@ async function buildGraphFromPackages (
   return { graph, pkgSnapshotByLocation, locationByDepPath }
 }
 
+function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
+  enableGlobalVirtualStore?: boolean
+  virtualStoreDirMaxLength: number
+}): IterableIterator<PkgSnapshotWithLocation> {
+  if (opts.enableGlobalVirtualStore) {
+    for (const [hash, { pkgIdWithPatchHash }] of Object.entries(
+      lockfileToDepGraphWithHashes(lockfile)
+    )) {
+      const depPath = pkgIdWithPatchHash as unknown as DepPath
+      yield {
+        depPath,
+        pkgSnapshot: lockfile.packages![depPath],
+        dirNameInVirtualStore: hash,
+      }
+    }
+  } else {
+    for (const [depPath, pkgSnapshot] of Object.entries(
+      lockfile.packages ?? {}
+    )) {
+      yield {
+        depPath: depPath as DepPath,
+        pkgSnapshot,
+        dirNameInVirtualStore: dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength),
+      }
+    }
+  }
+}
+
+interface GetChildrenPathsContext {
+  graph: DependenciesGraph
+  force: boolean
+  registries: Registries
+  virtualStoreDir: string
+  storeDir: string
+  skipped: Set<DepPath>
+  pkgSnapshotsByDepPaths?: Record<DepPath, PackageSnapshot>
+  lockfileDir: string
+  sideEffectsCacheRead: boolean
+  storeController: StoreController
+  locationByDepPath?: Record<string, string>
+  virtualStoreDirMaxLength: number
+}
+
 function getChildrenPaths (
-  ctx: {
-    graph: DependenciesGraph
-    force: boolean
-    registries: Registries
-    virtualStoreDir: string
-    storeDir: string
-    skipped: Set<DepPath>
-    pkgSnapshotsByDepPaths?: Record<DepPath, PackageSnapshot>
-    lockfileDir: string
-    sideEffectsCacheRead: boolean
-    storeController: StoreController
-    locationByDepPath?: Record<string, string>
-    virtualStoreDirMaxLength: number
-  },
+  ctx: GetChildrenPathsContext,
   allDeps: { [alias: string]: string },
   peerDeps: Set<string> | null,
   importerId: string
