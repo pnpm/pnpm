@@ -1,5 +1,5 @@
 import path from 'path'
-import { lockfileToDepGraphWithHashes } from '@pnpm/calc-dep-state'
+import { hashDependencyPaths } from '@pnpm/calc-dep-state'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   progressLogger,
@@ -145,7 +145,6 @@ export async function lockfileToDepGraph (
 
 interface PkgSnapshotWithLocation {
   depPath: DepPath
-  pkgSnapshot: PackageSnapshot
   dirNameInVirtualStore: string
   pkgIdWithPatchHash: PkgIdWithPatchHash
 }
@@ -168,10 +167,11 @@ async function buildGraphFromPackages (
   const promises: Array<Promise<void>> = []
   const pkgSnapshotsWithLocations = iteratePkgsForVirtualStore(lockfile, opts)
 
-  for (const { depPath, pkgSnapshot, dirNameInVirtualStore, pkgIdWithPatchHash } of pkgSnapshotsWithLocations) {
+  for (const { depPath, dirNameInVirtualStore, pkgIdWithPatchHash } of pkgSnapshotsWithLocations) {
     promises.push((async () => {
       if (opts.skipped.has(depPath)) return
 
+      const pkgSnapshot = lockfile.packages![depPath]
       const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
       const modules = path.join(opts.virtualStoreDir, dirNameInVirtualStore, 'node_modules')
@@ -266,10 +266,9 @@ function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
   virtualStoreDirMaxLength: number
 }): IterableIterator<PkgSnapshotWithLocation> {
   if (opts.enableGlobalVirtualStore) {
-    for (const { depPath, hash, pkgIdWithPatchHash } of lockfileToDepGraphWithHashes(lockfile)) {
+    for (const { depPath, hash, pkgIdWithPatchHash } of hashDependencyPaths(lockfile)) {
       yield {
-        depPath: depPath as DepPath,
-        pkgSnapshot: lockfile.packages![depPath as DepPath],
+        depPath,
         dirNameInVirtualStore: hash,
         pkgIdWithPatchHash,
       }
@@ -279,7 +278,6 @@ function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
       if (Object.prototype.hasOwnProperty.call(lockfile.packages, depPath)) {
         yield {
           depPath: depPath as DepPath,
-          pkgSnapshot: lockfile.packages[depPath as DepPath],
           dirNameInVirtualStore: dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength),
           pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
         }

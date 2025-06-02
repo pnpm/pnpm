@@ -67,7 +67,19 @@ function calcDepStateObj<T extends string> (
   return cache[depPath]
 }
 
-export function * iterateHashedGraphNodes (graph: DepsGraph<DepPath>, pkgMetaIterator: IterableIterator<{ pkgName: string, pkgVersion: string, depPath: DepPath, pkgIdWithPatchHash: PkgIdWithPatchHash }>): IterableIterator<{ depPath: DepPath, hash: string, pkgIdWithPatchHash: PkgIdWithPatchHash }> {
+export interface PkgMeta {
+  pkgName: string
+  pkgVersion: string
+  depPath: DepPath
+  pkgIdWithPatchHash: PkgIdWithPatchHash
+}
+
+export type PkgMetaIterator = IterableIterator<PkgMeta>
+
+export function * iterateHashedGraphNodes (
+  graph: DepsGraph<DepPath>,
+  pkgMetaIterator: PkgMetaIterator
+): IterableIterator<HashedDepPath> {
   const cache: DepsStateCache = {}
   for (const { pkgName, pkgVersion, depPath, pkgIdWithPatchHash } of pkgMetaIterator) {
     const state = calcDepState(graph, cache, depPath, { isBuilt: true })
@@ -81,23 +93,31 @@ export function * iterateHashedGraphNodes (graph: DepsGraph<DepPath>, pkgMetaIte
   }
 }
 
-export function lockfileToDepGraphWithHashes (lockfile: LockfileObject): IterableIterator<{ depPath: DepPath, hash: string, pkgIdWithPatchHash: PkgIdWithPatchHash }> {
+export interface HashedDepPath {
+  depPath: DepPath
+  hash: string
+  pkgIdWithPatchHash: PkgIdWithPatchHash
+}
+
+export function hashDependencyPaths (lockfile: LockfileObject): IterableIterator<HashedDepPath> {
   const graph = lockfileToDepGraph(lockfile)
-  return iterateHashedGraphNodes(graph, (function * () {
-    if (lockfile.packages) {
-      for (const depPath in lockfile.packages) {
-        if (Object.prototype.hasOwnProperty.call(lockfile.packages, depPath)) {
-          const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, lockfile.packages[depPath as DepPath])
-          yield {
-            pkgName,
-            pkgVersion,
-            depPath: depPath as DepPath,
-            pkgIdWithPatchHash: graph[depPath as DepPath].pkgIdWithPatchHash,
-          }
+  return iterateHashedGraphNodes(graph, iteratedPkgMeta(lockfile, graph))
+}
+
+function * iteratedPkgMeta (lockfile: LockfileObject, graph: DepsGraph<DepPath>): PkgMetaIterator {
+  if (lockfile.packages) {
+    for (const depPath in lockfile.packages) {
+      if (Object.prototype.hasOwnProperty.call(lockfile.packages, depPath)) {
+        const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, lockfile.packages[depPath as DepPath])
+        yield {
+          pkgName,
+          pkgVersion,
+          depPath: depPath as DepPath,
+          pkgIdWithPatchHash: graph[depPath as DepPath].pkgIdWithPatchHash,
         }
       }
     }
-  })())
+  }
 }
 
 export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath> {
