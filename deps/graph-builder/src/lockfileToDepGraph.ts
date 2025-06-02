@@ -56,6 +56,7 @@ export interface DependenciesGraph {
 
 export interface LockfileToDepGraphOptions {
   autoInstallPeers: boolean
+  enableGlobalVirtualStore?: boolean
   engineStrict: boolean
   force: boolean
   importerIds: ProjectId[]
@@ -96,15 +97,13 @@ export interface LockfileToDepGraphResult {
 export async function lockfileToDepGraph (
   lockfile: LockfileObject,
   currentLockfile: LockfileObject | null,
-  opts: LockfileToDepGraphOptions & { enableGlobalVirtualStore?: boolean }
+  opts: LockfileToDepGraphOptions
 ): Promise<LockfileToDepGraphResult> {
-  const currentPackages = currentLockfile?.packages ?? {}
-  const graph: DependenciesGraph = {}
-  const directDependenciesByImporterId: DirectDependenciesByImporterId = {}
-  const pkgSnapshotByLocation: Record<string, PackageSnapshot> = {}
-  const locationByDepPath: Record<string, string> | undefined = opts.enableGlobalVirtualStore ? {} : undefined
-
-  await buildGraphFromPackages(getEntries(), opts, currentPackages, graph, pkgSnapshotByLocation, locationByDepPath)
+  const {
+    graph,
+    locationByDepPath,
+    pkgSnapshotByLocation,
+  } = await buildGraphFromPackages(getEntries(), currentLockfile, opts)
 
   const ctx = {
     force: opts.force,
@@ -131,6 +130,7 @@ export async function lockfileToDepGraph (
     node.children = getChildrenPaths(ctx, allDeps, peerDeps, '.')
   }
 
+  const directDependenciesByImporterId: DirectDependenciesByImporterId = {}
   for (const importerId of opts.importerIds) {
     const projectSnapshot = lockfile.importers[importerId]
     const rootDeps = {
@@ -171,12 +171,18 @@ export async function lockfileToDepGraph (
 
 async function buildGraphFromPackages (
   entries: Iterable<[DepPath, { pkgSnapshot: PackageSnapshot, dirNameInVirtualStore: string }]>,
-  opts: LockfileToDepGraphOptions,
-  currentPackages: Record<DepPath, PackageSnapshot>,
-  graph: DependenciesGraph,
-  pkgSnapshotByLocation: Record<string, PackageSnapshot>,
-  locationByDepPath?: Record<string, string>
-): Promise<void> {
+  currentLockfile: LockfileObject | null,
+  opts: LockfileToDepGraphOptions
+): Promise<{
+    graph: DependenciesGraph
+    pkgSnapshotByLocation: Record<string, PackageSnapshot>
+    locationByDepPath: Record<string, string> | undefined
+  }> {
+  const currentPackages = currentLockfile?.packages ?? {}
+  const graph: DependenciesGraph = {}
+  const pkgSnapshotByLocation: Record<string, PackageSnapshot> = {}
+  const locationByDepPath: Record<string, string> | undefined = opts.enableGlobalVirtualStore ? {} : undefined
+
   const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
   const promises: Array<Promise<void>> = []
 
@@ -273,6 +279,7 @@ async function buildGraphFromPackages (
     })())
   }
   await Promise.all(promises)
+  return { graph, pkgSnapshotByLocation, locationByDepPath }
 }
 
 function getChildrenPaths (
