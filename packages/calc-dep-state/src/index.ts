@@ -67,20 +67,21 @@ function calcDepStateObj<T extends string> (
   return cache[depPath]
 }
 
-export function * iterateHashedGraphNodes (graph: DepsGraph<DepPath>, pkgMetaIterator: IterableIterator<{ pkgName: string, pkgVersion: string, depPath: DepPath }>): IterableIterator<{ depPath: DepPath, hash: string }> {
+export function * iterateHashedGraphNodes (graph: DepsGraph<DepPath>, pkgMetaIterator: IterableIterator<{ pkgName: string, pkgVersion: string, depPath: DepPath, pkgIdWithPatchHash: PkgIdWithPatchHash }>): IterableIterator<{ depPath: DepPath, hash: string, pkgIdWithPatchHash: PkgIdWithPatchHash }> {
   const cache: DepsStateCache = {}
-  for (const { pkgName, pkgVersion, depPath } of pkgMetaIterator) {
+  for (const { pkgName, pkgVersion, depPath, pkgIdWithPatchHash } of pkgMetaIterator) {
     const state = calcDepState(graph, cache, depPath, { isBuilt: true })
     const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
     const hash = `${pkgName}/${pkgVersion}/${hexDigest}` as DepPath
     yield {
       depPath: depPath as DepPath,
       hash,
+      pkgIdWithPatchHash,
     }
   }
 }
 
-export function lockfileToDepGraphWithHashes (lockfile: LockfileObject): IterableIterator<{ depPath: DepPath, hash: string }> {
+export function lockfileToDepGraphWithHashes (lockfile: LockfileObject): IterableIterator<{ depPath: DepPath, hash: string, pkgIdWithPatchHash: PkgIdWithPatchHash }> {
   const graph = lockfileToDepGraph(lockfile)
   return iterateHashedGraphNodes(graph, (function * () {
     if (lockfile.packages) {
@@ -90,6 +91,7 @@ export function lockfileToDepGraphWithHashes (lockfile: LockfileObject): Iterabl
           pkgName,
           pkgVersion,
           depPath: depPath as DepPath,
+          pkgIdWithPatchHash: graph[depPath as DepPath].pkgIdWithPatchHash,
         }
       }
     }

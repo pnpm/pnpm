@@ -148,6 +148,7 @@ interface PkgSnapshotWithLocation {
   depPath: DepPath
   pkgSnapshot: PackageSnapshot
   dirNameInVirtualStore: string
+  pkgIdWithPatchHash: PkgIdWithPatchHash
 }
 
 async function buildGraphFromPackages (
@@ -168,13 +169,12 @@ async function buildGraphFromPackages (
   const promises: Array<Promise<void>> = []
   const pkgSnapshotsWithLocations = iteratePkgsForVirtualStore(lockfile, opts)
 
-  for (const { depPath, pkgSnapshot, dirNameInVirtualStore } of pkgSnapshotsWithLocations) {
+  for (const { depPath, pkgSnapshot, dirNameInVirtualStore, pkgIdWithPatchHash } of pkgSnapshotsWithLocations) {
     promises.push((async () => {
       if (opts.skipped.has(depPath)) return
 
       const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
-      const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)
       const modules = path.join(opts.virtualStoreDir, dirNameInVirtualStore, 'node_modules')
       const dir = path.join(modules, pkgName)
 
@@ -269,11 +269,12 @@ function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
   virtualStoreDirMaxLength: number
 }): IterableIterator<PkgSnapshotWithLocation> {
   if (opts.enableGlobalVirtualStore) {
-    for (const { depPath, hash } of lockfileToDepGraphWithHashes(lockfile)) {
+    for (const { depPath, hash, pkgIdWithPatchHash } of lockfileToDepGraphWithHashes(lockfile)) {
       yield {
         depPath: depPath as DepPath,
         pkgSnapshot: lockfile.packages![depPath as DepPath],
         dirNameInVirtualStore: hash,
+        pkgIdWithPatchHash,
       }
     }
   } else {
@@ -284,6 +285,7 @@ function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
         depPath: depPath as DepPath,
         pkgSnapshot,
         dirNameInVirtualStore: dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength),
+        pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
       }
     }
   }

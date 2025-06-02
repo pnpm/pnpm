@@ -457,8 +457,8 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
 
 function extendGraph (graph: DependenciesGraph, virtualStoreDir: string): DependenciesGraph {
   const pkgMetaIter = (function * () {
-    for (const [depPath, { name, version }] of Object.entries(graph)) {
-      yield { pkgName: name, pkgVersion: version, depPath: depPath as DepPath }
+    for (const [depPath, { name, version, pkgIdWithPatchHash }] of Object.entries(graph)) {
+      yield { pkgName: name, pkgVersion: version, depPath: depPath as DepPath, pkgIdWithPatchHash }
     }
   })()
   for (const { depPath, hash } of iterateHashedGraphNodes(graph, pkgMetaIter)) {
