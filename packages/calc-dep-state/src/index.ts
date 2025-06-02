@@ -85,13 +85,15 @@ export function lockfileToDepGraphWithHashes (lockfile: LockfileObject): Iterabl
   const graph = lockfileToDepGraph(lockfile)
   return iterateHashedGraphNodes(graph, (function * () {
     if (lockfile.packages) {
-      for (const [depPath, pkg] of Object.entries(lockfile.packages)) {
-        const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkg)
-        yield {
-          pkgName,
-          pkgVersion,
-          depPath: depPath as DepPath,
-          pkgIdWithPatchHash: graph[depPath as DepPath].pkgIdWithPatchHash,
+      for (const depPath in lockfile.packages) {
+        if (Object.prototype.hasOwnProperty.call(lockfile.packages, depPath)) {
+          const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, lockfile.packages[depPath as DepPath])
+          yield {
+            pkgName,
+            pkgVersion,
+            depPath: depPath as DepPath,
+            pkgIdWithPatchHash: graph[depPath as DepPath].pkgIdWithPatchHash,
+          }
         }
       }
     }

@@ -274,15 +274,15 @@ function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
         pkgIdWithPatchHash,
       }
     }
-  } else {
-    for (const [depPath, pkgSnapshot] of Object.entries(
-      lockfile.packages ?? {}
-    )) {
-      yield {
-        depPath: depPath as DepPath,
-        pkgSnapshot,
-        dirNameInVirtualStore: dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength),
-        pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
+  } else if (lockfile.packages) {
+    for (const depPath in lockfile.packages) {
+      if (Object.prototype.hasOwnProperty.call(lockfile.packages, depPath)) {
+        yield {
+          depPath: depPath as DepPath,
+          pkgSnapshot: lockfile.packages[depPath as DepPath],
+          dirNameInVirtualStore: dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength),
+          pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
+        }
       }
     }
   }

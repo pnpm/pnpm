@@ -5737,9 +5737,6 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/crypto.object-hasher':
-        specifier: workspace:*
-        version: link:../../crypto/object-hasher
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
