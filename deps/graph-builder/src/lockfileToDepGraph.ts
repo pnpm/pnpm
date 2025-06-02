@@ -109,7 +109,6 @@ export async function lockfileToDepGraph (
     force: opts.force,
     graph,
     lockfileDir: opts.lockfileDir,
-    pkgSnapshotsByDepPaths: lockfile.packages,
     registries: opts.registries,
     sideEffectsCacheRead: opts.sideEffectsCacheRead,
     skipped: opts.skipped,
@@ -177,6 +176,7 @@ async function buildGraphFromPackages (
       const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
       const modules = path.join(opts.virtualStoreDir, dirNameInVirtualStore, 'node_modules')
       const dir = path.join(modules, pkgName)
+      locationByDepPath[depPath] = dir
 
       const pkg = {
         name: pkgName,
@@ -255,7 +255,6 @@ async function buildGraphFromPackages (
       }
 
       pkgSnapshotByLocation[dir] = pkgSnapshot
-      locationByDepPath[depPath] = dir
     })())
   }
   await Promise.all(promises)
@@ -296,7 +295,6 @@ interface GetChildrenPathsContext {
   virtualStoreDir: string
   storeDir: string
   skipped: Set<DepPath>
-  pkgSnapshotsByDepPaths?: Record<DepPath, PackageSnapshot>
   lockfileDir: string
   sideEffectsCacheRead: boolean
   storeController: StoreController
@@ -318,15 +316,10 @@ function getChildrenPaths (
       continue
     }
     const childRelDepPath = dp.refToRelative(ref, alias)!
-    const childPkgSnapshot = ctx.pkgSnapshotsByDepPaths?.[childRelDepPath]
     if (ctx.locationByDepPath[childRelDepPath]) {
       children[alias] = ctx.locationByDepPath[childRelDepPath]
     } else if (ctx.graph[childRelDepPath]) {
       children[alias] = ctx.graph[childRelDepPath].dir
-    } else if (childPkgSnapshot) {
-      if (ctx.skipped.has(childRelDepPath)) continue
-      const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-      children[alias] = path.join(ctx.virtualStoreDir, dp.depPathToFilename(childRelDepPath, ctx.virtualStoreDirMaxLength), 'node_modules', pkgName)
     } else if (ref.indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.lockfileDir, ref.slice(5))
     } else if (!ctx.skipped.has(childRelDepPath) && ((peerDeps == null) || !peerDeps.has(alias))) {
