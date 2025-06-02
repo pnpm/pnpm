@@ -142,7 +142,7 @@ export interface HeadlessOptions {
   currentHoistedLocations?: Record<string, string[]>
   lockfileDir: string
   modulesDir?: string
-  enableGlobalVirtualStore: boolean
+  enableGlobalVirtualStore?: boolean
   globalVirtualStoreDir?: string
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
