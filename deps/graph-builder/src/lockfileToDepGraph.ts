@@ -143,34 +143,40 @@ export async function lockfileToDepGraph (
 
   return { graph, directDependenciesByImporterId }
 
-  function * getEntries (): IterableIterator<
-  [DepPath, { pkgSnapshot: PackageSnapshot, dirNameInVirtualStore: string }]
-  > {
+  function * getEntries (): IterableIterator<PkgSnapshotWithLocation> {
     if (opts.enableGlobalVirtualStore) {
       for (const [hash, { pkgIdWithPatchHash }] of Object.entries(
         lockfileToDepGraphWithHashes(lockfile)
       )) {
         const depPath = pkgIdWithPatchHash as unknown as DepPath
-        yield [
+        yield {
           depPath,
-          {
-            pkgSnapshot: lockfile.packages![depPath],
-            dirNameInVirtualStore: hash,
-          },
-        ]
+          pkgSnapshot: lockfile.packages![depPath],
+          dirNameInVirtualStore: hash,
+        }
       }
     } else {
       for (const [depPath, pkgSnapshot] of Object.entries(
         lockfile.packages ?? {}
       )) {
-        yield [depPath as DepPath, { pkgSnapshot, dirNameInVirtualStore: dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength) }]
+        yield {
+          depPath: depPath as DepPath,
+          pkgSnapshot,
+          dirNameInVirtualStore: dp.depPathToFilename(depPath, opts.virtualStoreDirMaxLength),
+        }
       }
     }
   }
 }
 
+interface PkgSnapshotWithLocation {
+  depPath: DepPath
+  pkgSnapshot: PackageSnapshot
+  dirNameInVirtualStore: string
+}
+
 async function buildGraphFromPackages (
-  entries: Iterable<[DepPath, { pkgSnapshot: PackageSnapshot, dirNameInVirtualStore: string }]>,
+  entries: Iterable<PkgSnapshotWithLocation>,
   currentLockfile: LockfileObject | null,
   opts: LockfileToDepGraphOptions
 ): Promise<{
@@ -186,7 +192,7 @@ async function buildGraphFromPackages (
   const _getPatchInfo = getPatchInfo.bind(null, opts.patchedDependencies)
   const promises: Array<Promise<void>> = []
 
-  for (const [depPath, { pkgSnapshot, dirNameInVirtualStore }] of entries) {
+  for (const { depPath, pkgSnapshot, dirNameInVirtualStore } of entries) {
     promises.push((async () => {
       if (opts.skipped.has(depPath)) return
 
