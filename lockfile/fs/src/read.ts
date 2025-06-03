@@ -21,14 +21,14 @@ import { getGitBranchLockfileNames } from './gitBranchLockfile'
 import { convertToLockfileObject } from './lockfileFormatConverters'
 
 export async function readCurrentLockfile (
-  virtualStoreDir: string,
+  pnpmInternalDir: string,
   opts: {
     wantedVersions?: string[]
     ignoreIncompatible: boolean
   }
 ): Promise<LockfileObject | null> {
-  const lockfilePath = path.join(virtualStoreDir, 'lock.yaml')
-  return (await _read(lockfilePath, virtualStoreDir, opts)).lockfile
+  const lockfilePath = path.join(pnpmInternalDir, 'lock.yaml')
+  return (await _read(lockfilePath, pnpmInternalDir, opts)).lockfile
 }
 
 export async function readWantedLockfileAndAutofixConflicts (

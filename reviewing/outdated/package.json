@@ -42,7 +42,6 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/matcher": "workspace:*",
-    "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",

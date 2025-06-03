@@ -213,10 +213,11 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const depsStateCache: DepsStateCache = {}
   const relativeModulesDir = opts.modulesDir ?? 'node_modules'
   const rootModulesDir = await realpathMissing(path.join(lockfileDir, relativeModulesDir))
+  const internalPnpmDir = path.join(rootModulesDir, '.pnpm')
+  const currentLockfile = opts.currentLockfile ?? await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(relativeModulesDir, '.pnpm'), lockfileDir)
-  const currentLockfile = opts.currentLockfile ?? await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
   const hoistedModulesDir = path.join(
-    opts.enableGlobalVirtualStore ? path.join(rootModulesDir, '.pnpm') : virtualStoreDir,
+    opts.enableGlobalVirtualStore ? internalPnpmDir : virtualStoreDir,
     'node_modules'
   )
   const publicHoistedModulesDir = rootModulesDir

@@ -138,8 +138,9 @@ export async function getContext (
   const extraBinPaths = [
     ...opts.extraBinPaths || [],
   ]
+  const internalPnpmDir = path.join(importersContext.rootModulesDir, '.pnpm')
   const hoistedModulesDir = path.join(
-    opts.enableGlobalVirtualStore ? path.join(importersContext.rootModulesDir, '.pnpm') : virtualStoreDir,
+    opts.enableGlobalVirtualStore ? internalPnpmDir : virtualStoreDir,
     'node_modules'
   )
   if (opts.hoistPattern?.length) {
@@ -183,7 +184,7 @@ export async function getContext (
       useLockfile: opts.useLockfile,
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-      virtualStoreDir,
+      internalPnpmDir,
     }),
   }
   contextLogger.debug({
@@ -292,8 +293,9 @@ export async function getContextForSingleImporter (
   const extraBinPaths = [
     ...opts.extraBinPaths || [],
   ]
+  const internalPnpmDir = path.join(rootModulesDir, '.pnpm')
   const hoistedModulesDir = path.join(
-    opts.enableGlobalVirtualStore ? path.join(rootModulesDir, '.pnpm') : virtualStoreDir,
+    opts.enableGlobalVirtualStore ? internalPnpmDir : virtualStoreDir,
     'node_modules'
   )
   if (opts.hoistPattern?.length) {
@@ -339,7 +341,7 @@ export async function getContextForSingleImporter (
       useLockfile: opts.useLockfile,
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-      virtualStoreDir,
+      internalPnpmDir,
     }),
   }
   packageManifestLogger.debug({
