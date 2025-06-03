@@ -31,7 +31,6 @@ export interface StrictInstallOptions {
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enableGlobalVirtualStore: boolean
-  globalVirtualStoreDir?: string
   enablePnp: boolean
   extraBinPaths: string[]
   extraEnv: Record<string, string>
@@ -309,8 +308,8 @@ export function extendOptions (
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   extendedOpts.rawConfig['registry'] = extendedOpts.registries.default
-  if (extendedOpts.enableGlobalVirtualStore && extendedOpts.globalVirtualStoreDir == null) {
-    extendedOpts.globalVirtualStoreDir = path.join(extendedOpts.storeDir, 'links')
+  if (extendedOpts.enableGlobalVirtualStore && extendedOpts.virtualStoreDir == null) {
+    extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
   }
   return extendedOpts
 }

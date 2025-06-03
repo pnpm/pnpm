@@ -192,7 +192,6 @@ export async function getConfig (opts: {
     userconfig: npmDefaults.userconfig,
     'verify-deps-before-run': false,
     'verify-store-integrity': true,
-    'virtual-store-dir': 'node_modules/.pnpm',
     'workspace-concurrency': getDefaultWorkspaceConcurrency(),
     'workspace-prefix': opts.workspaceDir,
     'embed-readme': false,

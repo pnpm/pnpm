@@ -143,7 +143,6 @@ export interface HeadlessOptions {
   lockfileDir: string
   modulesDir?: string
   enableGlobalVirtualStore?: boolean
-  globalVirtualStoreDir?: string
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
   patchedDependencies?: PatchGroupRecord
@@ -347,10 +346,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       : lockfileToDepGraph(
         filteredLockfile,
         opts.force ? null : currentLockfile,
-        {
-          ...lockfileToDepGraphOpts,
-          virtualStoreDir: opts.globalVirtualStoreDir ?? virtualStoreDir,
-        }
+        lockfileToDepGraphOpts
       )
   )
   if (opts.enablePnp) {
@@ -639,17 +635,18 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }, {
       makeModulesDir: Object.keys(filteredLockfile.packages ?? {}).length > 0,
     })
+    const currentLockfileDir = path.join(opts.lockfileDir, 'node_modules/.pnpm')
     if (opts.useLockfile) {
       // We need to write the wanted lockfile as well.
       // Even though it will only be changed if the workspace will have new projects with no dependencies.
       await writeLockfiles({
         wantedLockfileDir: opts.lockfileDir,
-        currentLockfileDir: virtualStoreDir,
+        currentLockfileDir,
         wantedLockfile,
         currentLockfile: filteredLockfile,
       })
     } else {
-      await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
+      await writeCurrentLockfile(currentLockfileDir, filteredLockfile)
     }
   }
 

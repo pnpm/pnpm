@@ -88,6 +88,7 @@ export interface GetContextOptions {
   confirmModulesPurge?: boolean
   force: boolean
   frozenLockfile?: boolean
+  enableGlobalVirtualStore?: boolean
   extraBinPaths: string[]
   extendNodePath?: boolean
   lockfileDir: string
@@ -137,7 +138,9 @@ export async function getContext (
   const extraBinPaths = [
     ...opts.extraBinPaths || [],
   ]
-  const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
+  const hoistedModulesDir = opts.enableGlobalVirtualStore
+    ? path.join(opts.lockfileDir, 'node_modules/.pnpm/node_modules')
+    : path.join(virtualStoreDir, 'node_modules')
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
@@ -222,6 +225,7 @@ export async function getContextForSingleImporter (
   manifest: ProjectManifest,
   opts: {
     autoInstallPeers: boolean
+    enableGlobalVirtualStore?: boolean
     excludeLinksFromLockfile: boolean
     peersSuffixMaxLength: number
     force: boolean
@@ -282,7 +286,9 @@ export async function getContextForSingleImporter (
   const extraBinPaths = [
     ...opts.extraBinPaths || [],
   ]
-  const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
+  const hoistedModulesDir = opts.enableGlobalVirtualStore
+    ? path.join(opts.lockfileDir, 'node_modules/.pnpm/node_modules')
+    : path.join(virtualStoreDir, 'node_modules')
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }

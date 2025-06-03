@@ -15,10 +15,12 @@ test('using a global virtual store', async () => {
   }
   await install(manifest, testDefaults({
     enableGlobalVirtualStore: true,
-    globalVirtualStoreDir,
+    virtualStoreDir: globalVirtualStoreDir,
+    privateHoistPattern: '*',
   }))
 
   {
+    expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')))
     expect(fs.existsSync(path.resolve('node_modules/.pnpm/lock.yaml'))).toBeTruthy()
     const files = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))
     expect(files.length).toBe(1)
@@ -30,15 +32,41 @@ test('using a global virtual store', async () => {
   rimraf(globalVirtualStoreDir)
   await install(manifest, testDefaults({
     enableGlobalVirtualStore: true,
-    globalVirtualStoreDir,
+    virtualStoreDir: globalVirtualStoreDir,
     frozenLockfile: true,
   }))
 
   {
+    expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')))
     expect(fs.existsSync(path.resolve('node_modules/.pnpm/lock.yaml'))).toBeTruthy()
     const files = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))
     expect(files.length).toBe(1)
     expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/pkg-with-1-dep/package.json'))).toBeTruthy()
     expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0', files[0], 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+  }
+})
+
+test('modules are correctly updated when using a global virtual store', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/peer-c': '1.0.0',
+    },
+  }
+  const opts = testDefaults({
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+  })
+  await install(manifest, opts)
+  manifest.dependencies['@pnpm.e2e/peer-c'] = '2.0.0'
+  await install(manifest, opts)
+
+  {
+    expect(fs.existsSync(path.resolve('node_modules/.pnpm/lock.yaml'))).toBeTruthy()
+    const files = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/peer-c/2.0.0'))
+    expect(files.length).toBe(1)
+    expect(fs.existsSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/peer-c/2.0.0', files[0], 'node_modules/@pnpm.e2e/peer-c/package.json'))).toBeTruthy()
   }
 })

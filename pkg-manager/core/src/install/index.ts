@@ -754,9 +754,10 @@ Note that in CI environments, this setting is enabled by default.`,
         opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles ||
         !upToDateLockfileMajorVersion && !opts.frozenLockfile
       ) {
+        const currentLockfileDir = path.join(opts.lockfileDir, 'node_modules/.pnpm')
         await writeLockfiles({
           currentLockfile: ctx.currentLockfile,
-          currentLockfileDir: ctx.virtualStoreDir,
+          currentLockfileDir,
           wantedLockfile: ctx.wantedLockfile,
           wantedLockfileDir: ctx.lockfileDir,
           useGitBranchLockfile: opts.useGitBranchLockfile,
@@ -1094,7 +1095,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dedupePeerDependents: opts.dedupePeerDependents,
       dryRun: opts.lockfileOnly,
       enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
-      globalVirtualStoreDir: opts.globalVirtualStoreDir ?? ctx.virtualStoreDir,
       engineStrict: opts.engineStrict,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
@@ -1368,11 +1368,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
+    const currentLockfileDir = path.join(opts.lockfileDir, 'node_modules/.pnpm')
     await Promise.all([
       opts.useLockfile && opts.saveLockfile
         ? writeLockfiles({
           currentLockfile: result.currentLockfile,
-          currentLockfileDir: ctx.virtualStoreDir,
+          currentLockfileDir,
           wantedLockfile: newLockfile,
           wantedLockfileDir: ctx.lockfileDir,
           ...lockfileOpts,
