@@ -147,7 +147,12 @@ export async function getContext (
   }
   const ctx: PnpmContext = {
     extraBinPaths,
-    extraNodePaths: getExtraNodePaths({ extendNodePath: opts.extendNodePath, nodeLinker: opts.nodeLinker, hoistPattern: importersContext.currentHoistPattern ?? opts.hoistPattern, virtualStoreDir }),
+    extraNodePaths: getExtraNodePaths({
+      extendNodePath: opts.extendNodePath,
+      nodeLinker: opts.nodeLinker,
+      hoistPattern: importersContext.currentHoistPattern ?? opts.hoistPattern,
+      hoistedModulesDir,
+    }),
     hoistedDependencies: importersContext.hoistedDependencies,
     hoistedModulesDir,
     hoistPattern: opts.hoistPattern,
@@ -296,7 +301,12 @@ export async function getContextForSingleImporter (
   }
   const ctx: PnpmSingleContext = {
     extraBinPaths,
-    extraNodePaths: getExtraNodePaths({ extendNodePath: opts.extendNodePath, nodeLinker: opts.nodeLinker, hoistPattern: currentHoistPattern ?? opts.hoistPattern, virtualStoreDir }),
+    extraNodePaths: getExtraNodePaths({
+      extendNodePath: opts.extendNodePath,
+      nodeLinker: opts.nodeLinker,
+      hoistPattern: currentHoistPattern ?? opts.hoistPattern,
+      hoistedModulesDir,
+    }),
     hoistedDependencies,
     hoistedModulesDir,
     hoistPattern: opts.hoistPattern,
@@ -346,15 +356,15 @@ export async function getContextForSingleImporter (
 }
 
 function getExtraNodePaths (
-  { extendNodePath = true, hoistPattern, nodeLinker, virtualStoreDir }: {
+  { extendNodePath = true, hoistPattern, nodeLinker, hoistedModulesDir }: {
     extendNodePath?: boolean
     hoistPattern?: string[]
     nodeLinker: 'isolated' | 'hoisted' | 'pnp'
-    virtualStoreDir: string
+    hoistedModulesDir: string
   }
 ): string[] {
   if (extendNodePath && nodeLinker === 'isolated' && hoistPattern?.length) {
-    return [path.join(virtualStoreDir, 'node_modules')]
+    return [hoistedModulesDir]
   }
   return []
 }

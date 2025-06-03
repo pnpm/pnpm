@@ -1291,17 +1291,13 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
     const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterPackagesFromDir(customModulesDirFixture, [])
     await install.handler({
       ...DEFAULT_OPTS,
-      cacheDir,
-      storeDir,
-      dir: customModulesDirFixture,
+      ...defaultPatchOption,
       lockfileDir: customModulesDirFixture,
       allProjects,
       allProjectsGraph,
       selectedProjectsGraph,
       workspaceDir: customModulesDirFixture,
       saveLockfile: true,
-      modulesDir: 'fake_modules',
-      virtualStoreDir: 'fake_modules/.fake_store',
     })
     const output = await patch.handler(defaultPatchOption, ['is-positive@1'])
     const patchDir = getPatchDirFromPatchOutput(output)
@@ -1322,8 +1318,6 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
       allProjects,
       allProjectsGraph,
       selectedProjectsGraph,
-      modulesDir: 'fake_modules',
-      virtualStoreDir: 'fake_modules/.fake_store',
       lockfileDir: customModulesDirFixture,
       workspaceDir: customModulesDirFixture,
     }, [patchDir])

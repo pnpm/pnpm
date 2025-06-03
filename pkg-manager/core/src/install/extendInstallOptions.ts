@@ -183,6 +183,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     confirmModulesPurge: !opts.force,
     depth: 0,
     dedupeInjectedDeps: true,
+    enableGlobalVirtualStore: false,
     enablePnp: false,
     engineStrict: false,
     force: false,

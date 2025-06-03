@@ -524,7 +524,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
     const extraBinPaths = [...opts.extraBinPaths ?? []]
     if (opts.hoistPattern != null) {
-      extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
+      extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
     }
     let extraEnv: Record<string, string> | undefined = opts.extraEnv
     if (opts.enablePnp) {
