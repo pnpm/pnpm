@@ -126,6 +126,7 @@
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/core": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
+    "@pnpm/list": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
