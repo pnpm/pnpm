@@ -421,6 +421,87 @@ test('JSON list with depth 1', async () => {
   }], null, 2))
 })
 
+test('JSON list with depth 1 and nodeLinker is hoisted', async () => {
+  expect(await list([fixture], { reportAs: 'json', depth: 1, lockfileDir: fixture, virtualStoreDirMaxLength: 120, nodeLinker: 'hoisted' })).toBe(JSON.stringify([{
+    name: 'fixture',
+    version: '1.0.0',
+    path: fixture,
+    private: false,
+    dependencies: {
+      'write-json-file': {
+        from: 'write-json-file',
+        version: '2.3.0',
+
+        resolved: 'https://registry.npmjs.org/write-json-file/-/write-json-file-2.3.0.tgz',
+        path: path.join(fixture, 'node_modules/write-json-file'),
+
+        dependencies: {
+          'detect-indent': {
+            from: 'detect-indent',
+            version: '5.0.0',
+
+            resolved: 'https://registry.npmjs.org/detect-indent/-/detect-indent-5.0.0.tgz',
+            path: path.join(fixture, 'node_modules/detect-indent'),
+          },
+          'graceful-fs': {
+            from: 'graceful-fs',
+            version: '4.2.2',
+
+            resolved: 'https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.2.2.tgz',
+            path: path.join(fixture, 'node_modules/graceful-fs'),
+          },
+          'make-dir': {
+            from: 'make-dir',
+            version: '1.3.0',
+
+            resolved: 'https://registry.npmjs.org/make-dir/-/make-dir-1.3.0.tgz',
+            path: path.join(fixture, 'node_modules/make-dir'),
+          },
+          pify: {
+            from: 'pify',
+            version: '3.0.0',
+
+            resolved: 'https://registry.npmjs.org/pify/-/pify-3.0.0.tgz',
+            path: path.join(fixture, 'node_modules/pify'),
+          },
+          'sort-keys': {
+            from: 'sort-keys',
+            version: '2.0.0',
+
+            resolved: 'https://registry.npmjs.org/sort-keys/-/sort-keys-2.0.0.tgz',
+            path: path.join(fixture, 'node_modules/sort-keys'),
+          },
+          'write-file-atomic': {
+            from: 'write-file-atomic',
+            version: '2.4.3',
+
+            resolved: 'https://registry.npmjs.org/write-file-atomic/-/write-file-atomic-2.4.3.tgz',
+            path: path.join(fixture, 'node_modules/write-file-atomic'),
+          },
+        },
+      },
+    },
+    devDependencies: {
+      'is-positive': {
+        from: 'is-positive',
+        version: '3.1.0',
+
+        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
+        path: path.join(fixture, 'node_modules/is-positive'),
+      },
+    },
+    optionalDependencies: {
+      'is-negative': {
+        from: 'is-negative',
+        version: '2.1.0',
+
+        resolved: 'https://registry.npmjs.org/is-negative/-/is-negative-2.1.0.tgz',
+        path: path.join(fixture, 'node_modules/is-negative'),
+      },
+    },
+  }], null, 2))
+})
+
 test('JSON list with aliased dep', async () => {
   expect(
     await list([fixtureWithAliasedDep], { reportAs: 'json', lockfileDir: fixtureWithAliasedDep, virtualStoreDirMaxLength: 120 })
