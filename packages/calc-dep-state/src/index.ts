@@ -26,11 +26,11 @@ export function calcDepState<T extends string> (
   depPath: string,
   opts: {
     patchFileHash?: string
-    isBuilt: boolean
+    includeSubdepsHash: boolean
   }
 ): string {
   let result = ENGINE_NAME
-  if (opts.isBuilt) {
+  if (opts.includeSubdepsHash) {
     const depStateObj = calcDepStateObj(depPath, depsGraph, cache, new Set())
     result += `;deps=${hashObjectWithoutSorting(depStateObj)}`
   }
@@ -84,7 +84,7 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   const cache: DepsStateCache = {}
   for (const pkgMeta of pkgMetaIterator) {
     const { name, version, depPath } = pkgMeta
-    const state = calcDepState(graph, cache, depPath, { isBuilt: true })
+    const state = calcDepState(graph, cache, depPath, { includeSubdepsHash: true })
     const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
     yield {
       hash: `${name}/${version}/${hexDigest}`,
