@@ -24,6 +24,7 @@ export interface GetPkgInfoOpts {
   readonly virtualStoreDir?: string
   readonly virtualStoreDirMaxLength: number
   readonly depTypes: DepTypes
+  readonly nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
 
   /**
    * The base dir if the `ref` argument is a `"link:"` relative path.
@@ -79,9 +80,16 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
   if (!version) {
     version = opts.ref
   }
-  const fullPackagePath = depPath
-    ? path.join(opts.virtualStoreDir ?? '.pnpm', depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules', name)
-    : path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
+  let fullPackagePath = ''
+  if (depPath) {
+    if (opts.nodeLinker === 'hoisted') {
+      fullPackagePath = path.join(opts.linkedPathBaseDir, 'node_modules', name)
+    } else {
+      fullPackagePath = path.join(opts.virtualStoreDir ?? '.pnpm', depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules', name)
+    }
+  } else {
+    fullPackagePath = path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
+  }
 
   if (version.startsWith('link:') && opts.rewriteLinkVersionDir) {
     version = `link:${normalizePath(path.relative(opts.rewriteLinkVersionDir, fullPackagePath))}`

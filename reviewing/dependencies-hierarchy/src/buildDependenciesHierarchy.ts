@@ -42,6 +42,7 @@ export async function buildDependenciesHierarchy (
     lockfileDir: string
     modulesDir?: string
     virtualStoreDirMaxLength: number
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   }
 ): Promise<{ [projectDir: string]: DependenciesHierarchy }> {
   if (!maybeOpts?.lockfileDir) {
@@ -85,6 +86,7 @@ export async function buildDependenciesHierarchy (
     modulesDir: maybeOpts.modulesDir,
     virtualStoreDir: modules?.virtualStoreDir,
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? maybeOpts.virtualStoreDirMaxLength,
+    nodeLinker: maybeOpts.nodeLinker,
   }
   const pairs = await Promise.all(projectPaths.map(async (projectPath) => {
     return [
@@ -114,6 +116,7 @@ async function dependenciesHierarchyForPackage (
     modulesDir?: string
     virtualStoreDir?: string
     virtualStoreDirMaxLength: number
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   }
 ): Promise<DependenciesHierarchy> {
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
@@ -163,6 +166,7 @@ async function dependenciesHierarchyForPackage (
         wantedPackages: wantedLockfile?.packages ?? {},
         virtualStoreDir: opts.virtualStoreDir,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        nodeLinker: opts.nodeLinker,
       })
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.(packageInfo)
