@@ -39,7 +39,11 @@ export function satisfiesPackageManifest (
   if (!equals(existingDeps, specs)) {
     return {
       satisfies: false,
-      detailedReason: `specifiers in the lockfile (${JSON.stringify(specs)}) don't match specs in package.json (${JSON.stringify(existingDeps)})`,
+      detailedReason: `specifiers in the lockfile don't match specifiers in package.json:
+
+* specifiers in the lockfile: ${JSON.stringify(specs)}
+
+* specifiers in package.json: ${JSON.stringify(existingDeps)}`,
     }
   }
   if (importer.publishDirectory !== pkg.publishConfig?.directory) {
