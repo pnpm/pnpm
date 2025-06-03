@@ -754,7 +754,7 @@ Note that in CI environments, this setting is enabled by default.`,
         opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles ||
         !upToDateLockfileMajorVersion && !opts.frozenLockfile
       ) {
-        const currentLockfileDir = path.join(opts.lockfileDir, 'node_modules/.pnpm')
+        const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
         await writeLockfiles({
           currentLockfile: ctx.currentLockfile,
           currentLockfileDir,
@@ -1368,7 +1368,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
-    const currentLockfileDir = path.join(opts.lockfileDir, 'node_modules/.pnpm')
+    const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
     await Promise.all([
       opts.useLockfile && opts.saveLockfile
         ? writeLockfiles({

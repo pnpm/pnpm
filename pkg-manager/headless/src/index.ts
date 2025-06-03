@@ -215,7 +215,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const rootModulesDir = await realpathMissing(path.join(lockfileDir, relativeModulesDir))
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(relativeModulesDir, '.pnpm'), lockfileDir)
   const currentLockfile = opts.currentLockfile ?? await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
-  const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
+  const hoistedModulesDir = path.join(
+    opts.enableGlobalVirtualStore ? path.join(rootModulesDir, '.pnpm') : virtualStoreDir,
+    'node_modules'
+  )
   const publicHoistedModulesDir = rootModulesDir
   const selectedProjects = Object.values(pick(opts.selectedProjectDirs, opts.allProjects))
 
@@ -635,7 +638,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }, {
       makeModulesDir: Object.keys(filteredLockfile.packages ?? {}).length > 0,
     })
-    const currentLockfileDir = path.join(opts.lockfileDir, 'node_modules/.pnpm')
+    const currentLockfileDir = path.join(rootModulesDir, '.pnpm')
     if (opts.useLockfile) {
       // We need to write the wanted lockfile as well.
       // Even though it will only be changed if the workspace will have new projects with no dependencies.

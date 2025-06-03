@@ -4,6 +4,7 @@
 "@pnpm/deps.graph-builder": minor
 "@pnpm/core": minor
 "@pnpm/config": minor
+"@pnpm/get-context": minor
 "pnpm": minor
 ---
 

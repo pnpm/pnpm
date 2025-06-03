@@ -138,9 +138,10 @@ export async function getContext (
   const extraBinPaths = [
     ...opts.extraBinPaths || [],
   ]
-  const hoistedModulesDir = opts.enableGlobalVirtualStore
-    ? path.join(opts.lockfileDir, 'node_modules/.pnpm/node_modules')
-    : path.join(virtualStoreDir, 'node_modules')
+  const hoistedModulesDir = path.join(
+    opts.enableGlobalVirtualStore ? path.join(importersContext.rootModulesDir, '.pnpm') : virtualStoreDir,
+    'node_modules'
+  )
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
@@ -286,9 +287,10 @@ export async function getContextForSingleImporter (
   const extraBinPaths = [
     ...opts.extraBinPaths || [],
   ]
-  const hoistedModulesDir = opts.enableGlobalVirtualStore
-    ? path.join(opts.lockfileDir, 'node_modules/.pnpm/node_modules')
-    : path.join(virtualStoreDir, 'node_modules')
+  const hoistedModulesDir = path.join(
+    opts.enableGlobalVirtualStore ? path.join(rootModulesDir, '.pnpm') : virtualStoreDir,
+    'node_modules'
+  )
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
