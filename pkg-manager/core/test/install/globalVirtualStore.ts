@@ -7,7 +7,7 @@ import { testDefaults } from '../utils'
 
 test('using a global virtual store', async () => {
   prepareEmpty()
-  const globalVirtualStoreDir = path.resolve('deps')
+  const globalVirtualStoreDir = path.resolve('links')
   const manifest = {
     dependencies: {
       '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
