@@ -5,7 +5,6 @@ import {
   readWantedLockfile,
 } from '@pnpm/lockfile.fs'
 import { createMatcher } from '@pnpm/matcher'
-import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
   type IncludedDependencies,
   type ProjectManifest,
@@ -33,9 +32,8 @@ export async function outdatedDepsOfProjects (
     ))
   }
   const lockfileDir = opts.lockfileDir ?? opts.dir
-  const modules = await readModulesManifest(path.join(lockfileDir, 'node_modules'))
-  const virtualStoreDir = modules?.virtualStoreDir ?? path.join(lockfileDir, 'node_modules/.pnpm')
-  const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
+  const internalPnpmDir = path.join(path.join(lockfileDir, 'node_modules/.pnpm'))
+  const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }) ?? currentLockfile
   const getLatestManifest = createManifestGetter({
     ...opts,

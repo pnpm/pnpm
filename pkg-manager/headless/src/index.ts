@@ -142,6 +142,7 @@ export interface HeadlessOptions {
   currentHoistedLocations?: Record<string, string[]>
   lockfileDir: string
   modulesDir?: string
+  enableGlobalVirtualStore?: boolean
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
   patchedDependencies?: PatchGroupRecord
@@ -212,9 +213,13 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const depsStateCache: DepsStateCache = {}
   const relativeModulesDir = opts.modulesDir ?? 'node_modules'
   const rootModulesDir = await realpathMissing(path.join(lockfileDir, relativeModulesDir))
+  const internalPnpmDir = path.join(rootModulesDir, '.pnpm')
+  const currentLockfile = opts.currentLockfile ?? await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(relativeModulesDir, '.pnpm'), lockfileDir)
-  const currentLockfile = opts.currentLockfile ?? await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
-  const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
+  const hoistedModulesDir = path.join(
+    opts.enableGlobalVirtualStore ? internalPnpmDir : virtualStoreDir,
+    'node_modules'
+  )
   const publicHoistedModulesDir = rootModulesDir
   const selectedProjects = Object.values(pick(opts.selectedProjectDirs, opts.allProjects))
 
@@ -520,7 +525,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
     const extraBinPaths = [...opts.extraBinPaths ?? []]
     if (opts.hoistPattern != null) {
-      extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
+      extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
     }
     let extraEnv: Record<string, string> | undefined = opts.extraEnv
     if (opts.enablePnp) {
@@ -634,17 +639,18 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }, {
       makeModulesDir: Object.keys(filteredLockfile.packages ?? {}).length > 0,
     })
+    const currentLockfileDir = path.join(rootModulesDir, '.pnpm')
     if (opts.useLockfile) {
       // We need to write the wanted lockfile as well.
       // Even though it will only be changed if the workspace will have new projects with no dependencies.
       await writeLockfiles({
         wantedLockfileDir: opts.lockfileDir,
-        currentLockfileDir: virtualStoreDir,
+        currentLockfileDir,
         wantedLockfile,
         currentLockfile: filteredLockfile,
       })
     } else {
-      await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
+      await writeCurrentLockfile(currentLockfileDir, filteredLockfile)
     }
   }
 
@@ -868,7 +874,7 @@ async function linkAllPkgs (
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
         if (opts?.allowBuild?.(depNode.name) !== false) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
-            isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
+            includeSubdepsHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
             patchFileHash: depNode.patch?.file.hash,
           })
         }

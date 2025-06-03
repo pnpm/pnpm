@@ -1914,6 +1914,9 @@ importers:
 
   deps/graph-builder:
     dependencies:
+      '@pnpm/calc-dep-state':
+        specifier: workspace:*
+        version: link:../../packages/calc-dep-state
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
@@ -3979,6 +3982,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
+      sort-keys:
+        specifier: 'catalog:'
+        version: 4.2.0
     devDependencies:
       '@pnpm/calc-dep-state':
         specifier: workspace:*
@@ -5722,6 +5728,9 @@ importers:
 
   pkg-manager/resolve-dependencies:
     dependencies:
+      '@pnpm/calc-dep-state':
+        specifier: workspace:*
+        version: link:../../packages/calc-dep-state
       '@pnpm/catalogs.resolver':
         specifier: workspace:*
         version: link:../../catalogs/resolver
@@ -7118,9 +7127,6 @@ importers:
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
-      '@pnpm/modules-yaml':
-        specifier: workspace:*
-        version: link:../../pkg-manager/modules-yaml
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver

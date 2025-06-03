@@ -53,7 +53,8 @@ export async function buildDependenciesHierarchy (
     ...maybeOpts?.registries,
     ...modules?.registries,
   })
-  const currentLockfile = (modules?.virtualStoreDir && await readCurrentLockfile(modules.virtualStoreDir, { ignoreIncompatible: false })) ?? null
+  const internalPnpmDir = path.join(modulesDir, '.pnpm')
+  const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false }) ?? null
   const wantedLockfile = await readWantedLockfile(maybeOpts.lockfileDir, { ignoreIncompatible: false })
   if (projectPaths == null) {
     projectPaths = Object.keys(wantedLockfile?.importers ?? {})

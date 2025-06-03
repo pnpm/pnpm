@@ -3,6 +3,7 @@ import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
+import { iterateHashedGraphNodes } from '@pnpm/calc-dep-state'
 import {
   type LockfileObject,
   type ProjectSnapshot,
@@ -22,6 +23,7 @@ import {
   type ProjectManifest,
   type ProjectId,
   type ProjectRootDir,
+  type DepPath,
 } from '@pnpm/types'
 import difference from 'ramda/src/difference'
 import zipWith from 'ramda/src/zipWith'
@@ -117,6 +119,7 @@ export async function resolveDependencies (
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
     allowUnusedPatches?: boolean
+    enableGlobalVirtualStore?: boolean
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -319,7 +322,7 @@ export async function resolveDependencies (
 
   return {
     dependenciesByProjectId,
-    dependenciesGraph,
+    dependenciesGraph: opts.enableGlobalVirtualStore ? extendGraph(dependenciesGraph, opts.virtualStoreDir) : dependenciesGraph,
     outdatedDependencies,
     linkedDependenciesByProjectId,
     updatedCatalogs,
@@ -440,4 +443,29 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
     }
   }, pkgs, pkgAliases)
     .filter(Boolean) as DependencyManifest[]
+}
+
+function extendGraph (graph: DependenciesGraph, virtualStoreDir: string): DependenciesGraph {
+  const pkgMetaIter = (function * () {
+    for (const depPath in graph) {
+      if (Object.prototype.hasOwnProperty.call(graph, depPath)) {
+        const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
+        yield {
+          name,
+          version,
+          depPath: depPath as DepPath,
+          pkgIdWithPatchHash,
+        }
+      }
+    }
+  })()
+  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter)) {
+    const modules = path.join(virtualStoreDir, hash, 'node_modules')
+    const node = graph[depPath]
+    Object.assign(node, {
+      modules,
+      dir: path.join(modules, node.name),
+    })
+  }
+  return graph
 }
