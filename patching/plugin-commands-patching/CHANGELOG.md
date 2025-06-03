@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.2.5
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/plugin-commands-installation@1004.0.3
+  - @pnpm/cli-utils@1000.1.5
+  - @pnpm/store-connection-manager@1002.0.3
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/patching.apply-patch@1000.0.4
+
 ## 1000.2.4
 
 ### Patch Changes

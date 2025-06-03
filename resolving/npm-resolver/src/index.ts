@@ -9,16 +9,17 @@ import {
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
+  type DirectoryResolution,
   type PkgResolutionId,
   type PreferredVersions,
   type ResolveResult,
+  type TarballResolution,
   type WantedDependency,
   type WorkspacePackage,
   type WorkspacePackages,
   type WorkspacePackagesByVersion,
-  type WorkspaceResolveResult,
 } from '@pnpm/resolver-base'
-import { type Registries, type PinnedVersion } from '@pnpm/types'
+import { type DependencyManifest, type Registries, type PinnedVersion } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'
@@ -75,7 +76,30 @@ export interface ResolverFactoryOptions {
   saveWorkspaceProtocol?: boolean | 'rolling'
 }
 
-export type NpmResolver = (wantedDependency: WantedDependency, opts: ResolveFromNpmOptions) => Promise<ResolveResult | null>
+export interface NpmResolveResult extends ResolveResult {
+  latest: string
+  manifest: DependencyManifest
+  resolution: TarballResolution
+  resolvedVia: 'npm-registry'
+}
+
+export interface JsrResolveResult extends ResolveResult {
+  alias: string
+  manifest: DependencyManifest
+  resolution: TarballResolution
+  resolvedVia: 'jsr-registry'
+}
+
+export interface WorkspaceResolveResult extends ResolveResult {
+  manifest: DependencyManifest
+  resolution: DirectoryResolution
+  resolvedVia: 'workspace'
+}
+
+export type NpmResolver = (
+  wantedDependency: WantedDependency,
+  opts: ResolveFromNpmOptions
+) => Promise<NpmResolveResult | JsrResolveResult | WorkspaceResolveResult | null>
 
 export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
@@ -152,7 +176,7 @@ async function resolveNpm (
   ctx: ResolveFromNpmContext,
   wantedDependency: WantedDependency,
   opts: ResolveFromNpmOptions
-): Promise<ResolveResult | null> {
+): Promise<NpmResolveResult | WorkspaceResolveResult | null> {
   const defaultTag = opts.defaultTag ?? 'latest'
   const registry = wantedDependency.alias
     ? pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.bareSpecifier)
@@ -297,7 +321,7 @@ async function resolveJsr (
   ctx: ResolveFromNpmContext,
   wantedDependency: WantedDependency,
   opts: Omit<ResolveFromNpmOptions, 'registry'>
-): Promise<ResolveResult | null> {
+): Promise<JsrResolveResult | null> {
   if (!wantedDependency.bareSpecifier) return null
   const defaultTag = opts.defaultTag ?? 'latest'
 

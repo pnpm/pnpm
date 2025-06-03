@@ -4,6 +4,7 @@ export const types = Object.assign({
   'auto-install-peers': Boolean,
   bail: Boolean,
   'cache-dir': String,
+  'catalog-mode': ['strict', 'prefer', 'manual'],
   'child-concurrency': Number,
   'merge-git-branch-lockfiles': Boolean,
   'merge-git-branch-lockfiles-branch-pattern': Array,

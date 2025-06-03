@@ -1,10 +1,10 @@
 import path from 'path'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
 import { iterateHashedGraphNodes } from '@pnpm/calc-dep-state'
 import {
-  type CatalogSnapshots,
   type LockfileObject,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.types'
@@ -96,7 +96,7 @@ export interface ImporterToResolve extends Importer<{
 export interface ResolveDependenciesResult {
   dependenciesByProjectId: DependenciesByProjectId
   dependenciesGraph: GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
-  newCatalogs?: CatalogSnapshots | undefined
+  updatedCatalogs?: Catalogs | undefined
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -140,7 +140,7 @@ export async function resolveDependencies (
     appliedPatches,
     time,
     allPeerDepNames,
-    newCatalogs,
+    updatedCatalogs,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   opts.storeController.clearResolutionCache()
@@ -309,17 +309,7 @@ export async function resolveDependencies (
     }
   }
 
-  // Q: Why would `newLockfile.catalogs` be constructed twice?
-  // A: `getCatalogSnapshots` handles new dependencies that were resolved as `catalog:*` (e.g. new entries in `package.json` whose values were `catalog:*`),
-  //    and `newCatalogs` handles dependencies that were added as CLI parameters from `pnpm add --save-catalog`.
   newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
-  for (const catalogName in newCatalogs) {
-    for (const dependencyName in newCatalogs[catalogName]) {
-      newLockfile.catalogs ??= {}
-      newLockfile.catalogs[catalogName] ??= {}
-      newLockfile.catalogs[catalogName][dependencyName] = newCatalogs[catalogName][dependencyName]
-    }
-  }
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
@@ -335,7 +325,7 @@ export async function resolveDependencies (
     dependenciesGraph: opts.enableGlobalVirtualStore ? extendGraph(dependenciesGraph, opts.virtualStoreDir) : dependenciesGraph,
     outdatedDependencies,
     linkedDependenciesByProjectId,
-    newCatalogs,
+    updatedCatalogs,
     newLockfile,
     peerDependencyIssuesByProjects,
     waitTillAllFetchingsFinish,

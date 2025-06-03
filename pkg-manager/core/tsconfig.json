@@ -28,6 +28,9 @@
       "path": "../../catalogs/protocol-parser"
     },
     {
+      "path": "../../catalogs/resolver"
+    },
+    {
       "path": "../../catalogs/types"
     },
     {

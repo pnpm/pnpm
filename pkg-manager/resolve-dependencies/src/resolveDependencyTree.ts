@@ -1,6 +1,6 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
-import { type CatalogSnapshots, type LockfileObject } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import { type PatchGroupRecord } from '@pnpm/patching.config'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
@@ -137,7 +137,7 @@ export interface ResolveDependenciesOptions {
 export interface ResolveDependencyTreeResult {
   allPeerDepNames: Set<string>
   dependenciesTree: DependenciesTree<ResolvedPackage>
-  newCatalogs?: CatalogSnapshots
+  updatedCatalogs?: Catalogs
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -236,7 +236,7 @@ export async function resolveDependencyTree<T> (
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)
   const directDepsByImporterId = zipObj(importers.map(({ id }) => id), pkgAddressesByImporters)
 
-  let newCatalogs: CatalogSnapshots | undefined
+  let updatedCatalogs: Record<string, Record<string, string>> | undefined
   for (const directDependencies of pkgAddressesByImporters) {
     for (const directDep of directDependencies as PkgAddress[]) {
       const { alias, normalizedBareSpecifier, version, saveCatalogName } = directDep
@@ -248,13 +248,21 @@ export async function resolveDependencyTree<T> (
           )
         }
       } else if (saveCatalogName != null && normalizedBareSpecifier != null && version != null) {
-        newCatalogs ??= {}
-        newCatalogs[saveCatalogName] ??= {}
-        newCatalogs[saveCatalogName][alias] = {
+        updatedCatalogs ??= {}
+        updatedCatalogs[saveCatalogName] ??= {}
+        updatedCatalogs[saveCatalogName][alias] = normalizedBareSpecifier
+
+        const userSpecifiedBareSpecifier = `catalog:${saveCatalogName === 'default' ? '' : saveCatalogName}`
+        directDep.normalizedBareSpecifier = userSpecifiedBareSpecifier
+
+        // Attach metadata about how this new catalog dependency should be
+        // resolved so the pnpm-lock.yaml file's catalogs section can be updated
+        // to reflect this newly added entry.
+        directDep.catalogLookup = {
+          catalogName: saveCatalogName,
           specifier: normalizedBareSpecifier,
-          version,
+          userSpecifiedBareSpecifier,
         }
-        directDep.normalizedBareSpecifier = `catalog:${saveCatalogName === 'default' ? '' : saveCatalogName}`
       }
     }
   }
@@ -301,7 +309,7 @@ export async function resolveDependencyTree<T> (
 
   return {
     dependenciesTree: ctx.dependenciesTree,
-    newCatalogs,
+    updatedCatalogs,
     outdatedDependencies: ctx.outdatedDependencies,
     resolvedImporters,
     resolvedPkgsById: ctx.resolvedPkgsById,

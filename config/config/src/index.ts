@@ -121,6 +121,7 @@ export async function getConfig (opts: {
   const defaultOptions: Partial<KebabCaseConfig> | typeof npmTypes.types = {
     'auto-install-peers': true,
     bail: true,
+    'catalog-mode': 'manual',
     color: 'auto',
     'dangerously-allow-all-builds': false,
     'deploy-all-files': false,
@@ -395,7 +396,8 @@ export async function getConfig (opts: {
   }
 
   pnpmConfig.extraEnv = {
-    npm_config_verify_deps_before_run: 'false',
+    npm_config_verify_deps_before_run: 'false', // This should be removed in pnpm v11
+    pnpm_config_verify_deps_before_run: 'false',
   }
   if (pnpmConfig.preferSymlinkedExecutables && !isWindows()) {
     const cwd = pnpmConfig.lockfileDir ?? pnpmConfig.dir

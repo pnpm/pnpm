@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare-temp-dir"
     },
     {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../lockfile/types"
     },
     {

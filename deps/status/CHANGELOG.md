@@ -1,5 +1,17 @@
 # @pnpm/deps.status
 
+## 1002.1.3
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/workspace.state@1001.1.21
+  - @pnpm/pnpmfile@1001.2.2
+  - @pnpm/workspace.find-packages@1000.0.25
+  - @pnpm/lockfile.settings-checker@1001.0.9
+  - @pnpm/lockfile.verification@1001.1.7
+
 ## 1002.1.2
 
 ### Patch Changes

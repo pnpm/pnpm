@@ -1,5 +1,11 @@
 # @pnpm/license-scanner
 
+## 1001.0.17
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.13
+
 ## 1001.0.16
 
 ### Patch Changes

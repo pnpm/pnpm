@@ -150,6 +150,7 @@ export interface Config extends OptionsFromRootManifest {
   workspaceDir?: string
   workspacePackagePatterns?: string[]
   catalogs?: Catalogs
+  catalogMode?: 'strict' | 'prefer' | 'manual'
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'

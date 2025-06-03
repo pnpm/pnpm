@@ -69,11 +69,7 @@ export async function findPackages (root: string, opts?: Options): Promise<Proje
 
 function normalizePatterns (patterns: readonly string[]): string[] {
   const normalizedPatterns: string[] = []
-  for (let pattern of patterns) {
-    // For some reason tinyglobby hangs indefinitely with !/
-    if (pattern.startsWith('!/')) {
-      pattern = `!${pattern.substring(2)}`
-    }
+  for (const pattern of patterns) {
     normalizedPatterns.push(pattern.replace(/\/?$/, '/package.{json,yaml,json5}'))
   }
   return normalizedPatterns

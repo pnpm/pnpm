@@ -3,21 +3,18 @@ import path from 'path'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
-import {
-  type DirectoryResolution,
-  type ResolveResult,
-  type TarballResolution,
-} from '@pnpm/resolver-base'
+import { type DirectoryResolution, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
 import { type DependencyManifest } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
 import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier'
 
-export type { WantedLocalDependency }
+export { type WantedLocalDependency }
 
-export interface ResolveFromLocalResult extends ResolveResult {
-  normalizedBareSpecifier: string
-  resolution: TarballResolution | DirectoryResolution
+export interface LocalResolveResult extends ResolveResult {
   manifest?: DependencyManifest
+  normalizedBareSpecifier: string
+  resolution: DirectoryResolution | TarballResolution
+  resolvedVia: 'local-filesystem'
 }
 
 /**
@@ -29,7 +26,7 @@ export async function resolveFromLocal (
     lockfileDir?: string
     projectDir: string
   }
-): Promise<ResolveFromLocalResult | null> {
+): Promise<LocalResolveResult | null> {
   const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir)
   if (spec == null) return null
   if (spec.type === 'file') {

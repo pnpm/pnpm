@@ -1,17 +1,23 @@
-import { type PkgResolutionId, type ResolveResult } from '@pnpm/resolver-base'
+import { type PkgResolutionId, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
+
+export interface TarballResolveResult extends ResolveResult {
+  normalizedBareSpecifier: string
+  resolution: TarballResolution
+  resolvedVia: 'url'
+}
 
 export async function resolveFromTarball (
   fetchFromRegistry: FetchFromRegistry,
   wantedDependency: { bareSpecifier: string }
-): Promise<ResolveResult | null> {
+): Promise<TarballResolveResult | null> {
   if (!wantedDependency.bareSpecifier.startsWith('http:') && !wantedDependency.bareSpecifier.startsWith('https:')) {
     return null
   }
 
   if (isRepository(wantedDependency.bareSpecifier)) return null
 
-  let resolvedUrl
+  let resolvedUrl: string
 
   // If there are redirects and the response is immutable, we want to get the final URL address
   const response = await fetchFromRegistry(wantedDependency.bareSpecifier, { method: 'HEAD' })

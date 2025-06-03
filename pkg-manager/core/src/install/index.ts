@@ -2,6 +2,7 @@ import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
+import { resolveFromCatalog, matchCatalogResolveResult, type CatalogResultMatcher } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   LAYOUT_VERSION,
@@ -88,6 +89,8 @@ import { linkPackages } from './link'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
 import { validateModules } from './validateModules'
 import { isCI } from 'ci-info'
+import semver from 'semver'
+import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -142,7 +145,13 @@ type Opts = Omit<InstallOptions, 'allProjects'> & {
 } & InstallMutationOptions
 
 export interface InstallResult {
-  newCatalogs: CatalogSnapshots | undefined
+  /**
+   * A partial of new or updated catalog config entries. A change will be
+   * produced if a dependency using the catalog protocol was newly added or
+   * updated during this install. To obtain the full catalog, callers should
+   * merge this object with the current catalog configs in pnpm-workspace.yaml.
+   */
+  updatedCatalogs: Catalogs | undefined
   updatedManifest: ProjectManifest
   ignoredBuilds: string[] | undefined
 }
@@ -152,7 +161,7 @@ export async function install (
   opts: Opts
 ): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { newCatalogs, updatedProjects: projects, ignoredBuilds } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds } = await mutateModules(
     [
       {
         mutation: 'install',
@@ -174,7 +183,7 @@ export async function install (
       }],
     }
   )
-  return { newCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds }
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds }
 }
 
 interface ProjectToBeInstalled {
@@ -195,7 +204,7 @@ export type MutateModulesOptions = InstallOptions & {
 }
 
 export interface MutateModulesInSingleProjectResult {
-  newCatalogs: CatalogSnapshots | undefined
+  updatedCatalogs: Catalogs | undefined
   updatedProject: UpdatedProject
   ignoredBuilds: string[] | undefined
 }
@@ -228,18 +237,25 @@ export async function mutateModulesInSingleProject (
     }
   )
   return {
-    newCatalogs: result.newCatalogs,
+    updatedCatalogs: result.updatedCatalogs,
     updatedProject: result.updatedProjects[0],
     ignoredBuilds: result.ignoredBuilds,
   }
 }
 
 export interface MutateModulesResult {
-  newCatalogs?: CatalogSnapshots
+  updatedCatalogs?: Catalogs
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
   ignoredBuilds: string[] | undefined
+}
+
+const pickCatalogSpecifier: CatalogResultMatcher<string | undefined> = {
+  found: (found) =>
+    found.resolution.specifier,
+  misconfiguration: () => undefined,
+  unused: () => undefined,
 }
 
 export async function mutateModules (
@@ -333,7 +349,7 @@ export async function mutateModules (
   }
 
   return {
-    newCatalogs: result.newCatalogs,
+    updatedCatalogs: result.updatedCatalogs,
     updatedProjects: result.updatedProjects,
     stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     depsRequiringBuild: result.depsRequiringBuild,
@@ -341,7 +357,7 @@ export async function mutateModules (
   }
 
   interface InnerInstallResult {
-    readonly newCatalogs?: CatalogSnapshots
+    readonly updatedCatalogs?: Catalogs
     readonly updatedProjects: UpdatedProject[]
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
@@ -571,6 +587,37 @@ export async function mutateModules (
         overrides: opts.overrides,
         defaultCatalog: opts.catalogs?.default,
       })
+
+      if (opts.catalogMode !== 'manual') {
+        const catalogBareSpecifier = `catalog:${opts.saveCatalogName == null || opts.saveCatalogName === 'default' ? '' : opts.saveCatalogName}`
+        for (const wantedDep of wantedDeps) {
+          const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })
+          const catalogDepSpecifier = matchCatalogResolveResult(catalog, pickCatalogSpecifier)
+
+          if (
+            !catalogDepSpecifier ||
+            wantedDep.bareSpecifier === catalogBareSpecifier ||
+            semver.validRange(wantedDep.bareSpecifier) &&
+            semver.validRange(catalogDepSpecifier) &&
+            semver.eq(wantedDep.bareSpecifier, catalogDepSpecifier)
+          ) {
+            wantedDep.saveCatalogName = opts.saveCatalogName ?? 'default'
+            continue
+          }
+
+          switch (opts.catalogMode) {
+          case 'strict':
+            throw new CatalogVersionMismatchError({ catalogDep: `${wantedDep.alias}@${catalogDepSpecifier}`, wantedDep: `${wantedDep.alias}@${wantedDep.bareSpecifier}` })
+
+          case 'prefer':
+            logger.warn({
+              message: `Catalog version mismatch for "${wantedDep.alias}": using direct version "${wantedDep.bareSpecifier}" instead of catalog version "${catalogDepSpecifier}".`,
+              prefix: opts.lockfileDir,
+            })
+          }
+        }
+      }
+
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
@@ -596,7 +643,7 @@ export async function mutateModules (
     })
 
     return {
-      newCatalogs: result.newCatalogs,
+      updatedCatalogs: result.updatedCatalogs,
       updatedProjects: result.projects,
       stats: result.stats,
       depsRequiringBuild: result.depsRequiringBuild,
@@ -906,7 +953,7 @@ export async function addDependenciesToPackage (
   } & InstallMutationOptions
 ): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { newCatalogs, updatedProjects: projects, ignoredBuilds } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds } = await mutateModules(
     [
       {
         allowNew: opts.allowNew,
@@ -934,7 +981,7 @@ export async function addDependenciesToPackage (
         },
       ],
     })
-  return { newCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds }
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds }
 }
 
 export type ImporterToUpdate = {
@@ -959,7 +1006,7 @@ export interface UpdatedProject {
 }
 
 interface InstallFunctionResult {
-  newCatalogs?: CatalogSnapshots
+  updatedCatalogs?: Catalogs
   newLockfile: LockfileObject
   projects: UpdatedProject[]
   stats?: InstallationResultStats
@@ -1074,7 +1121,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     dependenciesGraph,
     dependenciesByProjectId,
     linkedDependenciesByProjectId,
-    newCatalogs,
+    updatedCatalogs,
     newLockfile,
     outdatedDependencies,
     peerDependencyIssuesByProjects,
@@ -1471,7 +1518,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 
   return {
-    newCatalogs,
+    updatedCatalogs,
     newLockfile,
     projects: projects.map(({ id, manifest, rootDir }) => ({
       manifest,

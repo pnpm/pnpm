@@ -4,9 +4,16 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type MutatedProject, mutateModules, type ProjectOptions, type MutateModulesOptions, addDependenciesToPackage } from '@pnpm/core'
 import { type CatalogSnapshots } from '@pnpm/lockfile.types'
+import { logger } from '@pnpm/logger'
 import { sync as loadJsonFile } from 'load-json-file'
 import path from 'path'
 import { testDefaults } from './utils'
+
+jest.mock('@pnpm/logger', () => {
+  const originalModule = jest.requireActual('@pnpm/logger')
+  originalModule.logger.warn = jest.fn()
+  return originalModule
+})
 
 function preparePackagesAndReturnObjects (manifests: Array<ProjectManifest & Required<Pick<ProjectManifest, 'name'>>>) {
   const project = prepareEmpty()
@@ -601,6 +608,134 @@ test('catalog resolutions should be consistent', async () => {
   })
 })
 
+// Similar to the test above, but ensure the behavior holds for cataloged
+// dependencies that have peer dependencies. If the peer suffix ends up being
+// different for a new usage of the catalog protocol, the version of the
+// dependency should still be the same.
+test('catalog resolutions should be consistent with peer dependencies', async () => {
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/abc': 'catalog:',
+
+        // The @pnpm.e2e/abc package has peer dependencies on all of these.
+        // Adding them for explicitness.
+        '@pnpm.e2e/peer-a': '1.0.0',
+        '@pnpm.e2e/peer-b': '1.0.0',
+        '@pnpm.e2e/peer-c': '1.0.0',
+      },
+    },
+    {
+      name: 'project2',
+      dependencies: {},
+    },
+    {
+      name: 'project3',
+      dependencies: {},
+    },
+  ])
+
+  const catalogs = {
+    default: {
+      '@pnpm.e2e/abc': '1.0.0',
+    },
+  }
+
+  const mutateOpts: MutateModulesOptions = {
+    ...options,
+    lockfileOnly: true,
+    resolutionMode: 'highest',
+    catalogs,
+  }
+
+  await mutateModules(installProjects(projects), mutateOpts)
+
+  // Updating the specifier to * so it could feasibly match @pnpm.e2e/abc@2.0.0.
+  // This test will ensure it stays on @pnpm.e2e/abc@1.0.0 for the catalog.
+  //
+  // At the time of writing (May 2025), the registry mock has @pnpm.e2e/abc
+  // version 1.0.0 and 2.0.0.
+  catalogs.default['@pnpm.e2e/abc'] = '*'
+  await mutateModules(installProjects(projects), mutateOpts)
+  expect(readLockfile().catalogs).toEqual({
+    default: {
+      '@pnpm.e2e/abc': { specifier: '*', version: '1.0.0' },
+    },
+  })
+
+  // Add a different version of @pnpm.e2e/abc to the lockfile.
+  projects['project2' as ProjectId].dependencies = {
+    '@pnpm.e2e/abc': '2.0.0',
+    '@pnpm.e2e/peer-a': '1.0.0',
+    '@pnpm.e2e/peer-b': '1.0.0',
+    '@pnpm.e2e/peer-c': '1.0.0',
+  }
+  await mutateModules(installProjects(projects), mutateOpts)
+
+  expect(readLockfile()).toStrictEqual(expect.objectContaining({
+    catalogs: { default: { '@pnpm.e2e/abc': { specifier: '*', version: '1.0.0' } } },
+    packages: expect.objectContaining({
+      // At this point, both 1.0.0 and 2.0.0 should be in the lockfile, but the
+      // catalog entry still resolves to 1.0.0.
+      '@pnpm.e2e/abc@1.0.0': expect.any(Object),
+      '@pnpm.e2e/abc@2.0.0': expect.any(Object),
+
+      // This is a regular dependency of @pnpm.e2e/abc.
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': expect.any(Object),
+
+      '@pnpm.e2e/peer-a@1.0.0': expect.any(Object),
+      '@pnpm.e2e/peer-b@1.0.0': expect.any(Object),
+      '@pnpm.e2e/peer-c@1.0.0': expect.any(Object),
+    }),
+  }))
+
+  // Adding a new catalog dependency. It should resolve to 1.0.0 instead of 2.0.0, despite resolution-mode=highest.
+  projects['project3' as ProjectId].dependencies = {
+    '@pnpm.e2e/abc': 'catalog:',
+    // Compared to project1, this is intentionally changed from "1.0.0" to
+    // "1.0.1" so @pnpm.e2e/abc resolves with a different peer suffix.
+    '@pnpm.e2e/peer-a': '1.0.1',
+    '@pnpm.e2e/peer-b': '1.0.0',
+    '@pnpm.e2e/peer-c': '1.0.0',
+  }
+  await mutateModules(installProjects(projects), mutateOpts)
+
+  // Expect all projects using the catalog specifier (e.g. project1 and
+  // project3) to resolve to the same version. They will have different peers
+  // suffixes since @pnpm.e2e/peer-a will be on different versions, but the
+  // version of @pnpm.e2e/abc should be 1.0.0.
+  expect(readLockfile()).toMatchObject({
+    catalogs: { default: { '@pnpm.e2e/abc': { specifier: '*', version: '1.0.0' } } },
+    importers: {
+      project1: {
+        dependencies: {
+          '@pnpm.e2e/abc': { specifier: 'catalog:', version: '1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)' },
+          '@pnpm.e2e/peer-a': { specifier: '1.0.0', version: '1.0.0' },
+          '@pnpm.e2e/peer-b': { specifier: '1.0.0', version: '1.0.0' },
+          '@pnpm.e2e/peer-c': { specifier: '1.0.0', version: '1.0.0' },
+        },
+      },
+      project2: {
+        dependencies: {
+          '@pnpm.e2e/abc': { specifier: '2.0.0', version: '2.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)' },
+          '@pnpm.e2e/peer-a': { specifier: '1.0.0', version: '1.0.0' },
+          '@pnpm.e2e/peer-b': { specifier: '1.0.0', version: '1.0.0' },
+          '@pnpm.e2e/peer-c': { specifier: '1.0.0', version: '1.0.0' },
+        },
+      },
+      project3: {
+        dependencies: {
+          '@pnpm.e2e/abc': { specifier: 'catalog:', version: '1.0.0(@pnpm.e2e/peer-a@1.0.1)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)' },
+          '@pnpm.e2e/peer-a': { specifier: '1.0.1', version: '1.0.1' },
+          '@pnpm.e2e/peer-b': { specifier: '1.0.0', version: '1.0.0' },
+          '@pnpm.e2e/peer-c': { specifier: '1.0.0', version: '1.0.0' },
+        },
+      },
+    },
+  })
+})
+
 // Similar to the 'catalog resolutions should be consistent' test above, but
 // ensures this works for catalog entries using npm aliases.
 test('catalog entry using npm alias can be reused', async () => {
@@ -1004,6 +1139,189 @@ describe('add', () => {
     expect(readLockfile().packages).toStrictEqual({
       'is-positive@2.0.0': expect.any(Object),
     })
+  })
+
+  test('adding with catalogMode: strict will add to or use from catalog', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+
+    const { updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive@1.0.0'],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          default: {},
+        },
+        catalogMode: 'strict',
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    })
+    expect(readLockfile()).toMatchObject({
+      catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
+      importers: { project1: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '1.0.0' } } } },
+      packages: { 'is-positive@1.0.0': expect.any(Object) },
+    })
+  })
+
+  test('adding with catalogMode: prefer will add to or use from catalog', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+
+    const { updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive@1.0.0'],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          default: {},
+        },
+        catalogMode: 'prefer',
+      })
+
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    })
+    expect(readLockfile()).toMatchObject({
+      catalogs: { default: { 'is-positive': { specifier: '1.0.0', version: '1.0.0' } } },
+      importers: { project1: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '1.0.0' } } } },
+      packages: { 'is-positive@1.0.0': expect.any(Object) },
+    })
+  })
+
+  test('adding mismatched version with catalogMode: strict will error', async () => {
+    const { options, projects } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    }])
+
+    await expect(addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive@2.0.0'],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: {
+          default: {
+            'is-positive': '1.0.0',
+          },
+        },
+        catalogMode: 'strict',
+      })
+    ).rejects.toThrow()
+  })
+
+  test('adding mismatched version with catalogMode: prefer will warn and use direct', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    }, {
+      name: 'project2',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    }])
+
+    options.catalogs = {
+      default: {
+        'is-positive': '1.0.0',
+      },
+    }
+    options.lockfileOnly = true
+
+    await mutateModules(installProjects(projects), options)
+
+    expect(options.catalogs).toStrictEqual({
+      default: {
+        'is-positive': '1.0.0',
+      },
+    })
+
+    let installResult = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['is-positive@2.0.0'],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        allowNew: true,
+        catalogMode: 'prefer',
+      })
+
+    expect(installResult.updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        'is-positive': '2.0.0',
+      },
+    })
+
+    expect(logger.warn).toHaveBeenCalled()
+    expect(readLockfile().importers).toStrictEqual(
+      {
+        project1: { dependencies: { 'is-positive': { specifier: '2.0.0', version: '2.0.0' } } },
+        project2: { dependencies: { 'is-positive': { specifier: 'catalog:', version: '1.0.0' } } },
+      }
+    )
+    expect(readLockfile().packages).toMatchObject(
+      { 'is-positive@2.0.0': expect.any(Object), 'is-positive@1.0.0': expect.any(Object) }
+    )
+    expect(options.catalogs).toStrictEqual(
+      { default: { 'is-positive': '1.0.0' } }
+    )
+
+    installResult = await addDependenciesToPackage(
+      projects['project2' as ProjectId],
+      ['is-positive@2.0.0'],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project2'),
+        allowNew: true,
+        catalogMode: 'prefer',
+      })
+
+    expect(installResult.updatedManifest).toEqual({
+      name: 'project2',
+      dependencies: {
+        'is-positive': '2.0.0',
+      },
+    })
+
+    expect(logger.warn).toHaveBeenCalled()
+    expect(readLockfile().importers).toStrictEqual(
+      {
+        project1: { dependencies: { 'is-positive': { specifier: '2.0.0', version: '2.0.0' } } },
+        project2: { dependencies: { 'is-positive': { specifier: '2.0.0', version: '2.0.0' } } },
+      }
+    )
+    expect(readLockfile().packages).toMatchObject(
+      { 'is-positive@2.0.0': expect.any(Object) }
+    )
+    expect(options.catalogs).toStrictEqual(
+      { default: { 'is-positive': '1.0.0' } }
+    )
   })
 })
 
