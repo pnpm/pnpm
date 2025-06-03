@@ -106,8 +106,13 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
     })
     .filter(({ name }) => name === pkgName)
 
+  const filteredVersions = versions.filter(({ version }) => dep.alias && dep.bareSpecifier ? semver.satisfies(version, dep.bareSpecifier) : true)
+
+  versions.sort((a, b) => semver.compare(b.version, a.version))
+  filteredVersions.sort((a, b) => semver.compare(b.version, a.version))
+
   return {
     versions,
-    preferredVersions: versions.filter(({ version }) => dep.alias && dep.bareSpecifier ? semver.satisfies(version, dep.bareSpecifier) : true),
+    preferredVersions: filteredVersions,
   }
 }
