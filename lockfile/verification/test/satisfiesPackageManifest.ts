@@ -77,7 +77,11 @@ test('satisfiesPackageManifest()', () => {
     }
   )).toStrictEqual({
     satisfies: false,
-    detailedReason: 'specifiers in the lockfile ({"foo":"^1.0.0"}) don\'t match specs in package.json ({"foo":"^1.1.0"})',
+    detailedReason: `specifiers in the lockfile don't match specifiers in package.json:
+
+* specifiers in the lockfile: {"foo":"^1.0.0"}
+
+* specifiers in package.json: {"foo":"^1.1.0"}`,
   })
   expect(satisfiesPackageManifest(
     {},
@@ -91,7 +95,11 @@ test('satisfiesPackageManifest()', () => {
     }
   )).toStrictEqual({
     satisfies: false,
-    detailedReason: 'specifiers in the lockfile ({"foo":"^1.0.0"}) don\'t match specs in package.json ({"foo":"^1.0.0","bar":"2.0.0"})',
+    detailedReason: `specifiers in the lockfile don't match specifiers in package.json:
+
+* specifiers in the lockfile: {"foo":"^1.0.0"}
+
+* specifiers in package.json: {"foo":"^1.0.0","bar":"2.0.0"}`,
   })
 
   expect(satisfiesPackageManifest(
@@ -154,7 +162,11 @@ test('satisfiesPackageManifest()', () => {
     }
     expect(satisfiesPackageManifest({}, importer, pkg)).toStrictEqual({
       satisfies: false,
-      detailedReason: 'specifiers in the lockfile ({"bar":"2.0.0","qar":"^1.0.0"}) don\'t match specs in package.json ({"bar":"2.0.0"})',
+      detailedReason: `specifiers in the lockfile don't match specifiers in package.json:
+
+* specifiers in the lockfile: {"bar":"2.0.0","qar":"^1.0.0"}
+
+* specifiers in package.json: {"bar":"2.0.0"}`,
     })
   }
 
