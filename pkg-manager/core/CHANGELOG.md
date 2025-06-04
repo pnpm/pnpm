@@ -1,5 +1,25 @@
 # @pnpm/core
 
+## 1008.0.3
+
+### Patch Changes
+
+- 32dadef: Installation should not exit with an error if `strictPeerDependencies` is `true` but all issues are ignored by `peerDependencyRules` [#9505](https://github.com/pnpm/pnpm/pull/9505).
+- 509948d: Fix a regression (in v10.9.0) causing the `--lockfile-only` flag on `pnpm update` to produce a different `pnpm-lock.yaml` than an update without the flag.
+- Updated dependencies [509948d]
+  - @pnpm/resolve-dependencies@1007.0.2
+  - @pnpm/package-requester@1004.0.2
+  - @pnpm/store-controller-types@1003.0.2
+  - @pnpm/build-modules@1000.3.6
+  - @pnpm/headless@1004.0.5
+  - @pnpm/lifecycle@1001.0.15
+  - @pnpm/modules-cleaner@1001.0.14
+  - @pnpm/worker@1000.1.7
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/symlink-dependency@1000.0.9
+  - @pnpm/lockfile.settings-checker@1001.0.9
+  - @pnpm/lockfile.verification@1001.1.7
+
 ## 1008.0.2
 
 ### Patch Changes

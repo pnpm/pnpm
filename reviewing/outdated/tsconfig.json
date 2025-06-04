@@ -52,9 +52,6 @@
       "path": "../../pkg-manager/client"
     },
     {
-      "path": "../../pkg-manager/modules-yaml"
-    },
-    {
       "path": "../../pkg-manifest/manifest-utils"
     },
     {

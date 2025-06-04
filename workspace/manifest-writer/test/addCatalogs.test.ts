@@ -66,9 +66,7 @@ test('addCatalogs adds `default` catalogs to the `catalog` object by default', a
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   await addCatalogs(dir, {
     default: {
-      foo: {
-        specifier: '^0.1.2',
-      },
+      foo: '^0.1.2',
     },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
@@ -88,9 +86,7 @@ test('addCatalogs adds `default` catalogs to the `catalog` object if it exists',
   })
   await addCatalogs(dir, {
     default: {
-      foo: {
-        specifier: '^0.1.2',
-      },
+      foo: '^0.1.2',
     },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
@@ -113,9 +109,7 @@ test('addCatalogs adds `default` catalogs to the `catalogs.default` object if it
   })
   await addCatalogs(dir, {
     default: {
-      foo: {
-        specifier: '^0.1.2',
-      },
+      foo: '^0.1.2',
     },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
@@ -133,14 +127,10 @@ test('addCatalogs creates a `catalogs` object for any-named catalogs', async () 
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   await addCatalogs(dir, {
     foo: {
-      abc: {
-        specifier: '0.1.2',
-      },
+      abc: '0.1.2',
     },
     bar: {
-      def: {
-        specifier: '3.2.1',
-      },
+      def: '3.2.1',
     },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
@@ -167,14 +157,10 @@ test('addCatalogs add any-named catalogs to the `catalogs` object if it already 
   })
   await addCatalogs(dir, {
     foo: {
-      abc: {
-        specifier: '0.1.2',
-      },
+      abc: '0.1.2',
     },
     bar: {
-      def: {
-        specifier: '3.2.1',
-      },
+      def: '3.2.1',
     },
   })
   expect(readYamlFile(filePath)).toStrictEqual({

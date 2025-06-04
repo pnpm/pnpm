@@ -33,10 +33,9 @@ export interface GitResolution {
 }
 
 export type Resolution =
-  TarballResolution |
-  DirectoryResolution |
-  GitResolution |
-  ({ type: string } & object)
+  | TarballResolution
+  | DirectoryResolution
+  | GitResolution
 
 export interface ResolveResult {
   id: PkgResolutionId

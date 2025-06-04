@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import { type ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
@@ -51,7 +52,7 @@ export interface NewCatalogs {
   }
 }
 
-export async function addCatalogs (workspaceDir: string, newCatalogs: NewCatalogs): Promise<void> {
+export async function addCatalogs (workspaceDir: string, newCatalogs: Catalogs): Promise<void> {
   const manifest: Partial<WorkspaceManifest> = await readWorkspaceManifest(workspaceDir) ?? {}
   let shouldBeUpdated = false
 
@@ -61,9 +62,13 @@ export async function addCatalogs (workspaceDir: string, newCatalogs: NewCatalog
       : manifest.catalogs?.[catalogName]
     const targetCatalogWasNil = targetCatalog == null
 
-    for (const dependencyName in newCatalogs[catalogName]) {
+    for (const [dependencyName, specifier] of Object.entries(newCatalogs[catalogName] ?? {})) {
+      if (specifier == null) {
+        continue
+      }
+
       targetCatalog ??= {}
-      targetCatalog[dependencyName] = newCatalogs[catalogName][dependencyName].specifier
+      targetCatalog[dependencyName] = specifier
     }
 
     if (targetCatalog == null) continue

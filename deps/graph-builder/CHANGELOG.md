@@ -1,5 +1,12 @@
 # @pnpm/deps.graph-builder
 
+## 1002.0.5
+
+### Patch Changes
+
+- Updated dependencies [509948d]
+  - @pnpm/store-controller-types@1003.0.2
+
 ## 1002.0.4
 
 ### Patch Changes

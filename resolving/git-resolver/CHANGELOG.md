@@ -1,5 +1,11 @@
 # @pnpm/git-resolver
 
+## 1001.0.2
+
+### Patch Changes
+
+- 5055399: Fixed the problem of path loss caused by parsing URL address. Fixes a regression shipped in pnpm v10.11 via [#9502](https://github.com/pnpm/pnpm/pull/9502).
+
 ## 1001.0.1
 
 ### Patch Changes

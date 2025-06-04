@@ -1,8 +1,8 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
-import { type LockfileObject } from '@pnpm/lockfile.types'
 import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
 import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
 
 export type DepsGraph<T extends string> = Record<T, DepsGraphNode<T>>
@@ -26,11 +26,11 @@ export function calcDepState<T extends string> (
   depPath: string,
   opts: {
     patchFileHash?: string
-    isBuilt: boolean
+    includeSubdepsHash: boolean
   }
 ): string {
   let result = ENGINE_NAME
-  if (opts.isBuilt) {
+  if (opts.includeSubdepsHash) {
     const depStateObj = calcDepStateObj(depPath, depsGraph, cache, new Set())
     result += `;deps=${hashObjectWithoutSorting(depStateObj)}`
   }
@@ -62,6 +62,35 @@ function calcDepStateObj<T extends string> (
   }
   cache[depPath] = sortDirectKeys(state)
   return cache[depPath]
+}
+
+export interface PkgMeta {
+  depPath: DepPath
+  name: string
+  version: string
+}
+
+export type PkgMetaIterator<T extends PkgMeta> = IterableIterator<T>
+
+export interface HashedDepPath<T extends PkgMeta> {
+  pkgMeta: T
+  hash: string
+}
+
+export function * iterateHashedGraphNodes<T extends PkgMeta> (
+  graph: DepsGraph<DepPath>,
+  pkgMetaIterator: PkgMetaIterator<T>
+): IterableIterator<HashedDepPath<T>> {
+  const cache: DepsStateCache = {}
+  for (const pkgMeta of pkgMetaIterator) {
+    const { name, version, depPath } = pkgMeta
+    const state = calcDepState(graph, cache, depPath, { includeSubdepsHash: true })
+    const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
+    yield {
+      hash: `${name}/${version}/${hexDigest}`,
+      pkgMeta,
+    }
+  }
 }
 
 export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath> {

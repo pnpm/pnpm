@@ -4,7 +4,6 @@ import { prompt } from 'enquirer'
 import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { PnpmError } from '@pnpm/error'
-import { readModulesManifest } from '@pnpm/modules-yaml'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
 import realpathMissing from 'realpath-missing'
 import semver from 'semver'
@@ -81,10 +80,9 @@ export interface LockfileVersionsList {
 
 export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult, opts: GetPatchedDependencyOptions): Promise<LockfileVersionsList> {
   const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
-  const modules = await readModulesManifest(modulesDir)
-  const lockfile = (modules?.virtualStoreDir && await readCurrentLockfile(modules.virtualStoreDir, {
+  const lockfile = await readCurrentLockfile(path.join(modulesDir, '.pnpm'), {
     ignoreIncompatible: true,
-  })) ?? null
+  }) ?? null
 
   if (!lockfile) {
     throw new PnpmError(
@@ -107,6 +105,7 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
       }
     })
     .filter(({ name }) => name === pkgName)
+    .sort((v1, v2) => semver.compare(v1.version, v2.version))
 
   return {
     versions,

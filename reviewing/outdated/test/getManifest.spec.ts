@@ -1,5 +1,5 @@
 import { type ResolveFunction } from '@pnpm/client'
-import { type PkgResolutionId } from '@pnpm/resolver-base'
+import { type PkgResolutionId, type TarballResolution } from '@pnpm/resolver-base'
 import { getManifest } from '../lib/createManifestGetter'
 
 test('getManifest()', async () => {
@@ -17,9 +17,7 @@ test('getManifest()', async () => {
         name: 'foo',
         version: '1.0.0',
       },
-      resolution: {
-        type: 'tarball',
-      },
+      resolution: {} as TarballResolution,
       resolvedVia: 'npm-registry',
     }
   }
@@ -37,9 +35,7 @@ test('getManifest()', async () => {
         name: 'foo',
         version: '2.0.0',
       },
-      resolution: {
-        type: 'tarball',
-      },
+      resolution: {} as TarballResolution,
       resolvedVia: 'npm-registry',
     }
   }

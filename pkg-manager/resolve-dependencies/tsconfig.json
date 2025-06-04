@@ -31,6 +31,9 @@
       "path": "../../lockfile/utils"
     },
     {
+      "path": "../../packages/calc-dep-state"
+    },
+    {
       "path": "../../packages/constants"
     },
     {
