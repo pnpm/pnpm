@@ -103,7 +103,7 @@ export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath
       })
       graph[depPath as DepPath] = {
         children,
-        pkgIdWithPatchHash: getPkgIdWithPatchHash(depPath as DepPath),
+        pkgIdWithPatchHash: getPkgIdWithPatchHash(depPath as DepPath, pkgSnapshot.resolution),
       }
     }
   }

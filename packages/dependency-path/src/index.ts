@@ -1,5 +1,6 @@
 import { createShortHash } from '@pnpm/crypto.hash'
 import { type DepPath, type PkgResolutionId, type Registries, type PkgId, type PkgIdWithPatchHash } from '@pnpm/types'
+import { type LockfileResolution } from '@pnpm/lockfile.types'
 import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string): boolean {
@@ -60,7 +61,12 @@ export function removeSuffix (relDepPath: string): string {
   return relDepPath
 }
 
-export function getPkgIdWithPatchHash (depPath: DepPath): PkgIdWithPatchHash {
+export function createPkgIdWithPatchHash (pkgId: string, resolution: LockfileResolution): PkgIdWithPatchHash {
+  const res = 'integrity' in resolution ? resolution.integrity : JSON.stringify(resolution)
+  return `${pkgId}/${res}` as PkgIdWithPatchHash
+}
+
+export function getPkgIdWithPatchHash (depPath: DepPath, resolution: LockfileResolution): PkgIdWithPatchHash {
   let pkgId: string = depPath
   const { peersIndex: sepIndex } = indexOfPeersSuffix(pkgId)
   if (sepIndex !== -1) {
@@ -69,7 +75,7 @@ export function getPkgIdWithPatchHash (depPath: DepPath): PkgIdWithPatchHash {
   if (pkgId.includes(':')) {
     pkgId = pkgId.substring(pkgId.indexOf('@', 1) + 1)
   }
-  return pkgId as PkgIdWithPatchHash
+  return createPkgIdWithPatchHash(pkgId, resolution)
 }
 
 export function tryGetPackageId (relDepPath: DepPath): PkgId {
