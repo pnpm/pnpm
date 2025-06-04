@@ -738,8 +738,8 @@ Note that in CI environments, this setting is enabled by default.`,
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       })
-      for (const { id, manifest, rootDir } of Object.values(ctx.projects)) {
-        const { satisfies, detailedReason } = _satisfiesPackageManifest(ctx.wantedLockfile.importers[id], manifest)
+      for (const { id, manifest, rootDir, originalManifest } of Object.values(ctx.projects)) {
+        const { satisfies, detailedReason } = _satisfiesPackageManifest(ctx.wantedLockfile.importers[id], originalManifest ?? manifest)
         if (!satisfies) {
           if (!ctx.existsWantedLockfile) {
             throw new PnpmError('NO_LOCKFILE',
