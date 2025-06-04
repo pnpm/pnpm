@@ -318,6 +318,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
 | 'updateConfig'
+| 'overrides'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
