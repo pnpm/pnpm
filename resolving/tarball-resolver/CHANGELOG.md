@@ -1,5 +1,11 @@
 # @pnpm/tarball-resolver
 
+## 1002.0.2
+
+### Patch Changes
+
+- c307634: Dependencies specified via a URL that redirects will only be locked to the target if it is immutable, fixing a regression when installing from GitHub releases. ([#9531](https://github.com/pnpm/pnpm/issues/9531))
+
 ## 1002.0.1
 
 ### Patch Changes

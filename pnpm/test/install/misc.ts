@@ -391,7 +391,7 @@ test('using a custom virtual-store-dir location', async () => {
   await execPnpm(['install', '--virtual-store-dir=.pnpm'])
 
   expect(fs.existsSync('.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json')).toBeTruthy()
-  expect(fs.existsSync('.pnpm/lock.yaml')).toBeTruthy()
+  expect(fs.existsSync('node_modules/.pnpm/lock.yaml')).toBeTruthy()
   expect(fs.existsSync('.pnpm/node_modules/once/package.json')).toBeTruthy()
 
   rimraf('node_modules')
@@ -400,7 +400,7 @@ test('using a custom virtual-store-dir location', async () => {
   await execPnpm(['install', '--virtual-store-dir=.pnpm', '--frozen-lockfile'])
 
   expect(fs.existsSync('.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json')).toBeTruthy()
-  expect(fs.existsSync('.pnpm/lock.yaml')).toBeTruthy()
+  expect(fs.existsSync('node_modules/.pnpm/lock.yaml')).toBeTruthy()
   expect(fs.existsSync('.pnpm/node_modules/once/package.json')).toBeTruthy()
 })
 

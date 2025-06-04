@@ -1,5 +1,15 @@
 # @pnpm/package-requester
 
+## 1004.0.2
+
+### Patch Changes
+
+- 509948d: Fix a regression (in v10.9.0) causing the `--lockfile-only` flag on `pnpm update` to produce a different `pnpm-lock.yaml` than an update without the flag.
+- Updated dependencies [509948d]
+  - @pnpm/store-controller-types@1003.0.2
+  - @pnpm/store.cafs@1000.0.13
+  - @pnpm/worker@1000.1.7
+
 ## 1004.0.1
 
 ### Patch Changes

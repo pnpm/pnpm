@@ -1,3 +1,4 @@
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
@@ -30,6 +31,7 @@ export interface StrictInstallOptions {
   catalogMode: 'strict' | 'prefer' | 'manual'
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
+  enableGlobalVirtualStore: boolean
   enablePnp: boolean
   extraBinPaths: string[]
   extraEnv: Record<string, string>
@@ -183,6 +185,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     confirmModulesPurge: !opts.force,
     depth: 0,
     dedupeInjectedDeps: true,
+    enableGlobalVirtualStore: false,
     enablePnp: false,
     engineStrict: false,
     force: false,
@@ -309,5 +312,8 @@ export function extendOptions (
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   extendedOpts.rawConfig['registry'] = extendedOpts.registries.default
+  if (extendedOpts.enableGlobalVirtualStore && extendedOpts.virtualStoreDir == null) {
+    extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
+  }
   return extendedOpts
 }

@@ -151,7 +151,7 @@ export interface InstallResult {
    * updated during this install. To obtain the full catalog, callers should
    * merge this object with the current catalog configs in pnpm-workspace.yaml.
    */
-  updatedCatalogs: CatalogSnapshots | undefined
+  updatedCatalogs: Catalogs | undefined
   updatedManifest: ProjectManifest
   ignoredBuilds: string[] | undefined
 }
@@ -204,7 +204,7 @@ export type MutateModulesOptions = InstallOptions & {
 }
 
 export interface MutateModulesInSingleProjectResult {
-  updatedCatalogs: CatalogSnapshots | undefined
+  updatedCatalogs: Catalogs | undefined
   updatedProject: UpdatedProject
   ignoredBuilds: string[] | undefined
 }
@@ -244,7 +244,7 @@ export async function mutateModulesInSingleProject (
 }
 
 export interface MutateModulesResult {
-  updatedCatalogs?: CatalogSnapshots
+  updatedCatalogs?: Catalogs
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
@@ -320,9 +320,10 @@ export async function mutateModules (
     })
   }
 
-  const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
+  const pruneVirtualStore = !opts.enableGlobalVirtualStore && (ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
     ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
     : true
+  )
 
   if (!maybeOpts.ignorePackageManifest) {
     for (const { manifest, rootDir } of Object.values(ctx.projects)) {
@@ -356,7 +357,7 @@ export async function mutateModules (
   }
 
   interface InnerInstallResult {
-    readonly updatedCatalogs?: CatalogSnapshots
+    readonly updatedCatalogs?: Catalogs
     readonly updatedProjects: UpdatedProject[]
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
@@ -800,9 +801,10 @@ Note that in CI environments, this setting is enabled by default.`,
         opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles ||
         !upToDateLockfileMajorVersion && !opts.frozenLockfile
       ) {
+        const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
         await writeLockfiles({
           currentLockfile: ctx.currentLockfile,
-          currentLockfileDir: ctx.virtualStoreDir,
+          currentLockfileDir,
           wantedLockfile: ctx.wantedLockfile,
           wantedLockfileDir: ctx.lockfileDir,
           useGitBranchLockfile: opts.useGitBranchLockfile,
@@ -1004,7 +1006,7 @@ export interface UpdatedProject {
 }
 
 interface InstallFunctionResult {
-  updatedCatalogs?: CatalogSnapshots
+  updatedCatalogs?: Catalogs
   newLockfile: LockfileObject
   projects: UpdatedProject[]
   stats?: InstallationResultStats
@@ -1139,6 +1141,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dedupeInjectedDeps: opts.dedupeInjectedDeps,
       dedupePeerDependents: opts.dedupePeerDependents,
       dryRun: opts.lockfileOnly,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       engineStrict: opts.engineStrict,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
@@ -1412,11 +1415,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
+    const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
     await Promise.all([
       opts.useLockfile && opts.saveLockfile
         ? writeLockfiles({
           currentLockfile: result.currentLockfile,
-          currentLockfileDir: ctx.virtualStoreDir,
+          currentLockfileDir,
           wantedLockfile: newLockfile,
           wantedLockfileDir: ctx.lockfileDir,
           ...lockfileOpts,

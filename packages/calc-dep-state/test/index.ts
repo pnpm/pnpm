@@ -20,7 +20,7 @@ const depsGraph = {
 
 test('calcDepState()', () => {
   expect(calcDepState(depsGraph, {}, 'registry/foo@1.0.0', {
-    isBuilt: true,
+    includeSubdepsHash: true,
   })).toBe(`${ENGINE_NAME};deps=${hashObject({
     'bar@1.0.0': { 'foo@1.0.0': {} },
   })}`)
@@ -28,6 +28,6 @@ test('calcDepState()', () => {
 
 test('calcDepState() when scripts are ignored', () => {
   expect(calcDepState(depsGraph, {}, 'registry/foo@1.0.0', {
-    isBuilt: false,
+    includeSubdepsHash: false,
   })).toBe(ENGINE_NAME)
 })

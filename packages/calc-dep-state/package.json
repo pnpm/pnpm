@@ -36,7 +36,8 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
-    "@pnpm/types": "workspace:*"
+    "@pnpm/types": "workspace:*",
+    "sort-keys": "catalog:"
   },
   "devDependencies": {
     "@pnpm/calc-dep-state": "workspace:*"

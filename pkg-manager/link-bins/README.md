@@ -2,8 +2,8 @@
 
 > Link bins to node_modules/.bin
 
-<!--@shields('npm', 'travis')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/link-bins.svg)](https://www.npmjs.com/package/@pnpm/link-bins) [![Build Status](https://img.shields.io/travis/pnpm/link-bins/master.svg)](https://travis-ci.org/pnpm/link-bins)
+<!--@shields('npm')-->
+[![npm version](https://img.shields.io/npm/v/@pnpm/link-bins.svg)](https://www.npmjs.com/package/@pnpm/link-bins)
 <!--/@-->
 
 ## Installation

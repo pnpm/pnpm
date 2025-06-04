@@ -110,7 +110,9 @@ export interface RequestPackageOptions {
   alwaysTryWorkspacePackages?: boolean
   currentPkg?: {
     id?: PkgResolutionId
+    name?: string
     resolution?: Resolution
+    version?: string
   }
   /**
    * Expected package is the package name and version that are found in the lockfile.

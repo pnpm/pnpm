@@ -56,7 +56,6 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 | 'sharedWorkspaceLockfile'
-| 'virtualStoreDir'
 | 'workspaceDir'
 | 'patchesDir'
 | 'pnpmfile'
@@ -259,8 +258,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
 
       const wantedLockfilePromise = readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
       if (wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) {
-        const virtualStoreDir = opts.virtualStoreDir ?? path.join(workspaceDir, 'node_modules', '.pnpm')
-        const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
+        const currentLockfile = await readCurrentLockfile(path.join(workspaceDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
         const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir)
         assertLockfilesEqual(currentLockfile, wantedLockfile, workspaceDir)
       }
@@ -275,8 +273,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
 
         if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
         if (wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) {
-          const virtualStoreDir = opts.virtualStoreDir ?? path.join(wantedLockfileDir, 'node_modules', '.pnpm')
-          const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
+          const currentLockfile = await readCurrentLockfile(path.join(wantedLockfileDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
           const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir)
           assertLockfilesEqual(currentLockfile, wantedLockfile, wantedLockfileDir)
         }
@@ -358,15 +355,15 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   }
 
   if (rootProjectManifest && rootProjectManifestDir) {
-    const virtualStoreDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
-    const currentLockfilePromise = readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
+    const internalPnpmDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
+    const currentLockfilePromise = readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
     const wantedLockfilePromise = readWantedLockfile(rootProjectManifestDir, { ignoreIncompatible: false })
     const [
       currentLockfileStats,
       wantedLockfileStats,
       manifestStats,
     ] = await Promise.all([
-      safeStat(path.join(virtualStoreDir, 'lock.yaml')),
+      safeStat(path.join(internalPnpmDir, 'lock.yaml')),
       safeStat(path.join(rootProjectManifestDir, WANTED_LOCKFILE)),
       statManifestFile(rootProjectManifestDir),
     ])
