@@ -105,6 +105,7 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
       }
     })
     .filter(({ name }) => name === pkgName)
+    .sort((v1, v2) => semver.compare(v1.version, v2.version))
 
   return {
     versions,
