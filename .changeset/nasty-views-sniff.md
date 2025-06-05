@@ -1,6 +1,6 @@
 ---
-"@pnpm/lockfile.verification": patch
-"pnpm": patch
+"@pnpm/lockfile.verification": minor
+"pnpm": minor
 ---
 
 Improve the way the error message displays mismatched specifiers.
