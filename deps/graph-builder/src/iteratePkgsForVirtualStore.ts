@@ -73,7 +73,7 @@ function * iteratePkgMeta (lockfile: LockfileObject, graph: DepsGraph<DepPath>):
       name,
       version,
       depPath: depPath as DepPath,
-      pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
+      pkgIdWithPatchHash: graph[depPath as DepPath].pkgIdWithPatchHash ?? dp.getPkgIdWithPatchHash(depPath as DepPath),
       pkgSnapshot,
     }
   }
