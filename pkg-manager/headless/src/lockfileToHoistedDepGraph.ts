@@ -174,7 +174,7 @@ async function fetchDeps (
     }
     const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
     const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
-    const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath, pkgSnapshot.resolution)
+    const pkgIdWithPatchHash = dp.getPkgIdWithPatchHash(depPath)
 
     const pkg = {
       name: pkgName,

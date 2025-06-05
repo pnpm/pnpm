@@ -37,7 +37,7 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
         yield {
           pkgMeta: {
             depPath: depPath as DepPath,
-            pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath, pkgSnapshot.resolution),
+            pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
             name,
             version,
             pkgSnapshot,
@@ -73,7 +73,7 @@ function * iteratePkgMeta (lockfile: LockfileObject, graph: DepsGraph<DepPath>):
       name,
       version,
       depPath: depPath as DepPath,
-      pkgIdWithPatchHash: graph[depPath as DepPath].pkgIdWithPatchHash,
+      pkgIdWithPatchHash: dp.getPkgIdWithPatchHash(depPath as DepPath),
       pkgSnapshot,
     }
   }

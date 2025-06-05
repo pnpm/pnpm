@@ -1400,7 +1400,6 @@ async function resolveDependency (
     ctx.appliedPatches.add(patch.key)
     pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patch.file.hash})` as PkgIdWithPatchHash
   }
-  pkgIdWithPatchHash = dp.createPkgIdWithPatchHash(pkgIdWithPatchHash, pkgResponse.body.resolution)
 
   // We are building the dependency tree only until there are new packages
   // or the packages repeat in a unique order.

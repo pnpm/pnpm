@@ -61,12 +61,12 @@ export function removeSuffix (relDepPath: string): string {
   return relDepPath
 }
 
-export function createPkgIdWithPatchHash (pkgId: string, resolution: LockfileResolution): PkgIdWithPatchHash {
+export function createUniquePackageId (pkgIdWithPatchHash: PkgIdWithPatchHash, resolution: LockfileResolution): string {
   const res = 'integrity' in resolution ? resolution.integrity : JSON.stringify(resolution)
-  return `${pkgId}/${res}` as PkgIdWithPatchHash
+  return `${pkgIdWithPatchHash}/${res}`
 }
 
-export function getPkgIdWithPatchHash (depPath: DepPath, resolution: LockfileResolution): PkgIdWithPatchHash {
+export function getPkgIdWithPatchHash (depPath: DepPath): PkgIdWithPatchHash {
   let pkgId: string = depPath
   const { peersIndex: sepIndex } = indexOfPeersSuffix(pkgId)
   if (sepIndex !== -1) {
@@ -75,7 +75,7 @@ export function getPkgIdWithPatchHash (depPath: DepPath, resolution: LockfileRes
   if (pkgId.includes(':')) {
     pkgId = pkgId.substring(pkgId.indexOf('@', 1) + 1)
   }
-  return createPkgIdWithPatchHash(pkgId, resolution)
+  return pkgId as PkgIdWithPatchHash
 }
 
 export function tryGetPackageId (relDepPath: DepPath): PkgId {
