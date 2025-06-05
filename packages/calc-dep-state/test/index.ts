@@ -4,30 +4,36 @@ import { hashObject } from '@pnpm/crypto.object-hasher'
 import { type PkgIdWithPatchHash } from '@pnpm/types'
 
 const depsGraph = {
-  'registry/foo@1.0.0': {
+  'foo@1.0.0': {
     pkgIdWithPatchHash: 'foo@1.0.0' as PkgIdWithPatchHash,
+    resolution: {
+      integrity: '000',
+    },
     children: {
-      bar: 'registry/bar@1.0.0',
+      bar: 'bar@1.0.0',
     },
   },
-  'registry/bar@1.0.0': {
+  'bar@1.0.0': {
     pkgIdWithPatchHash: 'bar@1.0.0' as PkgIdWithPatchHash,
+    resolution: {
+      integrity: '001',
+    },
     children: {
-      foo: 'registry/foo@1.0.0',
+      foo: 'foo@1.0.0',
     },
   },
 }
 
 test('calcDepState()', () => {
-  expect(calcDepState(depsGraph, {}, 'registry/foo@1.0.0', {
+  expect(calcDepState(depsGraph, {}, 'foo@1.0.0', {
     includeSubdepsHash: true,
   })).toBe(`${ENGINE_NAME};deps=${hashObject({
-    'bar@1.0.0': { 'foo@1.0.0': {} },
+    'bar@1.0.0/001': { 'foo@1.0.0/000': {} },
   })}`)
 })
 
 test('calcDepState() when scripts are ignored', () => {
-  expect(calcDepState(depsGraph, {}, 'registry/foo@1.0.0', {
+  expect(calcDepState(depsGraph, {}, 'foo@1.0.0', {
     includeSubdepsHash: false,
   })).toBe(ENGINE_NAME)
 })
