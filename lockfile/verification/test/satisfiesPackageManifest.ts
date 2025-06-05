@@ -78,7 +78,8 @@ test('satisfiesPackageManifest()', () => {
   )).toStrictEqual({
     satisfies: false,
     detailedReason: `specifiers in the lockfile don't match specifiers in package.json:
-* 1 dependencies were changed: foo (^1.0.0 → ^1.1.0)
+* 1 dependencies are mismatched:
+  - foo (lockfile: ^1.0.0, manifest: ^1.1.0)
 `,
   })
   expect(satisfiesPackageManifest(

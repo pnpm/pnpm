@@ -120,9 +120,10 @@ function displaySpecDiff ({ added, removed, modified }: Diff<string, string>): s
   }
 
   if (modified.length !== 0) {
-    result += `* ${modified.length} dependencies were changed: `
-    result += modified.map(({ key, left, right }) => `${key} (${left} → ${right})`).join(', ')
-    result += '\n'
+    result += `* ${modified.length} dependencies are mismatched:\n`
+    for (const { key, left, right } of modified) {
+      result += `  - ${key} (lockfile: ${left}, manifest: ${right})\n`
+    }
   }
 
   return result
