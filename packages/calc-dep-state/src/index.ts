@@ -33,7 +33,7 @@ export function calcDepState<T extends string> (
 ): string {
   let result = ENGINE_NAME
   if (opts.includeSubdepsHash) {
-    const depStateObj = calcDepStateObj(depPath, depsGraph, cache, new Set())
+    const depStateObj = calcDepStateObj(depsGraph, cache, depPath, new Set())
     result += `;deps=${hashObjectWithoutSorting(depStateObj)}`
   }
   if (opts.patchFileHash) {
@@ -43,30 +43,26 @@ export function calcDepState<T extends string> (
 }
 
 function calcDepStateObj<T extends string> (
-  depPath: T,
   depsGraph: DepsGraph<T>,
   cache: DepsStateCache,
+  depPath: T,
   parents: Set<string>
 ): DepStateObj {
   if (cache[depPath]) return cache[depPath]
   const node = depsGraph[depPath]
   if (!node) return {}
-  if (!node.uniquePkgId) {
-    node.uniquePkgId = createUniquePackageId(node.pkgIdWithPatchHash!, node.resolution!)
-  }
+  node.uniquePkgId ??= createUniquePackageId(node.pkgIdWithPatchHash!, node.resolution!)
   const nextParents = new Set([...Array.from(parents), node.uniquePkgId])
   const state: DepStateObj = {}
   for (const childId of Object.values(node.children)) {
     const child = depsGraph[childId]
     if (!child) continue
-    if (!child.uniquePkgId) {
-      child.uniquePkgId = createUniquePackageId(child.pkgIdWithPatchHash!, child.resolution!)
-    }
+    child.uniquePkgId ??= createUniquePackageId(child.pkgIdWithPatchHash!, child.resolution!)
     if (parents.has(child.uniquePkgId)) {
       state[child.uniquePkgId] = {}
       continue
     }
-    state[child.uniquePkgId] = calcDepStateObj(childId, depsGraph, cache, nextParents)
+    state[child.uniquePkgId] = calcDepStateObj(depsGraph, cache, childId, nextParents)
   }
   cache[depPath] = sortDirectKeys(state)
   return cache[depPath]
@@ -89,10 +85,18 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   graph: DepsGraph<DepPath>,
   pkgMetaIterator: PkgMetaIterator<T>
 ): IterableIterator<HashedDepPath<T>> {
-  const cache: DepsStateCache = {}
+  const _calcDepStateObj = calcDepStateObj.bind(null, graph, {})
   for (const pkgMeta of pkgMetaIterator) {
     const { name, version, depPath } = pkgMeta
-    const state = calcDepState(graph, cache, depPath, { includeSubdepsHash: true })
+
+    const node = graph[depPath]
+    node.uniquePkgId ??= createUniquePackageId(node.pkgIdWithPatchHash!, node.resolution!)
+
+    const state = {
+      engine: ENGINE_NAME,
+      deps: _calcDepStateObj(depPath, new Set()),
+      ownId: node.uniquePkgId,
+    }
     const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
     yield {
       hash: `${name}/${version}/${hexDigest}`,
