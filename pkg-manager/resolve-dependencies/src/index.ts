@@ -281,11 +281,12 @@ export async function resolveDependencies (
   }))
 
   let updatedCatalogs: Record<string, Record<string, string>> | undefined
-  for (const project of projectsToResolve.filter(project => project.updatePackageManifest)) {
+  for (const project of projectsToResolve) {
+    if (project.updatePackageManifest == null) continue
     const resolvedImporter = resolvedImporters[project.id]
-    const specsToUpsert = resolvedImporter.directDependencies
-      .filter((_rdd, index) => project.wantedDependencies[index]?.updateSpec)
-    for (const dep of specsToUpsert) {
+    for (let i = 0; i < resolvedImporter.directDependencies.length; i++) {
+      if (project.wantedDependencies[i]?.updateSpec == null) continue
+      const dep = resolvedImporter.directDependencies[i]
       if (dep.catalogLookup) {
         updatedCatalogs ??= {}
         updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
