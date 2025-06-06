@@ -12,7 +12,7 @@
     "removeComments": false,
     "sourceMap": true,
     "strict": true,
-    "target": "es2021"
+    "target": "es2022"
   },
   "atom": {
     "rewriteTsconfig": true
