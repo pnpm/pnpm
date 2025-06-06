@@ -82,6 +82,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
     latest: Boolean,
     recursive: Boolean,
     workspace: Boolean,
+    long: Boolean,
   }
 }
 
@@ -152,6 +153,10 @@ dependencies is not found inside the workspace',
             name: '--interactive',
             shortAlias: '-i',
           },
+          {
+            description: 'Print details.',
+            name: '--long',
+          },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
@@ -166,6 +171,7 @@ dependencies is not found inside the workspace',
 export type UpdateCommandOptions = InstallCommandOptions & {
   interactive?: boolean
   latest?: boolean
+  long?: boolean
 }
 
 export async function handler (
@@ -208,7 +214,7 @@ async function interactiveUpdate (
     timeout: opts.fetchTimeout,
   })
   const workspacesEnabled = !!opts.workspaceDir
-  const choices = getUpdateChoices(unnest(outdatedPkgsOfProjects), workspacesEnabled)
+  const choices = getUpdateChoices(unnest(outdatedPkgsOfProjects), workspacesEnabled, opts.long)
   if (choices.length === 0) {
     if (opts.latest) {
       return 'All of your dependencies are already up to date'
