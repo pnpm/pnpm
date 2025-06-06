@@ -561,7 +561,13 @@ async function resolveDependenciesOfImporterDependency (
   if (catalogLookup != null) {
     const existingVersion = getCatalogExistingVersionFromSnapshot(catalogLookup, ctx.wantedLockfile, extendedWantedDep.wantedDependency)
 
-    extendedWantedDep.wantedDependency.bareSpecifier = catalogLookup.specifier
+    // If there's an existing version, always use it to prevent "pnpm update"
+    // from updating the catalog protocol. A future change will remove this
+    // condition to support updating specifiers in pnpm-workspace.yaml
+    // functionality.
+    extendedWantedDep.wantedDependency.bareSpecifier = existingVersion !== undefined
+      ? replaceVersionInBareSpecifier(catalogLookup.specifier, existingVersion)
+      : catalogLookup.specifier
     extendedWantedDep.preferredVersion = existingVersion
   }
 
@@ -877,7 +883,13 @@ async function resolveDependenciesOfDependency (
     if (catalogLookup != null) {
       const existingVersion = getCatalogExistingVersionFromSnapshot(catalogLookup, ctx.wantedLockfile, extendedWantedDep.wantedDependency)
 
-      extendedWantedDep.wantedDependency.bareSpecifier = catalogLookup.specifier
+      // If there's an existing version, always use it to prevent "pnpm update"
+      // from updating the catalog protocol. A future change will remove this
+      // condition to support updating specifiers in pnpm-workspace.yaml
+      // functionality.
+      extendedWantedDep.wantedDependency.bareSpecifier = existingVersion !== undefined
+        ? replaceVersionInBareSpecifier(catalogLookup.specifier, existingVersion)
+        : catalogLookup.specifier
       extendedWantedDep.preferredVersion = existingVersion
     }
   }
