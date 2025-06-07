@@ -110,6 +110,7 @@ export async function listForPackages (
     registries?: Registries
     modulesDir?: string
     virtualStoreDirMaxLength: number
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   }
 ): Promise<string> {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -143,6 +144,7 @@ export async function list (
     showExtraneous?: boolean
     modulesDir?: string
     virtualStoreDirMaxLength: number
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   }
 ): Promise<string> {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -163,6 +165,7 @@ export async function list (
           registries: opts.registries,
           modulesDir: opts.modulesDir,
           virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+          nodeLinker: opts.nodeLinker,
         })
     )
       .map(async ([projectPath, dependenciesHierarchy]) => {
