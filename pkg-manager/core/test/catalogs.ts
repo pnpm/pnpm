@@ -1406,6 +1406,71 @@ describe('update', () => {
     expect(Object.keys(lockfile.snapshots)).toEqual(['@pnpm.e2e/foo@1.3.0'])
   })
 
+  test('update works on named catalog', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo',
+      },
+    }])
+
+    // Start by using 1.0.0 as the specifier. We'll then change this to ^1.0.0
+    // and to test pnpm properly updates from 1.0.0 to 1.3.0.
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs: {
+        foo: { '@pnpm.e2e/foo': '1.0.0' },
+      },
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Changing the catalog from 1.0.0 to ^1.0.0. This should still lock to the
+    // existing 1.0.0 version despite version 1.3.0 available on the registry.
+    mutateOpts.catalogs.foo['@pnpm.e2e/foo'] = '^1.0.0'
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    // Sanity check that the @pnpm.e2e/foo dependency is installed on the older
+    // requested version.
+    expect(readLockfile().catalogs.foo).toEqual({
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.0.0' },
+    })
+
+    const { updatedCatalogs, updatedManifest } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      ['@pnpm.e2e/foo'],
+      {
+        ...mutateOpts,
+        dir: path.join(options.lockfileDir, 'project1'),
+        update: true,
+      })
+
+    // Expecting the manifest to remain unchanged after running an update. The
+    // change should be reflected in the returned updatedCatalogs object
+    // instead.
+    expect(updatedManifest).toEqual({
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:foo',
+      },
+    })
+    expect(updatedCatalogs).toEqual({
+      foo: {
+        '@pnpm.e2e/foo': '^1.3.0',
+      },
+    })
+
+    // The lockfile should also contain the updated ^1.3.0 reference.
+    const lockfile = readLockfile()
+    expect(lockfile.catalogs).toEqual({
+      foo: { '@pnpm.e2e/foo': { specifier: '^1.3.0', version: '1.3.0' } },
+    })
+
+    // Ensure the old 1.0.0 version is no longer used.
+    expect(Object.keys(lockfile.snapshots)).toEqual(['@pnpm.e2e/foo@1.3.0'])
+  })
+
   test('update --latest works on cataloged dependency', async () => {
     await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
 
