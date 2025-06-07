@@ -310,7 +310,9 @@ async function _rebuild (
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => true)
   const allowBuild = (pkgName: string) => {
     if (_allowBuild(pkgName)) return true
-    ignoredPkgs.push(pkgName)
+    if (!opts.ignoredBuiltDependencies?.includes(pkgName)) {
+      ignoredPkgs.push(pkgName)
+    }
     return false
   }
   const builtDepPaths = new Set<string>()
