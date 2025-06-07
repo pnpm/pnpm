@@ -28,7 +28,18 @@ test('calcDepState()', () => {
   expect(calcDepState(depsGraph, {}, 'foo@1.0.0', {
     includeSubdepsHash: true,
   })).toBe(`${ENGINE_NAME};deps=${hashObject({
-    'bar@1.0.0/001': hashObject({ 'foo@1.0.0/000': '' }),
+    uniquePkgId: 'foo@1.0.0/000',
+    deps: {
+      bar: hashObject({
+        uniquePkgId: 'bar@1.0.0/001',
+        deps: {
+          foo: hashObject({
+            uniquePkgId: 'foo@1.0.0/000',
+            deps: {},
+          }),
+        },
+      }),
+    },
   })}`)
 })
 

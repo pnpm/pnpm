@@ -47,19 +47,22 @@ function calcDepGraphHash<T extends string> (
   const node = depsGraph[depPath]
   if (!node) return ''
   node.uniquePkgId ??= createUniquePackageId(node.pkgIdWithPatchHash!, node.resolution!)
-  const nextParents = new Set([...Array.from(parents), node.uniquePkgId])
   const state: Record<string, string> = {}
-  for (const childId of Object.values(node.children)) {
-    const child = depsGraph[childId]
-    if (!child) continue
-    child.uniquePkgId ??= createUniquePackageId(child.pkgIdWithPatchHash!, child.resolution!)
-    if (parents.has(child.uniquePkgId)) {
-      state[child.uniquePkgId] = ''
-      continue
+  if (Object.keys(node.children).length && !parents.has(node.uniquePkgId)) {
+    const nextParents = new Set([...Array.from(parents), node.uniquePkgId])
+    for (const alias in node.children) {
+      if (Object.prototype.hasOwnProperty.call(node.children, alias)) {
+        const childId = node.children[alias]
+        const child = depsGraph[childId]
+        if (!child) continue
+        state[alias] = calcDepGraphHash(depsGraph, cache, childId, nextParents)
+      }
     }
-    state[child.uniquePkgId] = calcDepGraphHash(depsGraph, cache, childId, nextParents)
   }
-  cache[depPath] = hashObject(state)
+  cache[depPath] = hashObject({
+    uniquePkgId: node.uniquePkgId,
+    deps: state,
+  })
   return cache[depPath]
 }
 
@@ -83,10 +86,6 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   const _calcDepGraphHash = calcDepGraphHash.bind(null, graph, {})
   for (const pkgMeta of pkgMetaIterator) {
     const { name, version, depPath } = pkgMeta
-
-    const node = graph[depPath]
-    node.uniquePkgId ??= createUniquePackageId(node.pkgIdWithPatchHash!, node.resolution!)
-
     const state = {
       // Unfortunately, we need to include the engine name in the hash,
       // even though it's only required for packages that are built,
@@ -97,7 +96,6 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
       // so we can't determine at this stage which dependencies will be built.
       engine: ENGINE_NAME,
       deps: _calcDepGraphHash(depPath, new Set()),
-      ownId: node.uniquePkgId,
     }
     const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
     yield {
