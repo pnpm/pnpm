@@ -93,6 +93,13 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
     node.uniquePkgId ??= createUniquePackageId(node.pkgIdWithPatchHash!, node.resolution!)
 
     const state = {
+      // Unfortunately, we need to include the engine name in the hash,
+      // even though it's only required for packages that are built,
+      // or have dependencies that are built.
+      // We can't know for sure whether a package needs to be built
+      // before it's fetched from the registry.
+      // However, we fetch and write packages to node_modules in random order for performance,
+      // so we can't determine at this stage which dependencies will be built.
       engine: ENGINE_NAME,
       deps: _calcDepStateObj(depPath, new Set()),
       ownId: node.uniquePkgId,
