@@ -1,9 +1,8 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { getPkgIdWithPatchHash, refToRelative, createUniquePackageId } from '@pnpm/dependency-path'
 import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
-import { hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
+import { hashObjectWithoutSorting, hashObject } from '@pnpm/crypto.object-hasher'
 import { type LockfileResolution, type LockfileObject } from '@pnpm/lockfile.types'
-import { sortDirectKeys } from '@pnpm/object.key-sorting'
 
 export type DepsGraph<T extends string> = Record<T, DepsGraphNode<T>>
 
@@ -15,11 +14,7 @@ export interface DepsGraphNode<T extends string> {
 }
 
 export interface DepsStateCache {
-  [depPath: string]: DepStateObj
-}
-
-export interface DepStateObj {
-  [depPath: string]: DepStateObj
+  [depPath: string]: string
 }
 
 export function calcDepState<T extends string> (
@@ -33,8 +28,8 @@ export function calcDepState<T extends string> (
 ): string {
   let result = ENGINE_NAME
   if (opts.includeSubdepsHash) {
-    const depStateObj = calcDepStateObj(depsGraph, cache, depPath, new Set())
-    result += `;deps=${hashObjectWithoutSorting(depStateObj)}`
+    const depGraphHash = calcDepGraphHash(depsGraph, cache, depPath, new Set())
+    result += `;deps=${depGraphHash}`
   }
   if (opts.patchFileHash) {
     result += `;patch=${opts.patchFileHash}`
@@ -42,29 +37,29 @@ export function calcDepState<T extends string> (
   return result
 }
 
-function calcDepStateObj<T extends string> (
+function calcDepGraphHash<T extends string> (
   depsGraph: DepsGraph<T>,
   cache: DepsStateCache,
   depPath: T,
   parents: Set<string>
-): DepStateObj {
+): string {
   if (cache[depPath]) return cache[depPath]
   const node = depsGraph[depPath]
-  if (!node) return {}
+  if (!node) return ''
   node.uniquePkgId ??= createUniquePackageId(node.pkgIdWithPatchHash!, node.resolution!)
   const nextParents = new Set([...Array.from(parents), node.uniquePkgId])
-  const state: DepStateObj = {}
+  const state: Record<string, string> = {}
   for (const childId of Object.values(node.children)) {
     const child = depsGraph[childId]
     if (!child) continue
     child.uniquePkgId ??= createUniquePackageId(child.pkgIdWithPatchHash!, child.resolution!)
     if (parents.has(child.uniquePkgId)) {
-      state[child.uniquePkgId] = {}
+      state[child.uniquePkgId] = ''
       continue
     }
-    state[child.uniquePkgId] = calcDepStateObj(depsGraph, cache, childId, nextParents)
+    state[child.uniquePkgId] = calcDepGraphHash(depsGraph, cache, childId, nextParents)
   }
-  cache[depPath] = sortDirectKeys(state)
+  cache[depPath] = hashObject(state)
   return cache[depPath]
 }
 
@@ -85,7 +80,7 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   graph: DepsGraph<DepPath>,
   pkgMetaIterator: PkgMetaIterator<T>
 ): IterableIterator<HashedDepPath<T>> {
-  const _calcDepStateObj = calcDepStateObj.bind(null, graph, {})
+  const _calcDepGraphHash = calcDepGraphHash.bind(null, graph, {})
   for (const pkgMeta of pkgMetaIterator) {
     const { name, version, depPath } = pkgMeta
 
@@ -101,7 +96,7 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
       // However, we fetch and write packages to node_modules in random order for performance,
       // so we can't determine at this stage which dependencies will be built.
       engine: ENGINE_NAME,
-      deps: _calcDepStateObj(depPath, new Set()),
+      deps: _calcDepGraphHash(depPath, new Set()),
       ownId: node.uniquePkgId,
     }
     const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
