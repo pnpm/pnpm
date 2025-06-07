@@ -7,6 +7,10 @@ permissions:
 
 jobs:
   build:
+    # Skip pull_request events from PRs in the same repo. This prevents
+    # duplicate build jobs from running when creating a PR in the original repo.
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository }}
+
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.platform }}-${{ matrix.node[0] }}
       cancel-in-progress: true
