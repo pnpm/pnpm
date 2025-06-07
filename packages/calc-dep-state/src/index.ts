@@ -10,7 +10,9 @@ export interface DepsGraphNode<T extends string> {
   children: { [alias: string]: T }
   pkgIdWithPatchHash?: PkgIdWithPatchHash
   resolution?: LockfileResolution
-  uniquePkgId?: string
+  // The full package ID is a unique fingerprint based on the package’s
+  // integrity checksum, patch information, and other resolution data.
+  fullPkgId?: string
 }
 
 export interface DepsStateCache {
@@ -46,10 +48,10 @@ function calcDepGraphHash<T extends string> (
   if (cache[depPath]) return cache[depPath]
   const node = depsGraph[depPath]
   if (!node) return ''
-  node.uniquePkgId ??= createUniquePackageId(node.pkgIdWithPatchHash!, node.resolution!)
+  node.fullPkgId ??= createFullPkgId(node.pkgIdWithPatchHash!, node.resolution!)
   const deps: Record<string, string> = {}
-  if (Object.keys(node.children).length && !parents.has(node.uniquePkgId)) {
-    const nextParents = new Set([...Array.from(parents), node.uniquePkgId])
+  if (Object.keys(node.children).length && !parents.has(node.fullPkgId)) {
+    const nextParents = new Set([...Array.from(parents), node.fullPkgId])
     const _calcDepGraphHash = calcDepGraphHash.bind(null, depsGraph, cache, nextParents)
     for (const alias in node.children) {
       if (Object.prototype.hasOwnProperty.call(node.children, alias)) {
@@ -59,7 +61,7 @@ function calcDepGraphHash<T extends string> (
     }
   }
   cache[depPath] = hashObject({
-    id: node.uniquePkgId,
+    id: node.fullPkgId,
     deps,
   })
   return cache[depPath]
@@ -114,7 +116,7 @@ export function lockfileToDepGraph (lockfile: LockfileObject): DepsGraph<DepPath
       })
       graph[depPath as DepPath] = {
         children,
-        uniquePkgId: createUniquePackageId(getPkgIdWithPatchHash(depPath as DepPath), pkgSnapshot.resolution),
+        fullPkgId: createFullPkgId(getPkgIdWithPatchHash(depPath as DepPath), pkgSnapshot.resolution),
       }
     }
   }
@@ -132,7 +134,7 @@ function lockfileDepsToGraphChildren (deps: Record<string, string>): Record<stri
   return children
 }
 
-function createUniquePackageId (pkgIdWithPatchHash: PkgIdWithPatchHash, resolution: LockfileResolution): string {
+function createFullPkgId (pkgIdWithPatchHash: PkgIdWithPatchHash, resolution: LockfileResolution): string {
   const res = 'integrity' in resolution ? resolution.integrity : JSON.stringify(resolution)
-  return `${pkgIdWithPatchHash}/${res}`
+  return `${pkgIdWithPatchHash}:${res}`
 }

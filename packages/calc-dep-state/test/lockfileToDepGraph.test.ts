@@ -36,18 +36,18 @@ test('lockfileToDepGraph', () => {
       children: {
         qar: 'qar@1.0.0',
       },
-      uniquePkgId: 'bar@1.0.0/1',
+      fullPkgId: 'bar@1.0.0:1',
     },
     'foo@1.0.0': {
       children: {
         bar: 'bar@1.0.0',
         qar: 'qar@1.0.0',
       },
-      uniquePkgId: 'foo@1.0.0/0',
+      fullPkgId: 'foo@1.0.0:0',
     },
     'qar@1.0.0': {
       children: {},
-      uniquePkgId: 'qar@1.0.0/2',
+      fullPkgId: 'qar@1.0.0:2',
     },
   })
 })

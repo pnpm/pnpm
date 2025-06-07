@@ -682,10 +682,10 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
-    id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0/${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
+    id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
     deps: {
       '@pnpm.e2e/hello-world-js-bin': hashObject({
-        id: `@pnpm.e2e/hello-world-js-bin@1.0.0/${getIntegrity('@pnpm.e2e/hello-world-js-bin', '1.0.0')}`,
+        id: `@pnpm.e2e/hello-world-js-bin@1.0.0:${getIntegrity('@pnpm.e2e/hello-world-js-bin', '1.0.0')}`,
         deps: {},
       }),
     },

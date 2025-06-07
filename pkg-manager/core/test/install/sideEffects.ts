@@ -86,10 +86,10 @@ test('using side effects cache', async () => {
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
-    id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0/${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
+    id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
     deps: {
       '@pnpm.e2e/hello-world-js-bin': hashObject({
-        id: `@pnpm.e2e/hello-world-js-bin@1.0.0/${getIntegrity('@pnpm.e2e/hello-world-js-bin', '1.0.0')}`,
+        id: `@pnpm.e2e/hello-world-js-bin@1.0.0:${getIntegrity('@pnpm.e2e/hello-world-js-bin', '1.0.0')}`,
         deps: {},
       }),
     },
@@ -183,7 +183,7 @@ test('a postinstall script does not modify the original sources added to the sto
   const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0'), '@pnpm/postinstall-modifies-source@1.0.0')
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
   const patchedFileIntegrity = filesIndex.sideEffects?.[`${ENGINE_NAME};deps=${hashObject({
-    id: `@pnpm/postinstall-modifies-source@1.0.0/${getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0')}`,
+    id: `@pnpm/postinstall-modifies-source@1.0.0:${getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0')}`,
     deps: {},
   })}`].added?.['empty-file.txt']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
@@ -209,10 +209,10 @@ test('a corrupted side-effects cache is ignored', async () => {
   const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
-    id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0/${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
+    id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
     deps: {
       '@pnpm.e2e/hello-world-js-bin': hashObject({
-        id: `@pnpm.e2e/hello-world-js-bin@1.0.0/${getIntegrity('@pnpm.e2e/hello-world-js-bin', '1.0.0')}`,
+        id: `@pnpm.e2e/hello-world-js-bin@1.0.0:${getIntegrity('@pnpm.e2e/hello-world-js-bin', '1.0.0')}`,
         deps: {},
       }),
     },

@@ -28,13 +28,13 @@ test('calcDepState()', () => {
   expect(calcDepState(depsGraph, {}, 'foo@1.0.0', {
     includeDepGraphHash: true,
   })).toBe(`${ENGINE_NAME};deps=${hashObject({
-    id: 'foo@1.0.0/000',
+    id: 'foo@1.0.0:000',
     deps: {
       bar: hashObject({
-        id: 'bar@1.0.0/001',
+        id: 'bar@1.0.0:001',
         deps: {
           foo: hashObject({
-            id: 'foo@1.0.0/000',
+            id: 'foo@1.0.0:000',
             deps: {},
           }),
         },
