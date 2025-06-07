@@ -242,7 +242,7 @@ export async function resolveDependencyTree<T> (
       if (existingCatalog != null) {
         if (existingCatalog !== normalizedBareSpecifier) {
           globalWarn(
-            `Skip adding ${alias} to catalogs.${saveCatalogName} because it already exists as ${existingCatalog}`
+            `Skip adding ${alias} to the default catalog because it already exists as ${existingCatalog}. Please use \`pnpm update\` to update the catalogs.`
           )
         }
       } else if (saveCatalogName != null && normalizedBareSpecifier != null && version != null) {
