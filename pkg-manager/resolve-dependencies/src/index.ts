@@ -287,11 +287,10 @@ export async function resolveDependencies (
     for (let i = 0; i < resolvedImporter.directDependencies.length; i++) {
       if (project.wantedDependencies[i]?.updateSpec == null) continue
       const dep = resolvedImporter.directDependencies[i]
-      if (dep.catalogLookup) {
-        updatedCatalogs ??= {}
-        updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
-        updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier ?? dep.catalogLookup.userSpecifiedBareSpecifier
-      }
+      if (dep.catalogLookup == null) continue
+      updatedCatalogs ??= {}
+      updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
+      updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier ?? dep.catalogLookup.userSpecifiedBareSpecifier
     }
   }
 
