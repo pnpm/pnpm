@@ -282,7 +282,7 @@ export async function resolveDependencies (
 
   let updatedCatalogs: Record<string, Record<string, string>> | undefined
   for (const project of projectsToResolve) {
-    if (project.updatePackageManifest == null) continue
+    if (!project.updatePackageManifest) continue
     const resolvedImporter = resolvedImporters[project.id]
     for (let i = 0; i < resolvedImporter.directDependencies.length; i++) {
       if (project.wantedDependencies[i]?.updateSpec == null) continue
