@@ -261,6 +261,7 @@ async function deployFromSharedLockfile (
       modulesDir: undefined,
       confirmModulesPurge: false,
       frozenLockfile: true,
+      overrides: undefined, // the effects of the overrides should already be part of the package snapshots
       hooks: {
         ...opts.hooks,
         readPackage: [

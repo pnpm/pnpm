@@ -120,6 +120,7 @@ export function createDeployFiles ({
     lockfile: {
       ...lockfile,
       patchedDependencies: undefined,
+      overrides: undefined, // the effects of the overrides should already be part of the package snapshots
       packageExtensionsChecksum: undefined, // the effects of the package extensions should already be part of the package snapshots
       pnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
       importers: {
@@ -135,6 +136,7 @@ export function createDeployFiles ({
       pnpm: {
         ...rootProjectManifest?.pnpm,
         ...pick(USEFUL_NON_ROOT_PNPM_FIELDS, selectedProjectManifest.pnpm ?? {}),
+        overrides: undefined, // the effects of the overrides should already be part of the package snapshots
         patchedDependencies: undefined,
         packageExtensions: undefined, // the effects of the package extensions should already be part of the package snapshots
       },
