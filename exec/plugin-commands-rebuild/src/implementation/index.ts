@@ -345,7 +345,7 @@ async function _rebuild (
           const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, resolution.integrity!.toString(), pkgId)
           const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
           sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
-            includeSubdepsHash: true,
+            includeDepGraphHash: true,
           })
           if (pkgFilesIndex.sideEffects?.[sideEffectsCacheKey]) {
             pkgsThatWereRebuilt.add(depPath)
@@ -378,7 +378,7 @@ async function _rebuild (
           try {
             if (!sideEffectsCacheKey) {
               sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
-                includeSubdepsHash: true,
+                includeDepGraphHash: true,
               })
             }
             await opts.storeController.upload(pkgRoot, {

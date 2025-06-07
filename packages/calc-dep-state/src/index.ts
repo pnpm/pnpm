@@ -1,5 +1,5 @@
 import { ENGINE_NAME } from '@pnpm/constants'
-import { getPkgIdWithPatchHash, refToRelative, createUniquePackageId } from '@pnpm/dependency-path'
+import { getPkgIdWithPatchHash, refToRelative } from '@pnpm/dependency-path'
 import { type DepPath, type PkgIdWithPatchHash } from '@pnpm/types'
 import { hashObjectWithoutSorting, hashObject } from '@pnpm/crypto.object-hasher'
 import { type LockfileResolution, type LockfileObject } from '@pnpm/lockfile.types'
@@ -23,11 +23,11 @@ export function calcDepState<T extends string> (
   depPath: string,
   opts: {
     patchFileHash?: string
-    includeSubdepsHash: boolean
+    includeDepGraphHash: boolean
   }
 ): string {
   let result = ENGINE_NAME
-  if (opts.includeSubdepsHash) {
+  if (opts.includeDepGraphHash) {
     const depGraphHash = calcDepGraphHash(depsGraph, cache, new Set(), depPath)
     result += `;deps=${depGraphHash}`
   }
@@ -47,20 +47,20 @@ function calcDepGraphHash<T extends string> (
   const node = depsGraph[depPath]
   if (!node) return ''
   node.uniquePkgId ??= createUniquePackageId(node.pkgIdWithPatchHash!, node.resolution!)
-  const state: Record<string, string> = {}
+  const deps: Record<string, string> = {}
   if (Object.keys(node.children).length && !parents.has(node.uniquePkgId)) {
     const nextParents = new Set([...Array.from(parents), node.uniquePkgId])
     const _calcDepGraphHash = calcDepGraphHash.bind(null, depsGraph, cache, nextParents)
     for (const alias in node.children) {
       if (Object.prototype.hasOwnProperty.call(node.children, alias)) {
         const childId = node.children[alias]
-        state[alias] = _calcDepGraphHash(childId)
+        deps[alias] = _calcDepGraphHash(childId)
       }
     }
   }
   cache[depPath] = hashObject({
-    uniquePkgId: node.uniquePkgId,
-    deps: state,
+    id: node.uniquePkgId,
+    deps,
   })
   return cache[depPath]
 }
@@ -130,4 +130,9 @@ function lockfileDepsToGraphChildren (deps: Record<string, string>): Record<stri
     }
   }
   return children
+}
+
+function createUniquePackageId (pkgIdWithPatchHash: PkgIdWithPatchHash, resolution: LockfileResolution): string {
+  const res = 'integrity' in resolution ? resolution.integrity : JSON.stringify(resolution)
+  return `${pkgIdWithPatchHash}/${res}`
 }

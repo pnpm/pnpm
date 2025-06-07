@@ -4008,9 +4008,6 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
-      '@pnpm/lockfile.types':
-        specifier: workspace:*
-        version: link:../../lockfile/types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types

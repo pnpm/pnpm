@@ -1,6 +1,5 @@
 import { createShortHash } from '@pnpm/crypto.hash'
 import { type DepPath, type PkgResolutionId, type Registries, type PkgId, type PkgIdWithPatchHash } from '@pnpm/types'
-import { type LockfileResolution } from '@pnpm/lockfile.types'
 import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string): boolean {
@@ -59,11 +58,6 @@ export function removeSuffix (relDepPath: string): string {
     return relDepPath.substring(0, peersIndex)
   }
   return relDepPath
-}
-
-export function createUniquePackageId (pkgIdWithPatchHash: PkgIdWithPatchHash, resolution: LockfileResolution): string {
-  const res = 'integrity' in resolution ? resolution.integrity : JSON.stringify(resolution)
-  return `${pkgIdWithPatchHash}/${res}`
 }
 
 export function getPkgIdWithPatchHash (depPath: DepPath): PkgIdWithPatchHash {

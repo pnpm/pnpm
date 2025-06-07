@@ -13,9 +13,6 @@
       "path": "../../crypto/hash"
     },
     {
-      "path": "../../lockfile/types"
-    },
-    {
       "path": "../types"
     }
   ]

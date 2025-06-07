@@ -26,15 +26,15 @@ const depsGraph = {
 
 test('calcDepState()', () => {
   expect(calcDepState(depsGraph, {}, 'foo@1.0.0', {
-    includeSubdepsHash: true,
+    includeDepGraphHash: true,
   })).toBe(`${ENGINE_NAME};deps=${hashObject({
-    uniquePkgId: 'foo@1.0.0/000',
+    id: 'foo@1.0.0/000',
     deps: {
       bar: hashObject({
-        uniquePkgId: 'bar@1.0.0/001',
+        id: 'bar@1.0.0/001',
         deps: {
           foo: hashObject({
-            uniquePkgId: 'foo@1.0.0/000',
+            id: 'foo@1.0.0/000',
             deps: {},
           }),
         },
@@ -45,6 +45,6 @@ test('calcDepState()', () => {
 
 test('calcDepState() when scripts are ignored', () => {
   expect(calcDepState(depsGraph, {}, 'foo@1.0.0', {
-    includeSubdepsHash: false,
+    includeDepGraphHash: false,
   })).toBe(ENGINE_NAME)
 })

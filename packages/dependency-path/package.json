@@ -33,7 +33,6 @@
   },
   "dependencies": {
     "@pnpm/crypto.hash": "workspace:*",
-    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "semver": "catalog:"
   },
