@@ -3,7 +3,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   progressLogger,
 } from '@pnpm/core-loggers'
-import { type LockfileObject } from '@pnpm/lockfile.fs'
+import { type LockfileResolution, type LockfileObject } from '@pnpm/lockfile.fs'
 import {
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
@@ -44,6 +44,7 @@ export interface DependenciesGraphNode {
   hasBin: boolean
   filesIndexFile?: string
   patch?: PatchInfo
+  resolution: LockfileResolution
 }
 
 export interface DependenciesGraph {
@@ -227,6 +228,7 @@ async function buildGraphFromPackages (
       graph[dir] = {
         children: {},
         pkgIdWithPatchHash,
+        resolution: pkgSnapshot.resolution,
         depPath,
         dir,
         fetching: fetchResponse.fetching,

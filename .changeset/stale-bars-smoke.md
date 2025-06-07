@@ -2,4 +2,4 @@
 "@pnpm/calc-dep-state": major
 ---
 
-Renamed `isBuilt` option to `includeSubdepsHash`.
+Renamed `isBuilt` option to `includeDepGraphHash`.
