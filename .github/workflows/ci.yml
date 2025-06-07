@@ -7,6 +7,10 @@ permissions:
 
 jobs:
   build:
+    # Skip pull request events that aren't forks. This prevents two build jobs
+    # from running when creating a PR in the original repo.
+    if: "!(github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork)"
+
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.platform }}-${{ matrix.node[0] }}
       cancel-in-progress: true
