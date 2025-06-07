@@ -554,11 +554,21 @@ async function resolveDependenciesOfImporterDependency (
   })
   const originalBareSpecifier = extendedWantedDep.wantedDependency.bareSpecifier
 
+  // The lockfile from a previous installation may have already resolved this
+  // cataloged dependency. Reuse the exact version in the lockfile catalog
+  // snapshot to ensure all projects using the same cataloged dependency get the
+  // same version.
   if (catalogLookup != null) {
-    extendedWantedDep.wantedDependency.bareSpecifier = getCatalogReplacementBareSpecifier(
-      catalogLookup,
-      ctx.wantedLockfile,
-      extendedWantedDep.wantedDependency)
+    const existingVersion = getCatalogExistingVersionFromSnapshot(catalogLookup, ctx.wantedLockfile, extendedWantedDep.wantedDependency)
+
+    // If there's an existing version, always use it to prevent "pnpm update"
+    // from updating the catalog protocol. A future change will remove this
+    // condition to support updating specifiers in pnpm-workspace.yaml
+    // functionality.
+    extendedWantedDep.wantedDependency.bareSpecifier = existingVersion != null
+      ? replaceVersionInBareSpecifier(catalogLookup.specifier, existingVersion)
+      : catalogLookup.specifier
+    extendedWantedDep.preferredVersion = existingVersion
   }
 
   const result = await resolveDependenciesOfDependency(
@@ -775,6 +785,11 @@ function mergePkgsDeps (pkgsDeps: MissingPeers[], opts: { autoInstallPeersFromHi
 
 interface ExtendedWantedDependency {
   infoFromLockfile?: InfoFromLockfile
+  /**
+   * A version from the lockfile to reuse. This is ignored if an update of the
+   * wanted dependency is requested.
+   */
+  preferredVersion?: string
   proceed: boolean
   wantedDependency: WantedDependency & { updateDepth?: number }
 }
@@ -795,12 +810,18 @@ async function resolveDependenciesOfDependency (
     ? extendedWantedDep.wantedDependency.updateDepth
     : options.updateDepth
   const updateShouldContinue = options.currentDepth <= updateDepth
-  const update = ((extendedWantedDep.infoFromLockfile?.dependencyLockfile) == null) ||
-  (
-    updateShouldContinue && (
+  const updateRequested =
+    updateShouldContinue &&
+    (
       (options.updateMatching == null) ||
-      options.updateMatching(extendedWantedDep.infoFromLockfile.name!)
+      (
+        extendedWantedDep.infoFromLockfile?.name != null &&
+        options.updateMatching(extendedWantedDep.infoFromLockfile.name)
+      )
     )
+  const update = updateRequested ||
+  (
+    (extendedWantedDep.infoFromLockfile?.dependencyLockfile) == null
   ) || Boolean(
     (ctx.workspacePackages != null) &&
     ctx.linkWorkspacePackagesDepth !== -1 &&
@@ -817,13 +838,14 @@ async function resolveDependenciesOfDependency (
     parentPkgAliases: options.parentPkgAliases,
     preferredVersions,
     currentPkg: extendedWantedDep.infoFromLockfile ?? undefined,
+    preferredVersion: extendedWantedDep.preferredVersion,
     pickLowestVersion: options.pickLowestVersion,
     prefix: options.prefix,
     proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
     publishedBy: options.publishedBy,
     update: update ? options.updateToLatest ? 'latest' : 'compatible' : false,
     updateDepth,
-    updateMatching: options.updateMatching,
+    updateRequested,
     supportedArchitectures: options.supportedArchitectures,
     parentIds: options.parentIds,
     pinnedVersion: options.pinnedVersion,
@@ -859,10 +881,16 @@ async function resolveDependenciesOfDependency (
     // as an importer separately, and we can rely on that process keeping the
     // importers lockfile catalog snapshots up to date.
     if (catalogLookup != null) {
-      extendedWantedDep.wantedDependency.bareSpecifier = getCatalogReplacementBareSpecifier(
-        catalogLookup,
-        ctx.wantedLockfile,
-        extendedWantedDep.wantedDependency)
+      const existingVersion = getCatalogExistingVersionFromSnapshot(catalogLookup, ctx.wantedLockfile, extendedWantedDep.wantedDependency)
+
+      // If there's an existing version, always use it to prevent "pnpm update"
+      // from updating the catalog protocol. A future change will remove this
+      // condition to support updating specifiers in pnpm-workspace.yaml
+      // functionality.
+      extendedWantedDep.wantedDependency.bareSpecifier = existingVersion != null
+        ? replaceVersionInBareSpecifier(catalogLookup.specifier, existingVersion)
+        : catalogLookup.specifier
+      extendedWantedDep.preferredVersion = existingVersion
     }
   }
 
@@ -1202,6 +1230,7 @@ interface ResolveDependencyOptions {
     resolution?: Resolution
     dependencyLockfile?: PackageSnapshot
   }
+  preferredVersion?: string
   parentPkg: ParentPkg
   parentIds: PkgResolutionId[]
   parentPkgAliases: ParentPkgAliases
@@ -1212,7 +1241,15 @@ interface ResolveDependencyOptions {
   pickLowestVersion?: boolean
   update: false | 'compatible' | 'latest'
   updateDepth: number
-  updateMatching?: UpdateMatchingFunction
+  /**
+   * Whether or not an update is requested based on filter conditions (such as
+   * update depth and package name) on an existing dependency with a resolution
+   * present in the lockfile.
+   *
+   * This is different than the "update" option, which may be set for new
+   * dependencies or packages that need to be re-fetched.
+   */
+  updateRequested: boolean
   supportedArchitectures?: SupportedArchitectures
   pinnedVersion?: PinnedVersion
 }
@@ -1262,6 +1299,9 @@ async function resolveDependency (
     const calcSpecifier = options.currentDepth === 0
     if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifier) {
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version)
+    }
+    if (!options.updateRequested && options.preferredVersion != null) {
+      wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
@@ -1699,21 +1739,16 @@ function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {
   return result
 }
 
-function getCatalogReplacementBareSpecifier (
+function getCatalogExistingVersionFromSnapshot (
   catalogLookup: CatalogResolution,
   wantedLockfile: LockfileObject,
   wantedDependency: WantedDependency
-): string {
-  // The lockfile from a previous installation may have already resolved this
-  // cataloged dependency. Reuse the exact version in the lockfile catalog
-  // snapshot to ensure all projects using the same cataloged dependency get the
-  // same version.
+): string | undefined {
   const existingCatalogResolution = wantedLockfile.catalogs
     ?.[catalogLookup.catalogName]
     ?.[wantedDependency.alias]
-  const replacementBareSpecifier = existingCatalogResolution?.specifier === catalogLookup.specifier
-    ? replaceVersionInBareSpecifier(catalogLookup.specifier, existingCatalogResolution.version)
-    : catalogLookup.specifier
 
-  return replacementBareSpecifier
+  return existingCatalogResolution?.specifier === catalogLookup.specifier
+    ? existingCatalogResolution.version
+    : undefined
 }
