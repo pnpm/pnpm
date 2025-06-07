@@ -1414,22 +1414,21 @@ describe('update', () => {
       },
     }])
 
-    // Start by using 1.0.0 as the specifier. We'll then change this to ^1.0.0
-    // and to test pnpm properly updates from 1.0.0 to 1.3.0.
-    const catalogs = {
-      foo: { '@pnpm.e2e/foo': '1.0.0' },
-    }
     const mutateOpts = {
       ...options,
       lockfileOnly: true,
-      catalogs,
+      catalogs: {
+        // Start by using 1.0.0 as the specifier. We'll then change this to ^1.0.0
+        // and to test pnpm properly updates from 1.0.0 to 1.3.0.
+        foo: { '@pnpm.e2e/foo': '1.0.0' },
+      },
     }
 
     await mutateModules(installProjects(projects), mutateOpts)
 
     // Changing the catalog from 1.0.0 to ^1.0.0. This should still lock to the
     // existing 1.0.0 version despite version 1.3.0 available on the registry.
-    catalogs.foo['@pnpm.e2e/foo'] = '^1.0.0'
+    mutateOpts.catalogs.foo['@pnpm.e2e/foo'] = '^1.0.0'
     await mutateModules(installProjects(projects), mutateOpts)
 
     // Sanity check that the @pnpm.e2e/foo dependency is installed on the older
