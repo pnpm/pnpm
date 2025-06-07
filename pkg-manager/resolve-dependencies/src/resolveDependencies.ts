@@ -565,7 +565,7 @@ async function resolveDependenciesOfImporterDependency (
     // from updating the catalog protocol. A future change will remove this
     // condition to support updating specifiers in pnpm-workspace.yaml
     // functionality.
-    extendedWantedDep.wantedDependency.bareSpecifier = existingVersion !== undefined
+    extendedWantedDep.wantedDependency.bareSpecifier = existingVersion != null
       ? replaceVersionInBareSpecifier(catalogLookup.specifier, existingVersion)
       : catalogLookup.specifier
     extendedWantedDep.preferredVersion = existingVersion
@@ -887,7 +887,7 @@ async function resolveDependenciesOfDependency (
       // from updating the catalog protocol. A future change will remove this
       // condition to support updating specifiers in pnpm-workspace.yaml
       // functionality.
-      extendedWantedDep.wantedDependency.bareSpecifier = existingVersion !== undefined
+      extendedWantedDep.wantedDependency.bareSpecifier = existingVersion != null
         ? replaceVersionInBareSpecifier(catalogLookup.specifier, existingVersion)
         : catalogLookup.specifier
       extendedWantedDep.preferredVersion = existingVersion
@@ -1300,7 +1300,7 @@ async function resolveDependency (
     if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`) && !calcSpecifier) {
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version)
     }
-    if (!options.updateRequested && options.preferredVersion !== undefined) {
+    if (!options.updateRequested && options.preferredVersion != null) {
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
     }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
