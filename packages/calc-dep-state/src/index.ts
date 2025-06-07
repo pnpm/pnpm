@@ -28,7 +28,7 @@ export function calcDepState<T extends string> (
 ): string {
   let result = ENGINE_NAME
   if (opts.includeSubdepsHash) {
-    const depGraphHash = calcDepGraphHash(depsGraph, cache, depPath, new Set())
+    const depGraphHash = calcDepGraphHash(depsGraph, cache, new Set(), depPath)
     result += `;deps=${depGraphHash}`
   }
   if (opts.patchFileHash) {
@@ -40,8 +40,8 @@ export function calcDepState<T extends string> (
 function calcDepGraphHash<T extends string> (
   depsGraph: DepsGraph<T>,
   cache: DepsStateCache,
-  depPath: T,
-  parents: Set<string>
+  parents: Set<string>,
+  depPath: T
 ): string {
   if (cache[depPath]) return cache[depPath]
   const node = depsGraph[depPath]
@@ -50,12 +50,11 @@ function calcDepGraphHash<T extends string> (
   const state: Record<string, string> = {}
   if (Object.keys(node.children).length && !parents.has(node.uniquePkgId)) {
     const nextParents = new Set([...Array.from(parents), node.uniquePkgId])
+    const _calcDepGraphHash = calcDepGraphHash.bind(null, depsGraph, cache, nextParents)
     for (const alias in node.children) {
       if (Object.prototype.hasOwnProperty.call(node.children, alias)) {
         const childId = node.children[alias]
-        const child = depsGraph[childId]
-        if (!child) continue
-        state[alias] = calcDepGraphHash(depsGraph, cache, childId, nextParents)
+        state[alias] = _calcDepGraphHash(childId)
       }
     }
   }
@@ -95,7 +94,7 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
       // However, we fetch and write packages to node_modules in random order for performance,
       // so we can't determine at this stage which dependencies will be built.
       engine: ENGINE_NAME,
-      deps: _calcDepGraphHash(depPath, new Set()),
+      deps: _calcDepGraphHash(new Set(), depPath),
     }
     const hexDigest = hashObjectWithoutSorting(state, { encoding: 'hex' })
     yield {
