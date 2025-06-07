@@ -1542,25 +1542,27 @@ describe('update', () => {
       },
     }])
 
-    // Start by using 1.0.0 as the specifier. We'll then change this to ^1.0.0.
-    const catalogs = {
-      default: {
-        '@pnpm.e2e/foo': '1.0.0',
-        '@pnpm.e2e/bar': '100.0.0',
-      },
-    }
     const mutateOpts = {
       ...options,
       lockfileOnly: true,
-      catalogs,
+      catalogs: {
+        default: {
+          // Start by using 1.0.0 as the specifier. We'll then change this to ^1.0.0.
+          '@pnpm.e2e/foo': '1.0.0',
+          // Start by using 100.0.0 as the specifier. We'll then change this to ^100.0.0.
+          '@pnpm.e2e/bar': '100.0.0',
+        },
+      },
     }
 
     await mutateModules(installProjects(projects), mutateOpts)
 
     // Adding ^ to the catalog config entries. This allows the update process to
     // consider newer versions to update to for this test.
-    catalogs.default['@pnpm.e2e/foo'] = '^1.0.0'
-    catalogs.default['@pnpm.e2e/bar'] = '^100.0.0'
+    mutateOpts.catalogs.default = {
+      '@pnpm.e2e/foo': '^1.0.0',
+      '@pnpm.e2e/bar': '^100.0.0',
+    }
     await mutateModules(installProjects(projects), mutateOpts)
 
     // Sanity check dependencies are still installed on older requested version
