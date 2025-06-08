@@ -104,6 +104,7 @@ catalog:
   '@types/retry': ^0.12.5
   '@types/rimraf': ^3.0.2
   '@types/semver': 7.5.3
+  '@types/shell-quote': ^1.7.5
   '@types/signal-exit': ^3.0.4
   '@types/sinon': ^10.0.20
   '@types/ssri': ^7.1.5
@@ -276,7 +277,7 @@ catalog:
   tree-kill: ^1.2.2
   ts-jest: 29.4.1
   ts-node: ^10.9.2
-  typescript: 5.5.4
+  typescript: 5.8.3
   uuid: ^9.0.1
   v8-compile-cache: 2.4.0
   validate-npm-package-name: 5.0.0
