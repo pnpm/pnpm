@@ -259,7 +259,6 @@ export type InstallCommandOptions = Pick<Config,
 | 'bin'
 | 'catalogs'
 | 'cliOptions'
-| 'ci'
 | 'configDependencies'
 | 'dedupeInjectedDeps'
 | 'dedupeDirectDeps'
@@ -334,7 +333,7 @@ export type InstallCommandOptions = Pick<Config,
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
   confirmModulesPurge?: boolean
-} & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'useLockfile' | 'symlink'>>
+} & Partial<Pick<Config, 'ci' | 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'useLockfile' | 'symlink'>>
 
 export async function handler (opts: InstallCommandOptions): Promise<void> {
   const include = {

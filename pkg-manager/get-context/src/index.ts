@@ -82,6 +82,7 @@ interface HookOptions {
 
 export interface GetContextOptions {
   autoInstallPeers: boolean
+  ci?: boolean
   excludeLinksFromLockfile: boolean
   peersSuffixMaxLength: number
   allProjects: Array<ProjectOptions & HookOptions>
@@ -174,6 +175,7 @@ export async function getContext (
     workspacePackages: opts.workspacePackages ?? arrayOfWorkspacePackagesToMap(opts.allProjects),
     ...await readLockfiles({
       autoInstallPeers: opts.autoInstallPeers,
+      ci: opts.ci,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
       force: opts.force,
@@ -232,6 +234,7 @@ export async function getContextForSingleImporter (
   manifest: ProjectManifest,
   opts: {
     autoInstallPeers: boolean
+    ci?: boolean
     enableGlobalVirtualStore?: boolean
     excludeLinksFromLockfile: boolean
     peersSuffixMaxLength: number
@@ -331,6 +334,7 @@ export async function getContextForSingleImporter (
     virtualStoreDir,
     ...await readLockfiles({
       autoInstallPeers: opts.autoInstallPeers,
+      ci: opts.ci,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
       force: opts.force,
