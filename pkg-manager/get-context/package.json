@@ -38,7 +38,6 @@
     "@pnpm/read-projects-context": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "ci-info": "catalog:",
     "path-absolute": "catalog:",
     "ramda": "catalog:"
   },

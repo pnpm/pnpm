@@ -3,6 +3,7 @@ import npmTypes from '@pnpm/npm-conf/lib/types'
 export const types = Object.assign({
   'auto-install-peers': Boolean,
   bail: Boolean,
+  ci: Boolean,
   'cache-dir': String,
   'catalog-mode': ['strict', 'prefer', 'manual'],
   'child-concurrency': Number,

@@ -223,6 +223,7 @@ export interface Config extends OptionsFromRootManifest {
   initPackageManager: boolean
   initType: 'commonjs' | 'module'
   dangerouslyAllowAllBuilds: boolean
+  ci: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

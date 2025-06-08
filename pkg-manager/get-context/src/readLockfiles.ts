@@ -13,7 +13,6 @@ import {
 } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { type ProjectId, type ProjectRootDir } from '@pnpm/types'
-import { isCI } from 'ci-info'
 import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
 
@@ -30,6 +29,7 @@ export async function readLockfiles (
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
     peersSuffixMaxLength: number
+    ci?: boolean
     force: boolean
     frozenLockfile: boolean
     projects: Array<{
@@ -57,7 +57,7 @@ export async function readLockfiles (
   // ignore `pnpm-lock.yaml` on CI servers
   // a latest pnpm should not break all the builds
   const lockfileOpts = {
-    ignoreIncompatible: opts.force || isCI,
+    ignoreIncompatible: opts.force || opts.ci === true,
     wantedVersions: [LOCKFILE_VERSION],
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
