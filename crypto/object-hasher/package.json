@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/crypto.object-hasher",
-  "version": "1000.0.1",
+  "version": "1000.1.0",
   "description": "Generate hashes from objects",
   "keywords": [
     "pnpm",

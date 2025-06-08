@@ -1,5 +1,13 @@
 # pd
 
+## 1.0.28
+
+### Patch Changes
+
+- Updated dependencies [c8341cc]
+  - @pnpm/workspace.read-manifest@1000.2.0
+  - @pnpm/workspace.find-packages@1000.0.26
+
 ## 1.0.27
 
 ### Patch Changes

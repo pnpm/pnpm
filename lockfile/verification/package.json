@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.verification",
-  "version": "1001.1.7",
+  "version": "1001.2.0",
   "description": "Checks a lockfile",
   "keywords": [
     "pnpm",

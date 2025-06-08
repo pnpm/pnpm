@@ -1,5 +1,16 @@
 # @pnpm/workspace.manifest-writer
 
+## 1000.2.0
+
+### Minor Changes
+
+- c8341cc: Added two new CLI options (`--save-catalog` and `--save-catalog-name=<name>`) to `pnpm add` to save new dependencies as catalog entries. `catalog:` or `catalog:<name>` will be added to `package.json` and the package specifier will be added to the `catalogs` or `catalog[<name>]` object in `pnpm-workspace.yaml` [#9425](https://github.com/pnpm/pnpm/issues/9425).
+
+### Patch Changes
+
+- Updated dependencies [c8341cc]
+  - @pnpm/workspace.read-manifest@1000.2.0
+
 ## 1000.1.4
 
 ### Patch Changes

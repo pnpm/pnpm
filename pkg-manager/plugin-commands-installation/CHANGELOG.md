@@ -1,5 +1,47 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.1.0
+
+### Minor Changes
+
+- b217bbb: Added a new setting called `ci` for explicitly telling pnpm if the current environment is a CI or not.
+- c8341cc: Added two new CLI options (`--save-catalog` and `--save-catalog-name=<name>`) to `pnpm add` to save new dependencies as catalog entries. `catalog:` or `catalog:<name>` will be added to `package.json` and the package specifier will be added to the `catalogs` or `catalog[<name>]` object in `pnpm-workspace.yaml` [#9425](https://github.com/pnpm/pnpm/issues/9425).
+- 046af72: A new `catalogMode` setting is available for controlling if and how dependencies are added to the default catalog. It can be configured to several modes:
+
+  - `strict`: Only allows dependency versions from the catalog. Adding a dependency outside the catalog's version range will cause an error.
+  - `prefer`: Prefers catalog versions, but will fall back to direct dependencies if no compatible version is found.
+  - `manual` (default): Does not automatically add dependencies to the catalog.
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/outdated@1001.0.21
+  - @pnpm/deps.status@1002.1.4
+  - @pnpm/get-context@1001.1.0
+  - @pnpm/core@1008.1.0
+  - @pnpm/config@1004.0.0
+  - @pnpm/workspace.manifest-writer@1000.2.0
+  - @pnpm/package-store@1002.0.5
+  - @pnpm/config.deps-installer@1000.0.6
+  - @pnpm/workspace.pkgs-graph@1000.0.15
+  - @pnpm/plugin-commands-rebuild@1002.0.16
+  - @pnpm/cli-utils@1000.1.6
+  - @pnpm/plugin-commands-env@1000.0.27
+  - @pnpm/store-connection-manager@1002.0.4
+  - @pnpm/workspace.state@1001.1.22
+  - @pnpm/workspace.find-packages@1000.0.26
+  - @pnpm/config.config-writer@1000.0.6
+  - @pnpm/pnpmfile@1001.2.3
+  - @pnpm/filter-workspace-packages@1000.0.26
+
 ## 1004.0.3
 
 ### Patch Changes

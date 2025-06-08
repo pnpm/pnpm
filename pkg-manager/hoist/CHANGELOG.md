@@ -1,5 +1,11 @@
 # @pnpm/hoist
 
+## 1001.0.16
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.12
+
 ## 1001.0.15
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # @pnpm/deps.graph-builder
 
+## 1002.1.0
+
+### Minor Changes
+
+- b0ead51: **Experimental**. Added support for global virtual stores. When the global virtual store is enabled, `node_modules` doesn’t contain regular files, only symlinks to a central virtual store (by default the central store is located at `<store-path>/links`; run `pnpm store path` to find `<store-path>`).
+
+  To enable the global virtual store, add `enableGlobalVirtualStore: true` to your root `pnpm-workspace.yaml`.
+
+  A global virtual store can make installations significantly faster when a warm cache is present. In CI, however, it will probably slow installations because there is usually no cache.
+
+  Related PR: [#8190](https://github.com/pnpm/pnpm/pull/8190).
+
+### Patch Changes
+
+- Updated dependencies [b0ead51]
+- Updated dependencies [b3898db]
+- Updated dependencies [b0ead51]
+  - @pnpm/calc-dep-state@1002.0.0
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/store-controller-types@1003.0.3
+  - @pnpm/lockfile.fs@1001.1.13
+
 ## 1002.0.5
 
 ### Patch Changes

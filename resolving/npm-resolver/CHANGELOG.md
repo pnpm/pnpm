@@ -1,5 +1,18 @@
 # @pnpm/npm-resolver
 
+## 1004.1.0
+
+### Minor Changes
+
+- 2721291: Create different resolver result types which provide more information.
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/crypto.hash@1000.1.1
+
 ## 1004.0.1
 
 ### Patch Changes

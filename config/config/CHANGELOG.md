@@ -1,5 +1,36 @@
 # @pnpm/config
 
+## 1004.0.0
+
+### Major Changes
+
+- b0ead51: Don't return a default value for virtualStoreDir.
+
+### Minor Changes
+
+- b217bbb: Added a new setting called `ci` for explicitly telling pnpm if the current environment is a CI or not.
+- c8341cc: Added two new CLI options (`--save-catalog` and `--save-catalog-name=<name>`) to `pnpm add` to save new dependencies as catalog entries. `catalog:` or `catalog:<name>` will be added to `package.json` and the package specifier will be added to the `catalogs` or `catalog[<name>]` object in `pnpm-workspace.yaml` [#9425](https://github.com/pnpm/pnpm/issues/9425).
+- b0ead51: **Experimental**. Added support for global virtual stores. When the global virtual store is enabled, `node_modules` doesn’t contain regular files, only symlinks to a central virtual store (by default the central store is located at `<store-path>/links`; run `pnpm store path` to find `<store-path>`).
+
+  To enable the global virtual store, add `enableGlobalVirtualStore: true` to your root `pnpm-workspace.yaml`.
+
+  A global virtual store can make installations significantly faster when a warm cache is present. In CI, however, it will probably slow installations because there is usually no cache.
+
+  Related PR: [#8190](https://github.com/pnpm/pnpm/pull/8190).
+
+- 046af72: A new `catalogMode` setting is available for controlling if and how dependencies are added to the default catalog. It can be configured to several modes:
+
+  - `strict`: Only allows dependency versions from the catalog. Adding a dependency outside the catalog's version range will cause an error.
+  - `prefer`: Prefers catalog versions, but will fall back to direct dependencies if no compatible version is found.
+  - `manual` (default): Does not automatically add dependencies to the catalog.
+
+### Patch Changes
+
+- Updated dependencies [c8341cc]
+  - @pnpm/workspace.read-manifest@1000.2.0
+  - @pnpm/catalogs.config@1000.0.2
+  - @pnpm/pnpmfile@1001.2.3
+
 ## 1003.1.1
 
 ### Patch Changes

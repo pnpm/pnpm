@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "1000.0.17",
+  "version": "1000.0.18",
   "description": "List installed packages in a symlinked `node_modules`",
   "keywords": [
     "pnpm",

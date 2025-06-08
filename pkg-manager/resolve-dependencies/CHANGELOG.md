@@ -1,5 +1,34 @@
 # @pnpm/resolve-dependencies
 
+## 1007.1.0
+
+### Minor Changes
+
+- 5ab40c1: The `pnpm update` command now supports updating `catalog:` protocol dependencies and writes new specifiers to `pnpm-workspace.yaml`.
+- c8341cc: Added two new CLI options (`--save-catalog` and `--save-catalog-name=<name>`) to `pnpm add` to save new dependencies as catalog entries. `catalog:` or `catalog:<name>` will be added to `package.json` and the package specifier will be added to the `catalogs` or `catalog[<name>]` object in `pnpm-workspace.yaml` [#9425](https://github.com/pnpm/pnpm/issues/9425).
+- b0ead51: **Experimental**. Added support for global virtual stores. When the global virtual store is enabled, `node_modules` doesn’t contain regular files, only symlinks to a central virtual store (by default the central store is located at `<store-path>/links`; run `pnpm store path` to find `<store-path>`).
+
+  To enable the global virtual store, add `enableGlobalVirtualStore: true` to your root `pnpm-workspace.yaml`.
+
+  A global virtual store can make installations significantly faster when a warm cache is present. In CI, however, it will probably slow installations because there is usually no cache.
+
+  Related PR: [#8190](https://github.com/pnpm/pnpm/pull/8190).
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b3898db]
+- Updated dependencies [b0ead51]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/npm-resolver@1004.1.0
+  - @pnpm/pick-fetcher@1000.0.1
+  - @pnpm/calc-dep-state@1002.0.0
+  - @pnpm/lockfile.preferred-versions@1000.0.14
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/store-controller-types@1003.0.3
+
 ## 1007.0.2
 
 ### Patch Changes

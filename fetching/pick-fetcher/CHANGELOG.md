@@ -1,5 +1,11 @@
 # @pnpm/pick-fetcher
 
+## 1000.0.1
+
+### Patch Changes
+
+- 6acf819: Remove the blanket variant from the `Resolution` type, making it stricter and more useful.
+
 ## 3.0.0
 
 ### Major Changes

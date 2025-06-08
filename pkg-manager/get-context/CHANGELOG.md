@@ -1,5 +1,26 @@
 # @pnpm/get-context
 
+## 1001.1.0
+
+### Minor Changes
+
+- b217bbb: Added a new setting called `ci` for explicitly telling pnpm if the current environment is a CI or not.
+- b0ead51: **Experimental**. Added support for global virtual stores. When the global virtual store is enabled, `node_modules` doesn’t contain regular files, only symlinks to a central virtual store (by default the central store is located at `<store-path>/links`; run `pnpm store path` to find `<store-path>`).
+
+  To enable the global virtual store, add `enableGlobalVirtualStore: true` to your root `pnpm-workspace.yaml`.
+
+  A global virtual store can make installations significantly faster when a warm cache is present. In CI, however, it will probably slow installations because there is usually no cache.
+
+  Related PR: [#8190](https://github.com/pnpm/pnpm/pull/8190).
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/lockfile.fs@1001.1.13
+  - @pnpm/read-projects-context@1000.0.16
+
 ## 1001.0.14
 
 ### Patch Changes

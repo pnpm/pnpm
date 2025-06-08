@@ -1,5 +1,13 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1001.0.15
+
+### Patch Changes
+
+- b0ead51: Read the current lockfile from `node_modules/.pnpm/lock.yaml`, when the project uses a global virtual store.
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/lockfile.fs@1001.1.13
+
 ## 1001.0.14
 
 ### Patch Changes

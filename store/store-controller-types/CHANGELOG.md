@@ -1,5 +1,14 @@
 # @pnpm/store-controller-types
 
+## 1003.0.3
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/fetcher-base@1000.0.12
+
 ## 1003.0.2
 
 ### Patch Changes

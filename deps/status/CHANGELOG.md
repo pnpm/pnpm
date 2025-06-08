@@ -1,5 +1,31 @@
 # @pnpm/deps.status
 
+## 1002.1.4
+
+### Patch Changes
+
+- b0ead51: Read the current lockfile from `node_modules/.pnpm/lock.yaml`, when the project uses a global virtual store.
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+- Updated dependencies [86e0016]
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/lockfile.verification@1001.2.0
+  - @pnpm/get-context@1001.1.0
+  - @pnpm/config@1004.0.0
+  - @pnpm/workspace.read-manifest@1000.2.0
+  - @pnpm/crypto.object-hasher@1000.1.0
+  - @pnpm/workspace.state@1001.1.22
+  - @pnpm/workspace.find-packages@1000.0.26
+  - @pnpm/pnpmfile@1001.2.3
+  - @pnpm/lockfile.fs@1001.1.13
+  - @pnpm/lockfile.settings-checker@1001.0.9
+
 ## 1002.1.3
 
 ### Patch Changes

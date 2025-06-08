@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.25
+
+### Patch Changes
+
+- 1959f99: Revert [#9574](https://github.com/pnpm/pnpm/pull/9574) to fix a regression [#9596](https://github.com/pnpm/pnpm/issues/9596).
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/plugin-commands-installation@1004.1.0
+  - @pnpm/config@1004.0.0
+  - @pnpm/directory-fetcher@1000.1.8
+  - @pnpm/cli-utils@1000.1.6
+  - @pnpm/lockfile.fs@1001.1.13
+  - @pnpm/fs.indexed-pkg-importer@1000.1.9
+
 ## 1001.1.24
 
 ### Patch Changes

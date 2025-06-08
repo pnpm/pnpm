@@ -1,5 +1,61 @@
 # @pnpm/core
 
+## 1008.1.0
+
+### Minor Changes
+
+- b217bbb: Added a new setting called `ci` for explicitly telling pnpm if the current environment is a CI or not.
+- c8341cc: Added two new CLI options (`--save-catalog` and `--save-catalog-name=<name>`) to `pnpm add` to save new dependencies as catalog entries. `catalog:` or `catalog:<name>` will be added to `package.json` and the package specifier will be added to the `catalogs` or `catalog[<name>]` object in `pnpm-workspace.yaml` [#9425](https://github.com/pnpm/pnpm/issues/9425).
+- b0ead51: **Experimental**. Added support for global virtual stores. When the global virtual store is enabled, `node_modules` doesn’t contain regular files, only symlinks to a central virtual store (by default the central store is located at `<store-path>/links`; run `pnpm store path` to find `<store-path>`).
+
+  To enable the global virtual store, add `enableGlobalVirtualStore: true` to your root `pnpm-workspace.yaml`.
+
+  A global virtual store can make installations significantly faster when a warm cache is present. In CI, however, it will probably slow installations because there is usually no cache.
+
+  Related PR: [#8190](https://github.com/pnpm/pnpm/pull/8190).
+
+- 046af72: A new `catalogMode` setting is available for controlling if and how dependencies are added to the default catalog. It can be configured to several modes:
+
+  - `strict`: Only allows dependency versions from the catalog. Adding a dependency outside the catalog's version range will cause an error.
+  - `prefer`: Prefers catalog versions, but will fall back to direct dependencies if no compatible version is found.
+  - `manual` (default): Does not automatically add dependencies to the catalog.
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+- Updated dependencies [5ab40c1]
+- Updated dependencies [86e0016]
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b3898db]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b0ead51]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/resolve-dependencies@1007.1.0
+  - @pnpm/lockfile.verification@1001.2.0
+  - @pnpm/get-context@1001.1.0
+  - @pnpm/calc-dep-state@1002.0.0
+  - @pnpm/headless@1004.1.0
+  - @pnpm/crypto.object-hasher@1000.1.0
+  - @pnpm/lockfile.preferred-versions@1000.0.14
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/package-requester@1004.0.3
+  - @pnpm/store-controller-types@1003.0.3
+  - @pnpm/build-modules@1000.3.7
+  - @pnpm/lifecycle@1001.0.16
+  - @pnpm/lockfile.filtering@1001.0.13
+  - @pnpm/lockfile.fs@1001.1.13
+  - @pnpm/lockfile-to-pnp@1001.0.14
+  - @pnpm/hoist@1001.0.16
+  - @pnpm/modules-cleaner@1001.0.15
+  - @pnpm/worker@1000.1.8
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/symlink-dependency@1000.0.9
+  - @pnpm/lockfile.settings-checker@1001.0.9
+
 ## 1008.0.3
 
 ### Patch Changes

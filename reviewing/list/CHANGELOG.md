@@ -1,5 +1,12 @@
 # @pnpm/list
 
+## 1000.0.18
+
+### Patch Changes
+
+- Updated dependencies [b0ead51]
+  - @pnpm/reviewing.dependencies-hierarchy@1001.0.15
+
 ## 1000.0.17
 
 ### Patch Changes

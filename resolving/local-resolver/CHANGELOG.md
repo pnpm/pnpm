@@ -1,5 +1,18 @@
 # @pnpm/local-resolver
 
+## 1002.0.0
+
+### Major Changes
+
+- 2721291: Create different resolver result types which provide more information.
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/crypto.hash@1000.1.1
+
 ## 1001.0.1
 
 ### Patch Changes
