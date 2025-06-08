@@ -263,8 +263,6 @@ catalog:
   write-yaml-file: ^5.0.0
   yaml-tag: 1.1.0
 
-catalogMode: strict
-
 enableGlobalVirtualStore: true
 
 enablePrePostScripts: false
