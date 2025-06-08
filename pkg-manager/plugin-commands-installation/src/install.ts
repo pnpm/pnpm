@@ -4,7 +4,6 @@ import { type Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { isCI } from 'ci-info'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { installDeps, type InstallDepsOptions } from './installDeps'
@@ -260,6 +259,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'bin'
 | 'catalogs'
 | 'cliOptions'
+| 'ci'
 | 'configDependencies'
 | 'dedupeInjectedDeps'
 | 'dedupeDirectDeps'
@@ -348,7 +348,7 @@ export async function handler (opts: InstallCommandOptions): Promise<void> {
   const installDepsOptions: InstallDepsOptions = {
     ...opts,
     frozenLockfileIfExists: opts.frozenLockfileIfExists ?? (
-      isCI && !opts.lockfileOnly &&
+      opts.ci && !opts.lockfileOnly &&
       typeof opts.rawLocalConfig['frozen-lockfile'] === 'undefined' &&
       typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined'
     ),

@@ -1514,6 +1514,9 @@ importers:
       can-write-to-dir:
         specifier: 'catalog:'
         version: 1.1.1
+      ci-info:
+        specifier: 'catalog:'
+        version: 3.9.0
       is-subdir:
         specifier: 'catalog:'
         version: 1.2.0
@@ -4637,9 +4640,6 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
-      ci-info:
-        specifier: 'catalog:'
-        version: 3.9.0
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
@@ -4737,6 +4737,9 @@ importers:
       '@yarnpkg/core':
         specifier: 'catalog:'
         version: 4.0.5(typanion@3.14.0)
+      ci-info:
+        specifier: 'catalog:'
+        version: 3.9.0
       deep-require-cwd:
         specifier: 'catalog:'
         version: 1.0.0
@@ -4828,9 +4831,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      ci-info:
-        specifier: 'catalog:'
-        version: 3.9.0
       path-absolute:
         specifier: 'catalog:'
         version: 1.0.1
@@ -5508,9 +5508,6 @@ importers:
       chalk:
         specifier: 'catalog:'
         version: 4.1.2
-      ci-info:
-        specifier: 'catalog:'
-        version: 3.9.0
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
@@ -5596,6 +5593,9 @@ importers:
       '@types/zkochan__table':
         specifier: 'catalog:'
         version: '@types/table@6.0.0'
+      ci-info:
+        specifier: 'catalog:'
+        version: 3.9.0
       delay:
         specifier: 'catalog:'
         version: 5.0.0

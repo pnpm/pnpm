@@ -1,6 +1,7 @@
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+import { isCI } from 'ci-info'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -122,6 +123,7 @@ export async function getConfig (opts: {
     'auto-install-peers': true,
     bail: true,
     'catalog-mode': 'manual',
+    ci: isCI,
     color: 'auto',
     'dangerously-allow-all-builds': false,
     'deploy-all-files': false,
@@ -530,6 +532,11 @@ export async function getConfig (opts: {
       warnings.push('You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.')
     }
     pnpmConfig.neverBuiltDependencies = []
+  }
+  if (pnpmConfig.ci) {
+    // Using a global virtual store in CI makes little sense,
+    // as there is never a warm cache in that environment.
+    pnpmConfig.enableGlobalVirtualStore = false
   }
 
   transformPathKeys(pnpmConfig, os.homedir())

@@ -88,7 +88,6 @@ import {
 import { linkPackages } from './link'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
 import { validateModules } from './validateModules'
-import { isCI } from 'ci-info'
 import semver from 'semver'
 import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError'
 
@@ -292,7 +291,7 @@ export async function mutateModules (
       storeDir: opts.storeDir,
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-      confirmModulesPurge: opts.confirmModulesPurge && !isCI,
+      confirmModulesPurge: opts.confirmModulesPurge && !opts.ci,
 
       forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,

@@ -104,7 +104,6 @@
     "@pnpm/symlink-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
-    "ci-info": "catalog:",
     "enquirer": "catalog:",
     "is-inner-link": "catalog:",
     "is-subdir": "catalog:",

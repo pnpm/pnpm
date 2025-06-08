@@ -163,6 +163,7 @@ export interface StrictInstallOptions {
   prepareExecutionEnv?: PrepareExecutionEnv
   returnListOfDepsRequiringBuild?: boolean
   injectWorkspacePackages?: boolean
+  ci?: boolean
 }
 
 export type InstallOptions =

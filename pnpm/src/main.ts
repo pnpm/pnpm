@@ -19,7 +19,6 @@ import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
-import { isCI } from 'ci-info'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
 import { stripVTControlCharacters as stripAnsi } from 'util'
@@ -159,7 +158,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   const reporterType: ReporterType = (() => {
     if (config.loglevel === 'silent') return 'silent'
     if (config.reporter) return config.reporter as ReporterType
-    if (isCI || !process.stdout.isTTY) return 'append-only'
+    if (config.ci || !process.stdout.isTTY) return 'append-only'
     return 'default'
   })()
 
@@ -249,7 +248,7 @@ export async function main (inputArgv: string[]): Promise<void> {
 
     if (
       config.updateNotifier !== false &&
-      !isCI &&
+      !config.ci &&
       cmd !== 'self-update' &&
       !config.offline &&
       !config.preferOffline &&
