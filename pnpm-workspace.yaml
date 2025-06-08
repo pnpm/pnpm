@@ -14,6 +14,7 @@ enablePrePostScripts: false
 managePackageManagerVersions: true
 verifyDepsBeforeRun: install
 optimisticRepeatInstall: true
+enableGlobalVirtualStore: true
 packages:
   - .meta-updater
   - __typecheck__
