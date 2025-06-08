@@ -12,6 +12,9 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "scripts": {
+    "prepublishOnly": "test -f pnpm || (echo 'Error: pnpm is missing' && exit 1)"
+  },
   "devDependencies": {
     "@pnpm/linux-arm64": "workspace:*"
   },
