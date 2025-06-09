@@ -102,6 +102,7 @@ export async function start (
     ignoreStopRequests: opts.ignoreStopRequests,
     ignoreUploadRequests: opts.ignoreUploadRequests,
   })
+  await server.waitForListen
   // Make sure to populate server.json after the server has started, so clients know that the server is
   // listening if a server.json with valid JSON content exists.
   const serverJson = {
