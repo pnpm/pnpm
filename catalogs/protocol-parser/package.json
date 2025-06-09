@@ -28,7 +28,7 @@
     "compile": "tsc --build && pnpm run lint --fix",
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile && pnpm run _test",
-    "_test": "jest"
+    "_test": "exodus-test --jest --esbuild"
   },
   "devDependencies": {
     "@pnpm/catalogs.protocol-parser": "workspace:*"

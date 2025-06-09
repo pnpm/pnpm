@@ -61,7 +61,7 @@
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
-    "_test": "jest",
+    "_test": "exodus-test --jest --esbuild",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm compile && publish-packed --prune --npm-client=pnpm --dest=dist",
     "postpublish": "publish-packed",
@@ -178,6 +178,11 @@
   },
   "pnpm": {
     "overrides": {
+      "@exodus/test>@exodus/test-bundler": "-",
+      "@exodus/test>jest-extended": "-",
+      "@exodus/test>playwright-core": "-",
+      "@exodus/test>puppeteer-core": "-",
+      "@exodus/test>c8": "*",
       "@yarnpkg/fslib@2": "3",
       "body-parser@<1.20.3": "^1.20.3",
       "clipanion": "3.2.0-rc.6",

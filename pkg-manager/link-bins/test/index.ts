@@ -1,12 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import path from 'path'
-import { logger, globalWarn } from '@pnpm/logger'
-import {
-  linkBins,
-  linkBinsOfPackages,
-  linkBinsOfPkgsByAliases,
-} from '@pnpm/link-bins'
 import { fixtures } from '@pnpm/test-fixtures'
 import CMD_EXTENSION from 'cmd-extension'
 import isWindows from 'is-windows'
@@ -14,7 +8,7 @@ import normalizePath from 'normalize-path'
 import tempy from 'tempy'
 import { spawnSync } from 'child_process'
 
-jest.mock('@pnpm/logger', () => {
+jest.doMock('@pnpm/logger', () => {
   const debug = jest.fn()
   const globalWarn = jest.fn()
 
@@ -23,6 +17,13 @@ jest.mock('@pnpm/logger', () => {
     globalWarn,
   }
 })
+
+const { logger, globalWarn } = jest.requireMock('@pnpm/logger')
+const {
+  linkBins,
+  linkBinsOfPackages,
+  linkBinsOfPkgsByAliases,
+} = jest.requireActual('@pnpm/link-bins')
 
 const binsConflictLogger = logger('bins-conflict')
 // The fixture directories are copied to before the tests run

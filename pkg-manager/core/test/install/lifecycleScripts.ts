@@ -20,6 +20,10 @@ import PATH from 'path-name'
 import sinon from 'sinon'
 import { testDefaults } from '../utils'
 
+// We are comparing @pnpm.e2e/count-to-10 output which is logging numbers and expect no colors
+process.env.NO_COLOR = '1'
+process.env.FORCE_COLOR = '0'
+
 const testOnNonWindows = isWindows() ? test.skip : test
 
 test('run pre/postinstall scripts', async () => {

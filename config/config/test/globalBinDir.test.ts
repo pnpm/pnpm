@@ -5,12 +5,11 @@ import path from 'path'
 import pathName from 'path-name'
 import symlinkDir from 'symlink-dir'
 import { homedir } from 'os'
-import { getConfig } from '@pnpm/config'
 
 const globalBinDir = path.join(homedir(), '.local', 'pnpm')
 const isWindows = process.platform === 'win32'
 
-jest.mock('@pnpm/npm-conf/lib/conf', () => {
+jest.doMock('@pnpm/npm-conf/lib/conf', () => {
   const originalModule = jest.requireActual('@pnpm/npm-conf/lib/conf')
   class MockedConf extends originalModule {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -33,6 +32,8 @@ jest.mock('@pnpm/npm-conf/lib/conf', () => {
   }
   return MockedConf
 })
+
+const { getConfig } = jest.requireActual('@pnpm/config')
 
 test('respects global-bin-dir in npmrc', async () => {
   const { config } = await getConfig({

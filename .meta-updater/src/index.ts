@@ -270,9 +270,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     if (manifest.name === '@pnpm/core') {
       // @pnpm/core tests currently works only with port 7769 due to the usage of
       // the next package: pkg-with-tarball-dep-from-registry
-      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} jest`
+      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} exodus-test --jest --esbuild`
     } else {
-      scripts._test = 'jest'
+      scripts._test = 'exodus-test --jest --esbuild'
     }
     break
   }
@@ -280,7 +280,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     if (fs.existsSync(path.join(dir, 'test'))) {
       scripts = {
         ...(manifest.scripts as Record<string, string>),
-        _test: 'jest',
+        _test: 'exodus-test --jest --esbuild',
         test: 'pnpm run compile && pnpm run _test',
       }
     } else {
@@ -300,9 +300,6 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
     if (scripts.posttest) {
       scripts._test = `${scripts._test} && pnpm posttest`
-    }
-    if (manifest.name === '@pnpm/server') {
-      scripts._test += ' --detectOpenHandles'
     }
   }
   scripts.compile = 'tsc --build && pnpm run lint --fix'
