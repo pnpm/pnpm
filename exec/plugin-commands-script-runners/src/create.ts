@@ -8,13 +8,19 @@ import * as dlx from './dlx'
 export const commandNames = ['create']
 
 export async function handler (_opts: dlx.DlxCommandOptions, params: string[]): Promise<{ exitCode: number }> {
+  // If the first argument is --help or -h, we show the help message and exit with code 0.
+  if (params[0] === '--help' || params[0] === '-h') {
+    console.log(help())
+    return { exitCode: 0 }
+  }
+
   const [packageName, ...packageArgs] = params
   if (packageName === undefined) {
     throw new PnpmError(
       'MISSING_ARGS',
       'Missing the template package name.\n' +
-      'The correct usage is `pnpm create <name>` ' +
-      'with <name> substituted for a package name.'
+        'The correct usage is `pnpm create <name>` ' +
+        'with <name> substituted for a package name.'
     )
   }
 
