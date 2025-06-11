@@ -8,7 +8,7 @@ import * as dlx from './dlx'
 export const commandNames = ['create']
 
 export async function handler (_opts: dlx.DlxCommandOptions, params: string[]): Promise<{ exitCode: number } | string> {
-  // If the first argument is --help or -h, we show the help message and exit with code 0.
+  // If the first argument is --help or -h, we show the help message.
   if (params[0] === '--help' || params[0] === '-h') {
     return help()
   }
