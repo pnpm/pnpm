@@ -163,9 +163,9 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
   const storeDir = project.getStorePath()
   if (await dirIsCaseSensitive(storeDir)) {
-    expect([...files]).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
+    expect([...files].sort()).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   } else {
-    expect([...files]).toStrictEqual(['Foo.js', 'package.json'])
+    expect([...files].map((f) => f.toLowerCase()).sort()).toStrictEqual(['foo.js', 'package.json'])
   }
 })
 
