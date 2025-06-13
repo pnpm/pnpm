@@ -420,7 +420,9 @@ test('resolveFromGit() normalizes full url (alternative form 2)', async () => {
 
 // This test relies on implementation detail.
 // current implementation does not try git ls-remote --refs on bareSpecifier with full commit hash, this fake repo url will pass.
-test('resolveFromGit() private repo with commit hash', async () => {
+//
+// Skipped because it prompts for ssh key / github username (and hangs if not reacted to), but passes if none given
+test.skip('resolveFromGit() private repo with commit hash', async () => {
   mockFetchAsPrivate()
   const resolveResult = await resolveFromGit({ bareSpecifier: 'fake/private-repo#2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5' })
   expect(resolveResult).toStrictEqual({
