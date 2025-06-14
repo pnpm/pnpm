@@ -18,8 +18,8 @@ export async function handler (_opts: dlx.DlxCommandOptions, params: string[]): 
     throw new PnpmError(
       'MISSING_ARGS',
       'Missing the template package name.\n' +
-        'The correct usage is `pnpm create <name>` ' +
-        'with <name> substituted for a package name.'
+      'The correct usage is `pnpm create <name>` ' +
+      'with <name> substituted for a package name.'
     )
   }
 
