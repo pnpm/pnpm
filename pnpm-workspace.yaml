@@ -80,7 +80,7 @@ catalog:
   '@types/lodash.kebabcase': 4.1.9
   '@types/lodash.throttle': 4.1.7
   '@types/micromatch': ^4.0.9
-  '@types/node': ^18.19.34
+  '@types/node': ^22.15.30
   '@types/normalize-package-data': ^2.4.4
   '@types/normalize-path': ^3.0.2
   '@types/object-hash': 3.0.6
@@ -91,9 +91,9 @@ catalog:
   '@types/retry': ^0.12.5
   '@types/rimraf': ^3.0.2
   '@types/semver': 7.5.3
+  '@types/shell-quote': ^1.7.5
   '@types/signal-exit': ^3.0.4
   '@types/sinon': ^10.0.20
-  '@types/shell-quote': ^1.7.5
   '@types/ssri': ^7.1.5
   '@types/tar': ^6.1.13
   '@types/tar-stream': ^2.2.3
@@ -115,8 +115,6 @@ catalog:
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^3.0.2
   '@zkochan/table': ^2.0.1
-  dint: ^5.1.0
-  js-yaml: npm:@zkochan/js-yaml@0.0.7
   adm-zip: ^0.5.16
   ansi-diff: ^1.2.0
   archy: ^1.0.0
@@ -140,6 +138,7 @@ catalog:
   delay: ^5.0.0
   detect-libc: ^2.0.3
   didyoumean2: ^6.0.1
+  dint: ^5.1.0
   dir-is-case-sensitive: ^2.0.0
   encode-registry: ^3.0.1
   enquirer: ^2.4.1
@@ -171,6 +170,7 @@ catalog:
   is-windows: ^1.0.2
   isexe: 2.0.0
   jest-diff: ^29.7.0
+  js-yaml: npm:@zkochan/js-yaml@0.0.7
   json5: ^2.2.3
   load-json-file: ^6.2.0
   lodash.kebabcase: ^4.1.1
@@ -251,6 +251,7 @@ catalog:
   tinyglobby: ^0.2.14
   touch: 3.1.0
   tree-kill: ^1.2.2
+  typescript: 5.8.3
   uuid: ^9.0.1
   v8-compile-cache: 2.4.0
   validate-npm-package-name: 5.0.0

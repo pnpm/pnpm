@@ -57,7 +57,7 @@
     "shx": "^0.3.4",
     "ts-jest": "29.2.3",
     "ts-node": "^10.9.2",
-    "typescript": "5.5.4"
+    "typescript": "catalog:"
   },
   "engines": {
     "pnpm": ">=9.6.0"
