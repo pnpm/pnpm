@@ -77,8 +77,8 @@ export function lockfileToPackageRegistry (
     }
   }
   for (const [relDepPath, pkgSnapshot] of Object.entries(lockfile.packages ?? {})) {
-    const { name, version, peersSuffix } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
-    const pnpVersion = toPnPVersion(version, peersSuffix)
+    const { name, version, peerDepsGraphHash } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+    const pnpVersion = toPnPVersion(version, peerDepsGraphHash)
     let packageStore = packageRegistry.get(name)
     if (!packageStore) {
       packageStore = new Map()
@@ -121,8 +121,8 @@ function toPackageDependenciesMap (
     }
     const relDepPath = refToRelative(ref, depAlias)
     if (!relDepPath) return [depAlias, ref]
-    const { name, version, peersSuffix } = nameVerFromPkgSnapshot(relDepPath, lockfile.packages![relDepPath])
-    const pnpVersion = toPnPVersion(version, peersSuffix)
+    const { name, version, peerDepsGraphHash } = nameVerFromPkgSnapshot(relDepPath, lockfile.packages![relDepPath])
+    const pnpVersion = toPnPVersion(version, peerDepsGraphHash)
     if (depAlias === name) {
       return [depAlias, pnpVersion]
     }

@@ -32,7 +32,7 @@ export function indexOfPeersSuffix (depPath: string): { peersIndex: number, patc
 
 export interface ParsedDepPath {
   id: string
-  peersSuffix: string
+  peerDepsGraphHash: string
 }
 
 export function parseDepPath (relDepPath: string): ParsedDepPath {
@@ -40,12 +40,12 @@ export function parseDepPath (relDepPath: string): ParsedDepPath {
   if (peersIndex !== -1) {
     return {
       id: relDepPath.substring(0, peersIndex),
-      peersSuffix: relDepPath.substring(peersIndex),
+      peerDepsGraphHash: relDepPath.substring(peersIndex),
     }
   }
   return {
     id: relDepPath,
-    peersSuffix: '',
+    peerDepsGraphHash: '',
   }
 }
 
@@ -109,7 +109,7 @@ export function refToRelative (
 
 export interface DependencyPath {
   name?: string
-  peersSuffix?: string
+  peerDepsGraphHash?: string
   version?: string
   nonSemverVersion?: PkgResolutionId
   patchHash?: string
@@ -130,7 +130,7 @@ export function parse (dependencyPath: string): DependencyPath {
   const name = dependencyPath.substring(0, sepIndex)
   let version = dependencyPath.substring(sepIndex + 1)
   if (version) {
-    let peersSuffix: string | undefined
+    let peerDepsGraphHash: string | undefined
     let patchHash: string | undefined
     const { peersIndex, patchHashIndex } = indexOfPeersSuffix(version)
     if (peersIndex !== -1 || patchHashIndex !== -1) {
@@ -138,18 +138,18 @@ export function parse (dependencyPath: string): DependencyPath {
         patchHash = version.substring(patchHashIndex)
         version = version.substring(0, patchHashIndex)
       } else if (patchHashIndex === -1) {
-        peersSuffix = version.substring(peersIndex)
+        peerDepsGraphHash = version.substring(peersIndex)
         version = version.substring(0, peersIndex)
       } else {
         patchHash = version.substring(patchHashIndex, peersIndex)
-        peersSuffix = version.substring(peersIndex)
+        peerDepsGraphHash = version.substring(peersIndex)
         version = version.substring(0, patchHashIndex)
       }
     }
     if (semver.valid(version)) {
       return {
         name,
-        peersSuffix,
+        peerDepsGraphHash,
         version,
         patchHash,
       }
@@ -157,7 +157,7 @@ export function parse (dependencyPath: string): DependencyPath {
     return {
       name,
       nonSemverVersion: version as PkgResolutionId,
-      peersSuffix,
+      peerDepsGraphHash,
       patchHash,
     }
   }
