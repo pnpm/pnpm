@@ -9,7 +9,7 @@ test('nameVerFromPkgSnapshot()', () => {
     },
   })).toEqual({
     name: 'foo',
-    peersSuffix: undefined,
+    peerDepGraphHash: undefined,
     version: '1.0.0',
     nonSemverVersion: 'some-weird-path',
   })
@@ -20,7 +20,7 @@ test('nameVerFromPkgSnapshot()', () => {
     },
   })).toEqual({
     name: 'foo',
-    peersSuffix: undefined,
+    peerDepGraphHash: undefined,
     version: '1.0.0',
   })
 
@@ -30,7 +30,7 @@ test('nameVerFromPkgSnapshot()', () => {
     },
   })).toEqual({
     name: 'foo',
-    peersSuffix: '(bar@2.0.0)',
+    peerDepGraphHash: '(bar@2.0.0)',
     version: '1.0.0',
   })
 })

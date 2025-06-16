@@ -6,7 +6,7 @@ export function isAbsolute (dependencyPath: string): boolean {
   return dependencyPath[0] !== '/'
 }
 
-export function indexOfPeersSuffix (depPath: string): { peersIndex: number, patchHashIndex: number } {
+export function indexOfDepPathSuffix (depPath: string): { peersIndex: number, patchHashIndex: number } {
   if (!depPath.endsWith(')')) return { peersIndex: -1, patchHashIndex: -1 }
   let open = 1
   for (let i = depPath.length - 2; i >= 0; i--) {
@@ -32,25 +32,25 @@ export function indexOfPeersSuffix (depPath: string): { peersIndex: number, patc
 
 export interface ParsedDepPath {
   id: string
-  peerDepsGraphHash: string
+  peerDepGraphHash: string
 }
 
 export function parseDepPath (relDepPath: string): ParsedDepPath {
-  const { peersIndex } = indexOfPeersSuffix(relDepPath)
+  const { peersIndex } = indexOfDepPathSuffix(relDepPath)
   if (peersIndex !== -1) {
     return {
       id: relDepPath.substring(0, peersIndex),
-      peerDepsGraphHash: relDepPath.substring(peersIndex),
+      peerDepGraphHash: relDepPath.substring(peersIndex),
     }
   }
   return {
     id: relDepPath,
-    peerDepsGraphHash: '',
+    peerDepGraphHash: '',
   }
 }
 
 export function removeSuffix (relDepPath: string): string {
-  const { peersIndex, patchHashIndex } = indexOfPeersSuffix(relDepPath)
+  const { peersIndex, patchHashIndex } = indexOfDepPathSuffix(relDepPath)
   if (patchHashIndex !== -1) {
     return relDepPath.substring(0, patchHashIndex)
   }
@@ -62,7 +62,7 @@ export function removeSuffix (relDepPath: string): string {
 
 export function getPkgIdWithPatchHash (depPath: DepPath): PkgIdWithPatchHash {
   let pkgId: string = depPath
-  const { peersIndex: sepIndex } = indexOfPeersSuffix(pkgId)
+  const { peersIndex: sepIndex } = indexOfDepPathSuffix(pkgId)
   if (sepIndex !== -1) {
     pkgId = pkgId.substring(0, sepIndex)
   }
@@ -74,7 +74,7 @@ export function getPkgIdWithPatchHash (depPath: DepPath): PkgIdWithPatchHash {
 
 export function tryGetPackageId (relDepPath: DepPath): PkgId {
   let pkgId: string = relDepPath
-  const { peersIndex, patchHashIndex } = indexOfPeersSuffix(pkgId)
+  const { peersIndex, patchHashIndex } = indexOfDepPathSuffix(pkgId)
   const sepIndex = patchHashIndex === -1 ? peersIndex : patchHashIndex
   if (sepIndex !== -1) {
     pkgId = pkgId.substring(0, sepIndex)
@@ -109,7 +109,7 @@ export function refToRelative (
 
 export interface DependencyPath {
   name?: string
-  peerDepsGraphHash?: string
+  peerDepGraphHash?: string
   version?: string
   nonSemverVersion?: PkgResolutionId
   patchHash?: string
@@ -130,26 +130,26 @@ export function parse (dependencyPath: string): DependencyPath {
   const name = dependencyPath.substring(0, sepIndex)
   let version = dependencyPath.substring(sepIndex + 1)
   if (version) {
-    let peerDepsGraphHash: string | undefined
+    let peerDepGraphHash: string | undefined
     let patchHash: string | undefined
-    const { peersIndex, patchHashIndex } = indexOfPeersSuffix(version)
+    const { peersIndex, patchHashIndex } = indexOfDepPathSuffix(version)
     if (peersIndex !== -1 || patchHashIndex !== -1) {
       if (peersIndex === -1) {
         patchHash = version.substring(patchHashIndex)
         version = version.substring(0, patchHashIndex)
       } else if (patchHashIndex === -1) {
-        peerDepsGraphHash = version.substring(peersIndex)
+        peerDepGraphHash = version.substring(peersIndex)
         version = version.substring(0, peersIndex)
       } else {
         patchHash = version.substring(patchHashIndex, peersIndex)
-        peerDepsGraphHash = version.substring(peersIndex)
+        peerDepGraphHash = version.substring(peersIndex)
         version = version.substring(0, patchHashIndex)
       }
     }
     if (semver.valid(version)) {
       return {
         name,
-        peerDepsGraphHash,
+        peerDepGraphHash,
         version,
         patchHash,
       }
@@ -157,7 +157,7 @@ export function parse (dependencyPath: string): DependencyPath {
     return {
       name,
       nonSemverVersion: version as PkgResolutionId,
-      peerDepsGraphHash,
+      peerDepGraphHash,
       patchHash,
     }
   }
@@ -189,9 +189,10 @@ function depPathToFilenameUnescaped (depPath: string): string {
   return depPath.replace(':', '+')
 }
 
+// Peer ID or stringified peer dependency graph
 export type PeerId = { name: string, version: string } | string
 
-export function createPeersDirSuffix (peerIds: PeerId[], maxLength: number = 1000): string {
+export function createPeerDepGraphHash (peerIds: PeerId[], maxLength: number = 1000): string {
   let dirName = peerIds.map(
     (peerId) => {
       if (typeof peerId !== 'string') {

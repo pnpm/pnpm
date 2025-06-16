@@ -254,7 +254,7 @@ function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfile
 
   function resolveScheme (scheme: ResolveLinkOrFileResult['scheme'], base: string): ResolveLinkOrFileResult | undefined {
     if (!pkgVer.startsWith(scheme)) return undefined
-    const { id, peerDepsGraphHash: suffix } = dp.parseDepPath(pkgVer.slice(scheme.length))
+    const { id, peerDepGraphHash: suffix } = dp.parseDepPath(pkgVer.slice(scheme.length))
     const resolvedPath = path.resolve(base, id)
     return { scheme, resolvedPath, suffix }
   }
@@ -262,7 +262,7 @@ function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfile
   const resolveSchemeResult = resolveScheme('file:', lockfileDir) ?? resolveScheme('link:', projectRootDirRealPath)
   if (resolveSchemeResult) return resolveSchemeResult
 
-  const { nonSemverVersion, patchHash, peerDepsGraphHash, version } = dp.parse(pkgVer)
+  const { nonSemverVersion, patchHash, peerDepGraphHash, version } = dp.parse(pkgVer)
   if (!nonSemverVersion) return undefined
 
   if (version) {
@@ -276,7 +276,7 @@ function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfile
     throw new Error(`Something goes wrong, suffix should be undefined but isn't: ${parseResult.suffix}`)
   }
 
-  parseResult.suffix = `${patchHash ?? ''}${peerDepsGraphHash ?? ''}`
+  parseResult.suffix = `${patchHash ?? ''}${peerDepGraphHash ?? ''}`
 
   return parseResult
 }
