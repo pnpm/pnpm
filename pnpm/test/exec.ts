@@ -13,7 +13,8 @@ test('exec with executionEnv', async () => {
   })
 
   const output = execPnpmSync(['exec', 'node', '--version']).stdout.toString().trim()
-  expect(output).toStrictEqual('v18.0.0')
+  // might also print `Fetching Node.js 18.0.0 ...` so we get the last line only
+  expect(output.split('\n').pop()).toStrictEqual('v18.0.0')
 })
 
 test('recursive exec when some packages define different executionEnv', async () => {
