@@ -18,7 +18,7 @@ type ChoiceGroup = Array<{
   disabled?: boolean
 }>
 
-export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], workspacesEnabled: boolean): ChoiceGroup {
+export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], workspacesEnabled: boolean, long?: boolean): ChoiceGroup {
   if (isEmpty(outdatedPkgsOfProjects)) {
     return []
   }
@@ -40,7 +40,10 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
     ' ': true,
     Target: true,
     Workspace: workspacesEnabled,
-    URL: true,
+    URL: long ? true : undefined,
+  }
+  if (!long) {
+    delete headerRow.URL
   }
   // returns only the keys that are true
   const header: string[] = Object.keys(pickBy(and, headerRow))
@@ -53,7 +56,7 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
       // The list of outdated dependencies also contains deprecated packages.
       // But we only want to show those dependencies that have newer versions.
       if (choice.latestManifest?.version !== choice.current) {
-        rawChoices.push(buildPkgChoice(choice, workspacesEnabled))
+        rawChoices.push(buildPkgChoice(choice, workspacesEnabled, long))
       }
     }
     if (rawChoices.length === 0) continue
@@ -95,7 +98,7 @@ interface RawChoice {
   disabled?: boolean
 }
 
-function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolean): RawChoice {
+function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolean, long?: boolean): RawChoice {
   const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
   const nextVersion = sdiff.change === null
     ? outdatedPkg.latestManifest!.version
@@ -108,11 +111,15 @@ function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolea
     arrow: '❯',
     nextVersion,
     workspace: outdatedPkg.workspace,
-    url: getPkgUrl(outdatedPkg),
+    url: long ? getPkgUrl(outdatedPkg) : undefined,
   }
 
   if (!workspacesEnabled) {
     delete lineParts.workspace
+  }
+
+  if (!long) {
+    delete lineParts.url
   }
 
   return {
