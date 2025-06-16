@@ -66,7 +66,7 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
     include,
     lockfileDir: opts.lockfileDir ?? opts.dir,
     storeDir,
-    virtualStoreDir: opts.virtualStoreDir ?? '.',
+    virtualStoreDir: opts.virtualStoreDir ?? '',
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir: opts.modulesDir,
     registries: opts.registries,
