@@ -1,4 +1,4 @@
-import { createPeersDirSuffix } from '@pnpm/dependency-path'
+import { createPeerDepGraphHash } from '@pnpm/dependency-path'
 import { type ProjectRootDir, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -159,12 +159,12 @@ test('importer with different peers uses correct peer', async () => {
   const lockfile = readLockfile()
   expect(lockfile.importers['project1' as ProjectId]?.dependencies?.['@pnpm.e2e/has-foo100-peer']).toEqual({
     specifier: 'catalog:',
-    version: `1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/foo', version: '100.0.0' }])}`,
+    version: `1.0.0${createPeerDepGraphHash([{ name: '@pnpm.e2e/foo', version: '100.0.0' }])}`,
   })
   expect(lockfile.importers['project2' as ProjectId]?.dependencies?.['@pnpm.e2e/has-foo100-peer']).toEqual({
     specifier: 'catalog:',
     //              This version is intentionally different from the one above    ꜜ
-    version: `1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/foo', version: '100.1.0' }])}`,
+    version: `1.0.0${createPeerDepGraphHash([{ name: '@pnpm.e2e/foo', version: '100.1.0' }])}`,
   })
 })
 
