@@ -374,7 +374,7 @@ export async function getPkgInfo (
   // Determine the path to the package as known by the user
   const modulesDir = opts.modulesDir ?? 'node_modules'
   const virtualStoreDir = pathAbsolute(
-    opts.virtualStoreDir || path.join(modulesDir, '.pnpm'),
+    opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'),
     opts.dir
   )
 
