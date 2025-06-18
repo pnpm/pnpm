@@ -380,7 +380,12 @@ export async function mutateModules (
       prepareExecutionEnv: opts.prepareExecutionEnv,
     }
 
-    if (!opts.ignoreScripts && !opts.ignorePackageManifest && rootProjectManifest?.scripts?.[DEV_PREINSTALL]) {
+    if (
+      // NOTE: takes ignore-scripts from rawConfig instead of opts to avoid false positive when shared-workspace-lockfile=false is set, which will set opts.ignoreScripts to true
+      !opts.rawConfig['ignore-scripts'] &&
+      !opts.ignorePackageManifest &&
+      rootProjectManifest?.scripts?.[DEV_PREINSTALL]
+    ) {
       await runLifecycleHook(
         DEV_PREINSTALL,
         rootProjectManifest,
