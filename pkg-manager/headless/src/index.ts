@@ -437,13 +437,14 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       // It is important to keep the skipped packages in the lockfile which will be saved as the "current lockfile".
       // pnpm is comparing the current lockfile to the wanted one and they should match.
       // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
-      const hoistLockfile = {
-        ...filteredLockfile,
-        packages: filteredLockfile.packages != null ? omit(Array.from(skipped), filteredLockfile.packages) : {},
-      }
+      // const hoistLockfile = {
+      // ...filteredLockfile,
+      // packages: filteredLockfile.packages != null ? omit(Array.from(skipped), filteredLockfile.packages) : {},
+      // }
       newHoistedDependencies = await hoist({
         extraNodePath: opts.extraNodePaths,
-        lockfile: hoistLockfile,
+        graph,
+        directDepsByImporterIds: directDependenciesByImporterId,
         importerIds,
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
         privateHoistedModulesDir: hoistedModulesDir,
