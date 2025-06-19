@@ -1,3 +1,4 @@
+import path from 'path'
 import { readProjectManifestOnly } from '@pnpm/cli-utils'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -66,7 +67,7 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
     include,
     lockfileDir: opts.lockfileDir ?? opts.dir,
     storeDir,
-    virtualStoreDir: opts.virtualStoreDir ?? '.',
+    virtualStoreDir: opts.virtualStoreDir ?? path.join(opts.modulesDir ?? 'node_modules', '.pnpm'),
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir: opts.modulesDir,
     registries: opts.registries,

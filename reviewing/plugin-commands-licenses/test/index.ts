@@ -117,6 +117,8 @@ test('pnpm licenses: output as json', async () => {
     'homepage',
     'description',
   ])
+  const _path = path.join('node_modules', '.pnpm')
+  expect(packagesWithMIT[0].paths[0].includes(_path)).toBeTruthy()
 })
 
 test('pnpm licenses: path should be correct for workspaces', async () => {

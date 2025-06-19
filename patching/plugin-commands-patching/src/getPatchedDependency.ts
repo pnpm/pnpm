@@ -69,7 +69,7 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
 export interface LockfileVersion {
   gitTarballUrl?: string
   name: string
-  peersSuffix?: string
+  peerDepGraphHash?: string
   version: string
 }
 

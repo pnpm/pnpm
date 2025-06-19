@@ -1,3 +1,5 @@
 github: pnpm
 open_collective: pnpm
-custom: "https://pnpm.io/crypto-donations"
+custom:
+  - "https://pnpm.io/crypto-donations"
+  - "https://www.drips.network/app/projects/github/pnpm/pnpm"

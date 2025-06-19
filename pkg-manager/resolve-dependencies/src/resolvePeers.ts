@@ -3,7 +3,7 @@ import { analyzeGraph, type Graph } from 'graph-cycles'
 import path from 'path'
 import pDefer from 'p-defer'
 import semver from 'semver'
-import { semverUtils } from '@yarnpkg/core'
+import * as semverUtils from '@yarnpkg/core/semverUtils'
 import {
   type DepPath,
   type ParentPackages,
@@ -12,7 +12,7 @@ import {
   type PkgIdWithPatchHash,
   type ProjectRootDir,
 } from '@pnpm/types'
-import { depPathToFilename, createPeersDirSuffix, type PeerId } from '@pnpm/dependency-path'
+import { depPathToFilename, createPeerDepGraphHash, type PeerId } from '@pnpm/dependency-path'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
 import { type NodeId } from './nextNodeId'
@@ -538,8 +538,8 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       pendingPeers.push({ alias, nodeId: peerNodeId })
     }
     if (pendingPeers.length === 0) {
-      const peersDirSuffix = createPeersDirSuffix(peerIds, ctx.peersSuffixMaxLength)
-      addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peersDirSuffix}` as DepPath)
+      const peerDepGraphHash = createPeerDepGraphHash(peerIds, ctx.peersSuffixMaxLength)
+      addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peerDepGraphHash}` as DepPath)
     } else {
       calculateDepPathIfNeeded = calculateDepPath.bind(null, peerIds, pendingPeers)
     }
@@ -565,7 +565,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         }
       }
     }
-    const peersDirSuffix = createPeersDirSuffix([
+    const peerDepGraphHash = createPeerDepGraphHash([
       ...peerIds,
       ...await Promise.all(pendingPeerNodes
         .map(async (pendingPeer) => {
@@ -579,7 +579,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         })
       ),
     ], ctx.peersSuffixMaxLength)
-    addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peersDirSuffix}` as DepPath)
+    addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peerDepGraphHash}` as DepPath)
   }
 
   function addDepPathToGraph (depPath: DepPath): void {

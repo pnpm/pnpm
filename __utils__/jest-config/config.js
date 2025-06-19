@@ -27,4 +27,12 @@ if (process.env.PNPM_SCRIPT_SRC_DIR) {
   config.cacheDirectory = path.join(__dirname, ".jest-cache", packageName)
 }
 
+// We are running test script from pnpm command, this seems to confuse tests
+// Clean up env from pnpm variables so that nested pnpm runs won't get affected on config read
+for (const key of Object.keys(process.env)) {
+  if (/^p?npm_(config|package|lifecycle|node|command|execpath)(_|$)/ui.test(key)) {
+    delete process.env[key]
+  }
+}
+
 module.exports = config
