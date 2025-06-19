@@ -15,7 +15,6 @@ import { headlessInstall } from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { tempDir } from '@pnpm/prepare'
-import { type DepPath } from '@pnpm/types'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
@@ -589,7 +588,7 @@ test('installing with hoistPattern=*', async () => {
 
   const modules = project.readModulesManifest()
 
-  expect(modules!.hoistedDependencies['balanced-match@1.0.2' as DepPath]).toStrictEqual({ 'balanced-match': 'private' })
+  expect(modules!.hoistedDependencies[path.join(prefix, 'node_modules/.pnpm/balanced-match@1.0.2/node_modules/balanced-match')]).toStrictEqual({ 'balanced-match': 'private' })
 })
 
 test('installing with publicHoistPattern=*', async () => {
@@ -645,7 +644,7 @@ test('installing with publicHoistPattern=*', async () => {
 
   const modules = project.readModulesManifest()
 
-  expect(modules!.hoistedDependencies['balanced-match@1.0.2' as DepPath]).toStrictEqual({ 'balanced-match': 'public' })
+  expect(modules!.hoistedDependencies[path.join(prefix, 'node_modules/.pnpm/balanced-match@1.0.2/node_modules/balanced-match')]).toStrictEqual({ 'balanced-match': 'public' })
 })
 
 test('installing with publicHoistPattern=* in a project with external lockfile', async () => {
