@@ -463,7 +463,7 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
 function extendGraph (graph: DependenciesGraph, virtualStoreDir: string): DependenciesGraph {
   const pkgMetaIter = (function * () {
     for (const depPath in graph) {
-      if (Object.prototype.hasOwnProperty.call(graph, depPath)) {
+      if (Object.hasOwn(graph, depPath)) {
         const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
         yield {
           name,

@@ -231,7 +231,7 @@ const dependencyKeys = new Set([
 function normalize (manifest: ProjectManifest): ProjectManifest {
   const result: Record<string, unknown> = {}
   for (const key in manifest) {
-    if (Object.prototype.hasOwnProperty.call(manifest, key)) {
+    if (Object.hasOwn(manifest, key)) {
       const value = manifest[key as keyof ProjectManifest]
       if (typeof value !== 'object' || !dependencyKeys.has(key)) {
         result[key] = structuredClone(value)
