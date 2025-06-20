@@ -213,35 +213,38 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
   if (opts.hoistPattern == null && opts.publicHoistPattern == null) {
     newHoistedDependencies = {}
   } else if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
-    newHoistedDependencies = await hoist({
-      extraNodePath: opts.extraNodePaths,
-      graph: depGraph as any, // eslint-disable-line
-      directDepsByImporterIds: Object.fromEntries(Object.entries(opts.dependenciesByProjectId).map(([projectId, deps]) => {
-        return [
-          projectId,
-          Object.fromEntries(deps.entries()),
-        ]
-      })),
-      importerIds: projectIds,
-      privateHoistedModulesDir: opts.hoistedModulesDir,
-      privateHoistPattern: opts.hoistPattern ?? [],
-      publicHoistedModulesDir: opts.rootModulesDir,
-      publicHoistPattern: opts.publicHoistPattern ?? [],
-      virtualStoreDir: opts.virtualStoreDir,
-      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-      hoistedWorkspacePackages: opts.hoistWorkspacePackages
-        ? projects.reduce((hoistedWorkspacePackages, project) => {
-          if (project.manifest.name && project.id !== '.') {
-            hoistedWorkspacePackages[project.id] = {
-              dir: project.rootDir,
-              name: project.manifest.name,
+    newHoistedDependencies = {
+      ...opts.hoistedDependencies,
+      ...await hoist({
+        extraNodePath: opts.extraNodePaths,
+        graph: depGraph as any, // eslint-disable-line
+        directDepsByImporterIds: Object.fromEntries(Object.entries(opts.dependenciesByProjectId).map(([projectId, deps]) => {
+          return [
+            projectId,
+            Object.fromEntries(deps.entries()),
+          ]
+        })),
+        importerIds: projectIds,
+        privateHoistedModulesDir: opts.hoistedModulesDir,
+        privateHoistPattern: opts.hoistPattern ?? [],
+        publicHoistedModulesDir: opts.rootModulesDir,
+        publicHoistPattern: opts.publicHoistPattern ?? [],
+        virtualStoreDir: opts.virtualStoreDir,
+        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        hoistedWorkspacePackages: opts.hoistWorkspacePackages
+          ? projects.reduce((hoistedWorkspacePackages, project) => {
+            if (project.manifest.name && project.id !== '.') {
+              hoistedWorkspacePackages[project.id] = {
+                dir: project.rootDir,
+                name: project.manifest.name,
+              }
             }
-          }
-          return hoistedWorkspacePackages
-        }, {} as Record<string, HoistedWorkspaceProject>)
-        : undefined,
-      skipped: opts.skipped,
-    })
+            return hoistedWorkspacePackages
+          }, {} as Record<string, HoistedWorkspaceProject>)
+          : undefined,
+        skipped: opts.skipped,
+      }),
+    }
   } else {
     newHoistedDependencies = opts.hoistedDependencies
   }

@@ -37,9 +37,9 @@ export interface HoistOpts extends GetHoistedDependenciesOpts {
   virtualStoreDirMaxLength: number
 }
 
-export async function hoist (opts: HoistOpts): Promise<HoistedDependencies> {
+export async function hoist (opts: HoistOpts): Promise<HoistedDependencies | null> {
   const result = getHoistedDependencies(opts)
-  if (!result) return {}
+  if (!result) return null
   const { hoistedDependencies, hoistedAliasesWithBins } = result
 
   await symlinkHoistedDependencies(hoistedDependencies, {
@@ -84,6 +84,7 @@ export interface HoistedWorkspaceProject {
 }
 
 export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): HoistGraphResult | null {
+  if (Object.keys(opts.graph ?? {}).length === 0) return null
   const { directDeps, step } = graphWalker(
     opts.graph,
     opts.directDepsByImporterIds
