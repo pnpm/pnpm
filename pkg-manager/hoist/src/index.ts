@@ -3,17 +3,11 @@ import path from 'path'
 import { linkLogger } from '@pnpm/core-loggers'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/link-bins'
-import {
-  type LockfileObject,
-  nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { type DepPath, type HoistedDependencies, type ProjectId, type DependenciesField } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import * as dp from '@pnpm/dependency-path'
 import isSubdir from 'is-subdir'
-import mapObjIndexed from 'ramda/src/mapObjIndexed'
 import resolveLinkTarget from 'resolve-link-target'
 import symlinkDir from 'symlink-dir'
 
@@ -23,6 +17,7 @@ export interface DependenciesGraphNode {
   optionalDependencies: Set<string>
   hasBin: boolean
   name: string
+  depPath: DepPath
 }
 
 export interface DependenciesGraph {
@@ -72,8 +67,9 @@ export async function hoist (opts: HoistOpts): Promise<HoistedDependencies> {
 }
 
 export interface GetHoistedDependenciesOpts {
-  graph: DependenciesGraph,
-  directDepsByImporterIds: DirectDependenciesByImporterId,
+  graph: DependenciesGraph
+  skipped: Set<DepPath>
+  directDepsByImporterIds: DirectDependenciesByImporterId
   importerIds?: ProjectId[]
   privateHoistPattern: string[]
   privateHoistedModulesDir: string
@@ -123,6 +119,7 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): Hoist
   return hoistGraph(deps, opts.directDepsByImporterIds['.' as ProjectId] ?? {}, {
     getAliasHoistType,
     graph: opts.graph,
+    skipped: opts.skipped,
   })
 }
 
@@ -214,6 +211,7 @@ function hoistGraph (
   opts: {
     getAliasHoistType: GetAliasHoistType
     graph: DependenciesGraph
+    skipped: Set<DepPath>
   }
 ): HoistGraphResult {
   const hoistedAliases = new Set(Object.keys(currentSpecifiers))
@@ -236,6 +234,9 @@ function hoistGraph (
         if (hoistedAliases.has(childAliasNormalized)) {
           continue
         }
+        if (opts.graph?.[childPath as DepPath]?.depPath && opts.skipped.has(opts.graph[childPath as DepPath].depPath)) {
+          continue
+        }
         if (opts.graph?.[childPath as DepPath]?.hasBin) {
           hoistedAliasesWithBins.add(childAlias)
         }
@@ -254,7 +255,7 @@ async function symlinkHoistedDependencies (
   hoistedDependencies: HoistedDependencies,
   opts: {
     graph: DependenciesGraph
-    directDepsByImporterIds: DirectDependenciesByImporterId,
+    directDepsByImporterIds: DirectDependenciesByImporterId
     privateHoistedModulesDir: string
     publicHoistedModulesDir: string
     virtualStoreDir: string
@@ -334,9 +335,9 @@ export function graphWalker (
 ): LockfileWalker {
   const walked = new Set<DepPath>(((opts?.skipped) != null) ? Array.from(opts?.skipped) : [])
   const entryNodes = [] as string[]
-  const allDirectDeps = [] as Array<{ alias: string, nodeId: string}>
+  const allDirectDeps = [] as Array<{ alias: string, nodeId: string }>
 
-  for (const [importerId, directDeps] of Object.entries(directDepsByImporterIds)) {
+  for (const directDeps of Object.values(directDepsByImporterIds)) {
     Object.entries(directDeps)
       .forEach(([alias, nodeId]) => {
         const depNode = graph[nodeId]
@@ -358,7 +359,7 @@ export function graphWalker (
 function step (
   ctx: {
     includeOptionalDependencies: boolean
-    graph: DependenciesGraph,
+    graph: DependenciesGraph
     walked: Set<string>
   },
   nextNodeIds: string[]

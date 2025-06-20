@@ -464,6 +464,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
             return hoistedWorkspacePackages
           }, {} as Record<string, HoistedWorkspaceProject>)
           : undefined,
+        skipped: opts.skipped,
       })
     } else {
       newHoistedDependencies = {}

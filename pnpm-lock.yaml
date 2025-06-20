@@ -33,6 +33,9 @@ catalogs:
     '@pnpm/log.group':
       specifier: 3.0.1
       version: 3.0.1
+    '@pnpm/logger':
+      specifier: '>=1001.0.0 <1002.0.0'
+      version: 1001.0.0
     '@pnpm/meta-updater':
       specifier: 2.0.6
       version: 2.0.6
@@ -5025,21 +5028,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/dependency-path':
-        specifier: workspace:*
-        version: link:../../packages/dependency-path
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../link-bins
-      '@pnpm/lockfile.types':
-        specifier: workspace:*
-        version: link:../../lockfile/types
-      '@pnpm/lockfile.utils':
-        specifier: workspace:*
-        version: link:../../lockfile/utils
-      '@pnpm/lockfile.walker':
-        specifier: workspace:*
-        version: link:../../lockfile/walker
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
