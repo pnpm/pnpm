@@ -16,7 +16,7 @@ test('using a global virtual store', async () => {
   await install(manifest, testDefaults({
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
-    privateHoistPattern: ['*'],
+    hoistPattern: ['*'],
   }))
 
   {
@@ -34,7 +34,7 @@ test('using a global virtual store', async () => {
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
     frozenLockfile: true,
-    privateHoistPattern: ['*'],
+    hoistPattern: ['*'],
   }))
 
   {
