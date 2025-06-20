@@ -122,7 +122,7 @@ export async function lockfileToDepGraph (
       ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
     }
     const peerDeps = pkgSnapshot.peerDependencies ? new Set(Object.keys(pkgSnapshot.peerDependencies)) : null
-    node.children = _getChildrenPaths(allDeps, peerDeps, '.')
+    node.children = _getChildrenPaths(allDeps, peerDeps, node.dir)
   }
 
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {}
@@ -265,13 +265,13 @@ function getChildrenPaths (
   ctx: GetChildrenPathsContext,
   allDeps: { [alias: string]: string },
   peerDeps: Set<string> | null,
-  importerId: string
+  importerDir: string
 ): { [alias: string]: string } {
   const children: { [alias: string]: string } = {}
   for (const [alias, ref] of Object.entries(allDeps)) {
     const childDepPath = dp.refToRelative(ref, alias)
     if (childDepPath === null) {
-      children[alias] = path.resolve(ctx.lockfileDir, importerId, ref.slice(5))
+      children[alias] = path.resolve(importerDir, ref.slice(5))
       continue
     }
     const childRelDepPath = dp.refToRelative(ref, alias)!
