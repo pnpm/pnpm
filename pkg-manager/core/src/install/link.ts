@@ -35,7 +35,6 @@ import pathExists from 'path-exists'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import difference from 'ramda/src/difference'
-import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
 import pickBy from 'ramda/src/pickBy'
 import props from 'ramda/src/props'
@@ -217,13 +216,19 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     // It is important to keep the skipped packages in the lockfile which will be saved as the "current lockfile".
     // pnpm is comparing the current lockfile to the wanted one and they should match.
     // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
-    const hoistLockfile = {
-      ...currentLockfile,
-      packages: currentLockfile.packages != null ? omit(Array.from(opts.skipped), currentLockfile.packages) : {},
-    }
+    // const hoistLockfile = {
+    // ...currentLockfile,
+    // packages: currentLockfile.packages != null ? omit(Array.from(opts.skipped), currentLockfile.packages) : {},
+    // }
     newHoistedDependencies = await hoist({
       extraNodePath: opts.extraNodePaths,
-      lockfile: hoistLockfile,
+      graph: depGraph as any, // eslint-disable-line
+      directDepsByImporterIds: Object.fromEntries(Object.entries(opts.dependenciesByProjectId).map(([projectId, deps]) => {
+        return [
+          projectId,
+          Object.fromEntries(deps.entries()),
+        ]
+      })),
       importerIds: projectIds,
       privateHoistedModulesDir: opts.hoistedModulesDir,
       privateHoistPattern: opts.hoistPattern ?? [],

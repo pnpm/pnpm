@@ -269,7 +269,7 @@ async function symlinkHoistedDependencies (
         const node = opts.graph[hoistedDepId]
         let depLocation!: string
         if (node) {
-          depLocation = hoistedDepId
+          depLocation = node.dir
         } else {
           if (!opts.directDepsByImporterIds[hoistedDepId as ProjectId]) {
             // This dependency is probably a skipped optional dependency.
