@@ -479,7 +479,7 @@ async function resolveDependenciesOfImporters (
       }
       const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
       if (!resolvedPackage) continue // This will happen only with linked dependencies
-      if (!Object.prototype.hasOwnProperty.call(newPreferredVersions, resolvedPackage.name)) {
+      if (!Object.hasOwn(newPreferredVersions, resolvedPackage.name)) {
         newPreferredVersions[resolvedPackage.name] = { ...importer.preferredVersions[resolvedPackage.name] }
       }
       if (!newPreferredVersions[resolvedPackage.name][resolvedPackage.version]) {
@@ -669,7 +669,7 @@ export async function resolveDependencies (
     }
     const resolvedPackage = ctx.resolvedPkgsById[pkgAddress.pkgId]
     if (!resolvedPackage) continue // This will happen only with linked dependencies
-    if (!Object.prototype.hasOwnProperty.call(newPreferredVersions, resolvedPackage.name)) {
+    if (!Object.hasOwn(newPreferredVersions, resolvedPackage.name)) {
       newPreferredVersions[resolvedPackage.name] = { ...preferredVersions[resolvedPackage.name] }
     }
     if (!newPreferredVersions[resolvedPackage.name][resolvedPackage.version]) {

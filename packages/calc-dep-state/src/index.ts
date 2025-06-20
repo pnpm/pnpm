@@ -54,7 +54,7 @@ function calcDepGraphHash<T extends string> (
     const nextParents = new Set([...Array.from(parents), node.fullPkgId])
     const _calcDepGraphHash = calcDepGraphHash.bind(null, depsGraph, cache, nextParents)
     for (const alias in node.children) {
-      if (Object.prototype.hasOwnProperty.call(node.children, alias)) {
+      if (Object.hasOwn(node.children, alias)) {
         const childId = node.children[alias]
         deps[alias] = _calcDepGraphHash(childId)
       }

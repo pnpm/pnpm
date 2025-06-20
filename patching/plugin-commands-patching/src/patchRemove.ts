@@ -56,7 +56,7 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
 
   const patchesDirs = new Set<string>()
   await Promise.all(patchesToRemove.map(async (patch) => {
-    if (Object.prototype.hasOwnProperty.call(patchedDependencies, patch)) {
+    if (Object.hasOwn(patchedDependencies, patch)) {
       const patchFile = patchedDependencies[patch]
       patchesDirs.add(path.dirname(patchFile))
       await fs.rm(patchFile, { force: true })

@@ -31,7 +31,7 @@ export function * iteratePkgsForVirtualStore (lockfile: LockfileObject, opts: {
     }
   } else if (lockfile.packages) {
     for (const depPath in lockfile.packages) {
-      if (Object.prototype.hasOwnProperty.call(lockfile.packages, depPath)) {
+      if (Object.hasOwn(lockfile.packages, depPath)) {
         const pkgSnapshot = lockfile.packages[depPath as DepPath]
         const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         yield {
@@ -64,7 +64,7 @@ function * iteratePkgMeta (lockfile: LockfileObject, graph: DepsGraph<DepPath>):
     return
   }
   for (const depPath in lockfile.packages) {
-    if (!Object.prototype.hasOwnProperty.call(lockfile.packages, depPath)) {
+    if (!Object.hasOwn(lockfile.packages, depPath)) {
       continue
     }
     const pkgSnapshot = lockfile.packages[depPath as DepPath]
