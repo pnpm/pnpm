@@ -24,7 +24,7 @@
     "!*.map"
   ],
   "scripts": {
-    "_test": "jest",
+    "_test": "exodus-test --jest --esbuild",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix",

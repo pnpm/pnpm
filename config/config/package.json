@@ -27,7 +27,7 @@
     "prepublishOnly": "pnpm run compile",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test-with-preview": "ts-node test",
-    "_test": "jest",
+    "_test": "exodus-test --jest --esbuild",
     "test": "pnpm run compile && pnpm run _test",
     "start": "tsc --watch",
     "compile": "tsc --build && pnpm run lint --fix"

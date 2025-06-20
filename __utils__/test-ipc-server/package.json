@@ -16,6 +16,6 @@
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build",
-    "test": "pnpm run compile && jest"
+    "test": "pnpm run compile && exodus-test --jest --esbuild"
   }
 }

@@ -1,8 +1,5 @@
 import fs from 'fs'
 import path from 'path'
-import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
-import { logger } from '@pnpm/logger'
-import { exec } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
 import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
@@ -14,6 +11,10 @@ jest.mock('@pnpm/logger', () => {
     logger: () => ({ debug }),
   }
 })
+
+const { logger } = jest.requireMock('@pnpm/logger')
+const { filterPackagesFromDir } = jest.requireActual('@pnpm/workspace.filter-packages-from-dir')
+const { exec } = jest.requireActual('@pnpm/plugin-commands-script-runners')
 
 const lifecycleLogger = logger('lifecycle')
 
@@ -55,6 +56,7 @@ test('pnpm exec --recursive --no-reporter-hide-prefix prints prefixes', async ()
     selectedProjectsGraph,
   }, [process.execPath, scriptFile])
 
+  await new Promise((resolve) => setTimeout(resolve, 0)) // flaky otherwise
   for (const name of ['foo', 'bar']) {
     const loggerOpts = {
       wd: path.resolve('packages', name),
