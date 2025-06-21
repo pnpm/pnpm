@@ -139,6 +139,8 @@ export interface HeadlessOptions {
   hoistedDependencies: HoistedDependencies
   hoistPattern?: string[]
   publicHoistPattern?: string[]
+  currentHoistPattern?: string[]
+  currentPublicHoistPattern?: string[]
   currentHoistedLocations?: Record<string, string[]>
   lockfileDir: string
   modulesDir?: string
@@ -331,6 +333,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     nodeVersion: opts.currentEngine.nodeVersion,
     pnpmVersion: opts.currentEngine.pnpmVersion,
     supportedArchitectures: opts.supportedArchitectures,
+    buildGraphForUpToDateDeps: (!equals(opts.currentHoistPattern, opts.hoistPattern ?? undefined)) ||
+      (!equals(opts.currentPublicHoistPattern, opts.publicHoistPattern ?? undefined)),
   } as LockfileToDepGraphOptions
   const {
     directDependenciesByImporterId,

@@ -71,6 +71,7 @@ export interface LockfileToDepGraphOptions {
   virtualStoreDir: string
   supportedArchitectures?: SupportedArchitectures
   virtualStoreDirMaxLength: number
+  buildGraphForUpToDateDeps?: boolean
 }
 
 export interface DirectDependenciesByImporterId {
@@ -190,9 +191,12 @@ async function buildGraphFromPackages (
       locationByDepPath[depPath] = dir
 
       let dirExists: boolean | undefined
-      if (depIsPresent &&
+      if (
+        depIsPresent &&
         isEmpty(currentPackages[depPath].optionalDependencies ?? {}) &&
-        isEmpty(pkgSnapshot.optionalDependencies ?? {})) {
+        isEmpty(pkgSnapshot.optionalDependencies ?? {}) &&
+        !opts.buildGraphForUpToDateDeps
+      ) {
         dirExists = await pathExists(dir)
         if (dirExists) return
         brokenModulesLogger.debug({ missing: dir })
