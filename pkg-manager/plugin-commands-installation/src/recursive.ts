@@ -192,7 +192,7 @@ export async function recursive (
     const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
     importers = await pFilter(importers, async ({ rootDirRealPath }) => isFromWorkspace(rootDirRealPath))
     if (importers.length === 0) return true
-    let mutation!: string
+    let mutation: 'install' | 'installSome' | 'uninstallSome'
     switch (cmdFullName) {
     case 'remove':
       mutation = 'uninstallSome'
