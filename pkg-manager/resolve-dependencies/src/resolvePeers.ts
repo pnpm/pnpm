@@ -157,18 +157,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     for (const node of Object.values(depGraph)) {
       node.children = {}
       for (const [alias, childNodeId] of Object.entries<NodeId>(node.childrenNodeIds)) {
-        let depPath = pathsByNodeId.get(childNodeId)
-        if (!depPath) {
-          if (typeof childNodeId === 'string' && childNodeId.startsWith('link:')) {
-            const relativeToPkg = childNodeId.slice('link:'.length)
-            const absolutePath = path.resolve(node.dir, relativeToPkg)
-            const relativeToLockfileDir = path.relative(opts.lockfileDir, absolutePath)
-            depPath = `link:${relativeToLockfileDir}` as DepPath
-          } else {
-            depPath = childNodeId as unknown as DepPath
-          }
-        }
-        node.children[alias] = depPath
+        node.children[alias] = pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)
       }
       delete node.childrenNodeIds
     }
