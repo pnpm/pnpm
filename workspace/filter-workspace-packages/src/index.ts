@@ -269,7 +269,7 @@ async function _filterGraph<Pkg extends Package> (
     }
 
     if (!selector.includeDependencies && !selector.includeDependents) {
-      Array.prototype.push.apply(cherryPickedPackages, entryPackages)
+      cherryPickedPackages.push(...entryPackages)
     }
   }
 }
