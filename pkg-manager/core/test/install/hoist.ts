@@ -512,6 +512,7 @@ test('hoist when updating in one of the workspace projects', async () => {
     const modulesManifest = rootModules.readModulesManifest()
     expect(modulesManifest?.hoistedDependencies).toStrictEqual({
       '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': { '@pnpm.e2e/dep-of-pkg-with-1-dep': 'private' },
+      '@pnpm.e2e/foo@100.0.0': { '@pnpm.e2e/foo': 'private' },
     })
   }
 })

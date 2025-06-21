@@ -13,22 +13,10 @@
       "path": "../../config/matcher"
     },
     {
-      "path": "../../lockfile/types"
-    },
-    {
-      "path": "../../lockfile/utils"
-    },
-    {
-      "path": "../../lockfile/walker"
-    },
-    {
       "path": "../../packages/constants"
     },
     {
       "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/dependency-path"
     },
     {
       "path": "../../packages/logger"
