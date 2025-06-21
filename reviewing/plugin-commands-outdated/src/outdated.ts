@@ -20,6 +20,7 @@ import chalk from 'chalk'
 import pick from 'ramda/src/pick'
 import sortWith from 'ramda/src/sortWith'
 import renderHelp from 'render-help'
+import { wrapWord } from '@zkochan/table/dist/src/wrapWord'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import {
   DEFAULT_COMPARATORS,
@@ -387,10 +388,10 @@ export function renderDetails ({ latestManifest }: OutdatedPackage): string {
   if (latestManifest == null) return ''
   const outputs = []
   if (latestManifest.deprecated) {
-    outputs.push(chalk.redBright(latestManifest.deprecated))
+    outputs.push(chalk.redBright('Deprecation message:'), ...wrapWord(latestManifest.deprecated, 40))
   }
   if (latestManifest.homepage) {
-    outputs.push(chalk.underline(latestManifest.homepage))
+    outputs.push(latestManifest.homepage)
   }
   return outputs.join('\n')
 }
