@@ -217,7 +217,7 @@ function hoistGraph<T extends string> (
   }
 ): HoistGraphResult<T> {
   const hoistedAliases = new Set(currentSpecifiers.keys())
-  const hoistedDependencies: HoistedDependencies = {}
+  const hoistedDependencies: HoistedDependencies = Object.create(null)
   const hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T> = new Map()
   const hoistedAliasesWithBins = new Set<string>()
 
