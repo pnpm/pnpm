@@ -58,6 +58,7 @@ export interface LockfileToDepGraphOptions {
   force: boolean
   importerIds: ProjectId[]
   include: IncludedDependencies
+  includeUnchangedDeps?: boolean
   ignoreScripts: boolean
   lockfileDir: string
   nodeVersion: string
@@ -190,9 +191,12 @@ async function buildGraphFromPackages (
       locationByDepPath[depPath] = dir
 
       let dirExists: boolean | undefined
-      if (depIsPresent &&
+      if (
+        depIsPresent &&
         isEmpty(currentPackages[depPath].optionalDependencies ?? {}) &&
-        isEmpty(pkgSnapshot.optionalDependencies ?? {})) {
+        isEmpty(pkgSnapshot.optionalDependencies ?? {}) &&
+        !opts.includeUnchangedDeps
+      ) {
         dirExists = await pathExists(dir)
         if (dirExists) return
         brokenModulesLogger.debug({ missing: dir })

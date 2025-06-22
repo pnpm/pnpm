@@ -139,6 +139,8 @@ export interface HeadlessOptions {
   hoistedDependencies: HoistedDependencies
   hoistPattern?: string[]
   publicHoistPattern?: string[]
+  currentHoistPattern?: string[]
+  currentPublicHoistPattern?: string[]
   currentHoistedLocations?: Record<string, string[]>
   lockfileDir: string
   modulesDir?: string
@@ -331,6 +333,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     nodeVersion: opts.currentEngine.nodeVersion,
     pnpmVersion: opts.currentEngine.pnpmVersion,
     supportedArchitectures: opts.supportedArchitectures,
+    includeUnchangedDeps: (!equals(opts.currentHoistPattern, opts.hoistPattern ?? undefined)) ||
+      (!equals(opts.currentPublicHoistPattern, opts.publicHoistPattern ?? undefined)),
   } as LockfileToDepGraphOptions
   const {
     directDependenciesByImporterId,
@@ -434,36 +438,37 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     })
 
     if (opts.ignorePackageManifest !== true && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
-      // It is important to keep the skipped packages in the lockfile which will be saved as the "current lockfile".
-      // pnpm is comparing the current lockfile to the wanted one and they should match.
-      // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
-      const hoistLockfile = {
-        ...filteredLockfile,
-        packages: filteredLockfile.packages != null ? omit(Array.from(skipped), filteredLockfile.packages) : {},
-      }
-      newHoistedDependencies = await hoist({
-        extraNodePath: opts.extraNodePaths,
-        lockfile: hoistLockfile,
-        importerIds,
-        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-        privateHoistedModulesDir: hoistedModulesDir,
-        privateHoistPattern: opts.hoistPattern ?? [],
-        publicHoistedModulesDir,
-        publicHoistPattern: opts.publicHoistPattern ?? [],
-        virtualStoreDir,
-        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-        hoistedWorkspacePackages: opts.hoistWorkspacePackages
-          ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
-            if (project.manifest.name && project.id !== '.') {
-              hoistedWorkspacePackages[project.id] = {
-                dir: project.rootDir,
-                name: project.manifest.name,
+      newHoistedDependencies = {
+        ...opts.hoistedDependencies,
+        ...await hoist({
+          extraNodePath: opts.extraNodePaths,
+          graph,
+          directDepsByImporterId: Object.fromEntries(Object.entries(directDependenciesByImporterId).map(([projectId, deps]) => [
+            projectId,
+            new Map(Object.entries(deps)),
+          ])),
+          importerIds,
+          preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+          privateHoistedModulesDir: hoistedModulesDir,
+          privateHoistPattern: opts.hoistPattern ?? [],
+          publicHoistedModulesDir,
+          publicHoistPattern: opts.publicHoistPattern ?? [],
+          virtualStoreDir,
+          virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+          hoistedWorkspacePackages: opts.hoistWorkspacePackages
+            ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
+              if (project.manifest.name && project.id !== '.') {
+                hoistedWorkspacePackages[project.id] = {
+                  dir: project.rootDir,
+                  name: project.manifest.name,
+                }
               }
-            }
-            return hoistedWorkspacePackages
-          }, {} as Record<string, HoistedWorkspaceProject>)
-          : undefined,
-      })
+              return hoistedWorkspacePackages
+            }, {} as Record<string, HoistedWorkspaceProject>)
+            : undefined,
+          skipped: opts.skipped,
+        }),
+      }
     } else {
       newHoistedDependencies = {}
     }

@@ -16,11 +16,11 @@ test('using a global virtual store', async () => {
   await install(manifest, testDefaults({
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
-    privateHoistPattern: '*',
+    hoistPattern: ['*'],
   }))
 
   {
-    expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')))
+    expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
     expect(fs.existsSync(path.resolve('node_modules/.pnpm/lock.yaml'))).toBeTruthy()
     const files = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))
     expect(files.length).toBe(1)
@@ -34,10 +34,11 @@ test('using a global virtual store', async () => {
     enableGlobalVirtualStore: true,
     virtualStoreDir: globalVirtualStoreDir,
     frozenLockfile: true,
+    hoistPattern: ['*'],
   }))
 
   {
-    expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')))
+    expect(fs.existsSync(path.resolve('node_modules/.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
     expect(fs.existsSync(path.resolve('node_modules/.pnpm/lock.yaml'))).toBeTruthy()
     const files = fs.readdirSync(path.join(globalVirtualStoreDir, '@pnpm.e2e/pkg-with-1-dep/100.0.0'))
     expect(files.length).toBe(1)
