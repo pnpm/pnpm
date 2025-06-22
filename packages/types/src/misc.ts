@@ -25,7 +25,7 @@ export interface SslConfig {
   ca?: string
 }
 
-export type HoistedDependencies = Record<string | ProjectId, Record<string, 'public' | 'private'>>
+export type HoistedDependencies = Record<DepPath | ProjectId, Record<string, 'public' | 'private'>>
 
 export type PkgResolutionId = string & { __brand: 'PkgResolutionId' }
 

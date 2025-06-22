@@ -38,9 +38,9 @@ export interface HoistOpts<T extends string> extends GetHoistedDependenciesOpts<
 export async function hoist<T extends string> (opts: HoistOpts<T>): Promise<HoistedDependencies | null> {
   const result = getHoistedDependencies(opts)
   if (!result) return null
-  const { hoistedDependencies, hoistedAliasesWithBins } = result
+  const { hoistedDependencies, hoistedAliasesWithBins, hoistedDependenciesByNodeId } = result
 
-  await symlinkHoistedDependencies(hoistedDependencies, {
+  await symlinkHoistedDependencies(hoistedDependenciesByNodeId, {
     graph: opts.graph,
     directDepsByImporterId: opts.directDepsByImporterId,
     privateHoistedModulesDir: opts.privateHoistedModulesDir,
@@ -81,7 +81,7 @@ export interface HoistedWorkspaceProject {
   dir: string
 }
 
-export function getHoistedDependencies<T extends string> (opts: GetHoistedDependenciesOpts<T>): HoistGraphResult | null {
+export function getHoistedDependencies<T extends string> (opts: GetHoistedDependenciesOpts<T>): HoistGraphResult<T> | null {
   if (Object.keys(opts.graph ?? {}).length === 0) return null
   const { directDeps, step } = graphWalker(
     opts.graph,
@@ -199,10 +199,13 @@ export interface Dependency<T extends string> {
   depth: number
 }
 
-interface HoistGraphResult {
+interface HoistGraphResult<T extends string> {
   hoistedDependencies: HoistedDependencies
+  hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T>
   hoistedAliasesWithBins: string[]
 }
+
+type HoistedDependenciesByNodeId<T extends string> = Map<T | ProjectId, Record<string, 'public' | 'private'>>
 
 function hoistGraph<T extends string> (
   depNodes: Array<Dependency<T>>,
@@ -212,9 +215,10 @@ function hoistGraph<T extends string> (
     graph: DependenciesGraph<T>
     skipped: Set<DepPath>
   }
-): HoistGraphResult {
+): HoistGraphResult<T> {
   const hoistedAliases = new Set(Object.keys(currentSpecifiers))
   const hoistedDependencies: HoistedDependencies = {}
+  const hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T> = new Map()
   const hoistedAliasesWithBins = new Set<string>()
 
   depNodes
@@ -225,7 +229,7 @@ function hoistGraph<T extends string> (
     })
     // build the alias map and the id map
     .forEach((depNode) => {
-      for (const [childAlias, childPath] of Object.entries<T | ProjectId>(depNode.children)) {
+      for (const [childAlias, childNodeId] of Object.entries<T | ProjectId>(depNode.children)) {
         const hoist = opts.getAliasHoistType(childAlias)
         if (!hoist) continue
         const childAliasNormalized = childAlias.toLowerCase()
@@ -233,25 +237,34 @@ function hoistGraph<T extends string> (
         if (hoistedAliases.has(childAliasNormalized)) {
           continue
         }
-        if (opts.graph?.[childPath as T]?.depPath && opts.skipped.has(opts.graph[childPath as T].depPath)) {
+        const node = opts.graph[childNodeId as T]
+        if (node?.depPath == null || opts.skipped.has(node.depPath)) {
           continue
         }
-        if (opts.graph?.[childPath as T]?.hasBin) {
+        if (node.hasBin) {
           hoistedAliasesWithBins.add(childAlias)
         }
         hoistedAliases.add(childAliasNormalized)
-        if (!hoistedDependencies[childPath]) {
-          hoistedDependencies[childPath] = {}
+        if (!hoistedDependencies[node.depPath]) {
+          hoistedDependencies[node.depPath] = {}
         }
-        hoistedDependencies[childPath as string][childAlias] = hoist
+        hoistedDependencies[node.depPath][childAlias] = hoist
+        if (!hoistedDependenciesByNodeId.has(childNodeId)) {
+          hoistedDependenciesByNodeId.set(childNodeId, {})
+        }
+        hoistedDependenciesByNodeId.get(childNodeId)![childAlias] = hoist
       }
     })
 
-  return { hoistedDependencies, hoistedAliasesWithBins: Array.from(hoistedAliasesWithBins) }
+  return {
+    hoistedDependencies,
+    hoistedDependenciesByNodeId,
+    hoistedAliasesWithBins: Array.from(hoistedAliasesWithBins),
+  }
 }
 
 async function symlinkHoistedDependencies<T extends string> (
-  hoistedDependencies: HoistedDependencies,
+  hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T>,
   opts: {
     graph: DependenciesGraph<T>
     directDepsByImporterId: DirectDependenciesByImporterId<T>
@@ -263,30 +276,31 @@ async function symlinkHoistedDependencies<T extends string> (
   }
 ): Promise<void> {
   const symlink = symlinkHoistedDependency.bind(null, opts)
-  await Promise.all(
-    Object.entries(hoistedDependencies)
-      .map(async ([hoistedDepId, pkgAliases]) => {
-        const node = opts.graph[hoistedDepId as T]
-        let depLocation!: string
-        if (node) {
-          depLocation = node.dir
-        } else {
-          if (!opts.directDepsByImporterId[hoistedDepId as ProjectId]) {
-            // This dependency is probably a skipped optional dependency.
-            hoistLogger.debug({ hoistFailedFor: hoistedDepId })
-            return
-          }
-          depLocation = opts.hoistedWorkspacePackages![hoistedDepId].dir
+  const promises: Promise<void>[] = []
+  for (const [hoistedDepNodeId, pkgAliases] of hoistedDependenciesByNodeId.entries()) {
+    promises.push((async () => {
+      const node = opts.graph[hoistedDepNodeId as T]
+      let depLocation!: string
+      if (node) {
+        depLocation = node.dir
+      } else {
+        if (!opts.directDepsByImporterId[hoistedDepNodeId as ProjectId]) {
+          // This dependency is probably a skipped optional dependency.
+          hoistLogger.debug({ hoistFailedFor: hoistedDepNodeId })
+          return
         }
-        await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
-          const targetDir = hoistType === 'public'
-            ? opts.publicHoistedModulesDir
-            : opts.privateHoistedModulesDir
-          const dest = path.join(targetDir, pkgAlias)
-          return symlink(depLocation, dest)
-        }))
-      })
-  )
+        depLocation = opts.hoistedWorkspacePackages![hoistedDepNodeId].dir
+      }
+      await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
+        const targetDir = hoistType === 'public'
+          ? opts.publicHoistedModulesDir
+          : opts.privateHoistedModulesDir
+        const dest = path.join(targetDir, pkgAlias)
+        return symlink(depLocation, dest)
+      }))
+    })())
+  }
+  await Promise.all(promises)
 }
 
 async function symlinkHoistedDependency (
