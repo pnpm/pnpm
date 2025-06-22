@@ -276,7 +276,7 @@ async function symlinkHoistedDependencies<T extends string> (
   }
 ): Promise<void> {
   const symlink = symlinkHoistedDependency.bind(null, opts)
-  const promises: Promise<void>[] = []
+  const promises: Array<Promise<void>> = []
   for (const [hoistedDepNodeId, pkgAliases] of hoistedDependenciesByNodeId.entries()) {
     promises.push((async () => {
       const node = opts.graph[hoistedDepNodeId as T]
