@@ -58,6 +58,7 @@ export interface LockfileToDepGraphOptions {
   force: boolean
   importerIds: ProjectId[]
   include: IncludedDependencies
+  includeUnchangedDeps?: boolean
   ignoreScripts: boolean
   lockfileDir: string
   nodeVersion: string
@@ -71,7 +72,6 @@ export interface LockfileToDepGraphOptions {
   virtualStoreDir: string
   supportedArchitectures?: SupportedArchitectures
   virtualStoreDirMaxLength: number
-  buildGraphForUpToDateDeps?: boolean
 }
 
 export interface DirectDependenciesByImporterId {
@@ -195,7 +195,7 @@ async function buildGraphFromPackages (
         depIsPresent &&
         isEmpty(currentPackages[depPath].optionalDependencies ?? {}) &&
         isEmpty(pkgSnapshot.optionalDependencies ?? {}) &&
-        !opts.buildGraphForUpToDateDeps
+        !opts.includeUnchangedDeps
       ) {
         dirExists = await pathExists(dir)
         if (dirExists) return
