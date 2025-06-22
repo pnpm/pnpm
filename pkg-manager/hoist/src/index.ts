@@ -237,6 +237,10 @@ function hoistGraph<T extends string> (
         if (hoistedAliases.has(childAliasNormalized)) {
           continue
         }
+        if (!hoistedDependenciesByNodeId.has(childNodeId)) {
+          hoistedDependenciesByNodeId.set(childNodeId, {})
+        }
+        hoistedDependenciesByNodeId.get(childNodeId)![childAlias] = hoist
         const node = opts.graph[childNodeId as T]
         if (node?.depPath == null || opts.skipped.has(node.depPath)) {
           continue
@@ -249,10 +253,6 @@ function hoistGraph<T extends string> (
           hoistedDependencies[node.depPath] = {}
         }
         hoistedDependencies[node.depPath][childAlias] = hoist
-        if (!hoistedDependenciesByNodeId.has(childNodeId)) {
-          hoistedDependenciesByNodeId.set(childNodeId, {})
-        }
-        hoistedDependenciesByNodeId.get(childNodeId)![childAlias] = hoist
       }
     })
 
