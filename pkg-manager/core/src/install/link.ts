@@ -218,7 +218,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       ...await hoist({
         extraNodePath: opts.extraNodePaths,
         graph: depGraph as any, // eslint-disable-line
-        directDepsByImporterIds: Object.fromEntries(Object.entries(opts.dependenciesByProjectId).map(([projectId, deps]) => {
+        directDepsByImporterId: Object.fromEntries(Object.entries(opts.dependenciesByProjectId).map(([projectId, deps]) => {
           return [
             projectId,
             Object.fromEntries(deps.entries()),
