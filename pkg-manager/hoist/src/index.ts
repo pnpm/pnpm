@@ -346,7 +346,6 @@ export function graphWalker<T extends string> (
     skipped?: Set<DepPath>
   }
 ): GraphWalker<T> {
-  const visited = new Set<DepPath>(((opts?.skipped) != null) ? Array.from(opts?.skipped) : [])
   const startNodeIds = [] as T[]
   const allDirectDeps = [] as Array<{ alias: string, nodeId: T }>
 
@@ -358,12 +357,14 @@ export function graphWalker<T extends string> (
       allDirectDeps.push({ alias, nodeId })
     }
   }
+  const visited = new Set<T>()
   return {
     directDeps: allDirectDeps,
     step: makeStep({
       includeOptionalDependencies: opts?.include?.optionalDependencies !== false,
       graph,
       visited,
+      skipped: opts?.skipped,
     }, startNodeIds),
   }
 }
@@ -372,7 +373,8 @@ function makeStep<T extends string> (
   ctx: {
     includeOptionalDependencies: boolean
     graph: DependenciesGraph<T>
-    visited: Set<string>
+    visited: Set<T>
+    skipped?: Set<DepPath>
   },
   nextNodeIds: T[]
 ): GraphWalkerStep<T> {
@@ -396,6 +398,7 @@ function makeStep<T extends string> (
       result.missing.push(nodeId)
       continue
     }
+    if (ctx.skipped?.has(node.depPath)) continue
     result.dependencies.push({
       nodeId,
       next: () => makeStep<T>(ctx, _next(node) as T[]),
