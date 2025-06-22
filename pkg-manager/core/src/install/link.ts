@@ -218,12 +218,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       ...await hoist({
         extraNodePath: opts.extraNodePaths,
         graph: depGraph,
-        directDepsByImporterId: Object.fromEntries(Object.entries(opts.dependenciesByProjectId).map(([projectId, deps]) => {
-          return [
-            projectId,
-            Object.fromEntries(deps.entries()),
-          ]
-        })),
+        directDepsByImporterId: opts.dependenciesByProjectId,
         importerIds: projectIds,
         privateHoistedModulesDir: opts.hoistedModulesDir,
         privateHoistPattern: opts.hoistPattern ?? [],

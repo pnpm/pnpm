@@ -443,7 +443,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         ...await hoist({
           extraNodePath: opts.extraNodePaths,
           graph,
-          directDepsByImporterId: directDependenciesByImporterId,
+          directDepsByImporterId: Object.fromEntries(Object.entries(directDependenciesByImporterId).map(([projectId, deps]) => [
+            projectId,
+            new Map(Object.entries(deps)),
+          ])),
           importerIds,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           privateHoistedModulesDir: hoistedModulesDir,

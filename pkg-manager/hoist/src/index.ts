@@ -23,7 +23,7 @@ export interface DependenciesGraphNode<T extends string> {
 export type DependenciesGraph<T extends string> = Record<T, DependenciesGraphNode<T>>
 
 export interface DirectDependenciesByImporterId<T extends string> {
-  [importerId: string]: { [alias: string]: T }
+  [importerId: string]: Map<string, T>
 }
 
 const hoistLogger = logger('hoist')
@@ -115,7 +115,7 @@ export function getHoistedDependencies<T extends string> (opts: GetHoistedDepend
 
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
 
-  return hoistGraph(deps, opts.directDepsByImporterId['.' as ProjectId] ?? {}, {
+  return hoistGraph(deps, opts.directDepsByImporterId['.' as ProjectId] ?? new Map(), {
     getAliasHoistType,
     graph: opts.graph,
     skipped: opts.skipped,
@@ -209,14 +209,14 @@ type HoistedDependenciesByNodeId<T extends string> = Map<T | ProjectId, Record<s
 
 function hoistGraph<T extends string> (
   depNodes: Array<Dependency<T>>,
-  currentSpecifiers: Record<string, string>,
+  currentSpecifiers: Map<string, T>,
   opts: {
     getAliasHoistType: GetAliasHoistType
     graph: DependenciesGraph<T>
     skipped: Set<DepPath>
   }
 ): HoistGraphResult<T> {
-  const hoistedAliases = new Set(Object.keys(currentSpecifiers))
+  const hoistedAliases = new Set(currentSpecifiers.keys())
   const hoistedDependencies: HoistedDependencies = {}
   const hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T> = new Map()
   const hoistedAliasesWithBins = new Set<string>()
@@ -351,13 +351,12 @@ export function graphWalker<T extends string> (
   const allDirectDeps = [] as Array<{ alias: string, nodeId: T }>
 
   for (const directDeps of Object.values(directDepsByImporterId)) {
-    Object.entries(directDeps)
-      .forEach(([alias, nodeId]) => {
-        const depNode = graph[nodeId]
-        if (depNode == null) return
-        startNodeIds.push(nodeId)
-        allDirectDeps.push({ alias, nodeId })
-      })
+    for (const [alias, nodeId] of directDeps.entries()) {
+      const depNode = graph[nodeId]
+      if (depNode == null) continue
+      startNodeIds.push(nodeId)
+      allDirectDeps.push({ alias, nodeId })
+    }
   }
   return {
     directDeps: allDirectDeps,
