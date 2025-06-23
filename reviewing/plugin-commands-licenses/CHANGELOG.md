@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-licenses
 
+## 1000.0.28
+
+### Patch Changes
+
+- a050b50: The dependency package path output by the `pnpm licenses list --json` command is incorrect.
+  - @pnpm/lockfile.fs@1001.1.14
+  - @pnpm/license-scanner@1001.0.19
+  - @pnpm/cli-utils@1000.1.7
+
 ## 1000.0.27
 
 ### Patch Changes

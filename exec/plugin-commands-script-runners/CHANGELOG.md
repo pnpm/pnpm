@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1000.2.17
+
+### Patch Changes
+
+- 61e7b03: Fix the `--help` and `-h` flags not working as expected for the `pnpm create` command.
+- Updated dependencies [983efdc]
+  - @pnpm/plugin-commands-installation@1004.2.0
+  - @pnpm/cli-utils@1000.1.7
+  - @pnpm/deps.status@1002.1.5
+  - @pnpm/plugin-commands-env@1000.0.28
+
 ## 1000.2.16
 
 ### Patch Changes

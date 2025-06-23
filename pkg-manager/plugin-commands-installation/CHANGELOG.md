@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.2.0
+
+### Minor Changes
+
+- 983efdc: Fix a bug in which `pnpm deploy` fails due to overridden dependencies having peer dependencies causing `ERR_PNPM_OUTDATED_LOCKFILE` [#9595](https://github.com/pnpm/pnpm/issues/9595).
+
+### Patch Changes
+
+- Updated dependencies [b982a0d]
+  - @pnpm/core@1008.1.1
+  - @pnpm/store-connection-manager@1002.0.5
+  - @pnpm/plugin-commands-rebuild@1002.0.17
+  - @pnpm/outdated@1001.0.22
+  - @pnpm/cli-utils@1000.1.7
+  - @pnpm/deps.status@1002.1.5
+  - @pnpm/get-context@1001.1.1
+  - @pnpm/package-store@1002.0.6
+  - @pnpm/plugin-commands-env@1000.0.28
+  - @pnpm/workspace.find-packages@1000.0.27
+  - @pnpm/config.deps-installer@1000.0.7
+  - @pnpm/filter-workspace-packages@1000.0.27
+
 ## 1004.1.0
 
 ### Minor Changes

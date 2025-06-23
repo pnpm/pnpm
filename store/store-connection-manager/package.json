@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store-connection-manager",
-  "version": "1002.0.4",
+  "version": "1002.0.5",
   "description": "Create a direct pnpm store controller or connect to a running store server",
   "keywords": [
     "pnpm",

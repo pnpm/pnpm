@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.1.3
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.14
+- @pnpm/audit@1002.0.6
+- @pnpm/cli-utils@1000.1.7
+
 ## 1002.1.2
 
 ### Patch Changes

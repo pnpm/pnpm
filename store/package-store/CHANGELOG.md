@@ -1,5 +1,11 @@
 # @pnpm/package-store
 
+## 1002.0.6
+
+### Patch Changes
+
+- @pnpm/package-requester@1004.0.4
+
 ## 1002.0.5
 
 ### Patch Changes

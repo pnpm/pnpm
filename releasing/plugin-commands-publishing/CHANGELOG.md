@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.2.3
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.1.7
+- @pnpm/plugin-commands-env@1000.0.28
+
 ## 1000.2.2
 
 ### Patch Changes

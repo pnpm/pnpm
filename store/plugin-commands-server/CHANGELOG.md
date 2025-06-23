@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-server
 
+## 1000.0.28
+
+### Patch Changes
+
+- 5a5d280: Wait for server to listen [#9620](https://github.com/pnpm/pnpm/pull/9620).
+- Updated dependencies [5a5d280]
+  - @pnpm/server@1001.0.6
+  - @pnpm/store-connection-manager@1002.0.5
+  - @pnpm/cli-utils@1000.1.7
+
 ## 1000.0.27
 
 ### Patch Changes

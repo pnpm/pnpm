@@ -1,5 +1,14 @@
 # @pnpm/deps.status
 
+## 1002.1.5
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.14
+- @pnpm/lockfile.verification@1001.2.1
+- @pnpm/get-context@1001.1.1
+- @pnpm/workspace.find-packages@1000.0.27
+
 ## 1002.1.4
 
 ### Patch Changes

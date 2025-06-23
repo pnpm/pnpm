@@ -1,5 +1,20 @@
 # @pnpm/deps.graph-builder
 
+## 1002.2.0
+
+### Minor Changes
+
+- b982a0d: New option added: includeUnchangedDeps.
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/lockfile.fs@1001.1.14
+  - @pnpm/calc-dep-state@1002.0.1
+  - @pnpm/patching.config@1001.0.4
+
 ## 1002.1.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/dependency-path
 
+## 1001.0.0
+
+### Major Changes
+
+- 540986f: Peers suffix renamed to peerDepGraphHash.
+
 ## 1000.0.9
 
 ### Patch Changes

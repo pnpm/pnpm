@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 1000.3.8
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@1002.0.1
+
 ## 1000.3.7
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/hoist
 
+## 1002.0.0
+
+### Major Changes
+
+- b982a0d: Fixed hoisting with `enableGlobalVirtualStore` set to `true` [#9648](https://github.com/pnpm/pnpm/pull/9648).
+
 ## 1001.0.16
 
 ### Patch Changes

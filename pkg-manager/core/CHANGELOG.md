@@ -1,5 +1,31 @@
 # @pnpm/core
 
+## 1008.1.1
+
+### Patch Changes
+
+- b982a0d: Fixed hoisting with `enableGlobalVirtualStore` set to `true` [#9648](https://github.com/pnpm/pnpm/pull/9648).
+- Updated dependencies [b982a0d]
+- Updated dependencies [540986f]
+  - @pnpm/hoist@1002.0.0
+  - @pnpm/headless@1004.1.1
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/lockfile.filtering@1001.0.14
+  - @pnpm/lockfile.fs@1001.1.14
+  - @pnpm/lockfile-to-pnp@1001.0.15
+  - @pnpm/lockfile.pruner@1001.0.10
+  - @pnpm/lockfile.verification@1001.2.1
+  - @pnpm/lockfile.walker@1001.0.10
+  - @pnpm/calc-dep-state@1002.0.1
+  - @pnpm/patching.config@1001.0.4
+  - @pnpm/modules-cleaner@1001.0.16
+  - @pnpm/package-requester@1004.0.4
+  - @pnpm/resolve-dependencies@1007.1.1
+  - @pnpm/lockfile.preferred-versions@1000.0.15
+  - @pnpm/get-context@1001.1.1
+  - @pnpm/build-modules@1000.3.8
+
 ## 1008.1.0
 
 ### Minor Changes

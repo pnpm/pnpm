@@ -1,5 +1,12 @@
 # @pnpm/package-requester
 
+## 1004.0.4
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+
 ## 1004.0.3
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/config.deps-installer
 
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/package-store@1002.0.6
+
 ## 1000.0.6
 
 ### Patch Changes

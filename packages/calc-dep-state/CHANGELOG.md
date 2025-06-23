@@ -1,5 +1,13 @@
 # @pnpm/calc-dep-state
 
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+
 ## 1002.0.0
 
 ### Major Changes

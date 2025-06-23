@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.26
+
+### Patch Changes
+
+- 983efdc: Fix a bug in which `pnpm deploy` fails due to overridden dependencies having peer dependencies causing `ERR_PNPM_OUTDATED_LOCKFILE` [#9595](https://github.com/pnpm/pnpm/issues/9595).
+- Updated dependencies [983efdc]
+- Updated dependencies [540986f]
+  - @pnpm/plugin-commands-installation@1004.2.0
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.fs@1001.1.14
+  - @pnpm/cli-utils@1000.1.7
+
 ## 1001.1.25
 
 ### Patch Changes
