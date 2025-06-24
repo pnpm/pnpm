@@ -220,7 +220,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
         graph: depGraph,
         directDepsByImporterId: {
           ...opts.dependenciesByProjectId,
-          '.': new Map(Array.from(opts.dependenciesByProjectId['.'].entries()).filter(([alias]) => {
+          '.': new Map(Array.from(opts.dependenciesByProjectId['.']?.entries() ?? []).filter(([alias]) => {
             return newCurrentLockfile.importers['.' as ProjectId].specifiers[alias]
           })),
         },
