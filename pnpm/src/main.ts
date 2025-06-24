@@ -235,7 +235,7 @@ export async function main (inputArgv: string[]): Promise<void> {
         return
       }
       if (cmd !== 'list') {
-        process.exitCode = config.failIfNoMatch ? 1 : 0
+        process.exitCode = 0
         return
       }
     }
