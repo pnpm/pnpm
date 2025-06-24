@@ -33,9 +33,6 @@ catalogs:
     '@pnpm/log.group':
       specifier: 3.0.1
       version: 3.0.1
-    '@pnpm/logger':
-      specifier: '>=1001.0.0 <1002.0.0'
-      version: 1001.0.0
     '@pnpm/meta-updater':
       specifier: 2.0.6
       version: 2.0.6
@@ -9853,8 +9850,8 @@ packages:
     peerDependencies:
       '@pnpm/logger': '>=1001.0.0 <1002.0.0'
 
-  '@pnpm/slice-ansi@1.1.2':
-    resolution: {integrity: sha512-Wv4TV9FxdzG+eAyEy5wc6bcSxgBqIcsSCUOthEyC6DysxxUlj2Ie+ZdLrGnjs2/a5pRc95Bjs2e0HzXJPlsL8w==}
+  '@pnpm/slice-ansi@1.1.3':
+    resolution: {integrity: sha512-xrWctjDAHXzIths7OmtW8dZUFR8aX/9zdwi4QRhCU7XFJJHl2JJqZoh2zD2wSMjWW7z2CiXeWWvfqftniM3dTg==}
 
   '@pnpm/store-connection-manager@1002.0.3':
     resolution: {integrity: sha512-rwywNmHYk1Wv2looiG4fjWWXMugxhw+rVd2Xw0rYrSDHZ+7fC24NrmJIceD7/54jvr1pPz6TL7tUcBV/1ms7vw==}
@@ -17536,7 +17533,7 @@ snapshots:
       - domexception
       - supports-color
 
-  '@pnpm/slice-ansi@1.1.2':
+  '@pnpm/slice-ansi@1.1.3':
     dependencies:
       grapheme-splitter: 1.0.4
 
@@ -18422,7 +18419,7 @@ snapshots:
     dependencies:
       ajv: 8.17.1
       lodash.truncate: 4.4.2
-      slice-ansi: '@pnpm/slice-ansi@1.1.2'
+      slice-ansi: '@pnpm/slice-ansi@1.1.3'
       string-width: 4.2.3
       strip-ansi: 6.0.1
 
