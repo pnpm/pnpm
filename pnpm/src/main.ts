@@ -230,6 +230,10 @@ export async function main (inputArgv: string[]): Promise<void> {
       if (printLogs) {
         console.log(`No projects matched the filters in "${wsDir}"`)
       }
+      if (config.failIfNoMatch) {
+        process.exitCode = 1
+        return
+      }
       if (cmd !== 'list') {
         process.exitCode = config.failIfNoMatch ? 1 : 0
         return
