@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.27
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.2.1
+
 ## 1001.1.26
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.2.1
+
+### Patch Changes
+
+- Updated dependencies [cc6db88]
+  - @pnpm/core@1008.1.2
+
 ## 1004.2.0
 
 ### Minor Changes
