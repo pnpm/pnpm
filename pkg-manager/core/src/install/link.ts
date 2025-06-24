@@ -218,7 +218,12 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       ...await hoist({
         extraNodePath: opts.extraNodePaths,
         graph: depGraph,
-        directDepsByImporterId: opts.dependenciesByProjectId,
+        directDepsByImporterId: {
+          ...opts.dependenciesByProjectId,
+          '.': new Map(Array.from(opts.dependenciesByProjectId['.']?.entries() ?? []).filter(([alias]) => {
+            return newCurrentLockfile.importers['.' as ProjectId].specifiers[alias]
+          })),
+        },
         importerIds: projectIds,
         privateHoistedModulesDir: opts.hoistedModulesDir,
         privateHoistPattern: opts.hoistPattern ?? [],
