@@ -1908,6 +1908,7 @@ test('detection of circular peer dependencies should not crash with aliased depe
   expect(fs.existsSync(path.resolve(WANTED_LOCKFILE))).toBeTruthy()
 })
 
+// Covers https://github.com/pnpm/pnpm/pull/9675
 test('no deadlock on circular aliased peers', async () => {
   prepareEmpty()
 
@@ -1920,5 +1921,5 @@ test('no deadlock on circular aliased peers', async () => {
     },
   }, testDefaults())
 
-  // did not hang
+  expect(fs.existsSync(path.resolve(WANTED_LOCKFILE))).toBeTruthy()
 })
