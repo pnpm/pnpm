@@ -230,8 +230,14 @@ export async function main (inputArgv: string[]): Promise<void> {
       if (printLogs) {
         console.log(`No projects matched the filters in "${wsDir}"`)
       }
-      process.exitCode = config.failIfNoMatch ? 1 : 0
-      return
+      if (config.failIfNoMatch) {
+        process.exitCode = 1
+        return
+      }
+      if (cmd !== 'list') {
+        process.exitCode = 0
+        return
+      }
     }
     if (filterResults.unmatchedFilters.length !== 0 && printLogs) {
       console.log(`No projects matched the filters "${filterResults.unmatchedFilters.join(', ')}" in "${wsDir}"`)
