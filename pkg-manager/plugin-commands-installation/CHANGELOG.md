@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.2.2
+
+### Patch Changes
+
+- b511eac: Running `pnpm install` after `pnpm fetch` should hoist all dependencies that need to be hoisted.
+  Fixes a regression introduced in [v10.12.2] by [#9648]; resolves [#9689].
+
+  [v10.12.2]: https://github.com/pnpm/pnpm/releases/tag/v10.12.2Add commentMore actions
+  [#9648]: https://github.com/pnpm/pnpm/pull/9648
+  [#9689]: https://github.com/pnpm/pnpm/issues/9689
+
+  - @pnpm/core@1008.1.3
+
 ## 1004.2.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.3
+
+### Patch Changes
+
+- Updated dependencies [b511eac]
+  - @pnpm/plugin-commands-installation@1004.2.2
+
 ## 1000.3.2
 
 ### Patch Changes

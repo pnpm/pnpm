@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 1008.1.3
+
+### Patch Changes
+
+- Updated dependencies [5d046bb]
+  - @pnpm/resolve-dependencies@1007.1.2
+
 ## 1008.1.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.28
+
+### Patch Changes
+
+- Updated dependencies [b511eac]
+  - @pnpm/plugin-commands-installation@1004.2.2
+
 ## 1001.1.27
 
 ### Patch Changes

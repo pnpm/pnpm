@@ -1,5 +1,11 @@
 # @pnpm/license-scanner
 
+## 1001.0.20
+
+### Patch Changes
+
+- 5acbe47: Fix `pnpm licenses` command for local dependencies [#9583](https://github.com/pnpm/pnpm/pull/9583).
+
 ## 1001.0.19
 
 ### Patch Changes

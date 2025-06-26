@@ -1,5 +1,19 @@
 # pnpm
 
+## 10.12.4
+
+### Patch Changes
+
+- Fix `pnpm licenses` command for local dependencies [#9583](https://github.com/pnpm/pnpm/pull/9583).
+- Fix a bug in which `pnpm ls --filter=not-exist --json` prints nothing instead of an empty array [#9672](https://github.com/pnpm/pnpm/issues/9672).
+- Fix a deadlock that sometimes happens during peer dependency resolution [#9673](https://github.com/pnpm/pnpm/issues/9673).
+- Running `pnpm install` after `pnpm fetch` should hoist all dependencies that need to be hoisted.
+  Fixes a regression introduced in [v10.12.2] by [#9648]; resolves [#9689].
+
+  [v10.12.2]: https://github.com/pnpm/pnpm/releases/tag/v10.12.2Add commentMore actions
+  [#9648]: https://github.com/pnpm/pnpm/pull/9648
+  [#9689]: https://github.com/pnpm/pnpm/issues/9689
+
 ## 10.12.3
 
 ### Patch Changes

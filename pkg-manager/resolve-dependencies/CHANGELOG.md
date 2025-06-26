@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 1007.1.2
+
+### Patch Changes
+
+- 5d046bb: Fix a deadlock that sometimes happens during peer dependency resolution [#9673](https://github.com/pnpm/pnpm/issues/9673).
+
 ## 1007.1.1
 
 ### Patch Changes
