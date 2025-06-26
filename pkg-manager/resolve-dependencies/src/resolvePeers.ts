@@ -807,7 +807,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
 
   // Resolving non-repeated nodes before repeated nodes proved to be slightly faster.
   const calculateDepPaths: CalculateDepPath[] = []
-  const graph = []
+  const graph = new Map()
   const finishingList: FinishingResolutionPromise[] = []
   const parentDepPaths: Record<string, ParentPkgInfo> = {}
   for (const [name, parentPkg] of Object.entries(parentPkgs)) {
@@ -844,13 +844,27 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
       allResolvedPeers.set(peerName, peerNodeId)
       edges.push(peerName)
     }
-    graph.push([currentAlias, edges])
+    addEdgesToGraph(currentAlias, edges)
+    const node = ctx.dependenciesTree.get(childNodeId)!
+    // We resolve peer dependencies via both the alias and the real name of the package.
+    // That's why we need to detect circular graphs via both the alias and the real name.
+    if (currentAlias !== node.resolvedPackage.name) {
+      addEdgesToGraph(node.resolvedPackage.name, edges)
+    }
     for (const [missingPeer, range] of missingPeers.entries()) {
       allMissingPeers.set(missingPeer, range)
     }
   }
+  function addEdgesToGraph (pkgName: string, edges: string[]) {
+    const existingEdges = graph.get(pkgName)
+    if (existingEdges == null) {
+      graph.set(pkgName, edges)
+    } else {
+      existingEdges.push(...edges)
+    }
+  }
   if (calculateDepPaths.length) {
-    const { cycles } = analyzeGraph(graph as unknown as Graph) as unknown as { cycles: string[][] }
+    const { cycles } = analyzeGraph(Array.from(graph.entries()) as unknown as Graph) as unknown as { cycles: string[][] }
     finishingList.push(...calculateDepPaths.map((calculateDepPath) => calculateDepPath(cycles)))
   }
   const finishing = Promise.all(finishingList).then(() => {})

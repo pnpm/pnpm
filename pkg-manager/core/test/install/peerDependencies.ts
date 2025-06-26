@@ -1907,3 +1907,19 @@ test('detection of circular peer dependencies should not crash with aliased depe
 
   expect(fs.existsSync(path.resolve(WANTED_LOCKFILE))).toBeTruthy()
 })
+
+// Covers https://github.com/pnpm/pnpm/pull/9673
+test('no deadlock on circular aliased peers', async () => {
+  prepareEmpty()
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/deadlock.a': '1.0.0',
+      '@pnpm.e2e/deadlock.b': '2.0.0',
+      'alias-b': 'npm:@pnpm.e2e/deadlock.b@1.0.0',
+      'alias-c': 'npm:@pnpm.e2e/deadlock.c@1.0.0',
+    },
+  }, testDefaults())
+
+  expect(fs.existsSync(path.resolve(WANTED_LOCKFILE))).toBeTruthy()
+})
