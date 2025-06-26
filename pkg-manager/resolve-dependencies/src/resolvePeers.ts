@@ -27,12 +27,6 @@ import { type ResolvedImporters } from './resolveDependencyTree'
 import { mergePeers } from './mergePeers'
 import { dedupeInjectedDeps } from './dedupeInjectedDeps'
 
-// Extended deferred promise that carries extra metadata for dead-lock detection.
-interface ExtendedDeferred extends pDefer.DeferredPromise<DepPath> {
-  alias?: string
-  waitingFor?: Set<string>
-}
-
 export interface BaseGenericDependenciesGraphNode {
   // at this point the version is really needed only for logging
   modules: string
@@ -104,7 +98,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   }> {
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId = new Map<NodeId, DepPath>()
-  const pathsByNodeIdPromises = new Map<NodeId, ExtendedDeferred>()
+  const pathsByNodeIdPromises = new Map<NodeId, pDefer.DeferredPromise<DepPath>>()
   const depPathsByPkgId = new Map<PkgIdWithPatchHash, Set<DepPath>>()
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
@@ -121,10 +115,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     }).filter(([peerName]) => opts.allPeerDepNames.has(peerName)))
     for (const { nodeId } of Object.values(pkgsByName)) {
       if (nodeId && !pathsByNodeIdPromises.has(nodeId)) {
-        const d = pDefer<DepPath>() as ExtendedDeferred
-        d.alias = 'unknown'
-        d.waitingFor = new Set<string>()
-        pathsByNodeIdPromises.set(nodeId, d)
+        pathsByNodeIdPromises.set(nodeId, pDefer())
       }
     }
 
@@ -358,7 +349,7 @@ interface PeersResolution {
 
 interface ResolvePeersContext {
   pathsByNodeId: Map<NodeId, DepPath>
-  pathsByNodeIdPromises: Map<NodeId, ExtendedDeferred>
+  pathsByNodeIdPromises: Map<NodeId, pDefer.DeferredPromise<DepPath>>
   depPathsByPkgId?: Map<PkgIdWithPatchHash, Set<DepPath>>
 }
 
@@ -550,12 +541,6 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       const peerDepGraphHash = createPeerDepGraphHash(peerIds, ctx.peersSuffixMaxLength)
       addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peerDepGraphHash}` as DepPath)
     } else {
-      // Save the aliases this node is currently waiting for (used for mutual-wait detection)
-      const currentDeferred = ctx.pathsByNodeIdPromises.get(nodeId)
-      if (currentDeferred) {
-        currentDeferred.waitingFor = new Set(pendingPeers.map((p) => p.alias))
-      }
-
       calculateDepPathIfNeeded = calculateDepPath.bind(null, peerIds, pendingPeers)
     }
   }
@@ -584,30 +569,13 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       ...peerIds,
       ...await Promise.all(pendingPeerNodes
         .map(async (pendingPeer) => {
-          // waiting on peer promise resolution
-          const peerDeferred = ctx.pathsByNodeIdPromises.get(pendingPeer.nodeId)
-          const peerNode = ctx.dependenciesTree.get(pendingPeer.nodeId)?.resolvedPackage as T | undefined
-          const realName = peerNode?.name
-
-          // Case 1: cycle detected by graph-cycles
-          if (cyclicPeerAliases.has(pendingPeer.alias) || (realName && cyclicPeerAliases.has(realName))) {
-            const id: DepPath = `${realName ?? pendingPeer.alias}@${peerNode?.version ?? ''}` as DepPath
-            peerDeferred?.resolve(id)
-            // calculateDepPath invoked for currentAlias; peerIds length and pending counts are logged when debugging is enabled
+          if (cyclicPeerAliases.has(pendingPeer.alias)) {
+            const { name, version } = ctx.dependenciesTree.get(pendingPeer.nodeId)?.resolvedPackage as T
+            const id = `${name}@${version}`
+            ctx.pathsByNodeIdPromises.get(pendingPeer.nodeId)?.resolve(id as DepPath)
             return id
           }
-
-          // Case 2: mutual waiting (A waits for B, B waits for A) detected via waitingFor sets
-          const peerIsWaitingMe = peerDeferred?.waitingFor?.has(currentAlias)
-          if (peerIsWaitingMe) {
-            const id = `${realName ?? pendingPeer.alias}@${peerNode?.version ?? ''}` as DepPath
-            peerDeferred!.resolve(id)
-            // calculateDepPath invoked for currentAlias; peerIds length and pending counts are logged when debugging is enabled
-            return id
-          }
-
-          // normal path: wait for peer promise to complete
-          return peerDeferred!.promise
+          return ctx.pathsByNodeIdPromises.get(pendingPeer.nodeId)!.promise
         })
       ),
     ], ctx.peersSuffixMaxLength)
@@ -831,16 +799,9 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   const nodeIds = Array.from(new Set([...repeated, ...notRepeated].map(([, nodeId]) => nodeId)))
   const aliasByNodeId = Object.fromEntries(Object.entries(children).map(([alias, nodeId]) => [nodeId, alias]))
 
-  for (const [alias, nodeId] of Object.entries(children)) {
+  for (const nodeId of nodeIds) {
     if (!ctx.pathsByNodeIdPromises.has(nodeId)) {
-      const d = pDefer<DepPath>() as ExtendedDeferred
-      d.alias = 'unknown'
-      d.waitingFor = new Set<string>()
-      ctx.pathsByNodeIdPromises.set(nodeId, d)
-    } else {
-      // If deferred already exists, fill alias if it was unknown before
-      const existing = ctx.pathsByNodeIdPromises.get(nodeId) as ExtendedDeferred
-      if (existing && !existing.alias) existing.alias = alias
+      ctx.pathsByNodeIdPromises.set(nodeId, pDefer())
     }
   }
 
@@ -878,16 +839,12 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     if (calculateDepPath) {
       calculateDepPaths.push(calculateDepPath)
     }
-    const edgeSet = new Set<string>()
-    for (const [peerAlias, peerNodeId] of resolvedPeers) {
-      allResolvedPeers.set(peerAlias, peerNodeId)
-      edgeSet.add(peerAlias)
-      const peerNode = ctx.dependenciesTree.get(peerNodeId)
-      if (peerNode?.resolvedPackage.name && peerNode.resolvedPackage.name !== peerAlias) {
-        edgeSet.add(peerNode.resolvedPackage.name)
-      }
+    const edges: string[] = []
+    for (const [peerName, peerNodeId] of resolvedPeers) {
+      allResolvedPeers.set(peerName, peerNodeId)
+      edges.push(peerName)
     }
-    graph.push([currentAlias, Array.from(edgeSet)])
+    graph.push([currentAlias, edges])
     for (const [missingPeer, range] of missingPeers.entries()) {
       allMissingPeers.set(missingPeer, range)
     }
