@@ -573,6 +573,9 @@ catalogs:
     shell-quote:
       specifier: ^1.8.2
       version: 1.8.2
+    shlex:
+      specifier: ^2.1.2
+      version: 2.1.2
     signal-exit:
       specifier: ^3.0.7
       version: 3.0.7
@@ -2409,9 +2412,9 @@ importers:
       run-groups:
         specifier: 'catalog:'
         version: 3.0.1
-      shell-quote:
+      shlex:
         specifier: 'catalog:'
-        version: 1.8.2
+        version: 2.1.2
     devDependencies:
       '@pnpm/lifecycle':
         specifier: workspace:*
@@ -2434,9 +2437,6 @@ importers:
       '@types/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
-      '@types/shell-quote':
-        specifier: 'catalog:'
-        version: 1.7.5
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -14439,6 +14439,9 @@ packages:
     engines: {node: '>=4'}
     hasBin: true
 
+  shlex@2.1.2:
+    resolution: {integrity: sha512-Nz6gtibMVgYeMEhUjp2KuwAgqaJA1K155dU/HuDaEJUGgnmYfVtVZah+uerVWdH8UGnyahhDCgABbYTbs254+w==}
+
   short-tree@1.0.0:
     resolution: {integrity: sha512-SPhGxbdypMMjYlmdVL/dzBUCT/5FboztmleoS4WPgvCI7DqZXv8xrLSTuJqzmmuAtCTkgxkIKzfZ+jfJR6ODZg==}
     engines: {node: '>=12'}
@@ -22907,6 +22910,8 @@ snapshots:
       glob: 7.2.3
       interpret: 1.4.0
       rechoir: 0.6.2
+
+  shlex@2.1.2: {}
 
   short-tree@1.0.0:
     dependencies:

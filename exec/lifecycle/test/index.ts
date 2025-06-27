@@ -55,11 +55,11 @@ test('runLifecycleHook() passes newline correctly', async () => {
     rawConfig: {},
     rootModulesDir,
     unsafePerm: true,
-    args: ['a\nb'],
+    args: ['a\nb != \'A\\nB\''],
   })
 
   expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual([
-    process.platform === 'win32' ? 'a\\nb' : 'a\nb',
+    process.platform === 'win32' ? 'a\\nb != \'A\\\\nB\'' : 'a\nb != \'A\\nB\'',
   ])
 })
 
