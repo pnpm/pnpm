@@ -24,9 +24,9 @@ export function pickFetcher (fetcherByHostingType: Partial<Fetchers>, resolution
 }
 
 export function isGitHostedPkgUrl (url: string): boolean {
-  return (
+  return ((
     url.startsWith('https://codeload.github.com/') ||
     url.startsWith('https://bitbucket.org/') ||
     url.startsWith('https://gitlab.com/')
-  ) && url.includes('tar.gz')
+  ) && url.includes('tar.gz')) || url.startsWith('https://pkg.pr.new/')
 }
