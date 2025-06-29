@@ -1,5 +1,8 @@
 ---
 "@pnpm/lifecycle": patch
+"@pnpm/worker": patch
+pnpm: patch
 ---
 
-fix(lifecycle): replace shell-quote with shlex
+Replaced `shell-quote` with `shlex` for quoting command arguments [#9381](https://github.com/pnpm/pnpm/issues/9381).
+

@@ -8,7 +8,7 @@ import isWindows from 'is-windows'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'
 import pLimit from 'p-limit'
-import { quote as shellQuote } from 'shell-quote'
+import { join as shellQuote } from 'shlex'
 import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,
