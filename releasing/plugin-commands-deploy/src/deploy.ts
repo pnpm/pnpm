@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import pick from 'ramda/src/pick'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as configTypes } from '@pnpm/config'

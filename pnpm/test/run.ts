@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { execPnpm, execPnpmSync } from './utils'

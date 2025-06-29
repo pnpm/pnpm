@@ -1,9 +1,9 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
+import path from 'node:path'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import nock from 'nock'
 import { ProxyServer } from 'https-proxy-server-express'
-import fs from 'fs'
+import fs from 'node:fs'
 
 const CERTS_DIR = path.join(__dirname, '__certs__')
 

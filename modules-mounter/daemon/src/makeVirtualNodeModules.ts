@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type LockfileObject } from '@pnpm/lockfile.fs'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'

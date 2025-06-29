@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { add } from '@pnpm/plugin-commands-installation'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { addDependenciesToPackage, install } from '@pnpm/core'

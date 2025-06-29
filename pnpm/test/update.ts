@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { sync as readYamlFile } from 'read-yaml-file'

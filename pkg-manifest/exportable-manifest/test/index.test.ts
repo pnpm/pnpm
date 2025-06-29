@@ -5,7 +5,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { type ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'
-import path from 'path'
+import path from 'node:path'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 

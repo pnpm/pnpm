@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { preparePackages } from '@pnpm/prepare'
 import { sync as loadJsonFile } from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'

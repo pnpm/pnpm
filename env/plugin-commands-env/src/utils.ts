@@ -1,5 +1,5 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 export const CURRENT_NODE_DIRNAME = 'nodejs_current'
 

@@ -4,7 +4,7 @@ import { updateCheckLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 const NO_OUTPUT = Symbol('test should not log anything')
 

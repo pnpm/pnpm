@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { preparePackages } from '@pnpm/prepare'
 import { run } from '@pnpm/plugin-commands-script-runners'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'

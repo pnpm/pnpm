@@ -1,4 +1,4 @@
-import url from 'url'
+import url from 'node:url'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import {
   FetchError,

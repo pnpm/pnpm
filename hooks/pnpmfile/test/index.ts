@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type Log } from '@pnpm/core-loggers'
 import { requireHooks, requirePnpmfile, BadReadPackageHookError, type HookContext } from '@pnpm/pnpmfile'
 

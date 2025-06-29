@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { readModulesManifest, writeModulesManifest } from '@pnpm/modules-yaml'
 import { sync as readYamlFile } from 'read-yaml-file'
 import isWindows from 'is-windows'

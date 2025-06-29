@@ -1,5 +1,5 @@
-import path from 'path'
-import fs from 'fs'
+import path from 'node:path'
+import fs from 'node:fs'
 import { init } from '@pnpm/plugin-commands-init'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'

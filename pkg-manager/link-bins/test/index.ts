@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { logger, globalWarn } from '@pnpm/logger'
 import {
   linkBins,
@@ -12,7 +12,7 @@ import CMD_EXTENSION from 'cmd-extension'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
 import tempy from 'tempy'
-import { spawnSync } from 'child_process'
+import { spawnSync } from 'node:child_process'
 
 jest.mock('@pnpm/logger', () => {
   const debug = jest.fn()

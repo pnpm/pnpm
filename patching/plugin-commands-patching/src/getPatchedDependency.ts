@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { prompt } from 'enquirer'
 import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile.fs'

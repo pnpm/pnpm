@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type PnpmError } from '@pnpm/error'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'

@@ -1,5 +1,5 @@
 // cspell:ignore ents
-import fs from 'fs'
+import fs from 'node:fs'
 import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type LockfileObject, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.fs'
 import {

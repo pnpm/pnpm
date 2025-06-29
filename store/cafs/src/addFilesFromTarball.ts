@@ -5,7 +5,7 @@ import {
 } from '@pnpm/cafs-types'
 import { type DependencyManifest } from '@pnpm/types'
 import isGzip from 'is-gzip'
-import { gunzipSync } from 'zlib'
+import { gunzipSync } from 'node:zlib'
 import { parseJsonBufferSync } from './parseJson'
 import { parseTarball } from './parseTarball'
 

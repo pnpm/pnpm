@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
+import path from 'node:path'
 import { readPackageJson, readPackageJsonFromDir } from '@pnpm/read-package-json'
 
 const fixtures = path.join(__dirname, 'fixtures')

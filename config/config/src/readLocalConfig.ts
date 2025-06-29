@@ -1,5 +1,5 @@
-import path from 'path'
-import util from 'util'
+import path from 'node:path'
+import util from 'node:util'
 import camelcaseKeys from 'camelcase-keys'
 import { envReplace } from '@pnpm/config.env-replace'
 import { readIniFile } from 'read-ini-file'

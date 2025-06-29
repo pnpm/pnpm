@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { type ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.read-manifest'

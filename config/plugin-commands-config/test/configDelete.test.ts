@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { tempDir } from '@pnpm/prepare'
 import { config } from '@pnpm/plugin-commands-config'
 import { readIniFileSync } from 'read-ini-file'

@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { install, mutateModules } from '@pnpm/core'
 import { testDefaults } from '../utils'

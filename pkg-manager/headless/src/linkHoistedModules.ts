@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   progressLogger,

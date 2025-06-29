@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import path from 'path'
+import path from 'node:path'
 
 import { prepare } from '@pnpm/prepare'
 import { getConfig } from '@pnpm/config'

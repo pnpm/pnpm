@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { type LockfileFile } from '@pnpm/lockfile.types'
 import { install, remove } from '@pnpm/plugin-commands-installation'

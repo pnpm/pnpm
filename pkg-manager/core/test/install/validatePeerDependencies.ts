@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { install } from '@pnpm/core'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { preparePackages } from '@pnpm/prepare'

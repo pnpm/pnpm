@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import {
   existsNonEmptyWantedLockfile,

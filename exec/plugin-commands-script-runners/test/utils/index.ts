@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 

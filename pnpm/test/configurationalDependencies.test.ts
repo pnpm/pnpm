@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs from 'node:fs'
 import { prepare } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'

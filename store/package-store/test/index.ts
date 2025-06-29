@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
+import path from 'node:path'
 import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
 import { type FetchPackageToStoreFunction } from '@pnpm/store-controller-types'

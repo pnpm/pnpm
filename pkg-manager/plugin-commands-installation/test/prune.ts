@@ -1,11 +1,11 @@
-import path from 'path'
+import path from 'node:path'
 import { add, install, prune } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import symlinkDir from 'symlink-dir'
-import fs from 'fs'
+import fs from 'node:fs'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(__dirname)

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { getOptionsFromRootManifest, getOptionsFromPnpmSettings } from '../lib/getOptionsFromRootManifest'
 
 const ORIGINAL_ENV = process.env

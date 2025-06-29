@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import npa from '@pnpm/npm-package-arg'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import { parseBareSpecifier, workspacePrefToNpm } from '@pnpm/npm-resolver'

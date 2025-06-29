@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import PATH_NAME from 'path-name'
 import { STORE_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'

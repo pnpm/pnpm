@@ -1,5 +1,5 @@
-import path from 'path'
-import fs from 'fs'
+import path from 'node:path'
+import fs from 'node:fs'
 import { createCafsStore, createPackageImporterAsync, type CafsLocker } from '@pnpm/create-cafs-store'
 import { type Fetchers } from '@pnpm/fetcher-base'
 import { createPackageRequester } from '@pnpm/package-requester'

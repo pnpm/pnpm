@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import semver from 'semver'
 import partition from 'ramda/src/partition'
 import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@pnpm/types'

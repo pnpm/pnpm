@@ -1,6 +1,6 @@
-import path from 'path'
+import path from 'node:path'
 import pathAbsolute from 'path-absolute'
-import { readFile } from 'fs/promises'
+import { readFile } from 'node:fs/promises'
 import { readPackageJson } from '@pnpm/read-package-json'
 import { depPathToFilename, parse } from '@pnpm/dependency-path'
 import pLimit from 'p-limit'

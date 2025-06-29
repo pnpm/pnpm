@@ -1,13 +1,13 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type PnpmError } from '@pnpm/error'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { prepare, tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 const f = fixtures(__dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')

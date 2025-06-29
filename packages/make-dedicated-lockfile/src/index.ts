@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import pnpmExec from '@pnpm/exec'
 import { createExportableManifest } from '@pnpm/exportable-manifest'
 import {

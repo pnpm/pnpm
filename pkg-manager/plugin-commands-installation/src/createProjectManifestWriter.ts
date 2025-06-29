@@ -1,5 +1,5 @@
-import path from 'path'
-import util from 'util'
+import path from 'node:path'
+import util from 'node:util'
 import { readProjectManifest, type WriteProjectManifest } from '@pnpm/read-project-manifest'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 

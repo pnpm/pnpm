@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
+import path from 'node:path'
 import { createGitResolver } from '@pnpm/git-resolver'
 import git from 'graceful-git'
 import isWindows from 'is-windows'

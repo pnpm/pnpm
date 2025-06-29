@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { createResolver } from '@pnpm/client'
 import { type Config } from '@pnpm/config'
 import { logger } from '@pnpm/logger'
