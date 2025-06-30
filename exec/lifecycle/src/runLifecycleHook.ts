@@ -6,7 +6,7 @@ import { type DependencyManifest, type ProjectManifest, type PrepareExecutionEnv
 import { PnpmError } from '@pnpm/error'
 import { existsSync } from 'fs'
 import isWindows from 'is-windows'
-import { quote as shellQuote } from 'shell-quote'
+import { join as shellQuote } from 'shlex'
 
 function noop () {} // eslint-disable-line:no-empty
 

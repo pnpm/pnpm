@@ -44,7 +44,7 @@
     "is-windows": "catalog:",
     "path-exists": "catalog:",
     "run-groups": "catalog:",
-    "shell-quote": "catalog:"
+    "shlex": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -57,7 +57,6 @@
     "@pnpm/test-ipc-server": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/rimraf": "catalog:",
-    "@types/shell-quote": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "load-json-file": "catalog:"
   },

@@ -93,7 +93,6 @@ catalog:
   '@types/semver': 7.5.3
   '@types/signal-exit': ^3.0.4
   '@types/sinon': ^10.0.20
-  '@types/shell-quote': ^1.7.5
   '@types/ssri': ^7.1.5
   '@types/tar': ^6.1.13
   '@types/tar-stream': ^2.2.3
@@ -233,7 +232,7 @@ catalog:
   semver-range-intersect: ^0.3.1
   semver-utils: ^1.1.4
   semver: ^7.7.1
-  shell-quote: ^1.8.2
+  shlex: ^2.1.2
   signal-exit: ^3.0.7
   sinon: ^16.1.3
   sort-keys: ^4.2.0
