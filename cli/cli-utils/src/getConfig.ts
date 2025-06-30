@@ -37,8 +37,10 @@ export async function getConfig (
   if (!config.ignorePnpmfile) {
     config.hooks = requireHooks(config.lockfileDir ?? config.dir, config)
     if (config.hooks?.updateConfig) {
-      const updateConfigResult = config.hooks.updateConfig(config)
-      config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult
+      for (const updateConfig of config.hooks.updateConfig) {
+        const updateConfigResult = updateConfig(config)
+        config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop
+      }
     }
   }
 

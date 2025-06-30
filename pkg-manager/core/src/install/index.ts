@@ -308,15 +308,18 @@ export async function mutateModules (
   }
 
   if (opts.hooks.preResolution) {
-    await opts.hooks.preResolution({
-      currentLockfile: ctx.currentLockfile,
-      wantedLockfile: ctx.wantedLockfile,
-      existsCurrentLockfile: ctx.existsCurrentLockfile,
-      existsNonEmptyWantedLockfile: ctx.existsNonEmptyWantedLockfile,
-      lockfileDir: ctx.lockfileDir,
-      storeDir: ctx.storeDir,
-      registries: ctx.registries,
-    })
+    for (const preResolution of opts.hooks.preResolution) {
+      // eslint-disable-next-line no-await-in-loop
+      await preResolution({
+        currentLockfile: ctx.currentLockfile,
+        wantedLockfile: ctx.wantedLockfile,
+        existsCurrentLockfile: ctx.existsCurrentLockfile,
+        existsNonEmptyWantedLockfile: ctx.existsNonEmptyWantedLockfile,
+        lockfileDir: ctx.lockfileDir,
+        storeDir: ctx.storeDir,
+        registries: ctx.registries,
+      })
+    }
   }
 
   const pruneVirtualStore = !opts.enableGlobalVirtualStore && (ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
