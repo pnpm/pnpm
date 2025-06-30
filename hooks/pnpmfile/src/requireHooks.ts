@@ -69,7 +69,7 @@ export function requireHooks (
   }
 
   // calculate combined checksum for all included files
-  if (entries.length > 0) {
+  if (entries.some((entry) => entry.module != null)) {
     cookedHooks.calculatePnpmfileChecksum = async () => {
       const checksums = await Promise.all(
         entries
