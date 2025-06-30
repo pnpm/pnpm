@@ -11,7 +11,7 @@ import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 async function writeManifestFile (dir: string, manifest: Partial<WorkspaceManifest>): Promise<void> {
   manifest = sortKeysByPriority({
     priority: { packages: 0 },
-    deep: false,
+    deep: true,
   }, manifest)
   return writeYamlFile(path.join(dir, WORKSPACE_MANIFEST_FILENAME), manifest, {
     lineWidth: -1, // This is setting line width to never wrap
