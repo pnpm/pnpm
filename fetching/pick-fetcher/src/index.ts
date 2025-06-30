@@ -23,10 +23,19 @@ export function pickFetcher (fetcherByHostingType: Partial<Fetchers>, resolution
   return fetch
 }
 
+// https://github.com/stackblitz-labs/pkg.pr.new
+// With pkg.pr.new, each of your commits and pull requests will trigger an instant preview release without publishing anything to NPM.
+// This enables users to access features and bug-fixes without the need to wait for release cycles using npm or pull request merges.
+// When a package is installed via pkg.pr.new and has never been published to npm,
+// the version or name obtained is incorrect, and an error will occur when patching. We can treat it as a tarball url.
+export function isPkgPrNewUrl (url: string): boolean {
+  return url.startsWith('https://pkg.pr.new/')
+}
+
 export function isGitHostedPkgUrl (url: string): boolean {
-  return ((
+  return (
     url.startsWith('https://codeload.github.com/') ||
     url.startsWith('https://bitbucket.org/') ||
     url.startsWith('https://gitlab.com/')
-  ) && url.includes('tar.gz')) || url.startsWith('https://pkg.pr.new/')
+  ) && url.includes('tar.gz')
 }
