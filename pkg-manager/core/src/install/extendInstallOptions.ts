@@ -79,7 +79,7 @@ export interface StrictInstallOptions {
   nodeVersion?: string
   packageExtensions: Record<string, PackageExtension>
   ignoredOptionalDependencies: string[]
-  pnpmfile: string
+  pnpmfile: string[] | string
   ignorePnpmfile: boolean
   packageManager: {
     name: string

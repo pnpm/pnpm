@@ -549,7 +549,7 @@ async function patchesAreModified (opts: {
   rootManifestOptions: OptionsFromRootManifest | undefined
   rootDir: string
   lastValidatedTimestamp: number
-  pnpmfile: string
+  pnpmfile: string[] | string
   hadPnpmfile: boolean
 }): Promise<string | undefined> {
   if (opts.rootManifestOptions?.patchedDependencies) {
@@ -563,16 +563,18 @@ async function patchesAreModified (opts: {
       return 'Patches were modified'
     }
   }
-  const pnpmfilePath = getPnpmfilePath(opts.rootDir, opts.pnpmfile)
-  const pnpmfileStats = safeStatSync(pnpmfilePath)
-  if (pnpmfileStats != null && pnpmfileStats.mtime.valueOf() > opts.lastValidatedTimestamp) {
-    return `pnpmfile at "${pnpmfilePath}" was modified`
-  }
-  if (opts.hadPnpmfile && pnpmfileStats == null) {
-    return `pnpmfile at "${pnpmfilePath}" was removed`
-  }
-  if (!opts.hadPnpmfile && pnpmfileStats != null) {
-    return `pnpmfile at "${pnpmfilePath}" was added`
+  for (const pnpmfile of opts.pnpmfile) {
+    const pnpmfilePath = getPnpmfilePath(opts.rootDir, pnpmfile)
+    const pnpmfileStats = safeStatSync(pnpmfilePath)
+    if (pnpmfileStats != null && pnpmfileStats.mtime.valueOf() > opts.lastValidatedTimestamp) {
+      return `pnpmfile at "${pnpmfilePath}" was modified`
+    }
+    if (opts.hadPnpmfile && pnpmfileStats == null) {
+      return `pnpmfile at "${pnpmfilePath}" was removed`
+    }
+    if (!opts.hadPnpmfile && pnpmfileStats != null) {
+      return `pnpmfile at "${pnpmfilePath}" was added`
+    }
   }
   return undefined
 }
