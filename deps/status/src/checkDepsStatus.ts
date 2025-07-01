@@ -563,7 +563,7 @@ async function patchesAreModified (opts: {
       return 'Patches were modified'
     }
   }
-  for (const pnpmfile of opts.pnpmfile) {
+  for (const pnpmfile of Array.isArray(opts.pnpmfile) ? opts.pnpmfile : [opts.pnpmfile]) {
     const pnpmfilePath = getPnpmfilePath(opts.rootDir, pnpmfile)
     const pnpmfileStats = safeStatSync(pnpmfilePath)
     if (pnpmfileStats != null && pnpmfileStats.mtime.valueOf() > opts.lastValidatedTimestamp) {
