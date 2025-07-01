@@ -2,17 +2,39 @@ import { promises as fs } from 'fs'
 import util from 'util'
 import gfs from 'graceful-fs'
 import path from 'path'
+import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
+import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
+import { satisfies } from 'semver'
 import { PnpmError } from '@pnpm/error'
+import { logger } from '@pnpm/logger'
 import cmdShim from '@zkochan/cmd-shim'
 import isWindows from 'is-windows'
 import symlinkDir from 'symlink-dir'
 import { type NvmNodeCommandOptions } from './node'
 import { CURRENT_NODE_DIRNAME, getNodeExecPathInBinDir, getNodeExecPathInNodeDir } from './utils'
-import { downloadNodeVersion } from './downloadNodeVersion'
+import { getNodeVersion, downloadNodeVersion } from './downloadNodeVersion'
 
 export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
   if (!opts.global) {
-    throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
+    const workspaceDir = await findWorkspaceDir(process.cwd()) ?? process.cwd()
+    const {manifest} = await readProjectManifest(workspaceDir)
+    const {runtime} = manifest.devEngines ?? {}
+    const runtimeNodeVersion = runtime?.name === 'node' ? runtime?.version : undefined
+
+    const version = params.at(-1) ?? opts.useNodeVersion ?? runtimeNodeVersion ?? 'latest'
+    const {nodeVersion} = manifest.pnpm?.executionEnv ?? await getNodeVersion(opts, version)
+
+    if (!opts.useNodeVersion || params.length) {
+      await updateWorkspaceManifest(workspaceDir, { useNodeVersion: nodeVersion })
+      opts.useNodeVersion = nodeVersion
+    }
+    if (runtimeNodeVersion && !satisfies(opts.useNodeVersion, runtimeNodeVersion)) {
+      const message = `"useNodeVersion: ${opts.useNodeVersion}" is incompatible with "devEngines.runtime.version: ${runtimeNodeVersion}"`
+      if (opts.engineStrict) throw new PnpmError('INVALID_NODE_VERSION', message)
+      else logger.warn({ message, prefix: workspaceDir })
+    }
+    params[0] ??= nodeVersion
   }
   const nodeInfo = await downloadNodeVersion(opts, params[0])
   if (!nodeInfo) {
