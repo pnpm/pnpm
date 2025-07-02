@@ -33,6 +33,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'stream'
 | 'syncInjectedDepsAfterScripts'
 | 'workspaceDir'
+| 'fail-if-no-match'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir' | 'dir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
@@ -188,7 +189,7 @@ export async function runRecursive (
 
   if (scriptName !== 'test' && !hasCommand && !opts.ifPresent) {
     const allPackagesAreSelected = Object.keys(opts.selectedProjectsGraph).length === opts.allProjects.length
-    if (allPackagesAreSelected) {
+    if (allPackagesAreSelected || opts['fail-if-no-match']) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)
     } else {
       logger.info({
