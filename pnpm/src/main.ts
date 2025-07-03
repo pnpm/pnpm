@@ -101,6 +101,7 @@ export async function main (inputArgv: string[]): Promise<void> {
     }
     config = await getConfig(cliOptions, {
       excludeReporter: false,
+      global: cliOptions.global,
       globalDirShouldAllowWrite,
       rcOptionsTypes,
       workspaceDir,
