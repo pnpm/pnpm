@@ -120,7 +120,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
     if (regStr) {
       const commandRegExp = new RegExp(regStr)
       if (commandRegExp.test(stage)) {
-        throw new PnpmError('UNSUPPORTED_SCRIPT_COMMAND_FORMAT', `The script command "${stage}" is contained by regular expression ${commandRegExp}, This will cause the matching script to trigger in an infinite loop.`)
+        throw new PnpmError('INCORRECT_SCRIPT_COMMAND', `The script command "${stage}" is contained by regular expression ${commandRegExp}, This will cause the matching script to trigger in an infinite loop.`)
       }
     }
   }
