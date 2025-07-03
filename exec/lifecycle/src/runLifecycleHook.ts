@@ -96,12 +96,13 @@ Please unset the scriptShell option, or configure it to a .exe instead.
   }
   // This script is used to prevent the usage of npm or Yarn.
   // It does nothing, when pnpm is used, so we may skip its execution.
-  if (m.scripts[stage] === 'npx only-allow pnpm' || !m.scripts[stage]) return false
+  const commandStr = m.scripts[stage]
+  if (commandStr === 'npx only-allow pnpm' || !commandStr) return false
   if (opts.stdio !== 'inherit') {
     lifecycleLogger.debug({
       depPath: opts.depPath,
       optional,
-      script: m.scripts[stage],
+      script: commandStr,
       stage,
       wd: opts.pkgRoot,
     })
@@ -113,6 +114,17 @@ Please unset the scriptShell option, or configure it to a .exe instead.
     extraBinPaths: opts.extraBinPaths,
     executionEnv: (manifest as ProjectManifest).pnpm?.executionEnv,
   }))?.extraBinPaths ?? opts.extraBinPaths
+  const regexpCommand = /pnpm\s+(?:run\s+)?['"]?\/(?:\\\/|[^/])+\/['"]?/
+  if (regexpCommand.test(commandStr)) {
+    const regStr = commandStr.split(/pnpm|run/).map(s => s.trim()).filter(Boolean)[0].trim().slice(1, -1).replace(/^['"/]|['"/]$/g, '')
+    if (regStr) {
+      const commandRegExp = new RegExp(regStr)
+      if (commandRegExp.test(stage)) {
+        throw new PnpmError('UNSUPPORTED_SCRIPT_COMMAND_FORMAT', `The script command "${stage}" is contained by regular expression ${commandRegExp}, This will cause the matching script to trigger in an infinite loop.`)
+      }
+    }
+  }
+
   await lifecycle(m, stage, opts.pkgRoot, {
     config: {
       ...opts.rawConfig,
