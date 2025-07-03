@@ -132,6 +132,49 @@ test('dangerously-allow-all-builds=true in global config', async () => {
   expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
 })
 
+test('dangerously-allow-all-builds=false in global config', async () => {
+  // the directory structure below applies only to Linux
+  if (process.platform !== 'linux') return
+
+  prepare({
+    name: 'local',
+    version: '0.0.0',
+    private: true,
+    pnpm: {
+      onlyBuiltDependencies: ['@pnpm.e2e/postinstall-calls-pnpm'],
+    },
+  })
+
+  const home = path.resolve('..', 'home/username')
+  const cfgHome = path.resolve(home, '.config')
+  const pnpmCfgDir = path.resolve(cfgHome, 'pnpm')
+  const pnpmRcFile = path.join(pnpmCfgDir, 'rc')
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  const globalPkgDir = path.join(pnpmHome, 'global', String(LAYOUT_VERSION))
+  fs.mkdirSync(pnpmCfgDir, { recursive: true })
+  fs.writeFileSync(pnpmRcFile, [
+    'reporter=append-only',
+    'dangerously-allow-all-builds=false',
+  ].join('\n'))
+
+  const env = {
+    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]!}`,
+    HOME: home,
+    XDG_CONFIG_HOME: cfgHome,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
+
+  // global install should run scripts
+  await execPnpm(['install', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
+  expect(fs.readdirSync(path.join(globalPkgDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
+
+  // doesn't affect local project
+  await execPnpm(['add', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
+  expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
+})
+
 test('global update to latest', async () => {
   prepare()
   const global = path.resolve('..', 'global')
