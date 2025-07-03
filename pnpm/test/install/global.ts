@@ -3,6 +3,7 @@ import PATH_NAME from 'path-name'
 import fs from 'fs'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
+import { type ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
 import {
   addDistTag,
@@ -93,14 +94,16 @@ test('dangerously-allow-all-builds=true in global config', async () => {
   // the directory structure below applies only to Linux
   if (process.platform !== 'linux') return
 
-  prepare({
+  const manifest: ProjectManifest = {
     name: 'local',
     version: '0.0.0',
     private: true,
     pnpm: {
       onlyBuiltDependencies: [], // don't allow any dependencies to be built
     },
-  })
+  }
+
+  const project = prepare(manifest)
 
   const home = path.resolve('..', 'home/username')
   const cfgHome = path.resolve(home, '.config')
@@ -128,6 +131,14 @@ test('dangerously-allow-all-builds=true in global config', async () => {
   expect(fs.readdirSync(path.join(globalPkgDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
 
   // doesn't affect local project
+  await execPnpm(['add', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
+  expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
+
+  // local project does not inherit this field from global config
+  delete manifest.pnpm!.onlyBuiltDependencies
+  project.writePackageJson(manifest)
+  fs.rmSync('node_modules', { recursive: true })
+  fs.rmSync('pnpm-lock.yaml')
   await execPnpm(['add', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
   expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
 })
