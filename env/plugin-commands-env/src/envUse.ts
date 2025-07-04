@@ -2,9 +2,7 @@ import { promises as fs } from 'fs'
 import util from 'util'
 import gfs from 'graceful-fs'
 import path from 'path'
-import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
-import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { satisfies } from 'semver'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
@@ -17,22 +15,20 @@ import { getNodeVersion, downloadNodeVersion } from './downloadNodeVersion'
 
 export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
   if (!opts.global) {
-    const workspaceDir = await findWorkspaceDir(process.cwd()) ?? process.cwd()
-    const {manifest} = await readProjectManifest(workspaceDir)
-    const {runtime} = manifest.devEngines ?? {}
+    const {runtime} = opts.rootProjectManifest.devEngines ?? {}
     const runtimeNodeVersion = runtime?.name === 'node' ? runtime?.version : undefined
 
     const version = params.at(-1) ?? opts.useNodeVersion ?? runtimeNodeVersion ?? 'latest'
-    const {nodeVersion} = manifest.pnpm?.executionEnv ?? await getNodeVersion(opts, version)
+    const {nodeVersion} = opts.rootProjectManifest.pnpm?.executionEnv ?? await getNodeVersion(opts, version)
 
     if (!opts.useNodeVersion || params.length) {
-      await updateWorkspaceManifest(workspaceDir, { useNodeVersion: nodeVersion })
+      await updateWorkspaceManifest(opts.workspaceDir, { useNodeVersion: nodeVersion })
       opts.useNodeVersion = nodeVersion
     }
     if (runtimeNodeVersion && !satisfies(opts.useNodeVersion, runtimeNodeVersion)) {
       const message = `"useNodeVersion: ${opts.useNodeVersion}" is incompatible with "devEngines.runtime.version: ${runtimeNodeVersion}"`
       if (opts.engineStrict) throw new PnpmError('INVALID_NODE_VERSION', message)
-      else logger.warn({ message, prefix: workspaceDir })
+      else logger.warn({ message, prefix: opts.workspaceDir })
     }
     params[0] ??= nodeVersion
   }
