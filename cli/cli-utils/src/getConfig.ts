@@ -9,6 +9,7 @@ export async function getConfig (
   cliOptions: CliOptions,
   opts: {
     excludeReporter: boolean
+    global?: boolean
     globalDirShouldAllowWrite?: boolean
     rcOptionsTypes: Record<string, unknown>
     workspaceDir: string | undefined
@@ -18,6 +19,7 @@ export async function getConfig (
 ): Promise<Config> {
   let { config, warnings } = await _getConfig({
     cliOptions,
+    global: opts.global,
     globalDirShouldAllowWrite: opts.globalDirShouldAllowWrite,
     packageManager,
     rcOptionsTypes: opts.rcOptionsTypes,

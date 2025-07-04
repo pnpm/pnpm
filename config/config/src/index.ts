@@ -56,6 +56,7 @@ const npmDefaults = loadNpmConf.defaults
 export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }
 
 export async function getConfig (opts: {
+  global?: boolean
   globalDirShouldAllowWrite?: boolean
   cliOptions: CliOptions
   packageManager: {
@@ -209,6 +210,16 @@ export async function getConfig (opts: {
   {
     const warn = npmConfig.addFile(path.join(configDir as string, 'rc'), 'pnpm-global')
     if (warn) warnings.push(warn)
+    if (!opts.global) {
+      for (const key of [
+        'dangerously-allow-all-builds',
+        'only-built-dependencies',
+        'only-built-dependencies-file',
+        'never-built-dependencies',
+      ]) {
+        npmConfig.set(key, undefined) // there's no npmConfig.delete, unfortunately
+      }
+    }
   }
   {
     const warn = npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
