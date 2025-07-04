@@ -278,7 +278,7 @@ ignoredBuiltDependencies:
 
 managePackageManagerVersions: true
 
-nodeVersion: 18.18.0
+nodeVersion: 18.19.0
 
 onlyBuiltDependencies:
   - esbuild
@@ -288,6 +288,11 @@ onlyBuiltDependencies:
 optimisticRepeatInstall: true
 
 overrides:
+  '@exodus/test>@exodus/test-bundler': '-'
+  '@exodus/test>jest-extended': '-'
+  '@exodus/test>playwright-core': '-'
+  '@exodus/test>puppeteer-core': '-'
+  '@exodus/test>c8': '*'
   '@yarnpkg/fslib@2': '3'
   body-parser@<1.20.3: ^1.20.3
   clipanion: 3.2.0-rc.6

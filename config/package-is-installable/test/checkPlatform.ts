@@ -1,14 +1,14 @@
-import { checkPlatform } from '../lib/checkPlatform'
-
 const packageId = 'registry.npmjs.org/foo/1.0.0'
 
-jest.mock('detect-libc', () => {
+jest.doMock('detect-libc', () => {
   const original = jest.requireActual('detect-libc')
   return {
     ...original,
     familySync: () => 'musl',
   }
 })
+
+const { checkPlatform } = jest.requireActual('../lib/checkPlatform')
 
 test('target cpu wrong', () => {
   const target = {

@@ -1,17 +1,17 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import path from 'path'
-import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
-// @ts-expect-error
-import { debug } from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
 import { sync as rimraf } from '@zkochan/rimraf'
 
 const f = fixtures(__dirname)
-jest.mock('@pnpm/logger', () => {
+jest.doMock('@pnpm/logger', () => {
   const debug = jest.fn()
   return ({ debug, logger: () => ({ debug }) })
 })
+
+const { debug } = jest.requireMock('@pnpm/logger')
+const { createDirectoryFetcher } = jest.requireActual('@pnpm/directory-fetcher')
 
 test('fetch including only package files', async () => {
   process.chdir(f.find('simple-pkg'))
