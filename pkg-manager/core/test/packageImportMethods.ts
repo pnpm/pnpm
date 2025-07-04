@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs from 'node:fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage } from '@pnpm/core'
 import { sync as loadJsonFile } from 'load-json-file'

@@ -1,4 +1,4 @@
-import * as path from 'path'
+import * as path from 'node:path'
 import { type ClientOptions, createClient } from '@pnpm/client'
 import { createPackageStore, type CreatePackageStoreOptions } from '@pnpm/package-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

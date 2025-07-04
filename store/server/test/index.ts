@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import getPort from 'get-port'
 import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'

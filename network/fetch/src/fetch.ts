@@ -1,5 +1,5 @@
-import assert from 'assert'
-import util from 'util'
+import assert from 'node:assert'
+import util from 'node:util'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
 import nodeFetch, { type Request, type RequestInit as NodeRequestInit, Response } from 'node-fetch'

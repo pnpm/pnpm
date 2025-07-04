@@ -1,5 +1,5 @@
-import { promises as fs, existsSync } from 'fs'
-import path from 'path'
+import { promises as fs, existsSync } from 'node:fs'
+import path from 'node:path'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { resolveNodeVersions } from '@pnpm/node.resolver'
 import { PnpmError } from '@pnpm/error'

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { preparePackage } from '@pnpm/prepare-package'
 import { tempDir } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'

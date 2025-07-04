@@ -1,6 +1,6 @@
-import assert from 'assert'
-import http, { type IncomingMessage, type Server, type ServerResponse } from 'http'
-import util from 'util'
+import assert from 'node:assert'
+import http, { type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import util from 'node:util'
 import { globalInfo } from '@pnpm/logger'
 import {
   type PkgRequestFetchResult,

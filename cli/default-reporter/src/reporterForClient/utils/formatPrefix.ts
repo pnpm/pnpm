@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import normalize from 'normalize-path'
 import { PREFIX_MAX_LENGTH } from '../outputConstants'
 

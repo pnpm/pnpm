@@ -1,5 +1,5 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { contextLogger, packageManifestLogger } from '@pnpm/core-loggers'
 import { type LockfileObject } from '@pnpm/lockfile.fs'
 import {

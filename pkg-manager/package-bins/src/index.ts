@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type DependencyManifest, type PackageBin } from '@pnpm/types'
 import { glob } from 'tinyglobby'
 import isSubdir from 'is-subdir'

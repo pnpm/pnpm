@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type LockfileFile } from '@pnpm/lockfile.types'
 import { add } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'

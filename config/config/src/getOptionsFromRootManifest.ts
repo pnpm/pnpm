@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { envReplace } from '@pnpm/config.env-replace'
 import { PnpmError } from '@pnpm/error'
 import {

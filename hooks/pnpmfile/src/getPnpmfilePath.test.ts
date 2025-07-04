@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { getPnpmfilePath } from './getPnpmfilePath'
 
 test('getPnpmfilePath() when pnpmfile is undefined', () => {

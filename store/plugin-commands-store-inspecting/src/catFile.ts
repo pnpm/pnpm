@@ -1,5 +1,5 @@
-import path from 'path'
-import util from 'util'
+import path from 'node:path'
+import util from 'node:util'
 
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'

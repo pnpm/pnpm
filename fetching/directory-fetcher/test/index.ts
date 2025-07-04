@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 // @ts-expect-error
 import { debug } from '@pnpm/logger'

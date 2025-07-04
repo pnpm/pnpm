@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { prepareEmpty } from '@pnpm/prepare'
 import { install } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'

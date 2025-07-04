@@ -1,4 +1,4 @@
-import url from 'url'
+import url from 'node:url'
 import { type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.types'
 import { type Resolution } from '@pnpm/resolver-base'
 import { type Registries } from '@pnpm/types'

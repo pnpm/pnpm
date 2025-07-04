@@ -1,6 +1,6 @@
-import fs from 'fs'
+import fs from 'node:fs'
 import * as execa from 'execa'
-import path from 'path'
+import path from 'node:path'
 import makeEmptyDir from 'make-empty-dir'
 
 const repoRoot = path.join(__dirname, '../../..')

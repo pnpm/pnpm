@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { type PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { exec, run } from '@pnpm/plugin-commands-script-runners'
@@ -382,7 +382,7 @@ test('pnpm exec on single project', async () => {
     dir: process.cwd(),
     recursive: false,
     selectedProjectsGraph: {},
-  }, ['node', '-e', 'require("fs").writeFileSync("output.json", "[]", "utf8")'])
+  }, ['node', '-e', 'require("node:fs").writeFileSync("output.json", "[]", "utf8")'])
 
   const { default: outputs } = await import(path.resolve('output.json'))
   expect(outputs).toStrictEqual([])
@@ -426,7 +426,7 @@ test('pnpm exec outside of projects', async () => {
     dir: process.cwd(),
     recursive: false,
     selectedProjectsGraph: {},
-  }, ['node', '-e', 'require("fs").writeFileSync("output.json", "[]", "utf8")'])
+  }, ['node', '-e', 'require("node:fs").writeFileSync("output.json", "[]", "utf8")'])
 
   const { default: outputs } = await import(path.resolve('output.json'))
   expect(outputs).toStrictEqual([])

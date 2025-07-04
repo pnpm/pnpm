@@ -1,4 +1,4 @@
-const fs = require('fs')
+const fs = require('node:fs')
 console.log('Creating a tree of empty directories...')
 fs.mkdirSync('empty-dirs/a/a/', { recursive: true })
 fs.mkdirSync('empty-dirs/a/b/', { recursive: true })

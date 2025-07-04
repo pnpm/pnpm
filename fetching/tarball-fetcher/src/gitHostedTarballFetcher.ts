@@ -1,6 +1,6 @@
-import assert from 'assert'
+import assert from 'node:assert'
 import fs from 'node:fs/promises'
-import util from 'util'
+import util from 'node:util'
 import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import { packlist } from '@pnpm/fs.packlist'

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'

@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import ssri from 'ssri'
 import tempy from 'tempy'
 import { pathTemp, writeBufferToCafs } from '../src/writeBufferToCafs'

@@ -1,5 +1,5 @@
-import path from 'path'
-import url from 'url'
+import path from 'node:path'
+import url from 'node:url'
 import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
 import { USEFUL_NON_ROOT_PNPM_FIELDS } from '@pnpm/constants'

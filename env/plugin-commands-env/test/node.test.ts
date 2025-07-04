@@ -1,8 +1,8 @@
 import AdmZip from 'adm-zip'
 import { Response } from 'node-fetch'
-import path from 'path'
-import fs from 'fs'
-import { Readable } from 'stream'
+import path from 'node:path'
+import fs from 'node:fs'
+import { Readable } from 'node:stream'
 import tar from 'tar-stream'
 import { globalWarn } from '@pnpm/logger'
 import {

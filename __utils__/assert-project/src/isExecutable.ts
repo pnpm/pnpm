@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs from 'node:fs'
 import isWindows from 'is-windows'
 import { sync as isexe } from 'isexe'
 

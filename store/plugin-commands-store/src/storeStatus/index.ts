@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import {

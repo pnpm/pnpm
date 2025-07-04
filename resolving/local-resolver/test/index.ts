@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import path from 'path'
+import path from 'node:path'
 import { resolveFromLocal } from '@pnpm/local-resolver'
 import { type DirectoryResolution } from '@pnpm/resolver-base'
 import normalize from 'normalize-path'

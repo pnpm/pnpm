@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs from 'node:fs'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import { execPnpmSync } from './utils'

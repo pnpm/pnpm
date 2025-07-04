@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { packageManager } from '@pnpm/cli-meta'
 import { type Config } from '@pnpm/config'
 import { createResolver } from '@pnpm/client'

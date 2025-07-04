@@ -1,5 +1,5 @@
-import { promisify } from 'util'
-import path from 'path'
+import { promisify } from 'node:util'
+import path from 'node:path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { connectStoreController } from '@pnpm/server'
 import { serverConnectionInfoDir, tryLoadServerJson } from '@pnpm/store-connection-manager'

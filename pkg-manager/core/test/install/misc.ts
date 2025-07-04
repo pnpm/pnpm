@@ -1,5 +1,5 @@
-import * as path from 'path'
-import fs from 'fs'
+import * as path from 'node:path'
+import fs from 'node:fs'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
   type PackageManifestLog,

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-const fs = require('fs')
+const fs = require('node:fs')
 const esbuild = require('esbuild')
-const pathLib = require('path')
-const childProcess = require('child_process')
-const { createRequire } = require('module')
+const pathLib = require('node:path')
+const childProcess = require('node:child_process')
+const { createRequire } = require('node:module')
 const { findWorkspacePackagesNoCheck } = require('@pnpm/workspace.find-packages')
 const { findWorkspaceDir } = require('@pnpm/find-workspace-dir')
 const { readWorkspaceManifest } = require('@pnpm/workspace.read-manifest')

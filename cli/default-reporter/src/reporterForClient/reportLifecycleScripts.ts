@@ -1,5 +1,5 @@
 import cliTruncate from 'cli-truncate'
-import path from 'path'
+import path from 'node:path'
 import { type LifecycleLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { buffer, filter, groupBy, map, mergeAll, mergeMap } from 'rxjs/operators'

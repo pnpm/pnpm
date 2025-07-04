@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile.walker'

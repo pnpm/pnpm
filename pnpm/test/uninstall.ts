@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { prepare } from '@pnpm/prepare'
 import PATH from 'path-name'

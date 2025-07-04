@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import PATH_NAME from 'path-name'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -144,7 +144,7 @@ test('exit code from plugin is used to end the process', () => {
 test('use the specified Node.js version for running scripts', async () => {
   prepare({
     scripts: {
-      test: "node -e \"require('fs').writeFileSync('version',process.version,'utf8')\"",
+      test: "node -e \"require('node:fs').writeFileSync('version',process.version,'utf8')\"",
     },
   })
   fs.writeFileSync('.npmrc', 'use-node-version=14.0.0', 'utf8')
@@ -158,7 +158,7 @@ test('use the specified Node.js version for running scripts', async () => {
 
 test('if an unknown command is executed, run it', async () => {
   prepare({})
-  await execPnpm(['node', '-e', "require('fs').writeFileSync('foo','','utf8')"])
+  await execPnpm(['node', '-e', "require('node:fs').writeFileSync('foo','','utf8')"])
   expect(fs.readFileSync('foo', 'utf8')).toBe('')
 })
 

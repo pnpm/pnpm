@@ -1,5 +1,5 @@
 import { refToRelative } from '@pnpm/dependency-path'
-import path from 'path'
+import path from 'node:path'
 import { getLockfileImporterId, type ProjectSnapshot } from '@pnpm/lockfile.fs'
 import { type TreeNodeId } from './TreeNodeId'
 

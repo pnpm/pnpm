@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { docsUrl, type RecursiveSummary, throwOnCommandFail, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { type LifecycleMessage, lifecycleLogger } from '@pnpm/core-loggers'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'

@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
@@ -191,7 +191,7 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
   const project = prepare(manifest)
 
   fs.writeFileSync('mutate-manifest.js', `
-    const fs = require('fs')
+    const fs = require('node:fs')
     const manifest = require('./package.json')
     manifest.dependencies['@pnpm.e2e/foo'] = '100.1.0'
     const jsonText = JSON.stringify(manifest, undefined, 2)

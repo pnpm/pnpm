@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 export function existsInDir (entityName: string, dir: string): string | undefined {
   const entityPath = path.join(dir, entityName)

@@ -1,5 +1,5 @@
 // cspell:ignore haspeer
-import path from 'path'
+import path from 'node:path'
 import { lockfileToPackageRegistry } from '@pnpm/lockfile-to-pnp'
 import { type DepPath, type ProjectId } from '@pnpm/types'
 

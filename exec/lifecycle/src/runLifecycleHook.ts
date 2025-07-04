@@ -1,10 +1,10 @@
-import path from 'path'
+import path from 'node:path'
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { globalWarn } from '@pnpm/logger'
 import lifecycle from '@pnpm/npm-lifecycle'
 import { type DependencyManifest, type ProjectManifest, type PrepareExecutionEnv, type PackageScripts } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
-import { existsSync } from 'fs'
+import { existsSync } from 'node:fs'
 import isWindows from 'is-windows'
 import { join as shellQuote } from 'shlex'
 

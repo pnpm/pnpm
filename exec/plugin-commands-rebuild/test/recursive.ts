@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { assertProject } from '@pnpm/assert-project'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'

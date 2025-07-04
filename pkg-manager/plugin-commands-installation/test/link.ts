@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { install, link } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages, prepareEmpty } from '@pnpm/prepare'
 import { isExecutable, assertProject } from '@pnpm/assert-project'

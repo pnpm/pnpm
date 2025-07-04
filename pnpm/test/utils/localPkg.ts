@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 
 export function pathToLocalPkg (pkgName: string): string {
   return path.join(__dirname, '../../../../fixtures', pkgName)

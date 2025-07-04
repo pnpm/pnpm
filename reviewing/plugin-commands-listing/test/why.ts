@@ -1,10 +1,10 @@
-import path from 'path'
+import path from 'node:path'
 import { type PnpmError } from '@pnpm/error'
 import { why } from '@pnpm/plugin-commands-listing'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import execa from 'execa'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 

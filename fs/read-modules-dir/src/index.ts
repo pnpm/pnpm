@@ -1,5 +1,5 @@
-import path from 'path'
-import util from 'util'
+import path from 'node:path'
+import util from 'node:util'
 import gracefulFs from 'graceful-fs'
 
 const readdir = util.promisify(gracefulFs.readdir)

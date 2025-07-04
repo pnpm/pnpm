@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type PackageSelector, parsePackageSelector } from '@pnpm/filter-workspace-packages'
 import isWindows from 'is-windows'
 

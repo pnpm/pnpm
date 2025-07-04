@@ -1,11 +1,11 @@
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import assert from 'assert/strict'
+import assert from 'node:assert/strict'
 import { sync as execa } from 'execa'
-import fs from 'fs'
+import fs from 'node:fs'
 import glob from 'fast-glob'
 import normalizePath from 'normalize-path'
-import path from 'path'
+import path from 'node:path'
 
 const repoRoot = path.resolve(__dirname, '../../../')
 const typeCheckDir = path.resolve(repoRoot, '__typecheck__')

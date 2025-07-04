@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'

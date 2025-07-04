@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { getGitBranchLockfileNames } from '../lib/gitBranchLockfile'
 
 process.chdir(__dirname)

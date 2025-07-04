@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 
 export interface GetEditDirOptions {

@@ -1,4 +1,4 @@
-import { createServer } from 'http'
+import { createServer } from 'node:http'
 const server = createServer()
 server.listen(9990, (err) => {
   if (err) {

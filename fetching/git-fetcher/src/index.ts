@@ -1,6 +1,6 @@
-import assert from 'assert'
-import path from 'path'
-import util from 'util'
+import assert from 'node:assert'
+import path from 'node:path'
+import util from 'node:util'
 import type { GitFetcher } from '@pnpm/fetcher-base'
 import { packlist } from '@pnpm/fs.packlist'
 import { globalWarn } from '@pnpm/logger'
@@ -8,7 +8,7 @@ import { preparePackage } from '@pnpm/prepare-package'
 import { addFilesFromDir } from '@pnpm/worker'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
-import { URL } from 'url'
+import { URL } from 'node:url'
 
 export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[]

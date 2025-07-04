@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { logger } from '@pnpm/logger'
 import { exec } from '@pnpm/plugin-commands-script-runners'
@@ -43,7 +43,7 @@ test('pnpm exec --recursive --no-reporter-hide-prefix prints prefixes', async ()
   fs.writeFileSync(scriptFile, `
     console.log('hello from stdout')
     console.error('hello from stderr')
-    console.log('name is ' + require(require('path').resolve('package.json')).name)
+    console.log('name is ' + require(require('node:path').resolve('package.json')).name)
   `)
 
   await exec.handler({
@@ -106,7 +106,7 @@ test('pnpm exec --recursive --reporter-hide-prefix does not print prefixes', asy
   fs.writeFileSync(scriptFile, `
     console.log('hello from stdout')
     console.error('hello from stderr')
-    console.log('name is ' + require(require('path').resolve('package.json')).name)
+    console.log('name is ' + require(require('node:path').resolve('package.json')).name)
   `)
 
   await exec.handler({
@@ -143,7 +143,7 @@ test('pnpm exec --recursive does not print prefixes by default', async () => {
   fs.writeFileSync(scriptFile, `
     console.log('hello from stdout')
     console.error('hello from stderr')
-    console.log('name is ' + require(require('path').resolve('package.json')).name)
+    console.log('name is ' + require(require('node:path').resolve('package.json')).name)
   `)
 
   await exec.handler({

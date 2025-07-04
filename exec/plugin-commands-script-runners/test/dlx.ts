@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import execa from 'execa'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'

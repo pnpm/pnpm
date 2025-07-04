@@ -1,5 +1,5 @@
 // cspell:ignore sshurl
-import urlLib, { URL } from 'url'
+import urlLib, { URL } from 'node:url'
 import { fetchWithAgent } from '@pnpm/fetch'
 import { type AgentOptions } from '@pnpm/network.agent'
 

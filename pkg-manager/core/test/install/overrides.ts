@@ -1,5 +1,5 @@
-import path from 'path'
-import fs from 'fs'
+import path from 'node:path'
+import fs from 'node:fs'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { PnpmError } from '@pnpm/error'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
 import { mutateModules, type MutatedProject } from '@pnpm/core'

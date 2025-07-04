@@ -1,5 +1,5 @@
 import pathExists from 'path-exists'
-import path from 'path'
+import path from 'node:path'
 import {
   type LockfileObject,
   type PackageSnapshot,

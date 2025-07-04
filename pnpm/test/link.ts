@@ -1,6 +1,6 @@
-import path from 'path'
+import path from 'node:path'
 import PATH_NAME from 'path-name'
-import fs from 'fs'
+import fs from 'node:fs'
 import { isExecutable } from '@pnpm/assert-project'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare, preparePackages } from '@pnpm/prepare'

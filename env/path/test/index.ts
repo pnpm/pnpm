@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { prependDirsToPath } from '@pnpm/env.path'
 import PATH from 'path-name'
 

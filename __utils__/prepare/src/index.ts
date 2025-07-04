@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { assertProject, type Modules, type Project } from '@pnpm/assert-project'
 import { type ProjectManifest } from '@pnpm/types'
 import { tempDir } from '@pnpm/prepare-temp-dir'

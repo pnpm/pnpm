@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { createHash } from '@pnpm/crypto.hash'
 import { type PackageManifest } from '@pnpm/types'
 import { prepare, preparePackages } from '@pnpm/prepare'
@@ -129,7 +129,7 @@ test('filterLog hook filters peer dependency warning', async () => {
 test('importPackage hooks', async () => {
   prepare()
   const pnpmfile = `
-    const fs = require('fs')
+    const fs = require('node:fs')
 
     module.exports = { hooks: { importPackage } }
 
@@ -163,7 +163,7 @@ test('should use default fetchers if no custom fetchers are defined', async () =
   const project = prepare()
 
   const pnpmfile = `
-    const fs = require('fs')
+    const fs = require('node:fs')
 
     module.exports = {
       hooks: {
@@ -188,7 +188,7 @@ test('custom fetcher can call default fetcher', async () => {
   const project = prepare()
 
   const pnpmfile = `
-    const fs = require('fs')
+    const fs = require('node:fs')
 
     module.exports = {
       hooks: {

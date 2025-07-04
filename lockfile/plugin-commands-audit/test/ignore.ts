@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { fixtures } from '@pnpm/test-fixtures'
 import { audit } from '@pnpm/plugin-commands-audit'
 import nock from 'nock'

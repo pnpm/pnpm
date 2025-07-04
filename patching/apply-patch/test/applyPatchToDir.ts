@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { fixtures } from '@pnpm/test-fixtures'
 import { tempDir } from '@pnpm/prepare'

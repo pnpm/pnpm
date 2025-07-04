@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import pLimit from 'p-limit'
 import {
   docsUrl,

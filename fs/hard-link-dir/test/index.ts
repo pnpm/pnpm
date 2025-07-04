@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { tempDir as createTempDir } from '@pnpm/prepare'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 

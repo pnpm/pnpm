@@ -1,5 +1,5 @@
-import path from 'path'
-import fs from 'fs'
+import path from 'node:path'
+import fs from 'node:fs'
 import { ignoredBuilds } from '@pnpm/exec.build-commands'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import { writeModulesManifest } from '@pnpm/modules-yaml'

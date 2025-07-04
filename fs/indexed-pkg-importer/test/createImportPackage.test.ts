@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import gfs from '@pnpm/graceful-fs'
 import { globalInfo } from '@pnpm/logger'

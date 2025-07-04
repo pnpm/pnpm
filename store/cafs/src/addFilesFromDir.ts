@@ -1,6 +1,6 @@
-import util from 'util'
-import fs, { type Stats } from 'fs'
-import path from 'path'
+import util from 'node:util'
+import fs, { type Stats } from 'node:fs'
+import path from 'node:path'
 import {
   type AddToStoreResult,
   type FilesIndex,

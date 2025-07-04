@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type Config } from '../src/Config'
 import { transformPath, transformPathKeys } from '../src/transformPath'
 

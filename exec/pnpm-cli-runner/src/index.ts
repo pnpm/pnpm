@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { sync as execSync } from 'execa'
 
 export function runPnpmCli (command: string[], { cwd }: { cwd: string }): void {

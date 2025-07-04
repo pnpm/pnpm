@@ -1,6 +1,6 @@
 import { tempDir } from '@pnpm/prepare'
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { importIndexedDir } from '../src/importIndexedDir'
 
 test('importIndexedDir() keepModulesDir merges node_modules', async () => {

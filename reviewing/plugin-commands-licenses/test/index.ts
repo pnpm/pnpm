@@ -1,12 +1,12 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import path from 'path'
-import fs from 'fs'
+import path from 'node:path'
+import fs from 'node:fs'
 import { STORE_VERSION } from '@pnpm/constants'
 import { licenses } from '@pnpm/plugin-commands-licenses'
 import { install } from '@pnpm/plugin-commands-installation'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 import { DEFAULT_OPTS } from './utils'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 

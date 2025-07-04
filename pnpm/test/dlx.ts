@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import PATH_NAME from 'path-name'
 import { getConfig } from '@pnpm/config'
 import { prepare, prepareEmpty } from '@pnpm/prepare'

@@ -1,10 +1,10 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
+import fs from 'node:fs'
 import { tempDir } from '@pnpm/prepare'
-import path from 'path'
+import path from 'node:path'
 import pathName from 'path-name'
 import symlinkDir from 'symlink-dir'
-import { homedir } from 'os'
+import { homedir } from 'node:os'
 import { getConfig } from '@pnpm/config'
 
 const globalBinDir = path.join(homedir(), '.local', 'pnpm')

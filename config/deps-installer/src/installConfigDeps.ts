@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { installingConfigDepsLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'

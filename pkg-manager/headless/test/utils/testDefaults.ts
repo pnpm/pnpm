@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type HeadlessOptions } from '@pnpm/headless'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectsContext } from '@pnpm/read-projects-context'

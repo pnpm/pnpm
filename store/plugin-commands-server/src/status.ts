@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type Config } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { serverConnectionInfoDir, tryLoadServerJson } from '@pnpm/store-connection-manager'
