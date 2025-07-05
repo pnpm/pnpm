@@ -2141,9 +2141,6 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
-      '@pnpm/find-workspace-dir':
-        specifier: workspace:*
-        version: link:../../workspace/find-workspace-dir
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -2165,9 +2162,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@pnpm/workspace.manifest-writer':
-        specifier: workspace:*
-        version: link:../../workspace/manifest-writer
       '@zkochan/cmd-shim':
         specifier: 'catalog:'
         version: 7.0.0

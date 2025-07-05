@@ -2,41 +2,60 @@ import { promises as fs } from 'fs'
 import util from 'util'
 import gfs from 'graceful-fs'
 import path from 'path'
-import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
-import { satisfies } from 'semver'
+import { updateProjectManifest } from '@pnpm/read-project-manifest'
+import { type ProjectManifest } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
+import semver from 'semver'
 import cmdShim from '@zkochan/cmd-shim'
 import isWindows from 'is-windows'
 import symlinkDir from 'symlink-dir'
 import { type NvmNodeCommandOptions } from './node'
 import { CURRENT_NODE_DIRNAME, getNodeExecPathInBinDir, getNodeExecPathInNodeDir } from './utils'
-import { getNodeVersion, downloadNodeVersion } from './downloadNodeVersion'
+import { downloadNodeVersion } from './downloadNodeVersion'
+
+export const getRuntimeNodeVersion = ({ devEngines }: ProjectManifest = {}): string | undefined =>
+  devEngines?.runtime?.name === 'node' ? devEngines?.runtime?.version : undefined
 
 export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
-  if (!opts.global) {
-    const {runtime} = opts.rootProjectManifest.devEngines ?? {}
-    const runtimeNodeVersion = runtime?.name === 'node' ? runtime?.version : undefined
-
-    const version = params.at(-1) ?? opts.useNodeVersion ?? runtimeNodeVersion ?? 'latest'
-    const {nodeVersion} = opts.rootProjectManifest.pnpm?.executionEnv ?? await getNodeVersion(opts, version)
-
-    if (!opts.useNodeVersion || params.length) {
-      await updateWorkspaceManifest(opts.workspaceDir, { useNodeVersion: nodeVersion })
-      opts.useNodeVersion = nodeVersion
-    }
-    if (runtimeNodeVersion && !satisfies(opts.useNodeVersion, runtimeNodeVersion)) {
-      const message = `"useNodeVersion: ${opts.useNodeVersion}" is incompatible with "devEngines.runtime.version: ${runtimeNodeVersion}"`
-      if (opts.engineStrict) throw new PnpmError('INVALID_NODE_VERSION', message)
-      else logger.warn({ message, prefix: opts.workspaceDir })
-    }
-    params[0] ??= nodeVersion
+  if (params.length === 0) {
+    throw new PnpmError('ENV_USE_NO_PARAMS', '`pnpm env use` requires a Node.js version specifier')
   }
   const nodeInfo = await downloadNodeVersion(opts, params[0])
   if (!nodeInfo) {
-    throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${params[0]}`)
+    throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching "${params[0]}"`)
   }
   const { nodeDir, nodeVersion } = nodeInfo
+
+  if (!opts.global) {
+    const runtimeNodeVersion = getRuntimeNodeVersion(opts.rootProjectManifest)
+    const prefix = opts.rootProjectManifestDir
+    let overwrite = !semver.valid(runtimeNodeVersion)
+
+    if (runtimeNodeVersion && !semver.satisfies(nodeVersion, runtimeNodeVersion)) {
+      const message = `"Node.js version "${nodeVersion}" is incompatible with "devEngines.runtime.version: ${runtimeNodeVersion}"`
+      if (opts.engineStrict) {
+        throw new PnpmError('INVALID_NODE_VERSION', message)
+      } else {
+        logger.warn({ message, prefix })
+        overwrite ||= true
+      }
+    }
+    if (overwrite) {
+      await updateProjectManifest(prefix, {
+        devEngines: {
+          runtime: {
+            name: 'node',
+            version: nodeVersion
+          }
+        }
+      }).then(() => {
+        const verb = semver.intersects(runtimeNodeVersion ?? '0', nodeVersion) ? 'resolved' : 'modified'
+        const message = `"devEngines.runtime.version": "${runtimeNodeVersion}" was ${verb} to "${nodeVersion}"`
+        logger[verb === 'modified' ? 'warn' : 'info']({ message, prefix })
+      })
+    }
+  }
   const src = getNodeExecPathInNodeDir(nodeDir)
   const dest = getNodeExecPathInBinDir(opts.bin)
   await symlinkDir(nodeDir, path.join(opts.pnpmHomeDir, CURRENT_NODE_DIRNAME))
