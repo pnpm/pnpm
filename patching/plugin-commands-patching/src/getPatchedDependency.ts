@@ -58,12 +58,28 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
     }
   } else {
     const preferred = preferredVersions[0]
+    if (preferred.gitTarballUrl) {
+      return {
+        ...opts,
+        applyToAll: false,
+        bareSpecifier: preferred.gitTarballUrl,
+      }
+    }
     return {
       ...dep,
       applyToAll: !dep.bareSpecifier,
-      bareSpecifier: preferred.gitTarballUrl ?? preferred.version,
+      bareSpecifier: preferred.version,
     }
   }
+}
+
+// https://github.com/stackblitz-labs/pkg.pr.new
+// With pkg.pr.new, each of your commits and pull requests will trigger an instant preview release without publishing anything to NPM.
+// This enables users to access features and bug-fixes without the need to wait for release cycles using npm or pull request merges.
+// When a package is installed via pkg.pr.new and has never been published to npm,
+// the version or name obtained is incorrect, and an error will occur when patching. We can treat it as a tarball url.
+export function isPkgPrNewUrl (url: string): boolean {
+  return url.startsWith('https://pkg.pr.new/')
 }
 
 export interface LockfileVersion {
@@ -101,7 +117,7 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
       const tarball = (pkgSnapshot.resolution as TarballResolution)?.tarball ?? ''
       return {
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
-        gitTarballUrl: isGitHostedPkgUrl(tarball) ? tarball : undefined,
+        gitTarballUrl: (isGitHostedPkgUrl(tarball) || isPkgPrNewUrl(tarball)) ? tarball : undefined,
       }
     })
     .filter(({ name }) => name === pkgName)
