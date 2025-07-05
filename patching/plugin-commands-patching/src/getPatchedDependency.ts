@@ -4,7 +4,7 @@ import { prompt } from 'enquirer'
 import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { PnpmError } from '@pnpm/error'
-import { isGitHostedPkgUrl, isPkgPrNewUrl } from '@pnpm/pick-fetcher'
+import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
 import realpathMissing from 'realpath-missing'
 import semver from 'semver'
 import { type Config } from '@pnpm/config'
@@ -71,6 +71,15 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
       bareSpecifier: preferred.version,
     }
   }
+}
+
+// https://github.com/stackblitz-labs/pkg.pr.new
+// With pkg.pr.new, each of your commits and pull requests will trigger an instant preview release without publishing anything to NPM.
+// This enables users to access features and bug-fixes without the need to wait for release cycles using npm or pull request merges.
+// When a package is installed via pkg.pr.new and has never been published to npm,
+// the version or name obtained is incorrect, and an error will occur when patching. We can treat it as a tarball url.
+export function isPkgPrNewUrl (url: string): boolean {
+  return url.startsWith('https://pkg.pr.new/')
 }
 
 export interface LockfileVersion {
