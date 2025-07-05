@@ -44,16 +44,17 @@ export function requireHooks (
     pnpmfile?: string[] | string
   }
 ): CookedHooks {
-  const pnpmfiles: PnpmfileEntry[] = [{
-    path: '.pnpmfile.cjs',
-    includeInChecksum: true,
-  }]
+  const pnpmfiles: PnpmfileEntry[] = []
   if (opts.globalPnpmfile) {
     pnpmfiles.push({
       path: opts.globalPnpmfile,
       includeInChecksum: false,
     })
   }
+  pnpmfiles.push({
+    path: '.pnpmfile.cjs',
+    includeInChecksum: true,
+  })
   if (opts.pnpmfile) {
     if (Array.isArray(opts.pnpmfile)) {
       for (const pnpmfile of opts.pnpmfile) {
