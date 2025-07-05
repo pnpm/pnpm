@@ -1,12 +1,11 @@
 import type { PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
 import { PnpmError } from '@pnpm/error'
 import { hookLogger } from '@pnpm/core-loggers'
-import { createHashFromFile } from '@pnpm/crypto.hash'
-import { createHash } from 'crypto'
+import { createHashFromFiles } from '@pnpm/crypto.hash'
 import pathAbsolute from 'path-absolute'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
-import { requirePnpmfile } from './requirePnpmfile'
+import { requirePnpmfile, type Pnpmfile } from './requirePnpmfile'
 import { type HookContext, type Hooks } from './Hooks'
 
 // eslint-disable-next-line
@@ -16,8 +15,14 @@ type Cook<T extends (...args: any[]) => any> = (
   ...otherArgs: any[]
 ) => ReturnType<T>
 
-export interface PnpmfileEntry {
+interface PnpmfileEntry {
   path: string
+  includeInChecksum: boolean
+}
+
+interface PnpmfileEntryLoaded {
+  file: string
+  module: Pnpmfile | undefined
   includeInChecksum: boolean
 }
 
@@ -39,7 +44,10 @@ export function requireHooks (
     pnpmfile?: string[] | string
   }
 ): CookedHooks {
-  const pnpmfiles: PnpmfileEntry[] = []
+  const pnpmfiles: PnpmfileEntry[] = [{
+    path: '.pnpmfile.cjs',
+    includeInChecksum: true,
+  }]
   if (opts.globalPnpmfile) {
     pnpmfiles.push({
       path: opts.globalPnpmfile,
@@ -61,11 +69,22 @@ export function requireHooks (
       })
     }
   }
-  const entries = pnpmfiles.map(({ path, includeInChecksum }) => ({
-    file: pathAbsolute(path, prefix),
-    includeInChecksum,
-    module: requirePnpmfile(pathAbsolute(path, prefix), prefix),
-  })) ?? []
+  const entries: PnpmfileEntryLoaded[] = []
+  const loadedFiles: string[] = []
+  for (const { path, includeInChecksum } of pnpmfiles) {
+    const file = pathAbsolute(path, prefix)
+    if (!loadedFiles.includes(file)) {
+      loadedFiles.push(file)
+      const module = requirePnpmfile(pathAbsolute(path, prefix), prefix)
+      if (module != null) {
+        entries.push({
+          file,
+          includeInChecksum,
+          module,
+        })
+      }
+    }
+  }
 
   const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'readPackage' | 'preResolution' | 'afterAllResolved' | 'filterLog' | 'updateConfig'>> = {
     readPackage: [],
@@ -78,16 +97,14 @@ export function requireHooks (
   // calculate combined checksum for all included files
   if (entries.some((entry) => entry.module != null)) {
     cookedHooks.calculatePnpmfileChecksum = async () => {
-      const checksums = await Promise.all(
-        entries
-          .filter((e) => e.includeInChecksum)
-          .map((e) => createHashFromFile(e.file))
-      )
-      const hasher = createHash('sha256')
-      for (const sum of checksums) {
-        hasher.update(sum)
+      const filesToIncludeInHash: string[] = []
+      for (const { includeInChecksum, file } of entries) {
+        if (includeInChecksum) {
+          filesToIncludeInHash.push(file)
+        }
       }
-      return hasher.digest('hex')
+      filesToIncludeInHash.sort()
+      return createHashFromFiles(filesToIncludeInHash)
     }
   }
 
