@@ -37,13 +37,18 @@ export interface CookedHooks {
   calculatePnpmfileChecksum?: () => Promise<string>
 }
 
+export interface RequireHooksResult {
+  hooks: CookedHooks
+  resolvedPnpmfilePaths: string[]
+}
+
 export function requireHooks (
   prefix: string,
   opts: {
     globalPnpmfile?: string
     pnpmfile?: string[] | string
   }
-): CookedHooks {
+): RequireHooksResult {
   const pnpmfiles: PnpmfileEntry[] = []
   if (opts.globalPnpmfile) {
     pnpmfiles.push({
@@ -173,7 +178,10 @@ export function requireHooks (
     }
   }
 
-  return cookedHooks
+  return {
+    hooks: cookedHooks,
+    resolvedPnpmfilePaths: entries.map(({ file }) => file),
+  }
 }
 
 function createReadPackageHookContext (calledFrom: string, prefix: string, hook: string): HookContext {

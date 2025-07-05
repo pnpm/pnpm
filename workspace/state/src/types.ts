@@ -9,7 +9,7 @@ export interface WorkspaceState {
     name?: string
     version?: string
   }>
-  pnpmfileExists: boolean
+  pnpmfiles: string[]
   filteredInstall: boolean
   configDependencies?: Record<string, string>
   settings: WorkspaceStateSettings

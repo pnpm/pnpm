@@ -49,7 +49,7 @@ test('hoisted node linker and node_modules not exist (#9424)', async () => {
   // pnpm install should create a packages list cache
   expect(loadWorkspaceState(process.cwd())).toMatchObject({
     lastValidatedTimestamp: expect.any(Number),
-    pnpmfileExists: false,
+    pnpmfiles: [] as string[],
     filteredInstall: false,
     projects: {
       [path.resolve('has-deps')]: { name: 'has-deps', version: '0.0.0' },

@@ -29,7 +29,7 @@ test('readPackage hook run fails when returned dependencies is not an object ', 
 test('filterLog hook combines with the global hook', () => {
   const globalPnpmfile = path.join(__dirname, '__fixtures__/globalFilterLog.js')
   const pnpmfile = path.join(__dirname, '__fixtures__/filterLog.js')
-  const hooks = requireHooks(__dirname, { globalPnpmfile, pnpmfile: [pnpmfile] })
+  const { hooks } = requireHooks(__dirname, { globalPnpmfile, pnpmfile: [pnpmfile] })
 
   expect(hooks.filterLog).toBeDefined()
   expect(hooks.filterLog!.length).toBe(2)
@@ -47,24 +47,24 @@ test('filterLog hook combines with the global hook', () => {
 })
 
 test('calculatePnpmfileChecksum is undefined when pnpmfile does not exist', async () => {
-  const hooks = requireHooks(__dirname, { pnpmfile: ['file-that-does-not-exist.js'] })
+  const { hooks } = requireHooks(__dirname, { pnpmfile: ['file-that-does-not-exist.js'] })
   expect(hooks.calculatePnpmfileChecksum).toBeUndefined()
 })
 
 test('calculatePnpmfileChecksum resolves to hash string for existing pnpmfile', async () => {
   const pnpmfile = path.join(__dirname, '__fixtures__/readPackageNoObject.js')
-  const hooks = requireHooks(__dirname, { pnpmfile: [pnpmfile] })
+  const { hooks } = requireHooks(__dirname, { pnpmfile: [pnpmfile] })
   expect(typeof await hooks.calculatePnpmfileChecksum?.()).toBe('string')
 })
 
 test('calculatePnpmfileChecksum is undefined if pnpmfile even when it exports undefined', async () => {
   const pnpmfile = path.join(__dirname, '__fixtures__/undefined.js')
-  const hooks = requireHooks(__dirname, { pnpmfile: [pnpmfile] })
+  const { hooks } = requireHooks(__dirname, { pnpmfile: [pnpmfile] })
   expect(hooks.calculatePnpmfileChecksum).toBeUndefined()
 })
 
 test('updateConfig throws an error if it returns undefined', async () => {
   const pnpmfile = path.join(__dirname, '__fixtures__/updateConfigReturnsUndefined.js')
-  const hooks = requireHooks(__dirname, { pnpmfile: [pnpmfile] })
+  const { hooks } = requireHooks(__dirname, { pnpmfile: [pnpmfile] })
   expect(() => hooks.updateConfig![0]!({})).toThrow('The updateConfig hook returned undefined')
 })

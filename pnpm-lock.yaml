@@ -2008,9 +2008,6 @@ importers:
       '@pnpm/parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides
-      '@pnpm/pnpmfile':
-        specifier: workspace:*
-        version: link:../../hooks/pnpmfile
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
