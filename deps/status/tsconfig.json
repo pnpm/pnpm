@@ -22,9 +22,6 @@
       "path": "../../crypto/object-hasher"
     },
     {
-      "path": "../../hooks/pnpmfile"
-    },
-    {
       "path": "../../lockfile/fs"
     },
     {

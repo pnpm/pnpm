@@ -3,7 +3,7 @@ import { type WorkspaceState, type WorkspaceStateSettings, type ProjectsList } f
 
 export interface CreateWorkspaceStateOptions {
   allProjects: ProjectsList
-  pnpmfileExists: boolean
+  pnpmfiles: string[]
   filteredInstall: boolean
   settings: WorkspaceStateSettings
   configDependencies?: Record<string, string>
@@ -18,7 +18,7 @@ export const createWorkspaceState = (opts: CreateWorkspaceStateOptions): Workspa
       version: project.manifest.version,
     },
   ])),
-  pnpmfileExists: opts.pnpmfileExists,
+  pnpmfiles: opts.pnpmfiles,
   settings: pick([
     'autoInstallPeers',
     'catalogs',

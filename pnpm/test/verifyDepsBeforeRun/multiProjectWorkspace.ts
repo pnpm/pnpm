@@ -92,7 +92,7 @@ test('single dependency', async () => {
     const workspaceState = loadWorkspaceState(process.cwd())
     expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       projects: {
         [path.resolve('.')]: { name: 'root', version: '0.0.0' },
@@ -261,7 +261,7 @@ test('single dependency', async () => {
     const workspaceState = loadWorkspaceState(process.cwd())
     expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       projects: {
         [path.resolve('.')]: { name: 'root', version: '0.0.0' },
@@ -383,7 +383,7 @@ test('multiple lockfiles', async () => {
     const workspaceState = loadWorkspaceState(process.cwd())
     expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       projects: {
         [path.resolve('.')]: { name: 'root', version: '0.0.0' },
@@ -547,7 +547,7 @@ test('multiple lockfiles', async () => {
     const workspaceState = loadWorkspaceState(process.cwd())
     expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       projects: {
         [path.resolve('.')]: { name: 'root', version: '0.0.0' },
@@ -694,7 +694,7 @@ test('no dependencies', async () => {
     const workspaceState = loadWorkspaceState(process.cwd())
     expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       projects: {
         [path.resolve('.')]: { name: 'root', version: '0.0.0' },
@@ -879,7 +879,7 @@ test('should check for outdated catalogs', async () => {
           default: workspaceManifest.catalog,
         },
       }),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       lastValidatedTimestamp: expect.any(Number),
       projects: {

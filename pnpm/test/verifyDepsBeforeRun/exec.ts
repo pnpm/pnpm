@@ -167,7 +167,7 @@ test('multi-project workspace', async () => {
     const workspaceState = loadWorkspaceState(process.cwd())
     expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       projects: {
         [path.resolve('.')]: { name: 'root', version: '0.0.0' },
@@ -322,7 +322,7 @@ test('multi-project workspace', async () => {
     const workspaceState = loadWorkspaceState(process.cwd())
     expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       projects: {
         [path.resolve('.')]: { name: 'root', version: '0.0.0' },

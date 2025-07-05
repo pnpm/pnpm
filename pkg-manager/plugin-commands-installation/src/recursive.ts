@@ -312,7 +312,7 @@ export async function recursive (
       const hooks = opts.ignorePnpmfile
         ? {}
         : (() => {
-          const pnpmfileHooks = requireHooks(rootDir, opts)
+          const { hooks: pnpmfileHooks } = requireHooks(rootDir, opts)
           return {
             ...opts.hooks,
             ...pnpmfileHooks,

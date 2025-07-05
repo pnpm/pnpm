@@ -9,7 +9,7 @@ export interface UpdateWorkspaceStateOptions {
   allProjects: ProjectsList
   settings: WorkspaceStateSettings
   workspaceDir: string
-  pnpmfileExists: boolean
+  pnpmfiles: string[]
   filteredInstall: boolean
   configDependencies?: Record<string, string>
 }
