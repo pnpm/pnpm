@@ -119,7 +119,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
       name: 'build',
       message: `The next packages will now be built: ${buildPackages.join(', ')}.
 Do you approve?`,
-      initial: false,
+      initial: true,
     })
     if (!confirmed.build) {
       return
