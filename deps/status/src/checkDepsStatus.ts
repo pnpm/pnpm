@@ -565,8 +565,7 @@ async function patchesOrHooksAreModified (opts: {
   if (!equals(opts.currentPnpmfiles, opts.previousPnpmfiles)) {
     return 'The list of pnpmfiles changed.'
   }
-  for (let i = 0; i < opts.currentPnpmfiles.length; i++) {
-    const pnpmfilePath = opts.currentPnpmfiles[0]
+  for (const pnpmfilePath in opts.currentPnpmfiles) {
     const pnpmfileStats = safeStatSync(pnpmfilePath)
     if (pnpmfileStats == null) {
       return `pnpmfile at "${pnpmfilePath}" was removed`
