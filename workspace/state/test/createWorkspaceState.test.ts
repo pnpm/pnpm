@@ -22,7 +22,7 @@ test('createWorkspaceState() on empty list', () => {
     })
   ).toStrictEqual(expect.objectContaining({
     projects: {},
-    pnpmfileExists: true,
+    pnpmfiles: [],
     lastValidatedTimestamp: expect.any(Number),
   }))
 })
@@ -72,6 +72,6 @@ test('createWorkspaceState() on non-empty list', () => {
       [path.resolve('packages/c')]: {},
       [path.resolve('packages/d')]: {},
     },
-    pnpmfileExists: false,
+    pnpmfiles: [],
   }))
 })
