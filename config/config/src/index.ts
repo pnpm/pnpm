@@ -20,7 +20,7 @@ import pathAbsolute from 'path-absolute'
 import which from 'which'
 import { inheritAuthConfig } from './auth'
 import { checkGlobalBinDir } from './checkGlobalBinDir'
-import { hasDepsBuild, removeDepsBuild } from './depsBuildConfig'
+import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions'
 import { getNetworkConfigs } from './getNetworkConfigs'
 import { transformPathKeys } from './transformPath'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
@@ -230,7 +230,7 @@ export async function getConfig (opts: {
   const globalConfigWithoutDepsBuildSettings: ConfigWithDeprecatedSettings = Object.fromEntries(
     rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)])
   ) as ConfigWithDeprecatedSettings
-  const globalDepsBuildConfig = removeDepsBuild(globalConfigWithoutDepsBuildSettings)
+  const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(globalConfigWithoutDepsBuildSettings)
 
   const pnpmConfig: ConfigWithDeprecatedSettings = Object.assign(globalConfigWithoutDepsBuildSettings, configFromCliOpts) as unknown as ConfigWithDeprecatedSettings
   // Resolving the current working directory to its actual location is crucial.
@@ -380,10 +380,10 @@ export async function getConfig (opts: {
     }
   }
   if (opts.cliOptions['global']) {
-    removeDepsBuild(pnpmConfig)
+    extractAndRemoveDependencyBuildOptions(pnpmConfig)
     Object.assign(pnpmConfig, globalDepsBuildConfig)
   } else {
-    if (!hasDepsBuild(pnpmConfig)) {
+    if (!hasDependencyBuildOptions(pnpmConfig)) {
       Object.assign(pnpmConfig, globalDepsBuildConfig)
     }
   }
