@@ -29,12 +29,11 @@ class PnpmFileFailError extends PnpmError {
 
 export interface Pnpmfile {
   hooks?: Hooks
-  filename: string
 }
 
 export function requirePnpmfile (pnpmFilePath: string, prefix: string): Pnpmfile | undefined {
   try {
-    const pnpmfile: { hooks?: { readPackage?: unknown }, filename?: unknown } = require(pnpmFilePath) // eslint-disable-line
+    const pnpmfile: Pnpmfile = require(pnpmFilePath) // eslint-disable-line
     if (typeof pnpmfile === 'undefined') {
       logger.warn({
         message: `Ignoring the pnpmfile at "${pnpmFilePath}". It exports "undefined".`,
@@ -65,8 +64,7 @@ export function requirePnpmfile (pnpmFilePath: string, prefix: string): Pnpmfile
         return newPkg
       }
     }
-    pnpmfile.filename = pnpmFilePath
-    return pnpmfile as Pnpmfile
+    return pnpmfile
   } catch (err: unknown) {
     if (err instanceof SyntaxError) {
       console.error(chalk.red('A syntax error in the .pnpmfile.cjs\n'))
