@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
 import archy from 'archy'

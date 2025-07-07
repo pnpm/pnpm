@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { type PackageManifest, type ProjectManifest } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'

@@ -1,5 +1,5 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { insertComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
 import { type ProjectManifest } from '@pnpm/types'
 import JSON5 from 'json5'

@@ -1,5 +1,5 @@
-import type childProcess from 'child_process'
-import path from 'path'
+import type childProcess from 'node:child_process'
+import path from 'node:path'
 import spawn from 'cross-spawn'
 import PATH from 'path-name'
 

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { logger } from '@pnpm/logger'
 import { preparePackages } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'

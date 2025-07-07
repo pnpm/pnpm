@@ -15,7 +15,7 @@ ${COMPATIBILITY_PAGE}`)
 // We need to load v8-compile-cache.js separately in order to have effect
 try {
   // Use node.js 22 new API for better performance.
-  if(!require('module')?.enableCompileCache?.())
+  if(!require('node:module')?.enableCompileCache?.())
     require('v8-compile-cache');
 } catch {
   // We don't have/need to care about v8-compile-cache failed

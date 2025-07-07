@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { DedupeCheckIssuesError } from '@pnpm/dedupe.check'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { type LockfileObject } from '@pnpm/lockfile.types'

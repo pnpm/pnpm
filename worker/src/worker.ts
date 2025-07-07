@@ -1,5 +1,5 @@
-import path from 'path'
-import fs from 'fs'
+import path from 'node:path'
+import fs from 'node:fs'
 import gfs from '@pnpm/graceful-fs'
 import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
@@ -19,7 +19,7 @@ import {
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import { type DependencyManifest } from '@pnpm/types'
 import { sync as loadJsonFile } from 'load-json-file'
-import { parentPort } from 'worker_threads'
+import { parentPort } from 'node:worker_threads'
 import {
   type AddDirToStoreMessage,
   type ReadPkgFromCafsMessage,

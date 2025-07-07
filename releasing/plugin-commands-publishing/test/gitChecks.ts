@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs from 'node:fs'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { prepare } from '@pnpm/prepare'
 import { PnpmError } from '@pnpm/error'

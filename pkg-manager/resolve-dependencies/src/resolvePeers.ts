@@ -1,6 +1,6 @@
 import filenamify from 'filenamify'
 import { analyzeGraph, type Graph } from 'graph-cycles'
-import path from 'path'
+import path from 'node:path'
 import pDefer from 'p-defer'
 import semver from 'semver'
 import * as semverUtils from '@yarnpkg/core/semverUtils'

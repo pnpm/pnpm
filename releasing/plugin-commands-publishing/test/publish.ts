@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import execa from 'execa'
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'

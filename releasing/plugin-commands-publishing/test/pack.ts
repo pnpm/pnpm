@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { pack } from '@pnpm/plugin-commands-publishing'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import tar from 'tar'
@@ -470,7 +470,7 @@ test('pack: modify manifest in prepack script', async () => {
   fs.writeFileSync('./dist/index.js', 'index', 'utf8')
   fs.writeFileSync('./dist/bin.js', 'bin', 'utf8')
   fs.writeFileSync('./prepack.js', `
-  require('fs').writeFileSync('./package.json',
+  require('node:fs').writeFileSync('./package.json',
     JSON.stringify({
       name: 'custom-publish-dir',
       version: '0.0.0',

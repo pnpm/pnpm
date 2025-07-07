@@ -1,4 +1,4 @@
-import os from 'os'
+import os from 'node:os'
 import { type Config } from '@pnpm/config'
 import { type Log, type RegistryLog } from '@pnpm/core-loggers'
 import { type LogLevel } from '@pnpm/logger'

@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import fs from 'fs'
+import fs from 'node:fs'
 import { getConfig } from '@pnpm/cli-utils'
 import { prepare } from '@pnpm/prepare'
 

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   packageManifestLogger,

@@ -1,6 +1,6 @@
 // cspell:ignore buildscript
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type LockfileFile } from '@pnpm/lockfile.types'
@@ -1530,7 +1530,7 @@ test('pnpm run should ignore the root project', async () => {
       name: 'project',
       version: '1.0.0',
       scripts: {
-        test: "node -e \"require('fs').writeFileSync('test','','utf8')\"",
+        test: "node -e \"require('node:fs').writeFileSync('test','','utf8')\"",
       },
     },
   ])
@@ -1548,7 +1548,7 @@ test('pnpm run should include the workspace root when --workspace-root option is
       location: '.',
       package: {
         scripts: {
-          test: "node -e \"require('fs').writeFileSync('test','','utf8')\"",
+          test: "node -e \"require('node:fs').writeFileSync('test','','utf8')\"",
         },
       },
     },
@@ -1556,7 +1556,7 @@ test('pnpm run should include the workspace root when --workspace-root option is
       name: 'project',
       version: '1.0.0',
       scripts: {
-        test: "node -e \"require('fs').writeFileSync('test','','utf8')\"",
+        test: "node -e \"require('node:fs').writeFileSync('test','','utf8')\"",
       },
     },
   ])
@@ -1575,7 +1575,7 @@ test('pnpm run should include the workspace root when include-workspace-root is 
       location: '.',
       package: {
         scripts: {
-          test: "node -e \"require('fs').writeFileSync('test','','utf8')\"",
+          test: "node -e \"require('node:fs').writeFileSync('test','','utf8')\"",
         },
       },
     },
@@ -1583,7 +1583,7 @@ test('pnpm run should include the workspace root when include-workspace-root is 
       name: 'project',
       version: '1.0.0',
       scripts: {
-        test: "node -e \"require('fs').writeFileSync('test','','utf8')\"",
+        test: "node -e \"require('node:fs').writeFileSync('test','','utf8')\"",
       },
     },
   ])

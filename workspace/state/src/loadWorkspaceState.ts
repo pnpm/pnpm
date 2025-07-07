@@ -1,5 +1,5 @@
-import fs from 'fs'
-import util from 'util'
+import fs from 'node:fs'
+import util from 'node:util'
 import { logger } from '@pnpm/logger'
 import { getFilePath } from './filePath'
 import { type WorkspaceState } from './types'

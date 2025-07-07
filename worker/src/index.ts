@@ -1,9 +1,9 @@
 // cspell:ignore checkin
-import path from 'path'
-import os from 'os'
+import path from 'node:path'
+import os from 'node:os'
 import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
 import { PnpmError } from '@pnpm/error'
-import { execSync } from 'child_process'
+import { execSync } from 'node:child_process'
 import isWindows from 'is-windows'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'

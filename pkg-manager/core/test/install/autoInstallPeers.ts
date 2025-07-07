@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { assertProject } from '@pnpm/assert-project'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject, type PackageManifest } from '@pnpm/core'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'

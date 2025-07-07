@@ -1,7 +1,7 @@
-import { readdirSync, type Stats } from 'fs'
-import fs from 'fs/promises'
-import path from 'path'
-import util from 'util'
+import { readdirSync, type Stats } from 'node:fs'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import util from 'node:util'
 
 export async function cleanExpiredDlxCache ({
   cacheDir,

@@ -1,5 +1,5 @@
-import { promises as fs, existsSync } from 'fs'
-import path from 'path'
+import { promises as fs, existsSync } from 'node:fs'
+import path from 'node:path'
 import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'

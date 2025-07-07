@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { type LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -621,7 +621,7 @@ test('readPackage hook is used during removal inside a workspace', async () => {
 test('preResolution hook', async () => {
   prepare()
   const pnpmfile = `
-    const fs = require('fs')
+    const fs = require('node:fs')
 
     module.exports = { hooks: { preResolution } }
 

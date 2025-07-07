@@ -1,4 +1,4 @@
-import { URL } from 'url'
+import { URL } from 'node:url'
 import { type SslConfig } from '@pnpm/types'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import { getAgent, type AgentOptions } from '@pnpm/network.agent'

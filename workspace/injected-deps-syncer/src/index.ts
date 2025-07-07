@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { PnpmError } from '@pnpm/error'
 import { logger as createLogger } from '@pnpm/logger'
 import { readModulesManifest } from '@pnpm/modules-yaml'

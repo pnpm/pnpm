@@ -1,5 +1,5 @@
 import * as crypto from '@pnpm/crypto.polyfill'
-import fs from 'fs'
+import fs from 'node:fs'
 import gfs from '@pnpm/graceful-fs'
 import ssri from 'ssri'
 

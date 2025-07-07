@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty } from '@pnpm/prepare'

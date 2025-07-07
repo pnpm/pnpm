@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type DepPath, type DependenciesField, type HoistedDependencies, type Registries } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
 import mapValues from 'ramda/src/map'

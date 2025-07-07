@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type CatalogResolution, matchCatalogResolveResult, type CatalogResolver } from '@pnpm/catalogs.resolver'
 import {
   deprecationLogger,

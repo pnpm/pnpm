@@ -1,6 +1,6 @@
-import fs from 'fs'
+import fs from 'node:fs'
 import delay from 'delay'
-import path from 'path'
+import path from 'node:path'
 import { STORE_VERSION } from '@pnpm/constants'
 import { add, install } from '@pnpm/plugin-commands-installation'
 import { prepare, prepareEmpty } from '@pnpm/prepare'

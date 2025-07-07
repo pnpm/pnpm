@@ -1,6 +1,6 @@
 import { type SslConfig } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
-import fs from 'fs'
+import fs from 'node:fs'
 
 export interface GetNetworkConfigsResult {
   sslConfigs: Record<string, SslConfig>

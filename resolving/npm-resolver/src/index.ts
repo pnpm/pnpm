@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { FULL_META_DIR, FULL_FILTERED_META_DIR, ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {

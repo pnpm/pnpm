@@ -1,7 +1,7 @@
 import { type PackageScripts } from '@pnpm/types'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
-import { readdirSync } from 'fs'
-import path from 'path'
+import { readdirSync } from 'node:fs'
+import path from 'node:path'
 
 export function getNearestProgram ({
   dir,

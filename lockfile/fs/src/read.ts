@@ -1,6 +1,6 @@
-import { promises as fs } from 'fs'
-import path from 'path'
-import util from 'util'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import util from 'node:util'
 import {
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,

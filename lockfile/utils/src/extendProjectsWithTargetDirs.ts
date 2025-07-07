@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { type ProjectId, type DepPath } from '@pnpm/types'

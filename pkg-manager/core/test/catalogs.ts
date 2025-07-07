@@ -6,7 +6,7 @@ import { type MutatedProject, mutateModules, type ProjectOptions, type MutateMod
 import { type CatalogSnapshots } from '@pnpm/lockfile.types'
 import { logger } from '@pnpm/logger'
 import { sync as loadJsonFile } from 'load-json-file'
-import path from 'path'
+import path from 'node:path'
 import { testDefaults } from './utils'
 
 jest.mock('@pnpm/logger', () => {

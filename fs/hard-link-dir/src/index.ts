@@ -1,7 +1,7 @@
-import assert from 'assert'
-import path from 'path'
-import util from 'util'
-import fs from 'fs'
+import assert from 'node:assert'
+import path from 'node:path'
+import util from 'node:util'
+import fs from 'node:fs'
 import { globalWarn } from '@pnpm/logger'
 
 export function hardLinkDir (src: string, destDirs: string[]): void {

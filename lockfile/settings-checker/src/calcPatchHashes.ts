@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import pMapValues from 'p-map-values'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { type PatchFile } from '@pnpm/lockfile.types'

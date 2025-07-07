@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { assertProject } from '@pnpm/assert-project'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { getIndexFilePathInCafs } from '@pnpm/store.cafs'

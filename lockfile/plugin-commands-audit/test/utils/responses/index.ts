@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import loadJsonFile from 'load-json-file'
 
 // eslint-disable-next-line

@@ -1,5 +1,5 @@
-import path from 'path'
-import os from 'os'
+import path from 'node:path'
+import os from 'node:os'
 import { getAuthHeadersFromConfig } from '../src/getAuthHeadersFromConfig'
 import { Buffer } from 'safe-buffer'
 

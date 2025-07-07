@@ -1,4 +1,4 @@
-import util from 'util'
+import util from 'node:util'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { type PnpmSettings } from '@pnpm/types'
 import path from 'node:path'

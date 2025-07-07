@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { logger } from '@pnpm/logger'
 import isInnerLink from 'is-inner-link'
 import isSubdir from 'is-subdir'

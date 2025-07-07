@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type PnpmError } from '@pnpm/error'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare } from '@pnpm/prepare'

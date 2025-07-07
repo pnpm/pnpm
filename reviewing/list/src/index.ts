@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { type DependenciesField, type Registries } from '@pnpm/types'
 import { type PackageNode, buildDependenciesHierarchy, type DependenciesHierarchy, createPackagesSearcher } from '@pnpm/reviewing.dependencies-hierarchy'

@@ -1,5 +1,5 @@
-import fs from 'fs'
-import util from 'util'
+import fs from 'node:fs'
+import util from 'node:util'
 import { type PackageFiles, type PackageFileInfo, type SideEffects } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { type DependencyManifest } from '@pnpm/types'

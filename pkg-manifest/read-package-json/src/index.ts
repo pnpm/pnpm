@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { PnpmError } from '@pnpm/error'
 import { type PackageManifest } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'

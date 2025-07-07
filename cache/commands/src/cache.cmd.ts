@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { FULL_FILTERED_META_DIR, ABBREVIATED_META_DIR } from '@pnpm/constants'

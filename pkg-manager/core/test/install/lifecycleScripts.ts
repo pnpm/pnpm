@@ -1,5 +1,5 @@
-import * as path from 'path'
-import fs from 'fs'
+import * as path from 'node:path'
+import fs from 'node:fs'
 import { assertProject } from '@pnpm/assert-project'
 import { type LifecycleLog } from '@pnpm/core-loggers'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'

@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { fixtures } from '@pnpm/test-fixtures'
 import { prepareEmpty } from '@pnpm/prepare'

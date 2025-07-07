@@ -1,6 +1,6 @@
 import * as execa from 'execa'
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 
 const artifactsDir = path.join(__dirname, '../..')
 
@@ -32,4 +32,3 @@ if (process.platform === 'linux' || isM1Mac) {
   build('linuxstatic-arm64')
   build('win-arm64')
 }
-

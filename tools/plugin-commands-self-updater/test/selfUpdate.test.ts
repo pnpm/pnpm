@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { prependDirsToPath } from '@pnpm/env.path'
 import { tempDir, prepare as prepareWithPkg } from '@pnpm/prepare'
 import { selfUpdate } from '@pnpm/tools.plugin-commands-self-updater'

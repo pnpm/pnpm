@@ -1,6 +1,6 @@
-import { createReadStream, promises as fs } from 'fs'
-import os from 'os'
-import path from 'path'
+import { createReadStream, promises as fs } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import {
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
   getIndexFilePathInCafs as _getIndexFilePathInCafs,

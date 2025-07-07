@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { readProjectManifestOnly } from '@pnpm/cli-utils'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'

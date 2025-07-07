@@ -1,10 +1,10 @@
-import path from 'path'
+import path from 'node:path'
 import { fixtures } from '@pnpm/test-fixtures'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { install } from '@pnpm/plugin-commands-installation'
 import { AuditEndpointNotExistsError } from '@pnpm/audit'
 import nock from 'nock'
-import { stripVTControlCharacters as stripAnsi } from 'util'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
 import * as responses from './utils/responses'
 
 const f = fixtures(path.join(__dirname, 'fixtures'))

@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { assertStore } from '@pnpm/assert-store'
 import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'

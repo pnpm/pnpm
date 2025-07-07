@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { makeEnv } from '../src/makeEnv'
 
 test('makeEnv should fail if prependPaths has a path with a colon', () => {

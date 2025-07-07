@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { getPkgInfo } from '../lib/getPkgInfo'
 
 export const DEFAULT_REGISTRIES = {

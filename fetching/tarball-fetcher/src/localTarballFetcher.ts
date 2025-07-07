@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'

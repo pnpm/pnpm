@@ -1,4 +1,4 @@
-import path from 'path'
+import path from 'node:path'
 import { readModulesManifest, writeModulesManifest } from '@pnpm/modules-yaml'
 import { prepareEmpty } from '@pnpm/prepare'
 import {

@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { preparePackages } from '@pnpm/prepare'
 import { mutateModules, type MutatedProject } from '@pnpm/core'
 import { type ProjectRootDir } from '@pnpm/types'

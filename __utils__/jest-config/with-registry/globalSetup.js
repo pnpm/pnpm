@@ -1,5 +1,5 @@
 const getPort = require('get-port')
-const { promisify } = require('util')
+const { promisify } = require('node:util')
 const kill = promisify(require('tree-kill'))
 
 module.exports = async () => {

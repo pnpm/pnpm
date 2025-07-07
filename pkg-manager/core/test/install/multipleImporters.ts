@@ -1,5 +1,5 @@
-import fs from 'fs'
-import path from 'path'
+import fs from 'node:fs'
+import path from 'node:path'
 import { assertProject } from '@pnpm/assert-project'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile.fs'
@@ -1923,7 +1923,7 @@ test('link the bin file of a workspace project that is created by a lifecycle sc
   }
   preparePackages([pkg1, pkg2])
   fs.writeFileSync('project-2/__bin.js', `#!/usr/bin/env node
-require("fs").writeFileSync("created-by-prepare", "", "utf8")`)
+require("node:fs").writeFileSync("created-by-prepare", "", "utf8")`)
 
   const importers: MutatedProject[] = [
     {

@@ -1,5 +1,5 @@
-import { promises as fs } from 'fs'
-import path from 'path'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { type LockfileObject, type LockfileFile } from '@pnpm/lockfile.types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'

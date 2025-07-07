@@ -1,5 +1,5 @@
-import fs from 'fs'
-import util from 'util'
+import fs from 'node:fs'
+import util from 'node:util'
 
 export async function safeStat (filePath: string): Promise<fs.Stats | undefined> {
   try {

@@ -1,5 +1,5 @@
 import { STORE_VERSION } from '@pnpm/constants'
-import path from 'path'
+import path from 'node:path'
 
 jest.mock('fuse-native', () => ({ ENOENT: -2 }))
 
