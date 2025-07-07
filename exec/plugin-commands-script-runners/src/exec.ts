@@ -251,7 +251,13 @@ export async function handler (
             extraEnv: {
               ...extraEnv,
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix]?.package.manifest.name,
-              ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
+              ...(opts.nodeOptions
+                ? {
+                  NODE_OPTIONS: process.env.NODE_OPTIONS
+                    ? `${process.env.NODE_OPTIONS} ${opts.nodeOptions}`.trim()
+                    : opts.nodeOptions,
+                }
+                : {}),
             },
             prependPaths,
             userAgent: opts.userAgent,
