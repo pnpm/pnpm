@@ -227,12 +227,12 @@ export async function getConfig (opts: {
     .map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
   )
 
-  const globalConfigWithoutDepsBuildSettings: ConfigWithDeprecatedSettings = Object.fromEntries(
+  const pnpmConfig: ConfigWithDeprecatedSettings = Object.fromEntries(
     rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)])
   ) as ConfigWithDeprecatedSettings
-  const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(globalConfigWithoutDepsBuildSettings)
+  const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
-  const pnpmConfig: ConfigWithDeprecatedSettings = Object.assign(globalConfigWithoutDepsBuildSettings, configFromCliOpts) as unknown as ConfigWithDeprecatedSettings
+  Object.assign(pnpmConfig, configFromCliOpts)
   // Resolving the current working directory to its actual location is crucial.
   // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
   const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
