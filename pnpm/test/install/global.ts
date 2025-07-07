@@ -130,31 +130,33 @@ test('dangerously-allow-all-builds=true in global config', async () => {
   await execPnpm(['install', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
   expect(fs.readdirSync(path.join(globalPkgDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
 
-  // doesn't affect local project
+  // local config should override global config
   await execPnpm(['add', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
   expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
 
-  // local project does not inherit this field from global config
+  // global config should be used if local config did not specify
   delete manifest.pnpm!.onlyBuiltDependencies
   project.writePackageJson(manifest)
   fs.rmSync('node_modules', { recursive: true })
   fs.rmSync('pnpm-lock.yaml')
   await execPnpm(['add', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
-  expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
+  expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
 })
 
 test('dangerously-allow-all-builds=false in global config', async () => {
   // the directory structure below applies only to Linux
   if (process.platform !== 'linux') return
 
-  prepare({
+  const manifest: ProjectManifest = {
     name: 'local',
     version: '0.0.0',
     private: true,
     pnpm: {
       onlyBuiltDependencies: ['@pnpm.e2e/postinstall-calls-pnpm'],
     },
-  })
+  }
+
+  const project = prepare(manifest)
 
   const home = path.resolve('..', 'home/username')
   const cfgHome = path.resolve(home, '.config')
@@ -181,9 +183,17 @@ test('dangerously-allow-all-builds=false in global config', async () => {
   await execPnpm(['install', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
   expect(fs.readdirSync(path.join(globalPkgDir, 'node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
 
-  // doesn't affect local project
+  // local config should override global config
   await execPnpm(['add', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
   expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).toContain('created-by-postinstall')
+
+  // global config should be used if local config did not specify
+  delete manifest.pnpm!.onlyBuiltDependencies
+  project.writePackageJson(manifest)
+  fs.rmSync('node_modules', { recursive: true })
+  fs.rmSync('pnpm-lock.yaml')
+  await execPnpm(['add', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
+  expect(fs.readdirSync(path.resolve('node_modules/@pnpm.e2e/postinstall-calls-pnpm'))).not.toContain('created-by-postinstall')
 })
 
 test('global update to latest', async () => {

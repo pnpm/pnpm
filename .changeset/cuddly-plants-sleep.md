@@ -1,5 +1,4 @@
 ---
-"@pnpm/cli-utils": minor
 "@pnpm/config": minor
 "pnpm": patch
 ---

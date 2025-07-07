@@ -20,6 +20,7 @@ import pathAbsolute from 'path-absolute'
 import which from 'which'
 import { inheritAuthConfig } from './auth'
 import { checkGlobalBinDir } from './checkGlobalBinDir'
+import { hasDepsBuild, removeDepsBuild } from './depsBuildConfig'
 import { getNetworkConfigs } from './getNetworkConfigs'
 import { transformPathKeys } from './transformPath'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
@@ -56,7 +57,6 @@ const npmDefaults = loadNpmConf.defaults
 export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }
 
 export async function getConfig (opts: {
-  global?: boolean
   globalDirShouldAllowWrite?: boolean
   cliOptions: CliOptions
   packageManager: {
@@ -210,16 +210,6 @@ export async function getConfig (opts: {
   {
     const warn = npmConfig.addFile(path.join(configDir as string, 'rc'), 'pnpm-global')
     if (warn) warnings.push(warn)
-    if (!opts.global) {
-      for (const key of [
-        'dangerously-allow-all-builds',
-        'only-built-dependencies',
-        'only-built-dependencies-file',
-        'never-built-dependencies',
-      ]) {
-        npmConfig.set(key, undefined) // there's no npmConfig.delete, unfortunately
-      }
-    }
   }
   {
     const warn = npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
@@ -236,9 +226,13 @@ export async function getConfig (opts: {
     .filter(([_, value]) => typeof value !== 'undefined')
     .map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
   )
-  const pnpmConfig: ConfigWithDeprecatedSettings = Object.assign(Object.fromEntries(
-    rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)]) as any, // eslint-disable-line
-  ), configFromCliOpts) as unknown as ConfigWithDeprecatedSettings
+
+  const globalConfigWithoutDepsBuildSettings: ConfigWithDeprecatedSettings = Object.fromEntries(
+    rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)])
+  ) as ConfigWithDeprecatedSettings
+  const globalDepsBuildConfig = removeDepsBuild(globalConfigWithoutDepsBuildSettings)
+
+  const pnpmConfig: ConfigWithDeprecatedSettings = Object.assign(globalConfigWithoutDepsBuildSettings, configFromCliOpts) as unknown as ConfigWithDeprecatedSettings
   // Resolving the current working directory to its actual location is crucial.
   // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
   const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
@@ -383,6 +377,14 @@ export async function getConfig (opts: {
         }
         pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
       }
+    }
+  }
+  if (opts.cliOptions['global']) {
+    removeDepsBuild(pnpmConfig)
+    Object.assign(pnpmConfig, globalDepsBuildConfig)
+  } else {
+    if (!hasDepsBuild(pnpmConfig)) {
+      Object.assign(pnpmConfig, globalDepsBuildConfig)
     }
   }
   if (opts.cliOptions['save-peer']) {
