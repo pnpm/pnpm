@@ -23,7 +23,7 @@ interface PnpmfileEntry {
 
 interface PnpmfileEntryLoaded {
   file: string
-  module: Pnpmfile | undefined
+  hooks: Pnpmfile['hooks'] | undefined
   includeInChecksum: boolean
 }
 
@@ -88,7 +88,7 @@ export function requireHooks (
         entries.push({
           file,
           includeInChecksum,
-          module: requirePnpmfileResult.pnpmfileModule,
+          hooks: requirePnpmfileResult.pnpmfileModule?.hooks,
         })
       } else if (!optional) {
         throw new PnpmError('PNPMFILE_NOT_FOUND', `pnpmfile at "${file}" is not found`)
@@ -105,7 +105,7 @@ export function requireHooks (
   }
 
   // calculate combined checksum for all included files
-  if (entries.some((entry) => entry.module != null)) {
+  if (entries.some((entry) => entry.hooks != null)) {
     cookedHooks.calculatePnpmfileChecksum = async () => {
       const filesToIncludeInHash: string[] = []
       for (const { includeInChecksum, file } of entries) {
@@ -122,8 +122,8 @@ export function requireHooks (
   let fetchersProvider: string | undefined
 
   // process hooks in order
-  for (const { module, file } of entries) {
-    const fileHooks: Hooks = module?.hooks ?? {}
+  for (const { hooks, file } of entries) {
+    const fileHooks: Hooks = hooks ?? {}
 
     // readPackage & afterAllResolved
     for (const hookName of ['readPackage', 'afterAllResolved'] as const) {
