@@ -1,3 +1,4 @@
+import path from 'path'
 import { packageManager } from '@pnpm/cli-meta'
 import { getConfig as _getConfig, type CliOptions, type Config } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
@@ -35,7 +36,19 @@ export async function getConfig (
     })
   }
   if (!config.ignorePnpmfile) {
-    const { hooks, resolvedPnpmfilePaths } = requireHooks(config.lockfileDir ?? config.dir, config)
+    const pnpmfiles = Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
+    if (config.configDependencies) {
+      const configModulesDir = path.join(config.lockfileDir ?? config.rootProjectManifestDir, 'node_modules/.pnpm-config')
+      for (const configDepName of Object.keys(config.configDependencies)) {
+        if (configDepName.startsWith('@pnpm/plugin-') || configDepName.startsWith('pnpm-plugin-')) {
+          pnpmfiles.push(path.join(configModulesDir, configDepName, 'pnpmfile.cjs'))
+        }
+      }
+    }
+    const { hooks, resolvedPnpmfilePaths } = requireHooks(config.lockfileDir ?? config.dir, {
+      globalPnpmfile: config.globalPnpmfile,
+      pnpmfiles,
+    })
     config.hooks = hooks
     config.pnpmfile = resolvedPnpmfilePaths
     if (config.hooks?.updateConfig) {
