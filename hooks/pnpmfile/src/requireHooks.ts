@@ -18,6 +18,7 @@ type Cook<T extends (...args: any[]) => any> = (
 interface PnpmfileEntry {
   path: string
   includeInChecksum: boolean
+  optional?: boolean
 }
 
 interface PnpmfileEntryLoaded {
@@ -59,6 +60,7 @@ export function requireHooks (
   pnpmfiles.push({
     path: '.pnpmfile.cjs',
     includeInChecksum: true,
+    optional: true,
   })
   if (opts.pnpmfile) {
     if (Array.isArray(opts.pnpmfile)) {
@@ -77,17 +79,19 @@ export function requireHooks (
   }
   const entries: PnpmfileEntryLoaded[] = []
   const loadedFiles: string[] = []
-  for (const { path, includeInChecksum } of pnpmfiles) {
+  for (const { path, includeInChecksum, optional } of pnpmfiles) {
     const file = pathAbsolute(path, prefix)
     if (!loadedFiles.includes(file)) {
       loadedFiles.push(file)
-      const module = requirePnpmfile(pathAbsolute(path, prefix), prefix)
-      if (module != null) {
+      const requirePnpmfileResult = requirePnpmfile(file, prefix)
+      if (requirePnpmfileResult != null) {
         entries.push({
           file,
           includeInChecksum,
-          module,
+          module: requirePnpmfileResult.pnpmfileModule,
         })
+      } else if (!optional) {
+        throw new PnpmError('PNPMFILE_NOT_FOUND', `pnpmfile at "${file}" is not found`)
       }
     }
   }
