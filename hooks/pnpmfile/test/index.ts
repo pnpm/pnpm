@@ -47,6 +47,16 @@ test('filterLog hook combines with the global hook', () => {
   })).toBeFalsy()
 })
 
+test('ignoring the default pnpmfile if any list of pnpmfiles is provided', () => {
+  const { hooks } = requireHooks(path.join(__dirname, '__fixtures__/default'), { pnpmfiles: [] })
+  expect(hooks.readPackage?.length).toBe(0)
+})
+
+test('loading the default pnpmfile if no list of pnpmfiles is provided', () => {
+  const { hooks } = requireHooks(path.join(__dirname, '__fixtures__/default'), {})
+  expect(hooks.readPackage?.length).toBe(1)
+})
+
 test('calculatePnpmfileChecksum is undefined when pnpmfile does not exist', async () => {
   const { hooks } = requireHooks(__dirname, {})
   expect(hooks.calculatePnpmfileChecksum).toBeUndefined()
