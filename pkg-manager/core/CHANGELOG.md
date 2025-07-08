@@ -1,5 +1,41 @@
 # @pnpm/core
 
+## 1009.0.0
+
+### Major Changes
+
+- cf630a8: `hooks.preResolution` is now an array of functions.
+
+### Minor Changes
+
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+- Updated dependencies [589ac1f]
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/lifecycle@1001.0.17
+  - @pnpm/worker@1000.1.9
+  - @pnpm/build-modules@1000.3.9
+  - @pnpm/lockfile.settings-checker@1001.0.10
+  - @pnpm/lockfile.verification@1001.2.2
+  - @pnpm/dependency-path@1001.0.1
+  - @pnpm/headless@1004.1.2
+  - @pnpm/package-requester@1004.0.5
+  - @pnpm/lockfile.filtering@1001.0.15
+  - @pnpm/lockfile.fs@1001.1.15
+  - @pnpm/lockfile-to-pnp@1001.0.16
+  - @pnpm/lockfile.pruner@1001.0.11
+  - @pnpm/lockfile.utils@1002.0.1
+  - @pnpm/lockfile.walker@1001.0.11
+  - @pnpm/calc-dep-state@1002.0.2
+  - @pnpm/patching.config@1001.0.5
+  - @pnpm/modules-cleaner@1001.0.17
+  - @pnpm/resolve-dependencies@1007.1.3
+  - @pnpm/get-context@1001.1.2
+  - @pnpm/lockfile.preferred-versions@1000.0.16
+
 ## 1008.1.3
 
 ### Patch Changes

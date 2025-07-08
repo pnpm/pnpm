@@ -1,5 +1,13 @@
 # @pnpm/package-store
 
+## 1002.0.7
+
+### Patch Changes
+
+- Updated dependencies [589ac1f]
+  - @pnpm/worker@1000.1.9
+  - @pnpm/package-requester@1004.0.5
+
 ## 1002.0.6
 
 ### Patch Changes

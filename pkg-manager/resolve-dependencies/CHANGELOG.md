@@ -1,5 +1,17 @@
 # @pnpm/resolve-dependencies
 
+## 1007.1.3
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/npm-resolver@1004.1.1
+- @pnpm/lockfile.pruner@1001.0.11
+- @pnpm/lockfile.utils@1002.0.1
+- @pnpm/calc-dep-state@1002.0.2
+- @pnpm/patching.config@1001.0.5
+- @pnpm/lockfile.preferred-versions@1000.0.16
+
 ## 1007.1.2
 
 ### Patch Changes

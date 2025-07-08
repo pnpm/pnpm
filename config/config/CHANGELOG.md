@@ -1,5 +1,18 @@
 # @pnpm/config
 
+## 1004.1.0
+
+### Minor Changes
+
+- 623da6f: Prevent conflicts between local projects' config and the global config in `dangerously-allow-all-builds`, `only-built-dependencies`, `only-built-dependencies-file`, and `never-built-dependencies` [#9628](https://github.com/pnpm/pnpm/issues/9628).
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [e225310]
+- Updated dependencies [cf630a8]
+  - @pnpm/pnpmfile@1002.0.0
+
 ## 1004.0.0
 
 ### Major Changes

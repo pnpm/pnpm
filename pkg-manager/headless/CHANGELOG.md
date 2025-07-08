@@ -1,5 +1,25 @@
 # @pnpm/headless
 
+## 1004.1.2
+
+### Patch Changes
+
+- Updated dependencies [589ac1f]
+  - @pnpm/lifecycle@1001.0.17
+  - @pnpm/worker@1000.1.9
+  - @pnpm/build-modules@1000.3.9
+  - @pnpm/dependency-path@1001.0.1
+  - @pnpm/package-requester@1004.0.5
+  - @pnpm/deps.graph-builder@1002.2.1
+  - @pnpm/lockfile.filtering@1001.0.15
+  - @pnpm/lockfile.fs@1001.1.15
+  - @pnpm/lockfile-to-pnp@1001.0.16
+  - @pnpm/lockfile.utils@1002.0.1
+  - @pnpm/calc-dep-state@1002.0.2
+  - @pnpm/patching.config@1001.0.5
+  - @pnpm/modules-cleaner@1001.0.17
+  - @pnpm/real-hoist@1001.0.14
+
 ## 1004.1.1
 
 ### Patch Changes

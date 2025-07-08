@@ -1,5 +1,22 @@
 # pnpm
 
+## 10.13.0
+
+### Minor Changes
+
+- Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+- pnpm will now automatically load the `pnpmfile.cjs` file from any [config dependency](https://pnpm.io/config-dependencies) named `@pnpm/plugin-*` or `pnpm-plugin-*` [#9729](https://github.com/pnpm/pnpm/pull/9729).
+
+  The order in which config dependencies are initialized should not matter — they are initialized in alphabetical order. If a specific order is needed, the paths to the `pnpmfile.cjs` files in the config dependencies can be explicitly listed using the `pnpmfile` setting in `pnpm-workspace.yaml`.
+
+### Patch Changes
+
+- When patching dependencies installed via `pkg.pr.new`, treat them as Git tarball URLs [#9694](https://github.com/pnpm/pnpm/pull/9694).
+- Prevent conflicts between local projects' config and the global config in `dangerouslyAllowAllBuilds`, `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, and `neverBuiltDependencies` [#9628](https://github.com/pnpm/pnpm/issues/9628).
+- Sort keys in `pnpm-workspace.yaml` with deep [#9701](https://github.com/pnpm/pnpm/pull/9701).
+- The `pnpm rebuild` command should not add pkgs included in `ignoredBuiltDependencies` to `ignoredBuilds` in `node_modules/.modules.yaml` [#9338](https://github.com/pnpm/pnpm/issues/9338).
+- Replaced `shell-quote` with `shlex` for quoting command arguments [#9381](https://github.com/pnpm/pnpm/issues/9381).
+
 ## 10.12.4
 
 ### Patch Changes

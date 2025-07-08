@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.29
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/plugin-commands-installation@1004.3.0
+  - @pnpm/dependency-path@1001.0.1
+  - @pnpm/lockfile.fs@1001.1.15
+
 ## 1001.1.28
 
 ### Patch Changes

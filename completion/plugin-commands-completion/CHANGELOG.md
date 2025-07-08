@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-completion
 
+## 1000.0.28
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/workspace.find-packages@1000.0.28
+
 ## 1000.0.27
 
 ### Patch Changes

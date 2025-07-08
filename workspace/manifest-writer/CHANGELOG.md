@@ -1,5 +1,11 @@
 # @pnpm/workspace.manifest-writer
 
+## 1000.2.1
+
+### Patch Changes
+
+- 95a9b82: Sort keys in `pnpm-workspace.yaml` with deep [#9701](https://github.com/pnpm/pnpm/pull/9701).
+
 ## 1000.2.0
 
 ### Minor Changes

@@ -1,5 +1,12 @@
 # @pnpm/calc-dep-state
 
+## 1002.0.2
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/lockfile.utils@1002.0.1
+
 ## 1002.0.1
 
 ### Patch Changes

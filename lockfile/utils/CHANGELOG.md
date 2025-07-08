@@ -1,5 +1,11 @@
 # @pnpm/lockfile-utils
 
+## 1002.0.1
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+
 ## 1002.0.0
 
 ### Major Changes

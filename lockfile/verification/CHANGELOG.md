@@ -1,5 +1,15 @@
 # @pnpm/lockfile.verification
 
+## 1001.2.2
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/dependency-path@1001.0.1
+  - @pnpm/lockfile.utils@1002.0.1
+  - @pnpm/get-context@1001.1.2
+
 ## 1001.2.1
 
 ### Patch Changes

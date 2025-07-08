@@ -1,5 +1,12 @@
 # @pnpm/dependency-path
 
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+  - @pnpm/crypto.hash@1000.2.0
+
 ## 1001.0.0
 
 ### Major Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.settings-checker",
-  "version": "1001.0.9",
+  "version": "1001.0.10",
   "description": "Utilities to check if lockfile settings are out-of-date",
   "keywords": [
     "pnpm",

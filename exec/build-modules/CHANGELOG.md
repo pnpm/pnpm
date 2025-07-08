@@ -1,5 +1,17 @@
 # @pnpm/build-modules
 
+## 1000.3.9
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [589ac1f]
+  - @pnpm/config@1004.1.0
+  - @pnpm/lifecycle@1001.0.17
+  - @pnpm/worker@1000.1.9
+  - @pnpm/calc-dep-state@1002.0.2
+
 ## 1000.3.8
 
 ### Patch Changes

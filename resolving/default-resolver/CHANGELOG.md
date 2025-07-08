@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 1002.1.1
+
+### Patch Changes
+
+- @pnpm/local-resolver@1002.0.1
+- @pnpm/npm-resolver@1004.1.1
+
 ## 1002.1.0
 
 ### Minor Changes

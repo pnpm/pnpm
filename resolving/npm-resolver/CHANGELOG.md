@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 1004.1.1
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+  - @pnpm/crypto.hash@1000.2.0
+
 ## 1004.1.0
 
 ### Minor Changes

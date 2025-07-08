@@ -1,5 +1,15 @@
 # @pnpm/outdated
 
+## 1001.0.23
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/npm-resolver@1004.1.1
+- @pnpm/lockfile.fs@1001.1.15
+- @pnpm/lockfile.utils@1002.0.1
+- @pnpm/client@1000.0.21
+
 ## 1001.0.22
 
 ### Patch Changes

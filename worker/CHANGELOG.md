@@ -1,5 +1,11 @@
 # @pnpm/worker
 
+## 1000.1.9
+
+### Patch Changes
+
+- 589ac1f: Replaced `shell-quote` with `shlex` for quoting command arguments [#9381](https://github.com/pnpm/pnpm/issues/9381).
+
 ## 1000.1.8
 
 ### Patch Changes

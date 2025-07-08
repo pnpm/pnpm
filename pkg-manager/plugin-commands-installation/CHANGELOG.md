@@ -1,5 +1,39 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.3.0
+
+### Minor Changes
+
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [e225310]
+- Updated dependencies [cf630a8]
+- Updated dependencies [95a9b82]
+- Updated dependencies [ab155a5]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/pnpmfile@1002.0.0
+  - @pnpm/workspace.state@1002.0.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/deps.status@1003.0.0
+  - @pnpm/core@1009.0.0
+  - @pnpm/workspace.manifest-writer@1000.2.1
+  - @pnpm/plugin-commands-rebuild@1002.0.18
+  - @pnpm/plugin-commands-env@1000.0.29
+  - @pnpm/store-connection-manager@1002.0.6
+  - @pnpm/workspace.find-packages@1000.0.28
+  - @pnpm/config.config-writer@1000.0.7
+  - @pnpm/package-store@1002.0.7
+  - @pnpm/filter-workspace-packages@1000.0.28
+  - @pnpm/config.deps-installer@1000.0.8
+  - @pnpm/outdated@1001.0.23
+  - @pnpm/workspace.pkgs-graph@1000.0.16
+  - @pnpm/get-context@1001.1.2
+
 ## 1004.2.2
 
 ### Patch Changes

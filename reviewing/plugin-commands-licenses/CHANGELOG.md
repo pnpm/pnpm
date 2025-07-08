@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-licenses
 
+## 1000.0.30
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/lockfile.fs@1001.1.15
+  - @pnpm/license-scanner@1001.0.21
+
 ## 1000.0.29
 
 ### Patch Changes

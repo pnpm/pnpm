@@ -1,5 +1,23 @@
 # @pnpm/deps.status
 
+## 1003.0.0
+
+### Major Changes
+
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+  - @pnpm/config@1004.1.0
+  - @pnpm/workspace.state@1002.0.0
+  - @pnpm/workspace.find-packages@1000.0.28
+  - @pnpm/lockfile.settings-checker@1001.0.10
+  - @pnpm/lockfile.verification@1001.2.2
+  - @pnpm/lockfile.fs@1001.1.15
+  - @pnpm/get-context@1001.1.2
+
 ## 1002.1.5
 
 ### Patch Changes
