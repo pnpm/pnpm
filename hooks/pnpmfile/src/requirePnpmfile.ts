@@ -7,6 +7,7 @@ import { logger } from '@pnpm/logger'
 import { type PackageManifest } from '@pnpm/types'
 import chalk from 'chalk'
 import { type Hooks } from './Hooks'
+import { dynamicImport } from '../dynamicImport.js'
 
 export class BadReadPackageHookError extends PnpmError {
   public readonly pnpmfile: string
@@ -39,7 +40,6 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
     if (pnpmFilePath.endsWith('.mjs')) {
       const moduleUrl = pathToFileURL(pnpmFilePath).href
       // This seems to be the only way to prevent TypeScript from breaking the dynamic import of an ESM modules
-      const dynamicImport = new Function('specifier', 'return import(specifier)')
       const module = await dynamicImport(moduleUrl)
       pnpmfile = module.default || module
     } else {

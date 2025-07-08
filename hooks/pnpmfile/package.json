@@ -19,6 +19,7 @@
     ".": "./lib/index.js"
   },
   "files": [
+    "dynamicImport.js",
     "lib",
     "!*.map"
   ],

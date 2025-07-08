@@ -338,6 +338,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     files.push('dist')
     files.push('bin')
   } else {
+    if (manifest.name === '@pnpm/pnpmfile') {
+      files.push('dynamicImport.js')
+    }
     // the order is important
     files.push('lib')
     files.push('!*.map')
