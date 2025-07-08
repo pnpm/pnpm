@@ -39,7 +39,8 @@ const OUTDATED_OPTIONS = {
   userConfig: {},
 }
 
-test('pnpm outdated: show details', async () => {
+// Skipped because https://github.com/pnpm/pnpm/issues/9642
+test.skip('pnpm outdated: show details', async () => {
   tempDir()
 
   fs.mkdirSync(path.resolve('node_modules/.pnpm'), { recursive: true })

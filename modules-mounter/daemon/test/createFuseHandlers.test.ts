@@ -1,12 +1,13 @@
 import { STORE_VERSION } from '@pnpm/constants'
 import path from 'path'
+import type { FuseHandlers } from '../src/createFuseHandlers'
 
-jest.mock('fuse-native', () => ({ ENOENT: -2 }))
-
+// @ts-expect-error temporary mock hack
+require.cache[require.resolve('fuse-native')] = { exports: { ENOENT: -2 } }
+// jest.doMock('fuse-native', () => ({ ENOENT: -2 }))
 // eslint-disable-next-line
-import { type FuseHandlers, createFuseHandlers } from '../src/createFuseHandlers'
-// eslint-disable-next-line
-import Fuse from 'fuse-native'
+const Fuse = require('fuse-native')
+const { createFuseHandlers } = jest.requireActual('../src/createFuseHandlers')
 
 describe('FUSE handlers', () => {
   let handlers: FuseHandlers

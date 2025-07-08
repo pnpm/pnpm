@@ -27,7 +27,7 @@
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile && pnpm run _test",
     "compile": "tsc --build && pnpm run lint --fix",
-    "_test": "jest"
+    "_test": "exodus-test --jest --esbuild"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:*",

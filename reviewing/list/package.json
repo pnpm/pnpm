@@ -30,7 +30,7 @@
     "prepareFixtures": "cd test && node ../../pnpm recursive install --no-link-workspace-packages --no-shared-workspace-lockfile -f && cd ..",
     "prepublishOnly": "pnpm run compile",
     "pretest": "pnpm run --filter dependencies-hierarchy pretest",
-    "_test": "pnpm pretest && jest",
+    "_test": "pnpm pretest && exodus-test --jest --esbuild",
     "test": "pnpm run compile && pnpm run _test",
     "compile": "tsc --build && pnpm run lint --fix"
   },
