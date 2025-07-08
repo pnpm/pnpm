@@ -5,6 +5,7 @@ import { formatWarn } from '@pnpm/default-reporter'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { installConfigDeps } from '@pnpm/config.deps-installer'
 import { requireHooks } from '@pnpm/pnpmfile'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export async function getConfig (
   cliOptions: CliOptions,
@@ -39,7 +40,7 @@ export async function getConfig (
     const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
     if (config.configDependencies) {
       const configModulesDir = path.join(config.lockfileDir ?? config.rootProjectManifestDir, 'node_modules/.pnpm-config')
-      for (const configDepName of Object.keys(config.configDependencies)) {
+      for (const configDepName of Object.keys(config.configDependencies).sort(lexCompare)) {
         if (configDepName.startsWith('@pnpm/plugin-') || configDepName.startsWith('pnpm-plugin-')) {
           pnpmfiles.push(path.join(configModulesDir, configDepName, 'pnpmfile.cjs'))
         }
