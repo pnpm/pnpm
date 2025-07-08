@@ -334,3 +334,36 @@ module.exports = {
   expect(nodeModulesFiles).toContain('kind-of')
   expect(nodeModulesFiles).toContain('is-number')
 })
+
+test('loading multiple pnpmfiles', async () => {
+  prepare()
+
+  fs.writeFileSync('pnpmfile1.cjs', `
+module.exports = {
+  hooks: {
+    updateConfig: (config) => ({
+      ...config,
+      nodeLinker: 'hoisted',
+    }),
+  },
+}`, 'utf8')
+  fs.writeFileSync('pnpmfile2.cjs', `
+module.exports = {
+  hooks: {
+    readPackage: (pkg) => {
+      if (pkg.name === 'is-odd') {
+        pkg.dependencies['is-even'] = '1.0.0'
+      }
+      return pkg
+    },
+  },
+}`, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { pnpmfile: ['pnpmfile1.cjs', 'pnpmfile2.cjs'] })
+
+  await execPnpm(['add', 'is-odd@1.0.0'])
+
+  const nodeModulesFiles = fs.readdirSync('node_modules')
+  expect(nodeModulesFiles).toContain('kind-of')
+  expect(nodeModulesFiles).toContain('is-number')
+  expect(nodeModulesFiles).toContain('is-even')
+})
