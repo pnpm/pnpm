@@ -47,13 +47,13 @@ test('filterLog hook combines with the global hook', () => {
   })).toBeFalsy()
 })
 
-test('ignoring the default pnpmfile if any list of pnpmfiles is provided', () => {
-  const { hooks } = requireHooks(path.join(__dirname, '__fixtures__/default'), { pnpmfiles: [] })
+test('ignoring the default pnpmfile if tryLoadDefaultPnpmfile is not set', () => {
+  const { hooks } = requireHooks(path.join(__dirname, '__fixtures__/default'), {})
   expect(hooks.readPackage?.length).toBe(0)
 })
 
-test('loading the default pnpmfile if no list of pnpmfiles is provided', () => {
-  const { hooks } = requireHooks(path.join(__dirname, '__fixtures__/default'), {})
+test('loading the default pnpmfile if tryLoadDefaultPnpmfile is set to true', () => {
+  const { hooks } = requireHooks(path.join(__dirname, '__fixtures__/default'), { tryLoadDefaultPnpmfile: true })
   expect(hooks.readPackage?.length).toBe(1)
 })
 
