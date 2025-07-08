@@ -41,6 +41,7 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "chalk": "catalog:",
     "load-json-file": "catalog:"
   },

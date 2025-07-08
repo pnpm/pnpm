@@ -367,3 +367,14 @@ module.exports = {
   expect(nodeModulesFiles).toContain('is-number')
   expect(nodeModulesFiles).toContain('is-even')
 })
+
+test('automatically loading pnpmfile from a config dependency that has a name that starts with "@pnpm/plugin-"', async () => {
+  prepare()
+
+  await execPnpm(['add', '--config', '@pnpm/plugin-pnpmfile'])
+  await execPnpm(['add', 'is-odd@1.0.0'])
+
+  const nodeModulesFiles = fs.readdirSync('node_modules')
+  expect(nodeModulesFiles).toContain('kind-of')
+  expect(nodeModulesFiles).toContain('is-number')
+})

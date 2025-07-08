@@ -30,7 +30,7 @@ test('readPackage hook run fails when returned dependencies is not an object ', 
 test('filterLog hook combines with the global hook', () => {
   const globalPnpmfile = path.join(__dirname, '__fixtures__/globalFilterLog.js')
   const pnpmfile = path.join(__dirname, '__fixtures__/filterLog.js')
-  const { hooks } = requireHooks(__dirname, { globalPnpmfile, pnpmfile: [pnpmfile] })
+  const { hooks } = requireHooks(__dirname, { globalPnpmfile, pnpmfiles: [pnpmfile] })
 
   expect(hooks.filterLog).toBeDefined()
   expect(hooks.filterLog!.length).toBe(2)
@@ -54,22 +54,22 @@ test('calculatePnpmfileChecksum is undefined when pnpmfile does not exist', asyn
 
 test('calculatePnpmfileChecksum resolves to hash string for existing pnpmfile', async () => {
   const pnpmfile = path.join(__dirname, '__fixtures__/readPackageNoObject.js')
-  const { hooks } = requireHooks(__dirname, { pnpmfile: [pnpmfile] })
+  const { hooks } = requireHooks(__dirname, { pnpmfiles: [pnpmfile] })
   expect(typeof await hooks.calculatePnpmfileChecksum?.()).toBe('string')
 })
 
 test('calculatePnpmfileChecksum is undefined if pnpmfile even when it exports undefined', async () => {
   const pnpmfile = path.join(__dirname, '__fixtures__/undefined.js')
-  const { hooks } = requireHooks(__dirname, { pnpmfile: [pnpmfile] })
+  const { hooks } = requireHooks(__dirname, { pnpmfiles: [pnpmfile] })
   expect(hooks.calculatePnpmfileChecksum).toBeUndefined()
 })
 
 test('updateConfig throws an error if it returns undefined', async () => {
   const pnpmfile = path.join(__dirname, '__fixtures__/updateConfigReturnsUndefined.js')
-  const { hooks } = requireHooks(__dirname, { pnpmfile: [pnpmfile] })
+  const { hooks } = requireHooks(__dirname, { pnpmfiles: [pnpmfile] })
   expect(() => hooks.updateConfig![0]!({})).toThrow('The updateConfig hook returned undefined')
 })
 
 test('requireHooks throw an error if one of the specified pnpmfiles does not exist', async () => {
-  expect(() => requireHooks(__dirname, { pnpmfile: ['does-not-exist.cjs'] })).toThrow('is not found')
+  expect(() => requireHooks(__dirname, { pnpmfiles: ['does-not-exist.cjs'] })).toThrow('is not found')
 })

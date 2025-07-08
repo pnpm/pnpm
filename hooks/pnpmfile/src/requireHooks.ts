@@ -47,7 +47,7 @@ export function requireHooks (
   prefix: string,
   opts: {
     globalPnpmfile?: string
-    pnpmfile?: string[] | string
+    pnpmfiles?: string[]
   }
 ): RequireHooksResult {
   const pnpmfiles: PnpmfileEntry[] = []
@@ -62,17 +62,10 @@ export function requireHooks (
     includeInChecksum: true,
     optional: true,
   })
-  if (opts.pnpmfile) {
-    if (Array.isArray(opts.pnpmfile)) {
-      for (const pnpmfile of opts.pnpmfile) {
-        pnpmfiles.push({
-          path: pnpmfile,
-          includeInChecksum: true,
-        })
-      }
-    } else {
+  if (opts.pnpmfiles) {
+    for (const pnpmfile of opts.pnpmfiles) {
       pnpmfiles.push({
-        path: opts.pnpmfile,
+        path: pnpmfile,
         includeInChecksum: true,
       })
     }
