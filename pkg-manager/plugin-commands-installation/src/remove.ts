@@ -138,7 +138,6 @@ export async function handler (
   | 'linkWorkspacePackages'
   | 'lockfileDir'
   | 'optional'
-  | 'pnpmfile'
   | 'production'
   | 'rawLocalConfig'
   | 'registries'
@@ -153,6 +152,7 @@ export async function handler (
   | 'sharedWorkspaceLockfile'
   > & {
     recursive?: boolean
+    pnpmfile: string[]
   },
   params: string[]
 ): Promise<void> {

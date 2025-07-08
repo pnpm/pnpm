@@ -79,7 +79,7 @@ export interface StrictInstallOptions {
   nodeVersion?: string
   packageExtensions: Record<string, PackageExtension>
   ignoredOptionalDependencies: string[]
-  pnpmfile: string
+  pnpmfile: string[] | string
   ignorePnpmfile: boolean
   packageManager: {
     name: string
@@ -88,7 +88,7 @@ export interface StrictInstallOptions {
   pruneLockfileImporters: boolean
   hooks: {
     readPackage?: ReadPackageHook[]
-    preResolution?: (ctx: PreResolutionHookContext) => Promise<void>
+    preResolution?: Array<(ctx: PreResolutionHookContext) => Promise<void>>
     afterAllResolved?: Array<(lockfile: LockfileObject) => LockfileObject | Promise<LockfileObject>>
     calculatePnpmfileChecksum?: () => Promise<string | undefined>
   }

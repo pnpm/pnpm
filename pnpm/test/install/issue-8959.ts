@@ -30,7 +30,7 @@ test('restores deleted modules dir of a workspace package', async () => {
   writeYamlFile('pnpm-workspace.yaml', { packages: ['packages/*'] })
 
   await execPnpm(['install'])
-  expect(fs.readdirSync('node_modules')).toContain('.pnpm-workspace-state.json')
+  expect(fs.readdirSync('node_modules')).toContain('.pnpm-workspace-state-v1.json')
   expect(fs.readdirSync('packages/foo/node_modules')).toContain('is-positive')
 
   fs.rmSync('packages/foo/node_modules', { recursive: true })

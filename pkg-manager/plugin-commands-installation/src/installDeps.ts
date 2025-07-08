@@ -70,7 +70,6 @@ export type InstallDepsOptions = Pick<Config,
 | 'linkWorkspacePackages'
 | 'lockfileDir'
 | 'lockfileOnly'
-| 'pnpmfile'
 | 'production'
 | 'preferWorkspacePackages'
 | 'rawLocalConfig'
@@ -137,6 +136,7 @@ export type InstallDepsOptions = Pick<Config,
   prepareExecutionEnv: PrepareExecutionEnv
   fetchFullMetadata?: boolean
   pruneLockfileImporters?: boolean
+  pnpmfile: string[]
 } & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds'>>
 
 export async function installDeps (
@@ -327,7 +327,7 @@ when running add/update with the --workspace option')
         allProjects,
         settings: opts,
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
-        pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
+        pnpmfiles: opts.pnpmfile,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
         configDependencies: opts.configDependencies,
       })
@@ -390,7 +390,7 @@ when running add/update with the --workspace option')
         allProjects,
         settings: opts,
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
-        pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
+        pnpmfiles: opts.pnpmfile,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
         configDependencies: opts.configDependencies,
       })
@@ -416,7 +416,7 @@ async function recursiveInstallThenUpdateWorkspaceState (
       allProjects,
       settings: opts,
       workspaceDir: opts.workspaceDir,
-      pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
+      pnpmfiles: opts.pnpmfile,
       filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
       configDependencies: opts.configDependencies,
     })

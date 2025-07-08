@@ -138,7 +138,7 @@ export interface Config extends OptionsFromRootManifest {
   lockfileOnly?: boolean // like npm's --package-lock-only
   childConcurrency?: number
   ignorePnpmfile?: boolean
-  pnpmfile: string
+  pnpmfile: string[] | string
   hooks?: Hooks
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   hoistPattern?: string[]
