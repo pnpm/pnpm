@@ -4,7 +4,7 @@ import {
   type ReadPackageHook,
 } from '@pnpm/types'
 
-export type PnpmOptions = Omit<Config, 'reporter'> & {
+export type PnpmOptions = Omit<Config, 'reporter' | 'pnpmfile'> & {
   argv: {
     cooked: string[]
     original: string[]
@@ -12,6 +12,7 @@ export type PnpmOptions = Omit<Config, 'reporter'> & {
   }
   cliOptions: object
   reporter?: (logObj: LogBase) => void
+  pnpmfile: string[]
   packageManager?: {
     name: string
     version: string

@@ -33,7 +33,7 @@ export const DEFAULT_OPTS = {
   networkConcurrency: 16,
   offline: false,
   pending: false,
-  pnpmfile: './.pnpmfile.cjs',
+  pnpmfile: ['./.pnpmfile.cjs'],
   pnpmHomeDir: '',
   proxy: undefined,
   preferWorkspacePackages: true,

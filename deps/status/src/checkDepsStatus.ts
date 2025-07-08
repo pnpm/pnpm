@@ -57,11 +57,11 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'workspaceDir'
 | 'patchesDir'
-| 'pnpmfile'
 | 'configDependencies'
 > & {
   ignoreFilteredInstallCache?: boolean
   ignoredWorkspaceStateSettings?: Array<keyof WorkspaceStateSettings>
+  pnpmfile: string[]
 } & WorkspaceStateSettings
 
 export interface CheckDepsStatusResult {
@@ -230,7 +230,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       rootManifestOptions,
       rootDir: rootProjectManifestDir,
       lastValidatedTimestamp: workspaceState.lastValidatedTimestamp,
-      currentPnpmfiles: opts.pnpmfile as string[],
+      currentPnpmfiles: opts.pnpmfile,
       previousPnpmfiles: workspaceState.pnpmfiles,
     })
     if (issue) {
@@ -373,7 +373,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       rootManifestOptions,
       rootDir: rootProjectManifestDir,
       lastValidatedTimestamp: wantedLockfileStats.mtime.valueOf(),
-      currentPnpmfiles: opts.pnpmfile as string[],
+      currentPnpmfiles: opts.pnpmfile,
       previousPnpmfiles: workspaceState.pnpmfiles,
     })
     if (issue) {

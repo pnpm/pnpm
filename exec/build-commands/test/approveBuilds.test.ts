@@ -36,6 +36,7 @@ async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
     })).config),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
+    pnpmfile: [], // this is only needed because the pnpmfile returned by getConfig is string | string[]
   }
   await install.handler({ ...config, argv: { original: [] } })
 
@@ -66,6 +67,7 @@ async function approveNoBuilds (opts?: ApproveBuildsOptions) {
     })).config),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
+    pnpmfile: [], // this is only needed because the pnpmfile returned by getConfig is string | string[]
   }
   await install.handler({ ...config, argv: { original: [] } })
 

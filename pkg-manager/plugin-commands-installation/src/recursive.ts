@@ -66,7 +66,6 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'modulesDir'
-| 'pnpmfile'
 | 'rawLocalConfig'
 | 'registries'
 | 'rootProjectManifest'
@@ -106,6 +105,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
     ctrl: StoreController
     dir: string
   }
+  pnpmfile: string[]
 } & Partial<
 Pick<Config,
 | 'sort'

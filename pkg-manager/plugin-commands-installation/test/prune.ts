@@ -27,7 +27,7 @@ const DEFAULT_OPTIONS = {
   },
   lock: true,
   linkWorkspacePackages: true,
-  pnpmfile: '.pnpmfile.cjs',
+  pnpmfile: ['.pnpmfile.cjs'],
   pnpmHomeDir: '',
   preferWorkspacePackages: true,
   rawConfig: { registry: REGISTRY_URL },
