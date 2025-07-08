@@ -15,7 +15,7 @@ export function createHash (input: string): string {
   return `sha256-${crypto.hash('sha256', input, 'base64')}`
 }
 
-export async function createHashFromFiles (files: string[]): Promise<string> {
+export async function createHashFromMultipleFiles (files: string[]): Promise<string> {
   if (files.length === 1) {
     return createHashFromFile(files[0])
   }

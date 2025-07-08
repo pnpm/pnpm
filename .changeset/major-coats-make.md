@@ -2,4 +2,4 @@
 "@pnpm/crypto.hash": minor
 ---
 
-A new function added: createHashFromFiles.
+A new function added: createHashFromMultipleFiles.

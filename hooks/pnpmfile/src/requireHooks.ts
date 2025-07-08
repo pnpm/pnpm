@@ -1,7 +1,7 @@
 import type { PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
 import { PnpmError } from '@pnpm/error'
 import { hookLogger } from '@pnpm/core-loggers'
-import { createHashFromFiles } from '@pnpm/crypto.hash'
+import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
 import pathAbsolute from 'path-absolute'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
@@ -110,7 +110,7 @@ export function requireHooks (
         }
       }
       filesToIncludeInHash.sort()
-      return createHashFromFiles(filesToIncludeInHash)
+      return createHashFromMultipleFiles(filesToIncludeInHash)
     }
   }
 
