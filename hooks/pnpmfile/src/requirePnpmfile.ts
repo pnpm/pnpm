@@ -1,11 +1,13 @@
 import assert from 'assert'
 import fs from 'fs'
 import util from 'util'
+import { pathToFileURL } from 'url'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import { type PackageManifest } from '@pnpm/types'
 import chalk from 'chalk'
 import { type Hooks } from './Hooks'
+import { dynamicImport } from '../dynamicImport.js'
 
 export class BadReadPackageHookError extends PnpmError {
   public readonly pnpmfile: string
@@ -31,9 +33,19 @@ export interface Pnpmfile {
   hooks?: Hooks
 }
 
-export function requirePnpmfile (pnpmFilePath: string, prefix: string): { pnpmfileModule: Pnpmfile | undefined } | undefined {
+export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Promise<{ pnpmfileModule: Pnpmfile | undefined } | undefined> {
   try {
-    const pnpmfile: Pnpmfile = require(pnpmFilePath) // eslint-disable-line
+    let pnpmfile: Pnpmfile
+    // Check if it's an ESM module (ends with .mjs)
+    if (pnpmFilePath.endsWith('.mjs')) {
+      const moduleUrl = pathToFileURL(pnpmFilePath).href
+      // This seems to be the only way to prevent TypeScript from breaking the dynamic import of an ESM modules
+      const module = await dynamicImport(moduleUrl)
+      pnpmfile = module.default || module
+    } else {
+      // Use require for CommonJS modules
+      pnpmfile = require(pnpmFilePath) // eslint-disable-line
+    }
     if (typeof pnpmfile === 'undefined') {
       logger.warn({
         message: `Ignoring the pnpmfile at "${pnpmFilePath}". It exports "undefined".`,
@@ -83,7 +95,7 @@ export function requirePnpmfile (pnpmFilePath: string, prefix: string): { pnpmfi
 }
 
 function pnpmFileExistsSync (pnpmFilePath: string): boolean {
-  const pnpmFileRealName = pnpmFilePath.endsWith('.cjs')
+  const pnpmFileRealName = pnpmFilePath.endsWith('.cjs') || pnpmFilePath.endsWith('.mjs')
     ? pnpmFilePath
     : `${pnpmFilePath}.cjs`
   return fs.existsSync(pnpmFileRealName)

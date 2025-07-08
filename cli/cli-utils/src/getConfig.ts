@@ -35,7 +35,7 @@ export async function getConfig (
     })
   }
   if (!config.ignorePnpmfile) {
-    const { hooks, resolvedPnpmfilePaths } = requireHooks(config.lockfileDir ?? config.dir, config)
+    const { hooks, resolvedPnpmfilePaths } = await requireHooks(config.lockfileDir ?? config.dir, config)
     config.hooks = hooks
     config.pnpmfile = resolvedPnpmfilePaths
     if (config.hooks?.updateConfig) {

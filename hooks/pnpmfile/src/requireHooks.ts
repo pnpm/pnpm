@@ -43,13 +43,13 @@ export interface RequireHooksResult {
   resolvedPnpmfilePaths: string[]
 }
 
-export function requireHooks (
+export async function requireHooks (
   prefix: string,
   opts: {
     globalPnpmfile?: string
     pnpmfile?: string[] | string
   }
-): RequireHooksResult {
+): Promise<RequireHooksResult> {
   const pnpmfiles: PnpmfileEntry[] = []
   if (opts.globalPnpmfile) {
     pnpmfiles.push({
@@ -79,11 +79,11 @@ export function requireHooks (
   }
   const entries: PnpmfileEntryLoaded[] = []
   const loadedFiles: string[] = []
-  for (const { path, includeInChecksum, optional } of pnpmfiles) {
+  await Promise.all(pnpmfiles.map(async ({ path, includeInChecksum, optional }) => {
     const file = pathAbsolute(path, prefix)
     if (!loadedFiles.includes(file)) {
       loadedFiles.push(file)
-      const requirePnpmfileResult = requirePnpmfile(file, prefix)
+      const requirePnpmfileResult = await requirePnpmfile(file, prefix)
       if (requirePnpmfileResult != null) {
         entries.push({
           file,
@@ -94,7 +94,7 @@ export function requireHooks (
         throw new PnpmError('PNPMFILE_NOT_FOUND', `pnpmfile at "${file}" is not found`)
       }
     }
-  }
+  }))
 
   const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'readPackage' | 'preResolution' | 'afterAllResolved' | 'filterLog' | 'updateConfig'>> = {
     readPackage: [],
