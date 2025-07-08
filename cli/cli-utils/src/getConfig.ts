@@ -40,11 +40,7 @@ export async function getConfig (
     const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
     if (config.configDependencies) {
       const configModulesDir = path.join(config.lockfileDir ?? config.rootProjectManifestDir, 'node_modules/.pnpm-config')
-      for (const configDepName of Object.keys(config.configDependencies).sort(lexCompare)) {
-        if (configDepName.startsWith('@pnpm/plugin-') || configDepName.startsWith('pnpm-plugin-')) {
-          pnpmfiles.push(path.join(configModulesDir, configDepName, 'pnpmfile.cjs'))
-        }
-      }
+      pnpmfiles.push(...calcPnpmfilePathsOfPluginDeps(configModulesDir, config.configDependencies))
     }
     const { hooks, resolvedPnpmfilePaths } = requireHooks(config.lockfileDir ?? config.dir, {
       globalPnpmfile: config.globalPnpmfile,
@@ -69,4 +65,12 @@ export async function getConfig (
   }
 
   return config
+}
+
+function * calcPnpmfilePathsOfPluginDeps (configModulesDir: string, configDependencies: Record<string, string>): Generator<string> {
+  for (const configDepName of Object.keys(configDependencies).sort(lexCompare)) {
+    if (configDepName.startsWith('@pnpm/plugin-') || configDepName.startsWith('pnpm-plugin-')) {
+      yield path.join(configModulesDir, configDepName, 'pnpmfile.cjs')
+    }
+  }
 }
