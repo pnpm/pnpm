@@ -36,7 +36,7 @@ export async function getConfig (
     })
   }
   if (!config.ignorePnpmfile) {
-    const pnpmfiles = Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
+    const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
     if (config.configDependencies) {
       const configModulesDir = path.join(config.lockfileDir ?? config.rootProjectManifestDir, 'node_modules/.pnpm-config')
       for (const configDepName of Object.keys(config.configDependencies)) {
