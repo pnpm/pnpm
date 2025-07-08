@@ -490,8 +490,8 @@ catalogs:
       specifier: ^0.6.0
       version: 0.6.0
     pkg:
-      specifier: npm:@yao-pkg/pkg@5.12.0
-      version: 5.12.0
+      specifier: npm:@yao-pkg/pkg@5.13.0
+      version: 5.13.0
     preferred-pm:
       specifier: ^3.1.4
       version: 3.1.4
@@ -6311,7 +6311,7 @@ importers:
         version: safe-execa@0.1.2
       pkg:
         specifier: 'catalog:'
-        version: '@yao-pkg/pkg@5.12.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
+        version: '@yao-pkg/pkg@5.13.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
     optionalDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
@@ -10368,12 +10368,12 @@ packages:
     resolution: {integrity: sha512-PpKgisv6cRm43JNyFaUTTclyOy8VRubjniA3CmbEQIAImZ1YQMSAQ06nsWpZEhIx4NuRXmB5CiUHg2U4/0+oCg==}
     engines: {node: '>=12'}
 
-  '@yao-pkg/pkg-fetch@3.5.9':
-    resolution: {integrity: sha512-usMwwqFCd2B7k+V87u6kiTesyDSlw+3LpiuYBWe+UgryvSOk/NXjx3XVCub8hQoi0bCREbdQ6NDBqminyHJJrg==}
+  '@yao-pkg/pkg-fetch@3.5.10':
+    resolution: {integrity: sha512-1uBGC9lV1Bif5IONYzx6h7lX8wx7NtFrw6SZDLsax7fEl/a5R5j+Pg9iM6Y6BevsnfsuYP6KLuGMvDw0NeZmVg==}
     hasBin: true
 
-  '@yao-pkg/pkg@5.12.0':
-    resolution: {integrity: sha512-KZVpiDKRi2gtrVtKwhz/ZUKBOicVNggxaYQzPBjULuOLJ/UypTmAz5a2g+utLMn+WogbLE3vLfmC+TWp8v3+aQ==}
+  '@yao-pkg/pkg@5.13.0':
+    resolution: {integrity: sha512-DPB5TNpYHxaLuFf5U8Vfu8Oxh3QYZJeqLLXAutcNcYca0RdEU124T3L2f/y4ad6sh1x47deiGvM4GmN9aq3snQ==}
     hasBin: true
 
   '@yarnpkg/core@4.2.0':
@@ -12286,10 +12286,6 @@ packages:
   has-unicode@2.0.1:
     resolution: {integrity: sha512-8Rf9Y83NBReMnx0gFzA8JImQACstCYWUplepDa9xprwwtmgEZUF0h/i5xSA625zB/I37EtrswSST6OXxwaaIJQ==}
 
-  has@1.0.4:
-    resolution: {integrity: sha512-qdSAmqLF6209RFj4VVItywPMbm3vWylknmB3nvNiUIs72xAimcM8nVYxYr7ncvZq5qzk9MKIZR8ijqD/1QuYjQ==}
-    engines: {node: '>= 0.4.0'}
-
   hasown@2.0.2:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
@@ -12519,9 +12515,6 @@ packages:
   is-core-module@2.16.1:
     resolution: {integrity: sha512-UfoeMA6fIJ8wTYFEUjelnaGI67v6+N7qXJEvQuIGa99l4xsCruSYOVSQ0uPANn4dAzm8lkYPaKLrrijLq7x23w==}
     engines: {node: '>= 0.4'}
-
-  is-core-module@2.9.0:
-    resolution: {integrity: sha512-+5FPy5PnwmO3lvfMb0AsoPaBG+5KHUI0wYFXOtYPnVVVspTFUuMZNfNaNVRt3FZadstu2c8x23vykRW/NBoU6A==}
 
   is-data-view@1.0.2:
     resolution: {integrity: sha512-RKtWF8pGmS87i2D6gqQu/l7EYRlVdfzemCJN/P3UOs//x1QE7mfhvzHIApBTRf7axvT6DMGwSwBXYCT0nfB9xw==}
@@ -18027,24 +18020,24 @@ snapshots:
 
   '@types/babel__core@7.20.5':
     dependencies:
-      '@babel/parser': 7.27.5(@babel/types@7.26.10)
-      '@babel/types': 7.26.10
+      '@babel/parser': 7.27.5(@babel/types@7.27.3)
+      '@babel/types': 7.27.3
       '@types/babel__generator': 7.27.0
       '@types/babel__template': 7.4.4
       '@types/babel__traverse': 7.20.7
 
   '@types/babel__generator@7.27.0':
     dependencies:
-      '@babel/types': 7.26.10
+      '@babel/types': 7.27.3
 
   '@types/babel__template@7.4.4':
     dependencies:
-      '@babel/parser': 7.27.5(@babel/types@7.26.10)
-      '@babel/types': 7.26.10
+      '@babel/parser': 7.27.5(@babel/types@7.27.3)
+      '@babel/types': 7.27.3
 
   '@types/babel__traverse@7.20.7':
     dependencies:
-      '@babel/types': 7.26.10
+      '@babel/types': 7.27.3
 
   '@types/bintrees@1.0.6': {}
 
@@ -18404,7 +18397,7 @@ snapshots:
       minimatch: 3.1.2
       semver: 7.7.2
 
-  '@yao-pkg/pkg-fetch@3.5.9(encoding@0.1.13)':
+  '@yao-pkg/pkg-fetch@3.5.10(encoding@0.1.13)':
     dependencies:
       chalk: 4.1.2
       fs-extra: 9.1.0
@@ -18418,17 +18411,16 @@ snapshots:
       - encoding
       - supports-color
 
-  '@yao-pkg/pkg@5.12.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)':
+  '@yao-pkg/pkg@5.13.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)':
     dependencies:
       '@babel/generator': 7.23.0
       '@babel/parser': 7.23.0(@babel/types@7.23.0)
       '@babel/types': 7.23.0
-      '@yao-pkg/pkg-fetch': 3.5.9(encoding@0.1.13)
+      '@yao-pkg/pkg-fetch': 3.5.10(encoding@0.1.13)
       chalk: 4.1.2
       fs-extra: 9.1.0
       globby: 11.1.0
       into-stream: 6.0.0
-      is-core-module: 2.9.0
       minimatch: 9.0.4
       minimist: 1.2.8
       multistream: 4.1.0
@@ -18907,7 +18899,7 @@ snapshots:
   babel-plugin-jest-hoist@29.6.3:
     dependencies:
       '@babel/template': 7.27.2
-      '@babel/types': 7.26.10
+      '@babel/types': 7.27.3
       '@types/babel__core': 7.20.5
       '@types/babel__traverse': 7.20.7
 
@@ -20726,8 +20718,6 @@ snapshots:
   has-unicode@2.0.1:
     optional: true
 
-  has@1.0.4: {}
-
   hasown@2.0.2:
     dependencies:
       function-bind: 1.1.2
@@ -20979,10 +20969,6 @@ snapshots:
   is-core-module@2.16.1:
     dependencies:
       hasown: 2.0.2
-
-  is-core-module@2.9.0:
-    dependencies:
-      has: 1.0.4
 
   is-data-view@1.0.2:
     dependencies:
