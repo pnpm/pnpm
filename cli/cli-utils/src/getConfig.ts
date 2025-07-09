@@ -41,7 +41,7 @@ export async function getConfig (
     const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
     if (config.configDependencies) {
       const configModulesDir = path.join(config.lockfileDir ?? config.rootProjectManifestDir, 'node_modules/.pnpm-config')
-      pnpmfiles.push(...calcPnpmfilePathsOfPluginDeps(configModulesDir, config.configDependencies))
+      pnpmfiles.unshift(...calcPnpmfilePathsOfPluginDeps(configModulesDir, config.configDependencies))
     }
     const { hooks, resolvedPnpmfilePaths } = requireHooks(config.lockfileDir ?? config.dir, {
       globalPnpmfile: config.globalPnpmfile,
