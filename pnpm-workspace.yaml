@@ -337,8 +337,6 @@ patchedDependencies:
 
 patchesDir: __patches__
 
-pnpmfile: .pnpmfile.cjs
-
 publishBranch: main
 
 resolutionMode: lowest-direct

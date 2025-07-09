@@ -37,6 +37,7 @@ export async function getConfig (
     })
   }
   if (!config.ignorePnpmfile) {
+    config.tryLoadDefaultPnpmfile = config.pnpmfile == null
     const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
     if (config.configDependencies) {
       const configModulesDir = path.join(config.lockfileDir ?? config.rootProjectManifestDir, 'node_modules/.pnpm-config')
@@ -45,6 +46,7 @@ export async function getConfig (
     const { hooks, resolvedPnpmfilePaths } = requireHooks(config.lockfileDir ?? config.dir, {
       globalPnpmfile: config.globalPnpmfile,
       pnpmfiles,
+      tryLoadDefaultPnpmfile: config.tryLoadDefaultPnpmfile,
     })
     config.hooks = hooks
     config.pnpmfile = resolvedPnpmfilePaths

@@ -139,6 +139,7 @@ export interface Config extends OptionsFromRootManifest {
   childConcurrency?: number
   ignorePnpmfile?: boolean
   pnpmfile: string[] | string
+  tryLoadDefaultPnpmfile?: boolean
   hooks?: Hooks
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   hoistPattern?: string[]
