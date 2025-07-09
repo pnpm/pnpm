@@ -1,6 +1,7 @@
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+import { isCI } from 'ci-info'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -19,6 +20,7 @@ import pathAbsolute from 'path-absolute'
 import which from 'which'
 import { inheritAuthConfig } from './auth'
 import { checkGlobalBinDir } from './checkGlobalBinDir'
+import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions'
 import { getNetworkConfigs } from './getNetworkConfigs'
 import { transformPathKeys } from './transformPath'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
@@ -122,6 +124,7 @@ export async function getConfig (opts: {
     'auto-install-peers': true,
     bail: true,
     'catalog-mode': 'manual',
+    ci: isCI,
     color: 'auto',
     'dangerously-allow-all-builds': false,
     'deploy-all-files': false,
@@ -193,7 +196,6 @@ export async function getConfig (opts: {
     userconfig: npmDefaults.userconfig,
     'verify-deps-before-run': false,
     'verify-store-integrity': true,
-    'virtual-store-dir': 'node_modules/.pnpm',
     'workspace-concurrency': getDefaultWorkspaceConcurrency(),
     'workspace-prefix': opts.workspaceDir,
     'embed-readme': false,
@@ -224,9 +226,13 @@ export async function getConfig (opts: {
     .filter(([_, value]) => typeof value !== 'undefined')
     .map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
   )
-  const pnpmConfig: ConfigWithDeprecatedSettings = Object.assign(Object.fromEntries(
-    rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)]) as any, // eslint-disable-line
-  ), configFromCliOpts) as unknown as ConfigWithDeprecatedSettings
+
+  const pnpmConfig: ConfigWithDeprecatedSettings = Object.fromEntries(
+    rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)])
+  ) as ConfigWithDeprecatedSettings
+  const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
+
+  Object.assign(pnpmConfig, configFromCliOpts)
   // Resolving the current working directory to its actual location is crucial.
   // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
   const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
@@ -371,6 +377,14 @@ export async function getConfig (opts: {
         }
         pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
       }
+    }
+  }
+  if (opts.cliOptions['global']) {
+    extractAndRemoveDependencyBuildOptions(pnpmConfig)
+    Object.assign(pnpmConfig, globalDepsBuildConfig)
+  } else {
+    if (!hasDependencyBuildOptions(pnpmConfig)) {
+      Object.assign(pnpmConfig, globalDepsBuildConfig)
     }
   }
   if (opts.cliOptions['save-peer']) {
@@ -531,6 +545,11 @@ export async function getConfig (opts: {
       warnings.push('You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.')
     }
     pnpmConfig.neverBuiltDependencies = []
+  }
+  if (pnpmConfig.ci) {
+    // Using a global virtual store in CI makes little sense,
+    // as there is never a warm cache in that environment.
+    pnpmConfig.enableGlobalVirtualStore = false
   }
 
   transformPathKeys(pnpmConfig, os.homedir())

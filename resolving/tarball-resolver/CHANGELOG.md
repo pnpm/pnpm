@@ -1,5 +1,23 @@
 # @pnpm/tarball-resolver
 
+## 1002.1.0
+
+### Minor Changes
+
+- 2721291: Create different resolver result types which provide more information.
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/resolver-base@1004.0.0
+
+## 1002.0.2
+
+### Patch Changes
+
+- c307634: Dependencies specified via a URL that redirects will only be locked to the target if it is immutable, fixing a regression when installing from GitHub releases. ([#9531](https://github.com/pnpm/pnpm/issues/9531))
+
 ## 1002.0.1
 
 ### Patch Changes

@@ -118,8 +118,8 @@ function pruneTimeInLockfile (time: Record<string, string>, importers: Record<st
     for (const depType of DEPENDENCIES_FIELDS) {
       for (const [depName, ref] of Object.entries(importer[depType] ?? {})) {
         const suffixStart = ref.version.indexOf('(')
-        const refWithoutPeerSuffix = suffixStart === -1 ? ref.version : ref.version.slice(0, suffixStart)
-        const depPath = refToRelative(refWithoutPeerSuffix, depName)
+        const refWithoutPeerDepGraphHash = suffixStart === -1 ? ref.version : ref.version.slice(0, suffixStart)
+        const depPath = refToRelative(refWithoutPeerDepGraphHash, depName)
         if (!depPath) continue
         rootDepPaths.add(depPath)
       }

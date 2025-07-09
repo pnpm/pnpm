@@ -1,9 +1,11 @@
+import path from 'path'
 import { packageManager } from '@pnpm/cli-meta'
 import { getConfig as _getConfig, type CliOptions, type Config } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { installConfigDeps } from '@pnpm/config.deps-installer'
 import { requireHooks } from '@pnpm/pnpmfile'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export async function getConfig (
   cliOptions: CliOptions,
@@ -35,10 +37,24 @@ export async function getConfig (
     })
   }
   if (!config.ignorePnpmfile) {
-    config.hooks = requireHooks(config.lockfileDir ?? config.dir, config)
+    config.tryLoadDefaultPnpmfile = config.pnpmfile == null
+    const pnpmfiles = config.pnpmfile == null ? [] : Array.isArray(config.pnpmfile) ? config.pnpmfile : [config.pnpmfile]
+    if (config.configDependencies) {
+      const configModulesDir = path.join(config.lockfileDir ?? config.rootProjectManifestDir, 'node_modules/.pnpm-config')
+      pnpmfiles.unshift(...calcPnpmfilePathsOfPluginDeps(configModulesDir, config.configDependencies))
+    }
+    const { hooks, resolvedPnpmfilePaths } = requireHooks(config.lockfileDir ?? config.dir, {
+      globalPnpmfile: config.globalPnpmfile,
+      pnpmfiles,
+      tryLoadDefaultPnpmfile: config.tryLoadDefaultPnpmfile,
+    })
+    config.hooks = hooks
+    config.pnpmfile = resolvedPnpmfilePaths
     if (config.hooks?.updateConfig) {
-      const updateConfigResult = config.hooks.updateConfig(config)
-      config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult
+      for (const updateConfig of config.hooks.updateConfig) {
+        const updateConfigResult = updateConfig(config)
+        config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop
+      }
     }
   }
 
@@ -51,4 +67,12 @@ export async function getConfig (
   }
 
   return config
+}
+
+function * calcPnpmfilePathsOfPluginDeps (configModulesDir: string, configDependencies: Record<string, string>): Generator<string> {
+  for (const configDepName of Object.keys(configDependencies).sort(lexCompare)) {
+    if (configDepName.startsWith('@pnpm/plugin-') || configDepName.startsWith('pnpm-plugin-')) {
+      yield path.join(configModulesDir, configDepName, 'pnpmfile.cjs')
+    }
+  }
 }

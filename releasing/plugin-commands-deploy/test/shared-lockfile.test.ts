@@ -257,7 +257,7 @@ test('deploy with a shared lockfile after full install', async () => {
   }
 })
 
-test('the deploy manifest should inherit the pnpm object from the root manifest and the manifest of the selected project', async () => {
+test('the deploy manifest should inherit some fields from the pnpm object from the root manifest and the manifest of the selected project', async () => {
   const preparedManifests: Record<'root' | 'project-0', ProjectManifest> = {
     root: {
       name: 'root',
@@ -337,7 +337,6 @@ test('the deploy manifest should inherit the pnpm object from the root manifest 
   const manifest = readPackageJson('deploy') as ProjectManifest
   expect(manifest.pnpm).toStrictEqual({
     onlyBuiltDependencies: preparedManifests.root.pnpm!.onlyBuiltDependencies,
-    overrides: preparedManifests.root.pnpm!.overrides,
     executionEnv: preparedManifests['project-0'].pnpm!.executionEnv,
   } as ProjectManifest['pnpm'])
 

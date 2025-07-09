@@ -3,6 +3,7 @@ import npmTypes from '@pnpm/npm-conf/lib/types'
 export const types = Object.assign({
   'auto-install-peers': Boolean,
   bail: Boolean,
+  ci: Boolean,
   'cache-dir': String,
   'catalog-mode': ['strict', 'prefer', 'manual'],
   'child-concurrency': Number,
@@ -20,6 +21,7 @@ export const types = Object.assign({
   'disallow-workspace-cycles': Boolean,
   'enable-modules-dir': Boolean,
   'enable-pre-post-scripts': Boolean,
+  'enable-global-virtual-store': Boolean,
   'exclude-links-from-lockfile': Boolean,
   'extend-node-path': Boolean,
   'fetch-timeout': Number,
@@ -113,6 +115,7 @@ export const types = Object.assign({
   'use-stderr': Boolean,
   'verify-deps-before-run': Boolean,
   'verify-store-integrity': Boolean,
+  'global-virtual-store-dir': String,
   'virtual-store-dir': String,
   'virtual-store-dir-max-length': Number,
   'peers-suffix-max-length': Number,

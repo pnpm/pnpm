@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/core",
-  "version": "1008.0.2",
+  "version": "1009.0.0",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",
@@ -104,7 +104,6 @@
     "@pnpm/symlink-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
-    "ci-info": "catalog:",
     "enquirer": "catalog:",
     "is-inner-link": "catalog:",
     "is-subdir": "catalog:",

@@ -1,5 +1,76 @@
 # @pnpm/deps.status
 
+## 1003.0.1
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.29
+
+## 1003.0.0
+
+### Major Changes
+
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+  - @pnpm/config@1004.1.0
+  - @pnpm/workspace.state@1002.0.0
+  - @pnpm/workspace.find-packages@1000.0.28
+  - @pnpm/lockfile.settings-checker@1001.0.10
+  - @pnpm/lockfile.verification@1001.2.2
+  - @pnpm/lockfile.fs@1001.1.15
+  - @pnpm/get-context@1001.1.2
+
+## 1002.1.5
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.14
+- @pnpm/lockfile.verification@1001.2.1
+- @pnpm/get-context@1001.1.1
+- @pnpm/workspace.find-packages@1000.0.27
+
+## 1002.1.4
+
+### Patch Changes
+
+- b0ead51: Read the current lockfile from `node_modules/.pnpm/lock.yaml`, when the project uses a global virtual store.
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+- Updated dependencies [86e0016]
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/lockfile.verification@1001.2.0
+  - @pnpm/get-context@1001.1.0
+  - @pnpm/config@1004.0.0
+  - @pnpm/workspace.read-manifest@1000.2.0
+  - @pnpm/crypto.object-hasher@1000.1.0
+  - @pnpm/workspace.state@1001.1.22
+  - @pnpm/workspace.find-packages@1000.0.26
+  - @pnpm/pnpmfile@1001.2.3
+  - @pnpm/lockfile.fs@1001.1.13
+  - @pnpm/lockfile.settings-checker@1001.0.9
+
+## 1002.1.3
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/workspace.state@1001.1.21
+  - @pnpm/pnpmfile@1001.2.2
+  - @pnpm/workspace.find-packages@1000.0.25
+  - @pnpm/lockfile.settings-checker@1001.0.9
+  - @pnpm/lockfile.verification@1001.1.7
+
 ## 1002.1.2
 
 ### Patch Changes

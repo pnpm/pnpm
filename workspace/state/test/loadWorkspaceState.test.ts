@@ -61,7 +61,7 @@ test('loadWorkspaceState() when cache file exists and is correct', async () => {
       [path.resolve('packages/c') as ProjectRootDir]: {},
       [path.resolve('packages/d') as ProjectRootDir]: {},
     },
-    pnpmfileExists: false,
+    pnpmfiles: [],
     filteredInstall: false,
   }
   fs.writeFileSync(cacheFile, JSON.stringify(workspaceState))

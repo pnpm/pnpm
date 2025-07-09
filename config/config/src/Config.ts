@@ -130,6 +130,7 @@ export interface Config extends OptionsFromRootManifest {
   stateDir: string
   storeDir?: string
   virtualStoreDir?: string
+  enableGlobalVirtualStore?: boolean
   verifyStoreIntegrity?: boolean
   maxSockets?: number
   networkConcurrency?: number
@@ -137,7 +138,8 @@ export interface Config extends OptionsFromRootManifest {
   lockfileOnly?: boolean // like npm's --package-lock-only
   childConcurrency?: number
   ignorePnpmfile?: boolean
-  pnpmfile: string
+  pnpmfile: string[] | string
+  tryLoadDefaultPnpmfile?: boolean
   hooks?: Hooks
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   hoistPattern?: string[]
@@ -222,6 +224,7 @@ export interface Config extends OptionsFromRootManifest {
   initPackageManager: boolean
   initType: 'commonjs' | 'module'
   dangerouslyAllowAllBuilds: boolean
+  ci: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

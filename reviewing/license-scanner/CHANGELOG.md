@@ -1,5 +1,47 @@
 # @pnpm/license-scanner
 
+## 1001.0.21
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/lockfile.detect-dep-types@1001.0.11
+- @pnpm/lockfile.fs@1001.1.15
+- @pnpm/lockfile.utils@1002.0.1
+- @pnpm/lockfile.walker@1001.0.11
+
+## 1001.0.20
+
+### Patch Changes
+
+- 5acbe47: Fix `pnpm licenses` command for local dependencies [#9583](https://github.com/pnpm/pnpm/pull/9583).
+
+## 1001.0.19
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/lockfile.detect-dep-types@1001.0.10
+  - @pnpm/lockfile.fs@1001.1.14
+  - @pnpm/lockfile.walker@1001.0.10
+
+## 1001.0.18
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@1000.1.8
+- @pnpm/lockfile.utils@1001.0.12
+- @pnpm/store.cafs@1000.0.14
+- @pnpm/lockfile.fs@1001.1.13
+
+## 1001.0.17
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.13
+
 ## 1001.0.16
 
 ### Patch Changes

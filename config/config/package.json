@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config",
-  "version": "1003.1.0",
+  "version": "1004.1.0",
   "description": "Gets configuration options for pnpm",
   "keywords": [
     "pnpm",
@@ -49,6 +49,7 @@
     "camelcase": "catalog:",
     "camelcase-keys": "catalog:",
     "can-write-to-dir": "catalog:",
+    "ci-info": "catalog:",
     "is-subdir": "catalog:",
     "is-windows": "catalog:",
     "lodash.kebabcase": "catalog:",

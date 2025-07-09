@@ -1,5 +1,100 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.5
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+  - @pnpm/plugin-commands-installation@1004.3.1
+
+## 1000.3.4
+
+### Patch Changes
+
+- b656f8a: When patching dependencies installed via `pkg.pr.new`, treat them as git tarball URLs [#9694](https://github.com/pnpm/pnpm/pull/9694).
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/plugin-commands-installation@1004.3.0
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/store-connection-manager@1002.0.6
+  - @pnpm/config.config-writer@1000.0.7
+  - @pnpm/lockfile.fs@1001.1.15
+  - @pnpm/lockfile.utils@1002.0.1
+
+## 1000.3.3
+
+### Patch Changes
+
+- Updated dependencies [b511eac]
+  - @pnpm/plugin-commands-installation@1004.2.2
+
+## 1000.3.2
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.2.1
+
+## 1000.3.1
+
+### Patch Changes
+
+- Updated dependencies [983efdc]
+- Updated dependencies [540986f]
+  - @pnpm/plugin-commands-installation@1004.2.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/store-connection-manager@1002.0.5
+  - @pnpm/lockfile.fs@1001.1.14
+  - @pnpm/cli-utils@1000.1.7
+
+## 1000.3.0
+
+### Minor Changes
+
+- 046af72: A new `catalogMode` setting is available for controlling if and how dependencies are added to the default catalog. It can be configured to several modes:
+
+  - `strict`: Only allows dependency versions from the catalog. Adding a dependency outside the catalog's version range will cause an error.
+  - `prefer`: Prefers catalog versions, but will fall back to direct dependencies if no compatible version is found.
+  - `manual` (default): Does not automatically add dependencies to the catalog.
+
+### Patch Changes
+
+- d385b71: Sort versions printed by `pnpm patch` using semantic versioning rules.
+- b0ead51: Read the current lockfile from `node_modules/.pnpm/lock.yaml`, when the project uses a global virtual store.
+- Updated dependencies [6acf819]
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/pick-fetcher@1000.0.1
+  - @pnpm/plugin-commands-installation@1004.1.0
+  - @pnpm/config@1004.0.0
+  - @pnpm/workspace.read-manifest@1000.2.0
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/cli-utils@1000.1.6
+  - @pnpm/store-connection-manager@1002.0.4
+  - @pnpm/config.config-writer@1000.0.6
+  - @pnpm/lockfile.fs@1001.1.13
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/patching.apply-patch@1000.0.4
+
+## 1000.2.5
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/plugin-commands-installation@1004.0.3
+  - @pnpm/cli-utils@1000.1.5
+  - @pnpm/store-connection-manager@1002.0.3
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/patching.apply-patch@1000.0.4
+
 ## 1000.2.4
 
 ### Patch Changes

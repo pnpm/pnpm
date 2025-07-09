@@ -1,5 +1,24 @@
 # @pnpm/server
 
+## 1001.0.6
+
+### Patch Changes
+
+- 5a5d280: Wait for server to listen [#9620](https://github.com/pnpm/pnpm/pull/9620).
+
+## 1001.0.5
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1003.0.3
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [509948d]
+  - @pnpm/store-controller-types@1003.0.2
+
 ## 1001.0.3
 
 ### Patch Changes

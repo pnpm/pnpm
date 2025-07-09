@@ -13,7 +13,6 @@ import {
 } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { type ProjectId, type ProjectRootDir } from '@pnpm/types'
-import { isCI } from 'ci-info'
 import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
 
@@ -30,6 +29,7 @@ export async function readLockfiles (
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
     peersSuffixMaxLength: number
+    ci?: boolean
     force: boolean
     frozenLockfile: boolean
     projects: Array<{
@@ -41,7 +41,7 @@ export async function readLockfiles (
     useLockfile: boolean
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
-    virtualStoreDir: string
+    internalPnpmDir: string
   }
 ): Promise<{
     currentLockfile: LockfileObject
@@ -57,7 +57,7 @@ export async function readLockfiles (
   // ignore `pnpm-lock.yaml` on CI servers
   // a latest pnpm should not break all the builds
   const lockfileOpts = {
-    ignoreIncompatible: opts.force || isCI,
+    ignoreIncompatible: opts.force || opts.ci === true,
     wantedVersions: [LOCKFILE_VERSION],
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
@@ -96,10 +96,10 @@ export async function readLockfiles (
   fileReads.push(
     (async () => {
       try {
-        return await readCurrentLockfile(opts.virtualStoreDir, lockfileOpts)
+        return await readCurrentLockfile(opts.internalPnpmDir, lockfileOpts)
       } catch (err: any) { // eslint-disable-line
         logger.warn({
-          message: `Ignoring broken lockfile at ${opts.virtualStoreDir}: ${err.message as string}`,
+          message: `Ignoring broken lockfile at ${opts.internalPnpmDir}: ${err.message as string}`,
           prefix: opts.lockfileDir,
         })
         return undefined

@@ -1,5 +1,51 @@
 # @pnpm/plugin-commands-config
 
+## 1000.1.11
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+
+## 1000.1.10
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [95a9b82]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/workspace.manifest-writer@1000.2.1
+
+## 1000.1.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.1.7
+
+## 1000.1.8
+
+### Patch Changes
+
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/config@1004.0.0
+  - @pnpm/workspace.manifest-writer@1000.2.0
+  - @pnpm/cli-utils@1000.1.6
+
+## 1000.1.7
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/cli-utils@1000.1.5
+
 ## 1000.1.6
 
 ### Patch Changes

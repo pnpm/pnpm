@@ -1,5 +1,28 @@
 # @pnpm/audit
 
+## 1002.0.7
+
+### Patch Changes
+
+- @pnpm/lockfile.detect-dep-types@1001.0.11
+- @pnpm/lockfile.utils@1002.0.1
+- @pnpm/lockfile.walker@1001.0.11
+
+## 1002.0.6
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/lockfile.detect-dep-types@1001.0.10
+  - @pnpm/lockfile.walker@1001.0.10
+
+## 1002.0.5
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.12
+
 ## 1002.0.4
 
 ### Patch Changes

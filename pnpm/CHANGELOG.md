@@ -1,5 +1,106 @@
 # pnpm
 
+## 10.13.1
+
+### Patch Changes
+
+- Run user defined pnpmfiles after pnpmfiles of plugins.
+
+## 10.13.0
+
+### Minor Changes
+
+- Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+- pnpm will now automatically load the `pnpmfile.cjs` file from any [config dependency](https://pnpm.io/config-dependencies) named `@pnpm/plugin-*` or `pnpm-plugin-*` [#9729](https://github.com/pnpm/pnpm/pull/9729).
+
+  The order in which config dependencies are initialized should not matter — they are initialized in alphabetical order. If a specific order is needed, the paths to the `pnpmfile.cjs` files in the config dependencies can be explicitly listed using the `pnpmfile` setting in `pnpm-workspace.yaml`.
+
+### Patch Changes
+
+- When patching dependencies installed via `pkg.pr.new`, treat them as Git tarball URLs [#9694](https://github.com/pnpm/pnpm/pull/9694).
+- Prevent conflicts between local projects' config and the global config in `dangerouslyAllowAllBuilds`, `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, and `neverBuiltDependencies` [#9628](https://github.com/pnpm/pnpm/issues/9628).
+- Sort keys in `pnpm-workspace.yaml` with deep [#9701](https://github.com/pnpm/pnpm/pull/9701).
+- The `pnpm rebuild` command should not add pkgs included in `ignoredBuiltDependencies` to `ignoredBuilds` in `node_modules/.modules.yaml` [#9338](https://github.com/pnpm/pnpm/issues/9338).
+- Replaced `shell-quote` with `shlex` for quoting command arguments [#9381](https://github.com/pnpm/pnpm/issues/9381).
+
+## 10.12.4
+
+### Patch Changes
+
+- Fix `pnpm licenses` command for local dependencies [#9583](https://github.com/pnpm/pnpm/pull/9583).
+- Fix a bug in which `pnpm ls --filter=not-exist --json` prints nothing instead of an empty array [#9672](https://github.com/pnpm/pnpm/issues/9672).
+- Fix a deadlock that sometimes happens during peer dependency resolution [#9673](https://github.com/pnpm/pnpm/issues/9673).
+- Running `pnpm install` after `pnpm fetch` should hoist all dependencies that need to be hoisted.
+  Fixes a regression introduced in [v10.12.2] by [#9648]; resolves [#9689].
+
+  [v10.12.2]: https://github.com/pnpm/pnpm/releases/tag/v10.12.2Add commentMore actions
+  [#9648]: https://github.com/pnpm/pnpm/pull/9648
+  [#9689]: https://github.com/pnpm/pnpm/issues/9689
+
+## 10.12.3
+
+### Patch Changes
+
+- Restore hoisting of optional peer dependencies when installing with an outdated lockfile.
+  Regression introduced in [v10.12.2] by [#9648]; resolves [#9685].
+
+  [v10.12.2]: https://github.com/pnpm/pnpm/releases/tag/v10.12.2
+  [#9648]: https://github.com/pnpm/pnpm/pull/9648
+  [#9685]: https://github.com/pnpm/pnpm/issues/9685
+
+## 10.12.2
+
+### Patch Changes
+
+- Fixed hoisting with `enableGlobalVirtualStore` set to `true` [#9648](https://github.com/pnpm/pnpm/pull/9648).
+- Fix the `--help` and `-h` flags not working as expected for the `pnpm create` command.
+- The dependency package path output by the `pnpm licenses list --json` command is incorrect.
+- Fix a bug in which `pnpm deploy` fails due to overridden dependencies having peer dependencies causing `ERR_PNPM_OUTDATED_LOCKFILE` [#9595](https://github.com/pnpm/pnpm/issues/9595).
+
+## 10.12.1
+
+### Minor Changes
+
+- **Experimental.** Added support for global virtual stores. When enabled, `node_modules` contains only symlinks to a central virtual store, rather to `node_modules/.pnpm`. By default, this central store is located at `<store-path>/links` (you can find the store path by running `pnpm store path`).
+
+  In the central virtual store, each package is hard linked into a directory whose name is the hash of its dependency graph. This allows multiple projects on the system to symlink shared dependencies from this central location, significantly improving installation speed when a warm cache is available.
+
+  > This is conceptually similar to how [NixOS manages packages](https://nixos.org/guides/how-nix-works/), using dependency graph hashes to create isolated and reusable package directories.
+
+  To enable the global virtual store, set `enableGlobalVirtualStore: true` in your root `pnpm-workspace.yaml`, or globally via:
+
+  ```sh
+  pnpm config -g set enable-global-virtual-store true
+  ```
+
+  NOTE: In CI environments, where caches are typically cold, this setting may slow down installation. pnpm automatically disables the global virtual store when running in CI.
+
+  Related PR: [#8190](https://github.com/pnpm/pnpm/pull/8190)
+
+* The `pnpm update` command now supports updating `catalog:` protocol dependencies and writes new specifiers to `pnpm-workspace.yaml`.
+* Added two new CLI options (`--save-catalog` and `--save-catalog-name=<name>`) to `pnpm add` to save new dependencies as catalog entries. `catalog:` or `catalog:<name>` will be added to `package.json` and the package specifier will be added to the `catalogs` or `catalog[<name>]` object in `pnpm-workspace.yaml` [#9425](https://github.com/pnpm/pnpm/issues/9425).
+* **Semi-breaking.** The keys used for side-effects caches have changed. If you have a side-effects cache generated by a previous version of pnpm, the new version will not use it and will create a new cache instead [#9605](https://github.com/pnpm/pnpm/pull/9605).
+* Added a new setting called `ci` for explicitly telling pnpm if the current environment is a CI or not.
+
+### Patch Changes
+
+- Sort versions printed by `pnpm patch` using semantic versioning rules.
+- Improve the way the error message displays mismatched specifiers. Show differences instead of 2 whole objects [#9598](https://github.com/pnpm/pnpm/pull/9598).
+- Revert [#9574](https://github.com/pnpm/pnpm/pull/9574) to fix a regression [#9596](https://github.com/pnpm/pnpm/issues/9596).
+
+## 10.11.1
+
+### Patch Changes
+
+- Fix an issue in which `pnpm deploy --legacy` creates unexpected directories when the root `package.json` has a workspace package as a peer dependency [#9550](https://github.com/pnpm/pnpm/issues/9550).
+- Dependencies specified via a URL that redirects will only be locked to the target if it is immutable, fixing a regression when installing from GitHub releases. ([#9531](https://github.com/pnpm/pnpm/issues/9531))
+- Installation should not exit with an error if `strictPeerDependencies` is `true` but all issues are ignored by `peerDependencyRules` [#9505](https://github.com/pnpm/pnpm/pull/9505).
+- Use `pnpm_config_` env variables instead of `npm_config_` [#9571](https://github.com/pnpm/pnpm/pull/9571).
+- Fix a regression (in v10.9.0) causing the `--lockfile-only` flag on `pnpm update` to produce a different `pnpm-lock.yaml` than an update without the flag.
+- Let `pnpm deploy` work in repos with `overrides` when `inject-workspace-packages=true` [#9283](https://github.com/pnpm/pnpm/issues/9283).
+- Fixed the problem of path loss caused by parsing URL address. Fixes a regression shipped in pnpm v10.11 via [#9502](https://github.com/pnpm/pnpm/pull/9502).
+- `pnpm -r --silent run` should not print out section [#9563](https://github.com/pnpm/pnpm/issues/9563).
+
 ## 10.11.0
 
 ### Minor Changes

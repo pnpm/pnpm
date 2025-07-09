@@ -1,5 +1,12 @@
 # @pnpm/lockfile.settings-checker
 
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+  - @pnpm/crypto.hash@1000.2.0
+
 ## 1001.0.9
 
 ### Patch Changes

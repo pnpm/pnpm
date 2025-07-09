@@ -1,5 +1,37 @@
 # @pnpm/default-resolver
 
+## 1002.1.1
+
+### Patch Changes
+
+- @pnpm/local-resolver@1002.0.1
+- @pnpm/npm-resolver@1004.1.1
+
+## 1002.1.0
+
+### Minor Changes
+
+- 2721291: Create different resolver result types which provide more information.
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/tarball-resolver@1002.1.0
+  - @pnpm/local-resolver@1002.0.0
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/git-resolver@1001.1.0
+  - @pnpm/npm-resolver@1004.1.0
+
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [c307634]
+- Updated dependencies [5055399]
+  - @pnpm/tarball-resolver@1002.0.2
+  - @pnpm/git-resolver@1001.0.2
+
 ## 1002.0.1
 
 ### Patch Changes

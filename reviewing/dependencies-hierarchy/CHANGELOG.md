@@ -1,5 +1,32 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1001.0.17
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/lockfile.detect-dep-types@1001.0.11
+- @pnpm/lockfile.fs@1001.1.15
+- @pnpm/lockfile.utils@1002.0.1
+
+## 1001.0.16
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/lockfile.detect-dep-types@1001.0.10
+  - @pnpm/lockfile.fs@1001.1.14
+
+## 1001.0.15
+
+### Patch Changes
+
+- b0ead51: Read the current lockfile from `node_modules/.pnpm/lock.yaml`, when the project uses a global virtual store.
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/lockfile.fs@1001.1.13
+
 ## 1001.0.14
 
 ### Patch Changes

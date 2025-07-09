@@ -1,5 +1,48 @@
 # @pnpm/store-connection-manager
 
+## 1002.0.6
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+  - @pnpm/config@1004.1.0
+  - @pnpm/package-store@1002.0.7
+  - @pnpm/client@1000.0.21
+  - @pnpm/server@1001.0.6
+
+## 1002.0.5
+
+### Patch Changes
+
+- Updated dependencies [5a5d280]
+  - @pnpm/server@1001.0.6
+  - @pnpm/package-store@1002.0.6
+
+## 1002.0.4
+
+### Patch Changes
+
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/config@1004.0.0
+  - @pnpm/client@1000.0.20
+  - @pnpm/package-store@1002.0.5
+  - @pnpm/server@1001.0.5
+
+## 1002.0.3
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/package-store@1002.0.4
+  - @pnpm/server@1001.0.4
+  - @pnpm/client@1000.0.19
+
 ## 1002.0.2
 
 ### Patch Changes

@@ -1,5 +1,43 @@
 # @pnpm/package-requester
 
+## 1004.0.5
+
+### Patch Changes
+
+- Updated dependencies [589ac1f]
+  - @pnpm/worker@1000.1.9
+  - @pnpm/dependency-path@1001.0.1
+
+## 1004.0.4
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+
+## 1004.0.3
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/pick-fetcher@1000.0.1
+  - @pnpm/fetcher-base@1000.0.12
+  - @pnpm/store-controller-types@1003.0.3
+  - @pnpm/store.cafs@1000.0.14
+  - @pnpm/worker@1000.1.8
+
+## 1004.0.2
+
+### Patch Changes
+
+- 509948d: Fix a regression (in v10.9.0) causing the `--lockfile-only` flag on `pnpm update` to produce a different `pnpm-lock.yaml` than an update without the flag.
+- Updated dependencies [509948d]
+  - @pnpm/store-controller-types@1003.0.2
+  - @pnpm/store.cafs@1000.0.13
+  - @pnpm/worker@1000.1.7
+
 ## 1004.0.1
 
 ### Patch Changes

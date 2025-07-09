@@ -1,5 +1,56 @@
 # @pnpm/build-modules
 
+## 1000.3.9
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [589ac1f]
+  - @pnpm/config@1004.1.0
+  - @pnpm/lifecycle@1001.0.17
+  - @pnpm/worker@1000.1.9
+  - @pnpm/calc-dep-state@1002.0.2
+
+## 1000.3.8
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@1002.0.1
+
+## 1000.3.7
+
+### Patch Changes
+
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b3898db]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+- Updated dependencies [b0ead51]
+  - @pnpm/config@1004.0.0
+  - @pnpm/calc-dep-state@1002.0.0
+  - @pnpm/store-controller-types@1003.0.3
+  - @pnpm/lifecycle@1001.0.16
+  - @pnpm/worker@1000.1.8
+  - @pnpm/fs.hard-link-dir@1000.0.1
+  - @pnpm/patching.apply-patch@1000.0.4
+
+## 1000.3.6
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+- Updated dependencies [509948d]
+  - @pnpm/config@1003.1.1
+  - @pnpm/store-controller-types@1003.0.2
+  - @pnpm/lifecycle@1001.0.15
+  - @pnpm/worker@1000.1.7
+  - @pnpm/fs.hard-link-dir@1000.0.1
+  - @pnpm/patching.apply-patch@1000.0.4
+
 ## 1000.3.5
 
 ### Patch Changes

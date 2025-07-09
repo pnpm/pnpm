@@ -310,7 +310,9 @@ async function _rebuild (
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => true)
   const allowBuild = (pkgName: string) => {
     if (_allowBuild(pkgName)) return true
-    ignoredPkgs.push(pkgName)
+    if (!opts.ignoredBuiltDependencies?.includes(pkgName)) {
+      ignoredPkgs.push(pkgName)
+    }
     return false
   }
   const builtDepPaths = new Set<string>()
@@ -345,7 +347,7 @@ async function _rebuild (
           const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, resolution.integrity!.toString(), pkgId)
           const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
           sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
-            isBuilt: true,
+            includeDepGraphHash: true,
           })
           if (pkgFilesIndex.sideEffects?.[sideEffectsCacheKey]) {
             pkgsThatWereRebuilt.add(depPath)
@@ -378,7 +380,7 @@ async function _rebuild (
           try {
             if (!sideEffectsCacheKey) {
               sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
-                isBuilt: true,
+                includeDepGraphHash: true,
               })
             }
             await opts.storeController.upload(pkgRoot, {

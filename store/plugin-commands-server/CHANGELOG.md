@@ -1,5 +1,58 @@
 # @pnpm/plugin-commands-server
 
+## 1000.0.30
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+
+## 1000.0.29
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/store-connection-manager@1002.0.6
+  - @pnpm/server@1001.0.6
+
+## 1000.0.28
+
+### Patch Changes
+
+- 5a5d280: Wait for server to listen [#9620](https://github.com/pnpm/pnpm/pull/9620).
+- Updated dependencies [5a5d280]
+  - @pnpm/server@1001.0.6
+  - @pnpm/store-connection-manager@1002.0.5
+  - @pnpm/cli-utils@1000.1.7
+
+## 1000.0.27
+
+### Patch Changes
+
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/config@1004.0.0
+  - @pnpm/cli-utils@1000.1.6
+  - @pnpm/store-connection-manager@1002.0.4
+  - @pnpm/server@1001.0.5
+
+## 1000.0.26
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/cli-utils@1000.1.5
+  - @pnpm/store-connection-manager@1002.0.3
+  - @pnpm/server@1001.0.4
+
 ## 1000.0.25
 
 ### Patch Changes

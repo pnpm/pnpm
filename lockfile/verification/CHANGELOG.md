@@ -1,5 +1,41 @@
 # @pnpm/lockfile.verification
 
+## 1001.2.2
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/dependency-path@1001.0.1
+  - @pnpm/lockfile.utils@1002.0.1
+  - @pnpm/get-context@1001.1.2
+
+## 1001.2.1
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/get-context@1001.1.1
+
+## 1001.2.0
+
+### Minor Changes
+
+- 86e0016: Improve the way the error message displays mismatched specifiers. Show differences instead of 2 whole objects [#9598](https://github.com/pnpm/pnpm/pull/9598).
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/get-context@1001.1.0
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/crypto.hash@1000.1.1
+
 ## 1001.1.7
 
 ### Patch Changes

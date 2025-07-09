@@ -19,9 +19,6 @@
       "path": "../../lockfile/utils"
     },
     {
-      "path": "../../object/key-sorting"
-    },
-    {
       "path": "../constants"
     },
     {

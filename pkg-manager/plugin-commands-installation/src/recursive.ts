@@ -66,7 +66,6 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileDir'
 | 'lockfileOnly'
 | 'modulesDir'
-| 'pnpmfile'
 | 'rawLocalConfig'
 | 'registries'
 | 'rootProjectManifest'
@@ -106,6 +105,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
     ctrl: StoreController
     dir: string
   }
+  pnpmfile: string[]
 } & Partial<
 Pick<Config,
 | 'sort'
@@ -192,7 +192,7 @@ export async function recursive (
     const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
     importers = await pFilter(importers, async ({ rootDirRealPath }) => isFromWorkspace(rootDirRealPath))
     if (importers.length === 0) return true
-    let mutation!: string
+    let mutation: 'install' | 'installSome' | 'uninstallSome'
     switch (cmdFullName) {
     case 'remove':
       mutation = 'uninstallSome'
@@ -312,7 +312,7 @@ export async function recursive (
       const hooks = opts.ignorePnpmfile
         ? {}
         : (() => {
-          const pnpmfileHooks = requireHooks(rootDir, opts)
+          const { hooks: pnpmfileHooks } = requireHooks(rootDir, opts)
           return {
             ...opts.hooks,
             ...pnpmfileHooks,

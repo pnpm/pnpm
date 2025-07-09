@@ -1,5 +1,67 @@
 # @pnpm/cli-utils
 
+## 1001.0.1
+
+### Patch Changes
+
+- 7ad0bc3: Run user defined pnpmfiles after pnpmfiles of plugins.
+
+## 1001.0.0
+
+### Major Changes
+
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Minor Changes
+
+- e225310: pnpm will now automatically load the `pnpmfile.cjs` file from any [config dependency](https://pnpm.io/config-dependencies) named `@pnpm/plugin-*` or `pnpm-plugin-*` [#9729](https://github.com/pnpm/pnpm/pull/9729).
+
+  The order in which config dependencies are initialized should not matter — they are initialized in alphabetical order. If a specific order is needed, the paths to the `pnpmfile.cjs` files in the config dependencies can be explicitly listed using the `pnpmfile` setting in `pnpm-workspace.yaml`.
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [e225310]
+- Updated dependencies [cf630a8]
+  - @pnpm/config@1004.1.0
+  - @pnpm/pnpmfile@1002.0.0
+  - @pnpm/default-reporter@1002.0.3
+  - @pnpm/store-connection-manager@1002.0.6
+  - @pnpm/config.deps-installer@1000.0.8
+
+## 1000.1.7
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@1002.0.5
+- @pnpm/config.deps-installer@1000.0.7
+
+## 1000.1.6
+
+### Patch Changes
+
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/config@1004.0.0
+  - @pnpm/config.deps-installer@1000.0.6
+  - @pnpm/default-reporter@1002.0.2
+  - @pnpm/store-connection-manager@1002.0.4
+  - @pnpm/pnpmfile@1001.2.3
+
+## 1000.1.5
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/default-reporter@1002.0.1
+  - @pnpm/store-connection-manager@1002.0.3
+  - @pnpm/pnpmfile@1001.2.2
+  - @pnpm/config.deps-installer@1000.0.5
+
 ## 1000.1.4
 
 ### Patch Changes

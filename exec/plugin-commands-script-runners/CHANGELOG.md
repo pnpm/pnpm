@@ -1,5 +1,93 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1000.2.21
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+  - @pnpm/plugin-commands-env@1000.0.30
+  - @pnpm/plugin-commands-installation@1004.3.1
+  - @pnpm/deps.status@1003.0.1
+
+## 1000.2.20
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+- Updated dependencies [589ac1f]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/deps.status@1003.0.0
+  - @pnpm/plugin-commands-installation@1004.3.0
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/lifecycle@1001.0.17
+  - @pnpm/plugin-commands-env@1000.0.29
+  - @pnpm/client@1000.0.21
+
+## 1000.2.19
+
+### Patch Changes
+
+- Updated dependencies [b511eac]
+  - @pnpm/plugin-commands-installation@1004.2.2
+
+## 1000.2.18
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.2.1
+
+## 1000.2.17
+
+### Patch Changes
+
+- 61e7b03: Fix the `--help` and `-h` flags not working as expected for the `pnpm create` command.
+- Updated dependencies [983efdc]
+  - @pnpm/plugin-commands-installation@1004.2.0
+  - @pnpm/cli-utils@1000.1.7
+  - @pnpm/deps.status@1002.1.5
+  - @pnpm/plugin-commands-env@1000.0.28
+
+## 1000.2.16
+
+### Patch Changes
+
+- Updated dependencies [b0ead51]
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/deps.status@1002.1.4
+  - @pnpm/plugin-commands-installation@1004.1.0
+  - @pnpm/config@1004.0.0
+  - @pnpm/client@1000.0.20
+  - @pnpm/cli-utils@1000.1.6
+  - @pnpm/plugin-commands-env@1000.0.27
+  - @pnpm/lifecycle@1001.0.16
+  - @pnpm/workspace.injected-deps-syncer@1000.0.9
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.2.15
+
+### Patch Changes
+
+- 55424eb: `pnpm -r --silent run` should not print out section [#9563](https://github.com/pnpm/pnpm/issues/9563).
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/plugin-commands-installation@1004.0.3
+  - @pnpm/cli-utils@1000.1.5
+  - @pnpm/deps.status@1002.1.3
+  - @pnpm/plugin-commands-env@1000.0.26
+  - @pnpm/lifecycle@1001.0.15
+  - @pnpm/client@1000.0.19
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/workspace.injected-deps-syncer@1000.0.8
+
 ## 1000.2.14
 
 ### Patch Changes

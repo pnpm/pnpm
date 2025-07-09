@@ -163,9 +163,9 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
   const storeDir = project.getStorePath()
   if (await dirIsCaseSensitive(storeDir)) {
-    expect([...files]).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
+    expect([...files].sort()).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   } else {
-    expect([...files]).toStrictEqual(['Foo.js', 'package.json'])
+    expect([...files].map((f) => f.toLowerCase()).sort()).toStrictEqual(['foo.js', 'package.json'])
   }
 })
 
@@ -391,7 +391,7 @@ test('using a custom virtual-store-dir location', async () => {
   await execPnpm(['install', '--virtual-store-dir=.pnpm'])
 
   expect(fs.existsSync('.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json')).toBeTruthy()
-  expect(fs.existsSync('.pnpm/lock.yaml')).toBeTruthy()
+  expect(fs.existsSync('node_modules/.pnpm/lock.yaml')).toBeTruthy()
   expect(fs.existsSync('.pnpm/node_modules/once/package.json')).toBeTruthy()
 
   rimraf('node_modules')
@@ -400,7 +400,7 @@ test('using a custom virtual-store-dir location', async () => {
   await execPnpm(['install', '--virtual-store-dir=.pnpm', '--frozen-lockfile'])
 
   expect(fs.existsSync('.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json')).toBeTruthy()
-  expect(fs.existsSync('.pnpm/lock.yaml')).toBeTruthy()
+  expect(fs.existsSync('node_modules/.pnpm/lock.yaml')).toBeTruthy()
   expect(fs.existsSync('.pnpm/node_modules/once/package.json')).toBeTruthy()
 })
 

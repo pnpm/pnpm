@@ -1,5 +1,25 @@
 # @pnpm/lifecycle
 
+## 1001.0.17
+
+### Patch Changes
+
+- 589ac1f: Replaced `shell-quote` with `shlex` for quoting command arguments [#9381](https://github.com/pnpm/pnpm/issues/9381).
+
+## 1001.0.16
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@1000.1.8
+- @pnpm/store-controller-types@1003.0.3
+
+## 1001.0.15
+
+### Patch Changes
+
+- Updated dependencies [509948d]
+  - @pnpm/store-controller-types@1003.0.2
+
 ## 1001.0.14
 
 ### Patch Changes

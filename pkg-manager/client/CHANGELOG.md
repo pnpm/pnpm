@@ -1,5 +1,33 @@
 # @pnpm/client
 
+## 1000.0.21
+
+### Patch Changes
+
+- @pnpm/git-fetcher@1001.0.10
+- @pnpm/tarball-fetcher@1001.0.10
+- @pnpm/default-resolver@1002.1.1
+
+## 1000.0.20
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/default-resolver@1002.1.0
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/directory-fetcher@1000.1.8
+  - @pnpm/git-fetcher@1001.0.9
+  - @pnpm/tarball-fetcher@1001.0.9
+
+## 1000.0.19
+
+### Patch Changes
+
+- @pnpm/default-resolver@1002.0.2
+- @pnpm/git-fetcher@1001.0.8
+- @pnpm/tarball-fetcher@1001.0.8
+
 ## 1000.0.18
 
 ### Patch Changes

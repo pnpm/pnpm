@@ -30,10 +30,7 @@ export async function findPackages (root: string, opts?: Options): Promise<Proje
 
   if (opts.includeRoot) {
     // Always include the workspace root (https://github.com/pnpm/pnpm/issues/1986)
-    Array.prototype.push.apply(
-      paths,
-      await glob(normalizePatterns(['.']), globOpts)
-    )
+    paths.push(...(await glob(normalizePatterns(['.']), globOpts)))
   }
 
   return pFilter(

@@ -21,7 +21,7 @@ test('updateWorkspaceState()', async () => {
 
   logger.debug = jest.fn(originalLoggerDebug)
   await updateWorkspaceState({
-    pnpmfileExists: true,
+    pnpmfiles: [],
     workspaceDir,
     allProjects: [],
     filteredInstall: false,
@@ -42,7 +42,7 @@ test('updateWorkspaceState()', async () => {
 
   logger.debug = jest.fn(originalLoggerDebug)
   await updateWorkspaceState({
-    pnpmfileExists: false,
+    pnpmfiles: [],
     workspaceDir,
     settings: {
       autoInstallPeers: true,

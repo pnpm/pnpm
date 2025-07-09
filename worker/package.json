@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/worker",
-  "version": "1000.1.6",
+  "version": "1000.1.9",
   "description": "A worker for extracting package taralls to the store",
   "keywords": [
     "pnpm",
@@ -43,7 +43,7 @@
     "is-windows": "catalog:",
     "load-json-file": "catalog:",
     "p-limit": "catalog:",
-    "shell-quote": "catalog:"
+    "shlex": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
@@ -52,8 +52,7 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/worker": "workspace:*",
-    "@types/is-windows": "catalog:",
-    "@types/shell-quote": "catalog:"
+    "@types/is-windows": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

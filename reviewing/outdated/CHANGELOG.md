@@ -1,5 +1,41 @@
 # @pnpm/outdated
 
+## 1001.0.23
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/npm-resolver@1004.1.1
+- @pnpm/lockfile.fs@1001.1.15
+- @pnpm/lockfile.utils@1002.0.1
+- @pnpm/client@1000.0.21
+
+## 1001.0.22
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/lockfile.fs@1001.1.14
+
+## 1001.0.21
+
+### Patch Changes
+
+- b0ead51: Read the current lockfile from `node_modules/.pnpm/lock.yaml`, when the project uses a global virtual store.
+- Updated dependencies [2721291]
+  - @pnpm/npm-resolver@1004.1.0
+  - @pnpm/client@1000.0.20
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/lockfile.fs@1001.1.13
+
+## 1001.0.20
+
+### Patch Changes
+
+- @pnpm/client@1000.0.19
+
 ## 1001.0.19
 
 ### Patch Changes

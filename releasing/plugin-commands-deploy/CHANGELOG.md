@@ -1,5 +1,80 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.30
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+  - @pnpm/plugin-commands-installation@1004.3.1
+
+## 1001.1.29
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/plugin-commands-installation@1004.3.0
+  - @pnpm/dependency-path@1001.0.1
+  - @pnpm/lockfile.fs@1001.1.15
+
+## 1001.1.28
+
+### Patch Changes
+
+- Updated dependencies [b511eac]
+  - @pnpm/plugin-commands-installation@1004.2.2
+
+## 1001.1.27
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.2.1
+
+## 1001.1.26
+
+### Patch Changes
+
+- 983efdc: Fix a bug in which `pnpm deploy` fails due to overridden dependencies having peer dependencies causing `ERR_PNPM_OUTDATED_LOCKFILE` [#9595](https://github.com/pnpm/pnpm/issues/9595).
+- Updated dependencies [983efdc]
+- Updated dependencies [540986f]
+  - @pnpm/plugin-commands-installation@1004.2.0
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.fs@1001.1.14
+  - @pnpm/cli-utils@1000.1.7
+
+## 1001.1.25
+
+### Patch Changes
+
+- 1959f99: Revert [#9574](https://github.com/pnpm/pnpm/pull/9574) to fix a regression [#9596](https://github.com/pnpm/pnpm/issues/9596).
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/plugin-commands-installation@1004.1.0
+  - @pnpm/config@1004.0.0
+  - @pnpm/directory-fetcher@1000.1.8
+  - @pnpm/cli-utils@1000.1.6
+  - @pnpm/lockfile.fs@1001.1.13
+  - @pnpm/fs.indexed-pkg-importer@1000.1.9
+
+## 1001.1.24
+
+### Patch Changes
+
+- 3387aa9: Fix an issue in which `pnpm deploy --legacy` creates unexpected directories when the root `package.json` has a workspace package as a peer dependency [#9550](https://github.com/pnpm/pnpm/issues/9550).
+- 3f268ff: Let `pnpm deploy` work in repos with `overrides` when `inject-workspace-packages=true` [#9283](https://github.com/pnpm/pnpm/issues/9283).
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/plugin-commands-installation@1004.0.3
+  - @pnpm/cli-utils@1000.1.5
+  - @pnpm/fs.indexed-pkg-importer@1000.1.8
+
 ## 1001.1.23
 
 ### Patch Changes

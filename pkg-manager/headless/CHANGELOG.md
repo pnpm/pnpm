@@ -1,5 +1,95 @@
 # @pnpm/headless
 
+## 1004.1.2
+
+### Patch Changes
+
+- Updated dependencies [589ac1f]
+  - @pnpm/lifecycle@1001.0.17
+  - @pnpm/worker@1000.1.9
+  - @pnpm/build-modules@1000.3.9
+  - @pnpm/dependency-path@1001.0.1
+  - @pnpm/package-requester@1004.0.5
+  - @pnpm/deps.graph-builder@1002.2.1
+  - @pnpm/lockfile.filtering@1001.0.15
+  - @pnpm/lockfile.fs@1001.1.15
+  - @pnpm/lockfile-to-pnp@1001.0.16
+  - @pnpm/lockfile.utils@1002.0.1
+  - @pnpm/calc-dep-state@1002.0.2
+  - @pnpm/patching.config@1001.0.5
+  - @pnpm/modules-cleaner@1001.0.17
+  - @pnpm/real-hoist@1001.0.14
+
+## 1004.1.1
+
+### Patch Changes
+
+- b982a0d: Fixed hoisting with `enableGlobalVirtualStore` set to `true` [#9648](https://github.com/pnpm/pnpm/pull/9648).
+- Updated dependencies [b982a0d]
+- Updated dependencies [b982a0d]
+- Updated dependencies [540986f]
+  - @pnpm/hoist@1002.0.0
+  - @pnpm/deps.graph-builder@1002.2.0
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/lockfile.filtering@1001.0.14
+  - @pnpm/lockfile.fs@1001.1.14
+  - @pnpm/lockfile-to-pnp@1001.0.15
+  - @pnpm/calc-dep-state@1002.0.1
+  - @pnpm/patching.config@1001.0.4
+  - @pnpm/modules-cleaner@1001.0.16
+  - @pnpm/package-requester@1004.0.4
+  - @pnpm/real-hoist@1001.0.13
+  - @pnpm/build-modules@1000.3.8
+
+## 1004.1.0
+
+### Minor Changes
+
+- b0ead51: **Experimental**. Added support for global virtual stores. When the global virtual store is enabled, `node_modules` doesn’t contain regular files, only symlinks to a central virtual store (by default the central store is located at `<store-path>/links`; run `pnpm store path` to find `<store-path>`).
+
+  To enable the global virtual store, add `enableGlobalVirtualStore: true` to your root `pnpm-workspace.yaml`.
+
+  A global virtual store can make installations significantly faster when a warm cache is present. In CI, however, it will probably slow installations because there is usually no cache.
+
+  Related PR: [#8190](https://github.com/pnpm/pnpm/pull/8190).
+
+### Patch Changes
+
+- Updated dependencies [b0ead51]
+- Updated dependencies [b3898db]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b0ead51]
+  - @pnpm/calc-dep-state@1002.0.0
+  - @pnpm/deps.graph-builder@1002.1.0
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/package-requester@1004.0.3
+  - @pnpm/store-controller-types@1003.0.3
+  - @pnpm/build-modules@1000.3.7
+  - @pnpm/lifecycle@1001.0.16
+  - @pnpm/lockfile.filtering@1001.0.13
+  - @pnpm/lockfile.fs@1001.1.13
+  - @pnpm/lockfile-to-pnp@1001.0.14
+  - @pnpm/hoist@1001.0.16
+  - @pnpm/modules-cleaner@1001.0.15
+  - @pnpm/real-hoist@1001.0.12
+  - @pnpm/worker@1000.1.8
+  - @pnpm/symlink-dependency@1000.0.9
+
+## 1004.0.5
+
+### Patch Changes
+
+- Updated dependencies [509948d]
+  - @pnpm/package-requester@1004.0.2
+  - @pnpm/store-controller-types@1003.0.2
+  - @pnpm/build-modules@1000.3.6
+  - @pnpm/deps.graph-builder@1002.0.5
+  - @pnpm/lifecycle@1001.0.15
+  - @pnpm/modules-cleaner@1001.0.14
+  - @pnpm/worker@1000.1.7
+  - @pnpm/symlink-dependency@1000.0.9
+
 ## 1004.0.4
 
 ### Patch Changes

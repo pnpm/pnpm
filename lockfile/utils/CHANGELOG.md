@@ -1,5 +1,31 @@
 # @pnpm/lockfile-utils
 
+## 1002.0.1
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 540986f: Peers suffix renamed to peerDepGraphHash.
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/pick-fetcher@1000.0.1
+
 ## 1001.0.11
 
 ### Patch Changes

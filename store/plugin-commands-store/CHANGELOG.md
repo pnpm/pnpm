@@ -1,5 +1,66 @@
 # @pnpm/plugin-commands-store
 
+## 1000.0.31
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+
+## 1000.0.30
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/store-connection-manager@1002.0.6
+  - @pnpm/dependency-path@1001.0.1
+  - @pnpm/lockfile.utils@1002.0.1
+  - @pnpm/get-context@1001.1.2
+
+## 1000.0.29
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/store-connection-manager@1002.0.5
+  - @pnpm/cli-utils@1000.1.7
+  - @pnpm/get-context@1001.1.1
+
+## 1000.0.28
+
+### Patch Changes
+
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/get-context@1001.1.0
+  - @pnpm/config@1004.0.0
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/store-controller-types@1003.0.3
+  - @pnpm/cli-utils@1000.1.6
+  - @pnpm/store-connection-manager@1002.0.4
+  - @pnpm/store.cafs@1000.0.14
+
+## 1000.0.27
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+- Updated dependencies [509948d]
+  - @pnpm/config@1003.1.1
+  - @pnpm/store-controller-types@1003.0.2
+  - @pnpm/cli-utils@1000.1.5
+  - @pnpm/store-connection-manager@1002.0.3
+  - @pnpm/store.cafs@1000.0.13
+
 ## 1000.0.26
 
 ### Patch Changes

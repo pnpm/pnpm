@@ -1,5 +1,18 @@
 # @pnpm/dependency-path
 
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1001.0.0
+
+### Major Changes
+
+- 540986f: Peers suffix renamed to peerDepGraphHash.
+
 ## 1000.0.9
 
 ### Patch Changes

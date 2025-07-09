@@ -1,5 +1,161 @@
 # @pnpm/core
 
+## 1009.0.0
+
+### Major Changes
+
+- cf630a8: `hooks.preResolution` is now an array of functions.
+
+### Minor Changes
+
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+- Updated dependencies [589ac1f]
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/lifecycle@1001.0.17
+  - @pnpm/worker@1000.1.9
+  - @pnpm/build-modules@1000.3.9
+  - @pnpm/lockfile.settings-checker@1001.0.10
+  - @pnpm/lockfile.verification@1001.2.2
+  - @pnpm/dependency-path@1001.0.1
+  - @pnpm/headless@1004.1.2
+  - @pnpm/package-requester@1004.0.5
+  - @pnpm/lockfile.filtering@1001.0.15
+  - @pnpm/lockfile.fs@1001.1.15
+  - @pnpm/lockfile-to-pnp@1001.0.16
+  - @pnpm/lockfile.pruner@1001.0.11
+  - @pnpm/lockfile.utils@1002.0.1
+  - @pnpm/lockfile.walker@1001.0.11
+  - @pnpm/calc-dep-state@1002.0.2
+  - @pnpm/patching.config@1001.0.5
+  - @pnpm/modules-cleaner@1001.0.17
+  - @pnpm/resolve-dependencies@1007.1.3
+  - @pnpm/get-context@1001.1.2
+  - @pnpm/lockfile.preferred-versions@1000.0.16
+
+## 1008.1.3
+
+### Patch Changes
+
+- Updated dependencies [5d046bb]
+  - @pnpm/resolve-dependencies@1007.1.2
+
+## 1008.1.2
+
+### Patch Changes
+
+- cc6db88: Restore hoisting of optional peer dependencies when installing with an outdated lockfile.
+  Regression introduced in [v10.12.2] by [#9648]; resolves [#9685].
+
+  [v10.12.2]: https://github.com/pnpm/pnpm/releases/tag/v10.12.2
+  [#9648]: https://github.com/pnpm/pnpm/pull/9648
+  [#9685]: https://github.com/pnpm/pnpm/issues/9685
+
+## 1008.1.1
+
+### Patch Changes
+
+- b982a0d: Fixed hoisting with `enableGlobalVirtualStore` set to `true` [#9648](https://github.com/pnpm/pnpm/pull/9648).
+- Updated dependencies [b982a0d]
+- Updated dependencies [540986f]
+  - @pnpm/hoist@1002.0.0
+  - @pnpm/headless@1004.1.1
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/lockfile.filtering@1001.0.14
+  - @pnpm/lockfile.fs@1001.1.14
+  - @pnpm/lockfile-to-pnp@1001.0.15
+  - @pnpm/lockfile.pruner@1001.0.10
+  - @pnpm/lockfile.verification@1001.2.1
+  - @pnpm/lockfile.walker@1001.0.10
+  - @pnpm/calc-dep-state@1002.0.1
+  - @pnpm/patching.config@1001.0.4
+  - @pnpm/modules-cleaner@1001.0.16
+  - @pnpm/package-requester@1004.0.4
+  - @pnpm/resolve-dependencies@1007.1.1
+  - @pnpm/lockfile.preferred-versions@1000.0.15
+  - @pnpm/get-context@1001.1.1
+  - @pnpm/build-modules@1000.3.8
+
+## 1008.1.0
+
+### Minor Changes
+
+- b217bbb: Added a new setting called `ci` for explicitly telling pnpm if the current environment is a CI or not.
+- c8341cc: Added two new CLI options (`--save-catalog` and `--save-catalog-name=<name>`) to `pnpm add` to save new dependencies as catalog entries. `catalog:` or `catalog:<name>` will be added to `package.json` and the package specifier will be added to the `catalogs` or `catalog[<name>]` object in `pnpm-workspace.yaml` [#9425](https://github.com/pnpm/pnpm/issues/9425).
+- b0ead51: **Experimental**. Added support for global virtual stores. When the global virtual store is enabled, `node_modules` doesn’t contain regular files, only symlinks to a central virtual store (by default the central store is located at `<store-path>/links`; run `pnpm store path` to find `<store-path>`).
+
+  To enable the global virtual store, add `enableGlobalVirtualStore: true` to your root `pnpm-workspace.yaml`.
+
+  A global virtual store can make installations significantly faster when a warm cache is present. In CI, however, it will probably slow installations because there is usually no cache.
+
+  Related PR: [#8190](https://github.com/pnpm/pnpm/pull/8190).
+
+- 046af72: A new `catalogMode` setting is available for controlling if and how dependencies are added to the default catalog. It can be configured to several modes:
+
+  - `strict`: Only allows dependency versions from the catalog. Adding a dependency outside the catalog's version range will cause an error.
+  - `prefer`: Prefers catalog versions, but will fall back to direct dependencies if no compatible version is found.
+  - `manual` (default): Does not automatically add dependencies to the catalog.
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+- Updated dependencies [5ab40c1]
+- Updated dependencies [86e0016]
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b3898db]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b0ead51]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/resolve-dependencies@1007.1.0
+  - @pnpm/lockfile.verification@1001.2.0
+  - @pnpm/get-context@1001.1.0
+  - @pnpm/calc-dep-state@1002.0.0
+  - @pnpm/headless@1004.1.0
+  - @pnpm/crypto.object-hasher@1000.1.0
+  - @pnpm/lockfile.preferred-versions@1000.0.14
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/package-requester@1004.0.3
+  - @pnpm/store-controller-types@1003.0.3
+  - @pnpm/build-modules@1000.3.7
+  - @pnpm/lifecycle@1001.0.16
+  - @pnpm/lockfile.filtering@1001.0.13
+  - @pnpm/lockfile.fs@1001.1.13
+  - @pnpm/lockfile-to-pnp@1001.0.14
+  - @pnpm/hoist@1001.0.16
+  - @pnpm/modules-cleaner@1001.0.15
+  - @pnpm/worker@1000.1.8
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/symlink-dependency@1000.0.9
+  - @pnpm/lockfile.settings-checker@1001.0.9
+
+## 1008.0.3
+
+### Patch Changes
+
+- 32dadef: Installation should not exit with an error if `strictPeerDependencies` is `true` but all issues are ignored by `peerDependencyRules` [#9505](https://github.com/pnpm/pnpm/pull/9505).
+- 509948d: Fix a regression (in v10.9.0) causing the `--lockfile-only` flag on `pnpm update` to produce a different `pnpm-lock.yaml` than an update without the flag.
+- Updated dependencies [509948d]
+  - @pnpm/resolve-dependencies@1007.0.2
+  - @pnpm/package-requester@1004.0.2
+  - @pnpm/store-controller-types@1003.0.2
+  - @pnpm/build-modules@1000.3.6
+  - @pnpm/headless@1004.0.5
+  - @pnpm/lifecycle@1001.0.15
+  - @pnpm/modules-cleaner@1001.0.14
+  - @pnpm/worker@1000.1.7
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/symlink-dependency@1000.0.9
+  - @pnpm/lockfile.settings-checker@1001.0.9
+  - @pnpm/lockfile.verification@1001.1.7
+
 ## 1008.0.2
 
 ### Patch Changes

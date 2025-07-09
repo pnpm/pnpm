@@ -1,5 +1,49 @@
 # @pnpm/exec.build-commands
 
+## 1001.0.19
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@1002.0.19
+
+## 1001.0.18
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [ab155a5]
+  - @pnpm/config@1004.1.0
+  - @pnpm/plugin-commands-rebuild@1002.0.18
+  - @pnpm/config.config-writer@1000.0.7
+
+## 1001.0.17
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@1002.0.17
+
+## 1001.0.16
+
+### Patch Changes
+
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/config@1004.0.0
+  - @pnpm/plugin-commands-rebuild@1002.0.16
+  - @pnpm/config.config-writer@1000.0.6
+
+## 1001.0.15
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/plugin-commands-rebuild@1002.0.15
+
 ## 1001.0.14
 
 ### Patch Changes

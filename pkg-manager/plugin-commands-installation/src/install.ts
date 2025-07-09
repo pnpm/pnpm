@@ -4,7 +4,6 @@ import { type Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { isCI } from 'ci-info'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { installDeps, type InstallDepsOptions } from './installDeps'
@@ -283,7 +282,6 @@ export type InstallCommandOptions = Pick<Config,
 | 'modulesDir'
 | 'nodeLinker'
 | 'patchedDependencies'
-| 'pnpmfile'
 | 'preferFrozenLockfile'
 | 'preferWorkspacePackages'
 | 'production'
@@ -318,6 +316,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
 | 'updateConfig'
+| 'overrides'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -334,7 +333,8 @@ export type InstallCommandOptions = Pick<Config,
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
   confirmModulesPurge?: boolean
-} & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'useLockfile' | 'symlink'>>
+  pnpmfile: string[]
+} & Partial<Pick<Config, 'ci' | 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'useLockfile' | 'symlink'>>
 
 export async function handler (opts: InstallCommandOptions): Promise<void> {
   const include = {
@@ -348,7 +348,7 @@ export async function handler (opts: InstallCommandOptions): Promise<void> {
   const installDepsOptions: InstallDepsOptions = {
     ...opts,
     frozenLockfileIfExists: opts.frozenLockfileIfExists ?? (
-      isCI && !opts.lockfileOnly &&
+      opts.ci && !opts.lockfileOnly &&
       typeof opts.rawLocalConfig['frozen-lockfile'] === 'undefined' &&
       typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined'
     ),

@@ -3,6 +3,7 @@ import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
+import { iterateHashedGraphNodes } from '@pnpm/calc-dep-state'
 import {
   type LockfileObject,
   type ProjectSnapshot,
@@ -22,6 +23,7 @@ import {
   type ProjectManifest,
   type ProjectId,
   type ProjectRootDir,
+  type DepPath,
 } from '@pnpm/types'
 import difference from 'ramda/src/difference'
 import zipWith from 'ramda/src/zipWith'
@@ -117,6 +119,7 @@ export async function resolveDependencies (
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
     allowUnusedPatches?: boolean
+    enableGlobalVirtualStore?: boolean
   }
 ): Promise<ResolveDependenciesResult> {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -137,7 +140,6 @@ export async function resolveDependencies (
     appliedPatches,
     time,
     allPeerDepNames,
-    updatedCatalogs,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   opts.storeController.clearResolutionCache()
@@ -278,6 +280,20 @@ export async function resolveDependencies (
     }
   }))
 
+  let updatedCatalogs: Record<string, Record<string, string>> | undefined
+  for (const project of projectsToResolve) {
+    if (!project.updatePackageManifest) continue
+    const resolvedImporter = resolvedImporters[project.id]
+    for (let i = 0; i < resolvedImporter.directDependencies.length; i++) {
+      if (project.wantedDependencies[i]?.updateSpec == null) continue
+      const dep = resolvedImporter.directDependencies[i]
+      if (dep.catalogLookup == null) continue
+      updatedCatalogs ??= {}
+      updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
+      updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier ?? dep.catalogLookup.userSpecifiedBareSpecifier
+    }
+  }
+
   if (opts.dedupeDirectDeps) {
     const rootDeps = dependenciesByProjectId['.']
     if (rootDeps) {
@@ -306,7 +322,9 @@ export async function resolveDependencies (
     }
   }
 
-  newLockfile.catalogs = getCatalogSnapshots(Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies))
+  newLockfile.catalogs = getCatalogSnapshots(
+    Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies),
+    updatedCatalogs)
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
@@ -319,7 +337,7 @@ export async function resolveDependencies (
 
   return {
     dependenciesByProjectId,
-    dependenciesGraph,
+    dependenciesGraph: opts.enableGlobalVirtualStore ? extendGraph(dependenciesGraph, opts.virtualStoreDir) : dependenciesGraph,
     outdatedDependencies,
     linkedDependenciesByProjectId,
     updatedCatalogs,
@@ -440,4 +458,29 @@ async function getTopParents (pkgAliases: string[], modulesDir: string): Promise
     }
   }, pkgs, pkgAliases)
     .filter(Boolean) as DependencyManifest[]
+}
+
+function extendGraph (graph: DependenciesGraph, virtualStoreDir: string): DependenciesGraph {
+  const pkgMetaIter = (function * () {
+    for (const depPath in graph) {
+      if (Object.hasOwn(graph, depPath)) {
+        const { name, version, pkgIdWithPatchHash } = graph[depPath as DepPath]
+        yield {
+          name,
+          version,
+          depPath: depPath as DepPath,
+          pkgIdWithPatchHash,
+        }
+      }
+    }
+  })()
+  for (const { pkgMeta: { depPath }, hash } of iterateHashedGraphNodes(graph, pkgMetaIter)) {
+    const modules = path.join(virtualStoreDir, hash, 'node_modules')
+    const node = graph[depPath]
+    Object.assign(node, {
+      modules,
+      dir: path.join(modules, node.name),
+    })
+  }
+  return graph
 }

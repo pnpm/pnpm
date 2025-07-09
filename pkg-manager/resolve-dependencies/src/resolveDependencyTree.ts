@@ -137,7 +137,6 @@ export interface ResolveDependenciesOptions {
 export interface ResolveDependencyTreeResult {
   allPeerDepNames: Set<string>
   dependenciesTree: DependenciesTree<ResolvedPackage>
-  updatedCatalogs?: Catalogs
   outdatedDependencies: {
     [pkgId: string]: string
   }
@@ -236,7 +235,6 @@ export async function resolveDependencyTree<T> (
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)
   const directDepsByImporterId = zipObj(importers.map(({ id }) => id), pkgAddressesByImporters)
 
-  let updatedCatalogs: Record<string, Record<string, string>> | undefined
   for (const directDependencies of pkgAddressesByImporters) {
     for (const directDep of directDependencies as PkgAddress[]) {
       const { alias, normalizedBareSpecifier, version, saveCatalogName } = directDep
@@ -244,16 +242,11 @@ export async function resolveDependencyTree<T> (
       if (existingCatalog != null) {
         if (existingCatalog !== normalizedBareSpecifier) {
           globalWarn(
-            `Skip adding ${alias} to catalogs.${saveCatalogName} because it already exists as ${existingCatalog}`
+            `Skip adding ${alias} to the default catalog because it already exists as ${existingCatalog}. Please use \`pnpm update\` to update the catalogs.`
           )
         }
       } else if (saveCatalogName != null && normalizedBareSpecifier != null && version != null) {
-        updatedCatalogs ??= {}
-        updatedCatalogs[saveCatalogName] ??= {}
-        updatedCatalogs[saveCatalogName][alias] = normalizedBareSpecifier
-
         const userSpecifiedBareSpecifier = `catalog:${saveCatalogName === 'default' ? '' : saveCatalogName}`
-        directDep.normalizedBareSpecifier = userSpecifiedBareSpecifier
 
         // Attach metadata about how this new catalog dependency should be
         // resolved so the pnpm-lock.yaml file's catalogs section can be updated
@@ -309,7 +302,6 @@ export async function resolveDependencyTree<T> (
 
   return {
     dependenciesTree: ctx.dependenciesTree,
-    updatedCatalogs,
     outdatedDependencies: ctx.outdatedDependencies,
     resolvedImporters,
     resolvedPkgsById: ctx.resolvedPkgsById,

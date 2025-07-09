@@ -1,5 +1,32 @@
 # @pnpm/pnpmfile
 
+## 1002.0.0
+
+### Major Changes
+
+- e225310: Always expects an array of pnpmfiles.
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1001.2.3
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1003.0.3
+- @pnpm/crypto.hash@1000.1.1
+
+## 1001.2.2
+
+### Patch Changes
+
+- Updated dependencies [509948d]
+  - @pnpm/store-controller-types@1003.0.2
+  - @pnpm/crypto.hash@1000.1.1
+
 ## 1001.2.1
 
 ### Patch Changes

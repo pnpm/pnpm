@@ -1,5 +1,157 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.3.1
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+  - @pnpm/plugin-commands-env@1000.0.30
+  - @pnpm/plugin-commands-rebuild@1002.0.19
+  - @pnpm/workspace.find-packages@1000.0.29
+  - @pnpm/deps.status@1003.0.1
+  - @pnpm/filter-workspace-packages@1000.0.29
+
+## 1004.3.0
+
+### Minor Changes
+
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [e225310]
+- Updated dependencies [cf630a8]
+- Updated dependencies [95a9b82]
+- Updated dependencies [ab155a5]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/pnpmfile@1002.0.0
+  - @pnpm/workspace.state@1002.0.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/deps.status@1003.0.0
+  - @pnpm/core@1009.0.0
+  - @pnpm/workspace.manifest-writer@1000.2.1
+  - @pnpm/plugin-commands-rebuild@1002.0.18
+  - @pnpm/plugin-commands-env@1000.0.29
+  - @pnpm/store-connection-manager@1002.0.6
+  - @pnpm/workspace.find-packages@1000.0.28
+  - @pnpm/config.config-writer@1000.0.7
+  - @pnpm/package-store@1002.0.7
+  - @pnpm/filter-workspace-packages@1000.0.28
+  - @pnpm/config.deps-installer@1000.0.8
+  - @pnpm/outdated@1001.0.23
+  - @pnpm/workspace.pkgs-graph@1000.0.16
+  - @pnpm/get-context@1001.1.2
+
+## 1004.2.2
+
+### Patch Changes
+
+- b511eac: Running `pnpm install` after `pnpm fetch` should hoist all dependencies that need to be hoisted.
+  Fixes a regression introduced in [v10.12.2] by [#9648]; resolves [#9689].
+
+  [v10.12.2]: https://github.com/pnpm/pnpm/releases/tag/v10.12.2Add commentMore actions
+  [#9648]: https://github.com/pnpm/pnpm/pull/9648
+  [#9689]: https://github.com/pnpm/pnpm/issues/9689
+
+  - @pnpm/core@1008.1.3
+
+## 1004.2.1
+
+### Patch Changes
+
+- Updated dependencies [cc6db88]
+  - @pnpm/core@1008.1.2
+
+## 1004.2.0
+
+### Minor Changes
+
+- 983efdc: Fix a bug in which `pnpm deploy` fails due to overridden dependencies having peer dependencies causing `ERR_PNPM_OUTDATED_LOCKFILE` [#9595](https://github.com/pnpm/pnpm/issues/9595).
+
+### Patch Changes
+
+- Updated dependencies [b982a0d]
+  - @pnpm/core@1008.1.1
+  - @pnpm/store-connection-manager@1002.0.5
+  - @pnpm/plugin-commands-rebuild@1002.0.17
+  - @pnpm/outdated@1001.0.22
+  - @pnpm/cli-utils@1000.1.7
+  - @pnpm/deps.status@1002.1.5
+  - @pnpm/get-context@1001.1.1
+  - @pnpm/package-store@1002.0.6
+  - @pnpm/plugin-commands-env@1000.0.28
+  - @pnpm/workspace.find-packages@1000.0.27
+  - @pnpm/config.deps-installer@1000.0.7
+  - @pnpm/filter-workspace-packages@1000.0.27
+
+## 1004.1.0
+
+### Minor Changes
+
+- b217bbb: Added a new setting called `ci` for explicitly telling pnpm if the current environment is a CI or not.
+- c8341cc: Added two new CLI options (`--save-catalog` and `--save-catalog-name=<name>`) to `pnpm add` to save new dependencies as catalog entries. `catalog:` or `catalog:<name>` will be added to `package.json` and the package specifier will be added to the `catalogs` or `catalog[<name>]` object in `pnpm-workspace.yaml` [#9425](https://github.com/pnpm/pnpm/issues/9425).
+- 046af72: A new `catalogMode` setting is available for controlling if and how dependencies are added to the default catalog. It can be configured to several modes:
+
+  - `strict`: Only allows dependency versions from the catalog. Adding a dependency outside the catalog's version range will cause an error.
+  - `prefer`: Prefers catalog versions, but will fall back to direct dependencies if no compatible version is found.
+  - `manual` (default): Does not automatically add dependencies to the catalog.
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/outdated@1001.0.21
+  - @pnpm/deps.status@1002.1.4
+  - @pnpm/get-context@1001.1.0
+  - @pnpm/core@1008.1.0
+  - @pnpm/config@1004.0.0
+  - @pnpm/workspace.manifest-writer@1000.2.0
+  - @pnpm/package-store@1002.0.5
+  - @pnpm/config.deps-installer@1000.0.6
+  - @pnpm/workspace.pkgs-graph@1000.0.15
+  - @pnpm/plugin-commands-rebuild@1002.0.16
+  - @pnpm/cli-utils@1000.1.6
+  - @pnpm/plugin-commands-env@1000.0.27
+  - @pnpm/store-connection-manager@1002.0.4
+  - @pnpm/workspace.state@1001.1.22
+  - @pnpm/workspace.find-packages@1000.0.26
+  - @pnpm/config.config-writer@1000.0.6
+  - @pnpm/pnpmfile@1001.2.3
+  - @pnpm/filter-workspace-packages@1000.0.26
+
+## 1004.0.3
+
+### Patch Changes
+
+- Updated dependencies [32dadef]
+- Updated dependencies [8d175c0]
+- Updated dependencies [509948d]
+  - @pnpm/core@1008.0.3
+  - @pnpm/config@1003.1.1
+  - @pnpm/cli-utils@1000.1.5
+  - @pnpm/deps.status@1002.1.3
+  - @pnpm/plugin-commands-env@1000.0.26
+  - @pnpm/plugin-commands-rebuild@1002.0.15
+  - @pnpm/store-connection-manager@1002.0.3
+  - @pnpm/workspace.state@1001.1.21
+  - @pnpm/package-store@1002.0.4
+  - @pnpm/pnpmfile@1001.2.2
+  - @pnpm/workspace.find-packages@1000.0.25
+  - @pnpm/config.deps-installer@1000.0.5
+  - @pnpm/outdated@1001.0.20
+  - @pnpm/filter-workspace-packages@1000.0.25
+
 ## 1004.0.2
 
 ### Patch Changes

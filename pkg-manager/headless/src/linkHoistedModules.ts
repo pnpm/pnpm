@@ -117,7 +117,7 @@ async function linkAllPkgsInOrder (
         if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
           if (opts?.allowBuild?.(depNode.name) !== false) {
             sideEffectsCacheKey = _calcDepState(dir, {
-              isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
+              includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
               patchFileHash: depNode.patch?.file.hash,
             })
           }

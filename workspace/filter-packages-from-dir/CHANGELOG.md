@@ -1,5 +1,42 @@
 # @pnpm/workspace.filter-packages-from-dir
 
+## 1000.0.29
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.29
+- @pnpm/filter-workspace-packages@1000.0.29
+
+## 1000.0.28
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.28
+- @pnpm/filter-workspace-packages@1000.0.28
+
+## 1000.0.27
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.27
+- @pnpm/filter-workspace-packages@1000.0.27
+
+## 1000.0.26
+
+### Patch Changes
+
+- Updated dependencies [c8341cc]
+  - @pnpm/workspace.read-manifest@1000.2.0
+  - @pnpm/workspace.find-packages@1000.0.26
+  - @pnpm/filter-workspace-packages@1000.0.26
+
+## 1000.0.25
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.25
+- @pnpm/filter-workspace-packages@1000.0.25
+
 ## 1000.0.24
 
 ### Patch Changes

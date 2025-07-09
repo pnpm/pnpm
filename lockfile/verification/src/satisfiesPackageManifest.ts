@@ -6,6 +6,7 @@ import {
 import equals from 'ramda/src/equals'
 import pickBy from 'ramda/src/pickBy'
 import omit from 'ramda/src/omit'
+import { type Diff, diffFlatRecords, isEqual } from './diffFlatRecords'
 
 export function satisfiesPackageManifest (
   opts: {
@@ -36,10 +37,11 @@ export function satisfiesPackageManifest (
     existingDeps = pickNonLinkedDeps(existingDeps)
     specs = pickNonLinkedDeps(specs)
   }
-  if (!equals(existingDeps, specs)) {
+  const specsDiff = diffFlatRecords(specs, existingDeps)
+  if (!isEqual(specsDiff)) {
     return {
       satisfies: false,
-      detailedReason: `specifiers in the lockfile (${JSON.stringify(specs)}) don't match specs in package.json (${JSON.stringify(existingDeps)})`,
+      detailedReason: `specifiers in the lockfile don't match specifiers in package.json:\n${displaySpecDiff(specsDiff)}`,
     }
   }
   if (importer.publishDirectory !== pkg.publishConfig?.directory) {
@@ -100,4 +102,29 @@ export function satisfiesPackageManifest (
 
 function countOfNonLinkedDeps (lockfileDeps: { [depName: string]: string }): number {
   return Object.values(lockfileDeps).filter((ref) => !ref.includes('link:') && !ref.includes('file:')).length
+}
+
+function displaySpecDiff ({ added, removed, modified }: Diff<string, string>): string {
+  let result = ''
+
+  if (added.length !== 0) {
+    result += `* ${added.length} dependencies were added: `
+    result += added.map(({ key, value }) => `${key}@${value}`).join(', ')
+    result += '\n'
+  }
+
+  if (removed.length !== 0) {
+    result += `* ${removed.length} dependencies were removed: `
+    result += removed.map(({ key, value }) => `${key}@${value}`).join(', ')
+    result += '\n'
+  }
+
+  if (modified.length !== 0) {
+    result += `* ${modified.length} dependencies are mismatched:\n`
+    for (const { key, left, right } of modified) {
+      result += `  - ${key} (lockfile: ${left}, manifest: ${right})\n`
+    }
+  }
+
+  return result
 }

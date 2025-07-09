@@ -1,7 +1,8 @@
 {
   "name": "@pnpm/tsconfig",
   "description": "pnpm's TypeScript configuration",
-  "version": "2.0.0",
+  "private": true,
+  "version": "2.0.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",

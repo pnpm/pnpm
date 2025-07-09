@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "1004.0.2",
+  "version": "1004.3.1",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",
@@ -77,7 +77,6 @@
     "@zkochan/rimraf": "catalog:",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
-    "ci-info": "catalog:",
     "enquirer": "catalog:",
     "get-npm-tarball-url": "catalog:",
     "is-subdir": "catalog:",
@@ -111,6 +110,7 @@
     "@types/which": "catalog:",
     "@types/yarnpkg__lockfile": "catalog:",
     "@types/zkochan__table": "catalog:",
+    "ci-info": "catalog:",
     "delay": "catalog:",
     "jest-diff": "catalog:",
     "path-name": "catalog:",

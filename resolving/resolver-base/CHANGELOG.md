@@ -1,5 +1,12 @@
 # @pnpm/resolver-base
 
+## 1004.0.0
+
+### Major Changes
+
+- 2721291: Create different resolver result types which provide more information.
+- 6acf819: Remove the blanket variant from the `Resolution` type, making it stricter and more useful.
+
 ## 1003.0.1
 
 ### Patch Changes

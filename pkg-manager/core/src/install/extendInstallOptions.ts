@@ -1,3 +1,4 @@
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
@@ -30,6 +31,7 @@ export interface StrictInstallOptions {
   catalogMode: 'strict' | 'prefer' | 'manual'
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
+  enableGlobalVirtualStore: boolean
   enablePnp: boolean
   extraBinPaths: string[]
   extraEnv: Record<string, string>
@@ -77,7 +79,7 @@ export interface StrictInstallOptions {
   nodeVersion?: string
   packageExtensions: Record<string, PackageExtension>
   ignoredOptionalDependencies: string[]
-  pnpmfile: string
+  pnpmfile: string[] | string
   ignorePnpmfile: boolean
   packageManager: {
     name: string
@@ -86,7 +88,7 @@ export interface StrictInstallOptions {
   pruneLockfileImporters: boolean
   hooks: {
     readPackage?: ReadPackageHook[]
-    preResolution?: (ctx: PreResolutionHookContext) => Promise<void>
+    preResolution?: Array<(ctx: PreResolutionHookContext) => Promise<void>>
     afterAllResolved?: Array<(lockfile: LockfileObject) => LockfileObject | Promise<LockfileObject>>
     calculatePnpmfileChecksum?: () => Promise<string | undefined>
   }
@@ -161,6 +163,7 @@ export interface StrictInstallOptions {
   prepareExecutionEnv?: PrepareExecutionEnv
   returnListOfDepsRequiringBuild?: boolean
   injectWorkspacePackages?: boolean
+  ci?: boolean
 }
 
 export type InstallOptions =
@@ -183,6 +186,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     confirmModulesPurge: !opts.force,
     depth: 0,
     dedupeInjectedDeps: true,
+    enableGlobalVirtualStore: false,
     enablePnp: false,
     engineStrict: false,
     force: false,
@@ -309,5 +313,8 @@ export function extendOptions (
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   extendedOpts.rawConfig['registry'] = extendedOpts.registries.default
+  if (extendedOpts.enableGlobalVirtualStore && extendedOpts.virtualStoreDir == null) {
+    extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
+  }
   return extendedOpts
 }

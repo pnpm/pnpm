@@ -9,7 +9,7 @@ test('createWorkspaceState() on empty list', () => {
   expect(
     createWorkspaceState({
       allProjects: [],
-      pnpmfileExists: true,
+      pnpmfiles: [],
       filteredInstall: false,
       settings: {
         autoInstallPeers: true,
@@ -22,7 +22,7 @@ test('createWorkspaceState() on empty list', () => {
     })
   ).toStrictEqual(expect.objectContaining({
     projects: {},
-    pnpmfileExists: true,
+    pnpmfiles: [],
     lastValidatedTimestamp: expect.any(Number),
   }))
 })
@@ -54,7 +54,7 @@ test('createWorkspaceState() on non-empty list', () => {
           },
         },
       },
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
     })
   ).toStrictEqual(expect.objectContaining({
@@ -72,6 +72,6 @@ test('createWorkspaceState() on non-empty list', () => {
       [path.resolve('packages/c')]: {},
       [path.resolve('packages/d')]: {},
     },
-    pnpmfileExists: false,
+    pnpmfiles: [],
   }))
 })

@@ -28,7 +28,6 @@ import {
 } from '@pnpm/lockfile.verification'
 import { globalWarn, logger } from '@pnpm/logger'
 import { parseOverrides } from '@pnpm/parse-overrides'
-import { getPnpmfilePath } from '@pnpm/pnpmfile'
 import { type WorkspacePackages } from '@pnpm/resolver-base'
 import {
   type DependencyManifest,
@@ -56,14 +55,13 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 | 'sharedWorkspaceLockfile'
-| 'virtualStoreDir'
 | 'workspaceDir'
 | 'patchesDir'
-| 'pnpmfile'
 | 'configDependencies'
 > & {
   ignoreFilteredInstallCache?: boolean
   ignoredWorkspaceStateSettings?: Array<keyof WorkspaceStateSettings>
+  pnpmfile: string[]
 } & WorkspaceStateSettings
 
 export interface CheckDepsStatusResult {
@@ -228,12 +226,12 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
       return { upToDate: true, workspaceState }
     }
 
-    const issue = await patchesAreModified({
+    const issue = await patchesOrHooksAreModified({
       rootManifestOptions,
       rootDir: rootProjectManifestDir,
       lastValidatedTimestamp: workspaceState.lastValidatedTimestamp,
-      pnpmfile: opts.pnpmfile,
-      hadPnpmfile: workspaceState.pnpmfileExists,
+      currentPnpmfiles: opts.pnpmfile,
+      previousPnpmfiles: workspaceState.pnpmfiles,
     })
     if (issue) {
       return { upToDate: false, issue, workspaceState }
@@ -259,8 +257,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
 
       const wantedLockfilePromise = readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
       if (wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) {
-        const virtualStoreDir = opts.virtualStoreDir ?? path.join(workspaceDir, 'node_modules', '.pnpm')
-        const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
+        const currentLockfile = await readCurrentLockfile(path.join(workspaceDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
         const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir)
         assertLockfilesEqual(currentLockfile, wantedLockfile, workspaceDir)
       }
@@ -275,8 +272,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
 
         if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
         if (wantedLockfileStats.mtime.valueOf() > workspaceState.lastValidatedTimestamp) {
-          const virtualStoreDir = opts.virtualStoreDir ?? path.join(wantedLockfileDir, 'node_modules', '.pnpm')
-          const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
+          const currentLockfile = await readCurrentLockfile(path.join(wantedLockfileDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
           const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir)
           assertLockfilesEqual(currentLockfile, wantedLockfile, wantedLockfileDir)
         }
@@ -331,7 +327,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     await updateWorkspaceState({
       allProjects,
       workspaceDir,
-      pnpmfileExists: workspaceState.pnpmfileExists,
+      pnpmfiles: workspaceState.pnpmfiles,
       settings: opts,
       filteredInstall: workspaceState.filteredInstall,
     })
@@ -358,27 +354,27 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
   }
 
   if (rootProjectManifest && rootProjectManifestDir) {
-    const virtualStoreDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
-    const currentLockfilePromise = readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
+    const internalPnpmDir = path.join(rootProjectManifestDir, 'node_modules', '.pnpm')
+    const currentLockfilePromise = readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
     const wantedLockfilePromise = readWantedLockfile(rootProjectManifestDir, { ignoreIncompatible: false })
     const [
       currentLockfileStats,
       wantedLockfileStats,
       manifestStats,
     ] = await Promise.all([
-      safeStat(path.join(virtualStoreDir, 'lock.yaml')),
+      safeStat(path.join(internalPnpmDir, 'lock.yaml')),
       safeStat(path.join(rootProjectManifestDir, WANTED_LOCKFILE)),
       statManifestFile(rootProjectManifestDir),
     ])
 
     if (!wantedLockfileStats) return throwLockfileNotFound(rootProjectManifestDir)
 
-    const issue = await patchesAreModified({
+    const issue = await patchesOrHooksAreModified({
       rootManifestOptions,
       rootDir: rootProjectManifestDir,
       lastValidatedTimestamp: wantedLockfileStats.mtime.valueOf(),
-      pnpmfile: opts.pnpmfile,
-      hadPnpmfile: workspaceState.pnpmfileExists,
+      currentPnpmfiles: opts.pnpmfile,
+      previousPnpmfiles: workspaceState.pnpmfiles,
     })
     if (issue) {
       return { upToDate: false, issue, workspaceState }
@@ -548,12 +544,12 @@ function throwLockfileNotFound (wantedLockfileDir: string): never {
   })
 }
 
-async function patchesAreModified (opts: {
+async function patchesOrHooksAreModified (opts: {
   rootManifestOptions: OptionsFromRootManifest | undefined
   rootDir: string
   lastValidatedTimestamp: number
-  pnpmfile: string
-  hadPnpmfile: boolean
+  currentPnpmfiles: string[]
+  previousPnpmfiles: string[]
 }): Promise<string | undefined> {
   if (opts.rootManifestOptions?.patchedDependencies) {
     const allPatchStats = await Promise.all(Object.values(opts.rootManifestOptions.patchedDependencies).map((patchFile) => {
@@ -566,16 +562,17 @@ async function patchesAreModified (opts: {
       return 'Patches were modified'
     }
   }
-  const pnpmfilePath = getPnpmfilePath(opts.rootDir, opts.pnpmfile)
-  const pnpmfileStats = safeStatSync(pnpmfilePath)
-  if (pnpmfileStats != null && pnpmfileStats.mtime.valueOf() > opts.lastValidatedTimestamp) {
-    return `pnpmfile at "${pnpmfilePath}" was modified`
+  if (!equals(opts.currentPnpmfiles, opts.previousPnpmfiles)) {
+    return 'The list of pnpmfiles changed.'
   }
-  if (opts.hadPnpmfile && pnpmfileStats == null) {
-    return `pnpmfile at "${pnpmfilePath}" was removed`
-  }
-  if (!opts.hadPnpmfile && pnpmfileStats != null) {
-    return `pnpmfile at "${pnpmfilePath}" was added`
+  for (const pnpmfilePath of opts.currentPnpmfiles) {
+    const pnpmfileStats = safeStatSync(pnpmfilePath)
+    if (pnpmfileStats == null) {
+      return `pnpmfile at "${pnpmfilePath}" was removed`
+    }
+    if (pnpmfileStats.mtime.valueOf() > opts.lastValidatedTimestamp) {
+      return `pnpmfile at "${pnpmfilePath}" was modified`
+    }
   }
   return undefined
 }

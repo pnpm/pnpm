@@ -32,6 +32,7 @@ async function main() {
     port,
     hostname,
   })
+  await server.waitForListen
 
   process.on('exit', () => server.close())
 }

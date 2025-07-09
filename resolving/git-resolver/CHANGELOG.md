@@ -1,5 +1,23 @@
 # @pnpm/git-resolver
 
+## 1001.1.0
+
+### Minor Changes
+
+- 2721291: Create different resolver result types which provide more information.
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/resolver-base@1004.0.0
+
+## 1001.0.2
+
+### Patch Changes
+
+- 5055399: Fixed the problem of path loss caused by parsing URL address. Fixes a regression shipped in pnpm v10.11 via [#9502](https://github.com/pnpm/pnpm/pull/9502).
+
 ## 1001.0.1
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/get-context",
-  "version": "1001.0.14",
+  "version": "1001.1.2",
   "description": "Gets context information about a project",
   "keywords": [
     "pnpm",
@@ -38,7 +38,6 @@
     "@pnpm/read-projects-context": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "ci-info": "catalog:",
     "path-absolute": "catalog:",
     "ramda": "catalog:"
   },

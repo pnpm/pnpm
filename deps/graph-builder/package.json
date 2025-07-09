@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.graph-builder",
-  "version": "1002.0.4",
+  "version": "1002.2.1",
   "description": "A package for building a dependency graph from a lockfile",
   "keywords": [
     "pnpm",
@@ -29,6 +29,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
