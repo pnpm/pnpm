@@ -2144,15 +2144,15 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@pnpm/manifest-utils':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/manifest-utils
       '@pnpm/node.fetcher':
         specifier: workspace:*
         version: link:../node.fetcher
       '@pnpm/node.resolver':
         specifier: workspace:*
         version: link:../node.resolver
-      '@pnpm/read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/remove-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/remove-bins
@@ -5895,6 +5895,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/read-project-manifest':
+        specifier: workspace:*
+        version: link:../read-project-manifest
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -6074,6 +6077,9 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../packages/logger
+      '@pnpm/manifest-utils':
+        specifier: workspace:*
+        version: link:../pkg-manifest/manifest-utils
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../pkg-manager/modules-yaml

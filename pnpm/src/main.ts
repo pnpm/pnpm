@@ -16,10 +16,9 @@ import { PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
-import { getNodeVersion, getRuntimeNodeVersion, prepareExecutionEnv } from '@pnpm/plugin-commands-env'
-import { updateProjectManifest } from '@pnpm/read-project-manifest'
+import { getNodeVersion, prepareExecutionEnv } from '@pnpm/plugin-commands-env'
+import { getNodeRuntime } from '@pnpm/manifest-utils'
 import { finishWorkers } from '@pnpm/worker'
-import semver from 'semver'
 import chalk from 'chalk'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
@@ -285,32 +284,16 @@ export async function main (inputArgv: string[]): Promise<void> {
       ...(workspaceDir ? { workspacePrefix: workspaceDir } : {}),
     })
 
-    if (config.useNodeVersion == null) { //&& config.executionEnv == null) TODO
-      const runtimeNodeVersion = getRuntimeNodeVersion(config.rootProjectManifest)
-      const prefix = config.rootProjectManifestDir
- 
-      if (runtimeNodeVersion != null) {
-        const {nodeVersion} = await getNodeVersion(config, runtimeNodeVersion)
-        config.useNodeVersion = nodeVersion ?? undefined
-
-        if (!semver.valid(runtimeNodeVersion)) {
-          await updateProjectManifest(prefix, {
-            devEngines: {
-              runtime: {
-                name: 'node',
-                version: nodeVersion
-              }
-            }
-          }).then(() => {
-            const message = `"devEngines.runtime.version": "${runtimeNodeVersion}" was resolved to "${nodeVersion}"`
-            logger.info({ message, prefix })
-          })
-        }
-      }
-    }
+    const {devEngines} = config.rootProjectManifest ?? {}
 
     if ('webcontainer' in process.versions) {
       globalWarn('Automatic installation of different Node.js versions is not supported in WebContainer')
+    } else if (!config.useNodeVersion && devEngines) {
+      const {version} = getNodeRuntime(devEngines) ?? {}
+      if (version) {
+        const {nodeVersion} = await getNodeVersion(config, version)
+        config.useNodeVersion = nodeVersion ?? undefined
+      }
     } else {
       config.extraBinPaths = (
         await prepareExecutionEnv(config, {

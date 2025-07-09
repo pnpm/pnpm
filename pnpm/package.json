@@ -96,6 +96,7 @@
     "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/logger": "workspace:*",
+    "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/nopt": "catalog:",
     "@pnpm/parse-cli-args": "workspace:*",

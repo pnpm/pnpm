@@ -4,6 +4,7 @@ import { getNodeDir, type NvmNodeCommandOptions } from './node'
 import { parseEnvSpecifier } from './parseEnvSpecifier'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { globalInfo } from '@pnpm/logger'
+import semver from 'semver'
 
 export interface GetNodeVersionResult {
   nodeVersion: string | null
@@ -13,10 +14,11 @@ export interface GetNodeVersionResult {
 }
 
 export async function getNodeVersion (opts: NvmNodeCommandOptions, envSpecifier: string): Promise<GetNodeVersionResult> {
-  const fetch = createFetchFromRegistry(opts)
+  let nodeVersion
+  if (semver.valid(envSpecifier)) nodeVersion = envSpecifier
   const { releaseChannel, versionSpecifier } = parseEnvSpecifier(envSpecifier)
   const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
-  const nodeVersion = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
+  nodeVersion ??= await resolveNodeVersion(createFetchFromRegistry(opts), versionSpecifier, nodeMirrorBaseUrl)
   return { nodeVersion, nodeMirrorBaseUrl, releaseChannel, versionSpecifier }
 }
 
