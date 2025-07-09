@@ -36,7 +36,7 @@ test('dlx parses options between "dlx" and the command name', async () => {
 })
 
 test('silent dlx prints the output of the child process only', async () => {
-  prepare({})
+  prepareEmpty()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)
@@ -218,7 +218,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
 })
 
 test('dlx should ignore non-auth info from .npmrc in the current directory', async () => {
-  prepare({})
+  prepareEmpty()
   fs.writeFileSync('.npmrc', 'hoist-pattern=', 'utf8')
 
   const cacheDir = path.resolve('cache')
