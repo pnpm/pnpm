@@ -48,6 +48,7 @@ export function requireHooks (
   opts: {
     globalPnpmfile?: string
     pnpmfiles?: string[]
+    tryLoadDefaultPnpmfile?: boolean
   }
 ): RequireHooksResult {
   const pnpmfiles: PnpmfileEntry[] = []
@@ -57,11 +58,13 @@ export function requireHooks (
       includeInChecksum: false,
     })
   }
-  pnpmfiles.push({
-    path: '.pnpmfile.cjs',
-    includeInChecksum: true,
-    optional: true,
-  })
+  if (opts.tryLoadDefaultPnpmfile) {
+    pnpmfiles.push({
+      path: '.pnpmfile.cjs',
+      includeInChecksum: true,
+      optional: true,
+    })
+  }
   if (opts.pnpmfiles) {
     for (const pnpmfile of opts.pnpmfiles) {
       pnpmfiles.push({

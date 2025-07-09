@@ -1,5 +1,11 @@
 # @pnpm/cli-utils
 
+## 1001.0.1
+
+### Patch Changes
+
+- 7ad0bc3: Run user defined pnpmfiles after pnpmfiles of plugins.
+
 ## 1001.0.0
 
 ### Major Changes

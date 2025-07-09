@@ -1,5 +1,11 @@
 # pnpm
 
+## 10.13.1
+
+### Patch Changes
+
+- Run user defined pnpmfiles after pnpmfiles of plugins.
+
 ## 10.13.0
 
 ### Minor Changes
