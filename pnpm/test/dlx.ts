@@ -18,6 +18,23 @@ beforeAll(async () => {
 
 const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, registries)
 
+test('dlx parses options between "dlx" and the command name', async () => {
+  prepareEmpty()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = {
+    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
+
+  const result = execPnpmSync(['dlx', '--package', 'shx@0.3.4', '--silent', 'shx', 'echo', 'hi'], { env, expectSuccess: true })
+
+  expect(result.stdout.toString().trim()).toBe('hi')
+})
+
 test('silent dlx prints the output of the child process only', async () => {
   prepare({})
   const global = path.resolve('..', 'global')
