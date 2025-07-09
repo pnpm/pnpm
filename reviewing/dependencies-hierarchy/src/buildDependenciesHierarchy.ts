@@ -8,7 +8,7 @@ import {
   type ResolvedDependencies,
 } from '@pnpm/lockfile.fs'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
-import { readModulesManifest } from '@pnpm/modules-yaml'
+import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -147,6 +147,8 @@ async function dependenciesHierarchyForPackage (
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
   })
+  const manifestDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
+  const manifestInfo = await readModulesManifest(manifestDir)
   const parentId: TreeNodeId = { type: 'importer', importerId }
   const result: DependenciesHierarchy = {}
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciesField => opts.include[dependenciesField])) {
@@ -167,7 +169,7 @@ async function dependenciesHierarchyForPackage (
         virtualStoreDir: opts.virtualStoreDir,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
         nodeLinker: opts.nodeLinker,
-      })
+      }, manifestInfo as Modules)
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.(packageInfo)
       const nodeId = getTreeNodeChildId({

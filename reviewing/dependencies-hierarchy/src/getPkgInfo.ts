@@ -12,6 +12,7 @@ import { type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
 import { type Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
 import normalizePath from 'normalize-path'
+import type { Modules } from '@pnpm/modules-yaml'
 
 export interface GetPkgInfoOpts {
   readonly alias: string
@@ -41,7 +42,7 @@ export interface GetPkgInfoOpts {
   readonly rewriteLinkVersionDir?: string
 }
 
-export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
+export function getPkgInfo (opts: GetPkgInfoOpts, manifestInfo?: Modules): PackageInfo {
   let name!: string
   let version: string
   let resolved: string | undefined
@@ -83,7 +84,12 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
   let fullPackagePath = ''
   if (depPath) {
     if (opts.nodeLinker === 'hoisted') {
-      fullPackagePath = path.join(opts.linkedPathBaseDir, 'node_modules', name)
+      const hoistedDepPath = manifestInfo?.hoistedLocations?.[depPath]
+      if (hoistedDepPath?.length) {
+        fullPackagePath = path.join(opts.linkedPathBaseDir, hoistedDepPath[0])
+      } else {
+        fullPackagePath = path.join(opts.linkedPathBaseDir, 'node_modules', name)
+      }
     } else {
       fullPackagePath = path.join(opts.virtualStoreDir ?? '.pnpm', depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules', name)
     }
