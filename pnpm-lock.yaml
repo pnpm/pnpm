@@ -4686,9 +4686,6 @@ importers:
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
-      '@pnpm/list':
-        specifier: workspace:*
-        version: link:../../reviewing/list
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
@@ -14482,10 +14479,6 @@ packages:
     resolution: {integrity: sha512-qkf4trmKSIiMTs/E63cxH+ojC2unam7rJ0WrauAzpT3ECNTxGRMlaXxVbfxMUC/w0LaYk6jQ4y/nGR9uBO3tww==}
     engines: {node: '>=12.0.0'}
 
-  tinyglobby@0.2.13:
-    resolution: {integrity: sha512-mEwzpUgrLySlveBwEVDMKk5B57bhLPYovRfPAXD5gA/98Opn0rCDj3GtLwFvCvH5RK9uPCExUROW5NjDwvqkxw==}
-    engines: {node: '>=12.0.0'}
-
   tinyglobby@0.2.14:
     resolution: {integrity: sha512-tX5e7OM1HnYr2+a2C/4V0htOcSQcoSTH9KgJnVvNm5zm/cyEWKJ7j7YutsH9CxMdtOkkLFy2AHrMci9IM8IPZQ==}
     engines: {node: '>=12.0.0'}
@@ -16412,7 +16405,7 @@ snapshots:
       '@pnpm/types': 1000.2.1
       '@pnpm/util.lex-comparator': 3.0.0
       p-filter: 2.1.0
-      tinyglobby: 0.2.13
+      tinyglobby: 0.2.14
 
   '@pnpm/fs.packlist@2.0.0':
     dependencies:
@@ -22332,11 +22325,6 @@ snapshots:
   tinyglobby@0.2.12:
     dependencies:
       fdir: 6.4.3(picomatch@4.0.2)
-      picomatch: 4.0.2
-
-  tinyglobby@0.2.13:
-    dependencies:
-      fdir: 6.4.4(picomatch@4.0.2)
       picomatch: 4.0.2
 
   tinyglobby@0.2.14:

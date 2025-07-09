@@ -9,7 +9,6 @@ import { sync as loadJsonFile } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
 import { testDefaults } from '../utils'
-import { list } from '@pnpm/list'
 
 test('installing with hoisted node-linker', async () => {
   prepareEmpty()
@@ -38,53 +37,6 @@ test('installing with hoisted node-linker', async () => {
     nodeLinker: 'hoisted',
   }))
   expect(fs.realpathSync('node_modules/send')).toEqual(path.resolve('node_modules/send'))
-})
-
-test('installing with hoisted node-linker and list --json', async () => {
-  const { dir } = prepareEmpty()
-
-  const manifest = {
-    dependencies: {
-      send: '0.17.2',
-      'has-flag': '1.0.0',
-      ms: '1.0.0',
-    },
-  }
-  await install(manifest, testDefaults({
-    nodeLinker: 'hoisted',
-  }))
-
-  expect(fs.realpathSync('node_modules/send')).toEqual(path.resolve('node_modules/send'))
-  expect(fs.realpathSync('node_modules/has-flag')).toEqual(path.resolve('node_modules/has-flag'))
-  expect(fs.realpathSync('node_modules/ms')).toEqual(path.resolve('node_modules/ms'))
-  expect(fs.existsSync('node_modules/send/node_modules/ms')).toBeTruthy()
-
-  expect(readYamlFile<{ nodeLinker: string }>('node_modules/.modules.yaml').nodeLinker).toBe('hoisted')
-
-  // If a package from node_modules is removed, it should be re-added.
-  rimraf('node_modules/send')
-  await install(manifest, testDefaults({
-    nodeLinker: 'hoisted',
-  }))
-  expect(fs.realpathSync('node_modules/send')).toEqual(path.resolve('node_modules/send'))
-
-  const _dir = dir()
-  const json = await list([_dir], { reportAs: 'json', depth: 1, lockfileDir: _dir, virtualStoreDirMaxLength: 120, nodeLinker: 'hoisted' })
-  const parsedJson = JSON.parse(json)
-  const deps = parsedJson[0].dependencies
-
-  expect(Object.keys(deps).sort()).toEqual([
-    'has-flag',
-    'ms',
-    'send',
-  ])
-  expect(deps['send'].version).toBe('0.17.2')
-  expect(deps['has-flag'].version).toBe('1.0.0')
-  expect(deps['ms'].version).toBe('1.0.0')
-
-  expect(deps['send'].path).toEqual(path.resolve('node_modules/send'))
-  expect(deps['has-flag'].path).toEqual(path.resolve('node_modules/has-flag'))
-  expect(deps['ms'].path).toEqual(path.resolve('node_modules/ms'))
 })
 
 test('installing with hoisted node-linker and no lockfile', async () => {

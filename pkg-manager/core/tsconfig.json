@@ -142,9 +142,6 @@
       "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../../reviewing/list"
-    },
-    {
       "path": "../../store/cafs"
     },
     {

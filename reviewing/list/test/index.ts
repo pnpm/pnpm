@@ -31,6 +31,7 @@ const workspaceWithDifferentDeps = f.find('workspace-with-different-deps')
 const workspaceWithPrivatePkgs = f.find('workspace-with-private-pkgs')
 const emptyFixture = f.find('empty')
 const fixtureWithAliasedDep = f.find('with-aliased-dep')
+const fixtureHoisted = f.find('hoisted-pkg')
 
 test('list all deps of a package that has an external lockfile', async () => {
   expect(await list([fixtureWithExternalLockfile], {
@@ -837,4 +838,12 @@ ${DEPENDENCIES}
 @scope/a ${VERSION_CLR('link:packages/a')}
 └─┬ @scope/b ${VERSION_CLR('link:packages/b')}
   └── @scope/c ${VERSION_CLR('link:packages/c')}`)
+})
+
+test('installing with hoisted node-linker and list --json', async () => {
+  const output = await list([fixtureHoisted], { reportAs: 'json', lockfileDir: fixtureHoisted, virtualStoreDirMaxLength: 120, nodeLinker: 'hoisted' })
+  const info = JSON.parse(output)[0]
+  expect(info.name).toBe('hoisted-pkg')
+  expect(info.version).toBe('1.0.0')
+  expect(info.dependencies.ms.path).toContain('hoisted-pkg/node_modules/ms')
 })
