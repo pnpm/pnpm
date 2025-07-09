@@ -845,5 +845,6 @@ test('installing with hoisted node-linker and list --json', async () => {
   const info = JSON.parse(output)[0]
   expect(info.name).toBe('hoisted-pkg')
   expect(info.version).toBe('1.0.0')
-  expect(info.dependencies.ms.path).toContain('hoisted-pkg/node_modules/ms')
+  const _path = path.join('hoisted-pkg', 'node_modules', 'ms')
+  expect(info.dependencies.ms.path).toContain(_path)
 })
