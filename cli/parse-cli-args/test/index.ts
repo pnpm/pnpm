@@ -336,3 +336,51 @@ test('should not swallows empty string in params', async () => {
   expect(cmd).toBe('run')
   expect(params).toStrictEqual(['echo', '', 'foo', '', 'bar'])
 })
+
+test('dlx parses CLI options in between "dlx" and the command name', async () => {
+  const { params, options, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+  }, [
+    '--reporter=append-only',
+    'dlx',
+    '--allow-build=some-package',
+    '--package=some-bin-package',
+    'some-command',
+    '--this-is-not-a-flag',
+    'another-argument',
+  ])
+  expect(cmd).toBe('dlx')
+  expect(options).toStrictEqual({
+    reporter: 'append-only',
+    'allow-build': 'some-package',
+    package: 'some-bin-package',
+  })
+  expect(params).toStrictEqual([
+    'some-command',
+    '--this-is-not-a-flag',
+    'another-argument',
+  ])
+})
+
+test('dlx stops parsing after "--"', async () => {
+  const { params, options, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+  }, [
+    'dlx',
+    '--package=some-package',
+    '--allow-build=foo',
+    '--allow-build=bar',
+    '--',
+    '--this-is-a-command',
+    'argument',
+  ])
+  expect(cmd).toBe('dlx')
+  expect(options).toStrictEqual({
+    package: 'some-package',
+    'allow-build': ['foo', 'bar'],
+  })
+  expect(params).toStrictEqual([
+    '--this-is-a-command',
+    'argument',
+  ])
+})

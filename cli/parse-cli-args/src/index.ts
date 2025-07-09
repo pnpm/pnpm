@@ -108,8 +108,8 @@ export async function parseCliArgs (
     return 'add'
   }
 
-  function getEscapeArgsWithSpecialCaseForRun (): string[] | undefined {
-    if (cmd !== 'run') {
+  function getEscapeArgsWithSpecialCases (): string[] | undefined {
+    if (cmd !== 'run' && cmd !== 'dlx') {
       return opts.escapeArgs
     }
 
@@ -139,7 +139,7 @@ export async function parseCliArgs (
     },
     inputArgv,
     0,
-    { escapeArgs: getEscapeArgsWithSpecialCaseForRun() }
+    { escapeArgs: getEscapeArgsWithSpecialCases() }
   )
   const workspaceDir = await getWorkspaceDir(options)
 
