@@ -36,7 +36,7 @@ test('dlx parses options between "dlx" and the command name', async () => {
 })
 
 test('silent dlx prints the output of the child process only', async () => {
-  prepare({})
+  prepareEmpty()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)
@@ -47,7 +47,7 @@ test('silent dlx prints the output of the child process only', async () => {
     XDG_DATA_HOME: global,
   }
 
-  const result = execPnpmSync(['--silent', 'dlx', 'shx@0.3.4', 'echo', 'hi'], { env })
+  const result = execPnpmSync(['--silent', 'dlx', 'shx@0.3.4', 'echo', 'hi'], { env, expectSuccess: true })
 
   expect(result.stdout.toString().trim()).toBe('hi')
 })
@@ -70,20 +70,21 @@ test('dlx ignores configuration in current project package.json', async () => {
     XDG_DATA_HOME: global,
   }
 
-  const result = execPnpmSync(['dlx', 'shx@0.3.4', 'echo', 'hi'], { env })
-  // It didn't try to use the patch that doesn't exist, so it did not fail
-  expect(result.status).toBe(0)
+  execPnpmSync(['dlx', 'shx@0.3.4', 'echo', 'hi'], {
+    env,
+    expectSuccess: true, // It didn't try to use the patch that doesn't exist, so it did not fail
+  })
 })
 
 test('dlx should work with npm_config_save_dev env variable', async () => {
   prepareEmpty()
-  const result = execPnpmSync(['dlx', '@foo/touch-file-one-bin@latest'], {
+  execPnpmSync(['dlx', '@foo/touch-file-one-bin@latest'], {
     env: {
       npm_config_save_dev: 'true',
     },
     stdio: 'inherit',
+    expectSuccess: true,
   })
-  expect(result.status).toBe(0)
 })
 
 test('parallel dlx calls of the same package', async () => {
@@ -218,7 +219,7 @@ test('dlx creates cache and store prune cleans cache', async () => {
 })
 
 test('dlx should ignore non-auth info from .npmrc in the current directory', async () => {
-  prepare({})
+  prepareEmpty()
   fs.writeFileSync('.npmrc', 'hoist-pattern=', 'utf8')
 
   const cacheDir = path.resolve('cache')
@@ -254,10 +255,10 @@ test('dlx read registry from .npmrc in the current directory', async () => {
   ], {
     env: {},
     stdio: [null, 'pipe', 'inherit'],
+    expectSuccess: true,
   })
 
   expect(execResult.stdout.toString().trim()).toBe('hello from @pnpm.e2e/needs-auth')
-  expect(execResult.status).toBe(0)
 })
 
 test('dlx uses the node version specified by --use-node-version', async () => {
@@ -276,12 +277,8 @@ test('dlx uses the node version specified by --use-node-version', async () => {
       PNPM_HOME: pnpmHome,
     },
     stdio: [null, 'pipe', 'inherit'],
+    expectSuccess: true,
   })
-
-  if (execResult.status !== 0) {
-    console.error(execResult.stderr.toString())
-    throw new Error(`Process exits with code ${execResult.status}`)
-  }
 
   let nodeInfo
   try {
@@ -300,6 +297,4 @@ test('dlx uses the node version specified by --use-node-version', async () => {
       ? path.join(pnpmHome, 'nodejs', '20.0.0', 'node.exe')
       : path.join(pnpmHome, 'nodejs', '20.0.0', 'bin', 'node'),
   })
-
-  expect(execResult.status).toBe(0)
 })
