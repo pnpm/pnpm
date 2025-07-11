@@ -7,8 +7,9 @@ test.each([
     'win32',
     'ia32',
     {
-      pkgName: 'node-v16.0.0-win-x86',
-      tarball: 'https://nodejs.org/download/release/v16.0.0/node-v16.0.0-win-x86.zip',
+      basename: 'node-v16.0.0-win-x86',
+      dirname: 'https://nodejs.org/download/release/v16.0.0',
+      extname: '.zip',
     },
   ],
   [
@@ -17,8 +18,9 @@ test.each([
     'linux',
     'arm',
     {
-      pkgName: 'node-v16.0.0-linux-armv7l',
-      tarball: 'https://nodejs.org/download/release/v16.0.0/node-v16.0.0-linux-armv7l.tar.gz',
+      basename: 'node-v16.0.0-linux-armv7l',
+      dirname: 'https://nodejs.org/download/release/v16.0.0',
+      extname: '.tar.gz',
     },
   ],
   [
@@ -27,8 +29,9 @@ test.each([
     'linux',
     'x64',
     {
-      pkgName: 'node-v16.0.0-linux-x64',
-      tarball: 'https://nodejs.org/download/release/v16.0.0/node-v16.0.0-linux-x64.tar.gz',
+      basename: 'node-v16.0.0-linux-x64',
+      dirname: 'https://nodejs.org/download/release/v16.0.0',
+      extname: '.tar.gz',
     },
   ],
   [
@@ -37,8 +40,9 @@ test.each([
     'darwin',
     'arm64',
     {
-      pkgName: 'node-v15.14.0-darwin-x64',
-      tarball: 'https://nodejs.org/download/release/v15.14.0/node-v15.14.0-darwin-x64.tar.gz',
+      basename: 'node-v15.14.0-darwin-x64',
+      dirname: 'https://nodejs.org/download/release/v15.14.0',
+      extname: '.tar.gz',
     },
   ],
   [
@@ -47,8 +51,9 @@ test.each([
     'darwin',
     'arm64',
     {
-      pkgName: 'node-v16.0.0-darwin-arm64',
-      tarball: 'https://nodejs.org/download/release/v16.0.0/node-v16.0.0-darwin-arm64.tar.gz',
+      basename: 'node-v16.0.0-darwin-arm64',
+      dirname: 'https://nodejs.org/download/release/v16.0.0',
+      extname: '.tar.gz',
     },
   ],
 ])('getNodeTarball', (version, nodeMirrorBaseUrl, platform, arch, tarball) => {

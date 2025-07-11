@@ -27,10 +27,13 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
     throw new PnpmError('MUSL', 'The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
   }
   const nodeMirrorBaseUrl = opts.nodeMirrorBaseUrl ?? 'https://nodejs.org/download/release/'
-  const { tarball, pkgName, integritiesFileUrl, fileName } = getNodeTarball(version, nodeMirrorBaseUrl, process.platform, process.arch)
-  const integrity = await loadArtifactIntegrity(fetch, integritiesFileUrl, fileName)
-  if (tarball.endsWith('.zip')) {
-    await downloadAndUnpackZip(fetch, tarball, targetDir, pkgName, integrity)
+  const tarball = getNodeTarball(version, nodeMirrorBaseUrl, process.platform, process.arch)
+  const shasumsFileUrl = `${tarball.dirname}/SHASUMS256.txt`
+  const tarballFileName = `${tarball.basename}${tarball.extname}`
+  const integrity = await loadArtifactIntegrity(fetch, shasumsFileUrl, tarballFileName)
+  const tarballUrl = `${tarball.dirname}/${tarballFileName}`
+  if (tarball.extname === '.zip') {
+    await downloadAndUnpackZip(fetch, tarballUrl, targetDir, tarballFileName, integrity)
     return
   }
   const getAuthHeader = () => undefined
@@ -42,9 +45,9 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
     unsafePerm: false,
   })
   const cafs = createCafsStore(opts.storeDir)
-  const fetchTarball = pickFetcher(fetchers, { tarball })
-  const { filesIndex } = await fetchTarball(cafs, { tarball, integrity } as any, { // eslint-disable-line @typescript-eslint/no-explicit-any
-    filesIndexFile: path.join(opts.storeDir, encodeURIComponent(tarball)), // TODO: change the name or don't save an index file for node.js tarballs
+  const fetchTarball = pickFetcher(fetchers, { tarball: tarballUrl })
+  const { filesIndex } = await fetchTarball(cafs, { tarball: tarballUrl, integrity } as any, { // eslint-disable-line @typescript-eslint/no-explicit-any
+    filesIndexFile: path.join(opts.storeDir, encodeURIComponent(tarballUrl)), // TODO: change the name or don't save an index file for node.js tarballs
     lockfileDir: process.cwd(),
     pkg: {},
   })

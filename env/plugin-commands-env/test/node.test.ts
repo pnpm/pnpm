@@ -15,6 +15,12 @@ import {
 import { tempDir } from '@pnpm/prepare'
 
 const fetchMock = jest.fn(async (url: string) => {
+  if (url.endsWith('SHASUMS256.txt')) {
+    return new Response(`
+5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-darwin-arm64.tar.gz
+5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v18.0.0-rc.3-darwin-arm64.tar.gz
+`)
+  }
   if (url.endsWith('.tar.gz')) {
     const pack = tar.pack()
     pack.finalize()
@@ -94,7 +100,7 @@ test('install an rc version of Node.js', async () => {
   const platform = process.platform === 'win32' ? 'win' : process.platform
   const arch = process.arch
   const extension = process.platform === 'win32' ? 'zip' : 'tar.gz'
-  expect(fetchMock.mock.calls[0][0]).toBe(
+  expect(fetchMock.mock.calls[1][0]).toBe(
     `https://nodejs.org/download/rc/v18.0.0-rc.3/node-v18.0.0-rc.3-${platform}-${arch}.${extension}`
   )
 })
