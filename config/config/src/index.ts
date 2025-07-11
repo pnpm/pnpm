@@ -10,6 +10,7 @@ import type npmTypes from '@pnpm/npm-conf/lib/types'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import { createMatcher } from '@pnpm/matcher'
+import { type SupportedArchitectures } from '@pnpm/types'
 import betterPathResolve from 'better-path-resolve'
 import camelcase from 'camelcase'
 import isWindows from 'is-windows'
@@ -379,6 +380,19 @@ export async function getConfig (opts: {
       }
     }
   }
+
+  const supportedArchitecturesKeys = ['os', 'cpu', 'libc'] as const satisfies Array<keyof SupportedArchitectures>
+  for (const key of supportedArchitecturesKeys) {
+    const values = pnpmConfig[key]
+    if (values != null) {
+      pnpmConfig.supportedArchitectures ??= {}
+      pnpmConfig.supportedArchitectures[key] = [
+        ...pnpmConfig.supportedArchitectures[key] ?? [],
+        ...typeof values === 'string' ? [values] : values,
+      ]
+    }
+  }
+
   if (opts.cliOptions['global']) {
     extractAndRemoveDependencyBuildOptions(pnpmConfig)
     Object.assign(pnpmConfig, globalDepsBuildConfig)

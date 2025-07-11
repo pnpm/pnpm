@@ -12,7 +12,10 @@ import execa from 'execa'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
-const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, { default: REGISTRY })
+const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
+  packages,
+  registries: { default: REGISTRY },
+})
 
 test('remove unreferenced packages', async () => {
   const project = prepare()

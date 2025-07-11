@@ -54,6 +54,7 @@
     "@pnpm/sort-packages": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.injected-deps-syncer": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "didyoumean2": "catalog:",

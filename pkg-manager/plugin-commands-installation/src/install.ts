@@ -6,12 +6,14 @@ import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+import { getFetchFullMetadata } from './getFetchFullMetadata'
 import { installDeps, type InstallDepsOptions } from './installDeps'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
     'child-concurrency',
+    'cpu',
     'dangerously-allow-all-builds',
     'dev',
     'engine-strict',
@@ -30,6 +32,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'ignore-pnpmfile',
     'ignore-scripts',
     'optimistic-repeat-install',
+    'os',
+    'libc',
     'link-workspace-packages',
     'lockfile-dir',
     'lockfile-directory',
@@ -317,6 +321,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'disallowWorkspaceCycles'
 | 'updateConfig'
 | 'overrides'
+| 'supportedArchitectures'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -342,9 +347,6 @@ export async function handler (opts: InstallCommandOptions): Promise<void> {
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  // npm registry's abbreviated metadata currently does not contain libc
-  // see <https://github.com/pnpm/pnpm/issues/7362#issuecomment-1971964689>
-  const fetchFullMetadata: true | undefined = opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc && true
   const installDepsOptions: InstallDepsOptions = {
     ...opts,
     frozenLockfileIfExists: opts.frozenLockfileIfExists ?? (
@@ -355,7 +357,7 @@ export async function handler (opts: InstallCommandOptions): Promise<void> {
     include,
     includeDirect: include,
     prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
-    fetchFullMetadata,
+    fetchFullMetadata: getFetchFullMetadata(opts),
   }
   if (opts.resolutionOnly) {
     installDepsOptions.lockfileOnly = true

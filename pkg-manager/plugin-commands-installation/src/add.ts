@@ -7,6 +7,7 @@ import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+import { getFetchFullMetadata } from './getFetchFullMetadata'
 import { type InstallCommandOptions } from './install'
 import { installDeps } from './installDeps'
 import { writeSettings } from '@pnpm/config.config-writer'
@@ -18,6 +19,7 @@ export const shorthands: Record<string, string> = {
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
+    'cpu',
     'child-concurrency',
     'dangerously-allow-all-builds',
     'engine-strict',
@@ -37,6 +39,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'ignore-pnpmfile',
     'ignore-scripts',
     'ignore-workspace-root-check',
+    'libc',
     'link-workspace-packages',
     'lockfile-dir',
     'lockfile-directory',
@@ -47,6 +50,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'node-linker',
     'noproxy',
     'npm-path',
+    'os',
     'package-import-method',
     'pnpmfile',
     'prefer-offline',
@@ -278,6 +282,7 @@ export async function handler (
   }
   return installDeps({
     ...opts,
+    fetchFullMetadata: getFetchFullMetadata(opts),
     include,
     includeDirect: include,
     prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
