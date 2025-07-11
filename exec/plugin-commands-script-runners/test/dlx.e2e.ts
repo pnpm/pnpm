@@ -20,7 +20,7 @@ function sanitizeDlxCacheComponent (cacheName: string): string {
   return '***********-*****'
 }
 
-const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, { registries: DEFAULT_OPTS.registries })
+const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registries: DEFAULT_OPTS.registries })
 
 function verifyDlxCache (cacheName: string): void {
   expect(
@@ -335,7 +335,8 @@ test('dlx builds the packages passed via --allow-build', async () => {
     dlxCacheMaxAge: Infinity,
   }, ['@pnpm.e2e/has-bin-and-needs-build'])
 
-  const dlxCacheDir = path.resolve('cache', 'dlx', dlx.createCacheKey(['@pnpm.e2e/has-bin-and-needs-build@1.0.0'], {
+  const dlxCacheDir = path.resolve('cache', 'dlx', dlx.createCacheKey({
+    packages: ['@pnpm.e2e/has-bin-and-needs-build@1.0.0'],
     allowBuild,
     registries: DEFAULT_OPTS.registries,
   }), 'pkg')

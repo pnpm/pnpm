@@ -100,7 +100,8 @@ export async function handler (
     })
     return resolved.id
   }))
-  const { cacheLink, cacheExists, cachedDir } = findCache(resolvedPkgs, {
+  const { cacheLink, cacheExists, cachedDir } = findCache({
+    packages: resolvedPkgs,
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
     registries: opts.registries,
@@ -200,14 +201,15 @@ function scopeless (pkgName: string): string {
   return pkgName
 }
 
-function findCache (pkgs: string[], opts: {
+function findCache (opts: {
+  packages: string[]
   cacheDir: string
   dlxCacheMaxAge: number
   registries: Record<string, string>
   allowBuild?: string[]
   supportedArchitectures?: SupportedArchitectures
 }): { cacheLink: string, cacheExists: boolean, cachedDir: string } {
-  const dlxCommandCacheDir = createDlxCommandCacheDir(pkgs, opts)
+  const dlxCommandCacheDir = createDlxCommandCacheDir(opts)
   const cacheLink = path.join(dlxCommandCacheDir, 'pkg')
   const cachedDir = getValidCacheDir(cacheLink, opts.dlxCacheMaxAge)
   return {
@@ -218,8 +220,8 @@ function findCache (pkgs: string[], opts: {
 }
 
 function createDlxCommandCacheDir (
-  pkgs: string[],
   opts: {
+    packages: string[]
     registries: Record<string, string>
     cacheDir: string
     allowBuild?: string[]
@@ -227,18 +229,19 @@ function createDlxCommandCacheDir (
   }
 ): string {
   const dlxCacheDir = path.resolve(opts.cacheDir, 'dlx')
-  const cacheKey = createCacheKey(pkgs, opts)
+  const cacheKey = createCacheKey(opts)
   const cachePath = path.join(dlxCacheDir, cacheKey)
   fs.mkdirSync(cachePath, { recursive: true })
   return cachePath
 }
 
-export function createCacheKey (pkgs: string[], opts: {
+export function createCacheKey (opts: {
+  packages: string[]
   registries: Record<string, string>
   allowBuild?: string[]
   supportedArchitectures?: SupportedArchitectures
 }): string {
-  const sortedPkgs = [...pkgs].sort((a, b) => a.localeCompare(b))
+  const sortedPkgs = [...opts.packages].sort((a, b) => a.localeCompare(b))
   const sortedRegistries = Object.entries(opts.registries).sort(([k1], [k2]) => k1.localeCompare(k2))
   const args: unknown[] = [sortedPkgs, sortedRegistries]
   const localeCompare = (a: string, b: string): number => a.localeCompare(b)

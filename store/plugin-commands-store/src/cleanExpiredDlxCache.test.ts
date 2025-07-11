@@ -4,7 +4,8 @@ import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
 import { cleanExpiredDlxCache, cleanOrphans } from './cleanExpiredDlxCache'
 
-const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, {
+const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
+  packages,
   registries: { default: 'https://registry.npmjs.com/' },
 })
 
