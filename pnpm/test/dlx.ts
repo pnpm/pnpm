@@ -19,8 +19,6 @@ beforeAll(async () => {
 
 const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registries })
 
-const testOnLinuxOnly = process.platform === 'linux' ? test.skip : test.skip // TODO: change this
-
 test('dlx parses options between "dlx" and the command name', async () => {
   prepareEmpty()
   const global = path.resolve('..', 'global')
@@ -302,35 +300,96 @@ test('dlx uses the node version specified by --use-node-version', async () => {
   })
 })
 
-testOnLinuxOnly.skip('dlx with --cpu, --os, --libc', async () => {
-  prepareEmpty()
+describe('dlx with supportedArchitectures CLI options', () => {
+  type CPU = 'arm64' | 'x64'
+  type LibC = 'glibc' | 'musl'
+  type OS = 'darwin' | 'linux' | 'win32'
+  type CLIOption = `--cpu=${CPU}` | `--libc=${LibC}` | `--os=${OS}`
+  type Installed = string[]
+  type NotInstalled = string[]
+  type Case = [CLIOption[], Installed, NotInstalled]
 
-  const execResult = execPnpmSync([
-    `--config.store-dir=${path.resolve('store')}`,
-    `--config.cache-dir=${path.resolve('cache')}`,
-    '--package=@pnpm.e2e/support-different-architectures',
-    '--cpu=arm64',
-    '--os=windows',
-    'dlx',
-    'get-optional-dependencies',
-  ], {
-    stdio: [null, 'pipe', 'inherit'],
-    expectSuccess: true,
+  test.each([
+    [['--cpu=arm64', '--os=win32'], ['@pnpm.e2e/only-win32-arm64'], [
+      '@pnpm.e2e/only-darwin-arm64',
+      '@pnpm.e2e/only-darwin-x64',
+      '@pnpm.e2e/only-linux-arm64-glibc',
+      '@pnpm.e2e/only-linux-arm64-musl',
+      '@pnpm.e2e/only-linux-x64-glibc',
+      '@pnpm.e2e/only-linux-x64-musl',
+      '@pnpm.e2e/only-win32-x64',
+    ]],
+
+    [['--cpu=arm64', '--os=darwin'], ['@pnpm.e2e/only-darwin-arm64'], [
+      '@pnpm.e2e/only-darwin-x64',
+      '@pnpm.e2e/only-linux-arm64-glibc',
+      '@pnpm.e2e/only-linux-arm64-musl',
+      '@pnpm.e2e/only-linux-x64-glibc',
+      '@pnpm.e2e/only-linux-x64-musl',
+      '@pnpm.e2e/only-win32-arm64',
+      '@pnpm.e2e/only-win32-x64',
+    ]],
+
+    [['--cpu=x64', '--os=linux', '--libc=musl'], [
+      '@pnpm.e2e/only-linux-x64-glibc', // TODO: glibc shouldn't be here, fix this
+      '@pnpm.e2e/only-linux-x64-musl',
+    ], [
+      '@pnpm.e2e/only-darwin-arm64',
+      '@pnpm.e2e/only-darwin-x64',
+      '@pnpm.e2e/only-linux-arm64-glibc',
+      '@pnpm.e2e/only-linux-arm64-musl',
+      '@pnpm.e2e/only-win32-arm64',
+      '@pnpm.e2e/only-win32-x64',
+    ]],
+
+    [[
+      '--cpu=arm64',
+      '--cpu=x64',
+      '--os=darwin',
+      '--os=linux',
+      '--os=win32',
+    ], [
+      '@pnpm.e2e/only-darwin-arm64',
+      '@pnpm.e2e/only-darwin-x64',
+      '@pnpm.e2e/only-linux-arm64-glibc',
+      '@pnpm.e2e/only-linux-arm64-musl',
+      '@pnpm.e2e/only-linux-x64-glibc',
+      '@pnpm.e2e/only-linux-x64-musl',
+      '@pnpm.e2e/only-win32-arm64',
+      '@pnpm.e2e/only-win32-x64',
+    ], []],
+  ] as Case[])('%p', async (cliOpts, installed, notInstalled) => {
+    prepareEmpty()
+
+    const execResult = execPnpmSync([
+      `--config.store-dir=${path.resolve('store')}`,
+      `--config.cache-dir=${path.resolve('cache')}`,
+      '--package=@pnpm.e2e/support-different-architectures',
+      ...cliOpts,
+      'dlx',
+      'get-optional-dependencies',
+    ], {
+      stdio: [null, 'pipe', 'inherit'],
+      expectSuccess: true,
+    })
+
+    interface OptionalDepsInfo {
+      installed: Record<string, BaseManifest>
+      notInstalled: string[]
+    }
+
+    let optionalDepsInfo: OptionalDepsInfo
+    try {
+      optionalDepsInfo = JSON.parse(execResult.stdout.toString())
+    } catch (err) {
+      console.error(execResult.stdout.toString())
+      console.error(execResult.stderr.toString())
+      throw err
+    }
+
+    expect(optionalDepsInfo).toStrictEqual({
+      installed: Object.fromEntries(installed.map(name => [name, expect.objectContaining({ name })])),
+      notInstalled,
+    } as OptionalDepsInfo)
   })
-
-  interface OptionalDepsInfo {
-    installed: Record<string, BaseManifest>
-    notInstalled: string[]
-  }
-
-  let optionalDepsInfo: OptionalDepsInfo
-  try {
-    optionalDepsInfo = JSON.parse(execResult.stdout.toString())
-  } catch (err) {
-    console.error(execResult.stdout.toString())
-    console.error(execResult.stderr.toString())
-    throw err
-  }
-
-  expect(optionalDepsInfo).toStrictEqual({})
 })
