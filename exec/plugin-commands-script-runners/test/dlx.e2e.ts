@@ -20,7 +20,11 @@ function sanitizeDlxCacheComponent (cacheName: string): string {
   return '***********-*****'
 }
 
-const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registries: DEFAULT_OPTS.registries })
+const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
+  packages,
+  registries: DEFAULT_OPTS.registries,
+  supportedArchitectures: DEFAULT_OPTS.supportedArchitectures,
+})
 
 function verifyDlxCache (cacheName: string): void {
   expect(
@@ -339,6 +343,7 @@ test('dlx builds the packages passed via --allow-build', async () => {
     packages: ['@pnpm.e2e/has-bin-and-needs-build@1.0.0'],
     allowBuild,
     registries: DEFAULT_OPTS.registries,
+    supportedArchitectures: DEFAULT_OPTS.supportedArchitectures,
   }), 'pkg')
   const builtPkg1Path = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
   expect(fs.existsSync(path.join(builtPkg1Path, 'package.json'))).toBeTruthy()
