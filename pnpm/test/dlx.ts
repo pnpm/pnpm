@@ -19,6 +19,8 @@ beforeAll(async () => {
 
 const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registries })
 
+const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
+
 test('dlx parses options between "dlx" and the command name', async () => {
   prepareEmpty()
   const global = path.resolve('..', 'global')
@@ -300,7 +302,7 @@ test('dlx uses the node version specified by --use-node-version', async () => {
   })
 })
 
-describe('dlx with supportedArchitectures CLI options', () => {
+describeOnLinuxOnly('dlx with supportedArchitectures CLI options', () => {
   type CPU = 'arm64' | 'x64'
   type LibC = 'glibc' | 'musl'
   type OS = 'darwin' | 'linux' | 'win32'
