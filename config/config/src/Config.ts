@@ -2,6 +2,7 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import {
   type Project,
   type ProjectManifest,
+  type DevEngineDependency,
   type ProjectsGraph,
   type Registries,
   type SslConfig,
@@ -10,11 +11,6 @@ import type { Hooks } from '@pnpm/pnpmfile'
 import { type OptionsFromRootManifest } from './getOptionsFromRootManifest'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
-
-export interface WantedPackageManager {
-  name: string
-  version?: string
-}
 
 export type VerifyDepsBeforeRun = 'install' | 'warn' | 'error' | 'prompt' | false
 
@@ -85,7 +81,7 @@ export interface Config extends OptionsFromRootManifest {
     name: string
     version: string
   }
-  wantedPackageManager?: WantedPackageManager
+  wantedPackageManager?: DevEngineDependency
   preferOffline?: boolean
   sideEffectsCache?: boolean // for backward compatibility
   sideEffectsCacheReadonly?: boolean // for backward compatibility
