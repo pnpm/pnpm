@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import fs from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
@@ -29,7 +30,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
   const { tarball, pkgName, integritiesFileUrl, fileName } = getNodeTarball(version, nodeMirrorBaseUrl, process.platform, process.arch)
   const integrity = await loadArtifactIntegrity(fetch, integritiesFileUrl, fileName)
   if (tarball.endsWith('.zip')) {
-    await downloadAndUnpackZip(fetch, tarball, targetDir, pkgName)
+    await downloadAndUnpackZip(fetch, tarball, targetDir, pkgName, integrity)
     return
   }
   const getAuthHeader = () => undefined
@@ -84,14 +85,24 @@ async function downloadAndUnpackZip (
   fetchFromRegistry: FetchFromRegistry,
   zipUrl: string,
   targetDir: string,
-  pkgName: string
+  pkgName: string,
+  expectedIntegrity: string
 ): Promise<void> {
   const response = await fetchFromRegistry(zipUrl)
   const tmp = path.join(tempy.directory(), 'pnpm.zip')
   const dest = fs.createWriteStream(tmp)
+  const hash = createHash('sha256')
   await new Promise((resolve, reject) => {
+    response.body!.on('data', chunk => hash.update(chunk))
     response.body!.pipe(dest).on('error', reject).on('close', resolve)
   })
+  const actual = `sha256-${hash.digest('base64')}`
+  if (expectedIntegrity !== actual) {
+    await fs.promises.unlink(tmp)
+    throw new Error(
+      `SHA-256 mismatch for ${zipUrl}\nExpected: ${expectedIntegrity}\nReceived: ${actual}`
+    )
+  }
   const zip = new AdmZip(tmp)
   const nodeDir = path.dirname(targetDir)
   zip.extractAllTo(nodeDir, true)
