@@ -16,7 +16,7 @@ beforeAll(async () => {
   registries.default = `http://localhost:${REGISTRY_MOCK_PORT}/`
 })
 
-const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, registries)
+const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, { registries })
 
 test('dlx parses options between "dlx" and the command name', async () => {
   prepareEmpty()

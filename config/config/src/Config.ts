@@ -225,6 +225,11 @@ export interface Config extends OptionsFromRootManifest {
   initType: 'commonjs' | 'module'
   dangerouslyAllowAllBuilds: boolean
   ci: boolean
+
+  // supportedArchitectures
+  cpu?: string[]
+  libc?: string[]
+  os?: string[]
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

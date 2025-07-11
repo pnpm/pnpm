@@ -11,7 +11,7 @@ import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { type PnpmSettings } from '@pnpm/types'
+import { type PnpmSettings, type SupportedArchitectures } from '@pnpm/types'
 import execa from 'execa'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
@@ -29,6 +29,9 @@ export const shorthands: Record<string, string> = {
 export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
+      'cpu',
+      'libc',
+      'os',
       'use-node-version',
     ], types),
     'shell-mode': Boolean,
@@ -101,7 +104,8 @@ export async function handler (
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
     registries: opts.registries,
-    allowBuild: opts.allowBuild ?? [],
+    allowBuild: opts.allowBuild,
+    supportedArchitectures: opts.supportedArchitectures,
   })
   if (!cacheExists) {
     fs.mkdirSync(cachedDir, { recursive: true })
@@ -200,7 +204,8 @@ function findCache (pkgs: string[], opts: {
   cacheDir: string
   dlxCacheMaxAge: number
   registries: Record<string, string>
-  allowBuild: string[]
+  allowBuild?: string[]
+  supportedArchitectures?: SupportedArchitectures
 }): { cacheLink: string, cacheExists: boolean, cachedDir: string } {
   const dlxCommandCacheDir = createDlxCommandCacheDir(pkgs, opts)
   const cacheLink = path.join(dlxCommandCacheDir, 'pkg')
@@ -217,22 +222,40 @@ function createDlxCommandCacheDir (
   opts: {
     registries: Record<string, string>
     cacheDir: string
-    allowBuild: string[]
+    allowBuild?: string[]
+    supportedArchitectures?: SupportedArchitectures
   }
 ): string {
   const dlxCacheDir = path.resolve(opts.cacheDir, 'dlx')
-  const cacheKey = createCacheKey(pkgs, opts.registries, opts.allowBuild)
+  const cacheKey = createCacheKey(pkgs, opts)
   const cachePath = path.join(dlxCacheDir, cacheKey)
   fs.mkdirSync(cachePath, { recursive: true })
   return cachePath
 }
 
-export function createCacheKey (pkgs: string[], registries: Record<string, string>, allowBuild?: string[]): string {
+export function createCacheKey (pkgs: string[], opts: {
+  registries: Record<string, string>
+  allowBuild?: string[]
+  supportedArchitectures?: SupportedArchitectures
+}): string {
   const sortedPkgs = [...pkgs].sort((a, b) => a.localeCompare(b))
-  const sortedRegistries = Object.entries(registries).sort(([k1], [k2]) => k1.localeCompare(k2))
+  const sortedRegistries = Object.entries(opts.registries).sort(([k1], [k2]) => k1.localeCompare(k2))
   const args: unknown[] = [sortedPkgs, sortedRegistries]
-  if (allowBuild?.length) {
-    args.push({ allowBuild: allowBuild.sort((pkg1, pkg2) => pkg1.localeCompare(pkg2)) })
+  const localeCompare = (a: string, b: string): number => a.localeCompare(b)
+  if (opts.allowBuild?.length) {
+    args.push({ allowBuild: opts.allowBuild.sort(localeCompare) })
+  }
+  if (opts.supportedArchitectures) {
+    const supportedArchitecturesKeys = ['cpu', 'libc', 'os'] as const satisfies Array<keyof SupportedArchitectures>
+    for (const key of supportedArchitecturesKeys) {
+      const value = opts.supportedArchitectures[key]
+      if (!value?.length) continue
+      args.push({
+        supportedArchitectures: {
+          [key]: [...new Set(value)].sort(localeCompare),
+        },
+      })
+    }
   }
   const hashStr = JSON.stringify(args)
   return createHexHash(hashStr)

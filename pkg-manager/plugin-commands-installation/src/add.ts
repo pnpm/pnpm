@@ -18,6 +18,7 @@ export const shorthands: Record<string, string> = {
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
+    'cpu',
     'child-concurrency',
     'dangerously-allow-all-builds',
     'engine-strict',
@@ -37,6 +38,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'ignore-pnpmfile',
     'ignore-scripts',
     'ignore-workspace-root-check',
+    'libc',
     'link-workspace-packages',
     'lockfile-dir',
     'lockfile-directory',
@@ -47,6 +49,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'node-linker',
     'noproxy',
     'npm-path',
+    'os',
     'package-import-method',
     'pnpmfile',
     'prefer-offline',

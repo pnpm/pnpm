@@ -12,6 +12,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
     'child-concurrency',
+    'cpu',
     'dangerously-allow-all-builds',
     'dev',
     'engine-strict',
@@ -30,6 +31,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'ignore-pnpmfile',
     'ignore-scripts',
     'optimistic-repeat-install',
+    'os',
+    'libc',
     'link-workspace-packages',
     'lockfile-dir',
     'lockfile-directory',
