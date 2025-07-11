@@ -26,7 +26,8 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
     throw new PnpmError('MUSL', 'The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
   }
   const nodeMirrorBaseUrl = opts.nodeMirrorBaseUrl ?? 'https://nodejs.org/download/release/'
-  const { tarball, pkgName } = getNodeTarball(version, nodeMirrorBaseUrl, process.platform, process.arch)
+  const { tarball, pkgName, integritiesFileUrl, fileName } = getNodeTarball(version, nodeMirrorBaseUrl, process.platform, process.arch)
+  const integrity = await loadArtifactIntegrity(fetch, integritiesFileUrl, fileName)
   if (tarball.endsWith('.zip')) {
     await downloadAndUnpackZip(fetch, tarball, targetDir, pkgName)
     return
@@ -41,7 +42,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
   })
   const cafs = createCafsStore(opts.storeDir)
   const fetchTarball = pickFetcher(fetchers, { tarball })
-  const { filesIndex } = await fetchTarball(cafs, { tarball } as any, { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const { filesIndex } = await fetchTarball(cafs, { tarball, integrity } as any, { // eslint-disable-line @typescript-eslint/no-explicit-any
     filesIndexFile: path.join(opts.storeDir, encodeURIComponent(tarball)), // TODO: change the name or don't save an index file for node.js tarballs
     lockfileDir: process.cwd(),
     pkg: {},
@@ -54,6 +55,29 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
     },
     force: true,
   })
+}
+
+async function loadArtifactIntegrity (fetch: FetchFromRegistry, integritiesFileUrl: string, fileName: string): Promise<string> {
+  const res = await fetch(integritiesFileUrl)
+  if (!res.ok) {
+    throw new Error(`Failed to fetch integrity file: ${integritiesFileUrl} (status: ${res.status})`)
+  }
+
+  const body = await res.text()
+  const line = body.split('\n').find(line => line.trim().endsWith(`  ${fileName}`))
+
+  if (!line) {
+    throw new Error(`SHA-256 hash not found in SHASUMS256.txt for: ${fileName}`)
+  }
+
+  const [sha256] = line.trim().split(/\s+/)
+  if (!/^[a-f0-9]{64}$/.test(sha256)) {
+    throw new Error(`Malformed SHA-256 for ${fileName}: ${sha256}`)
+  }
+
+  const buffer = Buffer.from(sha256, 'hex')
+  const base64 = buffer.toString('base64')
+  return `sha256-${base64}`
 }
 
 async function downloadAndUnpackZip (
