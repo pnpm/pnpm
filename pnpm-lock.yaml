@@ -2670,6 +2670,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.2
       '@pnpm/workspace.injected-deps-syncer':
         specifier: workspace:*
         version: link:../../workspace/injected-deps-syncer

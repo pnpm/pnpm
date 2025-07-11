@@ -12,6 +12,7 @@ import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { type PnpmSettings, type SupportedArchitectures } from '@pnpm/types'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import execa from 'execa'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
@@ -244,9 +245,8 @@ export function createCacheKey (opts: {
   const sortedPkgs = [...opts.packages].sort((a, b) => a.localeCompare(b))
   const sortedRegistries = Object.entries(opts.registries).sort(([k1], [k2]) => k1.localeCompare(k2))
   const args: unknown[] = [sortedPkgs, sortedRegistries]
-  const localeCompare = (a: string, b: string): number => a.localeCompare(b)
   if (opts.allowBuild?.length) {
-    args.push({ allowBuild: opts.allowBuild.sort(localeCompare) })
+    args.push({ allowBuild: opts.allowBuild.sort(lexCompare) })
   }
   if (opts.supportedArchitectures) {
     const supportedArchitecturesKeys = ['cpu', 'libc', 'os'] as const satisfies Array<keyof SupportedArchitectures>
@@ -255,7 +255,7 @@ export function createCacheKey (opts: {
       if (!value?.length) continue
       args.push({
         supportedArchitectures: {
-          [key]: [...new Set(value)].sort(localeCompare),
+          [key]: [...new Set(value)].sort(lexCompare),
         },
       })
     }
