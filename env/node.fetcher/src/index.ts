@@ -93,7 +93,7 @@ async function downloadAndUnpackZip (
   fetchFromRegistry: FetchFromRegistry,
   zipUrl: string,
   targetDir: string,
-  pkgName: string,
+  tarballFileName: string,
   expectedIntegrity: string
 ): Promise<void> {
   const response = await fetchFromRegistry(zipUrl)
@@ -114,6 +114,6 @@ async function downloadAndUnpackZip (
   const zip = new AdmZip(tmp)
   const nodeDir = path.dirname(targetDir)
   zip.extractAllTo(nodeDir, true)
-  await renameOverwrite(path.join(nodeDir, pkgName), targetDir)
+  await renameOverwrite(path.join(nodeDir, tarballFileName), targetDir)
   await fs.promises.unlink(tmp)
 }
