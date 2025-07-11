@@ -331,13 +331,13 @@ describe('dlx with supportedArchitectures CLI options', () => {
     ]],
 
     [['--cpu=x64', '--os=linux', '--libc=musl'], [
-      '@pnpm.e2e/only-linux-x64-glibc', // TODO: glibc shouldn't be here, fix this
       '@pnpm.e2e/only-linux-x64-musl',
     ], [
       '@pnpm.e2e/only-darwin-arm64',
       '@pnpm.e2e/only-darwin-x64',
       '@pnpm.e2e/only-linux-arm64-glibc',
       '@pnpm.e2e/only-linux-arm64-musl',
+      '@pnpm.e2e/only-linux-x64-glibc',
       '@pnpm.e2e/only-win32-arm64',
       '@pnpm.e2e/only-win32-x64',
     ]],

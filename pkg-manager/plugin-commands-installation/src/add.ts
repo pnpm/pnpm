@@ -7,6 +7,7 @@ import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+import { getFetchFullMetadata } from './getFetchFullMetadata'
 import { type InstallCommandOptions } from './install'
 import { installDeps } from './installDeps'
 import { writeSettings } from '@pnpm/config.config-writer'
@@ -281,6 +282,7 @@ export async function handler (
   }
   return installDeps({
     ...opts,
+    fetchFullMetadata: getFetchFullMetadata(opts),
     include,
     includeDirect: include,
     prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
