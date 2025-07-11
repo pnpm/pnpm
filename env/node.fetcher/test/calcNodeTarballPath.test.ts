@@ -1,4 +1,4 @@
-import { getNodeTarball } from '../lib/getNodeTarball'
+import { calcNodeTarballPath } from '../lib/calcNodeTarballPath'
 
 test.each([
   [
@@ -56,6 +56,11 @@ test.each([
       extname: '.tar.gz',
     },
   ],
-])('getNodeTarball', (version, nodeMirrorBaseUrl, platform, arch, tarball) => {
-  expect(getNodeTarball(version, nodeMirrorBaseUrl, platform, arch)).toStrictEqual(tarball)
+])('calcNodeTarballPath', (version, nodeMirrorBaseUrl, platform, arch, tarball) => {
+  expect(calcNodeTarballPath({
+    version,
+    baseUrl: nodeMirrorBaseUrl,
+    platform,
+    arch,
+  })).toStrictEqual(tarball)
 })

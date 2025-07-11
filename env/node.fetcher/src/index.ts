@@ -13,7 +13,7 @@ import AdmZip from 'adm-zip'
 import renameOverwrite from 'rename-overwrite'
 import tempy from 'tempy'
 import { isNonGlibcLinux } from 'detect-libc'
-import { getNodeTarball } from './getNodeTarball'
+import { calcNodeTarballPath } from './calcNodeTarballPath'
 
 export interface FetchNodeOptions {
   storeDir: string
@@ -27,7 +27,12 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
     throw new PnpmError('MUSL', 'The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
   }
   const nodeMirrorBaseUrl = opts.nodeMirrorBaseUrl ?? 'https://nodejs.org/download/release/'
-  const tarball = getNodeTarball(version, nodeMirrorBaseUrl, process.platform, process.arch)
+  const tarball = calcNodeTarballPath({
+    version,
+    baseUrl: nodeMirrorBaseUrl,
+    platform: process.platform,
+    arch: process.arch,
+  })
   const shasumsFileUrl = `${tarball.dirname}/SHASUMS256.txt`
   const tarballFileName = `${tarball.basename}${tarball.extname}`
   const integrity = await loadArtifactIntegrity(fetch, shasumsFileUrl, tarballFileName)
