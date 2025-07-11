@@ -61,7 +61,7 @@ catalog:
   '@pnpm/npm-package-arg': ^1.0.0
   '@pnpm/os.env.path-extender': ^2.0.3
   '@pnpm/patch-package': 0.0.1
-  '@pnpm/registry-mock': 4.6.0
+  '@pnpm/registry-mock': 4.7.0
   '@pnpm/semver-diff': ^1.1.0
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/util.lex-comparator': ^3.0.2

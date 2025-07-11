@@ -6,6 +6,7 @@ import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
+import { type BaseManifest } from '@pnpm/types'
 import { execPnpm, execPnpmSync } from './utils'
 
 let registries: Record<string, string>
@@ -17,6 +18,8 @@ beforeAll(async () => {
 })
 
 const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registries })
+
+const testOnLinuxOnly = process.platform === 'linux' ? test.skip : test.skip // TODO: change this
 
 test('dlx parses options between "dlx" and the command name', async () => {
   prepareEmpty()
@@ -297,4 +300,37 @@ test('dlx uses the node version specified by --use-node-version', async () => {
       ? path.join(pnpmHome, 'nodejs', '20.0.0', 'node.exe')
       : path.join(pnpmHome, 'nodejs', '20.0.0', 'bin', 'node'),
   })
+})
+
+testOnLinuxOnly.skip('dlx with --cpu, --os, --libc', async () => {
+  prepareEmpty()
+
+  const execResult = execPnpmSync([
+    `--config.store-dir=${path.resolve('store')}`,
+    `--config.cache-dir=${path.resolve('cache')}`,
+    '--package=@pnpm.e2e/support-different-architectures',
+    '--cpu=arm64',
+    '--os=windows',
+    'dlx',
+    'get-optional-dependencies',
+  ], {
+    stdio: [null, 'pipe', 'inherit'],
+    expectSuccess: true,
+  })
+
+  interface OptionalDepsInfo {
+    installed: Record<string, BaseManifest>
+    notInstalled: string[]
+  }
+
+  let optionalDepsInfo: OptionalDepsInfo
+  try {
+    optionalDepsInfo = JSON.parse(execResult.stdout.toString())
+  } catch (err) {
+    console.error(execResult.stdout.toString())
+    console.error(execResult.stderr.toString())
+    throw err
+  }
+
+  expect(optionalDepsInfo).toStrictEqual({})
 })
