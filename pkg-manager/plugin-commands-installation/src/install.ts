@@ -320,6 +320,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'disallowWorkspaceCycles'
 | 'updateConfig'
 | 'overrides'
+| 'supportedArchitectures'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -347,7 +348,10 @@ export async function handler (opts: InstallCommandOptions): Promise<void> {
   }
   // npm registry's abbreviated metadata currently does not contain libc
   // see <https://github.com/pnpm/pnpm/issues/7362#issuecomment-1971964689>
-  const fetchFullMetadata: true | undefined = opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc && true
+  const fetchFullMetadata: true | undefined = (
+    opts.supportedArchitectures?.libc ??
+    opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc
+  ) && true
   const installDepsOptions: InstallDepsOptions = {
     ...opts,
     frozenLockfileIfExists: opts.frozenLockfileIfExists ?? (
