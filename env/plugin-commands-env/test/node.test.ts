@@ -18,9 +18,9 @@ const fetchMock = jest.fn(async (url: string) => {
   if (url.endsWith('SHASUMS256.txt')) {
     return new Response(`
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-darwin-arm64.tar.gz
-5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-linux-arm64.zip
-5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-linux-x64.zip
-5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-win-x64.zip
+5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-linux-arm64.tar.gz
+5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-linux-x64.tar.gz
+b72b906cc0cd4d138a2f806bc7450f0b22a5e6316c7a94f63bcf332831db39bf  node-v16.4.0-win-x64.zip
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v18.0.0-rc.3-darwin-arm64.tar.gz
 `)
   }
