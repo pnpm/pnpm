@@ -1,4 +1,3 @@
-import { createHash } from 'crypto'
 import fs from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
@@ -15,6 +14,7 @@ import AdmZip from 'adm-zip'
 import renameOverwrite from 'rename-overwrite'
 import tempy from 'tempy'
 import { isNonGlibcLinux } from 'detect-libc'
+import ssri from 'ssri'
 import { getNodeArtifactAddress } from './getNodeArtifactAddress'
 
 // Constants
@@ -29,7 +29,7 @@ export interface FetchNodeOptions {
 }
 
 interface NodeArtifactInfo {
-  tarballUrl: string
+  url: string
   integrity: string
   isZip: boolean
   basename: string
@@ -100,12 +100,12 @@ async function getNodeArtifactInfo (
 
   const tarballFileName = `${tarball.basename}${tarball.extname}`
   const shasumsFileUrl = `${tarball.dirname}/SHASUMS256.txt`
-  const tarballUrl = `${tarball.dirname}/${tarballFileName}`
+  const url = `${tarball.dirname}/${tarballFileName}`
 
   const integrity = await loadArtifactIntegrity(fetch, shasumsFileUrl, tarballFileName)
 
   return {
-    tarballUrl,
+    url,
     integrity,
     isZip: tarball.extname === '.zip',
     basename: tarball.basename,
@@ -181,14 +181,14 @@ async function downloadAndUnpackTarball (
   })
 
   const cafs = createCafsStore(opts.storeDir)
-  const fetchTarball = pickFetcher(fetchers, { tarball: artifactInfo.tarballUrl }) as FetchFunction
+  const fetchTarball = pickFetcher(fetchers, { tarball: artifactInfo.url }) as FetchFunction
 
   // Create a unique index file name for Node.js tarballs
-  const indexFileName = `node-${encodeURIComponent(artifactInfo.tarballUrl)}`
+  const indexFileName = `node-${encodeURIComponent(artifactInfo.url)}`
   const filesIndexFile = path.join(opts.storeDir, indexFileName)
 
   const { filesIndex } = await fetchTarball(cafs, {
-    tarball: artifactInfo.tarballUrl,
+    tarball: artifactInfo.url,
     integrity: artifactInfo.integrity,
   }, {
     filesIndexFile,
@@ -219,11 +219,11 @@ async function downloadAndUnpackZip (
   artifactInfo: NodeArtifactInfo,
   targetDir: string
 ): Promise<void> {
-  const response = await fetchFromRegistry(artifactInfo.tarballUrl)
+  const response = await fetchFromRegistry(artifactInfo.url)
   const tmp = path.join(tempy.directory(), 'pnpm.zip')
 
   try {
-    await downloadWithIntegrityCheck(response, tmp, artifactInfo.integrity, artifactInfo.tarballUrl)
+    await downloadWithIntegrityCheck(response, tmp, artifactInfo.integrity, artifactInfo.url)
     await extractZipToTarget(tmp, artifactInfo.basename, targetDir)
   } finally {
     // Clean up temporary file
@@ -250,21 +250,18 @@ async function downloadWithIntegrityCheck (
   expectedIntegrity: string,
   url: string
 ): Promise<void> {
-  const dest = fs.createWriteStream(tmpPath)
-  const hash = createHash('sha256')
-
-  await new Promise<void>((resolve, reject) => {
-    response.body!.on('data', chunk => hash.update(chunk))
-    response.body!.pipe(dest).on('error', reject).on('close', resolve)
-  })
-
-  const actual = `sha256-${hash.digest('base64')}`
-  if (expectedIntegrity !== actual) {
-    throw new PnpmError(
-      'NODE_INTEGRITY_MISMATCH',
-      `SHA-256 mismatch for ${url}\nExpected: ${expectedIntegrity}\nReceived: ${actual}`
-    )
+  // Collect all chunks from the response
+  const chunks: Buffer[] = []
+  for await (const chunk of response.body!) {
+    chunks.push(chunk as Buffer)
   }
+  const data = Buffer.concat(chunks)
+
+  // Verify integrity if provided
+  ssri.checkData(data, expectedIntegrity, { error: true })
+
+  // Write the verified data to file
+  await fs.promises.writeFile(tmpPath, data)
 }
 
 /**
