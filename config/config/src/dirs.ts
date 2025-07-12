@@ -70,6 +70,9 @@ export function getConfigDir (
     platform: string
   }
 ): string {
+  if(opts.env.PNPM_CONFIG_USERCONFIG){
+    return path.join(opts.env.PNPM_CONFIG_USERCONFIG)
+  }
   if (opts.env.XDG_CONFIG_HOME) {
     return path.join(opts.env.XDG_CONFIG_HOME, 'pnpm')
   }
