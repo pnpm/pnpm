@@ -1,7 +1,7 @@
 import { type RetryTimeoutOptions } from '@zkochan/retry'
 import { type Response, type RequestInit as NodeRequestInit } from 'node-fetch'
 
-export type { RetryTimeoutOptions }
+export type { RetryTimeoutOptions, Response }
 
 export interface RequestInit extends NodeRequestInit {
   retry?: RetryTimeoutOptions
