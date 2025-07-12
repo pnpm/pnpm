@@ -65,7 +65,7 @@ async function downloadAndUnpackZip (
   const response = await fetchFromRegistry(zipUrl)
   const tmp = path.join(tempy.directory(), 'pnpm.zip')
   const dest = fs.createWriteStream(tmp)
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     response.body!.pipe(dest).on('error', reject).on('close', resolve)
   })
   const zip = new AdmZip(tmp)
