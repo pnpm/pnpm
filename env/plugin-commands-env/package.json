@@ -58,17 +58,17 @@
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/adm-zip": "catalog:",
     "@types/graceful-fs": "catalog:",
     "@types/is-windows": "catalog:",
     "@types/semver": "catalog:",
     "@types/tar-stream": "catalog:",
-    "adm-zip": "catalog:",
+    "@types/yazl": "catalog:",
     "execa": "catalog:",
     "nock": "catalog:",
     "node-fetch": "catalog:",
     "path-name": "catalog:",
-    "tar-stream": "catalog:"
+    "tar-stream": "catalog:",
+    "yazl": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

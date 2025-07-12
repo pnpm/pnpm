@@ -41,6 +41,7 @@
     "adm-zip": "catalog:",
     "detect-libc": "catalog:",
     "rename-overwrite": "catalog:",
+    "ssri": "catalog:",
     "tempy": "catalog:"
   },
   "devDependencies": {
@@ -48,6 +49,7 @@
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "catalog:",
+    "@types/ssri": "catalog:",
     "node-fetch": "catalog:"
   },
   "engines": {

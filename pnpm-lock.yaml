@@ -183,6 +183,9 @@ catalogs:
     '@types/yarnpkg__lockfile':
       specifier: ^1.1.9
       version: 1.1.9
+    '@types/yazl':
+      specifier: ^3.3.0
+      version: 3.3.0
     '@types/zkochan__table':
       specifier: npm:@types/table@6.0.0
       version: 6.0.0
@@ -651,6 +654,9 @@ catalogs:
     yaml-tag:
       specifier: 1.1.0
       version: 1.1.0
+    yazl:
+      specifier: ^3.3.1
+      version: 3.3.1
 
 overrides:
   '@yarnpkg/fslib@2': '3'
@@ -2069,6 +2075,9 @@ importers:
       rename-overwrite:
         specifier: 'catalog:'
         version: 6.0.2
+      ssri:
+        specifier: 'catalog:'
+        version: 10.0.5
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -2085,6 +2094,9 @@ importers:
       '@types/adm-zip':
         specifier: 'catalog:'
         version: 0.5.7
+      '@types/ssri':
+        specifier: 'catalog:'
+        version: 7.1.5
       node-fetch:
         specifier: 'catalog:'
         version: '@pnpm/node-fetch@1.0.0'
@@ -2193,9 +2205,6 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
-      '@types/adm-zip':
-        specifier: 'catalog:'
-        version: 0.5.7
       '@types/graceful-fs':
         specifier: 'catalog:'
         version: 4.1.9
@@ -2208,9 +2217,9 @@ importers:
       '@types/tar-stream':
         specifier: 'catalog:'
         version: 2.2.3
-      adm-zip:
+      '@types/yazl':
         specifier: 'catalog:'
-        version: 0.5.16
+        version: 3.3.0
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.1.2
@@ -2226,6 +2235,9 @@ importers:
       tar-stream:
         specifier: 'catalog:'
         version: 2.2.0
+      yazl:
+        specifier: 'catalog:'
+        version: 3.3.1
 
   env/system-node-version:
     dependencies:
@@ -10271,6 +10283,9 @@ packages:
   '@types/yarnpkg__lockfile@1.1.9':
     resolution: {integrity: sha512-GD4Fk15UoP5NLCNor51YdfL9MSdldKCqOC9EssrRw3HVfar9wUZ5y8Lfnp+qVD6hIinLr8ygklDYnmlnlQo12Q==}
 
+  '@types/yazl@3.3.0':
+    resolution: {integrity: sha512-mFL6lGkk2N5u5nIxpNV/K5LW3qVSbxhJrMxYGOOxZndWxMgCamr/iCsq/1t9kd8pEwhuNP91LC5qZm/qS9pOEw==}
+
   '@typescript-eslint/eslint-plugin@6.18.1':
     resolution: {integrity: sha512-nISDRYnnIpk7VCFrGcu1rnZfM1Dh9LRHnfgdkjcbi/l7g16VYRri3TjXi9Ir4lOZSw5N/gnV/3H7jIPQ8Q4daA==}
     engines: {node: ^16.0.0 || >=18.0.0}
@@ -10820,6 +10835,10 @@ packages:
 
   bser@2.1.1:
     resolution: {integrity: sha512-gQxTNE/GAfIIrmHLUE3oJyp5FO6HRBfhjnw4/wMmA63ZGDJnWBmgY/lyQBpnDUkGmAhbSe39tx2d/iTOAfglwQ==}
+
+  buffer-crc32@1.0.0:
+    resolution: {integrity: sha512-Db1SbgBS/fg/392AblrMJk97KggmvYhr4pB5ZIMTWtaivCPMWLkmb7m21cJvpvgK+J3nsU2CmmixNBZx4vFj/w==}
+    engines: {node: '>=8.0.0'}
 
   buffer-equal-constant-time@1.0.1:
     resolution: {integrity: sha512-zRpUiDwd/xk6ADqPMATG8vc9VPrkck7T07OIx0gnjmJAnHnTVXNQG3vfvWNuiZIkwu9KrKdA1iJKfsfTVxE6NA==}
@@ -15360,6 +15379,9 @@ packages:
     resolution: {integrity: sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==}
     engines: {node: '>=12'}
 
+  yazl@3.3.1:
+    resolution: {integrity: sha512-BbETDVWG+VcMUle37k5Fqp//7SDOK2/1+T7X8TD96M3D9G8jK5VLUdQVdVjGi8im7FGkazX7kk5hkU8X4L5Bng==}
+
   yn@3.1.1:
     resolution: {integrity: sha512-Ux4ygGWsu2c7isFWe8Yu1YluJmqVhxqK2cLXNQA5AcC3QfbGNpM7fu0Y8b/z16pXLnFxZYvWhd3fhBY9DLmC6Q==}
     engines: {node: '>=6'}
@@ -16326,7 +16348,7 @@ snapshots:
   '@jest/console@29.7.0':
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 22.15.29
       chalk: 4.1.2
       jest-message-util: 29.7.0
       jest-util: 29.7.0
@@ -16372,7 +16394,7 @@ snapshots:
     dependencies:
       '@jest/fake-timers': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 22.15.29
       jest-mock: 29.7.0
 
   '@jest/expect-utils@29.7.0':
@@ -16390,7 +16412,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@sinonjs/fake-timers': 10.3.0
-      '@types/node': 18.19.34
+      '@types/node': 22.15.29
       jest-message-util: 29.7.0
       jest-mock: 29.7.0
       jest-util: 29.7.0
@@ -16412,7 +16434,7 @@ snapshots:
       '@jest/transform': 29.7.0(@babel/types@7.26.10)
       '@jest/types': 29.6.3
       '@jridgewell/trace-mapping': 0.3.25
-      '@types/node': 18.19.34
+      '@types/node': 22.15.29
       chalk: 4.1.2
       collect-v8-coverage: 1.0.2
       exit: 0.1.2
@@ -18030,6 +18052,10 @@ snapshots:
 
   '@types/yarnpkg__lockfile@1.1.9': {}
 
+  '@types/yazl@3.3.0':
+    dependencies:
+      '@types/node': 22.15.29
+
   '@typescript-eslint/eslint-plugin@6.18.1(@typescript-eslint/parser@6.18.1(eslint@8.57.1)(typescript@5.5.4))(eslint@8.57.1)(typescript@5.5.4)':
     dependencies:
       '@eslint-community/regexpp': 4.12.1
@@ -18824,6 +18850,8 @@ snapshots:
   bser@2.1.1:
     dependencies:
       node-int64: 0.4.0
+
+  buffer-crc32@1.0.0: {}
 
   buffer-equal-constant-time@1.0.1: {}
 
@@ -20991,7 +21019,7 @@ snapshots:
       '@jest/expect': 29.7.0
       '@jest/test-result': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 22.15.29
       chalk: 4.1.2
       co: 4.6.0
       dedent: 1.6.0
@@ -21088,7 +21116,7 @@ snapshots:
       '@jest/environment': 29.7.0
       '@jest/fake-timers': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 22.15.29
       jest-mock: 29.7.0
       jest-util: 29.7.0
 
@@ -21098,7 +21126,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@types/graceful-fs': 4.1.9
-      '@types/node': 18.19.34
+      '@types/node': 22.15.29
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -21137,7 +21165,7 @@ snapshots:
   jest-mock@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 22.15.29
       jest-util: 29.7.0
 
   jest-pnp-resolver@1.2.3(jest-resolve@29.7.0):
@@ -21172,7 +21200,7 @@ snapshots:
       '@jest/test-result': 29.7.0
       '@jest/transform': 29.7.0(@babel/types@7.26.10)
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 22.15.29
       chalk: 4.1.2
       emittery: 0.13.1
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -21201,7 +21229,7 @@ snapshots:
       '@jest/test-result': 29.7.0
       '@jest/transform': 29.7.0(@babel/types@7.26.10)
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 22.15.29
       chalk: 4.1.2
       cjs-module-lexer: 1.4.3
       collect-v8-coverage: 1.0.2
@@ -21267,7 +21295,7 @@ snapshots:
     dependencies:
       '@jest/test-result': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 18.19.34
+      '@types/node': 22.15.29
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       emittery: 0.13.1
@@ -21276,7 +21304,7 @@ snapshots:
 
   jest-worker@29.7.0:
     dependencies:
-      '@types/node': 18.19.34
+      '@types/node': 22.15.29
       jest-util: 29.7.0
       merge-stream: 2.0.0
       supports-color: 8.1.1
@@ -24018,6 +24046,10 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
+
+  yazl@3.3.1:
+    dependencies:
+      buffer-crc32: 1.0.0
 
   yn@3.1.1: {}
 
