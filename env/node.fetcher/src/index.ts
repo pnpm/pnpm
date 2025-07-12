@@ -42,8 +42,7 @@ interface NodeArtifactInfo {
  * @param version - Node.js version to install
  * @param targetDir - Directory where Node.js should be installed
  * @param opts - Configuration options for the fetch operation
- * @throws {PnpmError} When system uses MUSL libc (not supported)
- * @throws {Error} When integrity verification fails or download fails
+ * @throws {PnpmError} When system uses MUSL libc, integrity verification fails, or download fails
  */
 export async function fetchNode (
   fetch: FetchFromRegistry,
@@ -85,7 +84,7 @@ async function validateSystemCompatibility (): Promise<void> {
  * @param version - Node.js version
  * @param nodeMirrorBaseUrl - Base URL for Node.js mirror
  * @returns Promise resolving to artifact information
- * @throws {Error} When integrity file cannot be fetched or parsed
+ * @throws {PnpmError} When integrity file cannot be fetched or parsed
  */
 async function getNodeArtifactInfo (
   fetch: FetchFromRegistry,
