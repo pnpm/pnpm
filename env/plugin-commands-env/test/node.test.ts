@@ -1,10 +1,10 @@
-import AdmZip from 'adm-zip'
 import { Response } from 'node-fetch'
 import path from 'path'
 import fs from 'fs'
 import { Readable } from 'stream'
 import tar from 'tar-stream'
 import { globalWarn } from '@pnpm/logger'
+import { ZipFile } from 'yazl'
 import {
   getNodeDir,
   getNodeBinDir,
@@ -20,11 +20,11 @@ const fetchMock = jest.fn(async (url: string) => {
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-darwin-arm64.tar.gz
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-linux-arm64.tar.gz
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v16.4.0-linux-x64.tar.gz
-32e63db75cd97199b10d5b3181fb215a806f4603b5522aff161f37196e831bfc  node-v16.4.0-win-x64.zip
+a08f3386090e6511772b949d41970b75a6b71d28abb551dff9854ceb1929dae1  node-v16.4.0-win-x64.zip
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v18.0.0-rc.3-darwin-arm64.tar.gz
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v18.0.0-rc.3-linux-arm64.tar.gz
 5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v18.0.0-rc.3-linux-x64.tar.gz
-5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef  node-v18.0.0-rc.3-win-x64.zip
+07e6121cba611b57f310a489f76c413b6246e79cffe1e9538b2478ffee11c99e  node-v18.0.0-rc.3-win-x64.zip
 `)
   }
   if (url.endsWith('.tar.gz')) {
@@ -35,10 +35,15 @@ const fetchMock = jest.fn(async (url: string) => {
     // The Windows code path for pnpm's node bootstrapping expects a subdir
     // within the .zip file.
     const pkgName = path.basename(url, '.zip')
-    const zip = new AdmZip()
-    zip.addFile(`${pkgName}/dummy-file`, Buffer.from('test'))
+    const zipfile = new ZipFile()
 
-    return new Response(Readable.from(zip.toBuffer()))
+    zipfile.addBuffer(Buffer.from('test'), `${pkgName}/dummy-file`, {
+      mtime: new Date(0), // fixed timestamp for determinism
+      mode: 0o100644, // fixed file permissions
+    })
+
+    zipfile.end()
+    return new Response(Readable.from(zipfile.outputStream))
   }
 
   return new Response(Readable.from(Buffer.alloc(0)))

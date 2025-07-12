@@ -102,6 +102,7 @@ catalog:
   '@types/which': ^2.0.2
   '@types/write-file-atomic': ^4.0.3
   '@types/yarnpkg__lockfile': ^1.1.9
+  '@types/yazl': ^3.3.0
   '@types/zkochan__table': npm:@types/table@6.0.0
   '@yarnpkg/core': 4.2.0
   '@yarnpkg/extensions': 2.0.3
@@ -261,6 +262,7 @@ catalog:
   write-pkg: 4.0.0
   write-yaml-file: ^5.0.0
   yaml-tag: 1.1.0
+  yazl: ^3.3.1
 
 enableGlobalVirtualStore: true
 
