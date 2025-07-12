@@ -10,7 +10,8 @@ if (!global['pnpm__startedAt']) {
 import loudRejection from 'loud-rejection'
 import { packageManager, isExecutedByCorepack } from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
-import { type Config, type WantedPackageManager } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
+import { type DevEngineDependency } from '@pnpm/types'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
@@ -18,6 +19,8 @@ import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { finishWorkers } from '@pnpm/worker'
+import os from 'os'
+import semver from 'semver'
 import chalk from 'chalk'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
@@ -283,6 +286,50 @@ export async function main (inputArgv: string[]): Promise<void> {
       ...(workspaceDir ? { workspacePrefix: workspaceDir } : {}),
     })
 
+    const {devEngines} = config.rootProjectManifest ?? {}
+    if (devEngines?.os) {
+      [devEngines.os].flat().forEach(({ name, version, onFail }) => {
+        const platforms = [name].flat()
+        if (
+          platforms.every(os => os !== process.platform && !os.startsWith('!')) ||
+          platforms.some(os => os === `!${process.platform}`)
+        ) {
+          const msg = `This project is configured not to run on ${process.platform}`
+
+          if (onFail === 'error' || onFail == null) {
+            throw new PnpmError('OTHER_OS_EXPECTED', msg)
+          }
+          if (onFail === 'warn') globalWarn(msg)
+        }
+        const release = os.release()
+        if (version && !semver.satisfies(release, version)) {
+          const msg = `This project is configured to use version "${version}" of ${process.platform}. Your current ${process.platform} is v${release}`
+
+          if (onFail === 'error' || onFail == null) {
+            throw new PnpmError('BAD_OS_VERSION', msg)
+          }
+          if (onFail === 'warn') globalWarn(msg)
+        }
+      })
+    }
+    if (devEngines?.cpu) {
+      [devEngines.cpu].flat().forEach(({ name, onFail }) => {
+        const architectures = [name].flat()
+        if (
+          architectures.every(cpu => cpu !== process.arch && !cpu.startsWith('!')) ||
+          architectures.some(cpu => cpu === `!${process.arch}`)
+        ) {
+          const msg = `This project is configured not to run on ${process.arch} architecture`
+
+          if (onFail === 'error' || onFail == null) {
+            throw new PnpmError('OTHER_CPU_EXPECTED', msg)
+          }
+          if (onFail === 'warn') globalWarn(msg)
+        }
+      })
+    }
+    [devEngines?.packageManager].flat().forEach(pm => pm && checkPackageManager(pm, config))
+
     if (config.useNodeVersion != null) {
       if ('webcontainer' in process.versions) {
         globalWarn('Automatic installation of different Node.js versions is not supported in WebContainer')
@@ -347,25 +394,25 @@ function printError (message: string, hint?: string): void {
   }
 }
 
-function checkPackageManager (pm: WantedPackageManager, config: Config): void {
+function checkPackageManager (pm: DevEngineDependency, config: Config): void {
   if (!pm.name) return
   if (pm.name !== 'pnpm') {
     const msg = `This project is configured to use ${pm.name}`
-    if (config.packageManagerStrict) {
+    if (config.packageManagerStrict || pm.onFail === 'error' || pm.onFail == null) {
       throw new PnpmError('OTHER_PM_EXPECTED', msg)
     }
-    globalWarn(msg)
+    if (pm.onFail === 'warn') globalWarn(msg)
   } else {
     const currentPnpmVersion = packageManager.name === 'pnpm'
       ? packageManager.version
       : undefined
     if (currentPnpmVersion && config.packageManagerStrictVersion && pm.version && pm.version !== currentPnpmVersion) {
       const msg = `This project is configured to use v${pm.version} of pnpm. Your current pnpm is v${currentPnpmVersion}`
-      if (config.packageManagerStrict) {
+      if (config.packageManagerStrict || pm.onFail === 'error' || pm.onFail == null) {
         throw new PnpmError('BAD_PM_VERSION', msg, {
           hint: 'If you want to bypass this version check, you can set the "package-manager-strict" configuration to "false" or set the "COREPACK_ENABLE_STRICT" environment variable to "0"',
         })
-      } else {
+      } else if (pm.onFail === 'warn') {
         globalWarn(msg)
       }
     }

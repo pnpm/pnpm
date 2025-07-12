@@ -54,6 +54,19 @@ export interface DependenciesMeta {
   }
 }
 
+export interface DevEngineDependency {
+  name: string
+  version?: string
+  onFail?: 'ignore' | 'warn' | 'error' | 'download'
+}
+export interface DevEngines {
+  os?: DevEngineDependency | DevEngineDependency[]
+  cpu?: DevEngineDependency | DevEngineDependency[]
+  libc?: DevEngineDependency | DevEngineDependency[]
+  runtime?: DevEngineDependency | DevEngineDependency[]
+  packageManager?: DevEngineDependency | DevEngineDependency[]
+}
+
 export interface PublishConfig extends Record<string, unknown> {
   directory?: string
   linkDirectory?: boolean
@@ -96,6 +109,7 @@ export interface BaseManifest {
   }
   scripts?: PackageScripts
   config?: object
+  devEngines?: DevEngines
   engines?: {
     node?: string
     npm?: string
