@@ -13,7 +13,7 @@ import AdmZip from 'adm-zip'
 import renameOverwrite from 'rename-overwrite'
 import tempy from 'tempy'
 import { isNonGlibcLinux } from 'detect-libc'
-import { calcNodeTarballPath } from './calcNodeTarballPath'
+import { getNodeArtifactAddress } from './getNodeArtifactAddress'
 
 export interface FetchNodeOptions {
   storeDir: string
@@ -27,7 +27,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
     throw new PnpmError('MUSL', 'The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
   }
   const nodeMirrorBaseUrl = opts.nodeMirrorBaseUrl ?? 'https://nodejs.org/download/release/'
-  const tarball = calcNodeTarballPath({
+  const tarball = getNodeArtifactAddress({
     version,
     baseUrl: nodeMirrorBaseUrl,
     platform: process.platform,

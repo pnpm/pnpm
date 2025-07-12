@@ -6,19 +6,19 @@ export interface NodeArtifactAddress {
   dirname: string
 }
 
-export interface CalcNodeTarballPathOptions {
+export interface GetNodeArtifactAddressOptions {
   version: string
   baseUrl: string
   platform: string
   arch: string
 }
 
-export function calcNodeTarballPath ({
+export function getNodeArtifactAddress ({
   version,
   baseUrl,
   platform,
   arch,
-}: CalcNodeTarballPathOptions): NodeArtifactAddress {
+}: GetNodeArtifactAddressOptions): NodeArtifactAddress {
   const isWindowsPlatform = platform === 'win32'
   const normalizedPlatform = isWindowsPlatform ? 'win' : platform
   const normalizedArch = getNormalizedArch(platform, arch, version)
