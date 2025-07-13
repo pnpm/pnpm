@@ -594,8 +594,8 @@ test('linkBins() should not try to change permissions of files not owned by curr
 
   const permissionsBeforeLinkBinsCall = fs.statSync(binFilePath).mode
 
-  // @ts-expect-error because we don't want to return everything that `fs.stat` returns
-  // We just want to mock the `uid` property
+  // @ts-expect-error TypeScript complains about the return type
+  //                  But we don't want to mock the whole fs.stat response
   jest.spyOn(fs.promises, 'stat').mockImplementation(async (filePath) => {
     if (filePath !== binFilePath) {
       throw new Error(`Unexpected file path: ${filePath.toString()}. You should handle this case.`)
