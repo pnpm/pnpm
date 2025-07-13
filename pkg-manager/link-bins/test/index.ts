@@ -586,7 +586,7 @@ describe('enable prefer-symlinked-executables', () => {
   })
 })
 
-test.only('linkBins() should not try to change permissions of files not owned by current user (issue 3699)', async () => {
+test('linkBins() should not try to change permissions of files not owned by current user (issue 3699)', async () => {
   // SETUP
   const binTarget = tempy.directory()
   const simpleFixture = f.prepare('bin-not-owned-by-current-user')
