@@ -45,7 +45,7 @@ export function createResolver (
 ): { resolve: DefaultResolver, clearCache: () => void } {
   const { resolveFromNpm, resolveFromJsr, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
   const resolveFromGit = createGitResolver(pnpmOpts)
-  const _resolveNodeRuntime = resolveNodeRuntime.bind(null, fetchFromRegistry)
+  const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry })
   return {
     resolve: async (wantedDependency, opts) => {
       const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??

@@ -1,3 +1,5 @@
+import { createHash } from '@pnpm/crypto.hash'
+import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import { type WantedDependency, type NodeRuntimeResolution, type ResolveResult } from '@pnpm/resolver-base'
 import semver from 'semver'
@@ -9,8 +11,13 @@ export interface NodeRuntimeResolveResult extends ResolveResult {
   resolvedVia: 'nodejs.org'
 }
 
+const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
+
 export async function resolveNodeRuntime (
-  fetchFromRegistry: FetchFromRegistry,
+  ctx: {
+    fetchFromRegistry: FetchFromRegistry
+    nodeMirrorBaseUrl?: string
+  },
   wantedDependency: WantedDependency,
   opts: {
     lockfileDir?: string
@@ -19,14 +26,43 @@ export async function resolveNodeRuntime (
 ): Promise<NodeRuntimeResolveResult | null> {
   if (!wantedDependency.bareSpecifier?.startsWith('runtime:node@')) return null
   const versionSpec = wantedDependency.bareSpecifier.substring('runtime:node@'.length)
-  const version = await resolveNodeVersion(fetchFromRegistry, versionSpec)
+  const nodeMirrorBaseUrl = ctx.nodeMirrorBaseUrl ?? DEFAULT_NODE_MIRROR_BASE_URL
+  const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpec, nodeMirrorBaseUrl)
+  if (!version) {
+    throw new Error('xxx')
+  }
+  const { versionIntegrity: integrity, body } = await loadShasumsFile(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
   return {
-    id: `runtime:node@${version}` as PkgResolutionId,
+    id: `node@runtime:node@${version}` as PkgResolutionId,
     resolvedVia: 'nodejs.org',
+    manifest: {
+      name: 'node',
+      version,
+    },
     resolution: {
       type: 'nodeRuntime',
-      integrity: '',
+      integrity,
+      body
     },
+  }
+}
+
+async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string) {
+  const integritiesFileUrl = `${nodeMirrorBaseUrl}/v${version}/SHASUMS256.txt`
+  const res = await fetch(integritiesFileUrl)
+  if (!res.ok) {
+    throw new PnpmError(
+      'NODE_FETCH_INTEGRITY_FAILED',
+      `Failed to fetch integrity file: ${integritiesFileUrl} (status: ${res.status})`
+    )
+  }
+
+  const body = await res.text()
+  const versionIntegrity = createHash(body)
+
+  return {
+    body,
+    versionIntegrity,
   }
 }
 

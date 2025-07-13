@@ -2106,6 +2106,12 @@ importers:
 
   env/node.resolver:
     dependencies:
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
