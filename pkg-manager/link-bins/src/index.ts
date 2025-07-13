@@ -22,6 +22,7 @@ import partition from 'ramda/src/partition'
 import semver from 'semver'
 import symlinkDir from 'symlink-dir'
 import fixBin from 'bin-links/lib/fix-bin'
+import { isFileOwnedByUser } from './isFileOwnedByUser'
 
 const binsConflictLogger = logger('bins-conflict')
 const IS_WINDOWS = isWindows()
@@ -251,7 +252,8 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null) {
     try {
       await symlinkDir(cmd.path, externalBinPath)
-      await fixBin(cmd.path, 0o755)
+      if (await isFileOwnedByUser(cmd.path)) await fixBin(cmd.path, 0o755)
+      else globalWarn(`Skipped fixing bin permissions of \`${cmd.path}\` because the file is not owned by the current user`)
     } catch (err: any) { // eslint-disable-line
       if (err.code !== 'ENOENT') {
         throw err
@@ -286,7 +288,8 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // ensure that bin are executable and not containing
   // windows line-endings(CRLF) on the hashbang line
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
-    await fixBin(cmd.path, 0o755)
+    if (await isFileOwnedByUser(cmd.path)) await fixBin(cmd.path, 0o755)
+    else globalWarn(`Skipped fixing bin permissions of \`${cmd.path}\` because the file is not owned by the current user`)
   }
 }
 
