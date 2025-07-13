@@ -2,7 +2,6 @@ import url from 'url'
 import { type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.types'
 import { type Resolution } from '@pnpm/resolver-base'
 import { type Registries } from '@pnpm/types'
-import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot'
@@ -19,7 +18,7 @@ export function pkgSnapshotToResolution (
   ) {
     return pkgSnapshot.resolution as Resolution
   }
-  const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+  const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
   let registry: string = ''
   if (name != null) {
     if (name.startsWith('@')) {
@@ -43,7 +42,6 @@ export function pkgSnapshotToResolution (
   } as Resolution
 
   function getTarball (registry: string) {
-    const { name, version } = dp.parse(depPath)
     if (!name || !version) {
       throw new Error(`Couldn't get tarball URL from dependency path ${depPath}`)
     }
