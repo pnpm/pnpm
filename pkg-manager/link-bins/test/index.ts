@@ -585,3 +585,34 @@ describe('enable prefer-symlinked-executables', () => {
     ).toHaveBeenCalled()
   })
 })
+
+test.only('linkBins() should not try to change permissions of files not owned by current user (issue 3699)', async () => {
+  // SETUP
+  const binTarget = tempy.directory()
+  const simpleFixture = f.prepare('bin-not-owned-by-current-user')
+  const binFilePath = path.join(simpleFixture, 'package-a/bin/bin-file')
+
+  const permissionsBeforeLinkBinsCall = fs.statSync(binFilePath).mode
+
+  // @ts-expect-error because we don't want to return everything that `fs.stat` returns
+  // We just want to mock the `uid` property
+  jest.spyOn(fs.promises, 'stat').mockImplementation(async (filePath) => {
+    if (filePath !== binFilePath) {
+      throw new Error(`Unexpected file path: ${filePath.toString()}. You should handle this case.`)
+    }
+
+    return Promise.resolve({
+      uid: -1, // Simulate a different user
+    })
+  })
+
+  // ACT
+  await linkBins(simpleFixture, binTarget, { warn: jest.fn() })
+
+  // ASSERT
+  expect(globalWarn).toHaveBeenCalledWith(`Skipped fixing bin permissions of \`${binFilePath}\` because the file is not owned by the current user`)
+
+  const permissionsAfterLinkBinsCall = fs.statSync(binFilePath).mode
+  // permissions should not have been changed
+  expect(permissionsAfterLinkBinsCall).toBe(permissionsBeforeLinkBinsCall)
+})
