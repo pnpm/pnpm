@@ -280,6 +280,11 @@ export async function mutateModules (
     await safeReadProjectManifestOnly(opts.lockfileDir)
 
   let ctx = await getContext(opts)
+  for (const project of Object.values(ctx.projects)) {
+    if (project.manifest.pnpm?.executionEnv?.nodeVersion) {
+      const {} = await resolveRuntime()
+    }
+  }
 
   if (!opts.lockfileOnly && ctx.modulesFile != null) {
     const { purged } = await validateModules(ctx.modulesFile, Object.values(ctx.projects), {

@@ -12,6 +12,7 @@ import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import { getNodeMirror } from './getNodeMirror'
 import { isValidVersion, parseNodeSpecifier } from './parseNodeSpecifier'
+import {version} from 'os'
 
 export type NvmNodeCommandOptions = Pick<Config,
 | 'bin'
@@ -38,28 +39,47 @@ export type NvmNodeCommandOptions = Pick<Config,
   remote?: boolean
 }
 
-const nodeFetchPromises: Record<string, Promise<string>> = {}
+const nodeFetchPromises: Record<string, Promise<GetNodeBinDir>> = {}
 
-export async function prepareExecutionEnv (config: NvmNodeCommandOptions, { extraBinPaths, executionEnv }: PrepareExecutionEnvOptions): Promise<PrepareExecutionEnvResult> {
+export async function prepareExecutionEnv (
+  config: NvmNodeCommandOptions,
+  { extraBinPaths, executionEnv }: PrepareExecutionEnvOptions
+): Promise<PrepareExecutionEnvResult> {
   if (!executionEnv?.nodeVersion || `v${executionEnv.nodeVersion}` === getSystemNodeVersion()) {
     return { extraBinPaths: extraBinPaths ?? [] }
   }
 
-  let nodePathPromise = nodeFetchPromises[executionEnv.nodeVersion]
-  if (!nodePathPromise) {
-    nodePathPromise = getNodeBinDir({
-      ...config,
-      useNodeVersion: executionEnv.nodeVersion,
-    })
-    nodeFetchPromises[executionEnv.nodeVersion] = nodePathPromise
-  }
-
+  const { dir } = await resolveRuntime(config, executionEnv.nodeVersion)
   return {
-    extraBinPaths: [await nodePathPromise, ...extraBinPaths ?? []],
+    extraBinPaths: [dir, ...extraBinPaths ?? []],
   }
 }
 
-export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<string> {
+export interface GetNodeBinDir {
+  dir: string
+  integrity: string
+}
+
+export async function resolveRuntime (
+  config: NvmNodeCommandOptions,
+  nodeVersion: string,
+  opts?: {
+    expectedVersionIntegrity?: string
+  }
+) {
+  let nodePathPromise = nodeFetchPromises[nodeVersion]
+  if (!nodePathPromise) {
+    nodePathPromise = getNodeBinDir({
+      ...config,
+      useNodeVersion: nodeVersion,
+    })
+    nodeFetchPromises[nodeVersion] = nodePathPromise
+  }
+
+  return nodePathPromise
+}
+
+export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<GetNodeBinDir> {
   const fetch = createFetchFromRegistry(opts)
   const nodesDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
   const manifestNodeVersion = (await readNodeVersionsManifest(nodesDir))?.default
@@ -84,30 +104,37 @@ export async function getNodeBinDir (opts: NvmNodeCommandOptions): Promise<strin
   }
   const { useNodeVersion, releaseChannel } = parseNodeSpecifier(wantedNodeVersion)
   const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
-  const nodeDir = await getNodeDir(fetch, {
+  const { versionDir: nodeDir, versionIntegrity } = await getNodeDir(fetch, {
     ...opts,
     useNodeVersion,
     nodeMirrorBaseUrl,
   })
-  return process.platform === 'win32' ? nodeDir : path.join(nodeDir, 'bin')
+  return {
+    dir: process.platform === 'win32' ? nodeDir : path.join(nodeDir, 'bin'),
+    integrity: versionIntegrity,
+  }
 }
 
 export function getNodeVersionsBaseDir (pnpmHomeDir: string): string {
   return path.join(pnpmHomeDir, 'nodejs')
 }
 
-export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommandOptions & { useNodeVersion: string, nodeMirrorBaseUrl: string }): Promise<string> {
+export async function getNodeDir (
+  fetch: FetchFromRegistry,
+  opts: NvmNodeCommandOptions & { useNodeVersion: string, nodeMirrorBaseUrl: string }
+): Promise<{ versionIntegrity: string, versionDir: string }> {
   const nodesDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
   await fs.promises.mkdir(nodesDir, { recursive: true })
   const versionDir = path.join(nodesDir, opts.useNodeVersion)
-  if (!fs.existsSync(versionDir)) {
+  let versionIntegrity = await readIntegrityFile(versionDir)
+  if (versionIntegrity == null) {
     const storeDir = await getStorePath({
       pkgRoot: process.cwd(),
       storePath: opts.storeDir,
       pnpmHomeDir: opts.pnpmHomeDir,
     })
     globalInfo(`Fetching Node.js ${opts.useNodeVersion} ...`)
-    await fetchNode(fetch, opts.useNodeVersion, versionDir, {
+    versionIntegrity = await fetchNode(fetch, opts.useNodeVersion, versionDir, {
       ...opts,
       storeDir,
       retry: {
@@ -118,7 +145,15 @@ export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommand
       },
     })
   }
-  return versionDir
+  return { versionIntegrity, versionDir }
+}
+
+async function readIntegrityFile (versionDir: string): Promise<string | null> {
+  try {
+    return fs.promises.readFile(path.join(versionDir, 'integrity'), 'utf8')
+  } catch {
+    return null
+  }
 }
 
 async function readNodeVersionsManifest (nodesDir: string): Promise<{ default?: string }> {

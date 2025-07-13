@@ -27,6 +27,7 @@ export interface LockfileBase {
 export interface LockfileObject extends LockfileBase {
   importers: Record<ProjectId, ProjectSnapshot>
   packages?: PackageSnapshots
+  runtimes?: Record<string, string>
 }
 
 export interface LockfilePackageSnapshot {
@@ -73,6 +74,7 @@ export interface ProjectSnapshot extends ProjectSnapshotBase {
   dependencies?: ResolvedDependencies
   optionalDependencies?: ResolvedDependencies
   devDependencies?: ResolvedDependencies
+  runtimeDependencies?: Record<string, { specifier: string, version: string }>
 }
 
 export type ResolvedDependenciesOfImporters = Record<string, { version: string, specifier: string }>

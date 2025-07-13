@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { createHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import {
   type FetchFromRegistry,
@@ -26,6 +27,7 @@ export interface FetchNodeOptions {
   fetchTimeout?: number
   nodeMirrorBaseUrl?: string
   retry?: RetryTimeoutOptions
+  expectedIntegrity?: string
 }
 
 interface NodeArtifactInfo {
@@ -33,6 +35,7 @@ interface NodeArtifactInfo {
   integrity: string
   isZip: boolean
   basename: string
+  versionIntegrity: string
 }
 
 /**
@@ -49,18 +52,19 @@ export async function fetchNode (
   version: string,
   targetDir: string,
   opts: FetchNodeOptions
-): Promise<void> {
+): Promise<string> {
   await validateSystemCompatibility()
 
   const nodeMirrorBaseUrl = opts.nodeMirrorBaseUrl ?? DEFAULT_NODE_MIRROR_BASE_URL
-  const artifactInfo = await getNodeArtifactInfo(fetch, version, nodeMirrorBaseUrl)
+  const artifactInfo = await getNodeArtifactInfo(fetch, version, { nodeMirrorBaseUrl, expectedVersionIntegrity: opts.expectedIntegrity })
 
   if (artifactInfo.isZip) {
     await downloadAndUnpackZip(fetch, artifactInfo, targetDir)
-    return
+  } else {
+    await downloadAndUnpackTarball(fetch, artifactInfo, targetDir, opts)
   }
-
-  await downloadAndUnpackTarball(fetch, artifactInfo, targetDir, opts)
+  await fs.promises.writeFile(path.join(targetDir, 'integrity'), artifactInfo.versionIntegrity, 'utf-8')
+  return artifactInfo.versionIntegrity
 }
 
 /**
@@ -82,18 +86,20 @@ async function validateSystemCompatibility (): Promise<void> {
  *
  * @param fetch - Function to fetch resources from registry
  * @param version - Node.js version
- * @param nodeMirrorBaseUrl - Base URL for Node.js mirror
  * @returns Promise resolving to artifact information
  * @throws {PnpmError} When integrity file cannot be fetched or parsed
  */
 async function getNodeArtifactInfo (
   fetch: FetchFromRegistry,
   version: string,
-  nodeMirrorBaseUrl: string
+  opts: {
+    nodeMirrorBaseUrl: string
+    expectedVersionIntegrity?: string
+  }
 ): Promise<NodeArtifactInfo> {
   const tarball = getNodeArtifactAddress({
     version,
-    baseUrl: nodeMirrorBaseUrl,
+    baseUrl: opts.nodeMirrorBaseUrl,
     platform: process.platform,
     arch: process.arch,
   })
@@ -102,13 +108,14 @@ async function getNodeArtifactInfo (
   const shasumsFileUrl = `${tarball.dirname}/SHASUMS256.txt`
   const url = `${tarball.dirname}/${tarballFileName}`
 
-  const integrity = await loadArtifactIntegrity(fetch, shasumsFileUrl, tarballFileName)
+  const { artifactIntegrity, versionIntegrity } = await loadArtifactIntegrity(fetch, shasumsFileUrl, tarballFileName, opts)
 
   return {
     url,
-    integrity,
+    integrity: artifactIntegrity,
     isZip: tarball.extname === '.zip',
     basename: tarball.basename,
+    versionIntegrity,
   }
 }
 
@@ -124,8 +131,11 @@ async function getNodeArtifactInfo (
 async function loadArtifactIntegrity (
   fetch: FetchFromRegistry,
   integritiesFileUrl: string,
-  fileName: string
-): Promise<string> {
+  fileName: string,
+  opts: {
+    expectedVersionIntegrity?: string
+  }
+): Promise<{ versionIntegrity: string, artifactIntegrity: string }> {
   const res = await fetch(integritiesFileUrl)
   if (!res.ok) {
     throw new PnpmError(
@@ -135,6 +145,10 @@ async function loadArtifactIntegrity (
   }
 
   const body = await res.text()
+  const versionIntegrity = createHash(body)
+  if (opts.expectedVersionIntegrity && versionIntegrity !== opts.expectedVersionIntegrity) {
+    throw new PnpmError('NODE_VERSION_INTEGRITY_MISMATCH', `The integrity check of the ${integritiesFileUrl} file has failed. Expected ${opts.expectedVersionIntegrity}, got: ${versionIntegrity}`)
+  }
   const line = body.split('\n').find(line => line.trim().endsWith(`  ${fileName}`))
 
   if (!line) {
@@ -154,7 +168,10 @@ async function loadArtifactIntegrity (
 
   const buffer = Buffer.from(sha256, 'hex')
   const base64 = buffer.toString('base64')
-  return `sha256-${base64}`
+  return {
+    versionIntegrity,
+    artifactIntegrity: `sha256-${base64}`,
+  }
 }
 
 /**

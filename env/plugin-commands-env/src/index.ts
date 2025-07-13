@@ -1,4 +1,4 @@
 import * as env from './env'
-import { prepareExecutionEnv } from './node'
+import { prepareExecutionEnv, resolveRuntime } from './node'
 
-export { env, prepareExecutionEnv }
+export { env, prepareExecutionEnv, resolveRuntime }
