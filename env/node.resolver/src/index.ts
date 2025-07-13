@@ -1,6 +1,34 @@
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
+import { type WantedDependency, type NodeRuntimeResolution, type ResolveResult } from '@pnpm/resolver-base'
 import semver from 'semver'
 import versionSelectorType from 'version-selector-type'
+import { type PkgResolutionId } from '@pnpm/types'
+
+export interface NodeRuntimeResolveResult extends ResolveResult {
+  resolution: NodeRuntimeResolution
+  resolvedVia: 'nodejs.org'
+}
+
+export async function resolveNodeRuntime (
+  fetchFromRegistry: FetchFromRegistry,
+  wantedDependency: WantedDependency,
+  opts: {
+    lockfileDir?: string
+    projectDir: string
+  }
+): Promise<NodeRuntimeResolveResult | null> {
+  if (!wantedDependency.bareSpecifier?.startsWith('runtime:node@')) return null
+  const versionSpec = wantedDependency.bareSpecifier.substring('runtime:node@'.length)
+  const version = await resolveNodeVersion(fetchFromRegistry, versionSpec)
+  return {
+    id: `runtime:node@${version}` as PkgResolutionId,
+    resolvedVia: 'nodejs.org',
+    resolution: {
+      type: 'nodeRuntime',
+      integrity: '',
+    },
+  }
+}
 
 interface NodeVersion {
   version: string

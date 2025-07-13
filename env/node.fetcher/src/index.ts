@@ -8,8 +8,10 @@ import {
 } from '@pnpm/fetching-types'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { createCafsStore } from '@pnpm/create-cafs-store'
+import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
-import { type FetchFunction } from '@pnpm/fetcher-base'
+import { type NodeRuntimeFetcher, type FetchFunction, FetchResult } from '@pnpm/fetcher-base'
+import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
 import renameOverwrite from 'rename-overwrite'
 import tempy from 'tempy'
@@ -17,12 +19,51 @@ import { isNonGlibcLinux } from 'detect-libc'
 import ssri from 'ssri'
 import { getNodeArtifactAddress } from './getNodeArtifactAddress'
 
+export function createNodeRuntimeFetcher (ctx: {
+  fetch: FetchFromRegistry,
+  nodeMirrorBaseUrl: string
+}) {
+  const fetchNodeRuntime: NodeRuntimeFetcher = async (cafs, resolution, opts) => {
+    console.log(resolution, opts)
+
+    await validateSystemCompatibility()
+
+    const nodeMirrorBaseUrl = ctx.nodeMirrorBaseUrl ?? DEFAULT_NODE_MIRROR_BASE_URL
+    const artifactInfo = await getNodeArtifactInfo(ctx.fetch, '22.0.0', nodeMirrorBaseUrl)
+
+    if (artifactInfo.isZip) {
+      const tempLocation = await cafs.tempDir()
+      await downloadAndUnpackZip(ctx.fetch, artifactInfo, tempLocation)
+      return addFilesFromDir({
+        storeDir: cafs.storeDir,
+        dir: tempLocation,
+        filesIndexFile: opts.filesIndexFile,
+        // readManifest: opts.readManifest,
+        // pkg: opts.pkg,
+      })
+    }
+
+    return downloadAndUnpackTarball(ctx.fetch, artifactInfo, { cafs, filesIndexFile: opts.filesIndexFile })
+  }
+  return {
+    nodeRuntime: fetchNodeRuntime,
+  }
+}
+
 // Constants
 const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
 const SHA256_REGEX = /^[a-f0-9]{64}$/
 
-export interface FetchNodeOptions {
+export interface FetchNodeOptionsToDir {
   storeDir: string
+  fetchTimeout?: number
+  nodeMirrorBaseUrl?: string
+  retry?: RetryTimeoutOptions
+}
+
+export interface FetchNodeOptions {
+  cafs: Cafs
+  filesIndexFile: string
   fetchTimeout?: number
   nodeMirrorBaseUrl?: string
   retry?: RetryTimeoutOptions
@@ -48,7 +89,7 @@ export async function fetchNode (
   fetch: FetchFromRegistry,
   version: string,
   targetDir: string,
-  opts: FetchNodeOptions
+  opts: FetchNodeOptionsToDir
 ): Promise<void> {
   await validateSystemCompatibility()
 
@@ -60,7 +101,7 @@ export async function fetchNode (
     return
   }
 
-  await downloadAndUnpackTarball(fetch, artifactInfo, targetDir, opts)
+  await downloadAndUnpackTarballToDir(fetch, artifactInfo, targetDir, opts)
 }
 
 /**
@@ -165,11 +206,11 @@ async function loadArtifactIntegrity (
  * @param targetDir - Directory where Node.js should be installed
  * @param opts - Configuration options for the fetch operation
  */
-async function downloadAndUnpackTarball (
+async function downloadAndUnpackTarballToDir (
   fetch: FetchFromRegistry,
   artifactInfo: NodeArtifactInfo,
   targetDir: string,
-  opts: FetchNodeOptions
+  opts: FetchNodeOptionsToDir
 ): Promise<void> {
   const getAuthHeader = () => undefined
   const fetchers = createTarballFetcher(fetch, getAuthHeader, {
@@ -203,6 +244,44 @@ async function downloadAndUnpackTarball (
       requiresBuild: false,
     },
     force: true,
+  })
+}
+
+/**
+ * Downloads and unpacks a tarball using the tarball fetcher.
+ *
+ * @param fetch - Function to fetch resources from registry
+ * @param artifactInfo - Information about the Node.js artifact
+ * @param targetDir - Directory where Node.js should be installed
+ * @param opts - Configuration options for the fetch operation
+ */
+async function downloadAndUnpackTarball (
+  fetch: FetchFromRegistry,
+  artifactInfo: NodeArtifactInfo,
+  opts: FetchNodeOptions
+): Promise<FetchResult> {
+  const getAuthHeader = () => undefined
+  const fetchers = createTarballFetcher(fetch, getAuthHeader, {
+    retry: opts.retry,
+    timeout: opts.fetchTimeout,
+    // These are not needed for fetching Node.js
+    rawConfig: {},
+    unsafePerm: false,
+  })
+
+  const fetchTarball = pickFetcher(fetchers, { tarball: artifactInfo.url }) as FetchFunction
+
+  // Create a unique index file name for Node.js tarballs
+  // const indexFileName = `node-${encodeURIComponent(artifactInfo.url)}`
+  // const filesIndexFile = path.join(opts.storeDir, indexFileName)
+
+  return fetchTarball(opts.cafs, {
+    tarball: artifactInfo.url,
+    integrity: artifactInfo.integrity,
+  }, {
+    filesIndexFile: opts.filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg: {},
   })
 }
 

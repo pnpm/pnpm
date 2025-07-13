@@ -6,11 +6,12 @@ import {
 import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
 import { type SslConfig } from '@pnpm/types'
 import { type FetchFromRegistry, type GetAuthHeader, type RetryTimeoutOptions } from '@pnpm/fetching-types'
-import type { CustomFetchers, GitFetcher, DirectoryFetcher } from '@pnpm/fetcher-base'
+import type { CustomFetchers, GitFetcher, DirectoryFetcher, NodeRuntimeFetcher } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import { createGitFetcher } from '@pnpm/git-fetcher'
 import { createTarballFetcher, type TarballFetchers } from '@pnpm/tarball-fetcher'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import { createNodeRuntimeFetcher } from '@pnpm/node.fetcher'
 import mapValues from 'ramda/src/map'
 
 export type { ResolveFunction }
@@ -57,6 +58,7 @@ export function createResolver (opts: ClientOptions): { resolve: ResolveFunction
 type Fetchers = {
   git: GitFetcher
   directory: DirectoryFetcher
+  nodeRuntime: NodeRuntimeFetcher
 } & TarballFetchers
 
 function createFetchers (
@@ -69,6 +71,7 @@ function createFetchers (
     ...createTarballFetcher(fetchFromRegistry, getAuthHeader, opts),
     ...createGitFetcher(opts),
     ...createDirectoryFetcher({ resolveSymlinks: opts.resolveSymlinksInInjectedDirs, includeOnlyPackageFiles: opts.includeOnlyPackageFiles }),
+    ...createNodeRuntimeFetcher({ fetch: fetchFromRegistry, nodeMirrorBaseUrl: 'https://nodejs.org/download/release/' })
   }
 
   const overwrites = mapValues(

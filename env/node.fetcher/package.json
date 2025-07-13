@@ -38,6 +38,7 @@
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
+    "@pnpm/worker": "workspace:*",
     "adm-zip": "catalog:",
     "detect-libc": "catalog:",
     "rename-overwrite": "catalog:",

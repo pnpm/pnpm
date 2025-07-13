@@ -32,6 +32,9 @@
     },
     {
       "path": "../../store/create-cafs-store"
+    },
+    {
+      "path": "../../worker"
     }
   ]
 }

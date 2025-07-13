@@ -32,10 +32,16 @@ export interface GitResolution {
   type: 'git'
 }
 
+export interface NodeRuntimeResolution {
+  type: 'nodeRuntime'
+  integrity: string
+}
+
 export type Resolution =
   | TarballResolution
   | DirectoryResolution
   | GitResolution
+  | NodeRuntimeResolution
 
 export interface ResolveResult {
   id: PkgResolutionId

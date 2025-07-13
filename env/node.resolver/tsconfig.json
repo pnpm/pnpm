@@ -16,6 +16,12 @@
       "path": "../../network/fetching-types"
     },
     {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
       "path": "../node.fetcher"
     }
   ]

@@ -2,6 +2,7 @@ import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry, type GetAuthHeader } from '@pnpm/fetching-types'
 import { type GitResolveResult, createGitResolver } from '@pnpm/git-resolver'
 import { type LocalResolveResult, resolveFromLocal } from '@pnpm/local-resolver'
+import { resolveNodeRuntime, type NodeRuntimeResolveResult } from '@pnpm/node.resolver'
 import {
   createNpmResolver,
   type JsrResolveResult,
@@ -33,6 +34,7 @@ export type DefaultResolveResult =
   | LocalResolveResult
   | TarballResolveResult
   | WorkspaceResolveResult
+  | NodeRuntimeResolveResult
 
 export type DefaultResolver = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<DefaultResolveResult>
 
@@ -43,6 +45,7 @@ export function createResolver (
 ): { resolve: DefaultResolver, clearCache: () => void } {
   const { resolveFromNpm, resolveFromJsr, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
   const resolveFromGit = createGitResolver(pnpmOpts)
+  const _resolveNodeRuntime = resolveNodeRuntime.bind(null, fetchFromRegistry)
   return {
     resolve: async (wantedDependency, opts) => {
       const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
@@ -51,7 +54,8 @@ export function createResolver (
           await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
           await resolveFromGit(wantedDependency as { bareSpecifier: string }) ??
           await resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)
-        ))
+        )) ??
+        await _resolveNodeRuntime(wantedDependency, opts)
       if (!resolution) {
         throw new PnpmError(
           'SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER',

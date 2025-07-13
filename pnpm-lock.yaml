@@ -2066,6 +2066,9 @@ importers:
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../../fetching/tarball-fetcher
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:../../worker
       adm-zip:
         specifier: 'catalog:'
         version: 0.5.16
@@ -2109,6 +2112,12 @@ importers:
       '@pnpm/node.fetcher':
         specifier: workspace:*
         version: link:../node.fetcher
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       semver:
         specifier: 'catalog:'
         version: 7.7.1
@@ -4471,6 +4480,9 @@ importers:
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header
+      '@pnpm/node.fetcher':
+        specifier: workspace:*
+        version: link:../../env/node.fetcher
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -6664,6 +6676,9 @@ importers:
       '@pnpm/local-resolver':
         specifier: workspace:*
         version: link:../local-resolver
+      '@pnpm/node.resolver':
+        specifier: workspace:*
+        version: link:../../env/node.resolver
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../npm-resolver

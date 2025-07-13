@@ -34,6 +34,8 @@
   "dependencies": {
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "semver": "catalog:",
     "version-selector-type": "catalog:"
   },
