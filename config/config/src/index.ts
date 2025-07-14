@@ -381,6 +381,7 @@ export async function getConfig (opts: {
     }
   }
 
+  // if --cpu, --libc, or --os was provided from the command line, override supportedArchitectures with them
   const supportedArchitecturesKeys = ['cpu', 'libc', 'os'] as const satisfies Array<keyof SupportedArchitectures>
   for (const key of supportedArchitecturesKeys) {
     const values = pnpmConfig[key]
