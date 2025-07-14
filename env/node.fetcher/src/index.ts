@@ -8,6 +8,7 @@ import {
 } from '@pnpm/fetching-types'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { createCafsStore } from '@pnpm/create-cafs-store'
+import { createHash } from '@pnpm/crypto.hash'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
 import { type NodeRuntimeFetcher, type FetchFunction, FetchResult } from '@pnpm/fetcher-base'
@@ -25,11 +26,18 @@ export function createNodeRuntimeFetcher (ctx: {
 }) {
   const fetchNodeRuntime: NodeRuntimeFetcher = async (cafs, resolution, opts) => {
     console.log(resolution, opts)
+    if (!opts.pkg.version) {
+      throw new Error('Cannot fetch node.js without a version')
+    }
 
     await validateSystemCompatibility()
 
     const nodeMirrorBaseUrl = ctx.nodeMirrorBaseUrl ?? DEFAULT_NODE_MIRROR_BASE_URL
-    const artifactInfo = await getNodeArtifactInfo(ctx.fetch, '22.0.0', nodeMirrorBaseUrl)
+    const artifactInfo = await getNodeArtifactInfo(ctx.fetch, opts.pkg.version, {
+      nodeMirrorBaseUrl,
+      expectedVersionIntegrity: resolution.integrity,
+      cachedShasumsFile: resolution.body,
+    })
 
     if (artifactInfo.isZip) {
       const tempLocation = await cafs.tempDir()
@@ -94,7 +102,7 @@ export async function fetchNode (
   await validateSystemCompatibility()
 
   const nodeMirrorBaseUrl = opts.nodeMirrorBaseUrl ?? DEFAULT_NODE_MIRROR_BASE_URL
-  const artifactInfo = await getNodeArtifactInfo(fetch, version, nodeMirrorBaseUrl)
+  const artifactInfo = await getNodeArtifactInfo(fetch, version, { nodeMirrorBaseUrl })
 
   if (artifactInfo.isZip) {
     await downloadAndUnpackZip(fetch, artifactInfo, targetDir)
@@ -130,11 +138,15 @@ async function validateSystemCompatibility (): Promise<void> {
 async function getNodeArtifactInfo (
   fetch: FetchFromRegistry,
   version: string,
-  nodeMirrorBaseUrl: string
+  opts: {
+    nodeMirrorBaseUrl: string
+    expectedVersionIntegrity?: string
+    cachedShasumsFile?: string
+  }
 ): Promise<NodeArtifactInfo> {
   const tarball = getNodeArtifactAddress({
     version,
-    baseUrl: nodeMirrorBaseUrl,
+    baseUrl: opts.nodeMirrorBaseUrl,
     platform: process.platform,
     arch: process.arch,
   })
@@ -143,7 +155,7 @@ async function getNodeArtifactInfo (
   const shasumsFileUrl = `${tarball.dirname}/SHASUMS256.txt`
   const url = `${tarball.dirname}/${tarballFileName}`
 
-  const integrity = await loadArtifactIntegrity(fetch, shasumsFileUrl, tarballFileName)
+  const integrity = opts.cachedShasumsFile ? pickArtifactIntegrity(opts.cachedShasumsFile, tarballFileName) : await loadArtifactIntegrity(fetch, shasumsFileUrl, tarballFileName)
 
   return {
     url,
@@ -165,7 +177,8 @@ async function getNodeArtifactInfo (
 async function loadArtifactIntegrity (
   fetch: FetchFromRegistry,
   integritiesFileUrl: string,
-  fileName: string
+  fileName: string,
+  expectedVersionIntegrity?: string
 ): Promise<string> {
   const res = await fetch(integritiesFileUrl)
   if (!res.ok) {
@@ -176,6 +189,16 @@ async function loadArtifactIntegrity (
   }
 
   const body = await res.text()
+  if (expectedVersionIntegrity) {
+    const actualVersionIntegrity = createHash(body)
+    if (expectedVersionIntegrity !== actualVersionIntegrity) {
+      throw new PnpmError('NODE_VERSION_INTEGRITY_MISMATCH', `The integrity of ${integritiesFileUrl} failed. Expected: ${expectedVersionIntegrity}. Actual: ${actualVersionIntegrity}`)
+    }
+  }
+  return pickArtifactIntegrity(body, fileName)
+}
+
+function pickArtifactIntegrity (body: string, fileName: string): string {
   const line = body.split('\n').find(line => line.trim().endsWith(`  ${fileName}`))
 
   if (!line) {

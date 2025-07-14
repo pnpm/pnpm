@@ -11,6 +11,7 @@ import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { type KeyValuePair } from 'ramda'
 import partition from 'ramda/src/partition'
+import omit from 'ramda/src/omit'
 import { depPathToRef } from './depPathToRef'
 import { type ResolvedPackage } from './resolveDependencies'
 import { type DependenciesGraph } from '.'
@@ -182,6 +183,9 @@ function toLockfileResolution (
   lockfileIncludeTarballUrl?: boolean
 ): LockfileResolution {
   if (resolution.type !== undefined || !resolution['integrity']) {
+    if (resolution.type === 'nodeRuntime') {
+      return omit(['body'], resolution)
+    }
     return resolution as LockfileResolution
   }
   if (lockfileIncludeTarballUrl) {

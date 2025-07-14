@@ -2051,6 +2051,9 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error

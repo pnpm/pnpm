@@ -32,8 +32,8 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",

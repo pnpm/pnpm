@@ -10,10 +10,16 @@
   ],
   "references": [
     {
+      "path": "../../crypto/hash"
+    },
+    {
       "path": "../../network/fetch"
     },
     {
       "path": "../../network/fetching-types"
+    },
+    {
+      "path": "../../packages/error"
     },
     {
       "path": "../../packages/types"
