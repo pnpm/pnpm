@@ -386,10 +386,7 @@ export async function getConfig (opts: {
     const values = pnpmConfig[key]
     if (values != null) {
       pnpmConfig.supportedArchitectures ??= {}
-      pnpmConfig.supportedArchitectures[key] = [
-        ...pnpmConfig.supportedArchitectures[key] ?? [],
-        ...typeof values === 'string' ? [values] : values,
-      ]
+      pnpmConfig.supportedArchitectures[key] = typeof values === 'string' ? [values] : values
     }
   }
 
