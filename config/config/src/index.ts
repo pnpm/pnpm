@@ -37,6 +37,7 @@ import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 import { types } from './types'
 import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest'
+import { overrideSupportedArchitecturesWithCLI } from './overrideSupportedArchitecturesWithCLI'
 export { types }
 
 export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
@@ -381,15 +382,7 @@ export async function getConfig (opts: {
     }
   }
 
-  // if --cpu, --libc, or --os was provided from the command line, override supportedArchitectures with them
-  const supportedArchitecturesKeys = ['cpu', 'libc', 'os'] as const satisfies Array<keyof SupportedArchitectures>
-  for (const key of supportedArchitecturesKeys) {
-    const values = pnpmConfig[key]
-    if (values != null) {
-      pnpmConfig.supportedArchitectures ??= {}
-      pnpmConfig.supportedArchitectures[key] = typeof values === 'string' ? [values] : values
-    }
-  }
+  overrideSupportedArchitecturesWithCLI(pnpmConfig)
 
   if (opts.cliOptions['global']) {
     extractAndRemoveDependencyBuildOptions(pnpmConfig)
