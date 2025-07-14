@@ -381,7 +381,7 @@ export async function getConfig (opts: {
     }
   }
 
-  const supportedArchitecturesKeys = ['os', 'cpu', 'libc'] as const satisfies Array<keyof SupportedArchitectures>
+  const supportedArchitecturesKeys = ['cpu', 'libc', 'os'] as const satisfies Array<keyof SupportedArchitectures>
   for (const key of supportedArchitecturesKeys) {
     const values = pnpmConfig[key]
     if (values != null) {
