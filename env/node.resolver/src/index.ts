@@ -33,7 +33,7 @@ export async function resolveNodeRuntime (
   }
   const { versionIntegrity: integrity, body } = await loadShasumsFile(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
   return {
-    id: `node@runtime:node@${version}` as PkgResolutionId,
+    id: `node@runtime:${version}` as PkgResolutionId,
     resolvedVia: 'nodejs.org',
     manifest: {
       name: 'node',
@@ -42,7 +42,7 @@ export async function resolveNodeRuntime (
     resolution: {
       type: 'nodeRuntime',
       integrity,
-      body
+      body,
     },
   }
 }

@@ -216,12 +216,13 @@ async function buildGraphFromPackages (
         progressLogger.debug({ packageId, requester: opts.lockfileDir, status: 'resolved' })
 
         try {
+          const expectedPkg = { name: pkgName, version: pkgVersion }
           fetchResponse = await opts.storeController.fetchPackage({
             force: false,
             lockfileDir: opts.lockfileDir,
             ignoreScripts: opts.ignoreScripts,
-            pkg: { id: packageId, resolution },
-            expectedPkg: { name: pkgName, version: pkgVersion },
+            pkg: { ...expectedPkg, id: packageId, resolution },
+            expectedPkg,
           })
         } catch (err) {
           if (pkgSnapshot.optional) return
