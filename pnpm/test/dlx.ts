@@ -6,6 +6,7 @@ import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
+import { type BaseManifest } from '@pnpm/types'
 import { execPnpm, execPnpmSync } from './utils'
 
 let registries: Record<string, string>
@@ -16,7 +17,9 @@ beforeAll(async () => {
   registries.default = `http://localhost:${REGISTRY_MOCK_PORT}/`
 })
 
-const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, registries)
+const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registries })
+
+const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 
 test('dlx parses options between "dlx" and the command name', async () => {
   prepareEmpty()
@@ -296,5 +299,99 @@ test('dlx uses the node version specified by --use-node-version', async () => {
     execPath: process.platform === 'win32'
       ? path.join(pnpmHome, 'nodejs', '20.0.0', 'node.exe')
       : path.join(pnpmHome, 'nodejs', '20.0.0', 'bin', 'node'),
+  })
+})
+
+describeOnLinuxOnly('dlx with supportedArchitectures CLI options', () => {
+  type CPU = 'arm64' | 'x64'
+  type LibC = 'glibc' | 'musl'
+  type OS = 'darwin' | 'linux' | 'win32'
+  type CLIOption = `--cpu=${CPU}` | `--libc=${LibC}` | `--os=${OS}`
+  type Installed = string[]
+  type NotInstalled = string[]
+  type Case = [CLIOption[], Installed, NotInstalled]
+
+  test.each([
+    [['--cpu=arm64', '--os=win32'], ['@pnpm.e2e/only-win32-arm64'], [
+      '@pnpm.e2e/only-darwin-arm64',
+      '@pnpm.e2e/only-darwin-x64',
+      '@pnpm.e2e/only-linux-arm64-glibc',
+      '@pnpm.e2e/only-linux-arm64-musl',
+      '@pnpm.e2e/only-linux-x64-glibc',
+      '@pnpm.e2e/only-linux-x64-musl',
+      '@pnpm.e2e/only-win32-x64',
+    ]],
+
+    [['--cpu=arm64', '--os=darwin'], ['@pnpm.e2e/only-darwin-arm64'], [
+      '@pnpm.e2e/only-darwin-x64',
+      '@pnpm.e2e/only-linux-arm64-glibc',
+      '@pnpm.e2e/only-linux-arm64-musl',
+      '@pnpm.e2e/only-linux-x64-glibc',
+      '@pnpm.e2e/only-linux-x64-musl',
+      '@pnpm.e2e/only-win32-arm64',
+      '@pnpm.e2e/only-win32-x64',
+    ]],
+
+    [['--cpu=x64', '--os=linux', '--libc=musl'], [
+      '@pnpm.e2e/only-linux-x64-musl',
+    ], [
+      '@pnpm.e2e/only-darwin-arm64',
+      '@pnpm.e2e/only-darwin-x64',
+      '@pnpm.e2e/only-linux-arm64-glibc',
+      '@pnpm.e2e/only-linux-arm64-musl',
+      '@pnpm.e2e/only-linux-x64-glibc',
+      '@pnpm.e2e/only-win32-arm64',
+      '@pnpm.e2e/only-win32-x64',
+    ]],
+
+    [[
+      '--cpu=arm64',
+      '--cpu=x64',
+      '--os=darwin',
+      '--os=linux',
+      '--os=win32',
+    ], [
+      '@pnpm.e2e/only-darwin-arm64',
+      '@pnpm.e2e/only-darwin-x64',
+      '@pnpm.e2e/only-linux-arm64-glibc',
+      '@pnpm.e2e/only-linux-arm64-musl',
+      '@pnpm.e2e/only-linux-x64-glibc',
+      '@pnpm.e2e/only-linux-x64-musl',
+      '@pnpm.e2e/only-win32-arm64',
+      '@pnpm.e2e/only-win32-x64',
+    ], []],
+  ] as Case[])('%p', async (cliOpts, installed, notInstalled) => {
+    prepareEmpty()
+
+    const execResult = execPnpmSync([
+      `--config.store-dir=${path.resolve('store')}`,
+      `--config.cache-dir=${path.resolve('cache')}`,
+      '--package=@pnpm.e2e/support-different-architectures',
+      ...cliOpts,
+      'dlx',
+      'get-optional-dependencies',
+    ], {
+      stdio: [null, 'pipe', 'inherit'],
+      expectSuccess: true,
+    })
+
+    interface OptionalDepsInfo {
+      installed: Record<string, BaseManifest>
+      notInstalled: string[]
+    }
+
+    let optionalDepsInfo: OptionalDepsInfo
+    try {
+      optionalDepsInfo = JSON.parse(execResult.stdout.toString())
+    } catch (err) {
+      console.error(execResult.stdout.toString())
+      console.error(execResult.stderr.toString())
+      throw err
+    }
+
+    expect(optionalDepsInfo).toStrictEqual({
+      installed: Object.fromEntries(installed.map(name => [name, expect.objectContaining({ name })])),
+      notInstalled,
+    } as OptionalDepsInfo)
   })
 })
