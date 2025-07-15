@@ -398,6 +398,7 @@ test('add: fail trying to install @pnpm/exe', async () => {
   }
   expect(err.code).toBe('ERR_PNPM_GLOBAL_PNPM_INSTALL')
 })
+
 describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchitectures.libc', () => {
   test.each([
     ['glibc', '@pnpm.e2e+only-linux-x64-glibc@1.0.0', '@pnpm.e2e+only-linux-x64-musl@1.0.0'],
