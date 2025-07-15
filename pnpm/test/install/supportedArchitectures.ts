@@ -11,10 +11,19 @@ type CPU = 'arm64' | 'x64'
 type LibC = 'glibc' | 'musl'
 type OS = 'darwin' | 'linux' | 'win32'
 type CLIOption = `--cpu=${CPU}` | `--libc=${LibC}` | `--os=${OS}`
-type WorkspaceConfig = { cpu?: CPU[], libc?: LibC[], os?: OS[] }
+interface WorkspaceConfig {
+  cpu?: CPU[]
+  libc?: LibC[]
+  os?: OS[]
+}
 type Installed = string[]
 type Skipped = string[]
-type Case = [CLIOption[], WorkspaceConfig | undefined, Installed, Skipped]
+type Case = [
+  CLIOption[],
+  WorkspaceConfig | undefined,
+  Installed,
+  Skipped
+]
 
 const TEST_CASES: Case[] = [
   [[], undefined, [

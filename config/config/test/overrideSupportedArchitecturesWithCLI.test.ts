@@ -16,7 +16,7 @@ test('no flags, no overrides', () => {
   expect(getOverriddenSupportedArchitectures({
     supportedArchitectures: {
       os: ['linux'],
-    }
+    },
   })).toStrictEqual({
     os: ['linux'],
   } as SupportedArchitectures)
@@ -25,7 +25,7 @@ test('no flags, no overrides', () => {
     supportedArchitectures: {
       cpu: ['x64'],
       os: ['linux'],
-    }
+    },
   })).toStrictEqual({
     cpu: ['x64'],
     os: ['linux'],
@@ -36,7 +36,7 @@ test('no flags, no overrides', () => {
       cpu: ['x64'],
       libc: ['glibc'],
       os: ['linux'],
-    }
+    },
   })).toStrictEqual({
     cpu: ['x64'],
     libc: ['glibc'],
@@ -67,7 +67,7 @@ test('overrides', () => {
     os: ['darwin'],
     supportedArchitectures: {
       os: ['linux'],
-    }
+    },
   })).toStrictEqual({
     cpu: ['arm64'],
     os: ['darwin'],
@@ -79,7 +79,7 @@ test('overrides', () => {
     supportedArchitectures: {
       cpu: ['x64'],
       os: ['linux'],
-    }
+    },
   })).toStrictEqual({
     cpu: ['arm64'],
     os: ['darwin'],
@@ -92,7 +92,7 @@ test('overrides', () => {
       cpu: ['x64'],
       libc: ['glibc'],
       os: ['linux'],
-    }
+    },
   })).toStrictEqual({
     cpu: ['arm64'],
     libc: ['glibc'],
