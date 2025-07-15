@@ -251,7 +251,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null) {
     try {
       await symlinkDir(cmd.path, externalBinPath)
-      if (await isFileOwnedByUser(cmd.path)) await fixBin(cmd.path, 0o755)
+      if (await canFixBin(cmd.path)) await fixBin(cmd.path, 0o755)
       else globalWarn(`Skipped fixing bin permissions of \`${cmd.path}\` because the file is not owned by the current user`)
     } catch (err: any) { // eslint-disable-line
       if (err.code !== 'ENOENT') {
@@ -287,24 +287,24 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // ensure that bin are executable and not containing
   // windows line-endings(CRLF) on the hashbang line
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
-    if (await isFileOwnedByUser(cmd.path)) await fixBin(cmd.path, 0o755)
+    if (await canFixBin(cmd.path)) await fixBin(cmd.path, 0o755)
     else globalWarn(`Skipped fixing bin permissions of \`${cmd.path}\` because the file is not owned by the current user`)
   }
 }
 
-async function isFileOwnedByUser (filePath: string): Promise<boolean> {
-  if (IS_WINDOWS) {
-    // TODO: Does this happen on windows?
-    return true
-  }
+async function canFixBin (filePath: string): Promise<boolean> {
+  // TODO: Does this happen on windows?
+  if (IS_WINDOWS) return true
 
-  const { uid: fileOwnerId } = await fs.stat(filePath)
   const userId = process.getuid?.()
-
   const userIsRoot = userId === 0
   if (userIsRoot) return true
 
-  return fileOwnerId === userId
+  const { uid: fileOwnerId } = await fs.stat(filePath)
+  const userIsFileOwner = fileOwnerId === userId
+  if (userIsFileOwner) return true
+
+  return false
 }
 
 function getExeExtension (): string {
