@@ -293,7 +293,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
 }
 
 async function isFileOwnedByUser (filePath: string): Promise<boolean> {
-  if(IS_WINDOWS) {
+  if (IS_WINDOWS) {
     // TODO: Does this happen on windows?
     return true
   }
@@ -306,7 +306,6 @@ async function isFileOwnedByUser (filePath: string): Promise<boolean> {
 
   return fileOwnerId === userId
 }
-
 
 function getExeExtension (): string {
   let cmdExtension
