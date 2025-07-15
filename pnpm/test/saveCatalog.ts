@@ -667,6 +667,110 @@ test('--save-catalog creates new workspace manifest with the new catalog (recurs
   } as ProjectManifest)
 })
 
+test('--save-catalog preserves semver range when adding existing catalog package to second project', async () => {
+  const manifests: ProjectManifest[] = [
+    {
+      name: 'project-0',
+      version: '0.0.0',
+    },
+    {
+      name: 'project-1',
+      version: '0.0.0',
+    },
+  ]
+
+  preparePackages(manifests)
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['project-0', 'project-1'],
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  await execPnpm(['--filter=project-0', 'add', '--save-catalog', '@pnpm.e2e/foo'])
+
+  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+    catalog: {
+      '@pnpm.e2e/foo': '^100.1.0',
+    },
+    packages: ['project-0', 'project-1'],
+  })
+
+  await execPnpm(['--filter=project-1', 'add', '@pnpm.e2e/foo@catalog:'])
+
+  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+    catalog: {
+      '@pnpm.e2e/foo': '^100.1.0',
+    },
+    packages: ['project-0', 'project-1'],
+  })
+
+  // Verify both projects have the correct dependency
+  expect(loadJsonFile('project-0/package.json')).toStrictEqual({
+    ...manifests[0],
+    dependencies: {
+      '@pnpm.e2e/foo': 'catalog:',
+    },
+  })
+  expect(loadJsonFile('project-1/package.json')).toStrictEqual({
+    ...manifests[1],
+    dependencies: {
+      '@pnpm.e2e/foo': 'catalog:',
+    },
+  })
+})
+
+test('--save-catalog preserves semver range when adding existing catalog package with --save-catalog', async () => {
+  const manifests: ProjectManifest[] = [
+    {
+      name: 'project-0',
+      version: '0.0.0',
+    },
+    {
+      name: 'project-1',
+      version: '0.0.0',
+    },
+  ]
+
+  preparePackages(manifests)
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['project-0', 'project-1'],
+  })
+
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+
+  await execPnpm(['--filter=project-0', 'add', '--save-catalog', '@pnpm.e2e/bar'])
+
+  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+    catalog: {
+      '@pnpm.e2e/bar': '^100.1.0',
+    },
+    packages: ['project-0', 'project-1'],
+  })
+
+  await execPnpm(['--filter=project-1', 'add', '--save-catalog', '@pnpm.e2e/bar'])
+
+  expect(readYamlFile('pnpm-workspace.yaml')).toStrictEqual({
+    catalog: {
+      '@pnpm.e2e/bar': '^100.1.0',
+    },
+    packages: ['project-0', 'project-1'],
+  })
+  expect(loadJsonFile('project-0/package.json')).toStrictEqual({
+    ...manifests[0],
+    dependencies: {
+      '@pnpm.e2e/bar': 'catalog:',
+    },
+  })
+  expect(loadJsonFile('project-1/package.json')).toStrictEqual({
+    ...manifests[1],
+    dependencies: {
+      '@pnpm.e2e/bar': 'catalog:',
+    },
+  })
+})
+
 test('--save-catalog-name', async () => {
   const manifest: ProjectManifest = {
     name: 'test-save-catalog',

@@ -290,7 +290,13 @@ export async function resolveDependencies (
       if (dep.catalogLookup == null) continue
       updatedCatalogs ??= {}
       updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
-      updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier ?? dep.catalogLookup.userSpecifiedBareSpecifier
+
+      const existingCatalogEntry = opts.catalogs?.[dep.catalogLookup.catalogName]?.[dep.alias]
+      if (existingCatalogEntry) {
+        updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = existingCatalogEntry
+      } else {
+        updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier ?? dep.catalogLookup.userSpecifiedBareSpecifier
+      }
     }
   }
 
