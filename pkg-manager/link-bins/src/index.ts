@@ -22,7 +22,6 @@ import partition from 'ramda/src/partition'
 import semver from 'semver'
 import symlinkDir from 'symlink-dir'
 import fixBin from 'bin-links/lib/fix-bin'
-import { isFileOwnedByUser } from './isFileOwnedByUser'
 
 const binsConflictLogger = logger('bins-conflict')
 const IS_WINDOWS = isWindows()
@@ -292,6 +291,22 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     else globalWarn(`Skipped fixing bin permissions of \`${cmd.path}\` because the file is not owned by the current user`)
   }
 }
+
+async function isFileOwnedByUser (filePath: string): Promise<boolean> {
+  if(IS_WINDOWS) {
+    // TODO: Does this happen on windows?
+    return true
+  }
+
+  const { uid: fileOwnerId } = await fs.stat(filePath)
+  const userId = process.getuid?.()
+
+  const userIsRoot = userId === 0
+  if (userIsRoot) return true
+
+  return fileOwnerId === userId
+}
+
 
 function getExeExtension (): string {
   let cmdExtension
