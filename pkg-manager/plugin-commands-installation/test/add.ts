@@ -4,6 +4,7 @@ import { type PnpmError } from '@pnpm/error'
 import { add, remove } from '@pnpm/plugin-commands-installation'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { type ProjectManifest } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import tempy from 'tempy'
 
@@ -404,7 +405,7 @@ describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchit
     ['glibc', '@pnpm.e2e+only-linux-x64-glibc@1.0.0', '@pnpm.e2e+only-linux-x64-musl@1.0.0'],
     ['musl', '@pnpm.e2e+only-linux-x64-musl@1.0.0', '@pnpm.e2e+only-linux-x64-glibc@1.0.0'],
   ])('%p → installs %p, does not install %p', async (libc, found, notFound) => {
-    const rootProjectManifest = {
+    const rootProjectManifest: ProjectManifest = {
       pnpm: {
         supportedArchitectures: {
           os: ['linux'],
