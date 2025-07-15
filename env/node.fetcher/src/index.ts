@@ -11,7 +11,7 @@ import { createCafsStore } from '@pnpm/create-cafs-store'
 import { createHash } from '@pnpm/crypto.hash'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
-import { type NodeRuntimeFetcher, type FetchFunction, FetchResult } from '@pnpm/fetcher-base'
+import { type NodeRuntimeFetcher, type FetchFunction, type FetchResult } from '@pnpm/fetcher-base'
 import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
 import renameOverwrite from 'rename-overwrite'
@@ -21,9 +21,9 @@ import ssri from 'ssri'
 import { getNodeArtifactAddress } from './getNodeArtifactAddress'
 
 export function createNodeRuntimeFetcher (ctx: {
-  fetch: FetchFromRegistry,
+  fetch: FetchFromRegistry
   nodeMirrorBaseUrl: string
-}) {
+}): { nodeRuntime: NodeRuntimeFetcher } {
   const fetchNodeRuntime: NodeRuntimeFetcher = async (cafs, resolution, opts) => {
     console.log(resolution, opts)
     if (!opts.pkg.version) {

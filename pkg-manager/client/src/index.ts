@@ -71,7 +71,7 @@ function createFetchers (
     ...createTarballFetcher(fetchFromRegistry, getAuthHeader, opts),
     ...createGitFetcher(opts),
     ...createDirectoryFetcher({ resolveSymlinks: opts.resolveSymlinksInInjectedDirs, includeOnlyPackageFiles: opts.includeOnlyPackageFiles }),
-    ...createNodeRuntimeFetcher({ fetch: fetchFromRegistry, nodeMirrorBaseUrl: 'https://nodejs.org/download/release/' })
+    ...createNodeRuntimeFetcher({ fetch: fetchFromRegistry, nodeMirrorBaseUrl: 'https://nodejs.org/download/release/' }),
   }
 
   const overwrites = mapValues(
