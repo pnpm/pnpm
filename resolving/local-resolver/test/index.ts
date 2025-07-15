@@ -27,6 +27,17 @@ test('resolve directory specified using absolute path', async () => {
   expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
 })
 
+test('resolve directory specified using absolute path with preserveAbsolutePaths', async () => {
+  const linkedDir = path.join(__dirname, '..')
+  const normalizedLinkedDir = normalize(linkedDir)
+  const resolveResult = await resolveFromLocal({ bareSpecifier: `link:${linkedDir}` }, { projectDir: __dirname, preserveAbsolutePaths: true })
+  expect(resolveResult!.id).toEqual(`link:${normalizedLinkedDir}`)
+  expect(resolveResult!.normalizedBareSpecifier).toEqual(`link:${normalizedLinkedDir}`)
+  expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
+  expect((resolveResult!.resolution as DirectoryResolution).directory).toEqual(normalizedLinkedDir)
+  expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
+})
+
 test('resolve injected directory', async () => {
   const resolveResult = await resolveFromLocal({ injected: true, bareSpecifier: '..' }, { projectDir: __dirname })
   expect(resolveResult!.id).toEqual('file:..')

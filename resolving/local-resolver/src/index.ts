@@ -25,9 +25,11 @@ export async function resolveFromLocal (
   opts: {
     lockfileDir?: string
     projectDir: string
+    preserveAbsolutePaths?: boolean
   }
 ): Promise<LocalResolveResult | null> {
-  const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir)
+  const preserveAbsolutePaths = opts.preserveAbsolutePaths ?? false
+  const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir, { preserveAbsolutePaths })
   if (spec == null) return null
   if (spec.type === 'file') {
     return {
