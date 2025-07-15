@@ -43,6 +43,9 @@ export function createResolver (
 ): { resolve: DefaultResolver, clearCache: () => void } {
   const { resolveFromNpm, resolveFromJsr, clearCache } = createNpmResolver(fetchFromRegistry, getAuthHeader, pnpmOpts)
   const resolveFromGit = createGitResolver(pnpmOpts)
+  const _resolveFromLocal = resolveFromLocal.bind(null, {
+    preserveAbsolutePaths: pnpmOpts.preserveAbsolutePaths,
+  })
   return {
     resolve: async (wantedDependency, opts) => {
       const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
@@ -50,7 +53,7 @@ export function createResolver (
         (wantedDependency.bareSpecifier && (
           await resolveFromTarball(fetchFromRegistry, wantedDependency as { bareSpecifier: string }) ??
           await resolveFromGit(wantedDependency as { bareSpecifier: string }) ??
-          await resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)
+          await _resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)
         ))
       if (!resolution) {
         throw new PnpmError(

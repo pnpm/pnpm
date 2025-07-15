@@ -51,7 +51,7 @@ export function parseBareSpecifier (
     isFilespec.test(wd.bareSpecifier)
   ) {
     const type = isFilename.test(wd.bareSpecifier) ? 'file' : 'directory'
-    return fromLocal(wd, projectDir, lockfileDir, type, opts.preserveAbsolutePaths)
+    return fromLocal(wd, projectDir, lockfileDir, type, opts)
   }
   if (wd.bareSpecifier.startsWith('path:')) {
     throw new PathIsUnsupportedProtocolError(wd.bareSpecifier, 'path:')

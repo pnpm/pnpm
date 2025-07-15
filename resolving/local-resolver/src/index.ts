@@ -21,14 +21,16 @@ export interface LocalResolveResult extends ResolveResult {
  * Resolves a package hosted on the local filesystem
  */
 export async function resolveFromLocal (
+  ctx: {
+    preserveAbsolutePaths?: boolean
+  },
   wantedDependency: WantedLocalDependency,
   opts: {
     lockfileDir?: string
     projectDir: string
-    preserveAbsolutePaths?: boolean
   }
 ): Promise<LocalResolveResult | null> {
-  const preserveAbsolutePaths = opts.preserveAbsolutePaths ?? false
+  const preserveAbsolutePaths = ctx.preserveAbsolutePaths ?? false
   const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir, { preserveAbsolutePaths })
   if (spec == null) return null
   if (spec.type === 'file') {
