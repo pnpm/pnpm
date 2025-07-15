@@ -1,21 +1,23 @@
 import { type Config } from './Config'
+import { type types } from './types'
 
-const CLI_OPTION_NAMES = ['cpu', 'libc', 'os'] as const satisfies Array<keyof Config>
+const CLI_OPTION_NAMES = ['cpu', 'libc', 'os'] as const satisfies Array<keyof typeof types>
 type CliOptionName = typeof CLI_OPTION_NAMES[number]
 
-export type CliOptions = Readonly<Pick<Config, CliOptionName>>
+export type CliOptions = Partial<Record<CliOptionName, string | string[]>>
 export type TargetConfig = Pick<Config, 'supportedArchitectures'>
 
 /**
  * If `--cpu`, `--libc`, or `--os` was provided from the command line, override `supportedArchitectures` with them.
- * @param config - Both the input and the output.
+ * @param targetConfig - The config object whose `supportedArchitectures` would be overridden.
+ * @param cliOptions - The object that contains object
  */
-export function overrideSupportedArchitecturesWithCLI (config: CliOptions & TargetConfig): void {
+export function overrideSupportedArchitecturesWithCLI (targetConfig: TargetConfig, cliOptions: CliOptions): void {
   for (const key of CLI_OPTION_NAMES) {
-    const values = config[key]
+    const values = cliOptions[key]
     if (values != null) {
-      config.supportedArchitectures ??= {}
-      config.supportedArchitectures[key] = typeof values === 'string' ? [values] : values
+      targetConfig.supportedArchitectures ??= {}
+      targetConfig.supportedArchitectures[key] = typeof values === 'string' ? [values] : values
     }
   }
 }

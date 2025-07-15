@@ -36,7 +36,10 @@ import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 import { types } from './types'
 import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest'
-import { overrideSupportedArchitecturesWithCLI } from './overrideSupportedArchitecturesWithCLI'
+import {
+  type CliOptions as SupportedArchitecturesCliOptions,
+  overrideSupportedArchitecturesWithCLI,
+} from './overrideSupportedArchitecturesWithCLI'
 export { types }
 
 export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
@@ -55,7 +58,7 @@ type KebabCaseConfig = {
 
 const npmDefaults = loadNpmConf.defaults
 
-export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }
+export type CliOptions = Record<string, unknown> & SupportedArchitecturesCliOptions & { dir?: string, json?: boolean }
 
 export async function getConfig (opts: {
   globalDirShouldAllowWrite?: boolean
@@ -381,7 +384,7 @@ export async function getConfig (opts: {
     }
   }
 
-  overrideSupportedArchitecturesWithCLI(pnpmConfig)
+  overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
 
   if (opts.cliOptions['global']) {
     extractAndRemoveDependencyBuildOptions(pnpmConfig)
