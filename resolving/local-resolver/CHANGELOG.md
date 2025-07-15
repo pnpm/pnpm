@@ -1,5 +1,13 @@
 # @pnpm/local-resolver
 
+## 1002.1.0
+
+### Minor Changes
+
+- Added `preserveAbsolutePaths` option to `resolveFromLocal`. When using
+  `file:/path/to/package`, the absolute path will be preserved instead of being
+  turned into a relative path. [2127ebc43]
+
 ## 1002.0.1
 
 ### Patch Changes
