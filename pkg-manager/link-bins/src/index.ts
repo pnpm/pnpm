@@ -293,7 +293,6 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
 }
 
 async function canFixBin (filePath: string): Promise<boolean> {
-  // TODO: Does this happen on windows?
   if (IS_WINDOWS) return true
 
   const userId = process.getuid?.()
