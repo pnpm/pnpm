@@ -205,6 +205,16 @@ async function getPackageBins (
     : await safeReadPkgJson(target)
 
   if (manifest == null) {
+    if (path.basename(target) === 'node') {
+      return [{
+        name: 'node',
+        path: path.join(target, IS_WINDOWS ? 'node.exe' : 'bin/node'),
+        ownName: true,
+        pkgName: '',
+        pkgVersion: '',
+        makePowerShellShim: false,
+      }]
+    }
     // There's a directory in node_modules without package.json: ${target}.
     // This used to be a warning but it didn't really cause any issues.
     return []

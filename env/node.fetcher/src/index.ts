@@ -37,20 +37,31 @@ export function createNodeRuntimeFetcher (ctx: {
       expectedVersionIntegrity: resolution.integrity,
       cachedShasumsFile: resolution.body,
     })
+    const manifest = {
+      name: 'node',
+      version: opts.pkg.version,
+      bin: process.platform === 'win32' ? 'node.exe' : 'bin/node',
+    }
 
     if (artifactInfo.isZip) {
       const tempLocation = await cafs.tempDir()
       await downloadAndUnpackZip(ctx.fetch, artifactInfo, tempLocation)
-      return addFilesFromDir({
-        storeDir: cafs.storeDir,
-        dir: tempLocation,
-        filesIndexFile: opts.filesIndexFile,
-        // readManifest: opts.readManifest,
-        // pkg: opts.pkg,
-      })
+      return {
+        ...await addFilesFromDir({
+          storeDir: cafs.storeDir,
+          dir: tempLocation,
+          filesIndexFile: opts.filesIndexFile,
+          // readManifest: opts.readManifest,
+          // pkg: opts.pkg,
+        }),
+        manifest,
+      }
     }
 
-    return downloadAndUnpackTarball(ctx.fetch, artifactInfo, { cafs, filesIndexFile: opts.filesIndexFile })
+    return {
+      ...await downloadAndUnpackTarball(ctx.fetch, artifactInfo, { cafs, filesIndexFile: opts.filesIndexFile }),
+      manifest,
+    }
   }
   return {
     nodeRuntime: fetchNodeRuntime,

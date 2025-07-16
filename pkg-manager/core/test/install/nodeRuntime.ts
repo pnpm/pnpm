@@ -8,6 +8,7 @@ test('installing node.js runtime', async () => {
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['node@runtime:node@22.0.0'], testDefaults({ fastUnpack: false }))
 
+  project.isExecutable('.bin/node')
   expect(project.readLockfile()).toStrictEqual({
     settings: {
       autoInstallPeers: true,
@@ -40,4 +41,5 @@ test('installing node.js runtime', async () => {
 
   rimraf('node_modules')
   await install(manifest, testDefaults({ frozenLockfile: true }))
+  project.isExecutable('.bin/node')
 })
