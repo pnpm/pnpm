@@ -6,7 +6,7 @@ import {
   linkBins,
   linkBinsOfPackages,
   linkBinsOfPkgsByAliases,
-} from '../src/index'
+} from '@pnpm/link-bins'
 import { fixtures } from '@pnpm/test-fixtures'
 import CMD_EXTENSION from 'cmd-extension'
 import isWindows from 'is-windows'
