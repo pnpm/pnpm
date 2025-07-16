@@ -648,6 +648,6 @@ test('linkBins() should change permissions of files not owned by current user, i
   expect(globalWarn).toHaveBeenCalledTimes(globalWarnCallsCountBeforeLinkingBins) // No warning should be logged
 
   const permissionsAfterLinkBinsCall = fs.statSync(binFilePath).mode
-  // permissions should not have been changed
+  // permissions should have been changed, because user is root
   expect(permissionsAfterLinkBinsCall).not.toBe(permissionsBeforeLinkBinsCall)
 })
