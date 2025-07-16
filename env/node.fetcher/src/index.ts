@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fsPromises from 'fs/promises'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -324,12 +324,12 @@ async function downloadAndUnpackZip (
   const tmp = path.join(tempy.directory(), 'pnpm.zip')
 
   try {
-    await downloadWithIntegrityCheck(response, tmp, artifactInfo.integrity, artifactInfo.url)
+    await downloadWithIntegrityCheck(response, tmp, artifactInfo.integrity)
     await extractZipToTarget(tmp, artifactInfo.basename, targetDir)
   } finally {
     // Clean up temporary file
     try {
-      await fs.promises.unlink(tmp)
+      await fsPromises.unlink(tmp)
     } catch {
       // Ignore cleanup errors
     }
@@ -348,8 +348,7 @@ async function downloadAndUnpackZip (
 async function downloadWithIntegrityCheck (
   response: Response,
   tmpPath: string,
-  expectedIntegrity: string,
-  url: string
+  expectedIntegrity: string
 ): Promise<void> {
   // Collect all chunks from the response
   const chunks: Buffer[] = []
@@ -362,7 +361,7 @@ async function downloadWithIntegrityCheck (
   ssri.checkData(data, expectedIntegrity, { error: true })
 
   // Write the verified data to file
-  await fs.promises.writeFile(tmpPath, data)
+  await fsPromises.writeFile(tmpPath, data)
 }
 
 /**
