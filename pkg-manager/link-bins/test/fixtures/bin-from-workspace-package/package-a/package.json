@@ -1,4 +1,4 @@
 {
   "name": "package-a",
-  "bin": "bin/bin-file"
+  "bin": "bin-file"
 }

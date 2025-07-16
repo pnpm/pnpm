@@ -590,7 +590,7 @@ test('linkBins() should not try to change permissions of files not owned by curr
   // SETUP
   const binTarget = tempy.directory()
   const fixture = f.prepare('bin-from-workspace-package')
-  const binFilePath = path.join(fixture, 'package-a/bin/bin-file')
+  const binFilePath = path.join(fixture, 'package-a/bin-file')
 
   const permissionsBeforeLinkBinsCall = fs.statSync(binFilePath).mode
 
@@ -623,7 +623,7 @@ test('linkBins() should change permissions of files not owned by current user, i
   // SETUP
   const binTarget = tempy.directory()
   const fixture = f.prepare('bin-from-workspace-package')
-  const binFilePath = path.join(fixture, 'package-a/bin/bin-file')
+  const binFilePath = path.join(fixture, 'package-a/bin-file')
 
   const permissionsBeforeLinkBinsCall = fs.statSync(binFilePath).mode
 
