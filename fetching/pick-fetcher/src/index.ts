@@ -3,7 +3,6 @@ import type { Fetchers, FetchFunction, DirectoryFetcher, GitFetcher, NodeRuntime
 
 export function pickFetcher (fetcherByHostingType: Partial<Fetchers>, resolution: Resolution): FetchFunction | DirectoryFetcher | GitFetcher | NodeRuntimeFetcher {
   let fetcherType: keyof Fetchers | undefined = resolution.type
-  console.log('==>', resolution)
 
   if (resolution.type == null) {
     if (resolution.tarball.startsWith('file:')) {
@@ -15,7 +14,6 @@ export function pickFetcher (fetcherByHostingType: Partial<Fetchers>, resolution
     }
   }
 
-  console.log('==>', fetcherType)
   const fetch = fetcherByHostingType[fetcherType!]
 
   if (!fetch) {

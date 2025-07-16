@@ -25,7 +25,6 @@ export function createNodeRuntimeFetcher (ctx: {
   nodeMirrorBaseUrl: string
 }): { nodeRuntime: NodeRuntimeFetcher } {
   const fetchNodeRuntime: NodeRuntimeFetcher = async (cafs, resolution, opts) => {
-    console.log(resolution, opts)
     if (!opts.pkg.version) {
       throw new Error('Cannot fetch node.js without a version')
     }
