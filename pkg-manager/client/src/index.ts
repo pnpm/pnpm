@@ -64,14 +64,14 @@ type Fetchers = {
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
-  opts: Pick<ClientOptions, 'rawConfig' | 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'includeOnlyPackageFiles'>,
+  opts: Pick<ClientOptions, 'rawConfig' | 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'includeOnlyPackageFiles' | 'offline'>,
   customFetchers?: CustomFetchers
 ): Fetchers {
   const defaultFetchers = {
     ...createTarballFetcher(fetchFromRegistry, getAuthHeader, opts),
     ...createGitFetcher(opts),
     ...createDirectoryFetcher({ resolveSymlinks: opts.resolveSymlinksInInjectedDirs, includeOnlyPackageFiles: opts.includeOnlyPackageFiles }),
-    ...createNodeRuntimeFetcher({ fetch: fetchFromRegistry, nodeMirrorBaseUrl: 'https://nodejs.org/download/release/' }),
+    ...createNodeRuntimeFetcher({ fetch: fetchFromRegistry, nodeMirrorBaseUrl: 'https://nodejs.org/download/release/', offline: opts.offline }),
   }
 
   const overwrites = mapValues(

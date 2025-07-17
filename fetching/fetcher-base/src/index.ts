@@ -18,7 +18,9 @@ export interface FetchOptions {
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
   readManifest?: boolean
-  pkg: PkgNameVersion
+  pkg: PkgNameVersion & {
+    id: string
+  }
 }
 
 export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions, Result = FetchResult> = (

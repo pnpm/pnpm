@@ -354,7 +354,6 @@ function fetchToStore (
       readManifest?: boolean
     ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
     fetch: (
-      packageId: string,
       resolution: Resolution,
       opts: FetchOptions
     ) => Promise<FetchResult>
@@ -553,7 +552,6 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
       const priority = (++ctx.requestsQueue.counter % ctx.requestsQueue.concurrency === 0 ? -1 : 1) * 1000
 
       const fetchedPackage = await ctx.requestsQueue.add(async () => ctx.fetch(
-        opts.pkg.id,
         opts.pkg.resolution,
         {
           filesIndexFile,
@@ -577,6 +575,7 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
           pkg: {
             name: opts.pkg.name,
             version: opts.pkg.version,
+            id: opts.pkg.id,
           },
         }
       ), { priority })
@@ -634,7 +633,6 @@ async function tarballIsUpToDate (
 async function fetcher (
   fetcherByHostingType: Fetchers,
   cafs: Cafs,
-  packageId: string,
   resolution: Resolution,
   opts: FetchOptions
 ): Promise<FetchResult> {
@@ -643,7 +641,7 @@ async function fetcher (
     return await fetch(cafs, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
   } catch (err: any) { // eslint-disable-line
     packageRequestLogger.warn({
-      message: `Fetching ${packageId} failed!`,
+      message: `Fetching ${opts.pkg.id} failed!`,
       prefix: opts.lockfileDir,
     })
     throw err

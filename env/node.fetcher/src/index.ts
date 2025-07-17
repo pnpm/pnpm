@@ -23,23 +23,28 @@ import { getNodeArtifactAddress } from './getNodeArtifactAddress'
 export function createNodeRuntimeFetcher (ctx: {
   fetch: FetchFromRegistry
   nodeMirrorBaseUrl: string
+  offline?: boolean
 }): { nodeRuntime: NodeRuntimeFetcher } {
   const fetchNodeRuntime: NodeRuntimeFetcher = async (cafs, resolution, opts) => {
-    if (!opts.pkg.version) {
+    if (!opts.pkg.version && !opts.pkg.id) {
       throw new Error('Cannot fetch node.js without a version')
     }
+    if (ctx.offline) {
+      throw new PnpmError('CANNOT_DOWNLOAD_NODE_OFFLINE', 'Cannot download Node.js because offline mode is enabled.')
+    }
+    const version = opts.pkg.version ?? opts.pkg.id.replace('runtime:', '')
 
     await validateSystemCompatibility()
 
     const nodeMirrorBaseUrl = ctx.nodeMirrorBaseUrl ?? DEFAULT_NODE_MIRROR_BASE_URL
-    const artifactInfo = await getNodeArtifactInfo(ctx.fetch, opts.pkg.version, {
+    const artifactInfo = await getNodeArtifactInfo(ctx.fetch, version, {
       nodeMirrorBaseUrl,
       expectedVersionIntegrity: resolution.integrity,
       cachedShasumsFile: resolution.body,
     })
     const manifest = {
       name: 'node',
-      version: opts.pkg.version,
+      version,
       bin: process.platform === 'win32' ? 'node.exe' : 'bin/node',
     }
 
@@ -51,8 +56,7 @@ export function createNodeRuntimeFetcher (ctx: {
           storeDir: cafs.storeDir,
           dir: tempLocation,
           filesIndexFile: opts.filesIndexFile,
-          // readManifest: opts.readManifest,
-          // pkg: opts.pkg,
+          readManifest: false,
         }),
         manifest,
       }
@@ -267,7 +271,9 @@ async function downloadAndUnpackTarballToDir (
   }, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {},
+    pkg: {
+      id: '',
+    },
   })
 
   cafs.importPackage(targetDir, {
@@ -304,17 +310,15 @@ async function downloadAndUnpackTarball (
 
   const fetchTarball = pickFetcher(fetchers, { tarball: artifactInfo.url }) as FetchFunction
 
-  // Create a unique index file name for Node.js tarballs
-  // const indexFileName = `node-${encodeURIComponent(artifactInfo.url)}`
-  // const filesIndexFile = path.join(opts.storeDir, indexFileName)
-
   return fetchTarball(opts.cafs, {
     tarball: artifactInfo.url,
     integrity: artifactInfo.integrity,
   }, {
     filesIndexFile: opts.filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {},
+    pkg: {
+      id: '',
+    },
   })
 }
 

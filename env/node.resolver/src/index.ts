@@ -17,10 +17,12 @@ export async function resolveNodeRuntime (
   ctx: {
     fetchFromRegistry: FetchFromRegistry
     nodeMirrorBaseUrl?: string
+    offline?: boolean
   },
   wantedDependency: WantedDependency
 ): Promise<NodeRuntimeResolveResult | null> {
   if (!wantedDependency.bareSpecifier?.startsWith('runtime:node@')) return null
+  if (ctx.offline) throw new PnpmError('NO_OFFLINE_NODEJS_RESOLUTION', 'Offline Node.js resolution is not supported')
   const versionSpec = wantedDependency.bareSpecifier.substring('runtime:node@'.length)
   const nodeMirrorBaseUrl = ctx.nodeMirrorBaseUrl ?? DEFAULT_NODE_MIRROR_BASE_URL
   const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpec, nodeMirrorBaseUrl)
