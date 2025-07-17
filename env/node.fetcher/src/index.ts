@@ -12,6 +12,7 @@ import { createHash } from '@pnpm/crypto.hash'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
 import { type NodeRuntimeFetcher, type FetchFunction, type FetchResult } from '@pnpm/fetcher-base'
+import { getNodeMirror, parseEnvSpecifier } from '@pnpm/node.resolver'
 import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
 import renameOverwrite from 'rename-overwrite'
@@ -22,7 +23,7 @@ import { getNodeArtifactAddress } from './getNodeArtifactAddress'
 
 export function createNodeRuntimeFetcher (ctx: {
   fetch: FetchFromRegistry
-  nodeMirrorBaseUrl: string
+  rawConfig: Record<string, string>
   offline?: boolean
 }): { nodeRuntime: NodeRuntimeFetcher } {
   const fetchNodeRuntime: NodeRuntimeFetcher = async (cafs, resolution, opts) => {
@@ -33,10 +34,11 @@ export function createNodeRuntimeFetcher (ctx: {
       throw new PnpmError('CANNOT_DOWNLOAD_NODE_OFFLINE', 'Cannot download Node.js because offline mode is enabled.')
     }
     const version = opts.pkg.version ?? opts.pkg.id.replace('runtime:', '')
+    const { releaseChannel } = parseEnvSpecifier(version)
 
     await validateSystemCompatibility()
 
-    const nodeMirrorBaseUrl = ctx.nodeMirrorBaseUrl ?? DEFAULT_NODE_MIRROR_BASE_URL
+    const nodeMirrorBaseUrl = getNodeMirror(ctx.rawConfig, releaseChannel)
     const artifactInfo = await getNodeArtifactInfo(ctx.fetch, version, {
       nodeMirrorBaseUrl,
       expectedVersionIntegrity: resolution.integrity,

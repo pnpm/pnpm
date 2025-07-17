@@ -2063,6 +2063,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
+      '@pnpm/node.resolver':
+        specifier: workspace:*
+        version: link:../node.resolver
       '@pnpm/pick-fetcher':
         specifier: workspace:*
         version: link:../../fetching/pick-fetcher
@@ -2109,6 +2112,9 @@ importers:
 
   env/node.resolver:
     dependencies:
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
@@ -2118,9 +2124,6 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
-      '@pnpm/node.fetcher':
-        specifier: workspace:*
-        version: link:../node.fetcher
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base

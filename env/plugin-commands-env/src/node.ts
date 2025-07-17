@@ -6,11 +6,11 @@ import { getSystemNodeVersion } from '@pnpm/env.system-node-version'
 import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/fetch'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { fetchNode } from '@pnpm/node.fetcher'
+import { getNodeMirror } from '@pnpm/node.resolver'
 import { getStorePath } from '@pnpm/store-path'
 import { type PrepareExecutionEnvOptions, type PrepareExecutionEnvResult } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
-import { getNodeMirror } from './getNodeMirror'
 import { isValidVersion, parseNodeSpecifier } from './parseNodeSpecifier'
 
 export type NvmNodeCommandOptions = Pick<Config,

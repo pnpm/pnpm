@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../config/config"
+    },
+    {
       "path": "../../crypto/hash"
     },
     {
@@ -26,9 +29,6 @@
     },
     {
       "path": "../../resolving/resolver-base"
-    },
-    {
-      "path": "../node.fetcher"
     }
   ]
 }

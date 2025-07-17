@@ -5,7 +5,7 @@ import { getIntegrity } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
-test('installing node.js runtime', async () => {
+test('installing Node.js runtime', async () => {
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['node@runtime:node@22.0.0'], testDefaults({ fastUnpack: false }))
 
@@ -95,4 +95,11 @@ test('installing node.js runtime fails if offline mode is used and node.js not f
   await expect(
     addDependenciesToPackage({}, ['node@runtime:node@22.0.0'], testDefaults({ fastUnpack: false }, { offline: true }))
   ).rejects.toThrow(/Offline Node.js resolution is not supported/)
+})
+
+test('installing Node.js runtime from RC channel', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['node@runtime:node@24.0.0-rc.4'], testDefaults({ fastUnpack: false }))
+
+  project.isExecutable('.bin/node')
 })

@@ -38,6 +38,9 @@
     },
     {
       "path": "../../worker"
+    },
+    {
+      "path": "../node.resolver"
     }
   ]
 }
