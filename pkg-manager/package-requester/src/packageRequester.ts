@@ -286,20 +286,20 @@ async function resolveAndFetch (
     }
   }
 
-  const pkg: PkgNameVersion = manifest != null ? pick(['name', 'version'], manifest) : (options.expectedPkg ?? {})
+  const pkg: PkgNameVersion = manifest != null ? pick(['name', 'version'], manifest) : {}
   const fetchResult = ctx.fetchPackageToStore({
     fetchRawManifest: true,
     force: forceFetch,
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
     pkg: {
-      ...pkg,
       id,
       resolution,
+      ...(options.expectedPkg?.name != null
+        ? (updated ? { name: options.expectedPkg.name, version: pkg.version } : options.expectedPkg)
+        : pkg
+      ),
     },
-    expectedPkg: options.expectedPkg?.name != null
-      ? (updated ? { name: options.expectedPkg.name, version: pkg.version } : options.expectedPkg)
-      : pkg,
     onFetchError: options.onFetchError,
   })
 
@@ -498,22 +498,22 @@ function fetchToStore (
           if (
             (
               pkgFilesIndex.name != null &&
-              opts.expectedPkg?.name != null &&
-              pkgFilesIndex.name.toLowerCase() !== opts.expectedPkg.name.toLowerCase()
+              opts.pkg?.name != null &&
+              pkgFilesIndex.name.toLowerCase() !== opts.pkg.name.toLowerCase()
             ) ||
             (
               pkgFilesIndex.version != null &&
-              opts.expectedPkg?.version != null &&
+              opts.pkg?.version != null &&
               // We used to not normalize the package versions before writing them to the lockfile and store.
               // So it may happen that the version will be in different formats.
               // For instance, v1.0.0 and 1.0.0
               // Hence, we need to use semver.eq() to compare them.
-              !equalOrSemverEqual(pkgFilesIndex.version, opts.expectedPkg.version)
+              !equalOrSemverEqual(pkgFilesIndex.version, opts.pkg.version)
             )
           ) {
             const msg = `Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store.`
             const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. \
-Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
+Expected package: ${opts.pkg.name}@${opts.pkg.version}. \
 Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
             if (ctx.strictStorePkgContentCheck ?? true) {
               throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
