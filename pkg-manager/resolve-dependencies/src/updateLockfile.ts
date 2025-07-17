@@ -184,7 +184,7 @@ function toLockfileResolution (
 ): LockfileResolution {
   if (resolution.type !== undefined || !resolution['integrity']) {
     if (resolution.type === 'nodeRuntime') {
-      return omit(['body'], resolution)
+      return omit(['_shasumsFileContent'], resolution)
     }
     return resolution as LockfileResolution
   }

@@ -35,7 +35,7 @@ export interface GitResolution {
 export interface NodeRuntimeResolution {
   type: 'nodeRuntime'
   integrity: string
-  body?: string
+  _shasumsFileContent?: string
 }
 
 export type Resolution =

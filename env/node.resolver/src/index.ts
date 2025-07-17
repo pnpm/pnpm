@@ -30,9 +30,9 @@ export async function resolveNodeRuntime (
   const nodeMirrorBaseUrl = getNodeMirror(ctx.rawConfig, releaseChannel)
   const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl)
   if (!version) {
-    throw new Error('xxx')
+    throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
   }
-  const { versionIntegrity: integrity, body } = await loadShasumsFile(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
+  const { versionIntegrity: integrity, shasumsFileContent } = await loadShasumsFile(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
   return {
     id: `node@runtime:${version}` as PkgResolutionId,
     resolvedVia: 'nodejs.org',
@@ -44,12 +44,15 @@ export async function resolveNodeRuntime (
     resolution: {
       type: 'nodeRuntime',
       integrity,
-      body,
+      _shasumsFileContent: shasumsFileContent,
     },
   }
 }
 
-async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string) {
+async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<{
+  shasumsFileContent: string
+  versionIntegrity: string
+}> {
   const integritiesFileUrl = `${nodeMirrorBaseUrl}/v${version}/SHASUMS256.txt`
   const res = await fetch(integritiesFileUrl)
   if (!res.ok) {
@@ -59,11 +62,11 @@ async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: str
     )
   }
 
-  const body = await res.text()
-  const versionIntegrity = createHash(body)
+  const shasumsFileContent = await res.text()
+  const versionIntegrity = createHash(shasumsFileContent)
 
   return {
-    body,
+    shasumsFileContent,
     versionIntegrity,
   }
 }

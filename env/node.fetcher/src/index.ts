@@ -42,7 +42,7 @@ export function createNodeRuntimeFetcher (ctx: {
     const artifactInfo = await getNodeArtifactInfo(ctx.fetch, version, {
       nodeMirrorBaseUrl,
       expectedVersionIntegrity: resolution.integrity,
-      cachedShasumsFile: resolution.body,
+      cachedShasumsFile: resolution._shasumsFileContent,
     })
     const manifest = {
       name: 'node',
