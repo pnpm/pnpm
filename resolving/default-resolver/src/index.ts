@@ -55,7 +55,7 @@ export function createResolver (
           await resolveFromGit(wantedDependency as { bareSpecifier: string }) ??
           await resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)
         )) ??
-        await _resolveNodeRuntime(wantedDependency, opts)
+        await _resolveNodeRuntime(wantedDependency)
       if (!resolution) {
         throw new PnpmError(
           'SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER',

@@ -286,7 +286,7 @@ async function resolveAndFetch (
     }
   }
 
-  const pkg: PkgNameVersion = manifest != null ? pick(['name', 'version'], manifest) : {}
+  const pkg: PkgNameVersion = manifest != null ? pick(['name', 'version'], manifest) : (options.expectedPkg ?? {})
   const fetchResult = ctx.fetchPackageToStore({
     fetchRawManifest: true,
     force: forceFetch,

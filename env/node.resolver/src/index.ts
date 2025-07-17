@@ -18,11 +18,7 @@ export async function resolveNodeRuntime (
     fetchFromRegistry: FetchFromRegistry
     nodeMirrorBaseUrl?: string
   },
-  wantedDependency: WantedDependency,
-  opts: {
-    lockfileDir?: string
-    projectDir: string
-  }
+  wantedDependency: WantedDependency
 ): Promise<NodeRuntimeResolveResult | null> {
   if (!wantedDependency.bareSpecifier?.startsWith('runtime:node@')) return null
   const versionSpec = wantedDependency.bareSpecifier.substring('runtime:node@'.length)
@@ -38,6 +34,7 @@ export async function resolveNodeRuntime (
     manifest: {
       name: 'node',
       version,
+      bin: process.platform === 'win32' ? 'node.exe' : 'bin/node',
     },
     resolution: {
       type: 'nodeRuntime',
