@@ -293,12 +293,12 @@ async function resolveAndFetch (
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
     pkg: {
-      id,
-      resolution,
       ...(options.expectedPkg?.name != null
         ? (updated ? { name: options.expectedPkg.name, version: pkg.version } : options.expectedPkg)
         : pkg
       ),
+      id,
+      resolution,
     },
     onFetchError: options.onFetchError,
   })
