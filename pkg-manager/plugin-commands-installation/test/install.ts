@@ -119,3 +119,28 @@ describeOnLinuxOnly('filters optional dependencies based on --libc', () => {
     expect(pkgDirs).not.toContain(notFound)
   })
 })
+
+test('install Node.js when devEngines runtime is set', async () => {
+  const project = prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '24.0.0',
+      },
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  project.isExecutable('.bin/node')
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].devDependencies).toStrictEqual({
+    node: {
+      specifier: 'runtime:node@24.0.0',
+      version: 'runtime:24.0.0',
+    },
+  })
+})

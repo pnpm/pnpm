@@ -58,7 +58,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     const { data, text } = await readJsonFile(manifestPath)
     return {
       fileName: 'package.json',
-      manifest: data,
+      manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormatting(text),
         initialManifest: data,
@@ -73,7 +73,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     const { data, text } = await readJson5File(manifestPath)
     return {
       fileName: 'package.json5',
-      manifest: data,
+      manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormattingAndComments(text),
         initialManifest: data,
@@ -88,7 +88,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     const manifest = await readPackageYaml(manifestPath)
     return {
       fileName: 'package.yaml',
-      manifest,
+      manifest: convertManifestAfterRead(manifest),
       writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
     }
   } catch (err: any) { // eslint-disable-line
@@ -207,7 +207,7 @@ function createManifestWriter (
 ): WriteProjectManifest {
   let initialManifest = normalize(opts.initialManifest)
   return async (updatedManifest: ProjectManifest, force?: boolean) => {
-    updatedManifest = normalize(updatedManifest)
+    updatedManifest = convertManifestBeforeWrite(normalize(updatedManifest))
     if (force === true || !equal(initialManifest, updatedManifest)) {
       await writeProjectManifest(opts.manifestPath, updatedManifest, {
         comments: opts.comments,
@@ -219,6 +219,25 @@ function createManifestWriter (
     }
     return Promise.resolve(undefined)
   }
+}
+
+function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
+  if (manifest.devEngines?.runtime && !manifest.devDependencies?.['node']) {
+    const runtimes = Array.isArray(manifest.devEngines.runtime) ? manifest.devEngines.runtime : [manifest.devEngines.runtime]
+    const nodeRuntime = runtimes.find((runtime) => runtime.name === 'node')
+    if (nodeRuntime) {
+      manifest.devDependencies ??= {}
+      manifest.devDependencies['node'] = `runtime:node@${nodeRuntime.version}`
+    }
+  }
+  return manifest
+}
+
+function convertManifestBeforeWrite (manifest: ProjectManifest): ProjectManifest {
+  if (manifest.devDependencies?.['node']?.startsWith('runtime:node@')) {
+    delete manifest.devDependencies['node']
+  }
+  return manifest
 }
 
 const dependencyKeys = new Set([
