@@ -29,7 +29,6 @@ import {
   type ConfigWithDeprecatedSettings,
   type UniversalOptions,
   type VerifyDepsBeforeRun,
-  type WantedPackageManager,
 } from './Config'
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
@@ -46,7 +45,7 @@ export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFro
 export * from './readLocalConfig'
 export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency'
 
-export type { Config, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
+export type { Config, UniversalOptions, VerifyDepsBeforeRun }
 
 type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
   ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
