@@ -10,6 +10,7 @@ import { type DependencyManifest } from '@pnpm/types'
 export interface PkgNameVersion {
   name?: string
   version?: string
+  id: string
 }
 
 export interface FetchOptions {
@@ -18,9 +19,7 @@ export interface FetchOptions {
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
   readManifest?: boolean
-  pkg: PkgNameVersion & {
-    id: string
-  }
+  pkg: PkgNameVersion
 }
 
 export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions, Result = FetchResult> = (
