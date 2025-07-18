@@ -1,3 +1,4 @@
+import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { createHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
@@ -40,7 +41,7 @@ export async function resolveNodeRuntime (
     manifest: {
       name: 'node',
       version,
-      bin: process.platform === 'win32' ? 'node.exe' : 'bin/node',
+      bin: getNodeBinLocationForCurrentOS(),
     },
     resolution: {
       type: 'nodeRuntime',

@@ -1,5 +1,6 @@
 import fsPromises from 'fs/promises'
 import path from 'path'
+import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {
   type FetchFromRegistry,
@@ -48,7 +49,7 @@ export function createNodeRuntimeFetcher (ctx: {
     const manifest = {
       name: 'node',
       version,
-      bin: process.platform === 'win32' ? 'node.exe' : 'bin/node',
+      bin: getNodeBinLocationForCurrentOS(),
     }
 
     if (artifactInfo.isZip) {

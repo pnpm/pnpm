@@ -1,6 +1,7 @@
 import { promises as fs, existsSync } from 'fs'
 import Module from 'module'
 import path from 'path'
+import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { logger, globalWarn } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
@@ -208,7 +209,7 @@ async function getPackageBins (
     if (path.basename(target) === 'node') {
       return [{
         name: 'node',
-        path: path.join(target, IS_WINDOWS ? 'node.exe' : 'bin/node'),
+        path: path.join(target, getNodeBinLocationForCurrentOS()),
         ownName: true,
         pkgName: '',
         pkgVersion: '',

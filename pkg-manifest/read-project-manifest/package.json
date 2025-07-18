@@ -43,6 +43,9 @@
     "read-yaml-file": "catalog:",
     "strip-bom": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
     "@pnpm/read-project-manifest": "workspace:*",
     "@types/is-windows": "catalog:",

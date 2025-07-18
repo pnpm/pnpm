@@ -2048,6 +2048,9 @@ importers:
 
   env/node.fetcher:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
@@ -2112,6 +2115,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
@@ -5095,6 +5101,9 @@ importers:
 
   pkg-manager/link-bins:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -5969,6 +5978,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/logger':
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/text.comments-parser':
         specifier: workspace:*
         version: link:../../text/comments-parser
