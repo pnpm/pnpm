@@ -35,7 +35,7 @@ export function createNodeRuntimeFetcher (ctx: {
     }
     // Sometimes the id comes in as runtime:<version> and sometimes as node@runtime:<version>.
     // It would be nice to normalize this but unfortunately some parts of the code rely on IDs that start with the protocol.
-    const version = opts.pkg.version ?? opts.pkg.id.replace(/(node@)?runtime:/, '')
+    const version = opts.pkg.version ?? opts.pkg.id.replace(/(?:node@)?runtime:/, '')
     const { releaseChannel } = parseEnvSpecifier(version)
 
     await validateSystemCompatibility()
