@@ -7,7 +7,7 @@ import { testDefaults } from '../utils'
 
 test('installing Node.js runtime', async () => {
   const project = prepareEmpty()
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['node@runtime:node@22.0.0'], testDefaults({ fastUnpack: false }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['node@runtime:22.0.0'], testDefaults({ fastUnpack: false }))
 
   project.isExecutable('.bin/node')
   expect(project.readLockfile()).toStrictEqual({
@@ -19,7 +19,7 @@ test('installing Node.js runtime', async () => {
       '.': {
         dependencies: {
           node: {
-            specifier: 'runtime:node@22.0.0',
+            specifier: 'runtime:22.0.0',
             version: 'runtime:22.0.0',
           },
         },
@@ -58,7 +58,7 @@ test('installing Node.js runtime', async () => {
       '.': {
         dependencies: {
           node: {
-            specifier: 'runtime:node@22.0.0',
+            specifier: 'runtime:22.0.0',
             version: 'runtime:22.0.0',
           },
           '@pnpm.e2e/dep-of-pkg-with-1-dep': {
@@ -93,13 +93,13 @@ test('installing Node.js runtime', async () => {
 test('installing node.js runtime fails if offline mode is used and node.js not found locally', async () => {
   prepareEmpty()
   await expect(
-    addDependenciesToPackage({}, ['node@runtime:node@22.0.0'], testDefaults({ fastUnpack: false }, { offline: true }))
+    addDependenciesToPackage({}, ['node@runtime:22.0.0'], testDefaults({ fastUnpack: false }, { offline: true }))
   ).rejects.toThrow(/Offline Node.js resolution is not supported/)
 })
 
 test('installing Node.js runtime from RC channel', async () => {
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['node@runtime:node@24.0.0-rc.4'], testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['node@runtime:24.0.0-rc.4'], testDefaults({ fastUnpack: false }))
 
   project.isExecutable('.bin/node')
 })

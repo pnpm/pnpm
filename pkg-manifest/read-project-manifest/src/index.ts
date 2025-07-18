@@ -227,14 +227,14 @@ function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
     const nodeRuntime = runtimes.find((runtime) => runtime.name === 'node')
     if (nodeRuntime) {
       manifest.devDependencies ??= {}
-      manifest.devDependencies['node'] = `runtime:node@${nodeRuntime.version}`
+      manifest.devDependencies['node'] = `runtime:${nodeRuntime.version}`
     }
   }
   return manifest
 }
 
 function convertManifestBeforeWrite (manifest: ProjectManifest): ProjectManifest {
-  if (manifest.devDependencies?.['node']?.startsWith('runtime:node@')) {
+  if (manifest.devDependencies?.['node']?.startsWith('runtime:')) {
     delete manifest.devDependencies['node']
   }
   return manifest

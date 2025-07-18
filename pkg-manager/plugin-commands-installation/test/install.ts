@@ -139,8 +139,18 @@ test('install Node.js when devEngines runtime is set', async () => {
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].devDependencies).toStrictEqual({
     node: {
-      specifier: 'runtime:node@24.0.0',
+      specifier: 'runtime:24.0.0',
       version: 'runtime:24.0.0',
     },
   })
+
+  await add.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['is-positive@1.0.0'])
+
+  await add.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['is-even'])
 })

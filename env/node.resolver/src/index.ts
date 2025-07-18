@@ -23,9 +23,9 @@ export async function resolveNodeRuntime (
   },
   wantedDependency: WantedDependency
 ): Promise<NodeRuntimeResolveResult | null> {
-  if (!wantedDependency.bareSpecifier?.startsWith('runtime:node@')) return null
+  if (wantedDependency.alias !== 'node' || !wantedDependency.bareSpecifier?.startsWith('runtime:')) return null
   if (ctx.offline) throw new PnpmError('NO_OFFLINE_NODEJS_RESOLUTION', 'Offline Node.js resolution is not supported')
-  const versionSpec = wantedDependency.bareSpecifier.substring('runtime:node@'.length)
+  const versionSpec = wantedDependency.bareSpecifier.substring('runtime:'.length)
   const { releaseChannel, versionSpecifier } = parseEnvSpecifier(versionSpec)
   const nodeMirrorBaseUrl = getNodeMirror(ctx.rawConfig, releaseChannel)
   const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl)
@@ -35,6 +35,7 @@ export async function resolveNodeRuntime (
   const { versionIntegrity: integrity, shasumsFileContent } = await loadShasumsFile(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
   return {
     id: `node@runtime:${version}` as PkgResolutionId,
+    normalizedBareSpecifier: `runtime:${versionSpec}`,
     resolvedVia: 'nodejs.org',
     manifest: {
       name: 'node',
