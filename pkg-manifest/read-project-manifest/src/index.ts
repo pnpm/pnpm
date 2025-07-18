@@ -225,7 +225,7 @@ function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
   if (manifest.devEngines?.runtime && !manifest.devDependencies?.['node']) {
     const runtimes = Array.isArray(manifest.devEngines.runtime) ? manifest.devEngines.runtime : [manifest.devEngines.runtime]
     const nodeRuntime = runtimes.find((runtime) => runtime.name === 'node')
-    if (nodeRuntime) {
+    if (nodeRuntime && nodeRuntime.onFail === 'download') {
       manifest.devDependencies ??= {}
       manifest.devDependencies['node'] = `runtime:${nodeRuntime.version}`
     }

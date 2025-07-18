@@ -120,12 +120,13 @@ describeOnLinuxOnly('filters optional dependencies based on --libc', () => {
   })
 })
 
-test('install Node.js when devEngines runtime is set', async () => {
+test('install Node.js when devEngines runtime is set with onFail=download', async () => {
   const project = prepare({
     devEngines: {
       runtime: {
         name: 'node',
         version: '24.0.0',
+        onFail: 'download',
       },
     },
   })
@@ -153,4 +154,23 @@ test('install Node.js when devEngines runtime is set', async () => {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
   }, ['is-even'])
+})
+
+test('do not install Node.js when devEngines runtime is not set to onFail=download', async () => {
+  const project = prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '24.0.0',
+      },
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].devDependencies).toBeUndefined()
 })
