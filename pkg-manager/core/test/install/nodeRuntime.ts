@@ -1,8 +1,9 @@
-import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from '../utils'
 
 test('installing Node.js runtime', async () => {
@@ -102,4 +103,45 @@ test('installing Node.js runtime from RC channel', async () => {
   await addDependenciesToPackage({}, ['node@runtime:24.0.0-rc.4'], testDefaults({ fastUnpack: false }))
 
   project.isExecutable('.bin/node')
+})
+
+test('installing Node.js runtime fails if integrity check fails', async () => {
+  prepareEmpty()
+
+  writeYamlFile(WANTED_LOCKFILE, {
+    settings: {
+      autoInstallPeers: true,
+      excludeLinksFromLockfile: false,
+    },
+    importers: {
+      '.': {
+        devDependencies: {
+          node: {
+            specifier: 'runtime:22.0.0',
+            version: 'runtime:22.0.0',
+          },
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      'node@runtime:22.0.0': {
+        hasBin: true,
+        resolution: {
+          integrity: 'sha256-nEXaq7dXofUpB9j7knEUlTUsEAXfvugLtRQsQS7aeBO=',
+          type: 'nodeRuntime',
+        },
+      },
+    },
+    snapshots: {
+      'node@runtime:22.0.0': {},
+    },
+  })
+
+  const manifest = {
+    devDependencies: {
+      node: 'runtime:22.0.0',
+    },
+  }
+  await expect(install(manifest, testDefaults({ frozenLockfile: true }))).rejects.toThrow(/The integrity of .* failed/)
 })

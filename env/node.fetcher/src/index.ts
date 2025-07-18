@@ -173,7 +173,9 @@ async function getNodeArtifactInfo (
   const shasumsFileUrl = `${tarball.dirname}/SHASUMS256.txt`
   const url = `${tarball.dirname}/${tarballFileName}`
 
-  const integrity = opts.cachedShasumsFile ? pickArtifactIntegrity(opts.cachedShasumsFile, tarballFileName) : await loadArtifactIntegrity(fetch, shasumsFileUrl, tarballFileName)
+  const integrity = opts.cachedShasumsFile
+    ? pickArtifactIntegrity(opts.cachedShasumsFile, tarballFileName)
+    : await loadArtifactIntegrity(fetch, shasumsFileUrl, tarballFileName, opts.expectedVersionIntegrity)
 
   return {
     url,
