@@ -19,9 +19,6 @@
       "path": "../../fetching/fetcher-base"
     },
     {
-      "path": "../../fetching/pick-fetcher"
-    },
-    {
       "path": "../../fetching/tarball-fetcher"
     },
     {

@@ -2066,9 +2066,6 @@ importers:
       '@pnpm/node.resolver':
         specifier: workspace:*
         version: link:../node.resolver
-      '@pnpm/pick-fetcher':
-        specifier: workspace:*
-        version: link:../../fetching/pick-fetcher
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../../fetching/tarball-fetcher

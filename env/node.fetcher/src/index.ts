@@ -6,12 +6,11 @@ import {
   type RetryTimeoutOptions,
   type Response,
 } from '@pnpm/fetching-types'
-import { pickFetcher } from '@pnpm/pick-fetcher'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { createHash } from '@pnpm/crypto.hash'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
-import { type NodeRuntimeFetcher, type FetchFunction, type FetchResult } from '@pnpm/fetcher-base'
+import { type NodeRuntimeFetcher, type FetchResult } from '@pnpm/fetcher-base'
 import { getNodeMirror, parseEnvSpecifier } from '@pnpm/node.resolver'
 import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
@@ -265,13 +264,12 @@ async function downloadAndUnpackTarballToDir (
   })
 
   const cafs = createCafsStore(opts.storeDir)
-  const fetchTarball = pickFetcher(fetchers, { tarball: artifactInfo.url }) as FetchFunction
 
   // Create a unique index file name for Node.js tarballs
   const indexFileName = `node-${encodeURIComponent(artifactInfo.url)}`
   const filesIndexFile = path.join(opts.storeDir, indexFileName)
 
-  const { filesIndex } = await fetchTarball(cafs, {
+  const { filesIndex } = await fetchers.remoteTarball(cafs, {
     tarball: artifactInfo.url,
     integrity: artifactInfo.integrity,
   }, {
@@ -292,14 +290,6 @@ async function downloadAndUnpackTarballToDir (
   })
 }
 
-/**
- * Downloads and unpacks a tarball using the tarball fetcher.
- *
- * @param fetch - Function to fetch resources from registry
- * @param artifactInfo - Information about the Node.js artifact
- * @param targetDir - Directory where Node.js should be installed
- * @param opts - Configuration options for the fetch operation
- */
 async function downloadAndUnpackTarball (
   fetch: FetchFromRegistry,
   artifactInfo: NodeArtifactInfo,
@@ -314,9 +304,7 @@ async function downloadAndUnpackTarball (
     unsafePerm: false,
   })
 
-  const fetchTarball = pickFetcher(fetchers, { tarball: artifactInfo.url }) as FetchFunction
-
-  return fetchTarball(opts.cafs, {
+  return fetchers.remoteTarball(opts.cafs, {
     tarball: artifactInfo.url,
     integrity: artifactInfo.integrity,
   }, {

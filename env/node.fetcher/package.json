@@ -38,7 +38,6 @@
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
-    "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "adm-zip": "catalog:",
