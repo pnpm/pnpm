@@ -1,6 +1,7 @@
 import { promises as fs, type Stats } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
+import { globalWarn } from '@pnpm/logger'
 import { type ProjectManifest } from '@pnpm/types'
 import { extractComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
@@ -226,8 +227,12 @@ function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
     const runtimes = Array.isArray(manifest.devEngines.runtime) ? manifest.devEngines.runtime : [manifest.devEngines.runtime]
     const nodeRuntime = runtimes.find((runtime) => runtime.name === 'node')
     if (nodeRuntime && nodeRuntime.onFail === 'download') {
-      manifest.devDependencies ??= {}
-      manifest.devDependencies['node'] = `runtime:${nodeRuntime.version}`
+      if ('webcontainer' in process.versions) {
+        globalWarn('Installation of Node.js versions is not supported in WebContainer')
+      } else {
+        manifest.devDependencies ??= {}
+        manifest.devDependencies['node'] = `runtime:${nodeRuntime.version}`
+      }
     }
   }
   return manifest
