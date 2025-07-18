@@ -155,7 +155,7 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
   case 'package.json': {
     const { data, text } = await readJsonFile(manifestPath)
     return {
-      manifest: data,
+      manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormatting(text),
         initialManifest: data,
@@ -166,7 +166,7 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
   case 'package.json5': {
     const { data, text } = await readJson5File(manifestPath)
     return {
-      manifest: data,
+      manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormattingAndComments(text),
         initialManifest: data,
@@ -177,7 +177,7 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
   case 'package.yaml': {
     const manifest = await readPackageYaml(manifestPath)
     return {
-      manifest,
+      manifest: convertManifestAfterRead(manifest),
       writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
     }
   }
