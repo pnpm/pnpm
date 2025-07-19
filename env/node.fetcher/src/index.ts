@@ -28,7 +28,7 @@ export function createNodeRuntimeFetcher (ctx: {
 }): { nodeRuntime: NodeRuntimeFetcher } {
   const fetchNodeRuntime: NodeRuntimeFetcher = async (cafs, resolution, opts) => {
     if (!opts.pkg.version && !opts.pkg.id) {
-      throw new Error('Cannot fetch node.js without a version')
+      throw new PnpmError('CANNOT_FETCH_NODE_WITHOUT_VERSION', 'Cannot fetch Node.js without a version')
     }
     if (ctx.offline) {
       throw new PnpmError('CANNOT_DOWNLOAD_NODE_OFFLINE', 'Cannot download Node.js because offline mode is enabled.')
@@ -175,7 +175,9 @@ async function getNodeArtifactInfo (
 
   const integrity = opts.cachedShasumsFile
     ? pickArtifactIntegrity(opts.cachedShasumsFile, tarballFileName)
-    : await loadArtifactIntegrity(fetch, shasumsFileUrl, tarballFileName, opts.expectedVersionIntegrity)
+    : await loadArtifactIntegrity(fetch, tarballFileName, shasumsFileUrl, {
+      expectedVersionIntegrity: opts.expectedVersionIntegrity,
+    })
 
   return {
     url,
@@ -185,26 +187,49 @@ async function getNodeArtifactInfo (
   }
 }
 
+interface LoadArtifactIntegrityOptions {
+  expectedVersionIntegrity?: string
+}
+
 /**
- * Loads and verifies the integrity hash for a Node.js artifact.
+ * Loads and extracts the integrity hash for a specific Node.js artifact.
  *
  * @param fetch - Function to fetch resources from registry
- * @param integritiesFileUrl - URL of the SHASUMS256.txt file
  * @param fileName - Name of the file to find integrity for
+ * @param shasumsUrl - URL of the SHASUMS256.txt file
+ * @param options - Optional configuration for integrity verification
  * @returns Promise resolving to the integrity hash in base64 format
  * @throws {PnpmError} When integrity file cannot be fetched or parsed
  */
 async function loadArtifactIntegrity (
   fetch: FetchFromRegistry,
-  integritiesFileUrl: string,
   fileName: string,
+  shasumsUrl: string,
+  options?: LoadArtifactIntegrityOptions
+): Promise<string> {
+  const body = await fetchIntegrityFile(fetch, shasumsUrl, options?.expectedVersionIntegrity)
+  return pickArtifactIntegrity(body, fileName)
+}
+
+/**
+ * Fetches the integrity file from the Node.js mirror.
+ *
+ * @param fetch - Function to fetch resources from registry
+ * @param shasumsUrl - URL of the SHASUMS256.txt file
+ * @param expectedVersionIntegrity - Optional expected integrity hash for verification
+ * @returns Promise resolving to the integrity file content
+ * @throws {PnpmError} When integrity file cannot be fetched or verification fails
+ */
+async function fetchIntegrityFile (
+  fetch: FetchFromRegistry,
+  shasumsUrl: string,
   expectedVersionIntegrity?: string
 ): Promise<string> {
-  const res = await fetch(integritiesFileUrl)
+  const res = await fetch(shasumsUrl)
   if (!res.ok) {
     throw new PnpmError(
       'NODE_FETCH_INTEGRITY_FAILED',
-      `Failed to fetch integrity file: ${integritiesFileUrl} (status: ${res.status})`
+      `Failed to fetch integrity file: ${shasumsUrl} (status: ${res.status})`
     )
   }
 
@@ -212,10 +237,10 @@ async function loadArtifactIntegrity (
   if (expectedVersionIntegrity) {
     const actualVersionIntegrity = createHash(body)
     if (expectedVersionIntegrity !== actualVersionIntegrity) {
-      throw new PnpmError('NODE_VERSION_INTEGRITY_MISMATCH', `The integrity of ${integritiesFileUrl} failed. Expected: ${expectedVersionIntegrity}. Actual: ${actualVersionIntegrity}`)
+      throw new PnpmError('NODE_VERSION_INTEGRITY_MISMATCH', `The integrity of ${shasumsUrl} failed. Expected: ${expectedVersionIntegrity}. Actual: ${actualVersionIntegrity}`)
     }
   }
-  return pickArtifactIntegrity(body, fileName)
+  return body
 }
 
 function pickArtifactIntegrity (body: string, fileName: string): string {
