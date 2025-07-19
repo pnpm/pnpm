@@ -1,32 +1,32 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
-import path from 'path'
 import { readProjectManifest, tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { fixtures } from '@pnpm/test-fixtures'
 import tempy from 'tempy'
 
-const fixtures = path.join(__dirname, '../__fixtures__')
+const f = fixtures(__dirname)
 
 test('readProjectManifest()', async () => {
   expect(
-    (await tryReadProjectManifest(path.join(fixtures, 'package-json'))).manifest
+    (await tryReadProjectManifest(f.find('package-json'))).manifest
   ).toStrictEqual(
     { name: 'foo', version: '1.0.0' }
   )
 
   expect(
-    (await tryReadProjectManifest(path.join(fixtures, 'package-json5'))).manifest
+    (await tryReadProjectManifest(f.find('package-json5'))).manifest
   ).toStrictEqual(
     { name: 'foo', version: '1.0.0' }
   )
 
   expect(
-    (await tryReadProjectManifest(path.join(fixtures, 'package-yaml'))).manifest
+    (await tryReadProjectManifest(f.find('package-yaml'))).manifest
   ).toStrictEqual(
     { name: 'foo', version: '1.0.0' }
   )
 
   expect(
-    (await tryReadProjectManifest(fixtures)).manifest
+    (await tryReadProjectManifest(__dirname)).manifest
   ).toStrictEqual(null)
 })
 
@@ -84,9 +84,9 @@ test('preserve space indentation in json5 file', async () => {
 
 test('preserve comments in json5 file', async () => {
   const originalManifest = fs.readFileSync(
-    path.join(fixtures, 'commented-package-json5/package.json5'), 'utf8')
+    f.find('commented-package-json5/package.json5'), 'utf8')
   const modifiedManifest = fs.readFileSync(
-    path.join(fixtures, 'commented-package-json5/modified.json5'), 'utf8')
+    f.find('commented-package-json5/modified.json5'), 'utf8')
 
   process.chdir(tempy.directory())
   fs.writeFileSync('package.json5', originalManifest, 'utf8')
@@ -131,7 +131,7 @@ test('do not save manifest if it had no changes', async () => {
 test('fail on invalid JSON', async () => {
   let err!: Error & { code: string }
   try {
-    await readProjectManifest(path.join(fixtures, 'invalid-package-json'))
+    await readProjectManifest(f.find('invalid-package-json'))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -152,7 +152,7 @@ test('fail on invalid JSON', async () => {
 test('fail on invalid JSON5', async () => {
   let err!: Error & { code: string }
   try {
-    await readProjectManifest(path.join(fixtures, 'invalid-package-json5'))
+    await readProjectManifest(f.find('invalid-package-json5'))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -165,7 +165,7 @@ test('fail on invalid JSON5', async () => {
 test('fail on invalid YAML', async () => {
   let err!: Error & { code: string }
   try {
-    await readProjectManifest(path.join(fixtures, 'invalid-package-yaml'))
+    await readProjectManifest(f.find('invalid-package-yaml'))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
