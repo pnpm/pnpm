@@ -89,7 +89,7 @@ export function getPkgsDiff (
         latest: log.latest,
         name: log.name,
         realName: log.realName,
-        version: log.version,
+        version: log.version ?? log.id,
       }
       return pkgsDiff
     }, {

@@ -1619,7 +1619,7 @@ function getManifestFromResponse (
 ): PackageManifest {
   if (pkgResponse.body.manifest) return pkgResponse.body.manifest
   return {
-    name: wantedDependency.bareSpecifier.split('/').pop()!,
+    name: wantedDependency.alias ? wantedDependency.alias : wantedDependency.bareSpecifier.split('/').pop()!,
     version: '0.0.0',
   }
 }

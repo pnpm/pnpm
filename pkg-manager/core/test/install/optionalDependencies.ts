@@ -453,7 +453,7 @@ test('only skip optional dependencies', async () => {
     optionalDependencies: {
       '@google-cloud/functions-emulator': '1.0.0-beta.5',
     },
-  }, testDefaults({ fastUnpack: false, preferredVersions }))
+  }, testDefaults({ fastUnpack: false, preferredVersions, ignoreScripts: true }))
 
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/duplexify@3.6.0'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/stream-shift@1.0.0'))).toBeTruthy()

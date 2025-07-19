@@ -6,7 +6,18 @@ jest.mock('@pnpm/os.env.path-extender', () => ({
   addDirToEnvPath: jest.fn(),
 }))
 
-jest.mock('fs')
+jest.mock('fs', () => {
+  const actualFs = jest.createMockFromModule('fs')
+  return {
+    // @ts-expect-error
+    ...actualFs,
+    promises: {
+      // @ts-expect-error
+      ...actualFs.promises,
+      writeFile: jest.fn(),
+    },
+  }
+})
 
 test('setup makes no changes', async () => {
   (addDirToEnvPath as jest.Mock).mockReturnValue(Promise.resolve<PathExtenderReport>({

@@ -42,6 +42,10 @@ packages:
   - '!**/test/**'
   - '!resolving/local-resolver/example-package/**'
 
+auditConfig:
+  ignoreGhsas:
+    - GHSA-76c9-3jph-rj3q
+
 catalog:
   '@gwhitney/detect-indent': 7.0.1
   '@pnpm/builder.policy': 3.0.1
@@ -61,7 +65,7 @@ catalog:
   '@pnpm/npm-package-arg': ^1.0.0
   '@pnpm/os.env.path-extender': ^2.0.3
   '@pnpm/patch-package': 0.0.1
-  '@pnpm/registry-mock': 4.6.0
+  '@pnpm/registry-mock': 4.7.1
   '@pnpm/semver-diff': ^1.1.0
   '@pnpm/tabtab': ^0.5.4
   '@pnpm/util.lex-comparator': ^3.0.2

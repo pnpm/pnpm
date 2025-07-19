@@ -1,6 +1,7 @@
 import { promises as fs, type Stats } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
+import { globalWarn } from '@pnpm/logger'
 import { type ProjectManifest } from '@pnpm/types'
 import { extractComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
@@ -58,7 +59,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     const { data, text } = await readJsonFile(manifestPath)
     return {
       fileName: 'package.json',
-      manifest: data,
+      manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormatting(text),
         initialManifest: data,
@@ -73,7 +74,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     const { data, text } = await readJson5File(manifestPath)
     return {
       fileName: 'package.json5',
-      manifest: data,
+      manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormattingAndComments(text),
         initialManifest: data,
@@ -88,7 +89,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     const manifest = await readPackageYaml(manifestPath)
     return {
       fileName: 'package.yaml',
-      manifest,
+      manifest: convertManifestAfterRead(manifest),
       writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
     }
   } catch (err: any) { // eslint-disable-line
@@ -155,7 +156,7 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
   case 'package.json': {
     const { data, text } = await readJsonFile(manifestPath)
     return {
-      manifest: data,
+      manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormatting(text),
         initialManifest: data,
@@ -166,7 +167,7 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
   case 'package.json5': {
     const { data, text } = await readJson5File(manifestPath)
     return {
-      manifest: data,
+      manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormattingAndComments(text),
         initialManifest: data,
@@ -177,7 +178,7 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
   case 'package.yaml': {
     const manifest = await readPackageYaml(manifestPath)
     return {
-      manifest,
+      manifest: convertManifestAfterRead(manifest),
       writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
     }
   }
@@ -207,7 +208,7 @@ function createManifestWriter (
 ): WriteProjectManifest {
   let initialManifest = normalize(opts.initialManifest)
   return async (updatedManifest: ProjectManifest, force?: boolean) => {
-    updatedManifest = normalize(updatedManifest)
+    updatedManifest = convertManifestBeforeWrite(normalize(updatedManifest))
     if (force === true || !equal(initialManifest, updatedManifest)) {
       await writeProjectManifest(opts.manifestPath, updatedManifest, {
         comments: opts.comments,
@@ -219,6 +220,29 @@ function createManifestWriter (
     }
     return Promise.resolve(undefined)
   }
+}
+
+function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
+  if (manifest.devEngines?.runtime && !manifest.devDependencies?.['node']) {
+    const runtimes = Array.isArray(manifest.devEngines.runtime) ? manifest.devEngines.runtime : [manifest.devEngines.runtime]
+    const nodeRuntime = runtimes.find((runtime) => runtime.name === 'node')
+    if (nodeRuntime && nodeRuntime.onFail === 'download') {
+      if ('webcontainer' in process.versions) {
+        globalWarn('Installation of Node.js versions is not supported in WebContainer')
+      } else {
+        manifest.devDependencies ??= {}
+        manifest.devDependencies['node'] = `runtime:${nodeRuntime.version}`
+      }
+    }
+  }
+  return manifest
+}
+
+function convertManifestBeforeWrite (manifest: ProjectManifest): ProjectManifest {
+  if (manifest.devDependencies?.['node']?.startsWith('runtime:')) {
+    delete manifest.devDependencies['node']
+  }
+  return manifest
 }
 
 const dependencyKeys = new Set([

@@ -220,8 +220,7 @@ async function buildGraphFromPackages (
             force: false,
             lockfileDir: opts.lockfileDir,
             ignoreScripts: opts.ignoreScripts,
-            pkg: { id: packageId, resolution },
-            expectedPkg: { name: pkgName, version: pkgVersion },
+            pkg: { name: pkgName, version: pkgVersion, id: packageId, resolution },
           })
         } catch (err) {
           if (pkgSnapshot.optional) return
