@@ -30,6 +30,25 @@ test('readProjectManifest()', async () => {
   ).toStrictEqual(null)
 })
 
+test('readProjectManifest() converts devEngines runtime to devDependencies', async () => {
+  expect(
+    (await tryReadProjectManifest(f.find('package-json-with-dev-engines'))).manifest
+  ).toStrictEqual(
+    {
+      devDependencies: {
+        node: 'runtime:24',
+      },
+      devEngines: {
+        runtime: {
+          name: 'node',
+          version: '24',
+          onFail: 'download',
+        },
+      },
+    }
+  )
+})
+
 test('preserve tab indentation in json file', async () => {
   process.chdir(tempy.directory())
 
