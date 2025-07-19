@@ -13,7 +13,7 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../crypto/hash"
+      "path": "../../crypto/shasums-file"
     },
     {
       "path": "../../fetching/fetcher-base"

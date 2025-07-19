@@ -35,6 +35,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/crypto.shasums-file": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",

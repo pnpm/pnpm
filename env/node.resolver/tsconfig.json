@@ -16,6 +16,9 @@
       "path": "../../crypto/hash"
     },
     {
+      "path": "../../crypto/shasums-file"
+    },
+    {
       "path": "../../network/fetch"
     },
     {

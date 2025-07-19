@@ -34,7 +34,7 @@
   "dependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
-    "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/crypto.shasums-file": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",

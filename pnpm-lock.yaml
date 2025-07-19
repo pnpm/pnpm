@@ -1877,6 +1877,22 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  crypto/shasums-file:
+    dependencies:
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../hash
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fetching-types':
+        specifier: workspace:*
+        version: link:../../network/fetching-types
+    devDependencies:
+      '@pnpm/crypto.shasums-file':
+        specifier: workspace:*
+        version: 'link:'
+
   dedupe/check:
     dependencies:
       '@pnpm/dedupe.types':
@@ -2054,9 +2070,9 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
-      '@pnpm/crypto.hash':
+      '@pnpm/crypto.shasums-file':
         specifier: workspace:*
-        version: link:../../crypto/hash
+        version: link:../../crypto/shasums-file
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -2121,6 +2137,9 @@ importers:
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
+      '@pnpm/crypto.shasums-file':
+        specifier: workspace:*
+        version: link:../../crypto/shasums-file
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error

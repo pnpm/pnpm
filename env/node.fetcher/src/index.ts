@@ -2,13 +2,13 @@ import fsPromises from 'fs/promises'
 import path from 'path'
 import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
+import { fetchShasumsFile, pickFileChecksumFromShasumsFile } from '@pnpm/crypto.shasums-file'
 import {
   type FetchFromRegistry,
   type RetryTimeoutOptions,
   type Response,
 } from '@pnpm/fetching-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
-import { createHash } from '@pnpm/crypto.hash'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
 import { type NodeRuntimeFetcher, type FetchResult } from '@pnpm/fetcher-base'
@@ -78,7 +78,6 @@ export function createNodeRuntimeFetcher (ctx: {
 
 // Constants
 const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
-const SHA256_REGEX = /^[a-f0-9]{64}$/
 
 export interface FetchNodeOptionsToDir {
   storeDir: string
@@ -174,7 +173,7 @@ async function getNodeArtifactInfo (
   const url = `${tarball.dirname}/${tarballFileName}`
 
   const integrity = opts.cachedShasumsFile
-    ? pickArtifactIntegrity(opts.cachedShasumsFile, tarballFileName)
+    ? pickFileChecksumFromShasumsFile(opts.cachedShasumsFile, tarballFileName)
     : await loadArtifactIntegrity(fetch, tarballFileName, shasumsFileUrl, {
       expectedVersionIntegrity: opts.expectedVersionIntegrity,
     })
@@ -207,63 +206,8 @@ async function loadArtifactIntegrity (
   shasumsUrl: string,
   options?: LoadArtifactIntegrityOptions
 ): Promise<string> {
-  const body = await fetchIntegrityFile(fetch, shasumsUrl, options?.expectedVersionIntegrity)
-  return pickArtifactIntegrity(body, fileName)
-}
-
-/**
- * Fetches the integrity file from the Node.js mirror.
- *
- * @param fetch - Function to fetch resources from registry
- * @param shasumsUrl - URL of the SHASUMS256.txt file
- * @param expectedVersionIntegrity - Optional expected integrity hash for verification
- * @returns Promise resolving to the integrity file content
- * @throws {PnpmError} When integrity file cannot be fetched or verification fails
- */
-async function fetchIntegrityFile (
-  fetch: FetchFromRegistry,
-  shasumsUrl: string,
-  expectedVersionIntegrity?: string
-): Promise<string> {
-  const res = await fetch(shasumsUrl)
-  if (!res.ok) {
-    throw new PnpmError(
-      'NODE_FETCH_INTEGRITY_FAILED',
-      `Failed to fetch integrity file: ${shasumsUrl} (status: ${res.status})`
-    )
-  }
-
-  const body = await res.text()
-  if (expectedVersionIntegrity) {
-    const actualVersionIntegrity = createHash(body)
-    if (expectedVersionIntegrity !== actualVersionIntegrity) {
-      throw new PnpmError('NODE_VERSION_INTEGRITY_MISMATCH', `The integrity of ${shasumsUrl} failed. Expected: ${expectedVersionIntegrity}. Actual: ${actualVersionIntegrity}`)
-    }
-  }
-  return body
-}
-
-function pickArtifactIntegrity (body: string, fileName: string): string {
-  const line = body.split('\n').find(line => line.trim().endsWith(`  ${fileName}`))
-
-  if (!line) {
-    throw new PnpmError(
-      'NODE_INTEGRITY_HASH_NOT_FOUND',
-      `SHA-256 hash not found in SHASUMS256.txt for: ${fileName}`
-    )
-  }
-
-  const [sha256] = line.trim().split(/\s+/)
-  if (!SHA256_REGEX.test(sha256)) {
-    throw new PnpmError(
-      'NODE_MALFORMED_INTEGRITY_HASH',
-      `Malformed SHA-256 for ${fileName}: ${sha256}`
-    )
-  }
-
-  const buffer = Buffer.from(sha256, 'hex')
-  const base64 = buffer.toString('base64')
-  return `sha256-${base64}`
+  const body = await fetchShasumsFile(fetch, shasumsUrl, options?.expectedVersionIntegrity)
+  return pickFileChecksumFromShasumsFile(body, fileName)
 }
 
 /**

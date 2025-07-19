@@ -1,5 +1,6 @@
 import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { createHash } from '@pnpm/crypto.hash'
+import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import { type WantedDependency, type NodeRuntimeResolution, type ResolveResult } from '@pnpm/resolver-base'
@@ -56,15 +57,8 @@ async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: str
   versionIntegrity: string
 }> {
   const integritiesFileUrl = `${nodeMirrorBaseUrl}/v${version}/SHASUMS256.txt`
-  const res = await fetch(integritiesFileUrl)
-  if (!res.ok) {
-    throw new PnpmError(
-      'NODE_FETCH_INTEGRITY_FAILED',
-      `Failed to fetch integrity file: ${integritiesFileUrl} (status: ${res.status})`
-    )
-  }
+  const shasumsFileContent = await fetchShasumsFile(fetch, integritiesFileUrl)
 
-  const shasumsFileContent = await res.text()
   const versionIntegrity = createHash(shasumsFileContent)
 
   return {
