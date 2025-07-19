@@ -81,6 +81,7 @@ export const types = Object.assign({
   'prefer-offline': Boolean,
   'prefer-symlinked-executables': Boolean,
   'prefer-workspace-packages': Boolean,
+  'preserve-absolute-paths': Boolean,
   production: [null, true],
   'public-hoist-pattern': Array,
   'publish-branch': String,

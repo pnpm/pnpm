@@ -225,6 +225,7 @@ export interface Config extends OptionsFromRootManifest {
   initType: 'commonjs' | 'module'
   dangerouslyAllowAllBuilds: boolean
   ci: boolean
+  preserveAbsolutePaths?: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

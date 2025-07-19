@@ -74,6 +74,7 @@ export interface ResolverFactoryOptions {
   timeout?: number
   registries: Registries
   saveWorkspaceProtocol?: boolean | 'rolling'
+  preserveAbsolutePaths?: boolean
 }
 
 export interface NpmResolveResult extends ResolveResult {
