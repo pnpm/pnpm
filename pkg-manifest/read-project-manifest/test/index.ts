@@ -1,5 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
+import path from 'path'
 import { readProjectManifest, tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { fixtures } from '@pnpm/test-fixtures'
 import tempy from 'tempy'
@@ -28,6 +29,37 @@ test('readProjectManifest()', async () => {
   expect(
     (await tryReadProjectManifest(__dirname)).manifest
   ).toStrictEqual(null)
+})
+
+test('readProjectManifest() converts devEngines runtime to devDependencies', async () => {
+  const dir = f.prepare('package-json-with-dev-engines')
+  const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir)
+  expect(manifest).toStrictEqual(
+    {
+      devDependencies: {
+        node: 'runtime:24',
+      },
+      devEngines: {
+        runtime: {
+          name: 'node',
+          version: '24',
+          onFail: 'download',
+        },
+      },
+    }
+  )
+  await writeProjectManifest(manifest!)
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+  expect(pkgJson).toStrictEqual({
+    devDependencies: {},
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '24',
+        onFail: 'download',
+      },
+    },
+  })
 })
 
 test('preserve tab indentation in json file', async () => {

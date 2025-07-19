@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../env/node.fetcher"
+    },
+    {
       "path": "../../fetching/directory-fetcher"
     },
     {
