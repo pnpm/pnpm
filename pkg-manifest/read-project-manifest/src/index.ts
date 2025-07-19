@@ -27,6 +27,11 @@ export async function safeReadProjectManifestOnly (projectDir: string): Promise<
   }
 }
 
+export async function updateProjectManifest(projectDir: string, updatedFields: Partial<ProjectManifest>): Promise<void> {
+  const { manifest, writeProjectManifest } = await readProjectManifest(projectDir) ?? {} as ProjectManifest
+  return writeProjectManifest({ ...manifest, ...updatedFields })
+}
+
 export async function readProjectManifest (projectDir: string): Promise<{
   fileName: string
   manifest: ProjectManifest

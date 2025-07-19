@@ -8,6 +8,7 @@ import { getSpecFromPackageManifest } from './getSpecFromPackageManifest'
 
 export * from './updateProjectManifestObject'
 export * from './getDependencyTypeFromManifest'
+export * from './getNodeRuntimeFromManifest'
 
 export { getSpecFromPackageManifest, getAllUniqueSpecs }
 
