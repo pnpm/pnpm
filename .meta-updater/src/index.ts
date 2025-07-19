@@ -361,6 +361,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     })
   }
   return sortKeysInManifest({
+    type: 'commonjs',
     ...manifest,
     bugs: {
       url: 'https://github.com/pnpm/pnpm/issues',

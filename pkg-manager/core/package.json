@@ -33,6 +33,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "commonjs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
