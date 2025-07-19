@@ -40,6 +40,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "commonjs",
   "main": "bin/pnpm.cjs",
   "exports": {
     ".": "./package.json"
