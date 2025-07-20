@@ -33,8 +33,14 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/config": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/crypto.shasums-file": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/node.fetcher": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "semver": "catalog:",
     "version-selector-type": "catalog:"
   },

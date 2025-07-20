@@ -10,13 +10,31 @@
   ],
   "references": [
     {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../crypto/hash"
+    },
+    {
+      "path": "../../crypto/shasums-file"
+    },
+    {
       "path": "../../network/fetch"
     },
     {
       "path": "../../network/fetching-types"
     },
     {
-      "path": "../node.fetcher"
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../resolving/resolver-base"
     }
   ]
 }

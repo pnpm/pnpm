@@ -44,8 +44,12 @@
     "read-yaml-file": "catalog:",
     "strip-bom": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
     "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/parse-json": "catalog:",
     "tempy": "catalog:"

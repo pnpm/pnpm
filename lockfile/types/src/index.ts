@@ -109,10 +109,16 @@ export interface GitRepositoryResolution {
   path?: string
 }
 
+export interface NodeRuntimeResolution {
+  type: 'nodeRuntime'
+  integrity: string
+}
+
 export type Resolution =
   TarballResolution |
   GitRepositoryResolution |
-  DirectoryResolution
+  DirectoryResolution |
+  NodeRuntimeResolution
 
 export type LockfileResolution = Resolution | {
   integrity: string

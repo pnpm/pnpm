@@ -46,6 +46,7 @@ const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
     retries: 1,
   },
 })
+const pkg = { id: '' }
 
 test('fail when tarball size does not match content-length', async () => {
   const scope = nock(registry)
@@ -70,7 +71,7 @@ test('fail when tarball size does not match content-length', async () => {
     fetch.remoteTarball(cafs, resolution, {
       filesIndexFile,
       lockfileDir: process.cwd(),
-      pkg: {},
+      pkg,
     })
   ).rejects.toThrow(
     new BadTarballError({
@@ -102,7 +103,7 @@ test('retry when tarball size does not match content-length', async () => {
   const result = await fetch.remoteTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {},
+    pkg,
   })
 
   expect(result.filesIndex).toBeTruthy()
@@ -128,7 +129,7 @@ test('fail when integrity check fails two times in a row', async () => {
     fetch.remoteTarball(cafs, resolution, {
       filesIndexFile,
       lockfileDir: process.cwd(),
-      pkg: {},
+      pkg,
     })
   ).rejects.toThrow(
     new TarballIntegrityError({
@@ -167,7 +168,7 @@ test('retry when integrity check fails', async () => {
     onStart (size, attempts) {
       params.push([size, attempts])
     },
-    pkg: {},
+    pkg,
   })
 
   expect(params[0]).toStrictEqual([1194, 1])
@@ -190,7 +191,7 @@ test('fail when integrity check of local file fails', async () => {
     fetch.localTarball(cafs, resolution, {
       filesIndexFile,
       lockfileDir: process.cwd(),
-      pkg: {},
+      pkg,
     })
   ).rejects.toThrow(
     new TarballIntegrityError({
@@ -216,7 +217,7 @@ test("don't fail when integrity check of local file succeeds", async () => {
   const { filesIndex } = await fetch.localTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {},
+    pkg,
   })
 
   expect(typeof filesIndex['package.json']).toBe('string')
@@ -243,7 +244,7 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
   const { filesIndex } = await fetch.localTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {},
+    pkg,
   })
 
   expect(typeof filesIndex['package.json']).toBe('string')
@@ -271,7 +272,7 @@ test('fail when trying to fetch a non-local tarball in offline mode', async () =
     fetch.remoteTarball(cafs, resolution, {
       filesIndexFile,
       lockfileDir: process.cwd(),
-      pkg: {},
+      pkg,
     })
   ).rejects.toThrow(
     new PnpmError('NO_OFFLINE_TARBALL',
@@ -299,7 +300,7 @@ test('retry on server error', async () => {
   const index = await fetch.remoteTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {},
+    pkg,
   })
 
   expect(index).toBeTruthy()
@@ -323,7 +324,7 @@ test('throw error when accessing private package w/o authorization', async () =>
     fetch.remoteTarball(cafs, resolution, {
       filesIndexFile,
       lockfileDir: process.cwd(),
-      pkg: {},
+      pkg,
     })
   ).rejects.toThrow(
     new FetchError(
@@ -356,7 +357,7 @@ test('do not retry when package does not exist', async () => {
     fetch.remoteTarball(cafs, resolution, {
       filesIndexFile,
       lockfileDir: process.cwd(),
-      pkg: {},
+      pkg,
     })
   ).rejects.toThrow(
     new FetchError(
@@ -407,7 +408,7 @@ test('accessing private packages', async () => {
   const index = await fetch.remoteTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {},
+    pkg,
   })
 
   expect(index).toBeTruthy()
@@ -428,7 +429,7 @@ test('fetch a big repository', async () => {
   const result = await fetch.gitHostedTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {},
+    pkg,
   })
 
   expect(result.filesIndex).toBeTruthy()
@@ -443,7 +444,7 @@ test('fail when preparing a git-hosted package', async () => {
     fetch.gitHostedTarball(cafs, resolution, {
       filesIndexFile,
       lockfileDir: process.cwd(),
-      pkg: {},
+      pkg,
     })
   ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://codeload.github.com/pnpm-e2e/prepare-script-fails/tar.gz/ba58874aae1210a777eb309dd01a9fdacc7e54e7": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
 })
@@ -456,7 +457,7 @@ test('take only the files included in the package, when fetching a git-hosted pa
   const result = await fetch.gitHostedTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {},
+    pkg,
   })
 
   expect(Object.keys(result.filesIndex).sort()).toStrictEqual([
@@ -482,7 +483,7 @@ test('fail when extracting a broken tarball', async () => {
     fetch.remoteTarball(cafs, resolution, {
       filesIndexFile,
       lockfileDir: process.cwd(),
-      pkg: {},
+      pkg,
     })
   ).rejects.toThrow(`Failed to add tarball from "${registry}foo.tgz" to store: Invalid checksum for TAR header at offset 0. Expected 0, got NaN`
   )
@@ -507,7 +508,7 @@ test('do not build the package when scripts are ignored', async () => {
   const { filesIndex } = await fetch.gitHostedTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {},
+    pkg,
   })
 
   expect(filesIndex).toHaveProperty(['package.json'])
@@ -525,7 +526,7 @@ test('when extracting files with the same name, pick the last ones', async () =>
     filesIndexFile,
     lockfileDir: process.cwd(),
     readManifest: true,
-    pkg: {},
+    pkg,
   })
   const pkgJson = JSON.parse(fs.readFileSync(filesIndex['package.json'], 'utf8'))
   expect(pkgJson.name).toBe('pkg2')
@@ -552,7 +553,7 @@ test('use the subfolder when path is present', async () => {
   const { filesIndex } = await fetch.gitHostedTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {},
+    pkg,
   })
 
   expect(filesIndex).toHaveProperty(['package.json'])
@@ -579,7 +580,7 @@ test('prevent directory traversal attack when path is present', async () => {
   await expect(() => fetch.gitHostedTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {},
+    pkg,
   })).rejects.toThrow(`Failed to prepare git-hosted package fetched from "${tarball}": Path "${path}" should be a sub directory`)
 })
 
@@ -603,6 +604,6 @@ test('fail when path is not exists', async () => {
   await expect(() => fetch.gitHostedTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {},
+    pkg,
   })).rejects.toThrow(`Failed to prepare git-hosted package fetched from "${tarball}": Path "${path}" is not a directory`)
 })

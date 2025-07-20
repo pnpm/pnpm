@@ -281,11 +281,14 @@ export async function handler (
             }
             child.stdout!.on('data', logFn('stdout'))
             child.stderr!.on('data', logFn('stderr'))
-            void child.once('close', exitCode => {
-              lifecycleLogger.debug({
-                ...lifecycleOpts,
-                exitCode: exitCode ?? 1,
-                optional: false,
+            await new Promise<void>((resolve) => {
+              void child.once('close', exitCode => {
+                lifecycleLogger.debug({
+                  ...lifecycleOpts,
+                  exitCode: exitCode ?? 1,
+                  optional: false,
+                })
+                resolve()
               })
             })
             await child

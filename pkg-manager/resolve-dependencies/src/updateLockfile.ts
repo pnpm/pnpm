@@ -5,12 +5,13 @@ import {
   type PackageSnapshot,
   pruneSharedLockfile,
 } from '@pnpm/lockfile.pruner'
-import { type DirectoryResolution, type Resolution } from '@pnpm/resolver-base'
+import { type Resolution } from '@pnpm/resolver-base'
 import { type DepPath, type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { type KeyValuePair } from 'ramda'
 import partition from 'ramda/src/partition'
+import omit from 'ramda/src/omit'
 import { depPathToRef } from './depPathToRef'
 import { type ResolvedPackage } from './resolveDependencies'
 import { type DependenciesGraph } from '.'
@@ -80,7 +81,7 @@ function toLockfileDependency (
   if (opts.depPath.includes(':')) {
     // There is no guarantee that a non-npmjs.org-hosted package is going to have a version field.
     // Also, for local directory dependencies, the version is not needed.
-    if (pkg.version && (lockfileResolution as DirectoryResolution).type !== 'directory') {
+    if (pkg.version && (!('type' in lockfileResolution) || lockfileResolution.type !== 'directory' && lockfileResolution.type !== 'nodeRuntime')) {
       result['version'] = pkg.version
     }
   }
@@ -182,6 +183,9 @@ function toLockfileResolution (
   lockfileIncludeTarballUrl?: boolean
 ): LockfileResolution {
   if (resolution.type !== undefined || !resolution['integrity']) {
+    if (resolution.type === 'nodeRuntime') {
+      return omit(['_shasumsFileContent'], resolution)
+    }
     return resolution as LockfileResolution
   }
   if (lockfileIncludeTarballUrl) {

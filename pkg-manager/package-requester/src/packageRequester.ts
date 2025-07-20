@@ -293,13 +293,13 @@ async function resolveAndFetch (
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
     pkg: {
-      ...pkg,
+      ...(options.expectedPkg?.name != null
+        ? (updated ? { name: options.expectedPkg.name, version: pkg.version } : options.expectedPkg)
+        : pkg
+      ),
       id,
       resolution,
     },
-    expectedPkg: options.expectedPkg?.name != null
-      ? (updated ? { name: options.expectedPkg.name, version: pkg.version } : options.expectedPkg)
-      : pkg,
     onFetchError: options.onFetchError,
   })
 
@@ -354,7 +354,6 @@ function fetchToStore (
       readManifest?: boolean
     ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
     fetch: (
-      packageId: string,
       resolution: Resolution,
       opts: FetchOptions
     ) => Promise<FetchResult>
@@ -498,22 +497,22 @@ function fetchToStore (
           if (
             (
               pkgFilesIndex.name != null &&
-              opts.expectedPkg?.name != null &&
-              pkgFilesIndex.name.toLowerCase() !== opts.expectedPkg.name.toLowerCase()
+              opts.pkg?.name != null &&
+              pkgFilesIndex.name.toLowerCase() !== opts.pkg.name.toLowerCase()
             ) ||
             (
               pkgFilesIndex.version != null &&
-              opts.expectedPkg?.version != null &&
+              opts.pkg?.version != null &&
               // We used to not normalize the package versions before writing them to the lockfile and store.
               // So it may happen that the version will be in different formats.
               // For instance, v1.0.0 and 1.0.0
               // Hence, we need to use semver.eq() to compare them.
-              !equalOrSemverEqual(pkgFilesIndex.version, opts.expectedPkg.version)
+              !equalOrSemverEqual(pkgFilesIndex.version, opts.pkg.version)
             )
           ) {
             const msg = `Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store.`
             const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. \
-Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
+Expected package: ${opts.pkg.name}@${opts.pkg.version}. \
 Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
             if (ctx.strictStorePkgContentCheck ?? true) {
               throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
@@ -553,7 +552,6 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
       const priority = (++ctx.requestsQueue.counter % ctx.requestsQueue.concurrency === 0 ? -1 : 1) * 1000
 
       const fetchedPackage = await ctx.requestsQueue.add(async () => ctx.fetch(
-        opts.pkg.id,
         opts.pkg.resolution,
         {
           filesIndexFile,
@@ -577,6 +575,7 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
           pkg: {
             name: opts.pkg.name,
             version: opts.pkg.version,
+            id: opts.pkg.id,
           },
         }
       ), { priority })
@@ -634,7 +633,6 @@ async function tarballIsUpToDate (
 async function fetcher (
   fetcherByHostingType: Fetchers,
   cafs: Cafs,
-  packageId: string,
   resolution: Resolution,
   opts: FetchOptions
 ): Promise<FetchResult> {
@@ -643,7 +641,7 @@ async function fetcher (
     return await fetch(cafs, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
   } catch (err: any) { // eslint-disable-line
     packageRequestLogger.warn({
-      message: `Fetching ${packageId} failed!`,
+      message: `Fetching ${opts.pkg.id} failed!`,
       prefix: opts.lockfileDir,
     })
     throw err

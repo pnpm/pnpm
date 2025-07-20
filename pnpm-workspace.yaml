@@ -42,6 +42,10 @@ packages:
   - '!**/test/**'
   - '!resolving/local-resolver/example-package/**'
 
+auditConfig:
+  ignoreGhsas:
+    - GHSA-76c9-3jph-rj3q
+
 catalog:
   '@gwhitney/detect-indent': 7.0.1
   '@pnpm/builder.policy': 3.0.1

@@ -1,6 +1,71 @@
+import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
+import { createHash } from '@pnpm/crypto.hash'
+import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
+import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
+import { type WantedDependency, type NodeRuntimeResolution, type ResolveResult } from '@pnpm/resolver-base'
 import semver from 'semver'
 import versionSelectorType from 'version-selector-type'
+import { type PkgResolutionId } from '@pnpm/types'
+import { parseEnvSpecifier } from './parseEnvSpecifier'
+import { getNodeMirror } from './getNodeMirror'
+
+export { getNodeMirror, parseEnvSpecifier }
+
+export interface NodeRuntimeResolveResult extends ResolveResult {
+  resolution: NodeRuntimeResolution
+  resolvedVia: 'nodejs.org'
+}
+
+export async function resolveNodeRuntime (
+  ctx: {
+    fetchFromRegistry: FetchFromRegistry
+    rawConfig: Record<string, string>
+    offline?: boolean
+  },
+  wantedDependency: WantedDependency
+): Promise<NodeRuntimeResolveResult | null> {
+  if (wantedDependency.alias !== 'node' || !wantedDependency.bareSpecifier?.startsWith('runtime:')) return null
+  if (ctx.offline) throw new PnpmError('NO_OFFLINE_NODEJS_RESOLUTION', 'Offline Node.js resolution is not supported')
+  const versionSpec = wantedDependency.bareSpecifier.substring('runtime:'.length)
+  const { releaseChannel, versionSpecifier } = parseEnvSpecifier(versionSpec)
+  const nodeMirrorBaseUrl = getNodeMirror(ctx.rawConfig, releaseChannel)
+  const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl)
+  if (!version) {
+    throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
+  }
+  const { versionIntegrity: integrity, shasumsFileContent } = await loadShasumsFile(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
+  return {
+    id: `node@runtime:${version}` as PkgResolutionId,
+    normalizedBareSpecifier: `runtime:${versionSpec}`,
+    resolvedVia: 'nodejs.org',
+    manifest: {
+      name: 'node',
+      version,
+      bin: getNodeBinLocationForCurrentOS(),
+    },
+    resolution: {
+      type: 'nodeRuntime',
+      integrity,
+      _shasumsFileContent: shasumsFileContent,
+    },
+  }
+}
+
+async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<{
+  shasumsFileContent: string
+  versionIntegrity: string
+}> {
+  const integritiesFileUrl = `${nodeMirrorBaseUrl}/v${version}/SHASUMS256.txt`
+  const shasumsFileContent = await fetchShasumsFile(fetch, integritiesFileUrl)
+
+  const versionIntegrity = createHash(shasumsFileContent)
+
+  return {
+    shasumsFileContent,
+    versionIntegrity,
+  }
+}
 
 interface NodeVersion {
   version: string

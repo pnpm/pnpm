@@ -1,15 +1,19 @@
-import fs from 'fs'
+import fsPromises from 'fs/promises'
 import path from 'path'
+import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
+import { fetchShasumsFile, pickFileChecksumFromShasumsFile } from '@pnpm/crypto.shasums-file'
 import {
   type FetchFromRegistry,
   type RetryTimeoutOptions,
   type Response,
 } from '@pnpm/fetching-types'
-import { pickFetcher } from '@pnpm/pick-fetcher'
 import { createCafsStore } from '@pnpm/create-cafs-store'
+import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
-import { type FetchFunction } from '@pnpm/fetcher-base'
+import { type NodeRuntimeFetcher, type FetchResult } from '@pnpm/fetcher-base'
+import { getNodeMirror, parseEnvSpecifier } from '@pnpm/node.resolver'
+import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
 import renameOverwrite from 'rename-overwrite'
 import tempy from 'tempy'
@@ -17,12 +21,74 @@ import { isNonGlibcLinux } from 'detect-libc'
 import ssri from 'ssri'
 import { getNodeArtifactAddress } from './getNodeArtifactAddress'
 
+export function createNodeRuntimeFetcher (ctx: {
+  fetch: FetchFromRegistry
+  rawConfig: Record<string, string>
+  offline?: boolean
+}): { nodeRuntime: NodeRuntimeFetcher } {
+  const fetchNodeRuntime: NodeRuntimeFetcher = async (cafs, resolution, opts) => {
+    if (!opts.pkg.version && !opts.pkg.id) {
+      throw new PnpmError('CANNOT_FETCH_NODE_WITHOUT_VERSION', 'Cannot fetch Node.js without a version')
+    }
+    if (ctx.offline) {
+      throw new PnpmError('CANNOT_DOWNLOAD_NODE_OFFLINE', 'Cannot download Node.js because offline mode is enabled.')
+    }
+    // Sometimes the id comes in as runtime:<version> and sometimes as node@runtime:<version>.
+    // It would be nice to normalize this but unfortunately some parts of the code rely on IDs that start with the protocol.
+    const version = opts.pkg.version ?? opts.pkg.id.replace(/(?:node@)?runtime:/, '')
+    const { releaseChannel } = parseEnvSpecifier(version)
+
+    await validateSystemCompatibility()
+
+    const nodeMirrorBaseUrl = getNodeMirror(ctx.rawConfig, releaseChannel)
+    const artifactInfo = await getNodeArtifactInfo(ctx.fetch, version, {
+      nodeMirrorBaseUrl,
+      expectedVersionIntegrity: resolution.integrity,
+      cachedShasumsFile: resolution._shasumsFileContent,
+    })
+    const manifest = {
+      name: 'node',
+      version,
+      bin: getNodeBinLocationForCurrentOS(),
+    }
+
+    if (artifactInfo.isZip) {
+      const tempLocation = await cafs.tempDir()
+      await downloadAndUnpackZip(ctx.fetch, artifactInfo, tempLocation)
+      return {
+        ...await addFilesFromDir({
+          storeDir: cafs.storeDir,
+          dir: tempLocation,
+          filesIndexFile: opts.filesIndexFile,
+          readManifest: false,
+        }),
+        manifest,
+      }
+    }
+
+    return {
+      ...await downloadAndUnpackTarball(ctx.fetch, artifactInfo, { cafs, filesIndexFile: opts.filesIndexFile }),
+      manifest,
+    }
+  }
+  return {
+    nodeRuntime: fetchNodeRuntime,
+  }
+}
+
 // Constants
 const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
-const SHA256_REGEX = /^[a-f0-9]{64}$/
+
+export interface FetchNodeOptionsToDir {
+  storeDir: string
+  fetchTimeout?: number
+  nodeMirrorBaseUrl?: string
+  retry?: RetryTimeoutOptions
+}
 
 export interface FetchNodeOptions {
-  storeDir: string
+  cafs: Cafs
+  filesIndexFile: string
   fetchTimeout?: number
   nodeMirrorBaseUrl?: string
   retry?: RetryTimeoutOptions
@@ -48,19 +114,19 @@ export async function fetchNode (
   fetch: FetchFromRegistry,
   version: string,
   targetDir: string,
-  opts: FetchNodeOptions
+  opts: FetchNodeOptionsToDir
 ): Promise<void> {
   await validateSystemCompatibility()
 
   const nodeMirrorBaseUrl = opts.nodeMirrorBaseUrl ?? DEFAULT_NODE_MIRROR_BASE_URL
-  const artifactInfo = await getNodeArtifactInfo(fetch, version, nodeMirrorBaseUrl)
+  const artifactInfo = await getNodeArtifactInfo(fetch, version, { nodeMirrorBaseUrl })
 
   if (artifactInfo.isZip) {
     await downloadAndUnpackZip(fetch, artifactInfo, targetDir)
     return
   }
 
-  await downloadAndUnpackTarball(fetch, artifactInfo, targetDir, opts)
+  await downloadAndUnpackTarballToDir(fetch, artifactInfo, targetDir, opts)
 }
 
 /**
@@ -89,11 +155,15 @@ async function validateSystemCompatibility (): Promise<void> {
 async function getNodeArtifactInfo (
   fetch: FetchFromRegistry,
   version: string,
-  nodeMirrorBaseUrl: string
+  opts: {
+    nodeMirrorBaseUrl: string
+    expectedVersionIntegrity?: string
+    cachedShasumsFile?: string
+  }
 ): Promise<NodeArtifactInfo> {
   const tarball = getNodeArtifactAddress({
     version,
-    baseUrl: nodeMirrorBaseUrl,
+    baseUrl: opts.nodeMirrorBaseUrl,
     platform: process.platform,
     arch: process.arch,
   })
@@ -102,7 +172,11 @@ async function getNodeArtifactInfo (
   const shasumsFileUrl = `${tarball.dirname}/SHASUMS256.txt`
   const url = `${tarball.dirname}/${tarballFileName}`
 
-  const integrity = await loadArtifactIntegrity(fetch, shasumsFileUrl, tarballFileName)
+  const integrity = opts.cachedShasumsFile
+    ? pickFileChecksumFromShasumsFile(opts.cachedShasumsFile, tarballFileName)
+    : await loadArtifactIntegrity(fetch, tarballFileName, shasumsFileUrl, {
+      expectedVersionIntegrity: opts.expectedVersionIntegrity,
+    })
 
   return {
     url,
@@ -112,49 +186,28 @@ async function getNodeArtifactInfo (
   }
 }
 
+interface LoadArtifactIntegrityOptions {
+  expectedVersionIntegrity?: string
+}
+
 /**
- * Loads and verifies the integrity hash for a Node.js artifact.
+ * Loads and extracts the integrity hash for a specific Node.js artifact.
  *
  * @param fetch - Function to fetch resources from registry
- * @param integritiesFileUrl - URL of the SHASUMS256.txt file
  * @param fileName - Name of the file to find integrity for
+ * @param shasumsUrl - URL of the SHASUMS256.txt file
+ * @param options - Optional configuration for integrity verification
  * @returns Promise resolving to the integrity hash in base64 format
  * @throws {PnpmError} When integrity file cannot be fetched or parsed
  */
 async function loadArtifactIntegrity (
   fetch: FetchFromRegistry,
-  integritiesFileUrl: string,
-  fileName: string
+  fileName: string,
+  shasumsUrl: string,
+  options?: LoadArtifactIntegrityOptions
 ): Promise<string> {
-  const res = await fetch(integritiesFileUrl)
-  if (!res.ok) {
-    throw new PnpmError(
-      'NODE_FETCH_INTEGRITY_FAILED',
-      `Failed to fetch integrity file: ${integritiesFileUrl} (status: ${res.status})`
-    )
-  }
-
-  const body = await res.text()
-  const line = body.split('\n').find(line => line.trim().endsWith(`  ${fileName}`))
-
-  if (!line) {
-    throw new PnpmError(
-      'NODE_INTEGRITY_HASH_NOT_FOUND',
-      `SHA-256 hash not found in SHASUMS256.txt for: ${fileName}`
-    )
-  }
-
-  const [sha256] = line.trim().split(/\s+/)
-  if (!SHA256_REGEX.test(sha256)) {
-    throw new PnpmError(
-      'NODE_MALFORMED_INTEGRITY_HASH',
-      `Malformed SHA-256 for ${fileName}: ${sha256}`
-    )
-  }
-
-  const buffer = Buffer.from(sha256, 'hex')
-  const base64 = buffer.toString('base64')
-  return `sha256-${base64}`
+  const body = await fetchShasumsFile(fetch, shasumsUrl, options?.expectedVersionIntegrity)
+  return pickFileChecksumFromShasumsFile(body, fileName)
 }
 
 /**
@@ -165,11 +218,11 @@ async function loadArtifactIntegrity (
  * @param targetDir - Directory where Node.js should be installed
  * @param opts - Configuration options for the fetch operation
  */
-async function downloadAndUnpackTarball (
+async function downloadAndUnpackTarballToDir (
   fetch: FetchFromRegistry,
   artifactInfo: NodeArtifactInfo,
   targetDir: string,
-  opts: FetchNodeOptions
+  opts: FetchNodeOptionsToDir
 ): Promise<void> {
   const getAuthHeader = () => undefined
   const fetchers = createTarballFetcher(fetch, getAuthHeader, {
@@ -181,19 +234,20 @@ async function downloadAndUnpackTarball (
   })
 
   const cafs = createCafsStore(opts.storeDir)
-  const fetchTarball = pickFetcher(fetchers, { tarball: artifactInfo.url }) as FetchFunction
 
   // Create a unique index file name for Node.js tarballs
   const indexFileName = `node-${encodeURIComponent(artifactInfo.url)}`
   const filesIndexFile = path.join(opts.storeDir, indexFileName)
 
-  const { filesIndex } = await fetchTarball(cafs, {
+  const { filesIndex } = await fetchers.remoteTarball(cafs, {
     tarball: artifactInfo.url,
     integrity: artifactInfo.integrity,
   }, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {},
+    pkg: {
+      id: '',
+    },
   })
 
   cafs.importPackage(targetDir, {
@@ -203,6 +257,32 @@ async function downloadAndUnpackTarball (
       requiresBuild: false,
     },
     force: true,
+  })
+}
+
+async function downloadAndUnpackTarball (
+  fetch: FetchFromRegistry,
+  artifactInfo: NodeArtifactInfo,
+  opts: FetchNodeOptions
+): Promise<FetchResult> {
+  const getAuthHeader = () => undefined
+  const fetchers = createTarballFetcher(fetch, getAuthHeader, {
+    retry: opts.retry,
+    timeout: opts.fetchTimeout,
+    // These are not needed for fetching Node.js
+    rawConfig: {},
+    unsafePerm: false,
+  })
+
+  return fetchers.remoteTarball(opts.cafs, {
+    tarball: artifactInfo.url,
+    integrity: artifactInfo.integrity,
+  }, {
+    filesIndexFile: opts.filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg: {
+      id: '',
+    },
   })
 }
 
@@ -223,12 +303,12 @@ async function downloadAndUnpackZip (
   const tmp = path.join(tempy.directory(), 'pnpm.zip')
 
   try {
-    await downloadWithIntegrityCheck(response, tmp, artifactInfo.integrity, artifactInfo.url)
+    await downloadWithIntegrityCheck(response, tmp, artifactInfo.integrity)
     await extractZipToTarget(tmp, artifactInfo.basename, targetDir)
   } finally {
     // Clean up temporary file
     try {
-      await fs.promises.unlink(tmp)
+      await fsPromises.unlink(tmp)
     } catch {
       // Ignore cleanup errors
     }
@@ -247,8 +327,7 @@ async function downloadAndUnpackZip (
 async function downloadWithIntegrityCheck (
   response: Response,
   tmpPath: string,
-  expectedIntegrity: string,
-  url: string
+  expectedIntegrity: string
 ): Promise<void> {
   // Collect all chunks from the response
   const chunks: Buffer[] = []
@@ -261,7 +340,7 @@ async function downloadWithIntegrityCheck (
   ssri.checkData(data, expectedIntegrity, { error: true })
 
   // Write the verified data to file
-  await fs.promises.writeFile(tmpPath, data)
+  await fsPromises.writeFile(tmpPath, data)
 }
 
 /**

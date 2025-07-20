@@ -213,6 +213,8 @@ async function fetchDeps (
     const pkgResolution = {
       id: packageId,
       resolution,
+      name: pkgName,
+      version: pkgVersion,
     }
     if (skipFetch) {
       const { filesIndexFile } = opts.storeController.getFilesIndexFilePath({
@@ -227,10 +229,6 @@ async function fetchDeps (
           lockfileDir: opts.lockfileDir,
           ignoreScripts: opts.ignoreScripts,
           pkg: pkgResolution,
-          expectedPkg: {
-            name: pkgName,
-            version: pkgVersion,
-          },
         }) as any // eslint-disable-line
         if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
       } catch (err: any) { // eslint-disable-line

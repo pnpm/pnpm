@@ -1877,6 +1877,22 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  crypto/shasums-file:
+    dependencies:
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../hash
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fetching-types':
+        specifier: workspace:*
+        version: link:../../network/fetching-types
+    devDependencies:
+      '@pnpm/crypto.shasums-file':
+        specifier: workspace:*
+        version: 'link:'
+
   dedupe/check:
     dependencies:
       '@pnpm/dedupe.types':
@@ -2048,9 +2064,15 @@ importers:
 
   env/node.fetcher:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
+      '@pnpm/crypto.shasums-file':
+        specifier: workspace:*
+        version: link:../../crypto/shasums-file
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -2060,12 +2082,15 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
-      '@pnpm/pick-fetcher':
+      '@pnpm/node.resolver':
         specifier: workspace:*
-        version: link:../../fetching/pick-fetcher
+        version: link:../node.resolver
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../../fetching/tarball-fetcher
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:../../worker
       adm-zip:
         specifier: 'catalog:'
         version: 0.5.16
@@ -2103,12 +2128,30 @@ importers:
 
   env/node.resolver:
     dependencies:
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/crypto.hash':
+        specifier: workspace:*
+        version: link:../../crypto/hash
+      '@pnpm/crypto.shasums-file':
+        specifier: workspace:*
+        version: link:../../crypto/shasums-file
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
-      '@pnpm/node.fetcher':
+      '@pnpm/resolver-base':
         specifier: workspace:*
-        version: link:../node.fetcher
+        version: link:../../resolving/resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       semver:
         specifier: 'catalog:'
         version: 7.7.1
@@ -4474,6 +4517,9 @@ importers:
       '@pnpm/network.auth-header':
         specifier: workspace:*
         version: link:../../network/auth-header
+      '@pnpm/node.fetcher':
+        specifier: workspace:*
+        version: link:../../env/node.fetcher
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -5074,6 +5120,9 @@ importers:
 
   pkg-manager/link-bins:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -5948,6 +5997,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/logger':
+        specifier: 'catalog:'
+        version: 1001.0.0
       '@pnpm/text.comments-parser':
         specifier: workspace:*
         version: link:../../text/comments-parser
@@ -5979,6 +6031,9 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
       '@types/is-windows':
         specifier: 'catalog:'
         version: 1.0.2
@@ -6667,6 +6722,9 @@ importers:
       '@pnpm/local-resolver':
         specifier: workspace:*
         version: link:../local-resolver
+      '@pnpm/node.resolver':
+        specifier: workspace:*
+        version: link:../../env/node.resolver
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../npm-resolver
