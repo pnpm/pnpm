@@ -70,7 +70,8 @@
     "write-json-file": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "catalog:",
+    "@pnpm/package-is-installable": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:*",
