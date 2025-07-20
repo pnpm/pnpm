@@ -240,6 +240,39 @@ function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
 
 function convertManifestBeforeWrite (manifest: ProjectManifest): ProjectManifest {
   if (manifest.devDependencies?.['node']?.startsWith('runtime:')) {
+    manifest.devEngines ??= {}
+    const version = manifest.devDependencies['node'].replace(/^runtime:/, '')
+    if (!manifest.devEngines.runtime) {
+      manifest.devEngines.runtime = {
+        name: 'node',
+        version,
+        onFail: 'download',
+      }
+    } else if (Array.isArray(manifest.devEngines.runtime)) {
+      const existing = manifest.devEngines.runtime.find(({ name }) => name === 'node')
+      if (existing) {
+        existing.version = version
+        existing.onFail = 'download'
+      } else {
+        manifest.devEngines.runtime.push({
+          name: 'node',
+          version,
+          onFail: 'download',
+        })
+      }
+    } else if (manifest.devEngines.runtime.name === 'node') {
+      manifest.devEngines.runtime.version = version
+      manifest.devEngines.runtime.onFail = 'download'
+    } else {
+      manifest.devEngines.runtime = [
+        manifest.devEngines.runtime,
+        {
+          name: 'node',
+          version,
+          onFail: 'download',
+        },
+      ]
+    }
     delete manifest.devDependencies['node']
   }
   return manifest
