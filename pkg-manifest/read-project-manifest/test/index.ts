@@ -62,6 +62,124 @@ test('readProjectManifest() converts devEngines runtime to devDependencies', asy
   })
 })
 
+test('readProjectManifest() converts devDependencies to devEngines', async () => {
+  const dir = f.prepare('package-json')
+  let { manifest, writeProjectManifest } = await tryReadProjectManifest(dir)
+  manifest ??= {}
+  manifest.devDependencies = {
+    node: 'runtime:22',
+  }
+  await writeProjectManifest(manifest!)
+  {
+    const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+    expect(pkgJson).toStrictEqual({
+      ...manifest,
+      devDependencies: {},
+      devEngines: {
+        runtime: {
+          name: 'node',
+          version: '22',
+          onFail: 'download',
+        },
+      },
+    })
+  }
+
+  manifest.devEngines = {
+    runtime: {
+      name: 'node',
+      version: '16',
+    },
+  }
+  manifest.devDependencies = {
+    node: 'runtime:22',
+  }
+  await writeProjectManifest(manifest!)
+  {
+    const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+    expect(pkgJson).toStrictEqual({
+      ...manifest,
+      devDependencies: {},
+      devEngines: {
+        runtime: {
+          name: 'node',
+          version: '22',
+          onFail: 'download',
+        },
+      },
+    })
+  }
+
+  manifest.devEngines = {
+    runtime: {
+      name: 'deno',
+      version: '1',
+    },
+  }
+  manifest.devDependencies = {
+    node: 'runtime:22',
+  }
+  await writeProjectManifest(manifest!)
+  {
+    const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+    expect(pkgJson).toStrictEqual({
+      ...manifest,
+      devDependencies: {},
+      devEngines: {
+        runtime: [
+          {
+            name: 'deno',
+            version: '1',
+          },
+          {
+            name: 'node',
+            version: '22',
+            onFail: 'download',
+          },
+        ],
+      },
+    })
+  }
+
+  manifest.devEngines = {
+    runtime: [
+      {
+        name: 'deno',
+        version: '1',
+      },
+      {
+        name: 'node',
+        version: '16',
+        onFail: 'download',
+      },
+    ],
+  }
+  manifest.devDependencies = {
+    node: 'runtime:22',
+  }
+  await writeProjectManifest(manifest!)
+  {
+    const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+    expect(pkgJson).toStrictEqual({
+      ...manifest,
+      devDependencies: {},
+      devEngines: {
+        runtime: [
+          {
+            name: 'deno',
+            version: '1',
+          },
+          {
+            name: 'node',
+            version: '22',
+            onFail: 'download',
+          },
+        ],
+      },
+    })
+  }
+})
+
 test('preserve tab indentation in json file', async () => {
   process.chdir(tempy.directory())
 
