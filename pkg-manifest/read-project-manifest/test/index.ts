@@ -169,10 +169,8 @@ test.each([
 
   const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
 
-  // We can't use a simple `toStrictEqual` because we need to ignore the `devDependencies` field
-  // and only check the `devEngines` field.
-  expect(pkgJson.devEngines).toEqual(expected)
-  expect(pkgJson.devDependencies).toEqual({})
+  expect(pkgJson.devEngines).toStrictEqual(expected)
+  expect(pkgJson.devDependencies).toStrictEqual({})
 })
 
 test('preserve tab indentation in json file', async () => {
