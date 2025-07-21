@@ -27,15 +27,13 @@ export function createNodeRuntimeFetcher (ctx: {
   offline?: boolean
 }): { nodeRuntime: NodeRuntimeFetcher } {
   const fetchNodeRuntime: NodeRuntimeFetcher = async (cafs, resolution, opts) => {
-    if (!opts.pkg.version && !opts.pkg.id) {
+    if (!opts.pkg.version) {
       throw new PnpmError('CANNOT_FETCH_NODE_WITHOUT_VERSION', 'Cannot fetch Node.js without a version')
     }
     if (ctx.offline) {
       throw new PnpmError('CANNOT_DOWNLOAD_NODE_OFFLINE', 'Cannot download Node.js because offline mode is enabled.')
     }
-    // Sometimes the id comes in as runtime:<version> and sometimes as node@runtime:<version>.
-    // It would be nice to normalize this but unfortunately some parts of the code rely on IDs that start with the protocol.
-    const version = opts.pkg.version ?? opts.pkg.id.replace(/(?:node@)?runtime:/, '')
+    const version = opts.pkg.version
     const { releaseChannel } = parseEnvSpecifier(version)
 
     await validateSystemCompatibility()
