@@ -2,7 +2,7 @@ import { promises as fs, type Stats } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
-import { type ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest, type DevEngineDependency } from '@pnpm/types'
 import { extractComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import readYamlFile from 'read-yaml-file'
@@ -239,8 +239,37 @@ function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
 }
 
 function convertManifestBeforeWrite (manifest: ProjectManifest): ProjectManifest {
-  if (manifest.devDependencies?.['node']?.startsWith('runtime:')) {
-    delete manifest.devDependencies['node']
+  const nodeDep = manifest.devDependencies?.['node']
+  if (typeof nodeDep === 'string' && nodeDep.startsWith('runtime:')) {
+    const version = nodeDep.replace(/^runtime:/, '')
+    manifest.devEngines ??= {}
+
+    const nodeRuntimeEntry: DevEngineDependency = {
+      name: 'node',
+      version,
+      onFail: 'download',
+    }
+
+    if (!manifest.devEngines.runtime) {
+      manifest.devEngines.runtime = nodeRuntimeEntry
+    } else if (Array.isArray(manifest.devEngines.runtime)) {
+      const existing = manifest.devEngines.runtime.find(({ name }) => name === 'node')
+      if (existing) {
+        Object.assign(existing, nodeRuntimeEntry)
+      } else {
+        manifest.devEngines.runtime.push(nodeRuntimeEntry)
+      }
+    } else if (manifest.devEngines.runtime.name === 'node') {
+      Object.assign(manifest.devEngines.runtime, nodeRuntimeEntry)
+    } else {
+      manifest.devEngines.runtime = [
+        manifest.devEngines.runtime,
+        nodeRuntimeEntry,
+      ]
+    }
+    if (manifest.devDependencies) {
+      delete manifest.devDependencies['node']
+    }
   }
   return manifest
 }

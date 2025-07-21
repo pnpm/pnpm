@@ -4,6 +4,7 @@ import path from 'path'
 import { readProjectManifest, tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { fixtures } from '@pnpm/test-fixtures'
 import tempy from 'tempy'
+import { type ProjectManifest } from '@pnpm/types'
 
 const f = fixtures(__dirname)
 
@@ -60,6 +61,116 @@ test('readProjectManifest() converts devEngines runtime to devDependencies', asy
       },
     },
   })
+})
+
+test.each([
+  {
+    name: 'creates devEngines when it is missing',
+    manifest: {
+      devDependencies: {
+        node: 'runtime:22',
+      },
+    },
+    expected: {
+      runtime: {
+        name: 'node',
+        version: '22',
+        onFail: 'download',
+      },
+    },
+  },
+  {
+    name: 'updates devEngines.runtime when it is a single node entry',
+    manifest: {
+      devEngines: {
+        runtime: {
+          name: 'node',
+          version: '16',
+        },
+      },
+      devDependencies: {
+        node: 'runtime:22',
+      },
+    },
+    expected: {
+      runtime: {
+        name: 'node',
+        version: '22',
+        onFail: 'download',
+      },
+    },
+  },
+  {
+    name: 'converts devEngines.runtime to an array when it is a single non-node entry',
+    manifest: {
+      devEngines: {
+        runtime: {
+          name: 'deno',
+          version: '1',
+        },
+      },
+      devDependencies: {
+        node: 'runtime:22',
+      },
+    },
+    expected: {
+      runtime: [
+        {
+          name: 'deno',
+          version: '1',
+        },
+        {
+          name: 'node',
+          version: '22',
+          onFail: 'download',
+        },
+      ],
+    },
+  },
+  {
+    name: 'updates devEngines.runtime when it is an array',
+    manifest: {
+      devEngines: {
+        runtime: [
+          {
+            name: 'deno',
+            version: '1',
+          },
+          {
+            name: 'node',
+            version: '16',
+            onFail: 'download',
+          },
+        ],
+      },
+      devDependencies: {
+        node: 'runtime:22',
+      },
+    },
+    expected: {
+      runtime: [
+        {
+          name: 'deno',
+          version: '1',
+        },
+        {
+          name: 'node',
+          version: '22',
+          onFail: 'download',
+        },
+      ],
+    },
+  },
+])('readProjectManifest() converts devDependencies to devEngines: $name', async ({ manifest, expected }) => {
+  const dir = f.prepare('package-json')
+
+  const { writeProjectManifest } = await tryReadProjectManifest(dir)
+  await writeProjectManifest(manifest as ProjectManifest)
+
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+
+  expect(pkgJson.devEngines).toStrictEqual(expected)
+  expect(pkgJson.devDependencies).toStrictEqual({})
 })
 
 test('preserve tab indentation in json file', async () => {
