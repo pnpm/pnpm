@@ -38,7 +38,7 @@ export async function createExportableManifest (
   const replaceCatalogProtocol = resolveCatalogProtocol.bind(null, catalogResolver)
 
   const convertDependencyForPublish = combineConverters(replaceWorkspaceProtocol, replaceCatalogProtocol, replaceJsrProtocol)
-  await Promise.all((['dependencies', 'devDependencies', 'optionalDependencies'] as const).map(async (depsField) => {
+  await Promise.all((['dependencies', 'devDependencies', 'optionalDependencies', 'resolutions'] as const).map(async (depsField) => {
     const deps = await makePublishDependencies(dir, originalManifest[depsField], {
       modulesDir: opts?.modulesDir,
       convertDependencyForPublish,

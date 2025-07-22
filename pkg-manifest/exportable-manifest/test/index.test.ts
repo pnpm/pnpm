@@ -179,6 +179,11 @@ test('catalog deps are replaced', async () => {
     peerDependencies: {
       foo: 'catalog:foo',
     },
+    resolutions: {
+      bar: 'catalog:',
+      baz: 'catalog:baz',
+      foo: 'catalog:foo',
+    },
   }
 
   preparePackages([manifest])
@@ -214,6 +219,11 @@ test('catalog deps are replaced', async () => {
       baz: '^1.2.5',
     },
     peerDependencies: {
+      foo: '^1.2.4',
+    },
+    resolutions: {
+      bar: '^1.2.3',
+      baz: '^1.2.5',
       foo: '^1.2.4',
     },
   })
