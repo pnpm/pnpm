@@ -430,8 +430,8 @@ catalogs:
       specifier: 3.0.0
       version: 3.0.0
     normalize-package-data:
-      specifier: ^5.0.0
-      version: 5.0.0
+      specifier: ^7.0.1
+      version: 7.0.1
     normalize-path:
       specifier: ^3.0.0
       version: 3.0.0
@@ -5977,7 +5977,7 @@ importers:
         version: 6.2.0
       normalize-package-data:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 7.0.1
     devDependencies:
       '@pnpm/read-package-json':
         specifier: workspace:*
@@ -12388,6 +12388,10 @@ packages:
     resolution: {integrity: sha512-HVJyzUrLIL1c0QmviVh5E8VGyUS7xCFPS6yydaVd1UegW+ibV/CohqTH9MkOLDp5o+rb82DMo77PTuc9F/8GKw==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
 
+  hosted-git-info@8.1.0:
+    resolution: {integrity: sha512-Rw/B2DNQaPBICNXEm8balFz9a6WpZrkCGpcWFpy7nCj+NyhSdqXipmfvtmWt9xGfp0wZnBxB+iVpLmQMYt47Tw==}
+    engines: {node: ^18.17.0 || >=20.5.0}
+
   html-escaper@2.0.2:
     resolution: {integrity: sha512-H2iMtd0I4Mt5eYiapRdIDjp+XzelXQ0tFE4JS7YFwFevXXMmOp9myNrUvCg0D6ws8iqkRPBfKHgbwig1SmlLfg==}
 
@@ -13602,6 +13606,10 @@ packages:
   normalize-package-data@5.0.0:
     resolution: {integrity: sha512-h9iPVIfrVZ9wVYQnxFgtw1ugSvGEMOlyPWWtm8BMJhnwyEL/FLbYbTY3V3PpjI/BUK67n9PEWDu6eHzu1fB15Q==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
+
+  normalize-package-data@7.0.1:
+    resolution: {integrity: sha512-linxNAT6M0ebEYZOx2tO6vBEFsVgnPpv+AVjk0wJHfaUIbq31Jm3T6vvZaarnOeWDh8ShnwXuaAyM7WT3RzErA==}
+    engines: {node: ^18.17.0 || >=20.5.0}
 
   normalize-path@2.1.1:
     resolution: {integrity: sha512-3pKJwH184Xo/lnH6oyP1q2pMd7HcypqqmRs91/6/i2CGtWwIKGCkOOMTm/zXbgTEWHw1uNpNi/igc3ePOYHb6w==}
@@ -15238,6 +15246,7 @@ packages:
   verdaccio@5.20.1:
     resolution: {integrity: sha512-zKQXYubQOfl2w09gO9BR7U9ZZkFPPby8tvV+na86/2vGZnY79kNSVnSbK8CM1bpJHTCQ80AGsmIGovg2FgXhdQ==}
     engines: {node: '>=12.18'}
+    deprecated: this version is deprecated, please migrate to 6.x versions
     hasBin: true
 
   verror@1.10.0:
@@ -20618,6 +20627,10 @@ snapshots:
     dependencies:
       lru-cache: 7.18.3
 
+  hosted-git-info@8.1.0:
+    dependencies:
+      lru-cache: 10.4.3
+
   html-escaper@2.0.2: {}
 
   http-cache-semantics@4.2.0: {}
@@ -22034,6 +22047,12 @@ snapshots:
     dependencies:
       hosted-git-info: 6.1.3
       is-core-module: 2.16.1
+      semver: 7.7.2
+      validate-npm-package-license: 3.0.4
+
+  normalize-package-data@7.0.1:
+    dependencies:
+      hosted-git-info: 8.1.0
       semver: 7.7.2
       validate-npm-package-license: 3.0.4
 

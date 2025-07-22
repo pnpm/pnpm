@@ -189,7 +189,7 @@ catalog:
   node-fetch: npm:@pnpm/node-fetch@1.0.0
   node-gyp: ^11.0.0
   normalize-newline: 3.0.0
-  normalize-package-data: ^5.0.0
+  normalize-package-data: ^7.0.1
   normalize-path: ^3.0.0
   normalize-registry-url: 2.0.0
   npm-packlist: 5.1.3
