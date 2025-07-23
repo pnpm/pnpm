@@ -43,8 +43,8 @@ catalogs:
       specifier: ^2.0.3
       version: 2.0.3
     '@pnpm/nopt':
-      specifier: ^0.2.1
-      version: 0.2.1
+      specifier: ^0.3.0
+      version: 0.3.0
     '@pnpm/npm-conf':
       specifier: 3.0.0
       version: 3.0.0
@@ -52,8 +52,8 @@ catalogs:
       specifier: ^1000.0.4
       version: 1000.0.4
     '@pnpm/npm-package-arg':
-      specifier: ^1.0.0
-      version: 1.0.0
+      specifier: ^2.0.0
+      version: 2.0.0
     '@pnpm/os.env.path-extender':
       specifier: ^2.0.3
       version: 2.0.3
@@ -674,7 +674,7 @@ overrides:
   js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.7
   json5@<2.2.2: ^2.2.3
   jsonwebtoken@<=8.5.1: '>=9.0.0'
-  nopt@5: npm:@pnpm/nopt@^0.2.1
+  nopt@5: npm:@pnpm/nopt@^0.3.0
   path-to-regexp@<0.1.12: ^0.1.12
   path-to-regexp@>=4.0.0 <6.3.0: '>=6.3.0'
   path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
@@ -1412,7 +1412,7 @@ importers:
         version: link:../../workspace/find-workspace-dir
       '@pnpm/nopt':
         specifier: 'catalog:'
-        version: 0.2.1
+        version: 0.3.0
       didyoumean2:
         specifier: 'catalog:'
         version: 6.0.1
@@ -1440,7 +1440,7 @@ importers:
         version: link:../../workspace/find-workspace-dir
       '@pnpm/nopt':
         specifier: 'catalog:'
-        version: 0.2.1
+        version: 0.3.0
       '@pnpm/parse-cli-args':
         specifier: workspace:^
         version: link:../../cli/parse-cli-args
@@ -2567,7 +2567,7 @@ importers:
         version: link:../../config/normalize-registries
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
-        version: 1.0.0
+        version: 2.0.0
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -4652,7 +4652,7 @@ importers:
         version: link:../../config/normalize-registries
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
-        version: 1.0.0
+        version: 2.0.0
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../package-requester
@@ -6149,7 +6149,7 @@ importers:
         version: link:../pkg-manager/modules-yaml
       '@pnpm/nopt':
         specifier: 'catalog:'
-        version: 0.2.1
+        version: 0.3.0
       '@pnpm/parse-cli-args':
         specifier: workspace:*
         version: link:../cli/parse-cli-args
@@ -6989,7 +6989,7 @@ importers:
         version: link:../../config/normalize-registries
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
-        version: 1.0.0
+        version: 2.0.0
       '@pnpm/read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
@@ -8373,7 +8373,7 @@ importers:
     dependencies:
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
-        version: 1.0.0
+        version: 2.0.0
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
@@ -9739,9 +9739,9 @@ packages:
     resolution: {integrity: sha512-eYwrzhKUBGFdq78rJStGjaHTUHA2VH+Avr//CVx/T+EJkI7hnFmOy6YghvcB2clj8HpO4V8tXRNuFNfRX08ayw==}
     engines: {node: ^10.17 || >=12.3}
 
-  '@pnpm/nopt@0.2.1':
-    resolution: {integrity: sha512-zkgDE6q3Y6KeZPjqXCk/hRQ2t6iw9JXbdnYZghwpe/HR73e4VmV5JZ5QSFypmSd5Sx4+gjNfAqME5BVAOBCk9g==}
-    engines: {node: '>=6'}
+  '@pnpm/nopt@0.3.0':
+    resolution: {integrity: sha512-+HlWkFM9R5UuhSrCgiRGU6b8ITsSftuwV1mrmEcOm2pzr4C+sY7Hl8j0DTE3TEI5LRzAu2buhkiSOMz7hMSdTg==}
+    engines: {node: '>=18.12'}
     hasBin: true
 
   '@pnpm/npm-conf@3.0.0':
@@ -9752,9 +9752,9 @@ packages:
     resolution: {integrity: sha512-sN7dG1UV7jZvMgH2C/qtvriq4PsDkJQekuAHWO3DCw4n9Ef5Edv5nNoyg5I288FFzDsEV963HpyVOqB7x94DNw==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/npm-package-arg@1.0.0':
-    resolution: {integrity: sha512-oQYP08exi6mOPdAZZWcNIGS+KKPsnNwUBzSuAEGWuCcqwMAt3k/WVCqVIXzBxhO5sP2b43og69VHmPj6IroKqw==}
-    engines: {node: '>=14.6'}
+  '@pnpm/npm-package-arg@2.0.0':
+    resolution: {integrity: sha512-429x8dFMgxZoeYUTUPAMC09IeM5yQ86X1LyYEQF1P4uyvhLSCh44QKkiprX9qdwBsV9QxjeNad2QoDZy1RSeRw==}
+    engines: {node: '>=18.12'}
 
   '@pnpm/npm-resolver@1004.0.1':
     resolution: {integrity: sha512-SCv9Lbt+n3VVYDwaCzsHzN4HQNNsf8hrIljont/00WTCpGW93rz3f3CGevZSAdAkkfPjJNyxJ9w5DckyxEqsSA==}
@@ -17260,7 +17260,7 @@ snapshots:
     transitivePeerDependencies:
       - domexception
 
-  '@pnpm/nopt@0.2.1':
+  '@pnpm/nopt@0.3.0':
     dependencies:
       abbrev: 1.1.1
 
@@ -17286,10 +17286,10 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/npm-package-arg@1.0.0':
+  '@pnpm/npm-package-arg@2.0.0':
     dependencies:
       hosted-git-info: 4.1.0
-      semver: 7.7.1
+      semver: 7.7.2
       validate-npm-package-name: 4.0.0
 
   '@pnpm/npm-resolver@1004.0.1(@pnpm/logger@1001.0.0)':
