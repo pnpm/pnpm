@@ -30,6 +30,7 @@ export type ClientOptions = {
   gitShallowHosts?: string[]
   resolveSymlinksInInjectedDirs?: boolean
   includeOnlyPackageFiles?: boolean
+  preserveAbsolutePaths?: boolean
 } & ResolverFactoryOptions & AgentOptions
 
 export interface Client {
