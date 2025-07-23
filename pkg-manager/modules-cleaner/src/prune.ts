@@ -241,7 +241,7 @@ function getPkgsDepPaths (
 ): Record<DepPath, string> {
   const acc: Record<DepPath, string> = {}
   for (const [depPath, pkg] of Object.entries(packages)) {
-    if (skipped.has(depPath)) return acc
+    if (skipped.has(depPath)) continue
     acc[depPath as DepPath] = packageIdFromSnapshot(depPath as DepPath, pkg)
   }
   return acc
