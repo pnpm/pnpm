@@ -340,6 +340,7 @@ patchedDependencies:
   '@yao-pkg/pkg': __patches__/pkg.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
   mdast-util-to-string@2.0.0: __patches__/mdast-util-to-string@2.0.0.patch
+  normalize-package-data@7.0.1: __patches__/normalize-package-data@7.0.1.patch
 
 patchesDir: __patches__
 
