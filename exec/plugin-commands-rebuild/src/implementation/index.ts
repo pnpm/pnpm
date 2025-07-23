@@ -345,13 +345,18 @@ async function _rebuild (
         const pkgId = `${pkgInfo.name}@${pkgInfo.version}`
         if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
           const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, resolution.integrity!.toString(), pkgId)
-          const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
-          sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
-            includeDepGraphHash: true,
-          })
-          if (pkgFilesIndex.sideEffects?.[sideEffectsCacheKey]) {
-            pkgsThatWereRebuilt.add(depPath)
-            return
+          let pkgFilesIndex: PackageFilesIndex | undefined
+          try {
+            pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+          } catch {}
+          if (pkgFilesIndex) {
+            sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
+              includeDepGraphHash: true,
+            })
+            if (pkgFilesIndex.sideEffects?.[sideEffectsCacheKey]) {
+              pkgsThatWereRebuilt.add(depPath)
+              return
+            }
           }
         }
         let requiresBuild = true
