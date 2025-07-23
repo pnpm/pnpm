@@ -27,7 +27,7 @@ export function testDefaults<T> (
   const { storeController, storeDir, cacheDir } = createTempStore({
     ...opts,
     clientOptions: {
-      registries: opts?.registries,
+      ...(opts?.registries != null ? { registries: opts.registries } : {}),
       ...resolveOpts,
       ...fetchOpts,
     },
