@@ -1,5 +1,14 @@
 # @pnpm/store.cafs
 
+## 1000.0.15
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/fetcher-base@1000.1.0
+
 ## 1000.0.14
 
 ### Patch Changes

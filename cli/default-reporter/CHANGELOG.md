@@ -1,5 +1,19 @@
 # @pnpm/default-reporter
 
+## 1002.0.4
+
+### Patch Changes
+
+- 1a07b8f: Print the ID of the dependency in the installation summery, if no version if found.
+- Updated dependencies [1a07b8f]
+- Updated dependencies [6f7ac0f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/config@1004.2.0
+  - @pnpm/cli-meta@1000.0.9
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/render-peer-issues@1002.0.1
+  - @pnpm/error@1000.0.3
+
 ## 1002.0.3
 
 ### Patch Changes

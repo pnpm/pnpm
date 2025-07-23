@@ -1,5 +1,38 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.0.0
+
+### Major Changes
+
+- 6f7ac0f: Add `--cpu`, `--libc`, and `--os` to `pnpm install`, `pnpm add`, and `pnpm dlx` to customize `supportedArchitectures` via the CLI [#7510](https://github.com/pnpm/pnpm/issues/7510).
+
+### Patch Changes
+
+- b7d9301: Fix waiting for closed child process.
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1ba2e15]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/plugin-commands-installation@1004.4.0
+  - @pnpm/plugin-commands-env@1000.0.31
+  - @pnpm/config@1004.2.0
+  - @pnpm/client@1000.1.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/deps.status@1003.0.2
+  - @pnpm/lifecycle@1001.0.18
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/package-bins@1000.0.9
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/sort-packages@1000.0.9
+  - @pnpm/error@1000.0.3
+  - @pnpm/store-path@1000.0.3
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/workspace.injected-deps-syncer@1000.0.10
+
 ## 1000.2.21
 
 ### Patch Changes

@@ -1,5 +1,42 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1002.0.20
+
+### Patch Changes
+
+- 15ba5ab: Rebuild should not fail if it cannot find an index file in the store for the built package.
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/link-bins@1000.1.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/config@1004.2.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/normalize-registries@1000.1.2
+  - @pnpm/lifecycle@1001.0.18
+  - @pnpm/exec.pkg-requires-build@1000.0.9
+  - @pnpm/lockfile.walker@1001.0.12
+  - @pnpm/calc-dep-state@1002.0.3
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/get-context@1001.1.3
+  - @pnpm/modules-yaml@1000.3.4
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/store.cafs@1000.0.15
+  - @pnpm/worker@1000.1.10
+  - @pnpm/workspace.find-packages@1000.0.30
+  - @pnpm/sort-packages@1000.0.9
+  - @pnpm/store-connection-manager@1002.0.7
+  - @pnpm/error@1000.0.3
+
 ## 1002.0.19
 
 ### Patch Changes

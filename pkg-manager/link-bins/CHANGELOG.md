@@ -1,5 +1,25 @@
 # @pnpm/link-bins
 
+## 1000.1.0
+
+### Minor Changes
+
+- 1a07b8f: Create a command shim for the Node.js binary.
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/package-bins@1000.0.9
+  - @pnpm/manifest-utils@1001.0.2
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/error@1000.0.3
+
 ## 1000.0.13
 
 ### Patch Changes

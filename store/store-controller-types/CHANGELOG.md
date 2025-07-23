@@ -1,5 +1,19 @@
 # @pnpm/store-controller-types
 
+## 1004.0.0
+
+### Major Changes
+
+- 1a07b8f: expectedPkg removed from options of the fetch package to store function.
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/fetcher-base@1000.1.0
+
 ## 1003.0.3
 
 ### Patch Changes

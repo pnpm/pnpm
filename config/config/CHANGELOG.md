@@ -1,5 +1,25 @@
 # @pnpm/config
 
+## 1004.2.0
+
+### Minor Changes
+
+- 6f7ac0f: Add `--cpu`, `--libc`, and `--os` to `pnpm install`, `pnpm add`, and `pnpm dlx` to customize `supportedArchitectures` via the CLI [#7510](https://github.com/pnpm/pnpm/issues/7510).
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/pnpmfile@1002.0.1
+  - @pnpm/workspace.read-manifest@1000.2.1
+  - @pnpm/error@1000.0.3
+  - @pnpm/catalogs.config@1000.0.3
+
 ## 1004.1.0
 
 ### Minor Changes

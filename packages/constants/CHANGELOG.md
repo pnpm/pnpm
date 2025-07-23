@@ -1,5 +1,11 @@
 # @pnpm/constants
 
+## 1001.2.0
+
+### Minor Changes
+
+- 1a07b8f: Add getNodeBinLocationForCurrentOS.
+
 ## 1001.1.0
 
 ### Minor Changes

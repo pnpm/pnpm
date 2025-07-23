@@ -1,5 +1,16 @@
 # @pnpm/parse-cli-args
 
+## 1000.1.0
+
+### Minor Changes
+
+- 6bcfa69: Allow `dlx` to parse CLI flags and options between the `dlx` command and the command to run or between the `dlx` command and `--` [#9719](https://github.com/pnpm/pnpm/issues/9719).
+
+### Patch Changes
+
+- @pnpm/error@1000.0.3
+- @pnpm/find-workspace-dir@1000.1.1
+
 ## 1000.0.4
 
 ### Patch Changes

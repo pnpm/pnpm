@@ -1,5 +1,13 @@
 # @pnpm/read-package-json
 
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/error@1000.0.3
+
 ## 1000.0.9
 
 ### Patch Changes

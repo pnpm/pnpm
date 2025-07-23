@@ -1,5 +1,12 @@
 # @pnpm/error
 
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/constants@1001.2.0
+
 ## 1000.0.2
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/lockfile.settings-checker
 
+## 1001.0.11
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/parse-overrides@1001.0.1
+
 ## 1001.0.10
 
 ### Patch Changes

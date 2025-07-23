@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-env
 
+## 1000.0.31
+
+### Patch Changes
+
+- 1ba2e15: The integrities of the downloaded Node.js artifacts are verified [#9750](https://github.com/pnpm/pnpm/pull/9750).
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1ba2e15]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/node.fetcher@1000.1.0
+  - @pnpm/config@1004.2.0
+  - @pnpm/node.resolver@1000.1.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/fetch@1000.2.3
+  - @pnpm/remove-bins@1000.0.11
+  - @pnpm/error@1000.0.3
+  - @pnpm/store-path@1000.0.3
+  - @pnpm/env.system-node-version@1000.0.9
+
 ## 1000.0.30
 
 ### Patch Changes

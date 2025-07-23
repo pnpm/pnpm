@@ -1,5 +1,23 @@
 # @pnpm/modules-cleaner
 
+## 1001.0.18
+
+### Patch Changes
+
+- 02d58a6: `pnpm install --prod` should removing hoisted dev dependencies [#9782](https://github.com/pnpm/pnpm/issues/9782).
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/lockfile.filtering@1001.0.16
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/remove-bins@1000.0.11
+
 ## 1001.0.17
 
 ### Patch Changes

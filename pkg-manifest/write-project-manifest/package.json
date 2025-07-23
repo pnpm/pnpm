@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/write-project-manifest",
-  "version": "1000.0.8",
+  "version": "1000.0.9",
   "description": "Write a project manifest (called package.json in most cases)",
   "keywords": [
     "pnpm",

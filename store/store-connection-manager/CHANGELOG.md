@@ -1,5 +1,19 @@
 # @pnpm/store-connection-manager
 
+## 1002.0.7
+
+### Patch Changes
+
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/config@1004.2.0
+  - @pnpm/client@1000.1.0
+  - @pnpm/cli-meta@1000.0.9
+  - @pnpm/package-store@1002.0.8
+  - @pnpm/server@1001.0.7
+  - @pnpm/error@1000.0.3
+  - @pnpm/store-path@1000.0.3
+
 ## 1002.0.6
 
 ### Patch Changes

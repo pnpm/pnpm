@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-deploy
 
+## 1001.1.31
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/plugin-commands-installation@1004.4.0
+  - @pnpm/config@1004.2.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/directory-fetcher@1000.1.9
+  - @pnpm/lockfile.fs@1001.1.16
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/fs.indexed-pkg-importer@1000.1.10
+  - @pnpm/error@1000.0.3
+
 ## 1001.1.30
 
 ### Patch Changes

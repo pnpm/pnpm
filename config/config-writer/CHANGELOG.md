@@ -1,5 +1,16 @@
 # @pnpm/config.config-writer
 
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/workspace.manifest-writer@1000.2.2
+
 ## 1000.0.7
 
 ### Patch Changes

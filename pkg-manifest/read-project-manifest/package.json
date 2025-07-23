@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-project-manifest",
-  "version": "1000.0.11",
+  "version": "1001.0.0",
   "description": "Read a project manifest (called package.json in most cases)",
   "keywords": [
     "pnpm",

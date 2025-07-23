@@ -1,5 +1,53 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.4.0
+
+### Minor Changes
+
+- 6f7ac0f: Add `--cpu`, `--libc`, and `--os` to `pnpm install`, `pnpm add`, and `pnpm dlx` to customize `supportedArchitectures` via the CLI [#7510](https://github.com/pnpm/pnpm/issues/7510).
+
+### Patch Changes
+
+- 6f7ac0f: Fix a bug in which `pnpm add` downloads packages whose `libc` differ from `pnpm.supportedArchitectures.libc`.
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [15ba5ab]
+- Updated dependencies [1ba2e15]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/plugin-commands-rebuild@1002.0.20
+  - @pnpm/plugin-commands-env@1000.0.31
+  - @pnpm/config@1004.2.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/core@1009.1.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/config.config-writer@1000.0.8
+  - @pnpm/config.deps-installer@1000.0.9
+  - @pnpm/pick-registry-for-package@1000.0.9
+  - @pnpm/dedupe.check@1001.0.9
+  - @pnpm/deps.status@1003.0.2
+  - @pnpm/pnpmfile@1002.0.1
+  - @pnpm/get-context@1001.1.3
+  - @pnpm/manifest-utils@1001.0.2
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/write-project-manifest@1000.0.9
+  - @pnpm/outdated@1001.0.24
+  - @pnpm/package-store@1002.0.8
+  - @pnpm/filter-workspace-packages@1000.0.30
+  - @pnpm/workspace.find-packages@1000.0.30
+  - @pnpm/workspace.pkgs-graph@1000.0.17
+  - @pnpm/sort-packages@1000.0.9
+  - @pnpm/workspace.state@1002.0.1
+  - @pnpm/store-connection-manager@1002.0.7
+  - @pnpm/workspace.manifest-writer@1000.2.2
+  - @pnpm/error@1000.0.3
+  - @pnpm/find-workspace-dir@1000.1.1
+
 ## 1004.3.1
 
 ### Patch Changes

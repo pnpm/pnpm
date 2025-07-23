@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/error",
-  "version": "1000.0.2",
+  "version": "1000.0.3",
   "description": "An error class for pnpm errors",
   "keywords": [
     "pnpm",
