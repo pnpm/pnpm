@@ -10,7 +10,6 @@ import { type DependencyManifest } from '@pnpm/types'
 export interface PkgNameVersion {
   name?: string
   version?: string
-  id: string
 }
 
 export interface FetchOptions {

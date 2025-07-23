@@ -243,9 +243,7 @@ async function downloadAndUnpackTarballToDir (
   }, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {
-      id: '',
-    },
+    pkg: {},
   })
 
   cafs.importPackage(targetDir, {
@@ -278,9 +276,7 @@ async function downloadAndUnpackTarball (
   }, {
     filesIndexFile: opts.filesIndexFile,
     lockfileDir: process.cwd(),
-    pkg: {
-      id: '',
-    },
+    pkg: {},
   })
 }
 
