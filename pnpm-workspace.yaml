@@ -62,7 +62,7 @@ catalog:
   '@pnpm/nopt': ^0.3.0
   '@pnpm/npm-conf': 3.0.0
   '@pnpm/npm-lifecycle': ^1000.0.4
-  '@pnpm/npm-package-arg': ^1.0.0
+  '@pnpm/npm-package-arg': ^2.0.0
   '@pnpm/os.env.path-extender': ^2.0.3
   '@pnpm/patch-package': 0.0.1
   '@pnpm/registry-mock': 4.7.1

@@ -52,8 +52,8 @@ catalogs:
       specifier: ^1000.0.4
       version: 1000.0.4
     '@pnpm/npm-package-arg':
-      specifier: ^1.0.0
-      version: 1.0.0
+      specifier: ^2.0.0
+      version: 2.0.0
     '@pnpm/os.env.path-extender':
       specifier: ^2.0.3
       version: 2.0.3
@@ -2567,7 +2567,7 @@ importers:
         version: link:../../config/normalize-registries
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
-        version: 1.0.0
+        version: 2.0.0
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -4652,7 +4652,7 @@ importers:
         version: link:../../config/normalize-registries
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
-        version: 1.0.0
+        version: 2.0.0
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../package-requester
@@ -6989,7 +6989,7 @@ importers:
         version: link:../../config/normalize-registries
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
-        version: 1.0.0
+        version: 2.0.0
       '@pnpm/read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
@@ -8373,7 +8373,7 @@ importers:
     dependencies:
       '@pnpm/npm-package-arg':
         specifier: 'catalog:'
-        version: 1.0.0
+        version: 2.0.0
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
@@ -9752,9 +9752,9 @@ packages:
     resolution: {integrity: sha512-sN7dG1UV7jZvMgH2C/qtvriq4PsDkJQekuAHWO3DCw4n9Ef5Edv5nNoyg5I288FFzDsEV963HpyVOqB7x94DNw==}
     engines: {node: '>=18.12'}
 
-  '@pnpm/npm-package-arg@1.0.0':
-    resolution: {integrity: sha512-oQYP08exi6mOPdAZZWcNIGS+KKPsnNwUBzSuAEGWuCcqwMAt3k/WVCqVIXzBxhO5sP2b43og69VHmPj6IroKqw==}
-    engines: {node: '>=14.6'}
+  '@pnpm/npm-package-arg@2.0.0':
+    resolution: {integrity: sha512-429x8dFMgxZoeYUTUPAMC09IeM5yQ86X1LyYEQF1P4uyvhLSCh44QKkiprX9qdwBsV9QxjeNad2QoDZy1RSeRw==}
+    engines: {node: '>=18.12'}
 
   '@pnpm/npm-resolver@1004.0.1':
     resolution: {integrity: sha512-SCv9Lbt+n3VVYDwaCzsHzN4HQNNsf8hrIljont/00WTCpGW93rz3f3CGevZSAdAkkfPjJNyxJ9w5DckyxEqsSA==}
@@ -17286,10 +17286,10 @@ snapshots:
       - supports-color
       - typanion
 
-  '@pnpm/npm-package-arg@1.0.0':
+  '@pnpm/npm-package-arg@2.0.0':
     dependencies:
       hosted-git-info: 4.1.0
-      semver: 7.7.1
+      semver: 7.7.2
       validate-npm-package-name: 4.0.0
 
   '@pnpm/npm-resolver@1004.0.1(@pnpm/logger@1001.0.0)':
