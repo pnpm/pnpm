@@ -105,7 +105,7 @@ function fromLocal (
 
   injected = protocol === 'file:'
   const dependencyPath = injected
-    ? normalize(path.relative(lockfileDir, fetchSpec))
+    ? normalizeRelativeOrAbsolute(lockfileDir, fetchSpec)
     : normalize(path.resolve(fetchSpec))
   const id = (
     !injected && (type === 'directory' || projectDir === lockfileDir)
