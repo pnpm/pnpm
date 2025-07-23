@@ -428,6 +428,11 @@ test('installation on a workspace with many complex circular dependencies does n
     ignoreScripts: true,
     lockfileOnly: true,
     strictPeerDependencies: false,
+    registries: {
+      // A temporary workaround due to stylus removal from the npm registry.
+      // Related issue: https://github.com/stylus/stylus/issues/2938
+      default: 'https://registry.npmmirror.com',
+    },
     allProjects: [
       {
         buildIndex: 0,

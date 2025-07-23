@@ -11,6 +11,7 @@ export function testDefaults<T> (
     fastUnpack?: boolean
     storeDir?: string
     prefix?: string
+    registries?: Registries
   },
   resolveOpts?: any, // eslint-disable-line
   fetchOpts?: any, // eslint-disable-line
@@ -26,6 +27,7 @@ export function testDefaults<T> (
   const { storeController, storeDir, cacheDir } = createTempStore({
     ...opts,
     clientOptions: {
+      registries: opts?.registries,
       ...resolveOpts,
       ...fetchOpts,
     },
