@@ -46,7 +46,7 @@ const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
     retries: 1,
   },
 })
-const pkg = { id: '' }
+const pkg = {}
 
 test('fail when tarball size does not match content-length', async () => {
   const scope = nock(registry)
