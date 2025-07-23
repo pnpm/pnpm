@@ -701,6 +701,9 @@ patchedDependencies:
   mdast-util-to-string@2.0.0:
     hash: 78bd3240806e30c963b9f930251eb10b9940e506f7cc8910fb3d17d7867956a2
     path: __patches__/mdast-util-to-string@2.0.0.patch
+  normalize-package-data@7.0.1:
+    hash: af60eac3676a4332c8fa7d590432a962fe77991523e608340cd80eb2a8a035db
+    path: __patches__/normalize-package-data@7.0.1.patch
 
 importers:
 
@@ -5977,7 +5980,7 @@ importers:
         version: 6.2.0
       normalize-package-data:
         specifier: 'catalog:'
-        version: 7.0.1
+        version: 7.0.1(patch_hash=af60eac3676a4332c8fa7d590432a962fe77991523e608340cd80eb2a8a035db)
     devDependencies:
       '@pnpm/read-package-json':
         specifier: workspace:*
@@ -22050,7 +22053,7 @@ snapshots:
       semver: 7.7.2
       validate-npm-package-license: 3.0.4
 
-  normalize-package-data@7.0.1:
+  normalize-package-data@7.0.1(patch_hash=af60eac3676a4332c8fa7d590432a962fe77991523e608340cd80eb2a8a035db):
     dependencies:
       hosted-git-info: 8.1.0
       semver: 7.7.2
