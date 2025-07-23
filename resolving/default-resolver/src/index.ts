@@ -3,6 +3,7 @@ import { type FetchFromRegistry, type GetAuthHeader } from '@pnpm/fetching-types
 import { type GitResolveResult, createGitResolver } from '@pnpm/git-resolver'
 import { type LocalResolveResult, resolveFromLocal } from '@pnpm/local-resolver'
 import { resolveNodeRuntime, type NodeRuntimeResolveResult } from '@pnpm/node.resolver'
+import { resolveDenoRuntime, type DenoRuntimeResolveResult } from '@pnpm/runtime.deno-installer'
 import {
   createNpmResolver,
   type JsrResolveResult,
@@ -35,6 +36,7 @@ export type DefaultResolveResult =
   | TarballResolveResult
   | WorkspaceResolveResult
   | NodeRuntimeResolveResult
+  | DenoRuntimeResolveResult
 
 export type DefaultResolver = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<DefaultResolveResult>
 
@@ -51,6 +53,7 @@ export function createResolver (
     preserveAbsolutePaths: pnpmOpts.preserveAbsolutePaths,
   })
   const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig })
+  const _resolveDenoRuntime = resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig })
   return {
     resolve: async (wantedDependency, opts) => {
       const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
@@ -60,7 +63,8 @@ export function createResolver (
           await resolveFromGit(wantedDependency as { bareSpecifier: string }) ??
           await _resolveFromLocal(wantedDependency as { bareSpecifier: string }, opts)
         )) ??
-        await _resolveNodeRuntime(wantedDependency)
+        await _resolveNodeRuntime(wantedDependency) ??
+        await _resolveDenoRuntime(wantedDependency)
       if (!resolution) {
         throw new PnpmError(
           'SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER',

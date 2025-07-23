@@ -4526,6 +4526,9 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
+      '@pnpm/runtime.deno-installer':
+        specifier: workspace:*
+        version: link:../../runtime/deno-installer
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../../fetching/tarball-fetcher
@@ -6734,6 +6737,9 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
+      '@pnpm/runtime.deno-installer':
+        specifier: workspace:*
+        version: link:../../runtime/deno-installer
       '@pnpm/tarball-resolver':
         specifier: workspace:*
         version: link:../tarball-resolver
@@ -7435,6 +7441,37 @@ importers:
       '@types/zkochan__table':
         specifier: 'catalog:'
         version: '@types/table@6.0.0'
+
+  runtime/deno-installer:
+    dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fetcher-base':
+        specifier: workspace:*
+        version: link:../../fetching/fetcher-base
+      '@pnpm/fetching-types':
+        specifier: workspace:*
+        version: link:../../network/fetching-types
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.1
+    devDependencies:
+      '@pnpm/runtime.deno-installer':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
 
   semver/peer-range:
     dependencies:

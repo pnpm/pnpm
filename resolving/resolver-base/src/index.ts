@@ -38,11 +38,17 @@ export interface NodeRuntimeResolution {
   _shasumsFileContent?: string
 }
 
+export interface DenoRuntimeResolution {
+  type: 'denoRuntime'
+  integrity: string
+}
+
 export type Resolution =
   | TarballResolution
   | DirectoryResolution
   | GitResolution
   | NodeRuntimeResolution
+  | DenoRuntimeResolution
 
 export interface ResolveResult {
   id: PkgResolutionId

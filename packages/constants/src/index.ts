@@ -22,3 +22,7 @@ export const USEFUL_NON_ROOT_PNPM_FIELDS = ['executionEnv'] as const
 export function getNodeBinLocationForCurrentOS (): string {
   return process.platform === 'win32' ? 'node.exe' : 'bin/node'
 }
+
+export function getDenoBinLocationForCurrentOS (): string {
+  return process.platform === 'win32' ? 'deno.exe' : 'deno'
+}

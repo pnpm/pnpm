@@ -6,8 +6,9 @@ import {
 import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
 import { type SslConfig } from '@pnpm/types'
 import { type FetchFromRegistry, type GetAuthHeader, type RetryTimeoutOptions } from '@pnpm/fetching-types'
-import type { CustomFetchers, GitFetcher, DirectoryFetcher, NodeRuntimeFetcher } from '@pnpm/fetcher-base'
+import type { CustomFetchers, GitFetcher, DirectoryFetcher, NodeRuntimeFetcher, DenoRuntimeFetcher } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
+import { createDenoRuntimeFetcher } from '@pnpm/runtime.deno-installer'
 import { createGitFetcher } from '@pnpm/git-fetcher'
 import { createTarballFetcher, type TarballFetchers } from '@pnpm/tarball-fetcher'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
@@ -60,6 +61,7 @@ type Fetchers = {
   git: GitFetcher
   directory: DirectoryFetcher
   nodeRuntime: NodeRuntimeFetcher
+  denoRuntime: DenoRuntimeFetcher
 } & TarballFetchers
 
 function createFetchers (
@@ -73,6 +75,11 @@ function createFetchers (
     ...createGitFetcher(opts),
     ...createDirectoryFetcher({ resolveSymlinks: opts.resolveSymlinksInInjectedDirs, includeOnlyPackageFiles: opts.includeOnlyPackageFiles }),
     ...createNodeRuntimeFetcher({
+      fetch: fetchFromRegistry,
+      offline: opts.offline,
+      rawConfig: opts.rawConfig,
+    }),
+    ...createDenoRuntimeFetcher({
       fetch: fetchFromRegistry,
       offline: opts.offline,
       rawConfig: opts.rawConfig,
