@@ -5,6 +5,7 @@ import { type DenoRuntimeFetcher, type FetchResult } from '@pnpm/fetcher-base'
 import { type WantedDependency, type DenoRuntimeResolution, type ResolveResult } from '@pnpm/resolver-base'
 import semver from 'semver'
 import { type PkgResolutionId } from '@pnpm/types'
+import { type NpmResolver } from '@pnpm/npm-resolver'
 
 export interface DenoRuntimeResolveResult extends ResolveResult {
   resolution: DenoRuntimeResolution
@@ -16,19 +17,16 @@ export async function resolveDenoRuntime (
     fetchFromRegistry: FetchFromRegistry
     rawConfig: Record<string, string>
     offline?: boolean
+    resolveFromNpm: NpmResolver
   },
   wantedDependency: WantedDependency
 ): Promise<DenoRuntimeResolveResult | null> {
   if (wantedDependency.alias !== 'deno' || !wantedDependency.bareSpecifier?.startsWith('runtime:')) return null
-  if (ctx.offline) throw new PnpmError('NO_OFFLINE_DENO_RESOLUTION', 'Offline Deno resolution is not supported')
   const versionSpec = wantedDependency.bareSpecifier.substring('runtime:'.length)
-
-  const response = await ctx.fetchFromRegistry('https://api.github.com/repos/denoland/deno/releases')
-  const releases = await response.json() as Array<{ tag_name: string }>
-  const versions = releases.map(({ tag_name }) => tag_name.substring(1))
-  const version = semver.maxSatisfying(versions, versionSpec)
-
-  if (version == null) throw new PnpmError('FAILED_RESOLVE_DENO', `Couldn't resolve Deno ${versionSpec}`)
+  // We use the npm registry for version resolution as it is easier than using the GitHub API for releases,
+  // which uses pagination (e.g. https://api.github.com/repos/denoland/deno/releases?per_page=100).
+  const npmResolution = await ctx.resolveFromNpm({ ...wantedDependency, bareSpecifier: versionSpec }, {})
+  const version = npmResolution.manifest.version
 
   return {
     id: `deno@runtime:${version}` as PkgResolutionId,

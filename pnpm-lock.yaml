@@ -7456,6 +7456,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
+      '@pnpm/npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base

@@ -53,7 +53,7 @@ export function createResolver (
     preserveAbsolutePaths: pnpmOpts.preserveAbsolutePaths,
   })
   const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig })
-  const _resolveDenoRuntime = resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig })
+  const _resolveDenoRuntime = resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig, resolveFromNpm })
   return {
     resolve: async (wantedDependency, opts) => {
       const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
