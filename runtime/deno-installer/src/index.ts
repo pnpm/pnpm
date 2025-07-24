@@ -58,6 +58,9 @@ export function createDenoRuntimeFetcher (ctx: {
     }
     const version = opts.pkg.version
     console.log(version)
+    const res = await ctx.fetch(`https://api.github.com/repos/denoland/deno/releases/tags/v${opts.pkg.version}`)
+    const data = await res.json()
+    console.log(data)
 
     throw new Error('not implemented')
   }
