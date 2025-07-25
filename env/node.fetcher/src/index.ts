@@ -6,12 +6,11 @@ import { fetchShasumsFile, pickFileChecksumFromShasumsFile } from '@pnpm/crypto.
 import {
   type FetchFromRegistry,
   type RetryTimeoutOptions,
-  type Response,
 } from '@pnpm/fetching-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
-import { type NodeRuntimeFetcher, type FetchResult } from '@pnpm/fetcher-base'
+import { type NodeRuntimeFetcher, type FetchFunction } from '@pnpm/fetcher-base'
 import { getNodeMirror, parseEnvSpecifier } from '@pnpm/node.resolver'
 import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
@@ -22,6 +21,7 @@ import ssri from 'ssri'
 import { getNodeArtifactAddress } from './getNodeArtifactAddress'
 
 export function createNodeRuntimeFetcher (ctx: {
+  fetchFromRemoteTarball: FetchFunction
   fetch: FetchFromRegistry
   rawConfig: Record<string, string>
   offline?: boolean
@@ -41,8 +41,7 @@ export function createNodeRuntimeFetcher (ctx: {
     const nodeMirrorBaseUrl = getNodeMirror(ctx.rawConfig, releaseChannel)
     const artifactInfo = await getNodeArtifactInfo(ctx.fetch, version, {
       nodeMirrorBaseUrl,
-      expectedVersionIntegrity: resolution.integrity,
-      cachedShasumsFile: resolution._shasumsFileContent,
+      integrities: resolution.integrities,
     })
     const manifest = {
       name: 'node',
@@ -65,7 +64,14 @@ export function createNodeRuntimeFetcher (ctx: {
     }
 
     return {
-      ...await downloadAndUnpackTarball(ctx.fetch, artifactInfo, { cafs, filesIndexFile: opts.filesIndexFile }),
+      ...await ctx.fetchFromRemoteTarball(cafs, {
+        tarball: artifactInfo.url,
+        integrity: artifactInfo.integrity,
+      }, {
+        filesIndexFile: opts.filesIndexFile,
+        lockfileDir: process.cwd(),
+        pkg: {},
+      }),
       manifest,
     }
   }
@@ -155,8 +161,7 @@ async function getNodeArtifactInfo (
   version: string,
   opts: {
     nodeMirrorBaseUrl: string
-    expectedVersionIntegrity?: string
-    cachedShasumsFile?: string
+    integrities?: Record<string, string>
   }
 ): Promise<NodeArtifactInfo> {
   const tarball = getNodeArtifactAddress({
@@ -170,11 +175,9 @@ async function getNodeArtifactInfo (
   const shasumsFileUrl = `${tarball.dirname}/SHASUMS256.txt`
   const url = `${tarball.dirname}/${tarballFileName}`
 
-  const integrity = opts.cachedShasumsFile
-    ? pickFileChecksumFromShasumsFile(opts.cachedShasumsFile, tarballFileName)
-    : await loadArtifactIntegrity(fetch, tarballFileName, shasumsFileUrl, {
-      expectedVersionIntegrity: opts.expectedVersionIntegrity,
-    })
+  const integrity = opts.integrities
+    ? opts.integrities[`${process.platform}-${process.arch}`]
+    : await loadArtifactIntegrity(fetch, tarballFileName, shasumsFileUrl)
 
   return {
     url,
@@ -256,30 +259,6 @@ async function downloadAndUnpackTarballToDir (
   })
 }
 
-async function downloadAndUnpackTarball (
-  fetch: FetchFromRegistry,
-  artifactInfo: NodeArtifactInfo,
-  opts: FetchNodeOptions
-): Promise<FetchResult> {
-  const getAuthHeader = () => undefined
-  const fetchers = createTarballFetcher(fetch, getAuthHeader, {
-    retry: opts.retry,
-    timeout: opts.fetchTimeout,
-    // These are not needed for fetching Node.js
-    rawConfig: {},
-    unsafePerm: false,
-  })
-
-  return fetchers.remoteTarball(opts.cafs, {
-    tarball: artifactInfo.url,
-    integrity: artifactInfo.integrity,
-  }, {
-    filesIndexFile: opts.filesIndexFile,
-    lockfileDir: process.cwd(),
-    pkg: {},
-  })
-}
-
 /**
  * Downloads and unpacks a zip file containing Node.js.
  *
@@ -293,11 +272,10 @@ async function downloadAndUnpackZip (
   artifactInfo: NodeArtifactInfo,
   targetDir: string
 ): Promise<void> {
-  const response = await fetchFromRegistry(artifactInfo.url)
   const tmp = path.join(tempy.directory(), 'pnpm.zip')
 
   try {
-    await downloadWithIntegrityCheck(response, tmp, artifactInfo.integrity)
+    await downloadWithIntegrityCheck(fetchFromRegistry, artifactInfo, tmp)
     await extractZipToTarget(tmp, artifactInfo.basename, targetDir)
   } finally {
     // Clean up temporary file
@@ -311,18 +289,14 @@ async function downloadAndUnpackZip (
 
 /**
  * Downloads a file with integrity verification.
- *
- * @param response - Fetch response containing the file data
- * @param tmpPath - Temporary file path to save the download
- * @param expectedIntegrity - Expected SHA-256 integrity hash
- * @param url - URL being downloaded (for error messages)
- * @throws {PnpmError} When integrity verification fails
  */
 async function downloadWithIntegrityCheck (
-  response: Response,
-  tmpPath: string,
-  expectedIntegrity: string
+  fetchFromRegistry: FetchFromRegistry,
+  { url, integrity }: NodeArtifactInfo,
+  tmpPath: string
 ): Promise<void> {
+  const response = await fetchFromRegistry(url)
+
   // Collect all chunks from the response
   const chunks: Buffer[] = []
   for await (const chunk of response.body!) {
@@ -330,8 +304,15 @@ async function downloadWithIntegrityCheck (
   }
   const data = Buffer.concat(chunks)
 
-  // Verify integrity if provided
-  ssri.checkData(data, expectedIntegrity, { error: true })
+  try {
+    // Verify integrity if provided
+    ssri.checkData(data, integrity, { error: true })
+  } catch (err) {
+    if (!(err instanceof Error) || !('expected' in err) || !('found' in err)) {
+      throw err
+    }
+    throw new PnpmError('TARBALL_INTEGRITY', `Got unexpected checksum for "${url}". Wanted "${err.expected as string}". Got "${err.found as string}".`)
+  }
 
   // Write the verified data to file
   await fsPromises.writeFile(tmpPath, data)
