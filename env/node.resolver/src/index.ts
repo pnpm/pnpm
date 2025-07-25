@@ -1,5 +1,4 @@
 import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
-import { createHash } from '@pnpm/crypto.hash'
 import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
@@ -34,7 +33,7 @@ export async function resolveNodeRuntime (
   if (!version) {
     throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
   }
-  const { versionIntegrity: integrity, shasumsFileContent } = await loadShasumsFile(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
+  const integrities = await loadShasumsFile(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
   return {
     id: `node@runtime:${version}` as PkgResolutionId,
     normalizedBareSpecifier: `runtime:${versionSpec}`,
@@ -46,25 +45,36 @@ export async function resolveNodeRuntime (
     },
     resolution: {
       type: 'nodeRuntime',
-      integrity,
-      _shasumsFileContent: shasumsFileContent,
+      integrities,
     },
   }
 }
 
-async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<{
-  shasumsFileContent: string
-  versionIntegrity: string
-}> {
+async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<Record<string, string>> {
   const integritiesFileUrl = `${nodeMirrorBaseUrl}/v${version}/SHASUMS256.txt`
   const shasumsFileContent = await fetchShasumsFile(fetch, integritiesFileUrl)
+  const lines = shasumsFileContent.split('\n')
+  const integrities: Record<string, string> = {}
+  const escaped = version.replace(/\\/g, '\\\\').replace(/\./g, '\\.')
+  const pattern = new RegExp(`^node-v${escaped}-([^-.]+)-([^.]+)\\.(?:tar\\.gz|zip)$`)
+  for (const line of lines) {
+    if (!line) continue
+    const [sha256, file] = line.trim().split(/\s+/)
 
-  const versionIntegrity = createHash(shasumsFileContent)
+    const match = pattern.exec(file)
+    if (!match) continue
 
-  return {
-    shasumsFileContent,
-    versionIntegrity,
+    const buffer = Buffer.from(sha256, 'hex')
+    const base64 = buffer.toString('base64')
+    const integrity = `sha256-${base64}`
+    let [, platform, arch] = match
+    if (platform === 'win') {
+      platform = 'win32'
+    }
+    integrities[`${platform}-${arch}`] = integrity
   }
+
+  return integrities
 }
 
 interface NodeVersion {

@@ -111,7 +111,7 @@ export interface GitRepositoryResolution {
 
 export interface NodeRuntimeResolution {
   type: 'nodeRuntime'
-  integrity: string
+  integrities: Record<string, string>
 }
 
 export type Resolution =
