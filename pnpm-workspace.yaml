@@ -59,7 +59,7 @@ catalog:
   '@pnpm/logger': '>=1001.0.0 <1002.0.0'
   '@pnpm/meta-updater': 2.0.6
   '@pnpm/network.agent': ^2.0.3
-  '@pnpm/nopt': ^0.3.0
+  '@pnpm/nopt': ^0.2.1
   '@pnpm/npm-conf': 3.0.0
   '@pnpm/npm-lifecycle': ^1000.0.4
   '@pnpm/npm-package-arg': ^2.0.0
@@ -309,7 +309,7 @@ overrides:
   js-yaml@^4.0.0: 'catalog:'
   json5@<2.2.2: 'catalog:'
   jsonwebtoken@<=8.5.1: '>=9.0.0'
-  nopt@5: npm:@pnpm/nopt@^0.3.0
+  nopt@5: npm:@pnpm/nopt@^0.2.1
   path-to-regexp@<0.1.12: ^0.1.12
   path-to-regexp@>=4.0.0 <6.3.0: '>=6.3.0'
   path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
