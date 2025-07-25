@@ -55,7 +55,7 @@ async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: str
   const shasumsFileContent = await fetchShasumsFile(fetch, integritiesFileUrl)
   const lines = shasumsFileContent.split('\n')
   const integrities: Record<string, string> = {}
-  const escaped = version.replace(/\./g, '\\.')
+  const escaped = version.replace(/\\/g, '\\\\').replace(/\./g, '\\.')
   const pattern = new RegExp(`^node-v${escaped}-([^-.]+)-([^.]+)\\.(?:tar\\.gz|zip)$`)
   for (const line of lines) {
     if (!line) continue
