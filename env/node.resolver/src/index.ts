@@ -67,7 +67,10 @@ async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: str
     const buffer = Buffer.from(sha256, 'hex')
     const base64 = buffer.toString('base64')
     const integrity = `sha256-${base64}`
-    const [, platform, arch] = match
+    let [, platform, arch] = match
+    if (platform === 'win') {
+      platform = 'win32'
+    }
     integrities[`${platform}-${arch}`] = integrity
   }
 
