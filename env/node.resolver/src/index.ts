@@ -34,7 +34,7 @@ export async function resolveNodeRuntime (
   if (!version) {
     throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
   }
-  const { versionIntegrity: integrity, shasumsFileContent } = await loadShasumsFile(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
+  const integrities = await loadShasumsFile(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
   return {
     id: `node@runtime:${version}` as PkgResolutionId,
     normalizedBareSpecifier: `runtime:${versionSpec}`,
@@ -46,25 +46,31 @@ export async function resolveNodeRuntime (
     },
     resolution: {
       type: 'nodeRuntime',
-      integrity,
-      _shasumsFileContent: shasumsFileContent,
+      integrities,
     },
   }
 }
 
-async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<{
-  shasumsFileContent: string
-  versionIntegrity: string
-}> {
+async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<Record<string, string>> {
   const integritiesFileUrl = `${nodeMirrorBaseUrl}/v${version}/SHASUMS256.txt`
   const shasumsFileContent = await fetchShasumsFile(fetch, integritiesFileUrl)
-
-  const versionIntegrity = createHash(shasumsFileContent)
-
-  return {
-    shasumsFileContent,
-    versionIntegrity,
+  const lines = shasumsFileContent.split('\n')
+  const integrities: Record<string, string> = {}
+  for (const line of lines) {
+    if (!line) continue
+    const [sha256, file] = line.trim().split(/\s+/)
+    const buffer = Buffer.from(sha256, 'hex')
+    const base64 = buffer.toString('base64')
+    const integrity = `sha256-${base64}`
+    switch (file.replace(`node-v${version}-`, '')) {
+      case 'darwin-arm64.tar.gz':
+        integrities['darwin-arm64'] = integrity
+      case 'darwin-x64.tar.gz':
+        integrities['darwin-x64'] = integrity
+    }
   }
+
+  return integrities
 }
 
 interface NodeVersion {

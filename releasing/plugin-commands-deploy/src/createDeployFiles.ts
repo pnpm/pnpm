@@ -190,6 +190,8 @@ function convertPackageSnapshot (inputSnapshot: PackageSnapshot, opts: ConvertOp
     outputResolution = { ...inputResolution, directory }
   } else if (inputResolution.type === 'git') {
     outputResolution = inputResolution
+  } else if (inputResolution.type === 'nodeRuntime') {
+    outputResolution = inputResolution
   } else {
     const resolution: never = inputResolution // `never` is the type guard to force fixing this code when adding new type of resolution
     throw new Error(`Unknown resolution type: ${JSON.stringify(resolution)}`)

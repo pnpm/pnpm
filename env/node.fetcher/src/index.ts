@@ -41,8 +41,7 @@ export function createNodeRuntimeFetcher (ctx: {
     const nodeMirrorBaseUrl = getNodeMirror(ctx.rawConfig, releaseChannel)
     const artifactInfo = await getNodeArtifactInfo(ctx.fetch, version, {
       nodeMirrorBaseUrl,
-      expectedVersionIntegrity: resolution.integrity,
-      cachedShasumsFile: resolution._shasumsFileContent,
+      integrities: resolution.integrities,
     })
     const manifest = {
       name: 'node',
@@ -155,8 +154,7 @@ async function getNodeArtifactInfo (
   version: string,
   opts: {
     nodeMirrorBaseUrl: string
-    expectedVersionIntegrity?: string
-    cachedShasumsFile?: string
+    integrities?: Record<string, string>
   }
 ): Promise<NodeArtifactInfo> {
   const tarball = getNodeArtifactAddress({
@@ -170,11 +168,9 @@ async function getNodeArtifactInfo (
   const shasumsFileUrl = `${tarball.dirname}/SHASUMS256.txt`
   const url = `${tarball.dirname}/${tarballFileName}`
 
-  const integrity = opts.cachedShasumsFile
-    ? pickFileChecksumFromShasumsFile(opts.cachedShasumsFile, tarballFileName)
-    : await loadArtifactIntegrity(fetch, tarballFileName, shasumsFileUrl, {
-      expectedVersionIntegrity: opts.expectedVersionIntegrity,
-    })
+  const integrity = opts.integrities
+    ? opts.integrities[`${process.platform}-${process.arch}`]
+    : await loadArtifactIntegrity(fetch, tarballFileName, shasumsFileUrl)
 
   return {
     url,

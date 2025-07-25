@@ -183,9 +183,6 @@ function toLockfileResolution (
   lockfileIncludeTarballUrl?: boolean
 ): LockfileResolution {
   if (resolution.type !== undefined || !resolution['integrity']) {
-    if (resolution.type === 'nodeRuntime') {
-      return omit(['_shasumsFileContent'], resolution)
-    }
     return resolution as LockfileResolution
   }
   if (lockfileIncludeTarballUrl) {
