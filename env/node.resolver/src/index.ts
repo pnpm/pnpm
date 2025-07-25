@@ -56,18 +56,22 @@ async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: str
   const shasumsFileContent = await fetchShasumsFile(fetch, integritiesFileUrl)
   const lines = shasumsFileContent.split('\n')
   const integrities: Record<string, string> = {}
+  const escaped = version.replace(/\./g, '\\.');
+  const pattern = new RegExp(
+    `^node-v${escaped}-([^-.]+)-([^.]+)\\.(?:tar\\.gz|zip)$`,
+  )
   for (const line of lines) {
     if (!line) continue
     const [sha256, file] = line.trim().split(/\s+/)
+
+    const match = pattern.exec(file);
+    if (!match) continue
+
     const buffer = Buffer.from(sha256, 'hex')
     const base64 = buffer.toString('base64')
     const integrity = `sha256-${base64}`
-    switch (file.replace(`node-v${version}-`, '')) {
-      case 'darwin-arm64.tar.gz':
-        integrities['darwin-arm64'] = integrity
-      case 'darwin-x64.tar.gz':
-        integrities['darwin-x64'] = integrity
-    }
+    const [, platform, arch] = match
+    integrities[`${platform}-${arch}`] = integrity
   }
 
   return integrities

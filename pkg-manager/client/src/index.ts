@@ -68,12 +68,14 @@ function createFetchers (
   opts: Pick<ClientOptions, 'rawConfig' | 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'includeOnlyPackageFiles' | 'offline'>,
   customFetchers?: CustomFetchers
 ): Fetchers {
+  const tarballFetchers = createTarballFetcher(fetchFromRegistry, getAuthHeader, opts)
   const defaultFetchers = {
-    ...createTarballFetcher(fetchFromRegistry, getAuthHeader, opts),
+    ...tarballFetchers,
     ...createGitFetcher(opts),
     ...createDirectoryFetcher({ resolveSymlinks: opts.resolveSymlinksInInjectedDirs, includeOnlyPackageFiles: opts.includeOnlyPackageFiles }),
     ...createNodeRuntimeFetcher({
       fetch: fetchFromRegistry,
+      fetchFromRemoteTarball: tarballFetchers.remoteTarball,
       offline: opts.offline,
       rawConfig: opts.rawConfig,
     }),

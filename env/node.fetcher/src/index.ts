@@ -11,7 +11,7 @@ import {
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
-import { type NodeRuntimeFetcher, type FetchResult } from '@pnpm/fetcher-base'
+import { type NodeRuntimeFetcher, type FetchResult, FetchFunction } from '@pnpm/fetcher-base'
 import { getNodeMirror, parseEnvSpecifier } from '@pnpm/node.resolver'
 import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
@@ -22,6 +22,7 @@ import ssri from 'ssri'
 import { getNodeArtifactAddress } from './getNodeArtifactAddress'
 
 export function createNodeRuntimeFetcher (ctx: {
+  fetchFromRemoteTarball: FetchFunction,
   fetch: FetchFromRegistry
   rawConfig: Record<string, string>
   offline?: boolean
@@ -64,7 +65,7 @@ export function createNodeRuntimeFetcher (ctx: {
     }
 
     return {
-      ...await downloadAndUnpackTarball(ctx.fetch, artifactInfo, { cafs, filesIndexFile: opts.filesIndexFile }),
+      ...await downloadAndUnpackTarball(ctx.fetchFromRemoteTarball, artifactInfo, { cafs, filesIndexFile: opts.filesIndexFile }),
       manifest,
     }
   }
@@ -253,20 +254,11 @@ async function downloadAndUnpackTarballToDir (
 }
 
 async function downloadAndUnpackTarball (
-  fetch: FetchFromRegistry,
+  fetchFromRemoteTarball: FetchFunction,
   artifactInfo: NodeArtifactInfo,
   opts: FetchNodeOptions
 ): Promise<FetchResult> {
-  const getAuthHeader = () => undefined
-  const fetchers = createTarballFetcher(fetch, getAuthHeader, {
-    retry: opts.retry,
-    timeout: opts.fetchTimeout,
-    // These are not needed for fetching Node.js
-    rawConfig: {},
-    unsafePerm: false,
-  })
-
-  return fetchers.remoteTarball(opts.cafs, {
+  return fetchFromRemoteTarball(opts.cafs, {
     tarball: artifactInfo.url,
     integrity: artifactInfo.integrity,
   }, {
