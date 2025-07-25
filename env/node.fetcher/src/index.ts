@@ -11,7 +11,7 @@ import {
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
-import { type NodeRuntimeFetcher, type FetchResult, type FetchFunction } from '@pnpm/fetcher-base'
+import { type NodeRuntimeFetcher, type FetchFunction } from '@pnpm/fetcher-base'
 import { getNodeMirror, parseEnvSpecifier } from '@pnpm/node.resolver'
 import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
@@ -65,7 +65,14 @@ export function createNodeRuntimeFetcher (ctx: {
     }
 
     return {
-      ...await downloadAndUnpackTarball(ctx.fetchFromRemoteTarball, artifactInfo, { cafs, filesIndexFile: opts.filesIndexFile }),
+      ...await ctx.fetchFromRemoteTarball(cafs, {
+        tarball: artifactInfo.url,
+        integrity: artifactInfo.integrity,
+      }, {
+        filesIndexFile: opts.filesIndexFile,
+        lockfileDir: process.cwd(),
+        pkg: {},
+      }),
       manifest,
     }
   }
@@ -250,21 +257,6 @@ async function downloadAndUnpackTarballToDir (
       requiresBuild: false,
     },
     force: true,
-  })
-}
-
-async function downloadAndUnpackTarball (
-  fetchFromRemoteTarball: FetchFunction,
-  artifactInfo: NodeArtifactInfo,
-  opts: FetchNodeOptions
-): Promise<FetchResult> {
-  return fetchFromRemoteTarball(opts.cafs, {
-    tarball: artifactInfo.url,
-    integrity: artifactInfo.integrity,
-  }, {
-    filesIndexFile: opts.filesIndexFile,
-    lockfileDir: process.cwd(),
-    pkg: {},
   })
 }
 
