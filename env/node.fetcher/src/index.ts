@@ -11,7 +11,7 @@ import {
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
-import { type NodeRuntimeFetcher, type FetchResult, FetchFunction } from '@pnpm/fetcher-base'
+import { type NodeRuntimeFetcher, type FetchResult, type FetchFunction } from '@pnpm/fetcher-base'
 import { getNodeMirror, parseEnvSpecifier } from '@pnpm/node.resolver'
 import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
@@ -22,7 +22,7 @@ import ssri from 'ssri'
 import { getNodeArtifactAddress } from './getNodeArtifactAddress'
 
 export function createNodeRuntimeFetcher (ctx: {
-  fetchFromRemoteTarball: FetchFunction,
+  fetchFromRemoteTarball: FetchFunction
   fetch: FetchFromRegistry
   rawConfig: Record<string, string>
   offline?: boolean

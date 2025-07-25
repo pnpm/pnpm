@@ -21,8 +21,8 @@ import { globalWarn, logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { readPackageJson } from '@pnpm/read-package-json'
 import {
-  NodeRuntimeResolution,
   type DirectoryResolution,
+  type NodeRuntimeResolution,
   type PreferredVersions,
   type Resolution,
   type ResolveFunction,
@@ -345,8 +345,8 @@ function getFilesIndexFilePath (
   const filesIndexFile = (opts.pkg.resolution as TarballResolution).integrity
     ? ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id)
     : (opts.pkg.resolution as NodeRuntimeResolution).integrities?.[`${process.platform}-${process.arch}`]
-    ? ctx.getIndexFilePathInCafs((opts.pkg.resolution as NodeRuntimeResolution).integrities[`${process.platform}-${process.arch}`], opts.pkg.id)
-    : path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
+      ? ctx.getIndexFilePathInCafs((opts.pkg.resolution as NodeRuntimeResolution).integrities[`${process.platform}-${process.arch}`], opts.pkg.id)
+      : path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
   return { filesIndexFile, target }
 }
 

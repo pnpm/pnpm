@@ -1,5 +1,4 @@
 import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
-import { createHash } from '@pnpm/crypto.hash'
 import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
@@ -56,15 +55,13 @@ async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: str
   const shasumsFileContent = await fetchShasumsFile(fetch, integritiesFileUrl)
   const lines = shasumsFileContent.split('\n')
   const integrities: Record<string, string> = {}
-  const escaped = version.replace(/\./g, '\\.');
-  const pattern = new RegExp(
-    `^node-v${escaped}-([^-.]+)-([^.]+)\\.(?:tar\\.gz|zip)$`,
-  )
+  const escaped = version.replace(/\./g, '\\.')
+  const pattern = new RegExp(`^node-v${escaped}-([^-.]+)-([^.]+)\\.(?:tar\\.gz|zip)$`)
   for (const line of lines) {
     if (!line) continue
     const [sha256, file] = line.trim().split(/\s+/)
 
-    const match = pattern.exec(file);
+    const match = pattern.exec(file)
     if (!match) continue
 
     const buffer = Buffer.from(sha256, 'hex')
