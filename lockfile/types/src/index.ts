@@ -1,5 +1,6 @@
 import { type PatchFile } from '@pnpm/patching.types'
 import { type DependenciesMeta, type DepPath, type ProjectId } from '@pnpm/types'
+import { type DenoRuntimeResolution } from '@pnpm/resolver-base'
 
 export type { PatchFile, ProjectId }
 
@@ -118,7 +119,8 @@ export type Resolution =
   TarballResolution |
   GitRepositoryResolution |
   DirectoryResolution |
-  NodeRuntimeResolution
+  NodeRuntimeResolution |
+  DenoRuntimeResolution
 
 export type LockfileResolution = Resolution | {
   integrity: string

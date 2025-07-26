@@ -37,9 +37,11 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/worker": "workspace:*",
     "semver": "catalog:"
   },
   "devDependencies": {

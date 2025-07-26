@@ -267,7 +267,7 @@ async function downloadAndUnpackTarballToDir (
  * @param targetDir - Directory where Node.js should be installed
  * @throws {PnpmError} When integrity verification fails or extraction fails
  */
-async function downloadAndUnpackZip (
+export async function downloadAndUnpackZip (
   fetchFromRegistry: FetchFromRegistry,
   artifactInfo: NodeArtifactInfo,
   targetDir: string
@@ -332,7 +332,7 @@ async function extractZipToTarget (
   targetDir: string
 ): Promise<void> {
   const zip = new AdmZip(zipPath)
-  const nodeDir = path.dirname(targetDir)
+  const nodeDir = basename === '' ? targetDir : path.dirname(targetDir)
   const extractedDir = path.join(nodeDir, basename)
 
   zip.extractAllTo(nodeDir, true)

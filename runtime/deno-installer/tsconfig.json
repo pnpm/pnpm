@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../env/node.fetcher"
+    },
+    {
       "path": "../../fetching/fetcher-base"
     },
     {
@@ -29,6 +32,9 @@
     },
     {
       "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../worker"
     }
   ]
 }

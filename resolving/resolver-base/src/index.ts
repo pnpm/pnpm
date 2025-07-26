@@ -37,9 +37,16 @@ export interface NodeRuntimeResolution {
   integrities: Record<string, string>
 }
 
+export interface RuntimeArtifact {
+  cpu: string[]
+  os: string[]
+  integrity: string
+  file: string
+}
+
 export interface DenoRuntimeResolution {
   type: 'denoRuntime'
-  integrity: string
+  artifacts: RuntimeArtifact[]
 }
 
 export type Resolution =

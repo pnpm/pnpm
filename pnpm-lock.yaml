@@ -3751,6 +3751,9 @@ importers:
       '@pnpm/patching.types':
         specifier: workspace:*
         version: link:../../patching/types
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -7453,6 +7456,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
+      '@pnpm/node.fetcher':
+        specifier: workspace:*
+        version: link:../../env/node.fetcher
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
@@ -7462,6 +7468,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:../../worker
       semver:
         specifier: 'catalog:'
         version: 7.7.1
