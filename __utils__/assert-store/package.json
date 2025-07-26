@@ -34,5 +34,8 @@
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/constants": "workspace:*"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }
