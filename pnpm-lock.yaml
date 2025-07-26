@@ -2701,6 +2701,9 @@ importers:
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/package-bins
+      '@pnpm/package-is-installable':
+        specifier: workspace:*
+        version: link:../../config/package-is-installable
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency

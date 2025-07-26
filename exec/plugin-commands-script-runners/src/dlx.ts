@@ -18,6 +18,8 @@ import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import symlinkDir from 'symlink-dir'
 import { makeEnv } from './makeEnv'
+import { logger } from '@pnpm/logger'
+import { checkPackage, UnsupportedEngineError } from '@pnpm/package-is-installable'
 
 export const skipPackageManagerCheck = true
 
@@ -146,7 +148,7 @@ export async function handler (
   })
   const binName = opts.package
     ? command
-    : await getBinName(modulesDir, await getPkgName(cachedDir))
+    : await getBinName(modulesDir, await getPkgName(cachedDir), opts.engineStrict ?? false)
   try {
     await execa(binName, args, {
       cwd: process.cwd(),
@@ -174,10 +176,23 @@ async function getPkgName (pkgDir: string): Promise<string> {
   return dependencyNames[0]
 }
 
-async function getBinName (modulesDir: string, pkgName: string): Promise<string> {
+async function getBinName (modulesDir: string, pkgName: string, engineStrict: boolean): Promise<string> {
   const pkgDir = path.join(modulesDir, pkgName)
   const manifest = await readPackageJsonFromDir(pkgDir)
   const bins = await getBinsFromPackageManifest(manifest, pkgDir)
+  const warn = checkPackage(pkgName, manifest, {
+    nodeVersion: process.version,
+    pnpmVersion: process.env.PNPM_VERSION,
+  })
+  if (warn != null) {
+    if ((warn instanceof UnsupportedEngineError && warn.wanted.pnpm) ?? engineStrict) throw warn
+    logger.warn({
+      message: `Unsupported ${
+        warn instanceof UnsupportedEngineError ? 'engine' : 'platform'
+      }: wanted: ${JSON.stringify(warn.wanted)} (current: ${JSON.stringify(warn.current)})`,
+      prefix: pkgDir,
+    })
+  }
   if (bins.length === 0) {
     throw new PnpmError('DLX_NO_BIN', `No binaries found in ${pkgName}`)
   }
