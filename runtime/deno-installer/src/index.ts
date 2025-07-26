@@ -1,7 +1,7 @@
 import { getDenoBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
-import { type DenoRuntimeFetcher, type FetchResult } from '@pnpm/fetcher-base'
+import { type DenoRuntimeFetcher } from '@pnpm/fetcher-base'
 import { type WantedDependency, type DenoRuntimeResolution, type ResolveResult } from '@pnpm/resolver-base'
 import { type PkgResolutionId } from '@pnpm/types'
 import { type NpmResolver } from '@pnpm/npm-resolver'
@@ -30,41 +30,41 @@ export async function resolveDenoRuntime (
   if (npmResolution == null) throw new Error('Could not resolve')
   const version = npmResolution.manifest.version
   const res = await ctx.fetchFromRegistry(`https://api.github.com/repos/denoland/deno/releases/tags/v${version}`)
-  const data = (await res.json()) as { assets: Array<{ name: string }>}
+  const data = (await res.json()) as { assets: Array<{ name: string }> }
   const artifacts: Array<{ integrity: string, os: string[], cpu: string[], file: string }> = []
   await Promise.all(data.assets.map(async (asset) => {
     let artifact
     switch (asset.name) {
-      case 'deno-aarch64-apple-darwin.zip.sha256sum':
-        artifact = {
-          os: ['darwin'],
-          cpu: ['arm64'],
-        }
-        break
-      case 'deno-aarch64-unknown-linux-gnu.zip.sha256sum':
-        artifact = {
-          os: ['linux'],
-          cpu: ['arm64'],
-        }
-        break
-      case 'deno-x86_64-apple-darwin.zip.sha256sum':
-        artifact = {
-          os: ['darwin'],
-          cpu: ['x64'],
-        }
-        break
-      case 'deno-x86_64-pc-windows-msvc.zip.sha256sum':
-        artifact = {
-          os: ['win32'],
-          cpu: ['x64', 'arm64'],
-        }
-        break
-      case 'deno-x86_64-unknown-linux-gnu.zip.sha256sum':
-        artifact = {
-          os: ['linux'],
-          cpu: ['x64'],
-        }
-        break
+    case 'deno-aarch64-apple-darwin.zip.sha256sum':
+      artifact = {
+        os: ['darwin'],
+        cpu: ['arm64'],
+      }
+      break
+    case 'deno-aarch64-unknown-linux-gnu.zip.sha256sum':
+      artifact = {
+        os: ['linux'],
+        cpu: ['arm64'],
+      }
+      break
+    case 'deno-x86_64-apple-darwin.zip.sha256sum':
+      artifact = {
+        os: ['darwin'],
+        cpu: ['x64'],
+      }
+      break
+    case 'deno-x86_64-pc-windows-msvc.zip.sha256sum':
+      artifact = {
+        os: ['win32'],
+        cpu: ['x64', 'arm64'],
+      }
+      break
+    case 'deno-x86_64-unknown-linux-gnu.zip.sha256sum':
+      artifact = {
+        os: ['linux'],
+        cpu: ['x64'],
+      }
+      break
     }
     if (!artifact) return
     const sha256sumFile = await (await ctx.fetchFromRegistry(`https://github.com/denoland/deno/releases/download/v${version}/${asset.name}`)).text()
@@ -94,10 +94,9 @@ export async function resolveDenoRuntime (
   }
 }
 
-function parseSha256ForWindows(block: string): string {
-  const match = block.match(
-    /^\s*Hash\s*:\s*([A-Fa-f0-9]{64})\b/m   // ^ start of line, “Hash”, colon, 64 hex chars
-  )
+function parseSha256ForWindows (block: string): string {
+  // ^ start of line, “Hash”, colon, 64 hex chars
+  const match = block.match(/^\s*Hash\s*:\s*([A-Fa-f0-9]{64})\b/m)
   if (!match) {
     throw new Error('Hash not found')
   }
