@@ -126,7 +126,6 @@ export function createDenoRuntimeFetcher (ctx: {
       url: `https://github.com/denoland/deno/releases/download/v${version}/${artifact.file}`,
       integrity: artifact.integrity,
       isZip: true,
-      // basename: `deno-${version}`,
       basename: '',
     }, tempLocation)
     const manifest = {
