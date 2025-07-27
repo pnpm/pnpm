@@ -7,6 +7,7 @@ import { type PkgResolutionId } from '@pnpm/types'
 import { type NpmResolver } from '@pnpm/npm-resolver'
 import { addFilesFromDir } from '@pnpm/worker'
 import { downloadAndUnpackZip } from '@pnpm/node.fetcher'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export interface DenoRuntimeResolveResult extends ResolveResult {
   resolution: DenoRuntimeResolution
@@ -77,6 +78,7 @@ export async function resolveDenoRuntime (
       integrity: `sha256-${base64}`,
     })
   }))
+  artifacts.sort((artifact1, artifact2) => lexCompare(artifact1.file, artifact2.file))
 
   return {
     id: `deno@runtime:${version}` as PkgResolutionId,
