@@ -37,16 +37,20 @@ export interface NodeRuntimeResolution {
   integrities: Record<string, string>
 }
 
-export interface RuntimeArtifact {
-  cpu: string[]
-  os: string[]
-  integrity: string
-  file: string
+export interface PlatformAssetTarget {
+  os: string
+  cpu: string
 }
 
-export interface DenoRuntimeResolution {
-  type: 'denoRuntime'
-  artifacts: RuntimeArtifact[]
+export interface PlatformAsset {
+  integrity: string
+  file: string
+  targets: PlatformAssetTarget
+}
+
+export interface PlatformAssetResolution {
+  type: 'platform'
+  assets: PlatformAsset[]
 }
 
 export type Resolution =
@@ -54,7 +58,7 @@ export type Resolution =
   | DirectoryResolution
   | GitResolution
   | NodeRuntimeResolution
-  | DenoRuntimeResolution
+  | PlatformAssetResolution
 
 export interface ResolveResult {
   id: PkgResolutionId
