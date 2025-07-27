@@ -21,6 +21,7 @@ import { globalWarn, logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { readPackageJson } from '@pnpm/read-package-json'
 import {
+  type DenoRuntimeResolution,
   type DirectoryResolution,
   type NodeRuntimeResolution,
   type PreferredVersions,
@@ -342,11 +343,28 @@ function getFilesIndexFilePath (
 ) {
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
-  const filesIndexFile = (opts.pkg.resolution as TarballResolution).integrity
-    ? ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id)
-    : (opts.pkg.resolution as NodeRuntimeResolution).integrities?.[`${process.platform}-${process.arch}`]
-      ? ctx.getIndexFilePathInCafs((opts.pkg.resolution as NodeRuntimeResolution).integrities[`${process.platform}-${process.arch}`], opts.pkg.id)
-      : path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
+  if ((opts.pkg.resolution as TarballResolution).integrity) {
+    return {
+      target,
+      filesIndexFile: ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
+    }
+  }
+  if ((opts.pkg.resolution as NodeRuntimeResolution).integrities?.[`${process.platform}-${process.arch}`]) {
+    return {
+      target,
+      filesIndexFile: ctx.getIndexFilePathInCafs((opts.pkg.resolution as NodeRuntimeResolution).integrities[`${process.platform}-${process.arch}`], opts.pkg.id),
+    }
+  }
+  if ((opts.pkg.resolution as DenoRuntimeResolution).artifacts) {
+    const artifact = (opts.pkg.resolution as DenoRuntimeResolution).artifacts.find((artifact) => artifact.cpu.includes(process.arch) && artifact.os.includes(process.platform))
+    if (artifact) {
+      return {
+        target,
+        filesIndexFile: ctx.getIndexFilePathInCafs(artifact.integrity, opts.pkg.id),
+      }
+    }
+  }
+  const filesIndexFile = path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
   return { filesIndexFile, target }
 }
 

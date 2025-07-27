@@ -10,34 +10,31 @@
   ],
   "references": [
     {
-      "path": "../../env/node.resolver"
+      "path": "../../env/node.fetcher"
     },
     {
-      "path": "../../network/fetch"
+      "path": "../../fetching/fetcher-base"
     },
     {
       "path": "../../network/fetching-types"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/error"
     },
     {
-      "path": "../../runtime/deno-installer"
+      "path": "../../packages/types"
     },
     {
-      "path": "../git-resolver"
+      "path": "../../resolving/npm-resolver"
     },
     {
-      "path": "../local-resolver"
+      "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../npm-resolver"
-    },
-    {
-      "path": "../resolver-base"
-    },
-    {
-      "path": "../tarball-resolver"
+      "path": "../../worker"
     }
   ]
 }

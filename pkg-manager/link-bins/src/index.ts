@@ -1,7 +1,7 @@
 import { promises as fs, existsSync } from 'fs'
 import Module from 'module'
 import path from 'path'
-import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
+import { getNodeBinLocationForCurrentOS, getDenoBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { logger, globalWarn } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
@@ -210,6 +210,16 @@ async function getPackageBins (
       return [{
         name: 'node',
         path: path.join(target, getNodeBinLocationForCurrentOS()),
+        ownName: true,
+        pkgName: '',
+        pkgVersion: '',
+        makePowerShellShim: false,
+      }]
+    }
+    if (path.basename(target) === 'deno') {
+      return [{
+        name: 'deno',
+        path: path.join(target, getDenoBinLocationForCurrentOS()),
         ownName: true,
         pkgName: '',
         pkgVersion: '',

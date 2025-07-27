@@ -37,11 +37,24 @@ export interface NodeRuntimeResolution {
   integrities: Record<string, string>
 }
 
+export interface RuntimeArtifact {
+  cpu: string[]
+  os: string[]
+  integrity: string
+  file: string
+}
+
+export interface DenoRuntimeResolution {
+  type: 'denoRuntime'
+  artifacts: RuntimeArtifact[]
+}
+
 export type Resolution =
   | TarballResolution
   | DirectoryResolution
   | GitResolution
   | NodeRuntimeResolution
+  | DenoRuntimeResolution
 
 export interface ResolveResult {
   id: PkgResolutionId

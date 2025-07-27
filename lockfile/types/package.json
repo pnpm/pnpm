@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@pnpm/patching.types": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
