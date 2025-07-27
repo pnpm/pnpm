@@ -42,7 +42,7 @@ const ARTIFACTS = [
   },
 ]
 
-test.only('installing Deno runtime', async () => {
+test('installing Deno runtime', async () => {
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['deno@runtime:2.4.2'], testDefaults({ fastUnpack: false }))
 
@@ -127,21 +127,14 @@ test.only('installing Deno runtime', async () => {
   })
 })
 
-test('installing node.js runtime fails if offline mode is used and node.js not found locally', async () => {
+test('installing Deno runtime fails if offline mode is used and Deno not found locally', async () => {
   prepareEmpty()
   await expect(
-    addDependenciesToPackage({}, ['node@runtime:22.0.0'], testDefaults({ fastUnpack: false }, { offline: true }))
-  ).rejects.toThrow(/Offline Node.js resolution is not supported/)
+    addDependenciesToPackage({}, ['deno@runtime:2.4.2'], testDefaults({ fastUnpack: false }, { offline: true }))
+  ).rejects.toThrow(/Failed to resolve deno@2.4.2 in package mirror/)
 })
 
-test('installing Node.js runtime from RC channel', async () => {
-  const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['node@runtime:24.0.0-rc.4'], testDefaults({ fastUnpack: false }))
-
-  project.isExecutable('.bin/node')
-})
-
-test('installing Node.js runtime fails if integrity check fails', async () => {
+test('installing Deno runtime fails if integrity check fails', async () => {
   prepareEmpty()
 
   writeYamlFile(WANTED_LOCKFILE, {
@@ -152,34 +145,34 @@ test('installing Node.js runtime fails if integrity check fails', async () => {
     importers: {
       '.': {
         devDependencies: {
-          node: {
-            specifier: 'runtime:22.0.0',
-            version: 'runtime:22.0.0',
+          deno: {
+            specifier: 'runtime:2.4.2',
+            version: 'runtime:2.4.2',
           },
         },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'node@runtime:22.0.0': {
+      'deno@runtime:2.4.2': {
         hasBin: true,
         resolution: {
-          integrities: {
-            ...ARTIFACTS,
-            [`${process.platform}-${process.arch}`]: 'sha256-0000000000000000000000000000000000000000000=',
-          },
-          type: 'nodeRuntime',
+          artifacts: ARTIFACTS.map((artifact) => ({
+            ...artifact,
+            integrity: 'sha256-0000000000000000000000000000000000000000000=',
+          })),
+          type: 'denoRuntime',
         },
       },
     },
     snapshots: {
-      'node@runtime:22.0.0': {},
+      'deno@runtime:2.4.2': {},
     },
   })
 
   const manifest = {
     devDependencies: {
-      node: 'runtime:22.0.0',
+      deno: 'runtime:2.4.2',
     },
   }
   await expect(install(manifest, testDefaults({ frozenLockfile: true }, {
