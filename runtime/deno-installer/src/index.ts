@@ -34,9 +34,9 @@ export async function resolveDenoRuntime (
   const version = npmResolution.manifest.version
   const res = await ctx.fetchFromRegistry(`https://api.github.com/repos/denoland/deno/releases/tags/v${version}`)
   const data = (await res.json()) as { assets: Array<{ name: string }> }
-  const artifacts: Array<PlatformAssetResolution> = []
+  const artifacts: PlatformAssetResolution[] = []
   await Promise.all(data.assets.map(async (asset) => {
-    let targets: PlatformAssetTarget[] | undefined = undefined
+    let targets: PlatformAssetTarget[] | undefined
     switch (asset.name) {
     case 'deno-aarch64-apple-darwin.zip.sha256sum':
       targets = [{

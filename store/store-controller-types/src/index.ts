@@ -5,7 +5,7 @@ import {
   type Resolution,
   type WantedDependency,
   type WorkspacePackages,
-  PlatformAssetResolution,
+  type PlatformAssetResolution,
 } from '@pnpm/resolver-base'
 import {
   type ImportPackageFunction,
