@@ -21,7 +21,7 @@ import { globalWarn, logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { readPackageJson } from '@pnpm/read-package-json'
 import {
-  PlatformAssetResolution,
+  type PlatformAssetResolution,
   type DirectoryResolution,
   type NodeRuntimeResolution,
   type PreferredVersions,

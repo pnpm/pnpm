@@ -25,6 +25,9 @@
       "path": "../../fetching/tarball-fetcher"
     },
     {
+      "path": "../../fetching/zip-fetcher"
+    },
+    {
       "path": "../../network/auth-header"
     },
     {
@@ -41,9 +44,6 @@
     },
     {
       "path": "../../resolving/resolver-base"
-    },
-    {
-      "path": "../../runtime/deno-installer"
     }
   ]
 }

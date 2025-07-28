@@ -37,11 +37,11 @@
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/fetching.zip-fetcher": "workspace:*",
     "@pnpm/git-fetcher": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
-    "@pnpm/runtime.deno-installer": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:"

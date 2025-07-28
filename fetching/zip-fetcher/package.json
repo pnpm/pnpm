@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/runtime.deno-installer",
+  "name": "@pnpm/fetching.zip-fetcher",
   "version": "1000.0.0-0",
-  "description": "Installs the Deno runtime",
+  "description": "A fetcher for zip files",
   "keywords": [
     "pnpm",
     "pnpm10",
@@ -10,8 +10,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/runtime/deno-installer",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/runtime/deno-installer#readme",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/fetching/zip-fetcher",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/fetching/zip-fetcher#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -32,22 +32,19 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/fetching.zip-fetcher": "workspace:*",
-    "@pnpm/node.fetcher": "workspace:*",
-    "@pnpm/npm-resolver": "workspace:*",
-    "@pnpm/resolver-base": "workspace:*",
-    "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/worker": "workspace:*",
-    "semver": "catalog:"
+    "adm-zip": "catalog:",
+    "rename-overwrite": "catalog:",
+    "ssri": "catalog:",
+    "tempy": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/runtime.deno-installer": "workspace:*",
-    "@types/semver": "catalog:"
+    "@pnpm/fetching.zip-fetcher": "workspace:*",
+    "@types/adm-zip": "catalog:",
+    "@types/ssri": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

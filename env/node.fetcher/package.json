@@ -39,14 +39,12 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/fetching.zip-fetcher": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/worker": "workspace:*",
-    "adm-zip": "catalog:",
     "detect-libc": "catalog:",
-    "rename-overwrite": "catalog:",
-    "ssri": "catalog:",
-    "tempy": "catalog:"
+    "rename-overwrite": "catalog:"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",

@@ -12,7 +12,7 @@ import { createGitFetcher } from '@pnpm/git-fetcher'
 import { createTarballFetcher, type TarballFetchers } from '@pnpm/tarball-fetcher'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createNodeRuntimeFetcher } from '@pnpm/node.fetcher'
-import { createZipFetcher } from '@pnpm/runtime.deno-installer'
+import { createZipFetcher } from '@pnpm/fetching.zip-fetcher'
 import mapValues from 'ramda/src/map'
 
 export type { ResolveFunction }

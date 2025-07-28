@@ -1,12 +1,14 @@
 import { getDenoBinLocationForCurrentOS } from '@pnpm/constants'
-import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
-import { type ZipFetcher } from '@pnpm/fetcher-base'
-import { type WantedDependency, type PlatformAssetResolution, type PlatformAssetTarget, type Resolution, type ResolveResult, TarballResolution, ZipResolution } from '@pnpm/resolver-base'
+import {
+  type WantedDependency,
+  type PlatformAssetResolution,
+  type PlatformAssetTarget,
+  type ResolveResult,
+  type ZipResolution,
+} from '@pnpm/resolver-base'
 import { type PkgResolutionId } from '@pnpm/types'
 import { type NpmResolver } from '@pnpm/npm-resolver'
-import { addFilesFromDir } from '@pnpm/worker'
-import { downloadAndUnpackZip } from '@pnpm/node.fetcher'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 
 export interface DenoRuntimeResolveResult extends ResolveResult {
@@ -108,45 +110,3 @@ function parseSha256ForWindows (block: string): string {
   }
   return match[1].toLowerCase()
 }
-
-export function createZipFetcher (ctx: {
-  fetch: FetchFromRegistry
-  rawConfig: Record<string, string>
-  offline?: boolean
-}): { zip: ZipFetcher } {
-  const fetchZip: ZipFetcher = async (cafs, resolution, opts) => {
-    if (!opts.pkg.version) {
-      throw new PnpmError('CANNOT_FETCH_DENO_WITHOUT_VERSION', 'Cannot fetch Deno without a version')
-    }
-    if (ctx.offline) {
-      throw new PnpmError('CANNOT_DOWNLOAD_DENO_OFFLINE', 'Cannot download Deno because offline mode is enabled.')
-    }
-    const version = opts.pkg.version
-
-    const tempLocation = await cafs.tempDir()
-    await downloadAndUnpackZip(ctx.fetch, {
-      url: resolution.url,
-      integrity: resolution.integrity,
-      isZip: true,
-      basename: '',
-    }, tempLocation)
-    const manifest = {
-      name: 'deno',
-      version,
-      bin: 'deno',
-    }
-    return {
-      ...await addFilesFromDir({
-        storeDir: cafs.storeDir,
-        dir: tempLocation,
-        filesIndexFile: opts.filesIndexFile,
-        readManifest: false,
-      }),
-      manifest,
-    }
-  }
-  return {
-    zip: fetchZip,
-  }
-}
-

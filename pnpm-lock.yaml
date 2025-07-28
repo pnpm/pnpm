@@ -2085,6 +2085,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
+      '@pnpm/fetching.zip-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/zip-fetcher
       '@pnpm/node.resolver':
         specifier: workspace:*
         version: link:../node.resolver
@@ -2094,21 +2097,12 @@ importers:
       '@pnpm/worker':
         specifier: workspace:*
         version: link:../../worker
-      adm-zip:
-        specifier: 'catalog:'
-        version: 0.5.16
       detect-libc:
         specifier: 'catalog:'
         version: 2.0.3
       rename-overwrite:
         specifier: 'catalog:'
         version: 6.0.2
-      ssri:
-        specifier: 'catalog:'
-        version: 10.0.5
-      tempy:
-        specifier: 'catalog:'
-        version: 1.0.1
     devDependencies:
       '@pnpm/cafs-types':
         specifier: workspace:*
@@ -3066,6 +3060,43 @@ importers:
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
+
+  fetching/zip-fetcher:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fetcher-base':
+        specifier: workspace:*
+        version: link:../fetcher-base
+      '@pnpm/fetching-types':
+        specifier: workspace:*
+        version: link:../../network/fetching-types
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:../../worker
+      adm-zip:
+        specifier: 'catalog:'
+        version: 0.5.16
+      rename-overwrite:
+        specifier: 'catalog:'
+        version: 6.0.2
+      ssri:
+        specifier: 'catalog:'
+        version: 10.0.5
+      tempy:
+        specifier: 'catalog:'
+        version: 1.0.1
+    devDependencies:
+      '@pnpm/fetching.zip-fetcher':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/adm-zip':
+        specifier: 'catalog:'
+        version: 0.5.7
+      '@types/ssri':
+        specifier: 'catalog:'
+        version: 7.1.5
 
   fs/find-packages:
     dependencies:
@@ -4514,6 +4545,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
+      '@pnpm/fetching.zip-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/zip-fetcher
       '@pnpm/git-fetcher':
         specifier: workspace:*
         version: link:../../fetching/git-fetcher
@@ -4526,9 +4560,6 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
-      '@pnpm/runtime.deno-installer':
-        specifier: workspace:*
-        version: link:../../runtime/deno-installer
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../../fetching/tarball-fetcher
@@ -7456,6 +7487,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
+      '@pnpm/fetching.zip-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/zip-fetcher
       '@pnpm/node.fetcher':
         specifier: workspace:*
         version: link:../../env/node.fetcher
