@@ -86,8 +86,7 @@ function toLockfileDependency (
       pkg.version &&
       (
         !('type' in lockfileResolution) ||
-        lockfileResolution.type !== 'directory' &&
-        lockfileResolution.type !== 'nodeRuntime'
+        lockfileResolution.type !== 'directory'
       )
     ) {
       result['version'] = pkg.version

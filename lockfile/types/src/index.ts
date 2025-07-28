@@ -110,11 +110,6 @@ export interface GitRepositoryResolution {
   path?: string
 }
 
-export interface NodeRuntimeResolution {
-  type: 'nodeRuntime'
-  integrities: Record<string, string>
-}
-
 export interface ZipResolution {
   type: 'zip'
   url: string
@@ -130,7 +125,6 @@ export type Resolution =
   TarballResolution |
   GitRepositoryResolution |
   DirectoryResolution |
-  NodeRuntimeResolution |
   ZipResolution
 
 export type LockfileResolution = Resolution | PlatformAssetResolution[] | {

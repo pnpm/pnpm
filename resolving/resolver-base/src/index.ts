@@ -38,11 +38,6 @@ export interface GitResolution {
   type: 'git'
 }
 
-export interface NodeRuntimeResolution {
-  type: 'nodeRuntime'
-  integrities: Record<string, string>
-}
-
 export interface PlatformAssetTarget {
   os: string
   cpu: string
@@ -57,7 +52,6 @@ export type Resolution =
   | TarballResolution
   | DirectoryResolution
   | GitResolution
-  | NodeRuntimeResolution
   | ZipResolution
 
 export interface ResolveResult {

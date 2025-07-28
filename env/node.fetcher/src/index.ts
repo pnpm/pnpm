@@ -10,11 +10,10 @@ import { createCafsStore } from '@pnpm/create-cafs-store'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
 import { type NodeRuntimeFetcher, type FetchFunction } from '@pnpm/fetcher-base'
-import { getNodeMirror, parseEnvSpecifier } from '@pnpm/node.resolver'
+import { getNodeMirror, parseEnvSpecifier, getNodeArtifactInfo } from '@pnpm/node.resolver'
 import { addFilesFromDir } from '@pnpm/worker'
 import { downloadAndUnpackZip } from '@pnpm/fetching.zip-fetcher'
 import { isNonGlibcLinux } from 'detect-libc'
-import { getNodeArtifactAddress } from './getNodeArtifactAddress'
 
 export function createNodeRuntimeFetcher (ctx: {
   fetchFromRemoteTarball: FetchFunction

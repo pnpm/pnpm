@@ -38,6 +38,7 @@
     "@pnpm/crypto.shasums-file": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/node.resolver": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "semver": "catalog:",

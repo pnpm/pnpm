@@ -2,7 +2,6 @@ import {
   type Resolution,
   type GitResolution,
   type DirectoryResolution,
-  type NodeRuntimeResolution,
   type ZipResolution,
 } from '@pnpm/resolver-base'
 import { type Cafs } from '@pnpm/cafs-types'
@@ -49,8 +48,6 @@ export interface GitFetcherResult {
 
 export type GitFetcher = FetchFunction<GitResolution, GitFetcherOptions, GitFetcherResult>
 
-export type NodeRuntimeFetcher = FetchFunction<NodeRuntimeResolution>
-
 export type ZipFetcher = FetchFunction<ZipResolution>
 
 export interface DirectoryFetcherOptions {
@@ -74,7 +71,6 @@ export interface Fetchers {
   gitHostedTarball: FetchFunction
   directory: DirectoryFetcher
   git: GitFetcher
-  nodeRuntime: NodeRuntimeFetcher
   zip: ZipFetcher
 }
 
