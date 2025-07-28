@@ -3,7 +3,7 @@ import {
   type GitResolution,
   type DirectoryResolution,
   type NodeRuntimeResolution,
-  type DenoRuntimeResolution,
+  type ZipResolution,
 } from '@pnpm/resolver-base'
 import { type Cafs } from '@pnpm/cafs-types'
 import { type DependencyManifest } from '@pnpm/types'
@@ -51,7 +51,7 @@ export type GitFetcher = FetchFunction<GitResolution, GitFetcherOptions, GitFetc
 
 export type NodeRuntimeFetcher = FetchFunction<NodeRuntimeResolution>
 
-export type DenoRuntimeFetcher = FetchFunction<DenoRuntimeResolution>
+export type ZipFetcher = FetchFunction<ZipResolution>
 
 export interface DirectoryFetcherOptions {
   lockfileDir: string
@@ -75,7 +75,7 @@ export interface Fetchers {
   directory: DirectoryFetcher
   git: GitFetcher
   nodeRuntime: NodeRuntimeFetcher
-  denoRuntime: DenoRuntimeFetcher
+  zip: ZipFetcher
 }
 
 interface CustomFetcherFactoryOptions {

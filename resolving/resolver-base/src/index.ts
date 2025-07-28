@@ -17,6 +17,12 @@ export interface TarballResolution {
   path?: string
 }
 
+export interface ZipResolution {
+  type: 'zip'
+  url: string
+  integrity: string
+}
+
 /**
  * directory on a file system
  */
@@ -42,15 +48,9 @@ export interface PlatformAssetTarget {
   cpu: string
 }
 
-export interface PlatformAsset {
-  integrity: string
-  file: string
-  targets: PlatformAssetTarget
-}
-
 export interface PlatformAssetResolution {
-  type: 'platform'
-  assets: PlatformAsset[]
+  resolution: Resolution
+  targets: PlatformAssetTarget[]
 }
 
 export type Resolution =
@@ -58,14 +58,14 @@ export type Resolution =
   | DirectoryResolution
   | GitResolution
   | NodeRuntimeResolution
-  | PlatformAssetResolution
+  | ZipResolution
 
 export interface ResolveResult {
   id: PkgResolutionId
   latest?: string
   publishedAt?: string
   manifest?: DependencyManifest
-  resolution: Resolution
+  resolution: Resolution | PlatformAssetResolution[]
   resolvedVia: string
   normalizedBareSpecifier?: string
   alias?: string

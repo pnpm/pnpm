@@ -1,6 +1,6 @@
 import { type PatchFile } from '@pnpm/patching.types'
 import { type DependenciesMeta, type DepPath, type ProjectId } from '@pnpm/types'
-import { type DenoRuntimeResolution } from '@pnpm/resolver-base'
+import { type PlatformAssetTarget } from '@pnpm/resolver-base'
 
 export type { PatchFile, ProjectId }
 
@@ -115,14 +115,25 @@ export interface NodeRuntimeResolution {
   integrities: Record<string, string>
 }
 
+export interface ZipResolution {
+  type: 'zip'
+  url: string
+  integrity: string
+}
+
+export interface PlatformAssetResolution {
+  resolution: Resolution
+  targets: PlatformAssetTarget[]
+}
+
 export type Resolution =
   TarballResolution |
   GitRepositoryResolution |
   DirectoryResolution |
   NodeRuntimeResolution |
-  DenoRuntimeResolution
+  ZipResolution
 
-export type LockfileResolution = Resolution | {
+export type LockfileResolution = Resolution | PlatformAssetResolution[] | {
   integrity: string
 }
 

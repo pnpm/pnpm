@@ -428,7 +428,7 @@ async function selectNewFromWantedDeps (
           prevDep &&
           // Local file should always be treated as a new dependency
           // https://github.com/pnpm/pnpm/issues/5381
-          depNode.resolution.type !== 'directory' &&
+          (!('type' in depNode.resolution) || depNode.resolution.type !== 'directory') &&
           (depNode.resolution as TarballResolution).integrity === (prevDep.resolution as TarballResolution).integrity
         ) {
           if (await pathExists(depNode.dir)) {

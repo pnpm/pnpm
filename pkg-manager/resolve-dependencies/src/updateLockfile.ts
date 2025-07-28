@@ -5,7 +5,7 @@ import {
   type PackageSnapshot,
   pruneSharedLockfile,
 } from '@pnpm/lockfile.pruner'
-import { type Resolution } from '@pnpm/resolver-base'
+import { PlatformAssetResolution, PlatformAssetTarget, type Resolution } from '@pnpm/resolver-base'
 import { type DepPath, type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
@@ -60,7 +60,7 @@ function toLockfileDependency (
     lockfileIncludeTarballUrl?: boolean
   }
 ): PackageSnapshot {
-  const lockfileResolution = toLockfileResolution(
+  const lockfileResolution = Array.isArray(pkg.resolution) ? pkg.resolution : toLockfileResolution(
     { name: pkg.name, version: pkg.version },
     pkg.resolution,
     opts.registry,
@@ -85,8 +85,7 @@ function toLockfileDependency (
       (
         !('type' in lockfileResolution) ||
         lockfileResolution.type !== 'directory' &&
-        lockfileResolution.type !== 'nodeRuntime' &&
-        lockfileResolution.type !== 'denoRuntime'
+        lockfileResolution.type !== 'nodeRuntime'
       )
     ) {
       result['version'] = pkg.version
@@ -173,7 +172,6 @@ function updateResolvedDeps (
           depPathToRef(depPath, {
             alias,
             realName: depNode.name,
-            resolution: depNode.resolution,
           }),
         ]
       })

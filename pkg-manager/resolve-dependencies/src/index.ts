@@ -268,7 +268,6 @@ export async function resolveDependencies (
       const ref = depPathToRef(depPath, {
         alias,
         realName: depNode.name,
-        resolution: depNode.resolution,
       })
       if (projectSnapshot.dependencies?.[alias]) {
         projectSnapshot.dependencies[alias] = ref
@@ -391,7 +390,6 @@ function addDirectDependenciesToLockfile (
       const ref = depPathToRef(dep.pkgId, {
         alias: dep.alias,
         realName: dep.name,
-        resolution: dep.resolution,
       })
       if (dep.dev) {
         newProjectSnapshot.devDependencies[dep.alias] = ref

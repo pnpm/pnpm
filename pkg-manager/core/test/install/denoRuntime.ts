@@ -6,39 +6,75 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { testDefaults } from '../utils'
 
-const ARTIFACTS = [
+const RESOLUTIONS = [
   {
-    cpu: ['arm64'],
-    file: 'deno-aarch64-apple-darwin.zip',
-    integrity: 'sha256-cy885Q3GSmOXLKTvtIZ5KZwBZjzpGPcQ1pWmjOX0yTY=',
-    os: ['darwin'],
-  },
-  {
-    cpu: ['arm64'],
-    file: 'deno-aarch64-unknown-linux-gnu.zip',
-    integrity: 'sha256-SjIY48qZ8qu8QdIGkbynlC0Y68sB22tDicu5HqvxBV8=',
-    os: ['linux'],
-  },
-  {
-    cpu: ['x64'],
-    file: 'deno-x86_64-apple-darwin.zip',
-    integrity: 'sha256-+kfrcrjR80maf7Pmx7vNOx5kBxErsD+v1AqoA4pUuT4=',
-    os: ['darwin'],
-  },
-  {
-    cpu: [
-      'x64',
-      'arm64',
+    targets: [
+      {
+        os: 'darwin',
+        cpu: 'arm64',
+      },
     ],
-    file: 'deno-x86_64-pc-windows-msvc.zip',
-    integrity: 'sha256-WoyBb25yA3inTCVnZ5uip5nIFbjC/8BrDnHabCqb8Yk=',
-    os: ['win32'],
+    resolution: {
+      type: 'zip',
+      url: 'https://github.com/denoland/deno/releases/download/v2.4.2/deno-aarch64-apple-darwin.zip',
+      integrity: 'sha256-cy885Q3GSmOXLKTvtIZ5KZwBZjzpGPcQ1pWmjOX0yTY=',
+    },
   },
   {
-    cpu: ['x64'],
-    file: 'deno-x86_64-unknown-linux-gnu.zip',
-    integrity: 'sha256-2Ed4YzIVt8uTz3aQhg1iQfYysIe9KhneEs1BDmsuFXo=',
-    os: ['linux'],
+    targets: [
+      {
+        os: 'linux',
+        cpu: 'arm64',
+      },
+    ],
+    resolution: {
+      type: 'zip',
+      url: 'https://github.com/denoland/deno/releases/download/v2.4.2/deno-aarch64-unknown-linux-gnu.zip',
+      integrity: 'sha256-SjIY48qZ8qu8QdIGkbynlC0Y68sB22tDicu5HqvxBV8=',
+    },
+  },
+  {
+    targets: [
+      {
+        os: 'darwin',
+        cpu: 'x64',
+      },
+    ],
+    resolution: {
+      type: 'zip',
+      url: 'https://github.com/denoland/deno/releases/download/v2.4.2/deno-x86_64-apple-darwin.zip',
+      integrity: 'sha256-+kfrcrjR80maf7Pmx7vNOx5kBxErsD+v1AqoA4pUuT4=',
+    },
+  },
+  {
+    targets: [
+      {
+        os: 'win32',
+        cpu: 'x64',
+      },
+      {
+        os: 'win32',
+        cpu: 'arm64',
+      },
+    ],
+    resolution: {
+      type: 'zip',
+      url: 'https://github.com/denoland/deno/releases/download/v2.4.2/deno-x86_64-pc-windows-msvc.zip',
+      integrity: 'sha256-WoyBb25yA3inTCVnZ5uip5nIFbjC/8BrDnHabCqb8Yk=',
+    },
+  },
+  {
+    targets: [
+      {
+        os: 'linux',
+        cpu: 'x64',
+      },
+    ],
+    resolution: {
+      type: 'zip',
+      url: 'https://github.com/denoland/deno/releases/download/v2.4.2/deno-x86_64-unknown-linux-gnu.zip',
+      integrity: 'sha256-2Ed4YzIVt8uTz3aQhg1iQfYysIe9KhneEs1BDmsuFXo=',
+    },
   },
 ]
 
@@ -66,10 +102,8 @@ test('installing Deno runtime', async () => {
     packages: {
       'deno@runtime:2.4.2': {
         hasBin: true,
-        resolution: {
-          artifacts: ARTIFACTS,
-          type: 'denoRuntime',
-        },
+        resolution: RESOLUTIONS,
+        version: '2.4.2',
       },
     },
     snapshots: {
@@ -109,10 +143,8 @@ test('installing Deno runtime', async () => {
     packages: {
       'deno@runtime:2.4.2': {
         hasBin: true,
-        resolution: {
-          artifacts: ARTIFACTS,
-          type: 'denoRuntime',
-        },
+        resolution: RESOLUTIONS,
+        version: '2.4.2',
       },
       '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
         resolution: {
@@ -156,18 +188,21 @@ test('installing Deno runtime fails if integrity check fails', async () => {
     packages: {
       'deno@runtime:2.4.2': {
         hasBin: true,
-        resolution: {
-          artifacts: ARTIFACTS.map((artifact) => ({
-            ...artifact,
+        resolution: RESOLUTIONS.map((resolutionVariant) => ({
+          ...resolutionVariant,
+          resolution: {
+            ...resolutionVariant.resolution,
             integrity: 'sha256-0000000000000000000000000000000000000000000=',
-          })),
-          type: 'denoRuntime',
-        },
+          },
+        })),
+        version: '2.4.2',
       },
     },
     snapshots: {
       'deno@runtime:2.4.2': {},
     },
+  }, {
+    lineWidth: -1,
   })
 
   const manifest = {

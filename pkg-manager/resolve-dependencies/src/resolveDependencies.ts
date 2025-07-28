@@ -24,6 +24,7 @@ import {
   type Resolution,
   type WorkspacePackages,
   type PkgResolutionId,
+  type PlatformAssetResolution,
 } from '@pnpm/resolver-base'
 import {
   type PkgRequestFetchResult,
@@ -222,7 +223,7 @@ export type PeerDependencies = Record<string, PeerDependency>
 export interface ResolvedPackage {
   id: PkgResolutionId
   isLeaf: boolean
-  resolution: Resolution
+  resolution: Resolution | PlatformAssetResolution[]
   prod: boolean
   dev: boolean
   optional: boolean
@@ -1138,7 +1139,7 @@ type InfoFromLockfile = {
   dependencyLockfile?: PackageSnapshot
   name?: string
   version?: string
-  resolution?: Resolution
+  resolution?: Resolution | PlatformAssetResolution[]
 } & ({
   dependencyLockfile: PackageSnapshot
   name: string
@@ -1205,7 +1206,7 @@ interface ResolveDependencyOptions {
     name?: string
     version?: string
     pkgId?: PkgResolutionId
-    resolution?: Resolution
+    resolution?: Resolution | PlatformAssetResolution[]
     dependencyLockfile?: PackageSnapshot
   }
   preferredVersion?: string
@@ -1558,7 +1559,7 @@ async function resolveDependency (
     }
   }
 
-  const rootDir = pkgResponse.body.resolution.type === 'directory'
+  const rootDir = 'type' in pkgResponse.body.resolution && pkgResponse.body.resolution.type === 'directory'
     ? path.resolve(ctx.lockfileDir, (pkgResponse.body.resolution as DirectoryResolution).directory)
     : options.prefix
   let missingPeersOfChildren!: MissingPeersOfChildren | undefined

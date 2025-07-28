@@ -6,13 +6,13 @@ import {
 import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
 import { type SslConfig } from '@pnpm/types'
 import { type FetchFromRegistry, type GetAuthHeader, type RetryTimeoutOptions } from '@pnpm/fetching-types'
-import type { CustomFetchers, GitFetcher, DirectoryFetcher, NodeRuntimeFetcher, DenoRuntimeFetcher } from '@pnpm/fetcher-base'
+import type { CustomFetchers, GitFetcher, DirectoryFetcher, NodeRuntimeFetcher, ZipFetcher } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
-import { createDenoRuntimeFetcher } from '@pnpm/runtime.deno-installer'
 import { createGitFetcher } from '@pnpm/git-fetcher'
 import { createTarballFetcher, type TarballFetchers } from '@pnpm/tarball-fetcher'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createNodeRuntimeFetcher } from '@pnpm/node.fetcher'
+import { createZipFetcher } from '@pnpm/runtime.deno-installer'
 import mapValues from 'ramda/src/map'
 
 export type { ResolveFunction }
@@ -61,7 +61,7 @@ type Fetchers = {
   git: GitFetcher
   directory: DirectoryFetcher
   nodeRuntime: NodeRuntimeFetcher
-  denoRuntime: DenoRuntimeFetcher
+  zip: ZipFetcher
 } & TarballFetchers
 
 function createFetchers (
@@ -81,7 +81,7 @@ function createFetchers (
       offline: opts.offline,
       rawConfig: opts.rawConfig,
     }),
-    ...createDenoRuntimeFetcher({
+    ...createZipFetcher({
       fetch: fetchFromRegistry,
       offline: opts.offline,
       rawConfig: opts.rawConfig,

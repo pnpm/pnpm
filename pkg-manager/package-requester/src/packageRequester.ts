@@ -21,7 +21,7 @@ import { globalWarn, logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { readPackageJson } from '@pnpm/read-package-json'
 import {
-  type DenoRuntimeResolution,
+  PlatformAssetResolution,
   type DirectoryResolution,
   type NodeRuntimeResolution,
   type PreferredVersions,
@@ -167,7 +167,7 @@ async function resolveAndFetch (
   let manifest: DependencyManifest | undefined
   let normalizedBareSpecifier: string | undefined
   let alias: string | undefined
-  let resolution = options.currentPkg?.resolution as Resolution
+  let resolution = options.currentPkg?.resolution as Resolution | PlatformAssetResolution[]
   let pkgId = options.currentPkg?.id
   const skipResolution = resolution && !options.update
   let forceFetch = false
@@ -236,7 +236,7 @@ async function resolveAndFetch (
 
   const id = pkgId!
 
-  if (resolution.type === 'directory' && !id.startsWith('file:')) {
+  if ('type' in resolution && resolution.type === 'directory' && !id.startsWith('file:')) {
     if (manifest == null) {
       throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`)
     }
@@ -355,17 +355,26 @@ function getFilesIndexFilePath (
       filesIndexFile: ctx.getIndexFilePathInCafs((opts.pkg.resolution as NodeRuntimeResolution).integrities[`${process.platform}-${process.arch}`], opts.pkg.id),
     }
   }
-  if ((opts.pkg.resolution as DenoRuntimeResolution).artifacts) {
-    const artifact = (opts.pkg.resolution as DenoRuntimeResolution).artifacts.find((artifact) => artifact.cpu.includes(process.arch) && artifact.os.includes(process.platform))
-    if (artifact) {
+  if (Array.isArray(opts.pkg.resolution)) {
+    const resolution = findResolution(opts.pkg.resolution)
+    if (resolution && (resolution as TarballResolution).integrity) {
       return {
         target,
-        filesIndexFile: ctx.getIndexFilePathInCafs(artifact.integrity, opts.pkg.id),
+        filesIndexFile: ctx.getIndexFilePathInCafs((resolution as TarballResolution).integrity!, opts.pkg.id),
       }
     }
   }
   const filesIndexFile = path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
   return { filesIndexFile, target }
+}
+
+function findResolution (resolutionVariants: PlatformAssetResolution[]): Resolution {
+  const resolutionVariant = resolutionVariants
+    .find((resolutionVariant) => resolutionVariant.targets.some((target) => target.os === process.platform && target.cpu === process.arch))
+  if (!resolutionVariant) {
+    throw new Error(`Cannot find a resolution variant for the current platform in these resolutions: ${JSON.stringify(resolutionVariants)}`)
+  }
+  return resolutionVariant.resolution
 }
 
 function fetchToStore (
@@ -502,9 +511,10 @@ function fetchToStore (
     fetching: pDefer.DeferredPromise<PkgRequestFetchResult>,
     target: string
   ) {
+    const resolution = Array.isArray(opts.pkg.resolution) ? findResolution(opts.pkg.resolution) : opts.pkg.resolution
     try {
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
-      const isLocalPkg = opts.pkg.resolution.type === 'directory'
+      const isLocalPkg = resolution.type === 'directory'
 
       if (
         !opts.force &&
@@ -575,7 +585,7 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
 
       const fetchedPackage = await ctx.requestsQueue.add(async () => ctx.fetch(
         opts.pkg.id,
-        opts.pkg.resolution,
+        resolution,
         {
           filesIndexFile,
           lockfileDir: opts.lockfileDir,

@@ -173,7 +173,9 @@ interface ConvertOptions {
 function convertPackageSnapshot (inputSnapshot: PackageSnapshot, opts: ConvertOptions): PackageSnapshot {
   const inputResolution = inputSnapshot.resolution
   let outputResolution: LockfileResolution
-  if ('integrity' in inputResolution) {
+  if (Array.isArray(inputResolution)) {
+    outputResolution = inputResolution
+  } else if ('integrity' in inputResolution) {
     outputResolution = inputResolution
   } else if ('tarball' in inputResolution) {
     outputResolution = { ...inputResolution }
@@ -188,7 +190,7 @@ function convertPackageSnapshot (inputSnapshot: PackageSnapshot, opts: ConvertOp
     const resolvedPath = path.resolve(opts.lockfileDir, inputResolution.directory)
     const directory = normalizePath(path.relative(opts.deployDir, resolvedPath))
     outputResolution = { ...inputResolution, directory }
-  } else if (inputResolution.type === 'git' || inputResolution.type === 'nodeRuntime' || inputResolution.type === 'denoRuntime') {
+  } else if (inputResolution.type === 'git' || inputResolution.type === 'nodeRuntime') {
     outputResolution = inputResolution
   } else {
     const resolution: never = inputResolution // `never` is the type guard to force fixing this code when adding new type of resolution
