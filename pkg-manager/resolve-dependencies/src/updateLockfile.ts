@@ -165,7 +165,6 @@ function updateResolvedDeps (
           depPathToRef(depPath, {
             alias,
             realName: depNode.name,
-            resolution: depNode.resolution,
           }),
         ]
       })
