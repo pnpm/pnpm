@@ -66,8 +66,8 @@ test('config get on object should return a JSON string', async () => {
     configDir: process.cwd(),
     global: true,
     rawConfig: {
-      'catalog': {
-        'react': '^19.0.0',
+      catalog: {
+        react: '^19.0.0',
       },
     },
   }, ['get', 'catalog'])
