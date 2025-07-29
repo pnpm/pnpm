@@ -190,7 +190,7 @@ function convertPackageSnapshot (inputSnapshot: PackageSnapshot, opts: ConvertOp
     const resolvedPath = path.resolve(opts.lockfileDir, inputResolution.directory)
     const directory = normalizePath(path.relative(opts.deployDir, resolvedPath))
     outputResolution = { ...inputResolution, directory }
-  } else if (inputResolution.type === 'git' || inputResolution.type === 'nodeRuntime') {
+  } else if (inputResolution.type === 'git') {
     outputResolution = inputResolution
   } else {
     const resolution: never = inputResolution // `never` is the type guard to force fixing this code when adding new type of resolution

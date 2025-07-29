@@ -23,7 +23,6 @@ import { readPackageJson } from '@pnpm/read-package-json'
 import {
   type PlatformAssetResolution,
   type DirectoryResolution,
-  type NodeRuntimeResolution,
   type PreferredVersions,
   type Resolution,
   type ResolveFunction,
@@ -347,12 +346,6 @@ function getFilesIndexFilePath (
     return {
       target,
       filesIndexFile: ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
-    }
-  }
-  if ((opts.pkg.resolution as NodeRuntimeResolution).integrities?.[`${process.platform}-${process.arch}`]) {
-    return {
-      target,
-      filesIndexFile: ctx.getIndexFilePathInCafs((opts.pkg.resolution as NodeRuntimeResolution).integrities[`${process.platform}-${process.arch}`], opts.pkg.id),
     }
   }
   if (Array.isArray(opts.pkg.resolution)) {

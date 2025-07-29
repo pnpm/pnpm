@@ -10,7 +10,7 @@ import { parseEnvSpecifier } from './parseEnvSpecifier'
 import { getNodeMirror } from './getNodeMirror'
 import { getNodeArtifactAddress } from './getNodeArtifactAddress'
 
-export { getNodeMirror, parseEnvSpecifier }
+export { getNodeMirror, parseEnvSpecifier, getNodeArtifactAddress }
 
 export interface NodeRuntimeResolveResult extends ResolveResult {
   resolution: PlatformAssetResolution[]
@@ -81,16 +81,13 @@ async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: str
         os: platform,
         cpu: arch,
       }],
-      resolution: address.extname === '.zip'
-        ? {
-          type: 'zip',
-          integrity,
-          url,
-        }
-        : {
-          integrity,
-          tarball: url,
-        },
+      resolution: {
+        type: 'binary',
+        archive: address.extname === '.zip' ? 'zip' : 'tarball',
+        bin: platform === 'win32' ? 'node.exe' : 'bin/node',
+        integrity,
+        url,
+      },
     })
   }
 

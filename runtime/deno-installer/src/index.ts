@@ -5,7 +5,7 @@ import {
   type PlatformAssetResolution,
   type PlatformAssetTarget,
   type ResolveResult,
-  type ZipResolution,
+  type BinaryResolution,
 } from '@pnpm/resolver-base'
 import { type PkgResolutionId } from '@pnpm/types'
 import { type NpmResolver } from '@pnpm/npm-resolver'
@@ -81,13 +81,15 @@ export async function resolveDenoRuntime (
     artifacts.push({
       targets,
       resolution: {
-        type: 'zip',
+        type: 'binary',
         url: sha256sumFileUrl.replace(/\.sha256sum$/, ''),
         integrity: `sha256-${base64}`,
+        bin: asset.name.includes('windows') ? 'deno.exe' : 'deno',
+        archive: 'zip',
       },
     })
   }))
-  artifacts.sort((artifact1, artifact2) => lexCompare((artifact1.resolution as ZipResolution).url, (artifact2.resolution as ZipResolution).url))
+  artifacts.sort((artifact1, artifact2) => lexCompare((artifact1.resolution as BinaryResolution).url, (artifact2.resolution as BinaryResolution).url))
 
   return {
     id: `deno@runtime:${version}` as PkgResolutionId,

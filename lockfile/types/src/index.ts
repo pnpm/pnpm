@@ -110,10 +110,12 @@ export interface GitRepositoryResolution {
   path?: string
 }
 
-export interface ZipResolution {
-  type: 'zip'
+export interface BinaryResolution {
+  type: 'binary'
   url: string
   integrity: string
+  bin: string
+  archive: 'zip' | 'tarball'
 }
 
 export interface PlatformAssetResolution {
@@ -125,7 +127,7 @@ export type Resolution =
   TarballResolution |
   GitRepositoryResolution |
   DirectoryResolution |
-  ZipResolution
+  BinaryResolution
 
 export type LockfileResolution = Resolution | PlatformAssetResolution[] | {
   integrity: string

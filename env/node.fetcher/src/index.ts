@@ -1,5 +1,4 @@
 import path from 'path'
-import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { fetchShasumsFile, pickFileChecksumFromShasumsFile } from '@pnpm/crypto.shasums-file'
 import {
@@ -9,71 +8,9 @@ import {
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
-import { type NodeRuntimeFetcher, type FetchFunction } from '@pnpm/fetcher-base'
-import { getNodeMirror, parseEnvSpecifier, getNodeArtifactInfo } from '@pnpm/node.resolver'
-import { addFilesFromDir } from '@pnpm/worker'
+import { getNodeArtifactAddress } from '@pnpm/node.resolver'
 import { downloadAndUnpackZip } from '@pnpm/fetching.zip-fetcher'
 import { isNonGlibcLinux } from 'detect-libc'
-
-export function createNodeRuntimeFetcher (ctx: {
-  fetchFromRemoteTarball: FetchFunction
-  fetch: FetchFromRegistry
-  rawConfig: Record<string, string>
-  offline?: boolean
-}): { nodeRuntime: NodeRuntimeFetcher } {
-  const fetchNodeRuntime: NodeRuntimeFetcher = async (cafs, resolution, opts) => {
-    if (!opts.pkg.version) {
-      throw new PnpmError('CANNOT_FETCH_NODE_WITHOUT_VERSION', 'Cannot fetch Node.js without a version')
-    }
-    if (ctx.offline) {
-      throw new PnpmError('CANNOT_DOWNLOAD_NODE_OFFLINE', 'Cannot download Node.js because offline mode is enabled.')
-    }
-    const version = opts.pkg.version
-    const { releaseChannel } = parseEnvSpecifier(version)
-
-    await validateSystemCompatibility()
-
-    const nodeMirrorBaseUrl = getNodeMirror(ctx.rawConfig, releaseChannel)
-    const artifactInfo = await getNodeArtifactInfo(ctx.fetch, version, {
-      nodeMirrorBaseUrl,
-      integrities: resolution.integrities,
-    })
-    const manifest = {
-      name: 'node',
-      version,
-      bin: getNodeBinLocationForCurrentOS(),
-    }
-
-    if (artifactInfo.isZip) {
-      const tempLocation = await cafs.tempDir()
-      await downloadAndUnpackZip(ctx.fetch, artifactInfo, tempLocation)
-      return {
-        ...await addFilesFromDir({
-          storeDir: cafs.storeDir,
-          dir: tempLocation,
-          filesIndexFile: opts.filesIndexFile,
-          readManifest: false,
-        }),
-        manifest,
-      }
-    }
-
-    return {
-      ...await ctx.fetchFromRemoteTarball(cafs, {
-        tarball: artifactInfo.url,
-        integrity: artifactInfo.integrity,
-      }, {
-        filesIndexFile: opts.filesIndexFile,
-        lockfileDir: process.cwd(),
-        pkg: {},
-      }),
-      manifest,
-    }
-  }
-  return {
-    nodeRuntime: fetchNodeRuntime,
-  }
-}
 
 // Constants
 const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'

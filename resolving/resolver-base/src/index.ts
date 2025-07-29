@@ -17,10 +17,12 @@ export interface TarballResolution {
   path?: string
 }
 
-export interface ZipResolution {
-  type: 'zip'
+export interface BinaryResolution {
+  type: 'binary'
+  archive: 'tarball' | 'zip'
   url: string
   integrity: string
+  bin: string
 }
 
 /**
@@ -52,7 +54,7 @@ export type Resolution =
   | TarballResolution
   | DirectoryResolution
   | GitResolution
-  | ZipResolution
+  | BinaryResolution
 
 export interface ResolveResult {
   id: PkgResolutionId

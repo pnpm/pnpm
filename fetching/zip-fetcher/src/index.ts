@@ -2,47 +2,60 @@ import path from 'path'
 import fsPromises from 'fs/promises'
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
-import { type ZipFetcher } from '@pnpm/fetcher-base'
+import { type BinaryFetcher, type FetchFunction } from '@pnpm/fetcher-base'
 import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
 import renameOverwrite from 'rename-overwrite'
 import tempy from 'tempy'
 import ssri from 'ssri'
 
-export function createZipFetcher (ctx: {
+export function createBinaryFetcher (ctx: {
   fetch: FetchFromRegistry
+  fetchFromTarball: FetchFunction
   rawConfig: Record<string, string>
   offline?: boolean
-}): { zip: ZipFetcher } {
-  const fetchZip: ZipFetcher = async (cafs, resolution, opts) => {
+}): { binary: BinaryFetcher } {
+  const fetchBinary: BinaryFetcher = async (cafs, resolution, opts) => {
     if (ctx.offline) {
       throw new PnpmError('CANNOT_DOWNLOAD_DENO_OFFLINE', 'Cannot download Deno because offline mode is enabled.')
     }
     const version = opts.pkg.version!
-
-    const tempLocation = await cafs.tempDir()
-    await downloadAndUnpackZip(ctx.fetch, {
-      url: resolution.url,
-      integrity: resolution.integrity,
-      basename: '',
-    }, tempLocation)
     const manifest = {
       name: opts.pkg.name!,
       version,
-      bin: opts.pkg.name,
+      bin: resolution.bin,
     }
-    return {
-      ...await addFilesFromDir({
-        storeDir: cafs.storeDir,
-        dir: tempLocation,
-        filesIndexFile: opts.filesIndexFile,
-        readManifest: false,
-      }),
-      manifest,
+
+    if (resolution.archive === 'tarball') {
+      return {
+        ...await ctx.fetchFromTarball(cafs, {
+          tarball: resolution.url,
+          integrity: resolution.integrity,
+        }, opts),
+        manifest,
+      }
     }
+    if (resolution.archive === 'zip') {
+      const tempLocation = await cafs.tempDir()
+      await downloadAndUnpackZip(ctx.fetch, {
+        url: resolution.url,
+        integrity: resolution.integrity,
+        basename: '',
+      }, tempLocation)
+      return {
+        ...await addFilesFromDir({
+          storeDir: cafs.storeDir,
+          dir: tempLocation,
+          filesIndexFile: opts.filesIndexFile,
+          readManifest: false,
+        }),
+        manifest,
+      }
+    }
+    throw new PnpmError('NOT_SUPPORTED_ARCHIVE', `The binary fetcher doesn't support archive type ${resolution.archive as string}`)
   }
   return {
-    zip: fetchZip,
+    binary: fetchBinary,
   }
 }
 

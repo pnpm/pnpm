@@ -15,9 +15,11 @@ const RESOLUTIONS = [
       },
     ],
     resolution: {
-      type: 'zip',
+      type: 'binary',
+      archive: 'zip',
       url: 'https://github.com/denoland/deno/releases/download/v2.4.2/deno-aarch64-apple-darwin.zip',
       integrity: 'sha256-cy885Q3GSmOXLKTvtIZ5KZwBZjzpGPcQ1pWmjOX0yTY=',
+      bin: 'deno',
     },
   },
   {
@@ -28,9 +30,11 @@ const RESOLUTIONS = [
       },
     ],
     resolution: {
-      type: 'zip',
+      type: 'binary',
+      archive: 'zip',
       url: 'https://github.com/denoland/deno/releases/download/v2.4.2/deno-aarch64-unknown-linux-gnu.zip',
       integrity: 'sha256-SjIY48qZ8qu8QdIGkbynlC0Y68sB22tDicu5HqvxBV8=',
+      bin: 'deno',
     },
   },
   {
@@ -41,9 +45,11 @@ const RESOLUTIONS = [
       },
     ],
     resolution: {
-      type: 'zip',
+      type: 'binary',
+      archive: 'zip',
       url: 'https://github.com/denoland/deno/releases/download/v2.4.2/deno-x86_64-apple-darwin.zip',
       integrity: 'sha256-+kfrcrjR80maf7Pmx7vNOx5kBxErsD+v1AqoA4pUuT4=',
+      bin: 'deno',
     },
   },
   {
@@ -58,9 +64,11 @@ const RESOLUTIONS = [
       },
     ],
     resolution: {
-      type: 'zip',
+      type: 'binary',
+      archive: 'zip',
       url: 'https://github.com/denoland/deno/releases/download/v2.4.2/deno-x86_64-pc-windows-msvc.zip',
       integrity: 'sha256-WoyBb25yA3inTCVnZ5uip5nIFbjC/8BrDnHabCqb8Yk=',
+      bin: 'deno.exe',
     },
   },
   {
@@ -71,9 +79,11 @@ const RESOLUTIONS = [
       },
     ],
     resolution: {
-      type: 'zip',
+      type: 'binary',
+      archive: 'zip',
       url: 'https://github.com/denoland/deno/releases/download/v2.4.2/deno-x86_64-unknown-linux-gnu.zip',
       integrity: 'sha256-2Ed4YzIVt8uTz3aQhg1iQfYysIe9KhneEs1BDmsuFXo=',
+      bin: 'deno',
     },
   },
 ]
