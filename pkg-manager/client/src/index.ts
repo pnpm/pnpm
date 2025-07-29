@@ -75,7 +75,7 @@ function createFetchers (
     ...createDirectoryFetcher({ resolveSymlinks: opts.resolveSymlinksInInjectedDirs, includeOnlyPackageFiles: opts.includeOnlyPackageFiles }),
     ...createBinaryFetcher({
       fetch: fetchFromRegistry,
-      fetchFromTarball: tarballFetchers.remoteTarball,
+      fetchFromRemoteTarball: tarballFetchers.remoteTarball,
       offline: opts.offline,
       rawConfig: opts.rawConfig,
     }),

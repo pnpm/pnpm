@@ -11,7 +11,7 @@ import ssri from 'ssri'
 
 export function createBinaryFetcher (ctx: {
   fetch: FetchFromRegistry
-  fetchFromTarball: FetchFunction
+  fetchFromRemoteTarball: FetchFunction
   rawConfig: Record<string, string>
   offline?: boolean
 }): { binary: BinaryFetcher } {
@@ -28,7 +28,7 @@ export function createBinaryFetcher (ctx: {
 
     if (resolution.archive === 'tarball') {
       return {
-        ...await ctx.fetchFromTarball(cafs, {
+        ...await ctx.fetchFromRemoteTarball(cafs, {
           tarball: resolution.url,
           integrity: resolution.integrity,
         }, opts),
