@@ -1,4 +1,5 @@
 import { getDenoBinLocationForCurrentOS } from '@pnpm/constants'
+import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import {
   type WantedDependency,
@@ -10,6 +11,17 @@ import {
 import { type PkgResolutionId } from '@pnpm/types'
 import { type NpmResolver } from '@pnpm/npm-resolver'
 import { lexCompare } from '@pnpm/util.lex-comparator'
+
+const ASSET_REGEX = /^deno-(?<cpu>aarch64|x86_64)-(?<os>apple-darwin|unknown-linux-gnu|pc-windows-msvc)\.zip\.sha256sum$/
+const OS_MAP = {
+  'apple-darwin': 'darwin',
+  'unknown-linux-gnu': 'linux',
+  'pc-windows-msvc': 'win32',
+} as const
+const CPU_MAP = {
+  aarch64: 'arm64',
+  x86_64: 'x64',
+} as const
 
 export interface DenoRuntimeResolveResult extends ResolveResult {
   resolution: PlatformAssetResolution[]
@@ -30,48 +42,15 @@ export async function resolveDenoRuntime (
   // We use the npm registry for version resolution as it is easier than using the GitHub API for releases,
   // which uses pagination (e.g. https://api.github.com/repos/denoland/deno/releases?per_page=100).
   const npmResolution = await ctx.resolveFromNpm({ ...wantedDependency, bareSpecifier: versionSpec }, {})
-  if (npmResolution == null) throw new Error('Could not resolve')
+  if (npmResolution == null) {
+    throw new PnpmError('DENO_RESOLUTION_FAILURE', `Could not resolve Deno ${wantedDependency.bareSpecifier}`)
+  }
   const version = npmResolution.manifest.version
   const res = await ctx.fetchFromRegistry(`https://api.github.com/repos/denoland/deno/releases/tags/v${version}`)
   const data = (await res.json()) as { assets: Array<{ name: string }> }
   const assets: PlatformAssetResolution[] = []
   await Promise.all(data.assets.map(async (asset) => {
-    let targets: PlatformAssetTarget[] | undefined
-    switch (asset.name) {
-    case 'deno-aarch64-apple-darwin.zip.sha256sum':
-      targets = [{
-        os: 'darwin',
-        cpu: 'arm64',
-      }]
-      break
-    case 'deno-aarch64-unknown-linux-gnu.zip.sha256sum':
-      targets = [{
-        os: 'linux',
-        cpu: 'arm64',
-      }]
-      break
-    case 'deno-x86_64-apple-darwin.zip.sha256sum':
-      targets = [{
-        os: 'darwin',
-        cpu: 'x64',
-      }]
-      break
-    case 'deno-x86_64-pc-windows-msvc.zip.sha256sum':
-      targets = [{
-        os: 'win32',
-        cpu: 'x64',
-      }, {
-        os: 'win32',
-        cpu: 'arm64',
-      }]
-      break
-    case 'deno-x86_64-unknown-linux-gnu.zip.sha256sum':
-      targets = [{
-        os: 'linux',
-        cpu: 'x64',
-      }]
-      break
-    }
+    const targets = parseAssetName(asset.name)
     if (!targets) return
     const sha256sumFileUrl = `https://github.com/denoland/deno/releases/download/v${version}/${asset.name}`
     const sha256sumFile = await (await ctx.fetchFromRegistry(sha256sumFileUrl)).text()
@@ -102,6 +81,18 @@ export async function resolveDenoRuntime (
     },
     resolution: assets,
   }
+}
+
+function parseAssetName (name: string): PlatformAssetTarget[] | null {
+  const m = ASSET_REGEX.exec(name)
+  if (!m || !m.groups) return null
+  const os = OS_MAP[m.groups.os as keyof typeof OS_MAP]
+  const cpu = CPU_MAP[m.groups.cpu as keyof typeof CPU_MAP]
+  const targets = [{ os, cpu }]
+  if (os === 'win32' && cpu === 'x64') {
+    targets.push({ os: 'win32', cpu: 'arm64' })
+  }
+  return targets
 }
 
 function parseSha256ForWindows (block: string): string {

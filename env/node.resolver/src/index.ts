@@ -34,7 +34,7 @@ export async function resolveNodeRuntime (
   if (!version) {
     throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
   }
-  const assets = await loadShasumsFile(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
+  const assets = await readNodeAssets(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
   const range = version === versionSpec ? version : `^${version}`
   return {
     id: `node@runtime:${version}` as PkgResolutionId,
@@ -49,7 +49,7 @@ export async function resolveNodeRuntime (
   }
 }
 
-async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<PlatformAssetResolution[]> {
+async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<PlatformAssetResolution[]> {
   const integritiesFileUrl = `${nodeMirrorBaseUrl}/v${version}/SHASUMS256.txt`
   const shasumsFileContent = await fetchShasumsFile(fetch, integritiesFileUrl)
   const lines = shasumsFileContent.split('\n')
@@ -95,7 +95,6 @@ async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: str
       resolution,
     })
   }
-
   return assets
 }
 
