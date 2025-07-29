@@ -36,7 +36,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/fetching.zip-fetcher": "workspace:*",
+    "@pnpm/fetching.binary-fetcher": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",

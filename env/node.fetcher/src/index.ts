@@ -9,7 +9,7 @@ import { createCafsStore } from '@pnpm/create-cafs-store'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
 import { getNodeArtifactAddress } from '@pnpm/node.resolver'
-import { downloadAndUnpackZip } from '@pnpm/fetching.zip-fetcher'
+import { downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
 import { isNonGlibcLinux } from 'detect-libc'
 
 // Constants

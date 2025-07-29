@@ -13,10 +13,10 @@
       "path": "../../env/node.fetcher"
     },
     {
-      "path": "../../fetching/fetcher-base"
+      "path": "../../fetching/binary-fetcher"
     },
     {
-      "path": "../../fetching/zip-fetcher"
+      "path": "../../fetching/fetcher-base"
     },
     {
       "path": "../../network/fetching-types"

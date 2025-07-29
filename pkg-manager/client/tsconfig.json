@@ -13,6 +13,9 @@
       "path": "../../env/node.fetcher"
     },
     {
+      "path": "../../fetching/binary-fetcher"
+    },
+    {
       "path": "../../fetching/directory-fetcher"
     },
     {
@@ -23,9 +26,6 @@
     },
     {
       "path": "../../fetching/tarball-fetcher"
-    },
-    {
-      "path": "../../fetching/zip-fetcher"
     },
     {
       "path": "../../network/auth-header"

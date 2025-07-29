@@ -16,13 +16,13 @@
       "path": "../../crypto/shasums-file"
     },
     {
+      "path": "../../fetching/binary-fetcher"
+    },
+    {
       "path": "../../fetching/fetcher-base"
     },
     {
       "path": "../../fetching/tarball-fetcher"
-    },
-    {
-      "path": "../../fetching/zip-fetcher"
     },
     {
       "path": "../../network/fetching-types"

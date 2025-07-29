@@ -37,7 +37,7 @@
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/fetching.zip-fetcher": "workspace:*",
+    "@pnpm/fetching.binary-fetcher": "workspace:*",
     "@pnpm/git-fetcher": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",

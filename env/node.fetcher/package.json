@@ -39,7 +39,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/fetching.zip-fetcher": "workspace:*",
+    "@pnpm/fetching.binary-fetcher": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/worker": "workspace:*",
