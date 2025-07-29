@@ -2119,6 +2119,9 @@ importers:
       '@types/ssri':
         specifier: 'catalog:'
         version: 7.1.5
+      adm-zip:
+        specifier: 'catalog:'
+        version: 0.5.16
       node-fetch:
         specifier: 'catalog:'
         version: '@pnpm/node-fetch@1.0.0'

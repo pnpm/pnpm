@@ -52,6 +52,7 @@
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "catalog:",
     "@types/ssri": "catalog:",
+    "adm-zip": "catalog:",
     "node-fetch": "catalog:"
   },
   "engines": {
