@@ -47,23 +47,20 @@ export async function resolveDenoRuntime (
   }
   const version = npmResolution.manifest.version
   const res = await ctx.fetchFromRegistry(`https://api.github.com/repos/denoland/deno/releases/tags/v${version}`)
-  const data = (await res.json()) as { assets: Array<{ name: string }> }
+  const data = (await res.json()) as { assets: Array<{ name: string, browser_download_url: string }> }
   const assets: PlatformAssetResolution[] = []
   await Promise.all(data.assets.map(async (asset) => {
     const targets = parseAssetName(asset.name)
     if (!targets) return
-    const sha256sumFileUrl = `https://github.com/denoland/deno/releases/download/v${version}/${asset.name}`
-    const sha256sumFile = await (await ctx.fetchFromRegistry(sha256sumFileUrl)).text()
-    const sha256 = asset.name.includes('windows') ? parseSha256ForWindows(sha256sumFile) : sha256sumFile.trim().split(/\s+/)[0]
-    const buffer = Buffer.from(sha256, 'hex')
-    const base64 = buffer.toString('base64')
+    const sha256 = await fetchSha256(ctx.fetchFromRegistry, asset.browser_download_url)
+    const base64 = Buffer.from(sha256, 'hex').toString('base64')
     assets.push({
       targets,
       resolution: {
         type: 'binary',
-        url: sha256sumFileUrl.replace(/\.sha256sum$/, ''),
+        url: asset.browser_download_url.replace(/\.sha256sum$/, ''),
         integrity: `sha256-${base64}`,
-        bin: asset.name.includes('windows') ? 'deno.exe' : 'deno',
+        bin: getDenoBinLocationForCurrentOS(targets[0].os),
         archive: 'zip',
       },
     })
@@ -85,7 +82,7 @@ export async function resolveDenoRuntime (
 
 function parseAssetName (name: string): PlatformAssetTarget[] | null {
   const m = ASSET_REGEX.exec(name)
-  if (!m || !m.groups) return null
+  if (!m?.groups) return null
   const os = OS_MAP[m.groups.os as keyof typeof OS_MAP]
   const cpu = CPU_MAP[m.groups.cpu as keyof typeof CPU_MAP]
   const targets = [{ os, cpu }]
@@ -95,11 +92,15 @@ function parseAssetName (name: string): PlatformAssetTarget[] | null {
   return targets
 }
 
-function parseSha256ForWindows (block: string): string {
-  // ^ start of line, “Hash”, colon, 64 hex chars
-  const match = block.match(/^\s*Hash\s*:\s*([A-Fa-f0-9]{64})\b/m)
-  if (!match) {
-    throw new Error('Hash not found')
+async function fetchSha256 (fetch: FetchFromRegistry, url: string): Promise<string> {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new PnpmError('DENO_GITHUB_FAILURE', `Failed to GET sha256 at ${url}`)
   }
-  return match[1].toLowerCase()
+  const txt = await response.text()
+  const m = txt.match(/([a-f0-9]{64})/i)
+  if (!m) {
+    throw new PnpmError('DENO_PARSE_HASH', `No SHA256 in ${url}`)
+  }
+  return m[1].toLowerCase()
 }

@@ -80,7 +80,7 @@ async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: stri
     const resolution: BinaryResolution = {
       type: 'binary',
       archive: address.extname === '.zip' ? 'zip' : 'tarball',
-      bin: platform === 'win32' ? 'node.exe' : 'bin/node',
+      bin: getNodeBinLocationForCurrentOS(platform),
       integrity,
       url,
     }
