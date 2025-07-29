@@ -9,5 +9,13 @@ export function configGet (opts: ConfigCommandOptions, key: string): { output: s
     return { output: '', exitCode: exitCode ?? 0 }
   }
   const config = opts.rawConfig[kebabCase(key)]
-  return { output: Array.isArray(config) ? config.join(',') : String(config), exitCode: 0 }
+  let output: string
+  if (Array.isArray(config)) {
+    output = config.join(',')
+  } else if (typeof config === 'object' && config !== null) {
+    output = JSON.stringify(config)
+  } else {
+    output = String(config)
+  }
+  return { output, exitCode: 0 }
 }

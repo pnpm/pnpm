@@ -59,6 +59,22 @@ test('config get on array should return a comma-separated list', async () => {
   expect(typeof getResult === 'object' && 'output' in getResult && getResult.output).toBe('*eslint*,*prettier*')
 })
 
+test('config get on object should return a JSON string', async () => {
+  const getResult = await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    rawConfig: {
+      'catalog': {
+        'react': '^19.0.0',
+      },
+    },
+  }, ['get', 'catalog'])
+
+  expect(typeof getResult === 'object' && 'output' in getResult && JSON.parse(getResult.output)).toStrictEqual({ react: '^19.0.0' })
+})
+
 test('config get without key show list all settings ', async () => {
   const rawConfig = {
     'store-dir': '~/store',
