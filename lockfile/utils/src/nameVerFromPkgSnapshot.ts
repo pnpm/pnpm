@@ -17,7 +17,7 @@ export function nameVerFromPkgSnapshot (
   return {
     name: pkgInfo.name as string,
     peerDepGraphHash: pkgInfo.peerDepGraphHash,
-    version: pkgSnapshot.version ?? pkgInfo.version as string ?? ('type' in pkgSnapshot.resolution && pkgSnapshot.resolution.type?.endsWith('Runtime') ? depPath.replace(/^(?:node|deno)@runtime:/, '') : undefined),
+    version: pkgSnapshot.version ?? pkgInfo.version as string ?? undefined,
     nonSemverVersion: pkgInfo.nonSemverVersion,
   }
 }

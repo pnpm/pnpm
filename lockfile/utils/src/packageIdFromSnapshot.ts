@@ -7,8 +7,5 @@ export function packageIdFromSnapshot (
   pkgSnapshot: PackageSnapshot
 ): PkgId {
   if (pkgSnapshot.id) return pkgSnapshot.id as PkgId
-  if (depPath.startsWith('node@runtime:') || depPath.startsWith('deno@runtime:')) {
-    return depPath as unknown as PkgId
-  }
   return dp.tryGetPackageId(depPath) ?? depPath
 }

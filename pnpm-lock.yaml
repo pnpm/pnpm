@@ -2067,9 +2067,6 @@ importers:
 
   env/node.fetcher:
     dependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../packages/constants
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
@@ -2079,9 +2076,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fetcher-base':
-        specifier: workspace:*
-        version: link:../../fetching/fetcher-base
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
@@ -2094,15 +2088,9 @@ importers:
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../../fetching/tarball-fetcher
-      '@pnpm/worker':
-        specifier: workspace:*
-        version: link:../../worker
       detect-libc:
         specifier: 'catalog:'
         version: 2.0.3
-      rename-overwrite:
-        specifier: 'catalog:'
-        version: 6.0.2
     devDependencies:
       '@pnpm/cafs-types':
         specifier: workspace:*
@@ -2116,9 +2104,6 @@ importers:
       '@types/adm-zip':
         specifier: 'catalog:'
         version: 0.5.7
-      '@types/ssri':
-        specifier: 'catalog:'
-        version: 7.1.5
       adm-zip:
         specifier: 'catalog:'
         version: 0.5.16
@@ -2143,9 +2128,6 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
-      '@pnpm/node.resolver':
-        specifier: workspace:*
-        version: 'link:'
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
@@ -2162,6 +2144,9 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/node.resolver':
+        specifier: workspace:*
+        version: 'link:'
       '@types/semver':
         specifier: 'catalog:'
         version: 7.5.3

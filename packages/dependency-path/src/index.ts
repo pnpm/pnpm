@@ -80,7 +80,12 @@ export function tryGetPackageId (relDepPath: DepPath): PkgId {
     pkgId = pkgId.substring(0, sepIndex)
   }
   if (pkgId.includes(':')) {
-    pkgId = pkgId.substring(pkgId.indexOf('@', 1) + 1)
+    const newPkgId = pkgId.substring(pkgId.indexOf('@', 1) + 1)
+    // TODO: change the format of package ID to always start with the package name.
+    // not only in the case of "runtime:"
+    if (!newPkgId.startsWith('runtime:')) {
+      pkgId = newPkgId
+    }
   }
   return pkgId as PkgId
 }

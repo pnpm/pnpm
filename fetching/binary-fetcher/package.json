@@ -4,9 +4,7 @@
   "description": "A fetcher for binary archives",
   "keywords": [
     "pnpm",
-    "pnpm10",
-    "env",
-    "node.js"
+    "pnpm10"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",

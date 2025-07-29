@@ -19,16 +19,10 @@
       "path": "../../fetching/binary-fetcher"
     },
     {
-      "path": "../../fetching/fetcher-base"
-    },
-    {
       "path": "../../fetching/tarball-fetcher"
     },
     {
       "path": "../../network/fetching-types"
-    },
-    {
-      "path": "../../packages/constants"
     },
     {
       "path": "../../packages/error"
@@ -38,9 +32,6 @@
     },
     {
       "path": "../../store/create-cafs-store"
-    },
-    {
-      "path": "../../worker"
     },
     {
       "path": "../node.resolver"

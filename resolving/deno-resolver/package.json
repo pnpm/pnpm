@@ -5,8 +5,8 @@
   "keywords": [
     "pnpm",
     "pnpm10",
-    "env",
-    "node.js"
+    "deno",
+    "runtime"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
