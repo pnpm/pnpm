@@ -23,6 +23,7 @@ export interface BinaryResolution {
   url: string
   integrity: string
   bin: string
+  prefix?: string
 }
 
 /**

@@ -140,6 +140,7 @@ const RESOLUTIONS = [
       url: 'https://nodejs.org/download/release/v22.0.0/node-v22.0.0-win-arm64.zip',
       integrity: 'sha256-N2Ehz0a9PAJcXmetrhkK/14l0zoLWPvA2GUtczULOPA=',
       bin: 'node.exe',
+      prefix: 'node-v22.0.0-win-arm64',
     },
   },
   {
@@ -155,6 +156,7 @@ const RESOLUTIONS = [
       url: 'https://nodejs.org/download/release/v22.0.0/node-v22.0.0-win-x64.zip',
       integrity: 'sha256-MtY5tH1MCmUf+PjX1BpFQWij1ARb43mF+agQz4zvYXQ=',
       bin: 'node.exe',
+      prefix: 'node-v22.0.0-win-x64',
     },
   },
   {
@@ -170,6 +172,7 @@ const RESOLUTIONS = [
       url: 'https://nodejs.org/download/release/v22.0.0/node-v22.0.0-win-x86.zip',
       integrity: 'sha256-4BNPUBcVSjN2csf7zRVOKyx3S0MQkRhWAZINY9DEt9A=',
       bin: 'node.exe',
+      prefix: 'node-v22.0.0-win-x86',
     },
   },
 ]

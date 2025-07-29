@@ -2,7 +2,7 @@ import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
-import { type WantedDependency, type ResolveResult, type PlatformAssetResolution } from '@pnpm/resolver-base'
+import { type WantedDependency, type ResolveResult, type PlatformAssetResolution, type BinaryResolution } from '@pnpm/resolver-base'
 import semver from 'semver'
 import versionSelectorType from 'version-selector-type'
 import { type PkgResolutionId } from '@pnpm/types'
@@ -77,18 +77,22 @@ async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: str
       arch,
     })
     const url = `${address.dirname}/${address.basename}${address.extname}`
+    const resolution: BinaryResolution = {
+      type: 'binary',
+      archive: address.extname === '.zip' ? 'zip' : 'tarball',
+      bin: platform === 'win32' ? 'node.exe' : 'bin/node',
+      integrity,
+      url,
+    }
+    if (resolution.archive === 'zip') {
+      resolution.prefix = address.basename
+    }
     assets.push({
       targets: [{
         os: platform,
         cpu: arch,
       }],
-      resolution: {
-        type: 'binary',
-        archive: address.extname === '.zip' ? 'zip' : 'tarball',
-        bin: platform === 'win32' ? 'node.exe' : 'bin/node',
-        integrity,
-        url,
-      },
+      resolution,
     })
   }
 

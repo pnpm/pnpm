@@ -40,7 +40,7 @@ export function createBinaryFetcher (ctx: {
       await downloadAndUnpackZip(ctx.fetch, {
         url: resolution.url,
         integrity: resolution.integrity,
-        basename: '',
+        basename: resolution.prefix ?? '',
       }, tempLocation)
       return {
         ...await addFilesFromDir({
