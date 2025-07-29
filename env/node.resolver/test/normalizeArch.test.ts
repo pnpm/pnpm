@@ -1,4 +1,4 @@
-import { getNormalizedArch } from '../src/normalizeArch'
+import { getNormalizedArch } from '../lib/normalizeArch'
 
 test.each([
   ['win32', 'ia32', 'x86'],

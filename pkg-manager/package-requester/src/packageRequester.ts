@@ -332,6 +332,12 @@ interface FetchLock {
   fetchRawManifest?: boolean
 }
 
+interface GetFilesIndexFilePathResult {
+  target: string
+  filesIndexFile: string
+  resolution: Resolution
+}
+
 function getFilesIndexFilePath (
   ctx: {
     getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
@@ -339,26 +345,31 @@ function getFilesIndexFilePath (
     virtualStoreDirMaxLength: number
   },
   opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>
-) {
+): GetFilesIndexFilePathResult {
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
   if ((opts.pkg.resolution as TarballResolution).integrity) {
     return {
       target,
       filesIndexFile: ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
+      resolution: opts.pkg.resolution as Resolution,
     }
   }
+  let resolution!: Resolution
   if (Array.isArray(opts.pkg.resolution)) {
     const resolution = findResolution(opts.pkg.resolution)
     if (resolution && (resolution as TarballResolution).integrity) {
       return {
         target,
         filesIndexFile: ctx.getIndexFilePathInCafs((resolution as TarballResolution).integrity!, opts.pkg.id),
+        resolution,
       }
     }
+  } else {
+    resolution = opts.pkg.resolution
   }
   const filesIndexFile = path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
-  return { filesIndexFile, target }
+  return { filesIndexFile, target, resolution }
 }
 
 function findResolution (resolutionVariants: PlatformAssetResolution[]): Resolution {
@@ -404,9 +415,9 @@ function fetchToStore (
 
   if (!ctx.fetchingLocker.has(opts.pkg.id)) {
     const fetching = pDefer<PkgRequestFetchResult>()
-    const { filesIndexFile, target } = getFilesIndexFilePath(ctx, opts)
+    const { filesIndexFile, target, resolution } = getFilesIndexFilePath(ctx, opts)
 
-    doFetchToStore(filesIndexFile, fetching, target) // eslint-disable-line
+    doFetchToStore(filesIndexFile, fetching, target, resolution) // eslint-disable-line
 
     ctx.fetchingLocker.set(opts.pkg.id, {
       fetching: removeKeyOnFail(fetching.promise),
@@ -502,9 +513,9 @@ function fetchToStore (
   async function doFetchToStore (
     filesIndexFile: string,
     fetching: pDefer.DeferredPromise<PkgRequestFetchResult>,
-    target: string
+    target: string,
+    resolution: Resolution
   ) {
-    const resolution = Array.isArray(opts.pkg.resolution) ? findResolution(opts.pkg.resolution) : opts.pkg.resolution
     try {
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
       const isLocalPkg = resolution.type === 'directory'

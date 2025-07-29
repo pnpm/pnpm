@@ -69,20 +69,20 @@ export interface AssetInfo {
  * Downloads and unpacks a zip file containing Node.js.
  *
  * @param fetchFromRegistry - Function to fetch resources from registry
- * @param artifactInfo - Information about the Node.js artifact
+ * @param assetInfo - Information about the Node.js asset
  * @param targetDir - Directory where Node.js should be installed
  * @throws {PnpmError} When integrity verification fails or extraction fails
  */
 export async function downloadAndUnpackZip (
   fetchFromRegistry: FetchFromRegistry,
-  artifactInfo: AssetInfo,
+  assetInfo: AssetInfo,
   targetDir: string
 ): Promise<void> {
   const tmp = path.join(tempy.directory(), 'pnpm.zip')
 
   try {
-    await downloadWithIntegrityCheck(fetchFromRegistry, artifactInfo, tmp)
-    await extractZipToTarget(tmp, artifactInfo.basename, targetDir)
+    await downloadWithIntegrityCheck(fetchFromRegistry, assetInfo, tmp)
+    await extractZipToTarget(tmp, assetInfo.basename, targetDir)
   } finally {
     // Clean up temporary file
     try {
