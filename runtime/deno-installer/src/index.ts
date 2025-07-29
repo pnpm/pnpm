@@ -34,7 +34,7 @@ export async function resolveDenoRuntime (
   const version = npmResolution.manifest.version
   const res = await ctx.fetchFromRegistry(`https://api.github.com/repos/denoland/deno/releases/tags/v${version}`)
   const data = (await res.json()) as { assets: Array<{ name: string }> }
-  const artifacts: PlatformAssetResolution[] = []
+  const assets: PlatformAssetResolution[] = []
   await Promise.all(data.assets.map(async (asset) => {
     let targets: PlatformAssetTarget[] | undefined
     switch (asset.name) {
@@ -78,7 +78,7 @@ export async function resolveDenoRuntime (
     const sha256 = asset.name.includes('windows') ? parseSha256ForWindows(sha256sumFile) : sha256sumFile.trim().split(/\s+/)[0]
     const buffer = Buffer.from(sha256, 'hex')
     const base64 = buffer.toString('base64')
-    artifacts.push({
+    assets.push({
       targets,
       resolution: {
         type: 'binary',
@@ -89,7 +89,7 @@ export async function resolveDenoRuntime (
       },
     })
   }))
-  artifacts.sort((artifact1, artifact2) => lexCompare((artifact1.resolution as BinaryResolution).url, (artifact2.resolution as BinaryResolution).url))
+  assets.sort((asset1, asset2) => lexCompare((asset1.resolution as BinaryResolution).url, (asset2.resolution as BinaryResolution).url))
 
   return {
     id: `deno@runtime:${version}` as PkgResolutionId,
@@ -100,7 +100,7 @@ export async function resolveDenoRuntime (
       version,
       bin: getDenoBinLocationForCurrentOS(),
     },
-    resolution: artifacts,
+    resolution: assets,
   }
 }
 

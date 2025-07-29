@@ -17,7 +17,7 @@ export function createBinaryFetcher (ctx: {
 }): { binary: BinaryFetcher } {
   const fetchBinary: BinaryFetcher = async (cafs, resolution, opts) => {
     if (ctx.offline) {
-      throw new PnpmError('CANNOT_DOWNLOAD_DENO_OFFLINE', 'Cannot download Deno because offline mode is enabled.')
+      throw new PnpmError('CANNOT_DOWNLOAD_BINARY_OFFLINE', `Cannot download binary "${resolution.url}" because offline mode is enabled.`)
     }
     const version = opts.pkg.version!
     const manifest = {
