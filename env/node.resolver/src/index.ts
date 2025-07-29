@@ -35,9 +35,10 @@ export async function resolveNodeRuntime (
     throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
   }
   const assets = await loadShasumsFile(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
+  const range = version === versionSpec ? version : `^${version}`
   return {
     id: `node@runtime:${version}` as PkgResolutionId,
-    normalizedBareSpecifier: `runtime:${versionSpec}`,
+    normalizedBareSpecifier: `runtime:${range}`,
     resolvedVia: 'nodejs.org',
     manifest: {
       name: 'node',
