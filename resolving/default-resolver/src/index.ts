@@ -3,7 +3,7 @@ import { type FetchFromRegistry, type GetAuthHeader } from '@pnpm/fetching-types
 import { type GitResolveResult, createGitResolver } from '@pnpm/git-resolver'
 import { type LocalResolveResult, resolveFromLocal } from '@pnpm/local-resolver'
 import { resolveNodeRuntime, type NodeRuntimeResolveResult } from '@pnpm/node.resolver'
-import { resolveDenoRuntime, type DenoRuntimeResolveResult } from '@pnpm/runtime.deno-installer'
+import { resolveDenoRuntime, type DenoRuntimeResolveResult } from '@pnpm/resolving.deno-resolver'
 import {
   createNpmResolver,
   type JsrResolveResult,

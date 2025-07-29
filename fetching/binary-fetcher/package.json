@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/fetching.binary-fetcher",
   "version": "1000.0.0-0",
-  "description": "A fetcher for zip files",
+  "description": "A fetcher for binary archives",
   "keywords": [
     "pnpm",
     "pnpm10",

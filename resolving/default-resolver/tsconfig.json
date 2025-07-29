@@ -22,7 +22,7 @@
       "path": "../../packages/error"
     },
     {
-      "path": "../../runtime/deno-installer"
+      "path": "../deno-resolver"
     },
     {
       "path": "../git-resolver"

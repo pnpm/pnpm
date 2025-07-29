@@ -40,7 +40,7 @@
     "@pnpm/node.resolver": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
-    "@pnpm/runtime.deno-installer": "workspace:*",
+    "@pnpm/resolving.deno-resolver": "workspace:*",
     "@pnpm/tarball-resolver": "workspace:*"
   },
   "devDependencies": {

@@ -31,13 +31,13 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../resolving/npm-resolver"
-    },
-    {
-      "path": "../../resolving/resolver-base"
-    },
-    {
       "path": "../../worker"
+    },
+    {
+      "path": "../npm-resolver"
+    },
+    {
+      "path": "../resolver-base"
     }
   ]
 }

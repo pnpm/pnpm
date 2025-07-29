@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/runtime.deno-installer",
+  "name": "@pnpm/resolving.deno-resolver",
   "version": "1000.0.0-0",
-  "description": "Installs the Deno runtime",
+  "description": "Resolves the Deno runtime",
   "keywords": [
     "pnpm",
     "pnpm10",
@@ -10,8 +10,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/runtime/deno-installer",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/runtime/deno-installer#readme",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/deno-resolver",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/deno-resolver#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -46,7 +46,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/runtime.deno-installer": "workspace:*",
+    "@pnpm/resolving.deno-resolver": "workspace:*",
     "@types/semver": "catalog:"
   },
   "engines": {

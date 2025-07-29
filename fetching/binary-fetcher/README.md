@@ -1,5 +1,7 @@
 # @pnpm/fetching.binary-fetcher
 
+> A fetcher for binary archives
+
 ## Installation
 
 ```
