@@ -358,8 +358,8 @@ function getFilesIndexFilePath (
   }
   let resolution!: SingleResolution
   if (Array.isArray(opts.pkg.resolution)) {
-    const resolution = findResolution(opts.pkg.resolution)
-    if (resolution && (resolution as TarballResolution).integrity) {
+    resolution = findResolution(opts.pkg.resolution)
+    if ((resolution as TarballResolution).integrity) {
       return {
         target,
         filesIndexFile: ctx.getIndexFilePathInCafs((resolution as TarballResolution).integrity!, opts.pkg.id),
@@ -377,7 +377,8 @@ function findResolution (resolutionVariants: PlatformAssetResolution[]): SingleR
   const resolutionVariant = resolutionVariants
     .find((resolutionVariant) => resolutionVariant.targets.some((target) => target.os === process.platform && target.cpu === process.arch))
   if (!resolutionVariant) {
-    throw new PnpmError('NO_RESOLUTION_MATCHED', `Cannot find a resolution variant for the current platform in these resolutions: ${JSON.stringify(resolutionVariants)}`)
+    const resolutionTargets = resolutionVariants.map((variant) => variant.targets)
+    throw new PnpmError('NO_RESOLUTION_MATCHED', `Cannot find a resolution variant for the current platform in these resolutions: ${JSON.stringify(resolutionTargets)}`)
   }
   return resolutionVariant.resolution
 }
