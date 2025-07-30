@@ -1014,6 +1014,74 @@ test('catalogs work when inject-workspace-packages=true', async () => {
   })
 })
 
+describe('dedupe', () => {
+  test('catalogs are deduped when running pnpm dedupe', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+      {
+        name: 'project1',
+        dependencies: {
+          '@pnpm.e2e/foo': 'catalog:',
+        },
+      },
+      {
+        name: 'project2',
+      },
+    ])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '100.0.0' },
+    }
+
+    await mutateModules(installProjects(projects), {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    })
+
+    // Add a ^ to the existing 100.0.0 specifier. Despite higher versions
+    // published to the registry mock, pnpm should prefer the existing 100.0.0
+    // specifier in the lockfile.
+    catalogs.default['@pnpm.e2e/foo'] = '^100.0.0'
+
+    await mutateModules(installProjects(projects), {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    })
+
+    // Check that our testing state is set up correctly and that the addition of
+    // ^ above didn't accidentally upgrade.
+    expect(Object.keys(readLockfile().packages)).toEqual(['@pnpm.e2e/foo@100.0.0'])
+
+    projects['project2' as ProjectId].dependencies = {
+      '@pnpm.e2e/foo': '100.1.0',
+    }
+
+    await mutateModules(installProjects(projects), {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    })
+
+    // Due to project2 directly adding a new dependency on @pnpm.e2e/foo version
+    // 100.1.0, both versions should now exist in the lockfile.
+    const lockfile = readLockfile()
+    expect(Object.keys(lockfile.packages)).toEqual(['@pnpm.e2e/foo@100.0.0', '@pnpm.e2e/foo@100.1.0'])
+    expect(lockfile.catalogs.default['@pnpm.e2e/foo'].version).toBe('100.0.0')
+
+    // Perform a dedupe and expect the catalog version to update.
+    await mutateModules(installProjects(projects), {
+      ...options,
+      dedupe: true,
+      lockfileOnly: true,
+      catalogs,
+    })
+    const dedupedLockfile = readLockfile()
+    expect(Object.keys(dedupedLockfile.packages)).toEqual(['@pnpm.e2e/foo@100.1.0'])
+    expect(dedupedLockfile.catalogs.default['@pnpm.e2e/foo'].version).toBe('100.1.0')
+  })
+})
+
 describe('add', () => {
   test('adding is-positive@catalog: works', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
