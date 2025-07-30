@@ -24,7 +24,6 @@ import {
   type Resolution,
   type WorkspacePackages,
   type PkgResolutionId,
-  type PlatformAssetResolution,
 } from '@pnpm/resolver-base'
 import {
   type PkgRequestFetchResult,
@@ -223,7 +222,7 @@ export type PeerDependencies = Record<string, PeerDependency>
 export interface ResolvedPackage {
   id: PkgResolutionId
   isLeaf: boolean
-  resolution: Resolution | PlatformAssetResolution[]
+  resolution: Resolution
   prod: boolean
   dev: boolean
   optional: boolean
@@ -1139,7 +1138,7 @@ type InfoFromLockfile = {
   dependencyLockfile?: PackageSnapshot
   name?: string
   version?: string
-  resolution?: Resolution | PlatformAssetResolution[]
+  resolution?: Resolution
 } & ({
   dependencyLockfile: PackageSnapshot
   name: string
@@ -1206,7 +1205,7 @@ interface ResolveDependencyOptions {
     name?: string
     version?: string
     pkgId?: PkgResolutionId
-    resolution?: Resolution | PlatformAssetResolution[]
+    resolution?: Resolution
     dependencyLockfile?: PackageSnapshot
   }
   preferredVersion?: string

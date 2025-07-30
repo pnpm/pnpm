@@ -1,5 +1,5 @@
 import url from 'url'
-import { type PlatformAssetResolution, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.types'
+import { type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile.types'
 import { type Resolution } from '@pnpm/resolver-base'
 import { type Registries } from '@pnpm/types'
 import getNpmTarballUrl from 'get-npm-tarball-url'
@@ -10,7 +10,7 @@ export function pkgSnapshotToResolution (
   depPath: string,
   pkgSnapshot: PackageSnapshot,
   registries: Registries
-): Resolution | PlatformAssetResolution[] {
+): Resolution {
   if (
     Boolean((pkgSnapshot.resolution as TarballResolution).type) ||
     (pkgSnapshot.resolution as TarballResolution).tarball?.startsWith('file:') ||

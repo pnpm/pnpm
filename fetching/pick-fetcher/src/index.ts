@@ -1,7 +1,7 @@
-import type { Resolution } from '@pnpm/resolver-base'
+import type { SingleResolution } from '@pnpm/resolver-base'
 import type { Fetchers, FetchFunction, DirectoryFetcher, GitFetcher, BinaryFetcher } from '@pnpm/fetcher-base'
 
-export function pickFetcher (fetcherByHostingType: Partial<Fetchers>, resolution: Resolution): FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher {
+export function pickFetcher (fetcherByHostingType: Partial<Fetchers>, resolution: SingleResolution): FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher {
   let fetcherType: keyof Fetchers | undefined = resolution.type
 
   if (resolution.type == null) {

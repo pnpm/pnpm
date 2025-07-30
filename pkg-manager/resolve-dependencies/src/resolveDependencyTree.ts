@@ -3,7 +3,7 @@ import { type Catalogs } from '@pnpm/catalogs.types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
 import { type PatchGroupRecord } from '@pnpm/patching.config'
-import { type PlatformAssetResolution, type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
+import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
 import {
   type SupportedArchitectures,
@@ -50,7 +50,7 @@ export interface ResolvedDirectDependency {
   alias: string
   optional: boolean
   dev: boolean
-  resolution: Resolution | PlatformAssetResolution[]
+  resolution: Resolution
   pkgId: PkgResolutionId
   version: string
   name: string

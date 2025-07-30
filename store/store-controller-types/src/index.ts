@@ -5,7 +5,6 @@ import {
   type Resolution,
   type WantedDependency,
   type WorkspacePackages,
-  type PlatformAssetResolution,
 } from '@pnpm/resolver-base'
 import {
   type ImportPackageFunction,
@@ -91,7 +90,7 @@ export interface FetchPackageToStoreOptions {
   lockfileDir: string
   pkg: PkgNameVersion & {
     id: string
-    resolution: Resolution | PlatformAssetResolution[]
+    resolution: Resolution
   }
   onFetchError?: OnFetchError
 }
@@ -108,7 +107,7 @@ export interface RequestPackageOptions {
   currentPkg?: {
     id?: PkgResolutionId
     name?: string
-    resolution?: Resolution | PlatformAssetResolution[]
+    resolution?: Resolution
     version?: string
   }
   /**
@@ -144,7 +143,7 @@ export interface PackageResponse {
   body: {
     isLocal: boolean
     isInstallable?: boolean
-    resolution: Resolution | PlatformAssetResolution[]
+    resolution: Resolution
     manifest?: PackageManifest
     id: PkgResolutionId
     normalizedBareSpecifier?: string

@@ -28,6 +28,7 @@ import {
   type ResolveFunction,
   type ResolveResult,
   type TarballResolution,
+  type SingleResolution,
 } from '@pnpm/resolver-base'
 import {
   type BundledManifest,
@@ -166,7 +167,7 @@ async function resolveAndFetch (
   let manifest: DependencyManifest | undefined
   let normalizedBareSpecifier: string | undefined
   let alias: string | undefined
-  let resolution = options.currentPkg?.resolution as Resolution | PlatformAssetResolution[]
+  let resolution = options.currentPkg?.resolution as Resolution
   let pkgId = options.currentPkg?.id
   const skipResolution = resolution && !options.update
   let forceFetch = false
@@ -335,7 +336,7 @@ interface FetchLock {
 interface GetFilesIndexFilePathResult {
   target: string
   filesIndexFile: string
-  resolution: Resolution
+  resolution: SingleResolution
 }
 
 function getFilesIndexFilePath (
@@ -352,10 +353,10 @@ function getFilesIndexFilePath (
     return {
       target,
       filesIndexFile: ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
-      resolution: opts.pkg.resolution as Resolution,
+      resolution: opts.pkg.resolution as SingleResolution,
     }
   }
-  let resolution!: Resolution
+  let resolution!: SingleResolution
   if (Array.isArray(opts.pkg.resolution)) {
     const resolution = findResolution(opts.pkg.resolution)
     if (resolution && (resolution as TarballResolution).integrity) {
@@ -372,11 +373,11 @@ function getFilesIndexFilePath (
   return { filesIndexFile, target, resolution }
 }
 
-function findResolution (resolutionVariants: PlatformAssetResolution[]): Resolution {
+function findResolution (resolutionVariants: PlatformAssetResolution[]): SingleResolution {
   const resolutionVariant = resolutionVariants
     .find((resolutionVariant) => resolutionVariant.targets.some((target) => target.os === process.platform && target.cpu === process.arch))
   if (!resolutionVariant) {
-    throw new Error(`Cannot find a resolution variant for the current platform in these resolutions: ${JSON.stringify(resolutionVariants)}`)
+    throw new PnpmError('NO_RESOLUTION_MATCHED', `Cannot find a resolution variant for the current platform in these resolutions: ${JSON.stringify(resolutionVariants)}`)
   }
   return resolutionVariant.resolution
 }
@@ -389,7 +390,7 @@ function fetchToStore (
     ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
     fetch: (
       packageId: string,
-      resolution: Resolution,
+      resolution: SingleResolution,
       opts: FetchOptions
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
@@ -514,7 +515,7 @@ function fetchToStore (
     filesIndexFile: string,
     fetching: pDefer.DeferredPromise<PkgRequestFetchResult>,
     target: string,
-    resolution: Resolution
+    resolution: SingleResolution
   ) {
     try {
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
@@ -670,7 +671,7 @@ async function fetcher (
   fetcherByHostingType: Fetchers,
   cafs: Cafs,
   packageId: string,
-  resolution: Resolution,
+  resolution: SingleResolution,
   opts: FetchOptions
 ): Promise<FetchResult> {
   const fetch = pickFetcher(fetcherByHostingType, resolution)

@@ -5,7 +5,7 @@ import {
   type PackageSnapshot,
   pruneSharedLockfile,
 } from '@pnpm/lockfile.pruner'
-import { type Resolution } from '@pnpm/resolver-base'
+import { type SingleResolution } from '@pnpm/resolver-base'
 import { type DepPath, type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
@@ -184,7 +184,7 @@ function toLockfileResolution (
     name: string
     version: string
   },
-  resolution: Resolution,
+  resolution: SingleResolution,
   registry: string,
   lockfileIncludeTarballUrl?: boolean
 ): LockfileResolution {
