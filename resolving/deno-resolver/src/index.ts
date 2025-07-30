@@ -44,7 +44,7 @@ export async function resolveDenoRuntime (
   // which uses pagination (e.g. https://api.github.com/repos/denoland/deno/releases?per_page=100).
   const npmResolution = await ctx.resolveFromNpm({ ...wantedDependency, bareSpecifier: versionSpec }, {})
   if (npmResolution == null) {
-    throw new PnpmError('DENO_RESOLUTION_FAILURE', `Could not resolve Deno ${wantedDependency.bareSpecifier}`)
+    throw new PnpmError('DENO_RESOLUTION_FAILURE', `Could not resolve Deno version specified as ${versionSpec}`)
   }
   const version = npmResolution.manifest.version
   const res = await ctx.fetchFromRegistry(`https://api.github.com/repos/denoland/deno/releases/tags/v${version}`)
