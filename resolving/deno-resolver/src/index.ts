@@ -91,6 +91,7 @@ function parseAssetName (name: string): PlatformAssetTarget[] | null {
   const cpu = CPU_MAP[m.groups.cpu as keyof typeof CPU_MAP]
   const targets = [{ os, cpu }]
   if (os === 'win32' && cpu === 'x64') {
+    // The Windows x64 binaries of Deno are compatible with arm64 architecture.
     targets.push({ os: 'win32', cpu: 'arm64' })
   }
   return targets

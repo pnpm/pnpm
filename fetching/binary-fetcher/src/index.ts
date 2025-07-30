@@ -66,11 +66,11 @@ export interface AssetInfo {
 }
 
 /**
- * Downloads and unpacks a zip file containing Node.js.
+ * Downloads and unpacks a zip file containing a binary asset.
  *
  * @param fetchFromRegistry - Function to fetch resources from registry
- * @param assetInfo - Information about the Node.js asset
- * @param targetDir - Directory where Node.js should be installed
+ * @param assetInfo - Information about the binary asset
+ * @param targetDir - Directory where the binary asset should be installed
  * @throws {PnpmError} When integrity verification fails or extraction fails
  */
 export async function downloadAndUnpackZip (
