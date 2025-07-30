@@ -120,7 +120,7 @@ catalog:
   '@zkochan/rimraf': ^3.0.2
   '@zkochan/table': ^2.0.1
   dint: ^5.1.0
-  js-yaml: npm:@zkochan/js-yaml@0.0.7
+  js-yaml: npm:@zkochan/js-yaml@0.0.8
   adm-zip: ^0.5.16
   ansi-diff: ^1.2.0
   archy: ^1.0.0
