@@ -10,31 +10,34 @@
   ],
   "references": [
     {
-      "path": "../../__utils__/prepare"
-    },
-    {
-      "path": "../../crypto/shasums-file"
+      "path": "../../env/node.fetcher"
     },
     {
       "path": "../../fetching/binary-fetcher"
     },
     {
-      "path": "../../fetching/tarball-fetcher"
+      "path": "../../fetching/fetcher-base"
     },
     {
       "path": "../../network/fetching-types"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/error"
     },
     {
-      "path": "../../store/cafs-types"
+      "path": "../../packages/types"
     },
     {
-      "path": "../../store/create-cafs-store"
+      "path": "../../worker"
     },
     {
-      "path": "../node.resolver"
+      "path": "../npm-resolver"
+    },
+    {
+      "path": "../resolver-base"
     }
   ]
 }

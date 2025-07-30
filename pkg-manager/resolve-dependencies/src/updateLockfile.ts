@@ -80,7 +80,13 @@ function toLockfileDependency (
   if (opts.depPath.includes(':')) {
     // There is no guarantee that a non-npmjs.org-hosted package is going to have a version field.
     // Also, for local directory dependencies, the version is not needed.
-    if (pkg.version && (!('type' in lockfileResolution) || lockfileResolution.type !== 'directory' && lockfileResolution.type !== 'nodeRuntime')) {
+    if (
+      pkg.version &&
+      (
+        !('type' in lockfileResolution) ||
+        lockfileResolution.type !== 'directory'
+      )
+    ) {
       result['version'] = pkg.version
     }
   }

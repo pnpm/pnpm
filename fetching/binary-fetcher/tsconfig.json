@@ -10,13 +10,16 @@
   ],
   "references": [
     {
-      "path": "../../packages/types"
+      "path": "../../network/fetching-types"
     },
     {
-      "path": "../../patching/types"
+      "path": "../../packages/error"
     },
     {
-      "path": "../../resolving/resolver-base"
+      "path": "../../worker"
+    },
+    {
+      "path": "../fetcher-base"
     }
   ]
 }

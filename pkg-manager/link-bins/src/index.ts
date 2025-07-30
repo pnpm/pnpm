@@ -1,7 +1,7 @@
 import { promises as fs, existsSync } from 'fs'
 import Module from 'module'
 import path from 'path'
-import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
+import { getNodeBinLocationForCurrentOS, getDenoBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { logger, globalWarn } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
@@ -206,10 +206,22 @@ async function getPackageBins (
     : await safeReadPkgJson(target)
 
   if (manifest == null) {
-    if (path.basename(target) === 'node') {
+    // There is a probably a better way to do this.
+    // It isn't good to have these hardcoded here.
+    switch (path.basename(target)) {
+    case 'node':
       return [{
         name: 'node',
         path: path.join(target, getNodeBinLocationForCurrentOS()),
+        ownName: true,
+        pkgName: '',
+        pkgVersion: '',
+        makePowerShellShim: false,
+      }]
+    case 'deno':
+      return [{
+        name: 'deno',
+        path: path.join(target, getDenoBinLocationForCurrentOS()),
         ownName: true,
         pkgName: '',
         pkgVersion: '',
