@@ -57,9 +57,7 @@ export type SingleResolution =
   | GitResolution
   | BinaryResolution
 
-export type Resolution =
-  | SingleResolution
-  | PlatformAssetResolution[]
+export type Resolution = SingleResolution | PlatformAssetResolution[]
 
 export interface ResolveResult {
   id: PkgResolutionId

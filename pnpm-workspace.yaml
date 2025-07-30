@@ -22,7 +22,6 @@ packages:
   - modules-mounter/*
   - object/*
   - packages/*
-  - runtime/*
   - pkg-manager/*
   - pkg-manifest/*
   - patching/*
