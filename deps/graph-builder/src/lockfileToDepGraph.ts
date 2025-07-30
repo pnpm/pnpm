@@ -93,6 +93,15 @@ export interface LockfileToDepGraphResult {
   pkgLocationsByDepPath?: Record<string, string[]>
 }
 
+/**
+ * Generate a dependency graph from lockfiles.
+ *
+ * If a current lockfile is provided, this function only includes new or changed
+ * packages in the graph. In other words, the graph returned will be a set
+ * subtraction of the packages in the wanted lockfile minus the current
+ * lockfile. This behavior can be configured with the `includeUnchangedDeps`
+ * option.
+ */
 export async function lockfileToDepGraph (
   lockfile: LockfileObject,
   currentLockfile: LockfileObject | null,
