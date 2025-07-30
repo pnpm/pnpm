@@ -28,7 +28,7 @@ import {
   type ResolveFunction,
   type ResolveResult,
   type TarballResolution,
-  type SingleResolution,
+  type AtomicResolution,
 } from '@pnpm/resolver-base'
 import {
   type BundledManifest,
@@ -336,7 +336,7 @@ interface FetchLock {
 interface GetFilesIndexFilePathResult {
   target: string
   filesIndexFile: string
-  resolution: SingleResolution
+  resolution: AtomicResolution
 }
 
 function getFilesIndexFilePath (
@@ -353,12 +353,12 @@ function getFilesIndexFilePath (
     return {
       target,
       filesIndexFile: ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
-      resolution: opts.pkg.resolution as SingleResolution,
+      resolution: opts.pkg.resolution as AtomicResolution,
     }
   }
-  let resolution!: SingleResolution
-  if (Array.isArray(opts.pkg.resolution)) {
-    resolution = findResolution(opts.pkg.resolution)
+  let resolution!: AtomicResolution
+  if (opts.pkg.resolution.type === 'variations') {
+    resolution = findResolution(opts.pkg.resolution.variants)
     if ((resolution as TarballResolution).integrity) {
       return {
         target,
@@ -373,7 +373,7 @@ function getFilesIndexFilePath (
   return { filesIndexFile, target, resolution }
 }
 
-function findResolution (resolutionVariants: PlatformAssetResolution[]): SingleResolution {
+function findResolution (resolutionVariants: PlatformAssetResolution[]): AtomicResolution {
   const resolutionVariant = resolutionVariants
     .find((resolutionVariant) => resolutionVariant.targets.some((target) => target.os === process.platform && target.cpu === process.arch))
   if (!resolutionVariant) {
@@ -391,7 +391,7 @@ function fetchToStore (
     ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
     fetch: (
       packageId: string,
-      resolution: SingleResolution,
+      resolution: AtomicResolution,
       opts: FetchOptions
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
@@ -516,7 +516,7 @@ function fetchToStore (
     filesIndexFile: string,
     fetching: pDefer.DeferredPromise<PkgRequestFetchResult>,
     target: string,
-    resolution: SingleResolution
+    resolution: AtomicResolution
   ) {
     try {
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
@@ -672,7 +672,7 @@ async function fetcher (
   fetcherByHostingType: Fetchers,
   cafs: Cafs,
   packageId: string,
-  resolution: SingleResolution,
+  resolution: AtomicResolution,
   opts: FetchOptions
 ): Promise<FetchResult> {
   const fetch = pickFetcher(fetcherByHostingType, resolution)

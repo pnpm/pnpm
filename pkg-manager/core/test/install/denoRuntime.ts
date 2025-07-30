@@ -112,7 +112,10 @@ test('installing Deno runtime', async () => {
     packages: {
       'deno@runtime:2.4.2': {
         hasBin: true,
-        resolution: RESOLUTIONS,
+        resolution: {
+          type: 'variations',
+          variants: RESOLUTIONS,
+        },
         version: '2.4.2',
       },
     },
@@ -153,7 +156,10 @@ test('installing Deno runtime', async () => {
     packages: {
       'deno@runtime:2.4.2': {
         hasBin: true,
-        resolution: RESOLUTIONS,
+        resolution: {
+          type: 'variations',
+          variants: RESOLUTIONS,
+        },
         version: '2.4.2',
       },
       '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
@@ -198,13 +204,16 @@ test('installing Deno runtime fails if integrity check fails', async () => {
     packages: {
       'deno@runtime:2.4.2': {
         hasBin: true,
-        resolution: RESOLUTIONS.map((resolutionVariant) => ({
-          ...resolutionVariant,
-          resolution: {
-            ...resolutionVariant.resolution,
-            integrity: 'sha256-0000000000000000000000000000000000000000000=',
-          },
-        })),
+        resolution: {
+          type: 'variations',
+          variants: RESOLUTIONS.map((resolutionVariant) => ({
+            ...resolutionVariant,
+            resolution: {
+              ...resolutionVariant.resolution,
+              integrity: 'sha256-0000000000000000000000000000000000000000000=',
+            },
+          })),
+        },
         version: '2.4.2',
       },
     },

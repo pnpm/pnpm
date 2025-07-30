@@ -5,7 +5,7 @@ import {
   type PackageSnapshot,
   pruneSharedLockfile,
 } from '@pnpm/lockfile.pruner'
-import { type SingleResolution } from '@pnpm/resolver-base'
+import { type Resolution } from '@pnpm/resolver-base'
 import { type DepPath, type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
@@ -60,14 +60,12 @@ function toLockfileDependency (
     lockfileIncludeTarballUrl?: boolean
   }
 ): PackageSnapshot {
-  const lockfileResolution = Array.isArray(pkg.resolution)
-    ? pkg.resolution
-    : toLockfileResolution(
-      { name: pkg.name, version: pkg.version },
-      pkg.resolution,
-      opts.registry,
-      opts.lockfileIncludeTarballUrl
-    )
+  const lockfileResolution = toLockfileResolution(
+    { name: pkg.name, version: pkg.version },
+    pkg.resolution,
+    opts.registry,
+    opts.lockfileIncludeTarballUrl
+  )
   const newResolvedDeps = updateResolvedDeps(
     opts.updatedDeps,
     opts.depGraph
@@ -184,7 +182,7 @@ function toLockfileResolution (
     name: string
     version: string
   },
-  resolution: SingleResolution,
+  resolution: Resolution,
   registry: string,
   lockfileIncludeTarballUrl?: boolean
 ): LockfileResolution {

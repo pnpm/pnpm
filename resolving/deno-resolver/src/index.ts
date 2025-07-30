@@ -2,11 +2,12 @@ import { getDenoBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import {
-  type WantedDependency,
+  type BinaryResolution,
   type PlatformAssetResolution,
   type PlatformAssetTarget,
   type ResolveResult,
-  type BinaryResolution,
+  type VariationsResolution,
+  type WantedDependency,
 } from '@pnpm/resolver-base'
 import { type PkgResolutionId } from '@pnpm/types'
 import { type NpmResolver } from '@pnpm/npm-resolver'
@@ -24,7 +25,7 @@ const CPU_MAP = {
 } as const
 
 export interface DenoRuntimeResolveResult extends ResolveResult {
-  resolution: PlatformAssetResolution[]
+  resolution: VariationsResolution
   resolvedVia: 'github.com/denoland/deno'
 }
 
@@ -76,7 +77,10 @@ export async function resolveDenoRuntime (
       version,
       bin: getDenoBinLocationForCurrentOS(),
     },
-    resolution: assets,
+    resolution: {
+      type: 'variations',
+      variants: assets,
+    },
   }
 }
 

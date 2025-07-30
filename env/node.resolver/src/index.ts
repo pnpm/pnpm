@@ -2,7 +2,13 @@ import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
-import { type WantedDependency, type ResolveResult, type PlatformAssetResolution, type BinaryResolution } from '@pnpm/resolver-base'
+import {
+  type BinaryResolution,
+  type PlatformAssetResolution,
+  type ResolveResult,
+  type VariationsResolution,
+  type WantedDependency,
+} from '@pnpm/resolver-base'
 import semver from 'semver'
 import versionSelectorType from 'version-selector-type'
 import { type PkgResolutionId } from '@pnpm/types'
@@ -13,7 +19,7 @@ import { getNodeArtifactAddress } from './getNodeArtifactAddress'
 export { getNodeMirror, parseEnvSpecifier, getNodeArtifactAddress }
 
 export interface NodeRuntimeResolveResult extends ResolveResult {
-  resolution: PlatformAssetResolution[]
+  resolution: VariationsResolution
   resolvedVia: 'nodejs.org'
 }
 
@@ -34,7 +40,7 @@ export async function resolveNodeRuntime (
   if (!version) {
     throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
   }
-  const assets = await readNodeAssets(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
+  const variants = await readNodeAssets(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
   const range = version === versionSpec ? version : `^${version}`
   return {
     id: `node@runtime:${version}` as PkgResolutionId,
@@ -45,7 +51,10 @@ export async function resolveNodeRuntime (
       version,
       bin: getNodeBinLocationForCurrentOS(),
     },
-    resolution: assets,
+    resolution: {
+      type: 'variations',
+      variants,
+    },
   }
 }
 

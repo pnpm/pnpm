@@ -47,17 +47,22 @@ export interface PlatformAssetTarget {
 }
 
 export interface PlatformAssetResolution {
-  resolution: SingleResolution
+  resolution: AtomicResolution
   targets: PlatformAssetTarget[]
 }
 
-export type SingleResolution =
+export type AtomicResolution =
   | TarballResolution
   | DirectoryResolution
   | GitResolution
   | BinaryResolution
 
-export type Resolution = SingleResolution | PlatformAssetResolution[]
+export interface VariationsResolution {
+  type: 'variations'
+  variants: PlatformAssetResolution[]
+}
+
+export type Resolution = AtomicResolution | VariationsResolution
 
 export interface ResolveResult {
   id: PkgResolutionId

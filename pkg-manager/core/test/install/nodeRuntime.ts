@@ -201,7 +201,10 @@ test('installing Node.js runtime', async () => {
     packages: {
       'node@runtime:22.0.0': {
         hasBin: true,
-        resolution: RESOLUTIONS,
+        resolution: {
+          type: 'variations',
+          variants: RESOLUTIONS,
+        },
         version: '22.0.0',
       },
     },
@@ -242,7 +245,10 @@ test('installing Node.js runtime', async () => {
     packages: {
       'node@runtime:22.0.0': {
         hasBin: true,
-        resolution: RESOLUTIONS,
+        resolution: {
+          type: 'variations',
+          variants: RESOLUTIONS,
+        },
         version: '22.0.0',
       },
       '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
@@ -294,13 +300,16 @@ test('installing Node.js runtime fails if integrity check fails', async () => {
     packages: {
       'node@runtime:22.0.0': {
         hasBin: true,
-        resolution: RESOLUTIONS.map((resolutionVariant) => ({
-          ...resolutionVariant,
-          resolution: {
-            ...resolutionVariant.resolution,
-            integrity: 'sha256-0000000000000000000000000000000000000000000=',
-          },
-        })),
+        resolution: {
+          type: 'variations',
+          variants: RESOLUTIONS.map((resolutionVariant) => ({
+            ...resolutionVariant,
+            resolution: {
+              ...resolutionVariant.resolution,
+              integrity: 'sha256-0000000000000000000000000000000000000000000=',
+            },
+          })),
+        },
         version: '22.0.0',
       },
     },

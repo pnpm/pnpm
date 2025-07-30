@@ -18,7 +18,6 @@ export function pkgSnapshotToResolution (
   ) {
     return pkgSnapshot.resolution as Resolution
   }
-  if (Array.isArray(pkgSnapshot.resolution)) return pkgSnapshot.resolution
   const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
   let registry: string = ''
   if (name != null) {

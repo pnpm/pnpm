@@ -129,7 +129,12 @@ export type Resolution =
   DirectoryResolution |
   BinaryResolution
 
-export type LockfileResolution = Resolution | PlatformAssetResolution[] | {
+export interface VariationsResolution {
+  type: 'variations'
+  variants: PlatformAssetResolution[]
+}
+
+export type LockfileResolution = Resolution | VariationsResolution | {
   integrity: string
 }
 
