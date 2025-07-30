@@ -1558,7 +1558,7 @@ async function resolveDependency (
     }
   }
 
-  const rootDir = 'type' in pkgResponse.body.resolution && pkgResponse.body.resolution.type === 'directory'
+  const rootDir = pkgResponse.body.resolution.type === 'directory'
     ? path.resolve(ctx.lockfileDir, (pkgResponse.body.resolution as DirectoryResolution).directory)
     : options.prefix
   let missingPeersOfChildren!: MissingPeersOfChildren | undefined

@@ -1,5 +1,6 @@
 ---
 "@pnpm/fetching.binary-fetcher": major
+"@pnpm/client": minor
 ---
 
-Initial release.
+Added support for binary fetcher.
