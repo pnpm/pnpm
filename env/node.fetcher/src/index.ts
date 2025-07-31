@@ -1,6 +1,6 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { fetchShasumsFile, pickFileChecksumFromShasumsFile } from '@pnpm/crypto.shasums-file'
+import { fetchShasumsFileRaw, pickFileChecksumFromShasumsFile } from '@pnpm/crypto.shasums-file'
 import {
   type FetchFromRegistry,
   type RetryTimeoutOptions,
@@ -134,7 +134,7 @@ async function loadArtifactIntegrity (
   fileName: string,
   shasumsUrl: string
 ): Promise<string> {
-  const body = await fetchShasumsFile(fetch, shasumsUrl)
+  const body = await fetchShasumsFileRaw(fetch, shasumsUrl)
   return pickFileChecksumFromShasumsFile(body, fileName)
 }
 

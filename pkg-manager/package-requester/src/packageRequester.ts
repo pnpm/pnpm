@@ -57,7 +57,7 @@ import { equalOrSemverEqual } from './equalOrSemverEqual'
 let currentLibc: 'glibc' | 'musl' | undefined | null
 function getLibcFamilySync () {
   if (currentLibc === undefined) {
-    currentLibc = familySync()
+    currentLibc = familySync() as unknown as typeof currentLibc
   }
   return currentLibc
 }

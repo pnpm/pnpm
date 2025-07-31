@@ -58,20 +58,13 @@ export async function resolveBunRuntime (
 
 async function readBunAssets (fetch: FetchFromRegistry, version: string): Promise<PlatformAssetResolution[]> {
   const integritiesFileUrl = `https://github.com/oven-sh/bun/releases/download/bun-v${version}/SHASUMS256.txt`
-  const shasumsFileContent = await fetchShasumsFile(fetch, integritiesFileUrl)
-  const lines = shasumsFileContent.split('\n')
+  const shasumsFileItems = await fetchShasumsFile(fetch, integritiesFileUrl)
   const pattern = /^bun-([^-.]+)-([^-.]+)(-musl)?\.zip$/
   const assets: PlatformAssetResolution[] = []
-  for (const line of lines) {
-    if (!line) continue
-    const [sha256, file] = line.trim().split(/\s+/)
-
-    const match = pattern.exec(file)
+  for (const { integrity, fileName } of shasumsFileItems) {
+    const match = pattern.exec(fileName)
     if (!match) continue
 
-    const buffer = Buffer.from(sha256, 'hex')
-    const base64 = buffer.toString('base64')
-    const integrity = `sha256-${base64}`
     let [, platform, arch, musl] = match
     if (platform === 'windows') {
       platform = 'win32'
@@ -79,14 +72,14 @@ async function readBunAssets (fetch: FetchFromRegistry, version: string): Promis
     if (arch === 'aarch64') {
       arch = 'arm64'
     }
-    const url = `https://github.com/oven-sh/bun/releases/download/bun-v${version}/${file}`
+    const url = `https://github.com/oven-sh/bun/releases/download/bun-v${version}/${fileName}`
     const resolution: BinaryResolution = {
       type: 'binary',
       archive: 'zip',
       bin: getBunBinLocationForCurrentOS(platform),
       integrity,
       url,
-      prefix: file.replace(/\.zip$/, ''),
+      prefix: fileName.replace(/\.zip$/, ''),
     }
     const target: PlatformAssetTarget = {
       os: platform,
