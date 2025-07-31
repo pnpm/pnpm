@@ -42,7 +42,7 @@ import {
   type RequestPackageOptions,
   type WantedDependency,
 } from '@pnpm/store-controller-types'
-import { type DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest, type SupportedArchitectures } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
 import { familySync } from 'detect-libc'
@@ -311,6 +311,7 @@ async function resolveAndFetch (
       resolution,
     },
     onFetchError: options.onFetchError,
+    supportedArchitectures: options.supportedArchitectures,
   })
 
   if (!manifest) {
@@ -353,7 +354,7 @@ function getFilesIndexFilePath (
     storeDir: string
     virtualStoreDirMaxLength: number
   },
-  opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>
+  opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts' | 'supportedArchitectures'>
 ): GetFilesIndexFilePathResult {
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
@@ -366,7 +367,7 @@ function getFilesIndexFilePath (
   }
   let resolution!: AtomicResolution
   if (opts.pkg.resolution.type === 'variations') {
-    resolution = findResolution(opts.pkg.resolution.variants)
+    resolution = findResolution(opts.pkg.resolution.variants, opts.supportedArchitectures)
     if ((resolution as TarballResolution).integrity) {
       return {
         target,
@@ -381,19 +382,29 @@ function getFilesIndexFilePath (
   return { filesIndexFile, target, resolution }
 }
 
-function findResolution (resolutionVariants: PlatformAssetResolution[]): AtomicResolution {
+function findResolution (resolutionVariants: PlatformAssetResolution[], supportedArchitectures?: SupportedArchitectures): AtomicResolution {
+  const platform = getOneIfNonCurrent(supportedArchitectures?.os) ?? process.platform
+  const cpu = getOneIfNonCurrent(supportedArchitectures?.cpu) ?? process.arch
+  const libc = getOneIfNonCurrent(supportedArchitectures?.libc) ?? getLibcFamilySync()
   const resolutionVariant = resolutionVariants
     .find((resolutionVariant) => resolutionVariant.targets.some(
       (target) =>
-        target.os === process.platform &&
-        target.cpu === process.arch &&
-        (target.libc == null || target.libc === getLibcFamilySync())
+        target.os === platform &&
+        target.cpu === cpu &&
+        (target.libc == null || target.libc === libc)
     ))
   if (!resolutionVariant) {
     const resolutionTargets = resolutionVariants.map((variant) => variant.targets)
     throw new PnpmError('NO_RESOLUTION_MATCHED', `Cannot find a resolution variant for the current platform in these resolutions: ${JSON.stringify(resolutionTargets)}`)
   }
   return resolutionVariant.resolution
+}
+
+function getOneIfNonCurrent (requirements: string[] | undefined): string | undefined {
+  if (requirements?.length && requirements[0] !== 'current') {
+    return requirements[0]
+  }
+  return undefined
 }
 
 function fetchToStore (

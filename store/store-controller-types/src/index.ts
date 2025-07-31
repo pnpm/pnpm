@@ -93,6 +93,7 @@ export interface FetchPackageToStoreOptions {
     resolution: Resolution
   }
   onFetchError?: OnFetchError
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export type OnFetchError = (error: Error) => Error

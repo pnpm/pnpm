@@ -229,6 +229,7 @@ async function fetchDeps (
           lockfileDir: opts.lockfileDir,
           ignoreScripts: opts.ignoreScripts,
           pkg: pkgResolution,
+          supportedArchitectures: opts.supportedArchitectures,
         }) as any // eslint-disable-line
         if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
       } catch (err: any) { // eslint-disable-line

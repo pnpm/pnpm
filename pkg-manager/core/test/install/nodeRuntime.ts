@@ -331,3 +331,20 @@ test('installing Node.js runtime fails if integrity check fails', async () => {
     },
   }))).rejects.toThrow(/Got unexpected checksum for/)
 })
+
+test('installing Node.js runtime for the given supported architecture', async () => {
+  const isWindows = process.platform === 'win32'
+  const project = prepareEmpty()
+  await addDependenciesToPackage(
+    {},
+    ['node@runtime:22.0.0'],
+    testDefaults({
+      fastUnpack: false,
+      supportedArchitectures: {
+        os: [isWindows ? 'linux' : 'win32'],
+        cpu: ['x64'],
+      },
+    })
+  )
+  project.has(isWindows ? 'node/node' : 'node/node.exe')
+})
