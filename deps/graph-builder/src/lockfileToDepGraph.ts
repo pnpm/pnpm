@@ -234,6 +234,7 @@ async function buildGraphFromPackages (
             lockfileDir: opts.lockfileDir,
             ignoreScripts: opts.ignoreScripts,
             pkg: { name: pkgName, version: pkgVersion, id: packageId, resolution },
+            supportedArchitectures: opts.supportedArchitectures,
           })
         } catch (err) {
           if (pkgSnapshot.optional) return

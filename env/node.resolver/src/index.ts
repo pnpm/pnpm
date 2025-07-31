@@ -60,21 +60,14 @@ export async function resolveNodeRuntime (
 
 async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<PlatformAssetResolution[]> {
   const integritiesFileUrl = `${nodeMirrorBaseUrl}/v${version}/SHASUMS256.txt`
-  const shasumsFileContent = await fetchShasumsFile(fetch, integritiesFileUrl)
-  const lines = shasumsFileContent.split('\n')
+  const shasumsFileItems = await fetchShasumsFile(fetch, integritiesFileUrl)
   const escaped = version.replace(/\\/g, '\\\\').replace(/\./g, '\\.')
   const pattern = new RegExp(`^node-v${escaped}-([^-.]+)-([^.]+)\\.(?:tar\\.gz|zip)$`)
   const assets: PlatformAssetResolution[] = []
-  for (const line of lines) {
-    if (!line) continue
-    const [sha256, file] = line.trim().split(/\s+/)
-
-    const match = pattern.exec(file)
+  for (const { integrity, fileName } of shasumsFileItems) {
+    const match = pattern.exec(fileName)
     if (!match) continue
 
-    const buffer = Buffer.from(sha256, 'hex')
-    const base64 = buffer.toString('base64')
-    const integrity = `sha256-${base64}`
     let [, platform, arch] = match
     if (platform === 'win') {
       platform = 'win32'
