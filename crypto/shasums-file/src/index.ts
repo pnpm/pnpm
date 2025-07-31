@@ -10,7 +10,7 @@ export interface ShasumsFileItem {
 
 export async function fetchShasumsFile (
   fetch: FetchFromRegistry,
-  shasumsUrl: string,
+  shasumsUrl: string
 ): Promise<ShasumsFileItem[]> {
   const shasumsFileContent = await fetchShasumsFileRaw(fetch, shasumsUrl)
   const lines = shasumsFileContent.split('\n')
