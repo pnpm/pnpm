@@ -6733,6 +6733,58 @@ importers:
         specifier: 'catalog:'
         version: 5.0.0
 
+  resolving/bun-resolver:
+    dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/crypto.shasums-file':
+        specifier: workspace:*
+        version: link:../../crypto/shasums-file
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fetcher-base':
+        specifier: workspace:*
+        version: link:../../fetching/fetcher-base
+      '@pnpm/fetching-types':
+        specifier: workspace:*
+        version: link:../../network/fetching-types
+      '@pnpm/fetching.binary-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/binary-fetcher
+      '@pnpm/node.fetcher':
+        specifier: workspace:*
+        version: link:../../env/node.fetcher
+      '@pnpm/npm-resolver':
+        specifier: workspace:*
+        version: link:../npm-resolver
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.2
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:../../worker
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.1
+    devDependencies:
+      '@pnpm/resolving.bun-resolver':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/resolving.deno-resolver':
+        specifier: workspace:*
+        version: link:../deno-resolver
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
+
   resolving/default-resolver:
     dependencies:
       '@pnpm/error':
@@ -6756,6 +6808,9 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
+      '@pnpm/resolving.bun-resolver':
+        specifier: workspace:*
+        version: link:../bun-resolver
       '@pnpm/resolving.deno-resolver':
         specifier: workspace:*
         version: link:../deno-resolver
@@ -6775,6 +6830,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
+      '@pnpm/crypto.shasums-file':
+        specifier: workspace:*
+        version: link:../../crypto/shasums-file
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error

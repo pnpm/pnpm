@@ -119,10 +119,6 @@ async function getNodeArtifactInfo (
   }
 }
 
-interface LoadArtifactIntegrityOptions {
-  expectedVersionIntegrity?: string
-}
-
 /**
  * Loads and extracts the integrity hash for a specific Node.js artifact.
  *
@@ -136,10 +132,9 @@ interface LoadArtifactIntegrityOptions {
 async function loadArtifactIntegrity (
   fetch: FetchFromRegistry,
   fileName: string,
-  shasumsUrl: string,
-  options?: LoadArtifactIntegrityOptions
+  shasumsUrl: string
 ): Promise<string> {
-  const body = await fetchShasumsFile(fetch, shasumsUrl, options?.expectedVersionIntegrity)
+  const body = await fetchShasumsFile(fetch, shasumsUrl)
   return pickFileChecksumFromShasumsFile(body, fileName)
 }
 

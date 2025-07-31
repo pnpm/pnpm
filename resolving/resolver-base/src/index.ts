@@ -44,6 +44,7 @@ export interface GitResolution {
 export interface PlatformAssetTarget {
   os: string
   cpu: string
+  libc?: 'musl'
 }
 
 export interface PlatformAssetResolution {

@@ -1,4 +1,3 @@
-import { createHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import {
   type FetchFromRegistry,
@@ -6,8 +5,7 @@ import {
 
 export async function fetchShasumsFile (
   fetch: FetchFromRegistry,
-  shasumsUrl: string,
-  expectedVersionIntegrity?: string
+  shasumsUrl: string
 ): Promise<string> {
   const res = await fetch(shasumsUrl)
   if (!res.ok) {
@@ -18,12 +16,6 @@ export async function fetchShasumsFile (
   }
 
   const body = await res.text()
-  if (expectedVersionIntegrity) {
-    const actualVersionIntegrity = createHash(body)
-    if (expectedVersionIntegrity !== actualVersionIntegrity) {
-      throw new PnpmError('NODE_VERSION_INTEGRITY_MISMATCH', `The integrity of ${shasumsUrl} failed. Expected: ${expectedVersionIntegrity}. Actual: ${actualVersionIntegrity}`)
-    }
-  }
   return body
 }
 

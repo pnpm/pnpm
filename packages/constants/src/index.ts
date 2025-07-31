@@ -26,3 +26,7 @@ export function getNodeBinLocationForCurrentOS (platform: string = process.platf
 export function getDenoBinLocationForCurrentOS (platform: string = process.platform): string {
   return platform === 'win32' ? 'deno.exe' : 'deno'
 }
+
+export function getBunBinLocationForCurrentOS (platform: string = process.platform): string {
+  return platform === 'win32' ? 'bun.exe' : 'bun'
+}
