@@ -5368,6 +5368,9 @@ importers:
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
+      detect-libc:
+        specifier: 'catalog:'
+        version: 2.0.3
       p-defer:
         specifier: 'catalog:'
         version: 3.0.0

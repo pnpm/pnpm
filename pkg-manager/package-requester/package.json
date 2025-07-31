@@ -46,6 +46,7 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "detect-libc": "catalog:",
     "p-defer": "catalog:",
     "p-limit": "catalog:",
     "p-queue": "catalog:",

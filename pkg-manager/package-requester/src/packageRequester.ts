@@ -45,6 +45,7 @@ import {
 import { type DependencyManifest } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
+import { familySync as getLibcFamilySync } from 'detect-libc'
 import PQueue from 'p-queue'
 import pDefer from 'p-defer'
 import pShare from 'promise-share'
@@ -53,6 +54,7 @@ import semver from 'semver'
 import ssri from 'ssri'
 import { equalOrSemverEqual } from './equalOrSemverEqual'
 
+const currentLibc = getLibcFamilySync() ?? 'unknown'
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
 
@@ -375,7 +377,7 @@ function getFilesIndexFilePath (
 
 function findResolution (resolutionVariants: PlatformAssetResolution[]): AtomicResolution {
   const resolutionVariant = resolutionVariants
-    .find((resolutionVariant) => resolutionVariant.targets.some((target) => target.os === process.platform && target.cpu === process.arch))
+    .find((resolutionVariant) => resolutionVariant.targets.some((target) => target.os === process.platform && target.cpu === process.arch && (target.libc == null || target.libc === currentLibc)))
   if (!resolutionVariant) {
     const resolutionTargets = resolutionVariants.map((variant) => variant.targets)
     throw new PnpmError('NO_RESOLUTION_MATCHED', `Cannot find a resolution variant for the current platform in these resolutions: ${JSON.stringify(resolutionTargets)}`)
