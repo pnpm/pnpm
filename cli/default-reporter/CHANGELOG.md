@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 1002.0.5
+
+### Patch Changes
+
+- @pnpm/config@1004.2.1
+- @pnpm/error@1000.0.4
+- @pnpm/render-peer-issues@1002.0.2
+
 ## 1002.0.4
 
 ### Patch Changes

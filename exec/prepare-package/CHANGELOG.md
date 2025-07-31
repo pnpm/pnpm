@@ -1,5 +1,14 @@
 # @pnpm/prepare-package
 
+## 1000.0.20
+
+### Patch Changes
+
+- Updated dependencies [adb097c]
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/error@1000.0.4
+  - @pnpm/lifecycle@1001.0.19
+
 ## 1000.0.19
 
 ### Patch Changes

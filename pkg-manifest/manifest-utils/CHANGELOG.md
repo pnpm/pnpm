@@ -1,5 +1,11 @@
 # @pnpm/manifest-utils
 
+## 1001.0.3
+
+### Patch Changes
+
+- @pnpm/error@1000.0.4
+
 ## 1001.0.2
 
 ### Patch Changes

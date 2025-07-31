@@ -1,5 +1,11 @@
 # @pnpm/catalogs.config
 
+## 1000.0.4
+
+### Patch Changes
+
+- @pnpm/error@1000.0.4
+
 ## 1000.0.3
 
 ### Patch Changes

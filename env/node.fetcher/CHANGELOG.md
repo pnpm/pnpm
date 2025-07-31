@@ -1,5 +1,25 @@
 # @pnpm/node.fetcher
 
+## 1001.0.0
+
+### Major Changes
+
+- d1edf73: Removed node fetcher. The binary fetcher should be used for downloading node assets.
+- f91922c: Changed how the integrity of the node.js artifact is stored in the lockfile.
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [f91922c]
+  - @pnpm/node.resolver@1001.0.0
+  - @pnpm/fetching.binary-fetcher@1000.0.0
+  - @pnpm/crypto.shasums-file@1001.0.0
+  - @pnpm/error@1000.0.4
+  - @pnpm/tarball-fetcher@1001.0.12
+  - @pnpm/create-cafs-store@1000.0.17
+
 ## 1000.1.0
 
 ### Minor Changes

@@ -1,5 +1,17 @@
 # @pnpm/config.deps-installer
 
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [adb097c]
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/error@1000.0.4
+  - @pnpm/npm-resolver@1004.1.3
+  - @pnpm/config.config-writer@1000.0.9
+  - @pnpm/package-store@1002.0.9
+  - @pnpm/network.auth-header@1000.0.5
+
 ## 1000.0.9
 
 ### Patch Changes

@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.2.7
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/client@1001.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/config@1004.2.1
+  - @pnpm/error@1000.0.4
+  - @pnpm/lifecycle@1001.0.19
+  - @pnpm/cli-utils@1001.0.3
+  - @pnpm/exportable-manifest@1000.1.3
+  - @pnpm/plugin-commands-env@1000.0.32
+  - @pnpm/network.auth-header@1000.0.5
+
 ## 1000.2.6
 
 ### Patch Changes

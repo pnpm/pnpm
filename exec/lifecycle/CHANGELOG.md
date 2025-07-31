@@ -1,5 +1,18 @@
 # @pnpm/lifecycle
 
+## 1001.0.19
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [adb097c]
+  - @pnpm/link-bins@1000.2.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/error@1000.0.4
+  - @pnpm/directory-fetcher@1000.1.10
+  - @pnpm/store-controller-types@1004.0.1
+
 ## 1001.0.18
 
 ### Patch Changes

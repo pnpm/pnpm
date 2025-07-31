@@ -1,5 +1,12 @@
 # @pnpm/hooks.read-package-hook
 
+## 1000.0.12
+
+### Patch Changes
+
+- @pnpm/error@1000.0.4
+- @pnpm/parse-overrides@1001.0.2
+
 ## 1000.0.11
 
 ### Patch Changes

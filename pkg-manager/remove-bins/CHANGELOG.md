@@ -1,5 +1,12 @@
 # @pnpm/remove-bins
 
+## 1000.0.12
+
+### Patch Changes
+
+- Updated dependencies [adb097c]
+  - @pnpm/read-package-json@1000.0.11
+
 ## 1000.0.11
 
 ### Patch Changes

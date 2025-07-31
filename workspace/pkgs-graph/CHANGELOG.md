@@ -1,5 +1,12 @@
 # @pnpm/workspace.pkgs-graph
 
+## 1000.0.18
+
+### Patch Changes
+
+- 0b6264e: Update @pnpm/npm-package-arg.
+  - @pnpm/npm-resolver@1004.1.3
+
 ## 1000.0.17
 
 ### Patch Changes

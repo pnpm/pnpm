@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-deploy
 
+## 1002.0.0
+
+### Major Changes
+
+- d1edf73: Removed node fetcher. The binary fetcher should be used for downloading node assets.
+- f91922c: Changed how the integrity of the node.js artifact is stored in the lockfile.
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/plugin-commands-installation@1004.4.1
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/config@1004.2.1
+  - @pnpm/error@1000.0.4
+  - @pnpm/cli-utils@1001.0.3
+  - @pnpm/directory-fetcher@1000.1.10
+  - @pnpm/fs.indexed-pkg-importer@1000.1.11
+
 ## 1001.1.31
 
 ### Patch Changes
