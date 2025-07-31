@@ -338,6 +338,7 @@ test('installing Node.js runtime for the given supported architecture', async ()
     os: [isWindows ? 'linux' : 'win32'],
     cpu: ['x64'],
   }
+  const expectedBinLocation = isWindows ? 'node/bin/node' : 'node/node.exe'
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
@@ -347,8 +348,8 @@ test('installing Node.js runtime for the given supported architecture', async ()
       supportedArchitectures,
     })
   )
-  project.has(isWindows ? 'node/node' : 'node/node.exe')
+  project.has(expectedBinLocation)
   rimraf('node_modules')
   await install(manifest, testDefaults({ frozenLockfile: true, supportedArchitectures }))
-  project.has(isWindows ? 'node/node' : 'node/node.exe')
+  project.has(expectedBinLocation)
 })
