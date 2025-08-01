@@ -43,8 +43,10 @@
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
-    "@pnpm/worker": "workspace:*",
     "semver": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@pnpm/resolving.deno-resolver": "workspace:*",

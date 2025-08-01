@@ -2386,7 +2386,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       p-defer:
         specifier: 'catalog:'
@@ -2566,7 +2566,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
@@ -2868,7 +2868,7 @@ importers:
         specifier: workspace:*
         version: link:../../network/fetching-types
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       adm-zip:
         specifier: 'catalog:'
@@ -6772,7 +6772,7 @@ importers:
         specifier: 'catalog:'
         version: 3.0.2
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       semver:
         specifier: 'catalog:'
@@ -6864,7 +6864,7 @@ importers:
         specifier: 'catalog:'
         version: 3.0.2
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       semver:
         specifier: 'catalog:'

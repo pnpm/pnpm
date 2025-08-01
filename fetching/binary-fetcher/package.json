@@ -33,11 +33,13 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/worker": "workspace:*",
     "adm-zip": "catalog:",
     "rename-overwrite": "catalog:",
     "ssri": "catalog:",
     "tempy": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@pnpm/fetching.binary-fetcher": "workspace:*",

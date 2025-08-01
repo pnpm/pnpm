@@ -58,7 +58,6 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
     "load-json-file": "catalog:",
     "mem": "catalog:",
@@ -69,7 +68,8 @@
     "semver": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
