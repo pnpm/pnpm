@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { add } from '@pnpm/plugin-commands-installation'
+import * as checkPackage from '@pnpm/package-is-installable'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
@@ -235,6 +236,27 @@ test('dlx with cache', async () => {
   expect(spy).not.toHaveBeenCalled()
 
   spy.mockRestore()
+})
+
+test('dlx with cache should check for engine compatibility', async () => {
+  prepareEmpty()
+
+  const spy = jest.spyOn(checkPackage, 'checkPackage')
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    engineStrict: true,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }, ['shx@0.3.4', 'touch', 'foo'])
+
+  expect(fs.existsSync('foo')).toBe(true)
+  verifyDlxCache(createCacheKey('shx@0.3.4'))
+  expect(spy).toHaveBeenCalled()
+
+  spy.mockReset()
 })
 
 test('dlx does not reuse expired cache', async () => {
