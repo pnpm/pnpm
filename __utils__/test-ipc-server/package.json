@@ -17,5 +17,8 @@
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build",
     "test": "pnpm run compile && jest"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }
