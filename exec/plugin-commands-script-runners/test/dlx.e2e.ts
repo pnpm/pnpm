@@ -237,6 +237,29 @@ test('dlx with cache', async () => {
   spy.mockRestore()
 })
 
+test('dlx with cache should check for engine compatibility', async () => {
+  prepareEmpty()
+  const originalVersion = process.version
+  Object.defineProperty(process, 'version', {
+    get: () => 'v4.0.0', // Specify a node version that shx@0.3.4 does not support. Currently supported versions are >= 6.
+    configurable: true,
+  })
+
+  await expect(dlx.handler({
+    ...DEFAULT_OPTS,
+    engineStrict: true,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    cacheDir: path.resolve('cache'),
+    dlxCacheMaxAge: Infinity,
+  }, ['shx@0.3.4', 'touch', 'foo'])).rejects.toThrow('Unsupported engine for shx: wanted: {"node":">=6"} (current: {"node":"v4.0.0"})')
+
+  Object.defineProperty(process, 'version', {
+    get: () => originalVersion,
+    configurable: true,
+  })
+})
+
 test('dlx does not reuse expired cache', async () => {
   prepareEmpty()
 
