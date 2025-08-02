@@ -1,7 +1,6 @@
 import fs from 'fs'
 import path from 'path'
 import { add } from '@pnpm/plugin-commands-installation'
-import * as checkPackage from '@pnpm/package-is-installable'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
@@ -240,23 +239,25 @@ test('dlx with cache', async () => {
 
 test('dlx with cache should check for engine compatibility', async () => {
   prepareEmpty()
+  const originalVersion = process.version
+  Object.defineProperty(process, 'version', {
+    get: () => 'v4.0.0', // Specify a node version that shx@0.3.4 does not support. Currently supported versions are >= 6.
+    configurable: true,
+  })
 
-  const spy = jest.spyOn(checkPackage, 'checkPackage')
-
-  await dlx.handler({
+  await expect(dlx.handler({
     ...DEFAULT_OPTS,
     engineStrict: true,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     dlxCacheMaxAge: Infinity,
-  }, ['shx@0.3.4', 'touch', 'foo'])
+  }, ['shx@0.3.4', 'touch', 'foo'])).rejects.toThrow('Unsupported engine for shx: wanted: {"node":">=6"} (current: {"node":"v4.0.0"})')
 
-  expect(fs.existsSync('foo')).toBe(true)
-  verifyDlxCache(createCacheKey('shx@0.3.4'))
-  expect(spy).toHaveBeenCalled()
-
-  spy.mockReset()
+  Object.defineProperty(process, 'version', {
+    get: () => originalVersion,
+    configurable: true,
+  })
 })
 
 test('dlx does not reuse expired cache', async () => {
