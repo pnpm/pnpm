@@ -299,7 +299,7 @@ export async function resolveDependencies (
         const newVersion = dep.normalizedBareSpecifier.replace(/^[\^~>=<]+/, '')
         updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = range + newVersion
       } else {
-        updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.catalogLookup.specifier
+        updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier ?? dep.catalogLookup.specifier
       }
     }
   }

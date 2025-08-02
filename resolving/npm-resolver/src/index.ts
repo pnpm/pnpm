@@ -299,12 +299,21 @@ async function resolveNpm (
   }
   let normalizedBareSpecifier: string | undefined
   if (opts.calcSpecifier) {
-    normalizedBareSpecifier = spec.normalizedBareSpecifier ?? calcSpecifier({
-      wantedDependency,
-      spec,
-      version: pickedPackage.version,
-      defaultPinnedVersion: opts.pinnedVersion,
-    })
+    // If the bareSpecifier already has a semver range (e.g., from catalog),
+    // preserve it instead of recalculating
+    const hasExistingRange = wantedDependency.bareSpecifier &&
+      /^[\^~>=<]/.test(wantedDependency.bareSpecifier) &&
+      wantedDependency.bareSpecifier.substring(1).includes(pickedPackage.version)
+    if (hasExistingRange) {
+      normalizedBareSpecifier = wantedDependency.bareSpecifier
+    } else {
+      normalizedBareSpecifier = spec.normalizedBareSpecifier ?? calcSpecifier({
+        wantedDependency,
+        spec,
+        version: pickedPackage.version,
+        defaultPinnedVersion: opts.pinnedVersion,
+      })
+    }
   }
   return {
     id,
