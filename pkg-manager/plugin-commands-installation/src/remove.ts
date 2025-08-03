@@ -9,7 +9,6 @@ import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnp
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { removePackagesFromWorkspaceCatalog } from '@pnpm/workspace.manifest-writer'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type DependenciesField, type ProjectRootDir } from '@pnpm/types'
@@ -151,7 +150,6 @@ export async function handler (
   | 'workspaceDir'
   | 'workspacePackagePatterns'
   | 'sharedWorkspaceLockfile'
-  | 'catalogMode'
   > & {
     recursive?: boolean
     pnpmfile: string[]
@@ -217,8 +215,4 @@ export async function handler (
     removeOpts
   )
   await writeProjectManifest(mutationResult.updatedProject.manifest)
-
-  if (opts.catalogMode === 'strict' && opts.workspaceDir) {
-    await removePackagesFromWorkspaceCatalog(opts.workspaceDir, params)
-  }
 }

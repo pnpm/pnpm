@@ -4695,6 +4695,9 @@ importers:
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
+      '@pnpm/workspace.manifest-writer':
+        specifier: workspace:*
+        version: link:../../workspace/manifest-writer
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2

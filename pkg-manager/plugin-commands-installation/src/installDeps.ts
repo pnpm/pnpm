@@ -54,6 +54,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'bin'
 | 'catalogs'
 | 'catalogMode'
+| 'dedupeCatalog'
 | 'cliOptions'
 | 'dedupePeerDependents'
 | 'depth'
@@ -211,7 +212,6 @@ when running add/update with the --workspace option')
       const allProjectsGraph: ProjectsGraph = opts.allProjectsGraph ?? createPkgGraph(allProjects, {
         linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
       }).graph
-
       await recursiveInstallThenUpdateWorkspaceState(allProjects,
         params,
         {

@@ -29,6 +29,7 @@ export interface StrictInstallOptions {
   autoInstallPeersFromHighestMatch: boolean
   catalogs: Catalogs
   catalogMode: 'strict' | 'prefer' | 'manual'
+  dedupeCatalog: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enableGlobalVirtualStore: boolean
@@ -110,6 +111,7 @@ export interface StrictInstallOptions {
   // unless installation runs on a workspace
   // that doesn't share a lockfile
   workspacePackages?: WorkspacePackages
+  workspaceDir: string
   pruneStore: boolean
   virtualStoreDir?: string
   dir: string
@@ -244,6 +246,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
       !process.setgid ||
       process.getuid?.() !== 0,
     catalogMode: 'manual',
+    dedupeCatalog: false,
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,
@@ -262,6 +265,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     excludeLinksFromLockfile: false,
     virtualStoreDirMaxLength: 120,
     peersSuffixMaxLength: 1000,
+    workspaceDir: opts.workspaceDir,
   } as StrictInstallOptions
 }
 

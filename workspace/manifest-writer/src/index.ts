@@ -90,20 +90,20 @@ export async function addCatalogs (workspaceDir: string, newCatalogs: Catalogs):
   }
 }
 
-// when catalogMode is strict, we cannot remove dependencies from the catalog after the package is removed
-export async function removePackagesFromWorkspaceCatalog (workspaceDir: string, packages: string[]): Promise<void> {
+// when dedupeCatalog is true, we cannot remove dependencies from the catalog after the package is removed
+export async function removePackagesFromWorkspaceCatalog (workspaceDir: string, packages: Record<string, string>): Promise<void> {
   const manifest: Partial<WorkspaceManifest> = await readWorkspaceManifest(workspaceDir) ?? {}
   let shouldBeUpdated = false
 
   if (manifest.catalog == null && manifest.catalogs == null) return
 
   if (manifest.catalog != null) {
-    for (const pkg of packages) {
-      if (manifest.catalog[pkg] != null) {
-        delete manifest.catalog[pkg]
+    Object.keys(manifest.catalog).forEach((pkg) => {
+      if (packages[pkg] != null) {
+        delete manifest.catalog![pkg]
         shouldBeUpdated = true
       }
-    }
+    })
     if (Object.keys(manifest.catalog).length === 0) {
       delete manifest.catalog
       shouldBeUpdated = true
@@ -112,12 +112,13 @@ export async function removePackagesFromWorkspaceCatalog (workspaceDir: string, 
 
   for (const catalogName in manifest.catalogs) {
     const catalog = manifest.catalogs[catalogName]
-    for (const pkg of packages) {
-      if (catalog[pkg] != null) {
+    if (catalog == null) continue
+    Object.keys(catalog).forEach((pkg) => {
+      if (packages[pkg] != null) {
         delete catalog[pkg]
         shouldBeUpdated = true
       }
-    }
+    })
     if (Object.keys(catalog).length === 0) {
       delete manifest.catalogs[catalogName]
       shouldBeUpdated = true
