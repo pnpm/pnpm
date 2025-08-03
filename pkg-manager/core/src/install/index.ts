@@ -645,8 +645,6 @@ export async function mutateModules (
       patchedDependencies: patchGroups,
     })
     if (opts.dedupeCatalog && opts.catalogs) {
-      // eslint-disable-next-line no-debugger
-      debugger
       const packages = projectsToInstall.reduce((acc, p) => {
         const manifest = p.manifest
         return {
