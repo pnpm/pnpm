@@ -114,7 +114,7 @@ export async function removePackagesFromWorkspaceCatalog (workspaceDir: string, 
     const catalog = manifest.catalogs[catalogName]
     if (catalog == null) continue
     Object.keys(catalog).forEach((pkg) => {
-      if (!packages[pkg] || packages[pkg] !== `catalog:${catalogName}`) {
+      if (!packages[pkg] || packages[pkg] !== `catalog:${catalogName}` || packages[pkg] !== 'catalog:') {
         delete catalog[pkg]
         shouldBeUpdated = true
       }
