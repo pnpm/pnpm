@@ -20,7 +20,7 @@ test('addCatalogs adds `default` catalogs to the `catalog` object by default and
   })
 
   await removePackagesFromWorkspaceCatalog(dir, {
-    foo: 'catalog:',
+    foo: '^0.1.2',
   })
   expect(readYamlFile(filePath)).toStrictEqual({})
 })
@@ -46,7 +46,8 @@ test('addCatalogs adds `default` catalogs to the `catalog` object if it exists a
   })
 
   await removePackagesFromWorkspaceCatalog(dir, {
-    foo: 'catalog:',
+    foo: '^0.1.2',
+    bar: 'catalog:',
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalog: {
@@ -79,7 +80,8 @@ test('addCatalogs adds `default` catalogs to the `catalogs.default` object if it
     },
   })
   await removePackagesFromWorkspaceCatalog(dir, {
-    foo: 'catalog:',
+    foo: '^0.1.2',
+    bar: 'catalog:default',
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalogs: {
@@ -112,7 +114,8 @@ test('addCatalogs creates a `catalogs` object for any-named catalogs and remove 
     },
   })
   await removePackagesFromWorkspaceCatalog(dir, {
-    abc: 'catalog:foo',
+    abc: '0.1.2',
+    def: 'catalog:bar',
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalogs: {
@@ -154,7 +157,9 @@ test('addCatalogs add any-named catalogs to the `catalogs` object if it already 
   })
 
   await removePackagesFromWorkspaceCatalog(dir, {
-    abc: 'catalog:foo',
+    abc: '0.1.2',
+    def: 'catalog:bar',
+    ghi: 'catalog:foo',
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalogs: {
@@ -171,13 +176,13 @@ test('addCatalogs add any-named catalogs to the `catalogs` object if it already 
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalogs: {
-      foo: {
-        ghi: '7.8.9',
+      bar: {
+        def: '3.2.1',
       },
     },
   })
   await removePackagesFromWorkspaceCatalog(dir, {
-    ghi: 'catalog:foo',
+    ghi: '7.8.9',
   })
   expect(readYamlFile(filePath)).toStrictEqual({})
 })

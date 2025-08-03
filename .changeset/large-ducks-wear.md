@@ -3,4 +3,4 @@
 "@pnpm/workspace.manifest-writer": patch
 ---
 
-When `catalogMode` is `strict`, the corresponding catalog configuration is deleted when the dependent package is removed.
+Add `dedupeCatalog` configuration. When its value is set to true, installing dependencies will remove unused catalog dependencies.
