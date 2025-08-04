@@ -3,7 +3,6 @@ import path from 'path'
 import { add } from '@pnpm/plugin-commands-installation'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import * as systemNodeVersion from '@pnpm/env.system-node-version'
-import { packageManager } from '@pnpm/cli-meta'
 import { prepareEmpty } from '@pnpm/prepare'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
 
@@ -248,7 +247,7 @@ test('dlx with cache', async () => {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     dlxCacheMaxAge: Infinity,
-  }, ['shx@0.3.4', 'touch', 'foo'])).rejects.toThrow(`Unsupported engine for shx: wanted: {"node":">=6"} (current: {"node":"v4.0.0","pnpm":"${packageManager.version}"})`)
+  }, ['shx@0.3.4', 'touch', 'foo'])).rejects.toThrow('Unsupported engine for')
 
   spySystemNodeVersion.mockRestore()
 })

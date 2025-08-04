@@ -16,9 +16,6 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../cli/cli-meta"
-    },
-    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -29,9 +26,6 @@
     },
     {
       "path": "../../config/config"
-    },
-    {
-      "path": "../../config/package-is-installable"
     },
     {
       "path": "../../crypto/hash"

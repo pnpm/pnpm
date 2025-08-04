@@ -2659,9 +2659,6 @@ importers:
 
   exec/plugin-commands-script-runners:
     dependencies:
-      '@pnpm/cli-meta':
-        specifier: workspace:*
-        version: link:../../cli/cli-meta
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
@@ -2704,9 +2701,6 @@ importers:
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/package-bins
-      '@pnpm/package-is-installable':
-        specifier: workspace:*
-        version: link:../../config/package-is-installable
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
