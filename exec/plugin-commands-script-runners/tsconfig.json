@@ -46,6 +46,9 @@
       "path": "../../env/plugin-commands-env"
     },
     {
+      "path": "../../env/system-node-version"
+    },
+    {
       "path": "../../packages/core-loggers"
     },
     {
