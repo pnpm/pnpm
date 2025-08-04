@@ -16,6 +16,9 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../cli/cli-meta"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {

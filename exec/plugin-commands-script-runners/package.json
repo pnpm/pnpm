@@ -33,6 +33,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/cli-meta": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/command": "workspace:*",
@@ -47,6 +48,7 @@
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/log.group": "catalog:",
     "@pnpm/package-bins": "workspace:*",
+    "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
@@ -70,8 +72,7 @@
     "write-json-file": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "catalog:",
-    "@pnpm/package-is-installable": "workspace:*"
+    "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:*",

@@ -20,6 +20,7 @@ import symlinkDir from 'symlink-dir'
 import { makeEnv } from './makeEnv'
 import { logger } from '@pnpm/logger'
 import { checkPackage, UnsupportedEngineError } from '@pnpm/package-is-installable'
+import { packageManager } from '@pnpm/cli-meta'
 
 export const skipPackageManagerCheck = true
 
@@ -181,8 +182,7 @@ async function getBinName (modulesDir: string, pkgName: string, engineStrict: bo
   const manifest = await readPackageJsonFromDir(pkgDir)
   const bins = await getBinsFromPackageManifest(manifest, pkgDir)
   const warn = checkPackage(pkgName, manifest, {
-    nodeVersion: process.version,
-    pnpmVersion: process.env.PNPM_VERSION,
+    pnpmVersion: packageManager.version,
   })
   if (warn != null) {
     if ((warn instanceof UnsupportedEngineError && warn.wanted.pnpm) ?? engineStrict) throw warn
