@@ -73,6 +73,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/env.system-node-version": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-script-runners": "workspace:*",

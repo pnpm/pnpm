@@ -2747,6 +2747,9 @@ importers:
         specifier: 'catalog:'
         version: 4.3.0
     devDependencies:
+      '@pnpm/env.system-node-version':
+        specifier: workspace:*
+        version: link:../../env/system-node-version
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
