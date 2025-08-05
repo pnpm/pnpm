@@ -29,7 +29,7 @@ export interface StrictInstallOptions {
   autoInstallPeersFromHighestMatch: boolean
   catalogs: Catalogs
   catalogMode: 'strict' | 'prefer' | 'manual'
-  dedupeCatalog: boolean
+  cleanupUnusedCatalogs: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enableGlobalVirtualStore: boolean
@@ -246,7 +246,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
       !process.setgid ||
       process.getuid?.() !== 0,
     catalogMode: 'manual',
-    dedupeCatalog: false,
+    cleanupUnusedCatalogs: false,
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,

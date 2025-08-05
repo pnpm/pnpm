@@ -90,7 +90,7 @@ export async function addCatalogs (workspaceDir: string, newCatalogs: Catalogs):
   }
 }
 
-// when dedupeCatalog is true, we cannot remove dependencies from the catalog after the package is removed
+// when cleanupUnusedCatalogs is true, we cannot remove dependencies from the catalog after the package is removed
 export async function removePackagesFromWorkspaceCatalog (workspaceDir: string, packages: Record<string, string>): Promise<void> {
   const manifest: Partial<WorkspaceManifest> = await readWorkspaceManifest(workspaceDir) ?? {}
   let shouldBeUpdated = false

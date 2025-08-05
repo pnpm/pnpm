@@ -644,7 +644,7 @@ export async function mutateModules (
       updateLockfileMinorVersion: true,
       patchedDependencies: patchGroups,
     })
-    if (opts.dedupeCatalog && opts.catalogs) {
+    if (opts.cleanupUnusedCatalogs && opts.catalogs) {
       const packages = projectsToInstall.reduce((acc, p) => {
         const manifest = p.manifest
         return {
