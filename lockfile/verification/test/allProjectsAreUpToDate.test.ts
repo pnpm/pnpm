@@ -866,3 +866,37 @@ test('allProjectsAreUpToDate(): returns true if one of the importers is not pres
     lockfileDir: '',
   })).toBeTruthy()
 })
+
+test('allProjectsAreUpToDate(): returns false if the lockfile is broken, the resolved versions do not satisfy the ranges', async () => {
+  expect(await allProjectsAreUpToDate([
+    {
+      id: '.' as ProjectId,
+      manifest: {
+        dependencies: {
+          '@apollo/client': '3.3.7',
+        },
+      },
+      rootDir: '.' as ProjectRootDir,
+    },
+  ], {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            '@apollo/client': '3.13.8(@types/react@18.3.23)(graphql@15.8.0)(react-dom@17.0.2(react@17.0.2))(react@17.0.2)(subscriptions-transport-ws@0.11.0(graphql@15.8.0))',
+          },
+          specifiers: {
+            '@apollo/client': '3.3.7',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    workspacePackages,
+    lockfileDir: '',
+  })).toBeFalsy()
+})

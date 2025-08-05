@@ -1,3 +1,4 @@
+import * as dp from '@pnpm/dependency-path'
 import { type ProjectSnapshot } from '@pnpm/lockfile.types'
 import {
   DEPENDENCIES_FIELDS,
@@ -6,6 +7,7 @@ import {
 import equals from 'ramda/src/equals'
 import pickBy from 'ramda/src/pickBy'
 import omit from 'ramda/src/omit'
+import semver from 'semver'
 import { type Diff, diffFlatRecords, isEqual } from './diffFlatRecords'
 
 export function satisfiesPackageManifest (
@@ -93,6 +95,14 @@ export function satisfiesPackageManifest (
         return {
           satisfies: false,
           detailedReason: `importer ${depField}.${depName} specifier ${importer.specifiers[depName]} don't match package manifest specifier (${pkgDeps[depName]})`,
+        }
+      }
+      if (importer?.specifiers[depName] == null || !semver.validRange(importer?.specifiers[depName])) continue
+      const version = dp.removeSuffix(importerDeps[depName])
+      if (semver.valid(version) && !semver.satisfies(version, importer.specifiers[depName])) {
+        return {
+          satisfies: false,
+          detailedReason: `The importer resolution is broken at dependency "${depName}": version "${version}" doesn't satisfy range "${importer.specifiers[depName]}"`,
         }
       }
     }
