@@ -42,7 +42,7 @@ function displayConfig (config: unknown, opts: DisplayConfigOptions): string {
     globalWarn('`pnpm config get` would display an array as comma-separated list due to legacy implementation, use `--json` to print them as json')
     return config.join(',') // TODO: change this in the next major version
   }
-  if (typeof config === 'object') {
+  if (typeof config === 'object' && config != null) {
     return encode(config)
   }
   return String(config)
