@@ -46,6 +46,9 @@
     "render-help": "catalog:",
     "write-ini-file": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-config": "workspace:*",
