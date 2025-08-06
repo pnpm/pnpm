@@ -316,6 +316,8 @@ export async function resolveRootDependencies (
   }
   /* eslint-disable no-await-in-loop */
   while (true) {
+    const rootDeps = importers.find(({ options }) => options.parentIds[0] === '.')
+    const rootProjectParentPkgAliases = rootDeps?.parentPkgAliases ?? {}
     const allMissingOptionalPeersByImporters = await Promise.all(pkgAddressesByImportersWithoutPeers.map(async (importerResolutionResult, index) => {
       const { parentPkgAliases, preferredVersions, options } = importers[index]
       const allMissingOptionalPeers: Record<string, string[]> = {}
@@ -323,8 +325,9 @@ export async function resolveRootDependencies (
         for (const pkgAddress of importerResolutionResult.pkgAddresses) {
           parentPkgAliases[pkgAddress.alias] = true
         }
-        const [missingOptionalPeers, missingRequiredPeers] = partition(([, { optional }]) => optional, Object.entries(importerResolutionResult.missingPeers ?? {}))
-        for (const missingPeerName of Object.keys(missingRequiredPeers)) {
+        let [missingOptionalPeers, missingRequiredPeers] = partition(([, { optional }]) => optional, Object.entries(importerResolutionResult.missingPeers ?? {}))
+        missingRequiredPeers = missingRequiredPeers.filter(([peerName]) => !rootProjectParentPkgAliases[peerName])
+        for (const [missingPeerName] of missingRequiredPeers) {
           parentPkgAliases[missingPeerName] = true
         }
         if (ctx.autoInstallPeers) {

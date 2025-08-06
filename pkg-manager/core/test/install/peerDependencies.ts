@@ -331,6 +331,85 @@ test('peer dependency is resolved from the dependencies of the workspace root pr
   }
 })
 
+test('peer dependency is resolved from the dependencies of the workspace root project when autoInstallPeersFromHighestMatch is set to true', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'pkg',
+      package: {},
+    },
+    {
+      location: 'pkg2',
+      package: {},
+    },
+  ])
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'root',
+        version: '1.0.0',
+
+        dependencies: {
+          ajv: '4.10.0',
+        },
+      },
+      rootDir: process.cwd() as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'pkg',
+        version: '1.0.0',
+
+        dependencies: {
+          'ajv-keywords': '1.5.0',
+        },
+      },
+      rootDir: path.resolve('pkg') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'pkg2',
+        version: '1.0.0',
+
+        dependencies: {
+          ajv: '5.0.0',
+        },
+      },
+      rootDir: path.resolve('pkg2') as ProjectRootDir,
+    },
+  ]
+  const reporter = jest.fn()
+  await mutateModules([
+    {
+      mutation: 'install',
+      rootDir: process.cwd() as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('pkg') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('pkg2') as ProjectRootDir,
+    },
+  ], testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true, autoInstallPeersFromHighestMatch: true }))
+
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:peer-dependency-issues',
+  }))
+
+  {
+    const lockfile = projects.root.readLockfile()
+    expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@4.10.0)')
+  }
+})
+
 test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async () => {
   prepareEmpty()
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
