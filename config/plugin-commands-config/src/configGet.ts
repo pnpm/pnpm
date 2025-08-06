@@ -1,4 +1,5 @@
 import kebabCase from 'lodash.kebabcase'
+import { encode } from 'ini'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { ParseErrorBase, getObjectValueByPropertyPath, parsePropertyPath } from '@pnpm/object.property-path'
@@ -46,7 +47,7 @@ function displayConfig (config: unknown, opts: DisplayConfigOptions): string {
     return config.join(',') // TODO: change this in the next major version
   }
   if (typeof config === 'object') {
-    return JSON.stringify(config, undefined, 2) // TODO: maybe display it as INI (like `pnpm config list`)?
+    return encode(config)
   }
   return String(config)
 }
