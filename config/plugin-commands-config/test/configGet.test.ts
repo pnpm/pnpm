@@ -5,12 +5,12 @@ import { config } from '@pnpm/plugin-commands-config'
  * Recursively clone an object and give every object inside the clone a null prototype.
  * Making it possible to compare it to the result of `ini.decode` with `toStrictEqual`.
  */
-function deepNullProto<Object> (object: Object): Object {
-  if (object == null || typeof object !== 'object' || Array.isArray(object)) return object
+function deepNullProto<Value> (value: Value): Value {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
 
-  const result: Object = Object.create(null)
-  for (const key in object) {
-    result[key] = deepNullProto(object[key])
+  const result: Value = Object.create(null)
+  for (const key in value) {
+    result[key] = deepNullProto(value[key])
   }
   return result
 }
