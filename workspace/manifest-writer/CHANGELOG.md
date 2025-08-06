@@ -1,5 +1,17 @@
 # @pnpm/workspace.manifest-writer
 
+## 1000.2.3
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [f91922c]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/workspace.read-manifest@1000.2.2
+
 ## 1000.2.2
 
 ### Patch Changes

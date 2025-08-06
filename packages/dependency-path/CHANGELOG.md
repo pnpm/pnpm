@@ -1,5 +1,15 @@
 # @pnpm/dependency-path
 
+## 1001.1.0
+
+### Minor Changes
+
+- d1edf73: Add support for installing deno runtime.
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.2.0
+
 ## 1001.0.2
 
 ### Patch Changes

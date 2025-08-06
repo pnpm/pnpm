@@ -1,5 +1,33 @@
 # @pnpm/client
 
+## 1001.0.0
+
+### Major Changes
+
+- d1edf73: Removed node fetcher. The binary fetcher should be used for downloading node assets.
+- f91922c: Changed how the integrity of the node.js artifact is stored in the lockfile.
+
+### Minor Changes
+
+- d1edf73: Added support for binary fetcher.
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/default-resolver@1002.2.0
+  - @pnpm/node.fetcher@1001.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/fetching.binary-fetcher@1000.0.0
+  - @pnpm/directory-fetcher@1000.1.10
+  - @pnpm/git-fetcher@1001.0.12
+  - @pnpm/tarball-fetcher@1001.0.12
+  - @pnpm/network.auth-header@1000.0.5
+
 ## 1000.1.0
 
 ### Minor Changes

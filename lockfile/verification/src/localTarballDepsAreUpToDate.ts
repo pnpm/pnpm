@@ -1,5 +1,5 @@
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
-import { refToRelative } from '@pnpm/dependency-path'
+import * as dp from '@pnpm/dependency-path'
 import {
   type ProjectSnapshot,
   type PackageSnapshots,
@@ -53,11 +53,34 @@ export async function localTarballDepsAreUpToDate (
     return pEvery(
       Object.entries(lockfileDeps),
       async ([depName, ref]) => {
-        if (!refIsLocalTarball(ref)) {
+        if (!ref.startsWith('file:')) {
           return true
         }
 
-        const depPath = refToRelative(ref, depName)
+        // The tarball ref can contain peers. Ex: file:bar.tgz(react@19.1.0)
+        //
+        // Trim out the peer suffix version to get a path to the local tarball.
+        //
+        //   - file:bar.tgz               → file:bar.tgz
+        //   - file:bar.tgz(react@19.1.0) → file:bar.tgz
+        //
+        const depPath = dp.refToRelative(ref, depName)
+        if (depPath == null) {
+          return true
+        }
+        const parsed = dp.parse(depPath)
+        const tarballRefWithoutPeersSuffix = parsed.nonSemverVersion
+
+        // Tarball refs aren't "semver" versions. If the nonSemverVersion field
+        // is empty, this isn't a depPath for a tarball.
+        if (tarballRefWithoutPeersSuffix == null) {
+          return true
+        }
+
+        if (!refIsLocalTarball(tarballRefWithoutPeersSuffix)) {
+          return true
+        }
+
         const packageSnapshot = depPath != null ? lockfilePackages?.[depPath] : null
 
         // If there's no snapshot for this local tarball yet, the project is out
@@ -67,7 +90,8 @@ export async function localTarballDepsAreUpToDate (
           return false
         }
 
-        const filePath = path.join(lockfileDir, ref.slice('file:'.length))
+        const fileRelativePath = tarballRefWithoutPeersSuffix.slice('file:'.length)
+        const filePath = path.join(lockfileDir, fileRelativePath)
 
         const fileIntegrityPromise = fileIntegrityCache.get(filePath) ?? getTarballIntegrity(filePath)
         if (!fileIntegrityCache.has(filePath)) {

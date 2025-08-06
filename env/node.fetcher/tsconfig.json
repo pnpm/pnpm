@@ -16,16 +16,13 @@
       "path": "../../crypto/shasums-file"
     },
     {
-      "path": "../../fetching/fetcher-base"
+      "path": "../../fetching/binary-fetcher"
     },
     {
       "path": "../../fetching/tarball-fetcher"
     },
     {
       "path": "../../network/fetching-types"
-    },
-    {
-      "path": "../../packages/constants"
     },
     {
       "path": "../../packages/error"
@@ -35,9 +32,6 @@
     },
     {
       "path": "../../store/create-cafs-store"
-    },
-    {
-      "path": "../../worker"
     },
     {
       "path": "../node.resolver"

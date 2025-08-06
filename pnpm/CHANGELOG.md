@@ -1,11 +1,12 @@
 # pnpm
 
-## 10.14.0-0
+## 10.14.0
 
 ### Minor Changes
 
-- Add `--cpu`, `--libc`, and `--os` to `pnpm install`, `pnpm add`, and `pnpm dlx` to customize `supportedArchitectures` via the CLI [#7510](https://github.com/pnpm/pnpm/issues/7510).
-- Added support for resolving and downloading the Node.js runtime specified in the [devEngines](https://github.com/openjs-foundation/package-metadata-interoperability-collab-space/issues/15) field of `package.json`.
+- **Added support for JavaScript runtime resolution**
+
+  Declare Node.js, Deno, or Bun in [`devEngines.runtime`](https://github.com/openjs-foundation/package-metadata-interoperability-collab-space/issues/15) (inside `package.json`) and let pnpm download and pin it automatically.
 
   Usage example:
 
@@ -15,17 +16,29 @@
       "runtime": {
         "name": "node",
         "version": "^24.4.0",
-        "onFail": "download"
+        "onFail": "download" (we only support the "download" value for now)
       }
     }
   }
   ```
 
-  When running `pnpm install`, pnpm will resolve Node.js to the latest version that satisfies the specified range and install it as a dependency of the project. As a result, when running scripts, the locally installed Node.js version will be used.
+  How it works:
 
-  Unlike the existing options, `useNodeVersion` and `executionEnv.nodeVersion`, this new field supports version ranges, which are locked to exact versions during installation. The resolved version is stored in the pnpm lockfile, along with an integrity checksum for future validation of the Node.js content's validity.
+  1. `pnpm install` resolves your specified range to the latest matching runtime version.
+  1. The exact version (and checksum) is saved in the lockfile.
+  1. Scripts use the local runtime, ensuring consistency across environments.
+
+  Why this is better:
+
+  1. This new setting supports also Deno and Bun (vs. our Node-only settings `useNodeVersion` and `executionEnv.nodeVersion`)
+  1. Supports version ranges (not just a fixed version).
+  1. The resolved version is stored in the pnpm lockfile, along with an integrity checksum for future validation of the Node.js content's validity.
+  1. It can be used on any workspace project (like `executionEnv.nodeVersion`). So, different projects in a workspace can use different runtimes.
+  1. For now `devEngines.runtime` setting will install the runtime locally, which we will improve in future versions of pnpm by using a shared location on the computer.
 
   Related PR: [#9755](https://github.com/pnpm/pnpm/pull/9755).
+
+- Add `--cpu`, `--libc`, and `--os` to `pnpm install`, `pnpm add`, and `pnpm dlx` to customize `supportedArchitectures` via the CLI [#7510](https://github.com/pnpm/pnpm/issues/7510).
 
 ### Patch Changes
 
@@ -33,6 +46,8 @@
 - The integrities of the downloaded Node.js artifacts are verified [#9750](https://github.com/pnpm/pnpm/pull/9750).
 - Allow `dlx` to parse CLI flags and options between the `dlx` command and the command to run or between the `dlx` command and `--` [#9719](https://github.com/pnpm/pnpm/issues/9719).
 - `pnpm install --prod` should removing hoisted dev dependencies [#9782](https://github.com/pnpm/pnpm/issues/9782).
+- Fix an edge case bug causing local tarballs to not re-link into the virtual store. This bug would happen when changing the contents of the tarball without renaming the file and running a filtered install.
+- Fix a bug causing `pnpm install` to incorrectly assume the lockfile is up to date after changing a local tarball that has peers dependencies.
 
 ## 10.13.1
 

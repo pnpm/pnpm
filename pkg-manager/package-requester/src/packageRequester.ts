@@ -21,13 +21,14 @@ import { globalWarn, logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { readPackageJson } from '@pnpm/read-package-json'
 import {
+  type PlatformAssetResolution,
   type DirectoryResolution,
-  type NodeRuntimeResolution,
   type PreferredVersions,
   type Resolution,
   type ResolveFunction,
   type ResolveResult,
   type TarballResolution,
+  type AtomicResolution,
 } from '@pnpm/resolver-base'
 import {
   type BundledManifest,
@@ -41,9 +42,10 @@ import {
   type RequestPackageOptions,
   type WantedDependency,
 } from '@pnpm/store-controller-types'
-import { type DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest, type SupportedArchitectures } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
+import { familySync } from 'detect-libc'
 import PQueue from 'p-queue'
 import pDefer from 'p-defer'
 import pShare from 'promise-share'
@@ -52,6 +54,13 @@ import semver from 'semver'
 import ssri from 'ssri'
 import { equalOrSemverEqual } from './equalOrSemverEqual'
 
+let currentLibc: 'glibc' | 'musl' | undefined | null
+function getLibcFamilySync () {
+  if (currentLibc === undefined) {
+    currentLibc = familySync() as unknown as typeof currentLibc
+  }
+  return currentLibc
+}
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
 
@@ -235,7 +244,7 @@ async function resolveAndFetch (
 
   const id = pkgId!
 
-  if (resolution.type === 'directory' && !id.startsWith('file:')) {
+  if ('type' in resolution && resolution.type === 'directory' && !id.startsWith('file:')) {
     if (manifest == null) {
       throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`)
     }
@@ -302,6 +311,7 @@ async function resolveAndFetch (
       resolution,
     },
     onFetchError: options.onFetchError,
+    supportedArchitectures: options.supportedArchitectures,
   })
 
   if (!manifest) {
@@ -332,22 +342,69 @@ interface FetchLock {
   fetchRawManifest?: boolean
 }
 
+interface GetFilesIndexFilePathResult {
+  target: string
+  filesIndexFile: string
+  resolution: AtomicResolution
+}
+
 function getFilesIndexFilePath (
   ctx: {
     getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     storeDir: string
     virtualStoreDirMaxLength: number
   },
-  opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>
-) {
+  opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts' | 'supportedArchitectures'>
+): GetFilesIndexFilePathResult {
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
-  const filesIndexFile = (opts.pkg.resolution as TarballResolution).integrity
-    ? ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id)
-    : (opts.pkg.resolution as NodeRuntimeResolution).integrities?.[`${process.platform}-${process.arch}`]
-      ? ctx.getIndexFilePathInCafs((opts.pkg.resolution as NodeRuntimeResolution).integrities[`${process.platform}-${process.arch}`], opts.pkg.id)
-      : path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
-  return { filesIndexFile, target }
+  if ((opts.pkg.resolution as TarballResolution).integrity) {
+    return {
+      target,
+      filesIndexFile: ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
+      resolution: opts.pkg.resolution as AtomicResolution,
+    }
+  }
+  let resolution!: AtomicResolution
+  if (opts.pkg.resolution.type === 'variations') {
+    resolution = findResolution(opts.pkg.resolution.variants, opts.supportedArchitectures)
+    if ((resolution as TarballResolution).integrity) {
+      return {
+        target,
+        filesIndexFile: ctx.getIndexFilePathInCafs((resolution as TarballResolution).integrity!, opts.pkg.id),
+        resolution,
+      }
+    }
+  } else {
+    resolution = opts.pkg.resolution
+  }
+  const filesIndexFile = path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
+  return { filesIndexFile, target, resolution }
+}
+
+function findResolution (resolutionVariants: PlatformAssetResolution[], supportedArchitectures?: SupportedArchitectures): AtomicResolution {
+  const platform = getOneIfNonCurrent(supportedArchitectures?.os) ?? process.platform
+  const cpu = getOneIfNonCurrent(supportedArchitectures?.cpu) ?? process.arch
+  const libc = getOneIfNonCurrent(supportedArchitectures?.libc) ?? getLibcFamilySync()
+  const resolutionVariant = resolutionVariants
+    .find((resolutionVariant) => resolutionVariant.targets.some(
+      (target) =>
+        target.os === platform &&
+        target.cpu === cpu &&
+        (target.libc == null || target.libc === libc)
+    ))
+  if (!resolutionVariant) {
+    const resolutionTargets = resolutionVariants.map((variant) => variant.targets)
+    throw new PnpmError('NO_RESOLUTION_MATCHED', `Cannot find a resolution variant for the current platform in these resolutions: ${JSON.stringify(resolutionTargets)}`)
+  }
+  return resolutionVariant.resolution
+}
+
+function getOneIfNonCurrent (requirements: string[] | undefined): string | undefined {
+  if (requirements?.length && requirements[0] !== 'current') {
+    return requirements[0]
+  }
+  return undefined
 }
 
 function fetchToStore (
@@ -358,7 +415,7 @@ function fetchToStore (
     ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
     fetch: (
       packageId: string,
-      resolution: Resolution,
+      resolution: AtomicResolution,
       opts: FetchOptions
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
@@ -384,9 +441,9 @@ function fetchToStore (
 
   if (!ctx.fetchingLocker.has(opts.pkg.id)) {
     const fetching = pDefer<PkgRequestFetchResult>()
-    const { filesIndexFile, target } = getFilesIndexFilePath(ctx, opts)
+    const { filesIndexFile, target, resolution } = getFilesIndexFilePath(ctx, opts)
 
-    doFetchToStore(filesIndexFile, fetching, target) // eslint-disable-line
+    doFetchToStore(filesIndexFile, fetching, target, resolution) // eslint-disable-line
 
     ctx.fetchingLocker.set(opts.pkg.id, {
       fetching: removeKeyOnFail(fetching.promise),
@@ -482,11 +539,12 @@ function fetchToStore (
   async function doFetchToStore (
     filesIndexFile: string,
     fetching: pDefer.DeferredPromise<PkgRequestFetchResult>,
-    target: string
+    target: string,
+    resolution: AtomicResolution
   ) {
     try {
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
-      const isLocalPkg = opts.pkg.resolution.type === 'directory'
+      const isLocalPkg = resolution.type === 'directory'
 
       if (
         !opts.force &&
@@ -557,7 +615,7 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
 
       const fetchedPackage = await ctx.requestsQueue.add(async () => ctx.fetch(
         opts.pkg.id,
-        opts.pkg.resolution,
+        resolution,
         {
           filesIndexFile,
           lockfileDir: opts.lockfileDir,
@@ -638,7 +696,7 @@ async function fetcher (
   fetcherByHostingType: Fetchers,
   cafs: Cafs,
   packageId: string,
-  resolution: Resolution,
+  resolution: AtomicResolution,
   opts: FetchOptions
 ): Promise<FetchResult> {
   const fetch = pickFetcher(fetcherByHostingType, resolution)

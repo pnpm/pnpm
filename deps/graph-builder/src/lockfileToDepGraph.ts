@@ -33,6 +33,7 @@ export interface DependenciesGraphNode {
   modules: string
   name: string
   fetching?: () => Promise<PkgRequestFetchResult>
+  forceImportPackage?: boolean // Used to force re-imports from the store of local tarballs that have changed.
   dir: string
   children: Record<string, string>
   optionalDependencies: Set<string>
@@ -92,6 +93,15 @@ export interface LockfileToDepGraphResult {
   pkgLocationsByDepPath?: Record<string, string[]>
 }
 
+/**
+ * Generate a dependency graph from lockfiles.
+ *
+ * If a current lockfile is provided, this function only includes new or changed
+ * packages in the graph. In other words, the graph returned will be a set
+ * subtraction of the packages in the wanted lockfile minus the current
+ * lockfile. This behavior can be configured with the `includeUnchangedDeps`
+ * option.
+ */
 export async function lockfileToDepGraph (
   lockfile: LockfileObject,
   currentLockfile: LockfileObject | null,
@@ -186,6 +196,8 @@ async function buildGraphFromPackages (
         currentPackages[depPath] &&
         equals(currentPackages[depPath].dependencies, pkgSnapshot.dependencies)
 
+      const depIntegrityIsUnchanged = isIntegrityEqual(pkgSnapshot.resolution, currentPackages[depPath]?.resolution)
+
       const modules = path.join(opts.virtualStoreDir, dirNameInVirtualStore, 'node_modules')
       const dir = path.join(modules, pkgName)
       locationByDepPath[depPath] = dir
@@ -193,6 +205,7 @@ async function buildGraphFromPackages (
       let dirExists: boolean | undefined
       if (
         depIsPresent &&
+        depIntegrityIsUnchanged &&
         isEmpty(currentPackages[depPath].optionalDependencies ?? {}) &&
         isEmpty(pkgSnapshot.optionalDependencies ?? {}) &&
         !opts.includeUnchangedDeps
@@ -203,7 +216,7 @@ async function buildGraphFromPackages (
       }
 
       let fetchResponse!: Partial<FetchResponse>
-      if (depIsPresent && equals(currentPackages[depPath].optionalDependencies, pkgSnapshot.optionalDependencies)) {
+      if (depIsPresent && depIntegrityIsUnchanged && equals(currentPackages[depPath].optionalDependencies, pkgSnapshot.optionalDependencies)) {
         if (dirExists ?? await pathExists(dir)) {
           fetchResponse = {}
         } else {
@@ -221,6 +234,7 @@ async function buildGraphFromPackages (
             lockfileDir: opts.lockfileDir,
             ignoreScripts: opts.ignoreScripts,
             pkg: { name: pkgName, version: pkgVersion, id: packageId, resolution },
+            supportedArchitectures: opts.supportedArchitectures,
           })
         } catch (err) {
           if (pkgSnapshot.optional) return
@@ -236,6 +250,7 @@ async function buildGraphFromPackages (
         dir,
         fetching: fetchResponse.fetching,
         filesIndexFile: fetchResponse.filesIndexFile,
+        forceImportPackage: !depIntegrityIsUnchanged,
         hasBin: pkgSnapshot.hasBin === true,
         hasBundledDependencies: pkgSnapshot.bundledDependencies != null,
         modules,
@@ -289,4 +304,14 @@ function getChildrenPaths (
     }
   }
   return children
+}
+
+function isIntegrityEqual (resolutionA?: LockfileResolution, resolutionB?: LockfileResolution) {
+  // The LockfileResolution type is a union, but it doesn't have a "tag"
+  // field to perform a discriminant match on. Using a type assertion is
+  // required to get the integrity field.
+  const integrityA = (resolutionA as ({ integrity?: string } | undefined))?.integrity
+  const integrityB = (resolutionB as ({ integrity?: string } | undefined))?.integrity
+
+  return integrityA === integrityB
 }

@@ -1,5 +1,17 @@
 # @pnpm/list
 
+## 1000.0.22
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [0b6264e]
+- Updated dependencies [adb097c]
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/reviewing.dependencies-hierarchy@1001.0.19
+  - @pnpm/read-package-json@1000.0.11
+
 ## 1000.0.21
 
 ### Patch Changes

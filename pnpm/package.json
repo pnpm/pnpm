@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "10.14.0-0",
+  "version": "10.14.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -191,7 +191,7 @@
       "hosted-git-info@1": "npm:@pnpm/hosted-git-info@1.0.0",
       "http-proxy-middleware@<2.0.7": "^2.0.7",
       "istanbul-reports": "npm:@zkochan/istanbul-reports",
-      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.7",
+      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.9",
       "json5@<2.2.2": "^2.2.3",
       "jsonwebtoken@<=8.5.1": ">=9.0.0",
       "nopt@5": "npm:@pnpm/nopt@^0.2.1",

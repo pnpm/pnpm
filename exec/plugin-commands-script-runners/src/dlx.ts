@@ -1,7 +1,7 @@
 import fs, { type Stats } from 'fs'
 import path from 'path'
 import util from 'util'
-import { docsUrl } from '@pnpm/cli-utils'
+import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { createResolver } from '@pnpm/client'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
@@ -11,7 +11,7 @@ import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { type PnpmSettings, type SupportedArchitectures } from '@pnpm/types'
+import { type PackageManifest, type PnpmSettings, type SupportedArchitectures } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import execa from 'execa'
 import pick from 'ramda/src/pick'
@@ -138,15 +138,14 @@ export async function handler (
       }
     }
   }
-  const modulesDir = path.join(cachedDir, 'node_modules')
-  const binsDir = path.join(modulesDir, '.bin')
+  const binsDir = path.join(cachedDir, 'node_modules/.bin')
   const env = makeEnv({
     userAgent: opts.userAgent,
     prependPaths: [binsDir, ...opts.extraBinPaths],
   })
   const binName = opts.package
     ? command
-    : await getBinName(modulesDir, await getPkgName(cachedDir))
+    : await getBinName(cachedDir, opts)
   try {
     await execa(binName, args, {
       cwd: process.cwd(),
@@ -174,9 +173,10 @@ async function getPkgName (pkgDir: string): Promise<string> {
   return dependencyNames[0]
 }
 
-async function getBinName (modulesDir: string, pkgName: string): Promise<string> {
-  const pkgDir = path.join(modulesDir, pkgName)
-  const manifest = await readPackageJsonFromDir(pkgDir)
+async function getBinName (cachedDir: string, opts: Pick<DlxCommandOptions, 'engineStrict'>): Promise<string> {
+  const pkgName = await getPkgName(cachedDir)
+  const pkgDir = path.join(cachedDir, 'node_modules', pkgName)
+  const manifest = await readProjectManifestOnly(pkgDir, opts) as PackageManifest
   const bins = await getBinsFromPackageManifest(manifest, pkgDir)
   if (bins.length === 0) {
     throw new PnpmError('DLX_NO_BIN', `No binaries found in ${pkgName}`)

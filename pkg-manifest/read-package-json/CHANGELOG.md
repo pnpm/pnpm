@@ -1,5 +1,12 @@
 # @pnpm/read-package-json
 
+## 1000.0.11
+
+### Patch Changes
+
+- adb097c: Bump `normalize-package-data` to 7.0.1 to solve `url.parse` warning
+  - @pnpm/error@1000.0.4
+
 ## 1000.0.10
 
 ### Patch Changes

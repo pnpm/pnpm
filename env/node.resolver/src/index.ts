@@ -2,17 +2,24 @@ import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { fetchShasumsFile } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
-import { type WantedDependency, type NodeRuntimeResolution, type ResolveResult } from '@pnpm/resolver-base'
+import {
+  type BinaryResolution,
+  type PlatformAssetResolution,
+  type ResolveResult,
+  type VariationsResolution,
+  type WantedDependency,
+} from '@pnpm/resolver-base'
 import semver from 'semver'
 import versionSelectorType from 'version-selector-type'
 import { type PkgResolutionId } from '@pnpm/types'
 import { parseEnvSpecifier } from './parseEnvSpecifier'
 import { getNodeMirror } from './getNodeMirror'
+import { getNodeArtifactAddress } from './getNodeArtifactAddress'
 
-export { getNodeMirror, parseEnvSpecifier }
+export { getNodeMirror, parseEnvSpecifier, getNodeArtifactAddress }
 
 export interface NodeRuntimeResolveResult extends ResolveResult {
-  resolution: NodeRuntimeResolution
+  resolution: VariationsResolution
   resolvedVia: 'nodejs.org'
 }
 
@@ -33,7 +40,7 @@ export async function resolveNodeRuntime (
   if (!version) {
     throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
   }
-  const integrities = await loadShasumsFile(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
+  const variants = await readNodeAssets(ctx.fetchFromRegistry, nodeMirrorBaseUrl, version)
   const range = version === versionSpec ? version : `^${version}`
   return {
     id: `node@runtime:${version}` as PkgResolutionId,
@@ -45,37 +52,52 @@ export async function resolveNodeRuntime (
       bin: getNodeBinLocationForCurrentOS(),
     },
     resolution: {
-      type: 'nodeRuntime',
-      integrities,
+      type: 'variations',
+      variants,
     },
   }
 }
 
-async function loadShasumsFile (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<Record<string, string>> {
+async function readNodeAssets (fetch: FetchFromRegistry, nodeMirrorBaseUrl: string, version: string): Promise<PlatformAssetResolution[]> {
   const integritiesFileUrl = `${nodeMirrorBaseUrl}/v${version}/SHASUMS256.txt`
-  const shasumsFileContent = await fetchShasumsFile(fetch, integritiesFileUrl)
-  const lines = shasumsFileContent.split('\n')
-  const integrities: Record<string, string> = {}
+  const shasumsFileItems = await fetchShasumsFile(fetch, integritiesFileUrl)
   const escaped = version.replace(/\\/g, '\\\\').replace(/\./g, '\\.')
   const pattern = new RegExp(`^node-v${escaped}-([^-.]+)-([^.]+)\\.(?:tar\\.gz|zip)$`)
-  for (const line of lines) {
-    if (!line) continue
-    const [sha256, file] = line.trim().split(/\s+/)
-
-    const match = pattern.exec(file)
+  const assets: PlatformAssetResolution[] = []
+  for (const { integrity, fileName } of shasumsFileItems) {
+    const match = pattern.exec(fileName)
     if (!match) continue
 
-    const buffer = Buffer.from(sha256, 'hex')
-    const base64 = buffer.toString('base64')
-    const integrity = `sha256-${base64}`
     let [, platform, arch] = match
     if (platform === 'win') {
       platform = 'win32'
     }
-    integrities[`${platform}-${arch}`] = integrity
+    const address = getNodeArtifactAddress({
+      version,
+      baseUrl: nodeMirrorBaseUrl,
+      platform,
+      arch,
+    })
+    const url = `${address.dirname}/${address.basename}${address.extname}`
+    const resolution: BinaryResolution = {
+      type: 'binary',
+      archive: address.extname === '.zip' ? 'zip' : 'tarball',
+      bin: getNodeBinLocationForCurrentOS(platform),
+      integrity,
+      url,
+    }
+    if (resolution.archive === 'zip') {
+      resolution.prefix = address.basename
+    }
+    assets.push({
+      targets: [{
+        os: platform,
+        cpu: arch,
+      }],
+      resolution,
+    })
   }
-
-  return integrities
+  return assets
 }
 
 interface NodeVersion {

@@ -22,6 +22,12 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../bun-resolver"
+    },
+    {
+      "path": "../deno-resolver"
+    },
+    {
       "path": "../git-resolver"
     },
     {

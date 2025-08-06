@@ -1,0 +1,49 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../crypto/shasums-file"
+    },
+    {
+      "path": "../../env/node.fetcher"
+    },
+    {
+      "path": "../../fetching/binary-fetcher"
+    },
+    {
+      "path": "../../fetching/fetcher-base"
+    },
+    {
+      "path": "../../network/fetching-types"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../worker"
+    },
+    {
+      "path": "../deno-resolver"
+    },
+    {
+      "path": "../npm-resolver"
+    },
+    {
+      "path": "../resolver-base"
+    }
+  ]
+}

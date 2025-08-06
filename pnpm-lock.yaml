@@ -388,8 +388,8 @@ catalogs:
       specifier: ^29.7.0
       version: 29.7.0
     js-yaml:
-      specifier: npm:@zkochan/js-yaml@0.0.7
-      version: 0.0.7
+      specifier: npm:@zkochan/js-yaml@0.0.9
+      version: 0.0.9
     json5:
       specifier: ^2.2.3
       version: 2.2.3
@@ -671,7 +671,7 @@ overrides:
   hosted-git-info@1: npm:@pnpm/hosted-git-info@1.0.0
   http-proxy-middleware@<2.0.7: ^2.0.7
   istanbul-reports: npm:@zkochan/istanbul-reports
-  js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.7
+  js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.9
   json5@<2.2.2: ^2.2.3
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   nopt@5: npm:@pnpm/nopt@^0.2.1
@@ -2070,9 +2070,6 @@ importers:
 
   env/node.fetcher:
     dependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../packages/constants
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
@@ -2082,36 +2079,21 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fetcher-base':
-        specifier: workspace:*
-        version: link:../../fetching/fetcher-base
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
+      '@pnpm/fetching.binary-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/binary-fetcher
       '@pnpm/node.resolver':
         specifier: workspace:*
         version: link:../node.resolver
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../../fetching/tarball-fetcher
-      '@pnpm/worker':
-        specifier: workspace:*
-        version: link:../../worker
-      adm-zip:
-        specifier: 'catalog:'
-        version: 0.5.16
       detect-libc:
         specifier: 'catalog:'
         version: 2.0.3
-      rename-overwrite:
-        specifier: 'catalog:'
-        version: 6.0.2
-      ssri:
-        specifier: 'catalog:'
-        version: 10.0.5
-      tempy:
-        specifier: 'catalog:'
-        version: 1.0.1
     devDependencies:
       '@pnpm/cafs-types':
         specifier: workspace:*
@@ -2125,9 +2107,9 @@ importers:
       '@types/adm-zip':
         specifier: 'catalog:'
         version: 0.5.7
-      '@types/ssri':
+      adm-zip:
         specifier: 'catalog:'
-        version: 7.1.5
+        version: 0.5.16
       node-fetch:
         specifier: 'catalog:'
         version: '@pnpm/node-fetch@1.0.0'
@@ -2407,7 +2389,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       p-defer:
         specifier: 'catalog:'
@@ -2587,7 +2569,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
@@ -2768,6 +2750,9 @@ importers:
         specifier: 'catalog:'
         version: 4.3.0
     devDependencies:
+      '@pnpm/env.system-node-version':
+        specifier: workspace:*
+        version: link:../../env/system-node-version
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
@@ -2876,6 +2861,43 @@ importers:
       '@types/cross-spawn':
         specifier: 'catalog:'
         version: 6.0.6
+
+  fetching/binary-fetcher:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fetcher-base':
+        specifier: workspace:*
+        version: link:../fetcher-base
+      '@pnpm/fetching-types':
+        specifier: workspace:*
+        version: link:../../network/fetching-types
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../worker
+      adm-zip:
+        specifier: 'catalog:'
+        version: 0.5.16
+      rename-overwrite:
+        specifier: 'catalog:'
+        version: 6.0.2
+      ssri:
+        specifier: 'catalog:'
+        version: 10.0.5
+      tempy:
+        specifier: 'catalog:'
+        version: 1.0.1
+    devDependencies:
+      '@pnpm/fetching.binary-fetcher':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/adm-zip':
+        specifier: 'catalog:'
+        version: 0.5.7
+      '@types/ssri':
+        specifier: 'catalog:'
+        version: 7.1.5
 
   fetching/directory-fetcher:
     dependencies:
@@ -3482,7 +3504,7 @@ importers:
         version: 1.0.0
       js-yaml:
         specifier: 'catalog:'
-        version: '@zkochan/js-yaml@0.0.7'
+        version: '@zkochan/js-yaml@0.0.9'
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -3754,6 +3776,9 @@ importers:
       '@pnpm/patching.types':
         specifier: workspace:*
         version: link:../../patching/types
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -4524,6 +4549,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
+      '@pnpm/fetching.binary-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/binary-fetcher
       '@pnpm/git-fetcher':
         specifier: workspace:*
         version: link:../../fetching/git-fetcher
@@ -5356,6 +5384,9 @@ importers:
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
+      detect-libc:
+        specifier: 'catalog:'
+        version: 2.0.3
       p-defer:
         specifier: 'catalog:'
         version: 3.0.0
@@ -6721,6 +6752,58 @@ importers:
         specifier: 'catalog:'
         version: 5.0.0
 
+  resolving/bun-resolver:
+    dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/crypto.shasums-file':
+        specifier: workspace:*
+        version: link:../../crypto/shasums-file
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fetcher-base':
+        specifier: workspace:*
+        version: link:../../fetching/fetcher-base
+      '@pnpm/fetching-types':
+        specifier: workspace:*
+        version: link:../../network/fetching-types
+      '@pnpm/fetching.binary-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/binary-fetcher
+      '@pnpm/node.fetcher':
+        specifier: workspace:*
+        version: link:../../env/node.fetcher
+      '@pnpm/npm-resolver':
+        specifier: workspace:*
+        version: link:../npm-resolver
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.2
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../worker
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.1
+    devDependencies:
+      '@pnpm/resolving.bun-resolver':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/resolving.deno-resolver':
+        specifier: workspace:*
+        version: link:../deno-resolver
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
+
   resolving/default-resolver:
     dependencies:
       '@pnpm/error':
@@ -6744,6 +6827,12 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
+      '@pnpm/resolving.bun-resolver':
+        specifier: workspace:*
+        version: link:../bun-resolver
+      '@pnpm/resolving.deno-resolver':
+        specifier: workspace:*
+        version: link:../deno-resolver
       '@pnpm/tarball-resolver':
         specifier: workspace:*
         version: link:../tarball-resolver
@@ -6754,6 +6843,55 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+
+  resolving/deno-resolver:
+    dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/crypto.shasums-file':
+        specifier: workspace:*
+        version: link:../../crypto/shasums-file
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fetcher-base':
+        specifier: workspace:*
+        version: link:../../fetching/fetcher-base
+      '@pnpm/fetching-types':
+        specifier: workspace:*
+        version: link:../../network/fetching-types
+      '@pnpm/fetching.binary-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/binary-fetcher
+      '@pnpm/node.fetcher':
+        specifier: workspace:*
+        version: link:../../env/node.fetcher
+      '@pnpm/npm-resolver':
+        specifier: workspace:*
+        version: link:../npm-resolver
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/util.lex-comparator':
+        specifier: 'catalog:'
+        version: 3.0.2
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../worker
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.1
+    devDependencies:
+      '@pnpm/resolving.deno-resolver':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
 
   resolving/git-resolver:
     dependencies:
@@ -10540,8 +10678,8 @@ packages:
     resolution: {integrity: sha512-GeZZ9YNlvveT1CrMqe64s9+5hNF5p9Gj6J+PRQU3OnBS/9c2y5kSFavUZ9YAuoAgxFW8tKGKWIxJK4I6HBSigg==}
     engines: {node: '>=8'}
 
-  '@zkochan/js-yaml@0.0.7':
-    resolution: {integrity: sha512-nrUSn7hzt7J6JWgWGz78ZYI8wj+gdIJdk0Ynjpp8l+trkn58Uqsf6RYrYkEK+3X18EX+TNdtJI0WxAtc+L84SQ==}
+  '@zkochan/js-yaml@0.0.9':
+    resolution: {integrity: sha512-SsdK25Upg5wLeGK2Wm8y5bDloMMxN/qE5H6aNOiPRh07a9/fQPYVhlLZz2zRFg9il9XOlpFdrnQnPKsU7FJIpQ==}
     hasBin: true
 
   '@zkochan/retry@0.2.0':
@@ -16366,7 +16504,7 @@ snapshots:
       globals: 13.24.0
       ignore: 5.3.2
       import-fresh: 3.3.1
-      js-yaml: '@zkochan/js-yaml@0.0.7'
+      js-yaml: '@zkochan/js-yaml@0.0.9'
       minimatch: 3.1.2
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
@@ -16380,7 +16518,7 @@ snapshots:
       globals: 14.0.0
       ignore: 5.3.2
       import-fresh: 3.3.1
-      js-yaml: '@zkochan/js-yaml@0.0.7'
+      js-yaml: '@zkochan/js-yaml@0.0.9'
       minimatch: 3.1.2
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
@@ -18491,7 +18629,7 @@ snapshots:
       html-escaper: 2.0.2
       istanbul-lib-report: 3.0.1
 
-  '@zkochan/js-yaml@0.0.7':
+  '@zkochan/js-yaml@0.0.9':
     dependencies:
       argparse: 2.0.1
 
@@ -19307,7 +19445,7 @@ snapshots:
   cosmiconfig@8.3.6(typescript@5.5.4):
     dependencies:
       import-fresh: 3.3.1
-      js-yaml: '@zkochan/js-yaml@0.0.7'
+      js-yaml: '@zkochan/js-yaml@0.0.9'
       parse-json: 5.2.0
       path-type: 4.0.0
     optionalDependencies:
@@ -19974,7 +20112,7 @@ snapshots:
       imurmurhash: 0.1.4
       is-glob: 4.0.3
       is-path-inside: 3.0.3
-      js-yaml: '@zkochan/js-yaml@0.0.7'
+      js-yaml: '@zkochan/js-yaml@0.0.9'
       json-stable-stringify-without-jsonify: 1.0.1
       levn: 0.4.1
       lodash.merge: 4.6.2
@@ -22330,7 +22468,7 @@ snapshots:
 
   parse-npm-tarball-url@3.0.0:
     dependencies:
-      semver: 7.7.1
+      semver: 7.7.2
 
   parseurl@1.3.3: {}
 
@@ -22649,7 +22787,7 @@ snapshots:
 
   read-yaml-file@2.1.0:
     dependencies:
-      js-yaml: '@zkochan/js-yaml@0.0.7'
+      js-yaml: '@zkochan/js-yaml@0.0.9'
       strip-bom: 4.0.0
 
   readable-stream@2.3.8:
@@ -23825,7 +23963,7 @@ snapshots:
       fast-safe-stringify: 2.1.1
       handlebars: 4.7.7
       http-errors: 2.0.0
-      js-yaml: '@zkochan/js-yaml@0.0.7'
+      js-yaml: '@zkochan/js-yaml@0.0.9'
       jsonwebtoken: 9.0.0
       kleur: 4.1.5
       lodash: 4.17.21
@@ -24089,12 +24227,12 @@ snapshots:
 
   write-yaml-file@4.2.0:
     dependencies:
-      js-yaml: '@zkochan/js-yaml@0.0.7'
+      js-yaml: '@zkochan/js-yaml@0.0.9'
       write-file-atomic: 3.0.3
 
   write-yaml-file@5.0.0:
     dependencies:
-      js-yaml: '@zkochan/js-yaml@0.0.7'
+      js-yaml: '@zkochan/js-yaml@0.0.9'
       write-file-atomic: 5.0.1
 
   xdg-basedir@5.1.0: {}

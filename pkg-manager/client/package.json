@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/client",
-  "version": "1000.1.0",
+  "version": "1001.0.0",
   "description": "Creates the package resolve and fetch functions",
   "keywords": [
     "pnpm",
@@ -37,6 +37,7 @@
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/fetching.binary-fetcher": "workspace:*",
     "@pnpm/git-fetcher": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",

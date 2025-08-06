@@ -1,5 +1,19 @@
 # @pnpm/modules-cleaner
 
+## 1001.0.19
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/lockfile.filtering@1001.0.17
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/remove-bins@1000.0.12
+
 ## 1001.0.18
 
 ### Patch Changes

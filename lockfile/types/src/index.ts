@@ -1,5 +1,6 @@
 import { type PatchFile } from '@pnpm/patching.types'
 import { type DependenciesMeta, type DepPath, type ProjectId } from '@pnpm/types'
+import { type PlatformAssetTarget } from '@pnpm/resolver-base'
 
 export type { PatchFile, ProjectId }
 
@@ -109,18 +110,31 @@ export interface GitRepositoryResolution {
   path?: string
 }
 
-export interface NodeRuntimeResolution {
-  type: 'nodeRuntime'
-  integrities: Record<string, string>
+export interface BinaryResolution {
+  type: 'binary'
+  url: string
+  integrity: string
+  bin: string
+  archive: 'zip' | 'tarball'
+}
+
+export interface PlatformAssetResolution {
+  resolution: Resolution
+  targets: PlatformAssetTarget[]
 }
 
 export type Resolution =
   TarballResolution |
   GitRepositoryResolution |
   DirectoryResolution |
-  NodeRuntimeResolution
+  BinaryResolution
 
-export type LockfileResolution = Resolution | {
+export interface VariationsResolution {
+  type: 'variations'
+  variants: PlatformAssetResolution[]
+}
+
+export type LockfileResolution = Resolution | VariationsResolution | {
   integrity: string
 }
 

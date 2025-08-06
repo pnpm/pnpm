@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/node.fetcher",
-  "version": "1000.1.0",
+  "version": "1001.0.0",
   "description": "Node.js artifacts fetcher",
   "keywords": [
     "pnpm",
@@ -33,27 +33,21 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/crypto.shasums-file": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/fetching.binary-fetcher": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
-    "@pnpm/worker": "workspace:*",
-    "adm-zip": "catalog:",
-    "detect-libc": "catalog:",
-    "rename-overwrite": "catalog:",
-    "ssri": "catalog:",
-    "tempy": "catalog:"
+    "detect-libc": "catalog:"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "catalog:",
-    "@types/ssri": "catalog:",
+    "adm-zip": "catalog:",
     "node-fetch": "catalog:"
   },
   "engines": {

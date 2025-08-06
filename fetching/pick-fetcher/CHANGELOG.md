@@ -1,5 +1,11 @@
 # @pnpm/pick-fetcher
 
+## 1001.0.0
+
+### Major Changes
+
+- d1edf73: Rename Resolution to AtomicResolution. Add support for binary resolution.
+
 ## 1000.1.0
 
 ### Minor Changes
