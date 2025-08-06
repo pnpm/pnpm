@@ -43,10 +43,10 @@ function displayConfig (config: unknown, opts: DisplayConfigOptions): string {
   if (opts.json) return JSON.stringify(config, undefined, 2)
   if (Array.isArray(config)) {
     globalWarn('`pnpm config get` would display an array as comma-separated list due to legacy implementation, use `--json` to print them as json')
-    return config.join(',')
+    return config.join(',') // TODO: change this in the next major version
   }
   if (typeof config === 'object') {
-    return JSON.stringify(config, undefined, 2)
+    return JSON.stringify(config, undefined, 2) // TODO: maybe display it as INI (like `pnpm config list`)?
   }
   return String(config)
 }
