@@ -1,6 +1,5 @@
 import kebabCase from 'lodash.kebabcase'
 import { encode } from 'ini'
-import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { ParseErrorBase, getObjectValueByPropertyPath, parsePropertyPath } from '@pnpm/object.property-path'
 import { runNpm } from '@pnpm/run-npm'
@@ -30,9 +29,6 @@ function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPa
       return undefined
     }
     throw error
-  }
-  if (topLevelKey == null || topLevelKey === '') {
-    throw new PnpmError('NO_CONFIG_KEY', 'Cannot get config with an empty key')
   }
   const kebabKey = kebabCase(String(topLevelKey))
   return getObjectValueByPropertyPath(rawConfig[kebabKey], suffix)
