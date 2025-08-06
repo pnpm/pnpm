@@ -112,3 +112,91 @@ test('config get without key show list all settings ', async () => {
 
   expect(getOutput).toEqual(listOutput)
 })
+
+describe('config get with a property path', () => {
+  function getOutputString (result: config.ConfigHandlerResult): string {
+    if (result == null) throw new Error('output is null or undefined')
+    if (typeof result === 'string') return result
+    if (typeof result === 'object') return result.output
+    const _typeGuard: never = result // eslint-disable-line @typescript-eslint/no-unused-vars
+    throw new Error('unreachable')
+  }
+
+  const rawConfig = {
+    // rawConfig keys are always kebab-case
+    'package-extensions': {
+      '@babel/parser': {
+        peerDependencies: {
+          '@babel/types': '*',
+        },
+      },
+      'jest-circus': {
+        dependencies: {
+          slash: '3',
+        },
+      },
+    },
+  }
+
+  describe('anything with --json', () => {
+    test.each([
+      ['', rawConfig],
+      ['packageExtensions', rawConfig['package-extensions']],
+      ['packageExtensions["@babel/parser"]', rawConfig['package-extensions']['@babel/parser']],
+      ['packageExtensions["@babel/parser"].peerDependencies', rawConfig['package-extensions']['@babel/parser'].peerDependencies],
+      ['packageExtensions["@babel/parser"].peerDependencies["@babel/types"]', rawConfig['package-extensions']['@babel/parser'].peerDependencies['@babel/types']],
+      ['packageExtensions["jest-circus"]', rawConfig['package-extensions']['jest-circus']],
+      ['packageExtensions["jest-circus"].dependencies', rawConfig['package-extensions']['jest-circus'].dependencies],
+      ['packageExtensions["jest-circus"].dependencies.slash', rawConfig['package-extensions']['jest-circus'].dependencies.slash],
+    ] as Array<[string, unknown]>)('%s', async (propertyPath, expected) => {
+      const getResult = await config.handler({
+        dir: process.cwd(),
+        cliOptions: {},
+        configDir: process.cwd(),
+        global: true,
+        json: true,
+        rawConfig,
+      }, ['get', propertyPath])
+
+      expect(JSON.parse(getOutputString(getResult))).toStrictEqual(expected)
+    })
+  })
+
+  describe('object without --json', () => {
+    test.each([
+      ['', rawConfig],
+      ['packageExtensions', rawConfig['package-extensions']],
+      ['packageExtensions["@babel/parser"]', rawConfig['package-extensions']['@babel/parser']],
+      ['packageExtensions["@babel/parser"].peerDependencies', rawConfig['package-extensions']['@babel/parser'].peerDependencies],
+      ['packageExtensions["jest-circus"]', rawConfig['package-extensions']['jest-circus']],
+      ['packageExtensions["jest-circus"].dependencies', rawConfig['package-extensions']['jest-circus'].dependencies],
+    ] as Array<[string, unknown]>)('%s', async (propertyPath, expected) => {
+      const getResult = await config.handler({
+        dir: process.cwd(),
+        cliOptions: {},
+        configDir: process.cwd(),
+        global: true,
+        rawConfig,
+      }, ['get', propertyPath])
+
+      expect(ini.decode(getOutputString(getResult))).toStrictEqual(deepNullProto(expected))
+    })
+  })
+
+  describe('string without --json', () => {
+    test.each([
+      ['packageExtensions["@babel/parser"].peerDependencies["@babel/types"]', rawConfig['package-extensions']['@babel/parser'].peerDependencies['@babel/types']],
+      ['packageExtensions["jest-circus"].dependencies.slash', rawConfig['package-extensions']['jest-circus'].dependencies.slash],
+    ] as Array<[string, string]>)('%s', async (propertyPath, expected) => {
+      const getResult = await config.handler({
+        dir: process.cwd(),
+        cliOptions: {},
+        configDir: process.cwd(),
+        global: true,
+        rawConfig,
+      }, ['get', propertyPath])
+
+      expect(getOutputString(getResult)).toStrictEqual(expected)
+    })
+  })
+})
