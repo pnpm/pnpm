@@ -1,4 +1,19 @@
+import * as ini from 'ini'
 import { config } from '@pnpm/plugin-commands-config'
+
+/**
+ * Recursively clone an object and give every object inside the clone a null prototype.
+ * Making it possible to compare it to the result of `ini.decode` with `toStrictEqual`.
+ */
+function deepNullProto<Object> (object: Object): Object {
+  if (object == null || typeof object !== 'object' || Array.isArray(object)) return object
+
+  const result: Object = Object.create(null)
+  for (const key in object) {
+    result[key] = deepNullProto(object[key])
+  }
+  return result
+}
 
 test('config get', async () => {
   const getResult = await config.handler({
@@ -59,7 +74,7 @@ test('config get on array should return a comma-separated list', async () => {
   expect(typeof getResult === 'object' && 'output' in getResult && getResult.output).toBe('*eslint*,*prettier*')
 })
 
-test('config get on object should return a JSON string', async () => {
+test('config get on object should return an ini string', async () => {
   const getResult = await config.handler({
     dir: process.cwd(),
     cliOptions: {},
@@ -72,7 +87,7 @@ test('config get on object should return a JSON string', async () => {
     },
   }, ['get', 'catalog'])
 
-  expect(typeof getResult === 'object' && 'output' in getResult && JSON.parse(getResult.output)).toStrictEqual({ react: '^19.0.0' })
+  expect(typeof getResult === 'object' && 'output' in getResult && ini.decode(getResult.output)).toStrictEqual(deepNullProto({ react: '^19.0.0' }))
 })
 
 test('config get without key show list all settings ', async () => {
