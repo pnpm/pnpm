@@ -71,6 +71,7 @@ export function checkPackage (
     cpu?: string[]
     os?: string[]
     libc?: string[]
+    devDependencies?: Record<string, string>
   },
   options: {
     nodeVersion?: string
@@ -86,7 +87,7 @@ export function checkPackage (
     (manifest.engines == null)
       ? null
       : checkEngine(pkgId, manifest.engines, {
-        node: options.nodeVersion ?? getSystemNodeVersion() ?? process.version,
+        node: options.nodeVersion ?? manifest.devDependencies?.node?.replace('runtime:', '') ?? getSystemNodeVersion() ?? process.version,
         pnpm: options.pnpmVersion,
       })
   )
