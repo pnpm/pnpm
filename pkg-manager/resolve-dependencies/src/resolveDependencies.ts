@@ -212,6 +212,8 @@ export type PkgAddress = {
   isLinkedDependency: undefined
 })
 
+export type PkgAddressOrLink = PkgAddress | LinkedDependency
+
 export interface PeerDependency {
   version: string
   optional?: boolean
@@ -294,7 +296,7 @@ type PostponedResolutionFunction = (opts: PostponedResolutionOpts) => Promise<Pe
 type PostponedPeersResolutionFunction = (parentPkgAliases: ParentPkgAliases) => Promise<PeersResolutionResult>
 
 interface ResolvedRootDependenciesResult {
-  pkgAddressesByImporters: Array<Array<PkgAddress | LinkedDependency>>
+  pkgAddressesByImporters: PkgAddressOrLink[][]
   time?: Record<string, string>
 }
 
@@ -393,12 +395,12 @@ export async function resolveRootDependencies (
 }
 
 interface ResolvedDependenciesResult {
-  pkgAddresses: Array<PkgAddress | LinkedDependency>
+  pkgAddresses: PkgAddressOrLink[]
   resolvingPeers: Promise<PeersResolutionResult>
 }
 
 interface PkgAddressesByImportersWithoutPeers extends PeersResolutionResult {
-  pkgAddresses: Array<PkgAddress | LinkedDependency>
+  pkgAddresses: PkgAddressOrLink[]
 }
 
 export type ImporterToResolveOptions = Omit<ResolvedDependenciesOptions, 'parentPkgAliases' | 'publishedBy'>
@@ -1232,7 +1234,7 @@ interface ResolveDependencyOptions {
   pinnedVersion?: PinnedVersion
 }
 
-type ResolveDependencyResult = PkgAddress | LinkedDependency | null
+type ResolveDependencyResult = PkgAddressOrLink | null
 
 async function resolveDependency (
   wantedDependency: WantedDependency,
