@@ -8,7 +8,7 @@ test('hoistPeers picks an already available prerelease version', () => {
         '1.0.0-beta.0': 'version',
       },
     },
-    rootImporterPkgAddresses: [],
+    workspaceRootDeps: [],
   }, [['foo', { range: '*' }]])).toStrictEqual({
     foo: '1.0.0-beta.0',
   })
