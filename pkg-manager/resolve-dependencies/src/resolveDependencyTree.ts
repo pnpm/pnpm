@@ -366,7 +366,7 @@ function buildTree (
   * fix https://github.com/pnpm/pnpm/issues/6966
   */
 function dedupeSameAliasDirectDeps (directDeps: PkgAddressOrLink[], wantedDependencies: Array<WantedDependency & { isNew?: boolean }>): PkgAddressOrLink[] {
-  const deps = new Map<string, PkgAddress | LinkedDependency>()
+  const deps = new Map<string, PkgAddressOrLink>()
   for (const directDep of directDeps) {
     const { alias, normalizedBareSpecifier } = directDep
     if (!deps.has(alias)) {
