@@ -321,17 +321,17 @@ export async function resolveRootDependencies (
       time,
     }
   }
-  let rootImporterPkgAddresses!: PkgAddressOrLink[]
+  let workspaceRootDeps!: PkgAddressOrLink[]
   if (ctx.resolvePeersFromWorkspaceRoot) {
-    const index = importers.findIndex(({ options }) => options.parentIds[0] === '.')
-    rootImporterPkgAddresses = pkgAddressesByImportersWithoutPeers[index]?.pkgAddresses ?? []
+    const rootImporterIndex = importers.findIndex(({ options }) => options.parentIds[0] === '.')
+    workspaceRootDeps = pkgAddressesByImportersWithoutPeers[rootImporterIndex]?.pkgAddresses ?? []
   } else {
-    rootImporterPkgAddresses = []
+    workspaceRootDeps = []
   }
   const _hoistPeers = hoistPeers.bind(null, {
     autoInstallPeers: ctx.autoInstallPeers,
     allPreferredVersions: ctx.allPreferredVersions,
-    rootImporterPkgAddresses,
+    workspaceRootDeps,
   })
   /* eslint-disable no-await-in-loop */
   while (true) {

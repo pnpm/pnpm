@@ -6,13 +6,13 @@ export function hoistPeers (
   opts: {
     autoInstallPeers: boolean
     allPreferredVersions?: PreferredVersions
-    rootImporterPkgAddresses: PkgAddressOrLink[]
+    workspaceRootDeps: PkgAddressOrLink[]
   },
   missingRequiredPeers: Array<[string, { range: string }]>
 ): Record<string, string> {
   const dependencies: Record<string, string> = {}
   for (const [peerName, { range }] of missingRequiredPeers) {
-    const rootDep = opts.rootImporterPkgAddresses.find((address) => address.alias === peerName)
+    const rootDep = opts.workspaceRootDeps.find((rootDep) => rootDep.alias === peerName)
     if (rootDep?.version) {
       dependencies[peerName] = rootDep.version
       continue
