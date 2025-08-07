@@ -319,12 +319,12 @@ export async function resolveRootDependencies (
       time,
     }
   }
-  let rootImporterParentPkgAliases!: ParentPkgAliases
+  let rootImporterPkgAddresses!: Array<PkgAddress | LinkedDependency>
   if (ctx.resolvePeersFromWorkspaceRoot) {
-    const rootImporter = importers.find(({ options }) => options.parentIds[0] === '.')
-    rootImporterParentPkgAliases = rootImporter?.parentPkgAliases ?? {}
+    const index = importers.findIndex(({ options }) => options.parentIds[0] === '.')
+    rootImporterPkgAddresses = pkgAddressesByImportersWithoutPeers[index]?.pkgAddresses ?? []
   } else {
-    rootImporterParentPkgAliases = {}
+    rootImporterPkgAddresses = []
   }
   /* eslint-disable no-await-in-loop */
   while (true) {
@@ -338,9 +338,6 @@ export async function resolveRootDependencies (
         const missingOptionalPeers: Array<[string, MissingPeerInfo]> = []
         const missingRequiredPeers: Array<[string, MissingPeerInfo]> = []
         for (const [peerName, peerInfo] of Object.entries(importerResolutionResult.missingPeers ?? {})) {
-          if (rootImporterParentPkgAliases[peerName]) {
-            continue
-          }
           if (peerInfo.optional) {
             missingOptionalPeers.push([peerName, peerInfo])
           } else {
@@ -366,7 +363,7 @@ export async function resolveRootDependencies (
           }
         }
         if (!missingRequiredPeers.length) break
-        const dependencies = hoistPeers(missingRequiredPeers, ctx)
+        const dependencies = hoistPeers(missingRequiredPeers, ctx, rootImporterPkgAddresses)
         if (!Object.keys(dependencies).length) break
         const wantedDependencies = getNonDevWantedDependencies({ dependencies })
 
