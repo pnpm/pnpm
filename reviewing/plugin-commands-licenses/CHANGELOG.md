@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-licenses
 
+## 1000.0.34
+
+### Patch Changes
+
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+
 ## 1000.0.33
 
 ### Patch Changes

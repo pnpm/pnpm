@@ -1,5 +1,11 @@
 # @pnpm/outdated
 
+## 1001.0.26
+
+### Patch Changes
+
+- @pnpm/client@1001.0.1
+
 ## 1001.0.25
 
 ### Patch Changes

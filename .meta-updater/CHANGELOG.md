@@ -1,5 +1,11 @@
 # @pnpm-private/updater
 
+## 3.0.19
+
+### Patch Changes
+
+- 2b0d35f: `@pnpm/worker` should always be a peer dependency.
+
 ## 3.0.18
 
 ### Patch Changes

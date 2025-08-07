@@ -1,5 +1,18 @@
 # @pnpm/core
 
+## 1010.0.1
+
+### Patch Changes
+
+- Updated dependencies [eac7bab]
+- Updated dependencies [aa24e7f]
+- Updated dependencies [2b0d35f]
+  - @pnpm/lockfile.verification@1001.2.5
+  - @pnpm/resolve-dependencies@1008.0.1
+  - @pnpm/build-modules@1000.3.12
+  - @pnpm/headless@1004.2.2
+  - @pnpm/package-requester@1006.0.0
+
 ## 1010.0.0
 
 ### Major Changes

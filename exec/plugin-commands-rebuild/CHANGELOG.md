@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1002.0.22
+
+### Patch Changes
+
+- 2b0d35f: `@pnpm/worker` should always be a peer dependency.
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+  - @pnpm/workspace.find-packages@1000.0.32
+  - @pnpm/store-connection-manager@1002.0.9
+
 ## 1002.0.21
 
 ### Patch Changes

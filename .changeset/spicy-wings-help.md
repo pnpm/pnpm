@@ -1,5 +1,4 @@
 ---
-"@pnpm/cli-utils": minor
 "pnpm": minor
 ---
 

@@ -1,5 +1,16 @@
 # @pnpm/cli-utils
 
+## 1001.1.0
+
+### Minor Changes
+
+- 3ebc0ce: Automatically load pnpmfiles from config dependencies that are named "@_/pnpm-plugin-_" [#9780](https://github.com/pnpm/pnpm/issues/9780).
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@1002.0.9
+- @pnpm/config.deps-installer@1000.0.10
+
 ## 1001.0.3
 
 ### Patch Changes

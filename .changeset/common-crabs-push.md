@@ -1,5 +1,4 @@
 ---
-"@pnpm/resolve-dependencies": patch
 "pnpm": patch
 ---
 
