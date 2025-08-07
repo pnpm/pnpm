@@ -47,7 +47,6 @@ import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import pDefer from 'p-defer'
 import pShare from 'promise-share'
-import partition from 'ramda/src/partition'
 import pickBy from 'ramda/src/pickBy'
 import omit from 'ramda/src/omit'
 import zipWith from 'ramda/src/zipWith'
@@ -174,7 +173,12 @@ export interface ResolutionContext {
   hoistPeers?: boolean
 }
 
-export type MissingPeers = Record<string, { range: string, optional: boolean }>
+export interface MissingPeerInfo {
+  range: string
+  optional: boolean
+}
+
+export type MissingPeers = Record<string, MissingPeerInfo>
 
 export type ResolvedPeers = Record<string, PkgAddress>
 
@@ -325,9 +329,15 @@ export async function resolveRootDependencies (
         for (const pkgAddress of importerResolutionResult.pkgAddresses) {
           parentPkgAliases[pkgAddress.alias] = true
         }
-        const [missingOptionalPeers, missingRequiredPeers] = partition(([, { optional }]) => optional, Object.entries(importerResolutionResult.missingPeers ?? {}))
-        for (const missingPeerName of Object.keys(missingRequiredPeers)) {
-          parentPkgAliases[missingPeerName] = true
+        const missingOptionalPeers: Array<[string, MissingPeerInfo]> = []
+        const missingRequiredPeers: Array<[string, MissingPeerInfo]> = []
+        for (const [peerName, peerInfo] of Object.entries(importerResolutionResult.missingPeers ?? {})) {
+          if (peerInfo.optional) {
+            missingOptionalPeers.push([peerName, peerInfo])
+          } else {
+            missingRequiredPeers.push([peerName, peerInfo])
+            parentPkgAliases[peerName] = true
+          }
         }
         if (ctx.autoInstallPeers) {
           // All the missing peers should get installed in the root.
