@@ -30,6 +30,7 @@ import {
   type ParentPkgAliases,
   type PendingNode,
   type PkgAddress,
+  type PkgAddressOrLink,
   resolveRootDependencies,
   type ResolvedPackage,
   type ResolvedPkgsById,
@@ -365,7 +366,7 @@ function buildTree (
   * In order to make sure that the latest 1.0.1 version is installed, we need to remove the duplicate dependency.
   * fix https://github.com/pnpm/pnpm/issues/6966
   */
-function dedupeSameAliasDirectDeps (directDeps: Array<PkgAddress | LinkedDependency>, wantedDependencies: Array<WantedDependency & { isNew?: boolean }>): Array<PkgAddress | LinkedDependency> {
+function dedupeSameAliasDirectDeps (directDeps: PkgAddressOrLink[], wantedDependencies: Array<WantedDependency & { isNew?: boolean }>): PkgAddressOrLink[] {
   const deps = new Map<string, PkgAddress | LinkedDependency>()
   for (const directDep of directDeps) {
     const { alias, normalizedBareSpecifier } = directDep
