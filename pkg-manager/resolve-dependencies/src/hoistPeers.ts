@@ -1,12 +1,12 @@
 import { type PreferredVersions } from '@pnpm/resolver-base'
 import semver from 'semver'
-import { type LinkedDependency, type PkgAddress } from './resolveDependencies'
+import { type PkgAddressOrLink } from './resolveDependencies'
 
 export function hoistPeers (
   opts: {
     autoInstallPeers: boolean
     allPreferredVersions?: PreferredVersions
-    rootImporterPkgAddresses: Array<PkgAddress | LinkedDependency>
+    rootImporterPkgAddresses: PkgAddressOrLink[]
   },
   missingRequiredPeers: Array<[string, { range: string }]>
 ): Record<string, string> {

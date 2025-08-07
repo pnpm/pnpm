@@ -321,7 +321,7 @@ export async function resolveRootDependencies (
       time,
     }
   }
-  let rootImporterPkgAddresses!: Array<PkgAddress | LinkedDependency>
+  let rootImporterPkgAddresses!: PkgAddressOrLink
   if (ctx.resolvePeersFromWorkspaceRoot) {
     const index = importers.findIndex(({ options }) => options.parentIds[0] === '.')
     rootImporterPkgAddresses = pkgAddressesByImportersWithoutPeers[index]?.pkgAddresses ?? []
