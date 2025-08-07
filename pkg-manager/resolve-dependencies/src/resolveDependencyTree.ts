@@ -179,6 +179,7 @@ export async function resolveDependencyTree<T> (
     readPackageHook: opts.hooks.readPackage,
     registries: opts.registries,
     resolvedPkgsById: {} as ResolvedPkgsById,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     resolutionMode: opts.resolutionMode,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,

@@ -331,7 +331,7 @@ test('peer dependency is resolved from the dependencies of the workspace root pr
   }
 })
 
-test('peer dependency is resolved from the dependencies of the workspace root project when autoInstallPeersFromHighestMatch is set to true', async () => {
+test('peer dependency is resolved from the dependencies of the workspace root project even if there are other versions of the peer dependency present in the dependency graph', async () => {
   const projects = preparePackages([
     {
       location: '.',
@@ -398,7 +398,7 @@ test('peer dependency is resolved from the dependencies of the workspace root pr
       mutation: 'install',
       rootDir: path.resolve('pkg2') as ProjectRootDir,
     },
-  ], testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true, autoInstallPeersFromHighestMatch: true }))
+  ], testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true }))
 
   expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     name: 'pnpm:peer-dependency-issues',
