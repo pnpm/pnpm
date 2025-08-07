@@ -79,6 +79,9 @@ export function checkPackage (
     supportedArchitectures?: SupportedArchitectures
   }
 ): null | UnsupportedEngineError | UnsupportedPlatformError {
+  if (manifest.devDependencies?.node && manifest.engines?.node) {
+    manifest.engines.node = undefined
+  }
   return checkPlatform(pkgId, {
     cpu: manifest.cpu ?? ['any'],
     os: manifest.os ?? ['any'],
@@ -87,7 +90,7 @@ export function checkPackage (
     (manifest.engines == null)
       ? null
       : checkEngine(pkgId, manifest.engines, {
-        node: options.nodeVersion ?? manifest.devDependencies?.node?.replace('runtime:', '') ?? getSystemNodeVersion() ?? process.version,
+        node: options.nodeVersion ?? getSystemNodeVersion() ?? process.version,
         pnpm: options.pnpmVersion,
       })
   )
