@@ -3,16 +3,16 @@ import semver from 'semver'
 import { type LinkedDependency, type PkgAddress } from './resolveDependencies'
 
 export function hoistPeers (
-  missingRequiredPeers: Array<[string, { range: string }]>,
   opts: {
     autoInstallPeers: boolean
     allPreferredVersions?: PreferredVersions
+    rootImporterPkgAddresses: Array<PkgAddress | LinkedDependency>
   },
-  rootImporterPkgAddresses: Array<PkgAddress | LinkedDependency>
+  missingRequiredPeers: Array<[string, { range: string }]>
 ): Record<string, string> {
   const dependencies: Record<string, string> = {}
   for (const [peerName, { range }] of missingRequiredPeers) {
-    const rootDep = rootImporterPkgAddresses.find((address) => address.alias === peerName)
+    const rootDep = opts.rootImporterPkgAddresses.find((address) => address.alias === peerName)
     if (rootDep?.version) {
       dependencies[peerName] = rootDep.version
       continue

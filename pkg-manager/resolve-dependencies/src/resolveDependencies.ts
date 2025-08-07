@@ -326,6 +326,11 @@ export async function resolveRootDependencies (
   } else {
     rootImporterPkgAddresses = []
   }
+  const _hoistPeers = hoistPeers.bind(null, {
+    autoInstallPeers: ctx.autoInstallPeers,
+    allPreferredVersions: ctx.allPreferredVersions,
+    rootImporterPkgAddresses,
+  })
   /* eslint-disable no-await-in-loop */
   while (true) {
     const allMissingOptionalPeersByImporters = await Promise.all(pkgAddressesByImportersWithoutPeers.map(async (importerResolutionResult, index) => {
@@ -363,7 +368,7 @@ export async function resolveRootDependencies (
           }
         }
         if (!missingRequiredPeers.length) break
-        const dependencies = hoistPeers(missingRequiredPeers, ctx, rootImporterPkgAddresses)
+        const dependencies = _hoistPeers(missingRequiredPeers)
         if (!Object.keys(dependencies).length) break
         const wantedDependencies = getNonDevWantedDependencies({ dependencies })
 
