@@ -5,15 +5,16 @@ import { ParseErrorBase, getObjectValueByPropertyPath, parsePropertyPath } from 
 import { runNpm } from '@pnpm/run-npm'
 import { type ConfigCommandOptions } from './ConfigCommandOptions'
 import { settingShouldFallBackToNpm } from './configSet'
+import { isStrictlyKebabCase } from './isStrictlyKebabCase'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
   if (opts.global && settingShouldFallBackToNpm(key)) {
     const { status: exitCode } = runNpm(opts.npmPath, ['config', 'get', key])
     return { output: '', exitCode: exitCode ?? 0 }
   }
-  // .npmrc has some weird config key that cannot be parsed as property path (such as auth token and registries),
-  // so it would be tried first then fall back to parsing property paths
-  const config = opts.rawConfig[kebabCase(key)] ?? getConfigByPropertyPath(opts.rawConfig, key)
+  const config = isStrictlyKebabCase(key)
+    ? opts.rawConfig[kebabCase(key)] // we don't parse kebab-case keys as property paths because it's not a valid JS syntax
+    : getConfigByPropertyPath(opts.rawConfig, key)
   const output = displayConfig(config, opts)
   return { output, exitCode: 0 }
 }
