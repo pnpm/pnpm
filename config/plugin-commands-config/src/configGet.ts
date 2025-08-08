@@ -21,17 +21,7 @@ export function configGet (opts: ConfigCommandOptions, key: string): { output: s
 }
 
 function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPath: string): unknown {
-  let parsed: Array<string | number>
-  try {
-    parsed = Array.from(parseConfigPropertyPath(propertyPath))
-  } catch (error) {
-    if (error instanceof ParseErrorBase) {
-      globalWarn(error.message)
-      return undefined
-    }
-    throw error
-  }
-  return getObjectValueByPropertyPath(rawConfig, parsed)
+  return getObjectValueByPropertyPath(rawConfig, parseConfigPropertyPath(propertyPath))
 }
 
 type DisplayConfigOptions = Pick<ConfigCommandOptions, 'json'>
