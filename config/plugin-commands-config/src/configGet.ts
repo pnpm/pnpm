@@ -1,7 +1,7 @@
 import kebabCase from 'lodash.kebabcase'
 import { encode } from 'ini'
 import { globalWarn } from '@pnpm/logger'
-import { ParseErrorBase, getObjectValueByPropertyPath } from '@pnpm/object.property-path'
+import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
 import { runNpm } from '@pnpm/run-npm'
 import { type ConfigCommandOptions } from './ConfigCommandOptions'
 import { settingShouldFallBackToNpm } from './configSet'
