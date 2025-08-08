@@ -1,11 +1,12 @@
 import kebabCase from 'lodash.kebabcase'
 import { encode } from 'ini'
 import { globalWarn } from '@pnpm/logger'
-import { ParseErrorBase, getObjectValueByPropertyPath, parsePropertyPath } from '@pnpm/object.property-path'
+import { ParseErrorBase, getObjectValueByPropertyPath } from '@pnpm/object.property-path'
 import { runNpm } from '@pnpm/run-npm'
 import { type ConfigCommandOptions } from './ConfigCommandOptions'
 import { settingShouldFallBackToNpm } from './configSet'
 import { isStrictlyKebabCase } from './isStrictlyKebabCase'
+import { parseConfigPropertyPath } from './parseConfigPropertyPath'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
   if (opts.global && settingShouldFallBackToNpm(key)) {
@@ -20,10 +21,9 @@ export function configGet (opts: ConfigCommandOptions, key: string): { output: s
 }
 
 function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPath: string): unknown {
-  let topLevelKey: string | number
-  let suffix: Iterable<string | number>
+  let parsed: Array<string | number>
   try {
-    ; [topLevelKey, ...suffix] = parsePropertyPath(propertyPath)
+    parsed = Array.from(parseConfigPropertyPath(propertyPath))
   } catch (error) {
     if (error instanceof ParseErrorBase) {
       globalWarn(error.message)
@@ -31,8 +31,7 @@ function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPa
     }
     throw error
   }
-  const kebabKey = kebabCase(String(topLevelKey))
-  return getObjectValueByPropertyPath(rawConfig[kebabKey], suffix)
+  return getObjectValueByPropertyPath(rawConfig, parsed)
 }
 
 type DisplayConfigOptions = Pick<ConfigCommandOptions, 'json'>
