@@ -22,6 +22,9 @@
       "path": "../../object/key-sorting"
     },
     {
+      "path": "../../object/property-path"
+    },
+    {
       "path": "../../packages/error"
     },
     {
