@@ -22,7 +22,7 @@ jobs:
           - [18, 12, 1]
           - [20, 18, 1]
           - [22, 12, 0]
-          - [24, 0, 0]
+          - [24, 4, 0]
         platform:
           - ubuntu-latest
           - windows-latest
@@ -72,6 +72,6 @@ jobs:
     - name: run tests (branch)
       timeout-minutes: 60
       if: github.ref_name != 'main'
-      run: pnpm run test-branch
+      run: pnpm run test-main
       env:
         PNPM_WORKERS: 3
