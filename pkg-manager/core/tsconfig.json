@@ -157,6 +157,9 @@
       "path": "../../worker"
     },
     {
+      "path": "../../workspace/manifest-writer"
+    },
+    {
       "path": "../direct-dep-linker"
     },
     {

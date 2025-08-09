@@ -104,6 +104,7 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.manifest-writer": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "enquirer": "catalog:",
     "is-inner-link": "catalog:",

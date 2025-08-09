@@ -89,3 +89,47 @@ export async function addCatalogs (workspaceDir: string, newCatalogs: Catalogs):
     await writeManifestFile(workspaceDir, manifest)
   }
 }
+
+// when cleanupUnusedCatalogs is true, we cannot remove dependencies from the catalog after the package is removed
+export async function removePackagesFromWorkspaceCatalog (workspaceDir: string, packages: Record<string, string>): Promise<void> {
+  const manifest: Partial<WorkspaceManifest> = await readWorkspaceManifest(workspaceDir) ?? {}
+  let shouldBeUpdated = false
+
+  if (manifest.catalog == null && manifest.catalogs == null) return
+
+  if (manifest.catalog != null) {
+    Object.keys(manifest.catalog).forEach((pkg) => {
+      if (!packages[pkg] || packages[pkg] !== 'catalog:') {
+        delete manifest.catalog![pkg]
+        shouldBeUpdated = true
+      }
+    })
+    if (Object.keys(manifest.catalog).length === 0) {
+      delete manifest.catalog
+      shouldBeUpdated = true
+    }
+  }
+
+  for (const catalogName in manifest.catalogs) {
+    const catalog = manifest.catalogs[catalogName]
+    if (catalog == null) continue
+    Object.keys(catalog).forEach((pkg) => {
+      if (!packages[pkg] || (packages[pkg] !== `catalog:${catalogName}` && packages[pkg] !== 'catalog:')) {
+        delete catalog[pkg]
+        shouldBeUpdated = true
+      }
+    })
+    if (Object.keys(catalog).length === 0) {
+      delete manifest.catalogs[catalogName]
+      shouldBeUpdated = true
+    }
+  }
+  if (Object.keys(manifest.catalogs ?? {}).length === 0) {
+    delete manifest.catalogs
+    shouldBeUpdated = true
+  }
+
+  if (shouldBeUpdated) {
+    await writeManifestFile(workspaceDir, manifest)
+  }
+}
