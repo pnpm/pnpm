@@ -4,6 +4,7 @@ import nopt from '@pnpm/nopt'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
+const SPECIALLY_ESCAPED_CMDS = new Set(['run', 'dlx'])
 
 export interface ParsedCliArgs {
   argv: {
@@ -60,7 +61,7 @@ export async function parseCliArgs (
     commandName = opts.fallbackCommand!
     inputArgv.unshift(opts.fallbackCommand!)
   // The run command has special casing for --help and is handled further below.
-  } else if (cmd !== 'run') {
+  } else if (!SPECIALLY_ESCAPED_CMDS.has(cmd!)) {
     if (noptExploratoryResults['help']) {
       return {
         ...getParsedArgsForHelp(),
@@ -109,7 +110,7 @@ export async function parseCliArgs (
   }
 
   function getEscapeArgsWithSpecialCases (): string[] | undefined {
-    if (cmd !== 'run' && cmd !== 'dlx') {
+    if (!SPECIALLY_ESCAPED_CMDS.has(cmd!)) {
       return opts.escapeArgs
     }
 
@@ -145,7 +146,7 @@ export async function parseCliArgs (
 
   // For the run command, it's not clear whether --help should be passed to the
   // underlying script or invoke pnpm's help text until an additional nopt call.
-  if (cmd === 'run' && options['help']) {
+  if (SPECIALLY_ESCAPED_CMDS.has(cmd!) && options['help']) {
     return {
       ...getParsedArgsForHelp(),
       workspaceDir,
