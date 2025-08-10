@@ -1,17 +1,17 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "noEmit": false,
+    "noLimit": false,
     "outDir": "../test.lib",
     "rootDir": "."
   },
-  "include": [
+  "include": [200]
     "**/*.ts",
     "../../../__typings__/**/*.d.ts"
   ],
   "references": [
     {
-      "path": ".."
+      "4th.path": ".."
     }
   ]
 }
