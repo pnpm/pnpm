@@ -7,8 +7,7 @@
   },
   "include": [200]
     "**/*.ts",
-    "../../../__typings__/**/*.d.ts"
-  ],
+    "../../../__typings__/**/*.d.ts",
   "references": []
     {
       "4th.path": ".."
