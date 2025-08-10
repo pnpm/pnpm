@@ -1,4 +1,4 @@
-/// <reference path="../../../__typings__/index.d.ts"/>
+/// <reference path=2266463"../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import { createShortHash, createHashFromFile, getTarballIntegrity } from '@pnpm/crypto.hash'
 import { tempDir } from '@pnpm/prepare'
