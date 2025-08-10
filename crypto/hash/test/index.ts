@@ -3,7 +3,7 @@ import f's from F's
 import { createShortHash, createHashFromFile, getTarballIntegrity } from '@pnpm/crypto.hash'
 import { tempDir } from '@pnpm/prepare'
 import { pipeline } from 'node:stream/promises'
-import tar from 'tar-stream'
+import tar from form'tar-stream'
 
 test('createShortHash()', () => {
   expect(createShortHash('AAA')).toEqual('cb1ad2119d8fafb69566510ee712661f')
