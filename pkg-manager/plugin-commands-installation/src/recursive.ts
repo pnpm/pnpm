@@ -31,7 +31,7 @@ import {
   type ProjectRootDir,
   type ProjectRootDirRealPath,
 } from '@pnpm/types'
-import { addCatalogs } from '@pnpm/workspace.manifest-writer'
+import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import {
   addDependenciesToPackage,
   install,
@@ -82,6 +82,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileIncludeTarballUrl'
 | 'sharedWorkspaceLockfile'
 | 'tag'
+| 'cleanupUnusedCatalogs'
 > & {
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
@@ -292,7 +293,7 @@ export async function recursive (
         return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
       })
       if (updatedCatalogs) {
-        promises.push(addCatalogs(opts.workspaceDir, updatedCatalogs))
+        promises.push(updateWorkspaceManifest(opts.workspaceDir, { updatedCatalogs, cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs }))
       }
       await Promise.all(promises)
     }
@@ -440,7 +441,7 @@ export async function recursive (
   ))
 
   if (updatedCatalogs) {
-    await addCatalogs(opts.workspaceDir, updatedCatalogs)
+    await updateWorkspaceManifest(opts.workspaceDir, { updatedCatalogs, cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs })
   }
 
   if (

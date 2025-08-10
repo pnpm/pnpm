@@ -7,6 +7,7 @@ import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import writeYamlFile from 'write-yaml-file'
 import equals from 'ramda/src/equals'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
+import { findPackages } from '@pnpm/fs.find-packages'
 
 async function writeManifestFile (dir: string, manifest: Partial<WorkspaceManifest>): Promise<void> {
   manifest = sortKeysByPriority({
@@ -22,8 +23,20 @@ async function writeManifestFile (dir: string, manifest: Partial<WorkspaceManife
   })
 }
 
-export async function updateWorkspaceManifest (dir: string, updatedFields: Partial<WorkspaceManifest>): Promise<void> {
+export async function updateWorkspaceManifest (dir: string, updatedFields: Partial<WorkspaceManifest> & {
+  updatedCatalogs?: Catalogs
+  cleanupUnusedCatalogs?: boolean
+}): Promise<void> {
   const manifest = await readWorkspaceManifest(dir) ?? {} as WorkspaceManifest
+  if (updatedFields.updatedCatalogs ?? updatedFields.cleanupUnusedCatalogs) {
+    if (updatedFields.updatedCatalogs) {
+      await addCatalogs(dir, manifest, updatedFields.updatedCatalogs)
+    }
+    if (updatedFields.cleanupUnusedCatalogs) {
+      await removePackagesFromWorkspaceCatalog(dir)
+    }
+    return
+  }
   let shouldBeUpdated = false
   for (const [key, value] of Object.entries(updatedFields)) {
     if (!equals(manifest[key as keyof WorkspaceManifest], value)) {
@@ -52,10 +65,8 @@ export interface NewCatalogs {
   }
 }
 
-export async function addCatalogs (workspaceDir: string, newCatalogs: Catalogs): Promise<void> {
-  const manifest: Partial<WorkspaceManifest> = await readWorkspaceManifest(workspaceDir) ?? {}
+async function addCatalogs (dir: string, manifest: Partial<WorkspaceManifest>, newCatalogs: Catalogs): Promise<void> {
   let shouldBeUpdated = false
-
   for (const catalogName in newCatalogs) {
     let targetCatalog: Record<string, string> | undefined = catalogName === 'default'
       ? manifest.catalog ?? manifest.catalogs?.default
@@ -86,12 +97,19 @@ export async function addCatalogs (workspaceDir: string, newCatalogs: Catalogs):
   }
 
   if (shouldBeUpdated) {
-    await writeManifestFile(workspaceDir, manifest)
+    await writeManifestFile(dir, manifest)
   }
 }
 
-// when cleanupUnusedCatalogs is true, we cannot remove dependencies from the catalog after the package is removed
-export async function removePackagesFromWorkspaceCatalog (workspaceDir: string, packages: Record<string, string>): Promise<void> {
+async function removePackagesFromWorkspaceCatalog (workspaceDir: string): Promise<void> {
+  const packagesJson = await findPackages(workspaceDir, {
+    includeRoot: true,
+  })
+  const packages: Record<string, string> = {}
+  for (const pkg of packagesJson) {
+    const manifest = pkg.manifest
+    Object.assign(packages, manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies, manifest.peerDependencies)
+  }
   const manifest: Partial<WorkspaceManifest> = await readWorkspaceManifest(workspaceDir) ?? {}
   let shouldBeUpdated = false
 

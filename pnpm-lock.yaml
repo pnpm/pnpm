@@ -4695,9 +4695,6 @@ importers:
       '@pnpm/worker':
         specifier: workspace:^
         version: link:../../worker
-      '@pnpm/workspace.manifest-writer':
-        specifier: workspace:*
-        version: link:../../workspace/manifest-writer
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -8343,6 +8340,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
+      '@pnpm/fs.find-packages':
+        specifier: workspace:*
+        version: link:../../fs/find-packages
       '@pnpm/lockfile.types':
         specifier: workspace:*
         version: link:../../lockfile/types
@@ -8359,6 +8359,9 @@ importers:
         specifier: 'catalog:'
         version: 5.0.0
     devDependencies:
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
       '@pnpm/prepare-temp-dir':
         specifier: workspace:*
         version: link:../../__utils__/prepare-temp-dir

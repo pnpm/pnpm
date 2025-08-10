@@ -1,16 +1,24 @@
 import path from 'path'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare-temp-dir'
-import { addCatalogs, removePackagesFromWorkspaceCatalog } from '@pnpm/workspace.manifest-writer'
+import { prepare } from '@pnpm/prepare'
+import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 
-test('addCatalogs adds `default` catalogs to the `catalog` object by default and remove `default` catalogs if they are empty', async () => {
+test('remove the default catalog if it is empty', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  await addCatalogs(dir, {
-    default: {
+  prepare({
+    dependencies: {
       foo: '^0.1.2',
+    },
+  }, { tempDir: dir })
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      default: {
+        foo: '^0.1.2',
+      },
     },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
@@ -19,13 +27,13 @@ test('addCatalogs adds `default` catalogs to the `catalog` object by default and
     },
   })
 
-  await removePackagesFromWorkspaceCatalog(dir, {
-    foo: '^0.1.2',
+  await updateWorkspaceManifest(dir, {
+    cleanupUnusedCatalogs: true,
   })
   expect(readYamlFile(filePath)).toStrictEqual({})
 })
 
-test('addCatalogs adds `default` catalogs to the `catalog` object if it exists and remove catalog', async () => {
+test('remove the unused default catalog', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   writeYamlFile(filePath, {
@@ -33,9 +41,11 @@ test('addCatalogs adds `default` catalogs to the `catalog` object if it exists a
       bar: '3.2.1',
     },
   })
-  await addCatalogs(dir, {
-    default: {
-      foo: '^0.1.2',
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      default: {
+        foo: '^0.1.2',
+      },
     },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
@@ -44,10 +54,15 @@ test('addCatalogs adds `default` catalogs to the `catalog` object if it exists a
       foo: '^0.1.2',
     },
   })
+  prepare({
+    dependencies: {
+      foo: '^0.1.2',
+      bar: 'catalog:',
+    },
+  }, { tempDir: dir })
 
-  await removePackagesFromWorkspaceCatalog(dir, {
-    foo: '^0.1.2',
-    bar: 'catalog:',
+  await updateWorkspaceManifest(dir, {
+    cleanupUnusedCatalogs: true,
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalog: {
@@ -56,7 +71,7 @@ test('addCatalogs adds `default` catalogs to the `catalog` object if it exists a
   })
 })
 
-test('addCatalogs adds `default` catalogs to the `catalogs.default` object if it exists and remove catalog', async () => {
+test('remove the unused default catalog with catalogs', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   writeYamlFile(filePath, {
@@ -66,9 +81,11 @@ test('addCatalogs adds `default` catalogs to the `catalogs.default` object if it
       },
     },
   })
-  await addCatalogs(dir, {
-    default: {
-      foo: '^0.1.2',
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      default: {
+        foo: '^0.1.2',
+      },
     },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
@@ -79,9 +96,14 @@ test('addCatalogs adds `default` catalogs to the `catalogs.default` object if it
       },
     },
   })
-  await removePackagesFromWorkspaceCatalog(dir, {
-    foo: '^0.1.2',
-    bar: 'catalog:default',
+  prepare({
+    dependencies: {
+      foo: '^0.1.2',
+      bar: 'catalog:',
+    },
+  }, { tempDir: dir })
+  await updateWorkspaceManifest(dir, {
+    cleanupUnusedCatalogs: true,
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalogs: {
@@ -92,15 +114,17 @@ test('addCatalogs adds `default` catalogs to the `catalogs.default` object if it
   })
 })
 
-test('addCatalogs creates a `catalogs` object for any-named catalogs and remove catalog', async () => {
+test('remove the unused named catalog', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  await addCatalogs(dir, {
-    foo: {
-      abc: '0.1.2',
-    },
-    bar: {
-      def: '3.2.1',
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      foo: {
+        abc: '0.1.2',
+      },
+      bar: {
+        def: '3.2.1',
+      },
     },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
@@ -113,9 +137,14 @@ test('addCatalogs creates a `catalogs` object for any-named catalogs and remove 
       },
     },
   })
-  await removePackagesFromWorkspaceCatalog(dir, {
-    abc: '0.1.2',
-    def: 'catalog:bar',
+  prepare({
+    dependencies: {
+      abc: '0.1.2',
+      def: 'catalog:bar',
+    },
+  }, { tempDir: dir })
+  await updateWorkspaceManifest(dir, {
+    cleanupUnusedCatalogs: true,
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalogs: {
@@ -126,7 +155,7 @@ test('addCatalogs creates a `catalogs` object for any-named catalogs and remove 
   })
 })
 
-test('addCatalogs add any-named catalogs to the `catalogs` object if it already exists and remove catalog', async () => {
+test('remove all unused named catalogs', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   writeYamlFile(filePath, {
@@ -136,12 +165,14 @@ test('addCatalogs add any-named catalogs to the `catalogs` object if it already 
       },
     },
   })
-  await addCatalogs(dir, {
-    foo: {
-      abc: '0.1.2',
-    },
-    bar: {
-      def: '3.2.1',
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      foo: {
+        abc: '0.1.2',
+      },
+      bar: {
+        def: '3.2.1',
+      },
     },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
@@ -155,11 +186,14 @@ test('addCatalogs add any-named catalogs to the `catalogs` object if it already 
       },
     },
   })
-
-  await removePackagesFromWorkspaceCatalog(dir, {
-    abc: '0.1.2',
-    def: 'catalog:bar',
-    ghi: 'catalog:foo',
+  prepare({
+    dependencies: {
+      def: 'catalog:bar',
+      ghi: 'catalog:foo',
+    },
+  }, { tempDir: dir })
+  await updateWorkspaceManifest(dir, {
+    cleanupUnusedCatalogs: true,
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalogs: {
@@ -171,18 +205,13 @@ test('addCatalogs add any-named catalogs to the `catalogs` object if it already 
       },
     },
   })
-  await removePackagesFromWorkspaceCatalog(dir, {
-    def: 'catalog:bar',
-  })
-  expect(readYamlFile(filePath)).toStrictEqual({
-    catalogs: {
-      bar: {
-        def: '3.2.1',
-      },
+  prepare({
+    dependencies: {
+      def: '3.2.1',
     },
-  })
-  await removePackagesFromWorkspaceCatalog(dir, {
-    ghi: '7.8.9',
+  }, { tempDir: dir })
+  await updateWorkspaceManifest(dir, {
+    cleanupUnusedCatalogs: true,
   })
   expect(readYamlFile(filePath)).toStrictEqual({})
 })

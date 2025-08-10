@@ -90,7 +90,6 @@ import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
 import { validateModules } from './validateModules'
 import semver from 'semver'
 import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError'
-import { removePackagesFromWorkspaceCatalog } from '@pnpm/workspace.manifest-writer'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -644,18 +643,7 @@ export async function mutateModules (
       updateLockfileMinorVersion: true,
       patchedDependencies: patchGroups,
     })
-    if (opts.cleanupUnusedCatalogs && opts.catalogs) {
-      const packages = projectsToInstall.reduce((acc, p) => {
-        const manifest = p.manifest
-        return {
-          ...acc,
-          ...manifest?.dependencies,
-          ...manifest?.devDependencies,
-          ...manifest?.optionalDependencies,
-        }
-      }, {})
-      await removePackagesFromWorkspaceCatalog(opts.workspaceDir, packages)
-    }
+
     return {
       updatedCatalogs: result.updatedCatalogs,
       updatedProjects: result.projects,
