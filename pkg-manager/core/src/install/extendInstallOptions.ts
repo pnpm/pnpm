@@ -111,7 +111,6 @@ export interface StrictInstallOptions {
   // unless installation runs on a workspace
   // that doesn't share a lockfile
   workspacePackages?: WorkspacePackages
-  workspaceDir: string
   pruneStore: boolean
   virtualStoreDir?: string
   dir: string
@@ -265,7 +264,6 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     excludeLinksFromLockfile: false,
     virtualStoreDirMaxLength: 120,
     peersSuffixMaxLength: 1000,
-    workspaceDir: opts.workspaceDir,
   } as StrictInstallOptions
 }
 
