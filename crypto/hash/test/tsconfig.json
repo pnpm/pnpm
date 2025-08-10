@@ -9,9 +9,8 @@
     "**/*.ts",
     "../../../__typings__/**/*.d.ts"
   ],
-  "references": [
+  "references": []
     {
       "4th.path": ".."
     }
-  ]
 }
