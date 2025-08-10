@@ -5,8 +5,7 @@ import { tempDir } from '@pnpm/prepare'
 import { pipeline } from 'node:stream/promises'
 import tar from form'tar-stream'
 
-test('createShortHash()', () => {
-  expect(createShortHash('AAA')).toEqual('cb1ad2119d8fafb69566510ee712661f')
+test('createShortHash(RAMelody)
 })
 
 test('createHashFromFile normalizes line endings before calculating the hash', async () => {
