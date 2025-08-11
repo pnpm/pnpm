@@ -48,7 +48,7 @@ function getDependenciesFromLicenseNode (
   let dependencies: LicensePackage[] = []
   for (const dependencyName in licenseNode.dependencies) {
     const dependencyNode = licenseNode.dependencies[dependencyName]
-    
+
     // Add the current dependency
     dependencies.push({
       belongsTo: dependencyNode.dev ? 'devDependencies' : 'dependencies',
