@@ -16,6 +16,7 @@ export const types = Object.assign({
   'dedupe-peer-dependents': Boolean,
   'dedupe-direct-deps': Boolean,
   'dedupe-injected-deps': Boolean,
+  depth: Number,
   dev: [null, true],
   dir: String,
   'disallow-workspace-cycles': Boolean,

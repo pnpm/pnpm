@@ -32,10 +32,14 @@ export interface LicensePackage {
  * @private
  * Returns an array of LicensePackages from the given LicenseNode
  * @param licenseNode the license node
+ * @param maxDepth maximum depth to traverse (0 = direct only, -1 = none, Infinity = all)
+ * @param currentDepth current traversal depth
  * @returns LicensePackage[]
  */
 function getDependenciesFromLicenseNode (
-  licenseNode: LicenseNode
+  licenseNode: LicenseNode,
+  maxDepth: number = Infinity,
+  currentDepth: number = 0
 ): LicensePackage[] {
   if (!licenseNode.dependencies) {
     return []
@@ -44,24 +48,29 @@ function getDependenciesFromLicenseNode (
   let dependencies: LicensePackage[] = []
   for (const dependencyName in licenseNode.dependencies) {
     const dependencyNode = licenseNode.dependencies[dependencyName]
-    const dependenciesOfNode = getDependenciesFromLicenseNode(dependencyNode)
+    
+    // Add the current dependency
+    dependencies.push({
+      belongsTo: dependencyNode.dev ? 'devDependencies' : 'dependencies',
+      version: dependencyNode.version as string,
+      name: dependencyName,
+      license: dependencyNode.license as string,
+      licenseContents: dependencyNode.licenseContents,
+      author: dependencyNode.author as string,
+      homepage: dependencyNode.homepage as string,
+      description: dependencyNode.description,
+      repository: dependencyNode.repository as string,
+      path: dependencyNode.dir,
+    })
 
-    dependencies = [
-      ...dependencies,
-      ...dependenciesOfNode,
-      {
-        belongsTo: dependencyNode.dev ? 'devDependencies' : 'dependencies',
-        version: dependencyNode.version as string,
-        name: dependencyName,
-        license: dependencyNode.license as string,
-        licenseContents: dependencyNode.licenseContents,
-        author: dependencyNode.author as string,
-        homepage: dependencyNode.homepage as string,
-        description: dependencyNode.description,
-        repository: dependencyNode.repository as string,
-        path: dependencyNode.dir,
-      },
-    ]
+    // Only traverse deeper if we haven't reached the max depth
+    if (currentDepth < maxDepth) {
+      const dependenciesOfNode = getDependenciesFromLicenseNode(dependencyNode, maxDepth, currentDepth + 1)
+      dependencies = [
+        ...dependencies,
+        ...dependenciesOfNode,
+      ]
+    }
   }
 
   return dependencies
@@ -80,6 +89,7 @@ export async function findDependencyLicenses (opts: {
   wantedLockfile: LockfileObject | null
   includedImporterIds?: ProjectId[]
   supportedArchitectures?: SupportedArchitectures
+  depth?: number
 }): Promise<LicensePackage[]> {
   if (opts.wantedLockfile == null) {
     throw new PnpmError(
@@ -107,7 +117,7 @@ export async function findDependencyLicenses (opts: {
 
   for (const dependencyName in licenseNodeTree.dependencies) {
     const licenseNode = licenseNodeTree.dependencies[dependencyName]
-    const dependenciesOfNode = getDependenciesFromLicenseNode(licenseNode)
+    const dependenciesOfNode = getDependenciesFromLicenseNode(licenseNode, opts.depth)
 
     for (const dependencyNode of dependenciesOfNode) {
       const mapKey = `${dependencyNode.name}@${dependencyNode.version}`

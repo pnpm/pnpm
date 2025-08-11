@@ -14,7 +14,7 @@ import { licensesList, type LicensesCommandOptions } from './licensesList'
 export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick(
-      ['dev', 'global-dir', 'global', 'json', 'long', 'optional', 'production'],
+      ['dev', 'global-dir', 'global', 'json', 'long', 'optional', 'production', 'depth'],
       allTypes
     ),
     compatible: Boolean,
@@ -66,6 +66,10 @@ To display the details, pass this option.',
             description: 'Don\'t check "optionalDependencies"',
             name: '--no-optional',
           },
+          {
+            description: 'Check dependencies with the specified depth. Use 0 for direct dependencies only.',
+            name: '--depth <number>',
+          },
         ],
       },
       FILTERING,
@@ -74,6 +78,7 @@ To display the details, pass this option.',
     usages: [
       'pnpm licenses ls',
       'pnpm licenses ls --long',
+      'pnpm licenses ls --depth 0',
       'pnpm licenses list',
       'pnpm licenses list --long',
     ],

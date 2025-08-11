@@ -44,7 +44,8 @@ export interface LicenseExtractOptions {
 
 export async function lockfileToLicenseNode (
   step: LockfileWalkerStep,
-  options: LicenseExtractOptions
+  options: LicenseExtractOptions,
+  currentDepth: number = 0
 ): Promise<Record<string, LicenseNode>> {
   const dependencies: Record<string, LicenseNode> = Object.fromEntries(
     (await Promise.all(step.dependencies.map(async (dependency): Promise<[string, LicenseNode] | null> => {

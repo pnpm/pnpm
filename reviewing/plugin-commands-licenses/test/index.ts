@@ -347,3 +347,62 @@ test('pnpm licenses should work git repository name containing capital letters',
 
   expect(exitCode).toBe(0)
 })
+
+test('pnpm licenses: --depth 0 excludes transitive dependencies', async () => {
+  const workspaceDir = tempDir()
+  f.copy('complex-licenses', workspaceDir)
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+  })
+
+  // Get all dependencies (including transitive)
+  const { output: allOutput } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    json: true,
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  // Get only direct dependencies
+  const { output: directOutput, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    json: true,
+    depth: 0,
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+
+  const allLicenses = JSON.parse(allOutput)
+  const directLicenses = JSON.parse(directOutput)
+
+  // Count total packages in both outputs
+  let allPackageCount = 0
+  let directPackageCount = 0
+
+  for (const license in allLicenses) {
+    for (const pkg of allLicenses[license]) {
+      allPackageCount += pkg.versions.length
+    }
+  }
+
+  for (const license in directLicenses) {
+    for (const pkg of directLicenses[license]) {
+      directPackageCount += pkg.versions.length
+    }
+  }
+
+  // Direct dependencies should be fewer than all dependencies
+  expect(directPackageCount).toBeLessThan(allPackageCount)
+  expect(directPackageCount).toBeGreaterThan(0)
+})

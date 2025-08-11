@@ -30,6 +30,7 @@ Config,
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 | 'virtualStoreDirMaxLength'
+| 'depth'
 > &
 Partial<Pick<Config, 'userConfig'>>
 
@@ -75,6 +76,7 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
     manifest,
     includedImporterIds,
     supportedArchitectures: getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}).supportedArchitectures,
+    depth: opts.depth,
   })
 
   if (licensePackages.length === 0)
