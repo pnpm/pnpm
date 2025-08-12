@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.0.2
+
+### Patch Changes
+
+- 9df09dd: When executing the `pnpm create` command, must verify whether the node version is supported even if a cache already exists.
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+  - @pnpm/deps.status@1003.0.4
+  - @pnpm/plugin-commands-env@1000.0.33
+  - @pnpm/plugin-commands-installation@1004.4.2
+  - @pnpm/client@1001.0.1
+
 ## 1001.0.1
 
 ### Patch Changes

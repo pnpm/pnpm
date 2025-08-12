@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 1000.3.12
+
+### Patch Changes
+
+- 2b0d35f: `@pnpm/worker` should always be a peer dependency.
+
 ## 1000.3.11
 
 ### Patch Changes

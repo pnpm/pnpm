@@ -1,5 +1,14 @@
 # @pnpm/resolving.bun-resolver
 
+## 1000.0.1
+
+### Patch Changes
+
+- 2b0d35f: `@pnpm/worker` should always be a peer dependency.
+- Updated dependencies [2b0d35f]
+  - @pnpm/fetching.binary-fetcher@1000.0.1
+  - @pnpm/node.fetcher@1001.0.1
+
 ## 1000.0.0
 
 ### Major Changes

@@ -119,8 +119,6 @@ catalog:
   '@zkochan/retry': ^0.2.0
   '@zkochan/rimraf': ^3.0.2
   '@zkochan/table': ^2.0.1
-  dint: ^5.1.0
-  js-yaml: npm:@zkochan/js-yaml@0.0.9
   adm-zip: ^0.5.16
   ansi-diff: ^1.2.0
   archy: ^1.0.0
@@ -128,8 +126,8 @@ catalog:
   bin-links: ^4.0.4
   bole: ^5.0.17
   boxen: npm:@zkochan/boxen@5.1.2
-  camelcase-keys: ^6.2.2
   camelcase: ^6.3.0
+  camelcase-keys: ^6.2.2
   can-link: ^2.0.0
   can-write-to-dir: ^1.1.1
   chalk: ^4.1.2
@@ -144,6 +142,7 @@ catalog:
   delay: ^5.0.0
   detect-libc: ^2.0.3
   didyoumean2: ^6.0.1
+  dint: ^5.1.0
   dir-is-case-sensitive: ^2.0.0
   encode-registry: ^3.0.1
   enquirer: ^2.4.1
@@ -175,6 +174,7 @@ catalog:
   is-windows: ^1.0.2
   isexe: 2.0.0
   jest-diff: ^29.7.0
+  js-yaml: npm:@zkochan/js-yaml@0.0.9
   json5: ^2.2.3
   load-json-file: ^6.2.0
   lodash.kebabcase: ^4.1.1
@@ -234,9 +234,9 @@ catalog:
   safe-execa: ^0.1.4
   safe-promise-defer: ^1.0.1
   sanitize-filename: ^1.6.3
+  semver: ^7.7.1
   semver-range-intersect: ^0.3.1
   semver-utils: ^1.1.4
-  semver: ^7.7.1
   shlex: ^2.1.2
   signal-exit: ^3.0.7
   sinon: ^16.1.3
@@ -248,8 +248,8 @@ catalog:
   strip-bom: ^4.0.0
   strip-comments-strings: 1.2.0
   symlink-dir: ^6.0.5
-  tar-stream: ^2.2.0
   tar: ^6.2.1
+  tar-stream: ^2.2.0
   tempy: ^1.0.1
   terminal-link: ^2.1.1
   tinyglobby: ^0.2.14
@@ -310,6 +310,7 @@ overrides:
   json5@<2.2.2: 'catalog:'
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   nopt@5: npm:@pnpm/nopt@^0.2.1
+  on-headers@<1.1.0: '>=1.1.0'
   path-to-regexp@<0.1.12: ^0.1.12
   path-to-regexp@>=4.0.0 <6.3.0: '>=6.3.0'
   path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
@@ -318,6 +319,7 @@ overrides:
   send@<0.19.0: ^0.19.0
   serve-static@<1.16.0: ^1.16.0
   socks@2: ^2.8.1
+  tmp@<=0.2.3: '>=0.2.4'
   tough-cookie@<4.1.3: '>=4.1.3'
   verdaccio: 5.20.1
   yaml@<2.2.2: '>=2.2.2'
@@ -329,10 +331,10 @@ packageExtensions:
   jest-circus:
     dependencies:
       slash: '3'
-  remark-stringify:
+  remark-parse:
     peerDependencies:
       unified: '*'
-  remark-parse:
+  remark-stringify:
     peerDependencies:
       unified: '*'
 

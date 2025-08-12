@@ -31,7 +31,7 @@
     "@babel/core": "^7.26.10",
     "@babel/preset-typescript": "^7.26.0",
     "@babel/types": "^7.26.10",
-    "@changesets/cli": "^2.28.1",
+    "@changesets/cli": "^2.29.5",
     "@commitlint/cli": "^17.8.1",
     "@commitlint/config-conventional": "^17.8.1",
     "@commitlint/prompt-cli": "^17.8.1",

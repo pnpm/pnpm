@@ -1,5 +1,11 @@
 # @pnpm/fetching.binary-fetcher
 
+## 1000.0.1
+
+### Patch Changes
+
+- 2b0d35f: `@pnpm/worker` should always be a peer dependency.
+
 ## 1000.0.0
 
 ### Major Changes

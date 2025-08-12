@@ -1,5 +1,11 @@
 # @pnpm/lockfile.verification
 
+## 1001.2.5
+
+### Patch Changes
+
+- eac7bab: satisfiesPackageManifest also checks if the version in the importer satisfied the range in the `package.json`.
+
 ## 1001.2.4
 
 ### Patch Changes

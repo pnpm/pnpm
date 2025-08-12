@@ -378,4 +378,20 @@ test('satisfiesPackageManifest()', () => {
       },
     }
   )).toStrictEqual({ satisfies: true })
+
+  expect(satisfiesPackageManifest({}, {
+    dependencies: {
+      '@apollo/client': '3.13.8(@types/react@18.3.23)(graphql@15.8.0)(react-dom@17.0.2(react@17.0.2))(react@17.0.2)(subscriptions-transport-ws@0.11.0(graphql@15.8.0))',
+    },
+    specifiers: {
+      '@apollo/client': '3.3.7',
+    },
+  }, {
+    dependencies: {
+      '@apollo/client': '3.3.7',
+    },
+  })).toStrictEqual({
+    satisfies: false,
+    detailedReason: 'The importer resolution is broken at dependency "@apollo/client": version "3.13.8" doesn\'t satisfy range "3.3.7"',
+  })
 })

@@ -1,5 +1,13 @@
 # @pnpm/deps.status
 
+## 1003.0.4
+
+### Patch Changes
+
+- Updated dependencies [eac7bab]
+  - @pnpm/lockfile.verification@1001.2.5
+  - @pnpm/workspace.find-packages@1000.0.32
+
 ## 1003.0.3
 
 ### Patch Changes
