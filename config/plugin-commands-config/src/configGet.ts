@@ -1,7 +1,7 @@
 import kebabCase from 'lodash.kebabcase'
 import { runNpm } from '@pnpm/run-npm'
 import { type ConfigCommandOptions } from './ConfigCommandOptions'
-import { settingShouldFallBackToNpm } from './configSet'
+import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
   if (opts.global && settingShouldFallBackToNpm(key)) {
