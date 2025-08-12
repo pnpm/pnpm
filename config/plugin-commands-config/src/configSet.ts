@@ -9,6 +9,7 @@ import kebabCase from 'lodash.kebabcase'
 import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
 import { type ConfigCommandOptions } from './ConfigCommandOptions'
+import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm'
 
 export async function configSet (opts: ConfigCommandOptions, key: string, value: string | null): Promise<void> {
   if (opts.global && settingShouldFallBackToNpm(key)) {
@@ -70,14 +71,6 @@ function castField (value: unknown, key: string) {
   }
 
   return value
-}
-
-export function settingShouldFallBackToNpm (key: string): boolean {
-  return (
-    ['registry', '_auth', '_authToken', 'username', '_password'].includes(key) ||
-    key[0] === '@' ||
-    key.startsWith('//')
-  )
 }
 
 async function safeReadIniFile (configPath: string): Promise<Record<string, unknown>> {
