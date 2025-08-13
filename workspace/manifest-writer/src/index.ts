@@ -27,10 +27,8 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   updatedCatalogs?: Catalogs
 }): Promise<void> {
   const manifest = await readWorkspaceManifest(dir) ?? {} as WorkspaceManifest
-  let shouldBeUpdated = false
-  if (addCatalogs(manifest, opts.updatedCatalogs ?? {})) {
-    shouldBeUpdated = true
-  }
+  let shouldBeUpdated = opts.updatedCatalogs != null && addCatalogs(manifest, opts.updatedCatalogs)
+
   for (const [key, value] of Object.entries(opts.updatedFields ?? {})) {
     if (!equals(manifest[key as keyof WorkspaceManifest], value)) {
       shouldBeUpdated = true
