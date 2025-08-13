@@ -4,9 +4,9 @@ import { globalWarn } from '@pnpm/logger'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
 import { runNpm } from '@pnpm/run-npm'
 import { type ConfigCommandOptions } from './ConfigCommandOptions'
-import { settingShouldFallBackToNpm } from './configSet'
 import { isStrictlyKebabCase } from './isStrictlyKebabCase'
 import { parseConfigPropertyPath } from './parseConfigPropertyPath'
+import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
   if (opts.global && settingShouldFallBackToNpm(key)) {

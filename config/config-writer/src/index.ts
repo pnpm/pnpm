@@ -35,5 +35,7 @@ export async function writeSettings (opts: WriteSettingsOptions): Promise<void> 
       return
     }
   }
-  await updateWorkspaceManifest(opts.workspaceDir, opts.updatedSettings)
+  await updateWorkspaceManifest(opts.workspaceDir, {
+    updatedFields: opts.updatedSettings,
+  })
 }

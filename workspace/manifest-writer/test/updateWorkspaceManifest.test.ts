@@ -10,7 +10,7 @@ test('updateWorkspaceManifest adds a new setting', async () => {
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   writeYamlFile(filePath, { packages: ['*'] })
   await updateWorkspaceManifest(dir, {
-    onlyBuiltDependencies: [],
+    updatedFields: { onlyBuiltDependencies: [] },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     packages: ['*'],
@@ -23,7 +23,7 @@ test('updateWorkspaceManifest removes an existing setting', async () => {
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   writeYamlFile(filePath, { packages: ['*'], overrides: { foo: '2' } })
   await updateWorkspaceManifest(dir, {
-    overrides: undefined,
+    updatedFields: { overrides: undefined },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     packages: ['*'],
@@ -35,7 +35,7 @@ test('updateWorkspaceManifest updates an existing setting', async () => {
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
   writeYamlFile(filePath, { packages: ['*'], overrides: { foo: '2' } })
   await updateWorkspaceManifest(dir, {
-    overrides: { bar: '3' },
+    updatedFields: { overrides: { bar: '3' } },
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     packages: ['*'],

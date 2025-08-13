@@ -22,7 +22,7 @@ import {
 } from '@pnpm/core'
 import { globalInfo, logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
-import { addCatalogs } from '@pnpm/workspace.manifest-writer'
+import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import isSubdir from 'is-subdir'
@@ -319,7 +319,9 @@ when running add/update with the --workspace option')
     if (opts.save !== false) {
       await Promise.all([
         writeProjectManifest(updatedProject.manifest),
-        updatedCatalogs && addCatalogs(opts.workspaceDir ?? opts.dir, updatedCatalogs),
+        updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+          updatedCatalogs,
+        }),
       ])
     }
     if (!opts.lockfileOnly) {
@@ -342,7 +344,9 @@ when running add/update with the --workspace option')
   if (opts.update === true && opts.save !== false) {
     await Promise.all([
       writeProjectManifest(updatedManifest),
-      updatedCatalogs && addCatalogs(opts.workspaceDir ?? opts.dir, updatedCatalogs),
+      updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+        updatedCatalogs,
+      }),
     ])
   }
   if (opts.strictDepBuilds && ignoredBuilds?.length) {

@@ -31,7 +31,7 @@ import {
   type ProjectRootDir,
   type ProjectRootDirRealPath,
 } from '@pnpm/types'
-import { addCatalogs } from '@pnpm/workspace.manifest-writer'
+import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import {
   addDependenciesToPackage,
   install,
@@ -291,9 +291,9 @@ export async function recursive (
       const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
         return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
       })
-      if (updatedCatalogs) {
-        promises.push(addCatalogs(opts.workspaceDir, updatedCatalogs))
-      }
+      promises.push(updateWorkspaceManifest(opts.workspaceDir, {
+        updatedCatalogs,
+      }))
       await Promise.all(promises)
     }
     if (opts.strictDepBuilds && ignoredBuilds?.length) {
@@ -439,9 +439,9 @@ export async function recursive (
     })
   ))
 
-  if (updatedCatalogs) {
-    await addCatalogs(opts.workspaceDir, updatedCatalogs)
-  }
+  await updateWorkspaceManifest(opts.workspaceDir, {
+    updatedCatalogs,
+  })
 
   if (
     !opts.lockfileOnly && !opts.ignoreScripts && (
