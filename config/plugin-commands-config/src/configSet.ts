@@ -13,15 +13,19 @@ import { writeIniFile } from 'write-ini-file'
 import { type ConfigCommandOptions } from './ConfigCommandOptions'
 import { isStrictlyKebabCase } from './isStrictlyKebabCase'
 
-export async function configSet (opts: ConfigCommandOptions, key: string, value: string | null): Promise<void> {
+export async function configSet (opts: ConfigCommandOptions, key: string, valueParam: string | null): Promise<void> {
   if (opts.global && settingShouldFallBackToNpm(key)) {
     const _runNpm = runNpm.bind(null, opts.npmPath)
-    if (value == null) {
+    if (valueParam == null) {
       _runNpm(['config', 'delete', key])
     } else {
-      _runNpm(['config', 'set', `${key}=${value}`])
+      _runNpm(['config', 'set', `${key}=${valueParam}`])
     }
     return
+  }
+  let value: unknown = valueParam
+  if (valueParam != null && opts.json) {
+    value = JSON.parse(valueParam)
   }
   key = validateSimpleKey(key)
   if (opts.global === true || fs.existsSync(path.join(opts.dir, '.npmrc'))) {

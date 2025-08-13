@@ -269,3 +269,24 @@ test('config set rejects complex property path', async () => {
     code: 'ERR_PNPM_CONFIG_SET_DEEP_KEY',
   })
 })
+
+test('config set with location=project and json=true', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    json: true,
+    rawConfig: {},
+  }, ['set', 'catalog', '{ "react": "19" }'])
+
+  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toStrictEqual({
+    catalog: {
+      react: '19',
+    },
+  })
+})
