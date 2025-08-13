@@ -31,3 +31,25 @@ describe.each(
     expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'delete', key])
   })
 })
+
+describe.each(
+  [
+    '._auth',
+    "['_auth']",
+  ]
+)('%p is handled by npm CLI', (propertyPath) => {
+  const configOpts = {
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: __dirname, // this doesn't matter, it won't be used
+    rawConfig: {},
+  }
+  it('should set _auth', async () => {
+    await config.handler(configOpts, ['set', propertyPath, '123'])
+    expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'set', '_auth=123'])
+  })
+  it('should delete _auth', async () => {
+    await config.handler(configOpts, ['delete', propertyPath])
+    expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'delete', '_auth'])
+  })
+})

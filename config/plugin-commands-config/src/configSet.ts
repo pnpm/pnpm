@@ -15,6 +15,11 @@ import { isStrictlyKebabCase } from './isStrictlyKebabCase'
 import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm'
 
 export async function configSet (opts: ConfigCommandOptions, key: string, valueParam: string | null): Promise<void> {
+  let shouldFallbackToNpm = settingShouldFallBackToNpm(key)
+  if (!shouldFallbackToNpm) {
+    key = validateSimpleKey(key)
+    shouldFallbackToNpm = settingShouldFallBackToNpm(key)
+  }
   if (opts.global && settingShouldFallBackToNpm(key)) {
     const _runNpm = runNpm.bind(null, opts.npmPath)
     if (valueParam == null) {
@@ -28,7 +33,6 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   if (valueParam != null && opts.json) {
     value = JSON.parse(valueParam)
   }
-  key = validateSimpleKey(key)
   if (opts.global === true || fs.existsSync(path.join(opts.dir, '.npmrc'))) {
     const configPath = opts.global ? path.join(opts.configDir, 'rc') : path.join(opts.dir, '.npmrc')
     const settings = await safeReadIniFile(configPath)
