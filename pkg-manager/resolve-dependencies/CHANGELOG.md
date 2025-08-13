@@ -1,5 +1,43 @@
 # @pnpm/resolve-dependencies
 
+## 1008.0.1
+
+### Patch Changes
+
+- aa24e7f: When automatically installing missing peer dependencies, prefer versions that are already present in the direct dependencies of the root workspace package [#9835](https://github.com/pnpm/pnpm/pull/9835).
+
+## 1008.0.0
+
+### Major Changes
+
+- d1edf73: Removed node fetcher. The binary fetcher should be used for downloading node assets.
+- f91922c: Changed how the integrity of the node.js artifact is stored in the lockfile.
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [adb097c]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/lockfile.pruner@1001.0.13
+  - @pnpm/calc-dep-state@1002.0.4
+  - @pnpm/patching.config@1001.0.7
+  - @pnpm/error@1000.0.4
+  - @pnpm/npm-resolver@1004.1.3
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/lockfile.preferred-versions@1000.0.18
+  - @pnpm/catalogs.resolver@1000.0.5
+  - @pnpm/manifest-utils@1001.0.3
+
 ## 1007.2.0
 
 ### Minor Changes

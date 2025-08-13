@@ -6,12 +6,12 @@ import {
 import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
 import { type SslConfig } from '@pnpm/types'
 import { type FetchFromRegistry, type GetAuthHeader, type RetryTimeoutOptions } from '@pnpm/fetching-types'
-import type { CustomFetchers, GitFetcher, DirectoryFetcher, NodeRuntimeFetcher } from '@pnpm/fetcher-base'
+import type { CustomFetchers, GitFetcher, DirectoryFetcher, BinaryFetcher } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import { createGitFetcher } from '@pnpm/git-fetcher'
 import { createTarballFetcher, type TarballFetchers } from '@pnpm/tarball-fetcher'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { createNodeRuntimeFetcher } from '@pnpm/node.fetcher'
+import { createBinaryFetcher } from '@pnpm/fetching.binary-fetcher'
 import mapValues from 'ramda/src/map'
 
 export type { ResolveFunction }
@@ -59,7 +59,7 @@ export function createResolver (opts: ClientOptions): { resolve: ResolveFunction
 type Fetchers = {
   git: GitFetcher
   directory: DirectoryFetcher
-  nodeRuntime: NodeRuntimeFetcher
+  binary: BinaryFetcher
 } & TarballFetchers
 
 function createFetchers (
@@ -68,12 +68,14 @@ function createFetchers (
   opts: Pick<ClientOptions, 'rawConfig' | 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm' | 'includeOnlyPackageFiles' | 'offline'>,
   customFetchers?: CustomFetchers
 ): Fetchers {
+  const tarballFetchers = createTarballFetcher(fetchFromRegistry, getAuthHeader, opts)
   const defaultFetchers = {
-    ...createTarballFetcher(fetchFromRegistry, getAuthHeader, opts),
+    ...tarballFetchers,
     ...createGitFetcher(opts),
     ...createDirectoryFetcher({ resolveSymlinks: opts.resolveSymlinksInInjectedDirs, includeOnlyPackageFiles: opts.includeOnlyPackageFiles }),
-    ...createNodeRuntimeFetcher({
+    ...createBinaryFetcher({
       fetch: fetchFromRegistry,
+      fetchFromRemoteTarball: tarballFetchers.remoteTarball,
       offline: opts.offline,
       rawConfig: opts.rawConfig,
     }),

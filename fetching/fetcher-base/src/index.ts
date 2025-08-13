@@ -2,7 +2,7 @@ import {
   type Resolution,
   type GitResolution,
   type DirectoryResolution,
-  type NodeRuntimeResolution,
+  type BinaryResolution,
 } from '@pnpm/resolver-base'
 import { type Cafs } from '@pnpm/cafs-types'
 import { type DependencyManifest } from '@pnpm/types'
@@ -48,7 +48,7 @@ export interface GitFetcherResult {
 
 export type GitFetcher = FetchFunction<GitResolution, GitFetcherOptions, GitFetcherResult>
 
-export type NodeRuntimeFetcher = FetchFunction<NodeRuntimeResolution>
+export type BinaryFetcher = FetchFunction<BinaryResolution>
 
 export interface DirectoryFetcherOptions {
   lockfileDir: string
@@ -71,7 +71,7 @@ export interface Fetchers {
   gitHostedTarball: FetchFunction
   directory: DirectoryFetcher
   git: GitFetcher
-  nodeRuntime: NodeRuntimeFetcher
+  binary: BinaryFetcher
 }
 
 interface CustomFetcherFactoryOptions {

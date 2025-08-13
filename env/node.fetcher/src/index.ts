@@ -1,78 +1,16 @@
-import fsPromises from 'fs/promises'
 import path from 'path'
-import { getNodeBinLocationForCurrentOS } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import { fetchShasumsFile, pickFileChecksumFromShasumsFile } from '@pnpm/crypto.shasums-file'
+import { fetchShasumsFileRaw, pickFileChecksumFromShasumsFile } from '@pnpm/crypto.shasums-file'
 import {
   type FetchFromRegistry,
   type RetryTimeoutOptions,
-  type Response,
 } from '@pnpm/fetching-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { type Cafs } from '@pnpm/cafs-types'
 import { createTarballFetcher } from '@pnpm/tarball-fetcher'
-import { type NodeRuntimeFetcher, type FetchResult } from '@pnpm/fetcher-base'
-import { getNodeMirror, parseEnvSpecifier } from '@pnpm/node.resolver'
-import { addFilesFromDir } from '@pnpm/worker'
-import AdmZip from 'adm-zip'
-import renameOverwrite from 'rename-overwrite'
-import tempy from 'tempy'
+import { getNodeArtifactAddress } from '@pnpm/node.resolver'
+import { downloadAndUnpackZip } from '@pnpm/fetching.binary-fetcher'
 import { isNonGlibcLinux } from 'detect-libc'
-import ssri from 'ssri'
-import { getNodeArtifactAddress } from './getNodeArtifactAddress'
-
-export function createNodeRuntimeFetcher (ctx: {
-  fetch: FetchFromRegistry
-  rawConfig: Record<string, string>
-  offline?: boolean
-}): { nodeRuntime: NodeRuntimeFetcher } {
-  const fetchNodeRuntime: NodeRuntimeFetcher = async (cafs, resolution, opts) => {
-    if (!opts.pkg.version) {
-      throw new PnpmError('CANNOT_FETCH_NODE_WITHOUT_VERSION', 'Cannot fetch Node.js without a version')
-    }
-    if (ctx.offline) {
-      throw new PnpmError('CANNOT_DOWNLOAD_NODE_OFFLINE', 'Cannot download Node.js because offline mode is enabled.')
-    }
-    const version = opts.pkg.version
-    const { releaseChannel } = parseEnvSpecifier(version)
-
-    await validateSystemCompatibility()
-
-    const nodeMirrorBaseUrl = getNodeMirror(ctx.rawConfig, releaseChannel)
-    const artifactInfo = await getNodeArtifactInfo(ctx.fetch, version, {
-      nodeMirrorBaseUrl,
-      expectedVersionIntegrity: resolution.integrity,
-      cachedShasumsFile: resolution._shasumsFileContent,
-    })
-    const manifest = {
-      name: 'node',
-      version,
-      bin: getNodeBinLocationForCurrentOS(),
-    }
-
-    if (artifactInfo.isZip) {
-      const tempLocation = await cafs.tempDir()
-      await downloadAndUnpackZip(ctx.fetch, artifactInfo, tempLocation)
-      return {
-        ...await addFilesFromDir({
-          storeDir: cafs.storeDir,
-          dir: tempLocation,
-          filesIndexFile: opts.filesIndexFile,
-          readManifest: false,
-        }),
-        manifest,
-      }
-    }
-
-    return {
-      ...await downloadAndUnpackTarball(ctx.fetch, artifactInfo, { cafs, filesIndexFile: opts.filesIndexFile }),
-      manifest,
-    }
-  }
-  return {
-    nodeRuntime: fetchNodeRuntime,
-  }
-}
 
 // Constants
 const DEFAULT_NODE_MIRROR_BASE_URL = 'https://nodejs.org/download/release/'
@@ -155,8 +93,7 @@ async function getNodeArtifactInfo (
   version: string,
   opts: {
     nodeMirrorBaseUrl: string
-    expectedVersionIntegrity?: string
-    cachedShasumsFile?: string
+    integrities?: Record<string, string>
   }
 ): Promise<NodeArtifactInfo> {
   const tarball = getNodeArtifactAddress({
@@ -170,11 +107,9 @@ async function getNodeArtifactInfo (
   const shasumsFileUrl = `${tarball.dirname}/SHASUMS256.txt`
   const url = `${tarball.dirname}/${tarballFileName}`
 
-  const integrity = opts.cachedShasumsFile
-    ? pickFileChecksumFromShasumsFile(opts.cachedShasumsFile, tarballFileName)
-    : await loadArtifactIntegrity(fetch, tarballFileName, shasumsFileUrl, {
-      expectedVersionIntegrity: opts.expectedVersionIntegrity,
-    })
+  const integrity = opts.integrities
+    ? opts.integrities[`${process.platform}-${process.arch}`]
+    : await loadArtifactIntegrity(fetch, tarballFileName, shasumsFileUrl)
 
   return {
     url,
@@ -182,10 +117,6 @@ async function getNodeArtifactInfo (
     isZip: tarball.extname === '.zip',
     basename: tarball.basename,
   }
-}
-
-interface LoadArtifactIntegrityOptions {
-  expectedVersionIntegrity?: string
 }
 
 /**
@@ -201,10 +132,9 @@ interface LoadArtifactIntegrityOptions {
 async function loadArtifactIntegrity (
   fetch: FetchFromRegistry,
   fileName: string,
-  shasumsUrl: string,
-  options?: LoadArtifactIntegrityOptions
+  shasumsUrl: string
 ): Promise<string> {
-  const body = await fetchShasumsFile(fetch, shasumsUrl, options?.expectedVersionIntegrity)
+  const body = await fetchShasumsFileRaw(fetch, shasumsUrl)
   return pickFileChecksumFromShasumsFile(body, fileName)
 }
 
@@ -254,106 +184,4 @@ async function downloadAndUnpackTarballToDir (
     },
     force: true,
   })
-}
-
-async function downloadAndUnpackTarball (
-  fetch: FetchFromRegistry,
-  artifactInfo: NodeArtifactInfo,
-  opts: FetchNodeOptions
-): Promise<FetchResult> {
-  const getAuthHeader = () => undefined
-  const fetchers = createTarballFetcher(fetch, getAuthHeader, {
-    retry: opts.retry,
-    timeout: opts.fetchTimeout,
-    // These are not needed for fetching Node.js
-    rawConfig: {},
-    unsafePerm: false,
-  })
-
-  return fetchers.remoteTarball(opts.cafs, {
-    tarball: artifactInfo.url,
-    integrity: artifactInfo.integrity,
-  }, {
-    filesIndexFile: opts.filesIndexFile,
-    lockfileDir: process.cwd(),
-    pkg: {},
-  })
-}
-
-/**
- * Downloads and unpacks a zip file containing Node.js.
- *
- * @param fetchFromRegistry - Function to fetch resources from registry
- * @param artifactInfo - Information about the Node.js artifact
- * @param targetDir - Directory where Node.js should be installed
- * @throws {PnpmError} When integrity verification fails or extraction fails
- */
-async function downloadAndUnpackZip (
-  fetchFromRegistry: FetchFromRegistry,
-  artifactInfo: NodeArtifactInfo,
-  targetDir: string
-): Promise<void> {
-  const response = await fetchFromRegistry(artifactInfo.url)
-  const tmp = path.join(tempy.directory(), 'pnpm.zip')
-
-  try {
-    await downloadWithIntegrityCheck(response, tmp, artifactInfo.integrity)
-    await extractZipToTarget(tmp, artifactInfo.basename, targetDir)
-  } finally {
-    // Clean up temporary file
-    try {
-      await fsPromises.unlink(tmp)
-    } catch {
-      // Ignore cleanup errors
-    }
-  }
-}
-
-/**
- * Downloads a file with integrity verification.
- *
- * @param response - Fetch response containing the file data
- * @param tmpPath - Temporary file path to save the download
- * @param expectedIntegrity - Expected SHA-256 integrity hash
- * @param url - URL being downloaded (for error messages)
- * @throws {PnpmError} When integrity verification fails
- */
-async function downloadWithIntegrityCheck (
-  response: Response,
-  tmpPath: string,
-  expectedIntegrity: string
-): Promise<void> {
-  // Collect all chunks from the response
-  const chunks: Buffer[] = []
-  for await (const chunk of response.body!) {
-    chunks.push(chunk as Buffer)
-  }
-  const data = Buffer.concat(chunks)
-
-  // Verify integrity if provided
-  ssri.checkData(data, expectedIntegrity, { error: true })
-
-  // Write the verified data to file
-  await fsPromises.writeFile(tmpPath, data)
-}
-
-/**
- * Extracts a zip file to the target directory.
- *
- * @param zipPath - Path to the zip file
- * @param basename - Base name of the file (without extension)
- * @param targetDir - Directory where contents should be extracted
- * @throws {PnpmError} When extraction fails
- */
-async function extractZipToTarget (
-  zipPath: string,
-  basename: string,
-  targetDir: string
-): Promise<void> {
-  const zip = new AdmZip(zipPath)
-  const nodeDir = path.dirname(targetDir)
-  const extractedDir = path.join(nodeDir, basename)
-
-  zip.extractAllTo(nodeDir, true)
-  await renameOverwrite(extractedDir, targetDir)
 }

@@ -292,9 +292,9 @@ export async function recursive (
       const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
         return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
       })
-      if (updatedCatalogs ?? opts.cleanupUnusedCatalogs) {
-        promises.push(updateWorkspaceManifest(opts.workspaceDir, { updatedCatalogs, cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs }))
-      }
+      promises.push(updateWorkspaceManifest(opts.workspaceDir, {
+        updatedCatalogs,
+      }))
       await Promise.all(promises)
     }
     if (opts.strictDepBuilds && ignoredBuilds?.length) {
@@ -440,9 +440,9 @@ export async function recursive (
     })
   ))
 
-  if (updatedCatalogs ?? opts.cleanupUnusedCatalogs) {
-    await updateWorkspaceManifest(opts.workspaceDir, { updatedCatalogs, cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs })
-  }
+  await updateWorkspaceManifest(opts.workspaceDir, {
+    updatedCatalogs,
+  })
 
   if (
     !opts.lockfileOnly && !opts.ignoreScripts && (

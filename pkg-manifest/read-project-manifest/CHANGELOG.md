@@ -1,5 +1,16 @@
 # @pnpm/read-project-manifest
 
+## 1001.1.0
+
+### Minor Changes
+
+- d1edf73: Add support for installing deno runtime.
+- 86b33e9: Added support for installing Bun runtime.
+
+### Patch Changes
+
+- @pnpm/error@1000.0.4
+
 ## 1001.0.0
 
 ### Major Changes

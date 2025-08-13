@@ -71,8 +71,14 @@ export async function getConfig (
 
 function * calcPnpmfilePathsOfPluginDeps (configModulesDir: string, configDependencies: Record<string, string>): Generator<string> {
   for (const configDepName of Object.keys(configDependencies).sort(lexCompare)) {
-    if (configDepName.startsWith('@pnpm/plugin-') || configDepName.startsWith('pnpm-plugin-')) {
+    if (isPluginName(configDepName)) {
       yield path.join(configModulesDir, configDepName, 'pnpmfile.cjs')
     }
   }
+}
+
+function isPluginName (configDepName: string): boolean {
+  if (configDepName.startsWith('pnpm-plugin-')) return true
+  if (!configDepName.startsWith('@')) return false
+  return configDepName.startsWith('@pnpm/plugin-') || configDepName.includes('/pnpm-plugin-')
 }

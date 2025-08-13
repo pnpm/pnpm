@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "1000.3.10",
+  "version": "1000.3.12",
   "description": "Build packages in node_modules",
   "keywords": [
     "pnpm",
@@ -45,13 +45,13 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/worker": "workspace:*",
     "p-defer": "catalog:",
     "ramda": "catalog:",
     "run-groups": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@pnpm/build-modules": "workspace:*",

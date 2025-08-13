@@ -9,9 +9,7 @@ import { sync as writeYamlFile } from 'write-yaml-file'
 test('addCatalogs does not write new workspace manifest for empty catalogs', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
-  await updateWorkspaceManifest(dir, {
-    updatedCatalogs: {},
-  })
+  await updateWorkspaceManifest(dir, {})
   expect(fs.existsSync(filePath)).toBe(false)
 })
 

@@ -1,5 +1,28 @@
 # @pnpm/build-modules
 
+## 1000.3.12
+
+### Patch Changes
+
+- 2b0d35f: `@pnpm/worker` should always be a peer dependency.
+
+## 1000.3.11
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [adb097c]
+  - @pnpm/link-bins@1000.2.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/calc-dep-state@1002.0.4
+  - @pnpm/config@1004.2.1
+  - @pnpm/lifecycle@1001.0.19
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/patching.apply-patch@1000.0.6
+  - @pnpm/worker@1000.1.11
+  - @pnpm/fs.hard-link-dir@1000.0.1
+
 ## 1000.3.10
 
 ### Patch Changes

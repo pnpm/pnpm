@@ -17,6 +17,15 @@ export interface TarballResolution {
   path?: string
 }
 
+export interface BinaryResolution {
+  type: 'binary'
+  archive: 'tarball' | 'zip'
+  url: string
+  integrity: string
+  bin: string
+  prefix?: string
+}
+
 /**
  * directory on a file system
  */
@@ -32,17 +41,29 @@ export interface GitResolution {
   type: 'git'
 }
 
-export interface NodeRuntimeResolution {
-  type: 'nodeRuntime'
-  integrity: string
-  _shasumsFileContent?: string
+export interface PlatformAssetTarget {
+  os: string
+  cpu: string
+  libc?: 'musl'
 }
 
-export type Resolution =
+export interface PlatformAssetResolution {
+  resolution: AtomicResolution
+  targets: PlatformAssetTarget[]
+}
+
+export type AtomicResolution =
   | TarballResolution
   | DirectoryResolution
   | GitResolution
-  | NodeRuntimeResolution
+  | BinaryResolution
+
+export interface VariationsResolution {
+  type: 'variations'
+  variants: PlatformAssetResolution[]
+}
+
+export type Resolution = AtomicResolution | VariationsResolution
 
 export interface ResolveResult {
   id: PkgResolutionId

@@ -1,5 +1,49 @@
 # @pnpm/headless
 
+## 1004.2.2
+
+### Patch Changes
+
+- Updated dependencies [2b0d35f]
+  - @pnpm/build-modules@1000.3.12
+  - @pnpm/package-requester@1006.0.0
+
+## 1004.2.1
+
+### Patch Changes
+
+- 9908269: Fix an edge case bug causing local tarballs to not re-link into the virtual store. This bug would happen when changing the contents of the tarball without renaming the file and running a filtered install.
+- Updated dependencies [9908269]
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [e9b589c]
+- Updated dependencies [adb097c]
+- Updated dependencies [f91922c]
+  - @pnpm/deps.graph-builder@1002.2.3
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/link-bins@1000.2.0
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/package-requester@1006.0.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/lockfile.filtering@1001.0.17
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/lockfile-to-pnp@1001.0.18
+  - @pnpm/calc-dep-state@1002.0.4
+  - @pnpm/patching.config@1001.0.7
+  - @pnpm/modules-cleaner@1001.0.19
+  - @pnpm/real-hoist@1001.0.16
+  - @pnpm/error@1000.0.4
+  - @pnpm/hoist@1002.0.2
+  - @pnpm/build-modules@1000.3.11
+  - @pnpm/lifecycle@1001.0.19
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/package-is-installable@1000.0.12
+  - @pnpm/worker@1000.1.11
+  - @pnpm/symlink-dependency@1000.0.10
+
 ## 1004.2.0
 
 ### Minor Changes

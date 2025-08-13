@@ -1,5 +1,73 @@
 # @pnpm/core
 
+## 1010.0.1
+
+### Patch Changes
+
+- Updated dependencies [eac7bab]
+- Updated dependencies [aa24e7f]
+- Updated dependencies [2b0d35f]
+  - @pnpm/lockfile.verification@1001.2.5
+  - @pnpm/resolve-dependencies@1008.0.1
+  - @pnpm/build-modules@1000.3.12
+  - @pnpm/headless@1004.2.2
+  - @pnpm/package-requester@1006.0.0
+
+## 1010.0.0
+
+### Major Changes
+
+- d1edf73: Removed node fetcher. The binary fetcher should be used for downloading node assets.
+- f91922c: Changed how the integrity of the node.js artifact is stored in the lockfile.
+
+### Patch Changes
+
+- 9908269: Fix an edge case bug causing local tarballs to not re-link into the virtual store. This bug would happen when changing the contents of the tarball without renaming the file and running a filtered install.
+- 98dd75a: Dedupe catalog entries when running the `pnpm dedupe` command.
+- 0b6264e: Update @pnpm/npm-package-arg.
+- Updated dependencies [9908269]
+- Updated dependencies [d1edf73]
+- Updated dependencies [19b1880]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/headless@1004.2.1
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/link-bins@1000.2.0
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/lockfile.verification@1001.2.4
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/package-requester@1006.0.0
+  - @pnpm/resolve-dependencies@1008.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/lockfile.filtering@1001.0.17
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/lockfile-to-pnp@1001.0.18
+  - @pnpm/lockfile.pruner@1001.0.13
+  - @pnpm/lockfile.walker@1001.0.13
+  - @pnpm/calc-dep-state@1002.0.4
+  - @pnpm/patching.config@1001.0.7
+  - @pnpm/modules-cleaner@1001.0.19
+  - @pnpm/error@1000.0.4
+  - @pnpm/get-context@1001.1.4
+  - @pnpm/hoist@1002.0.2
+  - @pnpm/build-modules@1000.3.11
+  - @pnpm/lifecycle@1001.0.19
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/hooks.types@1001.0.10
+  - @pnpm/lockfile.settings-checker@1001.0.12
+  - @pnpm/lockfile.preferred-versions@1000.0.18
+  - @pnpm/remove-bins@1000.0.12
+  - @pnpm/catalogs.resolver@1000.0.5
+  - @pnpm/parse-overrides@1001.0.2
+  - @pnpm/hooks.read-package-hook@1000.0.12
+  - @pnpm/manifest-utils@1001.0.3
+  - @pnpm/worker@1000.1.11
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/symlink-dependency@1000.0.10
+
 ## 1009.1.0
 
 ### Minor Changes

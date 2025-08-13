@@ -54,6 +54,12 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
     throw new PnpmError('NO_PATCHES_TO_REMOVE', 'There are no patches that need to be removed')
   }
 
+  for (const patch of patchesToRemove) {
+    if (!Object.hasOwn(patchedDependencies, patch)) {
+      throw new PnpmError('PATCH_NOT_FOUND', `Patch "${patch}" not found in patched dependencies`)
+    }
+  }
+
   const patchesDirs = new Set<string>()
   await Promise.all(patchesToRemove.map(async (patch) => {
     if (Object.hasOwn(patchedDependencies, patch)) {

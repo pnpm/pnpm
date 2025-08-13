@@ -1,5 +1,18 @@
 # @pnpm/fetcher-base
 
+## 1001.0.0
+
+### Major Changes
+
+- d1edf73: Removed node fetcher. The binary fetcher should be used for downloading node assets.
+
+### Patch Changes
+
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/resolver-base@1005.0.0
+
 ## 1000.1.0
 
 ### Minor Changes

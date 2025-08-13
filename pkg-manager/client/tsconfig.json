@@ -13,6 +13,9 @@
       "path": "../../env/node.fetcher"
     },
     {
+      "path": "../../fetching/binary-fetcher"
+    },
+    {
       "path": "../../fetching/directory-fetcher"
     },
     {

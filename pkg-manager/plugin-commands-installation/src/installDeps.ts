@@ -320,7 +320,9 @@ when running add/update with the --workspace option')
     if (opts.save !== false) {
       await Promise.all([
         writeProjectManifest(updatedProject.manifest),
-        (updatedCatalogs ?? opts.cleanupUnusedCatalogs) && updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, { updatedCatalogs, cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs }),
+        updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+          updatedCatalogs,
+        }),
       ])
     }
     if (!opts.lockfileOnly) {
@@ -343,7 +345,9 @@ when running add/update with the --workspace option')
   if (opts.update === true && opts.save !== false) {
     await Promise.all([
       writeProjectManifest(updatedManifest),
-      (updatedCatalogs ?? opts.cleanupUnusedCatalogs) && updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, { updatedCatalogs, cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs }),
+      updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+        updatedCatalogs,
+      }),
     ])
   }
   if (opts.strictDepBuilds && ignoredBuilds?.length) {

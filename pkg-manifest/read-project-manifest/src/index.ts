@@ -223,15 +223,17 @@ function createManifestWriter (
 }
 
 function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
-  if (manifest.devEngines?.runtime && !manifest.devDependencies?.['node']) {
-    const runtimes = Array.isArray(manifest.devEngines.runtime) ? manifest.devEngines.runtime : [manifest.devEngines.runtime]
-    const nodeRuntime = runtimes.find((runtime) => runtime.name === 'node')
-    if (nodeRuntime && nodeRuntime.onFail === 'download') {
-      if ('webcontainer' in process.versions) {
-        globalWarn('Installation of Node.js versions is not supported in WebContainer')
-      } else {
-        manifest.devDependencies ??= {}
-        manifest.devDependencies['node'] = `runtime:${nodeRuntime.version}`
+  for (const runtimeName of ['node', 'deno', 'bun']) {
+    if (manifest.devEngines?.runtime && !manifest.devDependencies?.[runtimeName]) {
+      const runtimes = Array.isArray(manifest.devEngines.runtime) ? manifest.devEngines.runtime : [manifest.devEngines.runtime]
+      const runtime = runtimes.find((runtime) => runtime.name === runtimeName)
+      if (runtime && runtime.onFail === 'download') {
+        if ('webcontainer' in process.versions) {
+          globalWarn(`Installation of ${runtimeName} versions is not supported in WebContainer`)
+        } else {
+          manifest.devDependencies ??= {}
+          manifest.devDependencies[runtimeName] = `runtime:${runtime.version}`
+        }
       }
     }
   }
@@ -239,36 +241,38 @@ function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
 }
 
 function convertManifestBeforeWrite (manifest: ProjectManifest): ProjectManifest {
-  const nodeDep = manifest.devDependencies?.['node']
-  if (typeof nodeDep === 'string' && nodeDep.startsWith('runtime:')) {
-    const version = nodeDep.replace(/^runtime:/, '')
-    manifest.devEngines ??= {}
+  for (const runtimeName of ['node', 'deno', 'bun']) {
+    const nodeDep = manifest.devDependencies?.[runtimeName]
+    if (typeof nodeDep === 'string' && nodeDep.startsWith('runtime:')) {
+      const version = nodeDep.replace(/^runtime:/, '')
+      manifest.devEngines ??= {}
 
-    const nodeRuntimeEntry: DevEngineDependency = {
-      name: 'node',
-      version,
-      onFail: 'download',
-    }
-
-    if (!manifest.devEngines.runtime) {
-      manifest.devEngines.runtime = nodeRuntimeEntry
-    } else if (Array.isArray(manifest.devEngines.runtime)) {
-      const existing = manifest.devEngines.runtime.find(({ name }) => name === 'node')
-      if (existing) {
-        Object.assign(existing, nodeRuntimeEntry)
-      } else {
-        manifest.devEngines.runtime.push(nodeRuntimeEntry)
+      const nodeRuntimeEntry: DevEngineDependency = {
+        name: runtimeName,
+        version,
+        onFail: 'download',
       }
-    } else if (manifest.devEngines.runtime.name === 'node') {
-      Object.assign(manifest.devEngines.runtime, nodeRuntimeEntry)
-    } else {
-      manifest.devEngines.runtime = [
-        manifest.devEngines.runtime,
-        nodeRuntimeEntry,
-      ]
-    }
-    if (manifest.devDependencies) {
-      delete manifest.devDependencies['node']
+
+      if (!manifest.devEngines.runtime) {
+        manifest.devEngines.runtime = nodeRuntimeEntry
+      } else if (Array.isArray(manifest.devEngines.runtime)) {
+        const existing = manifest.devEngines.runtime.find(({ name }) => name === runtimeName)
+        if (existing) {
+          Object.assign(existing, nodeRuntimeEntry)
+        } else {
+          manifest.devEngines.runtime.push(nodeRuntimeEntry)
+        }
+      } else if (manifest.devEngines.runtime.name === runtimeName) {
+        Object.assign(manifest.devEngines.runtime, nodeRuntimeEntry)
+      } else {
+        manifest.devEngines.runtime = [
+          manifest.devEngines.runtime,
+          nodeRuntimeEntry,
+        ]
+      }
+      if (manifest.devDependencies) {
+        delete manifest.devDependencies[runtimeName]
+      }
     }
   }
   return manifest

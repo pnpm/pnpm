@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "1001.0.0",
+  "version": "1001.0.2",
   "description": "Commands for running scripts",
   "keywords": [
     "pnpm",
@@ -73,6 +73,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/env.system-node-version": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-script-runners": "workspace:*",

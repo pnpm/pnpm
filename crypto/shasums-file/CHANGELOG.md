@@ -1,5 +1,16 @@
 # @pnpm/crypto.shasums-file
 
+## 1001.0.0
+
+### Major Changes
+
+- 86b33e9: fetchShasumsFile returns an array of shasum file items.
+
+### Patch Changes
+
+- @pnpm/error@1000.0.4
+- @pnpm/crypto.hash@1000.2.0
+
 ## 1000.0.0
 
 ### Major Changes

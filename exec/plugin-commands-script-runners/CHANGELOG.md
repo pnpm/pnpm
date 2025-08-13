@@ -1,5 +1,41 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.0.2
+
+### Patch Changes
+
+- 9df09dd: When executing the `pnpm create` command, must verify whether the node version is supported even if a cache already exists.
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+  - @pnpm/deps.status@1003.0.4
+  - @pnpm/plugin-commands-env@1000.0.33
+  - @pnpm/plugin-commands-installation@1004.4.2
+  - @pnpm/client@1001.0.1
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [adb097c]
+- Updated dependencies [f91922c]
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/client@1001.0.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/plugin-commands-installation@1004.4.1
+  - @pnpm/config@1004.2.1
+  - @pnpm/deps.status@1003.0.3
+  - @pnpm/error@1000.0.4
+  - @pnpm/store-path@1000.0.4
+  - @pnpm/lifecycle@1001.0.19
+  - @pnpm/cli-utils@1001.0.3
+  - @pnpm/plugin-commands-env@1000.0.32
+  - @pnpm/workspace.injected-deps-syncer@1000.0.11
+  - @pnpm/crypto.hash@1000.2.0
+
 ## 1001.0.0
 
 ### Major Changes

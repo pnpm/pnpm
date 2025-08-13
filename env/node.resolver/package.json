@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/node.resolver",
-  "version": "1000.1.0",
+  "version": "1001.0.0",
   "description": "Resolves a Node.js version specifier to an exact Node.js version",
   "keywords": [
     "pnpm",
@@ -35,7 +35,6 @@
   "dependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/crypto.shasums-file": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",

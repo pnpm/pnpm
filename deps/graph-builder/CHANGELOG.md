@@ -1,5 +1,23 @@
 # @pnpm/deps.graph-builder
 
+## 1002.2.3
+
+### Patch Changes
+
+- 9908269: Fix an edge case bug causing local tarballs to not re-link into the virtual store. This bug would happen when changing the contents of the tarball without renaming the file and running a filtered install.
+- e9b589c: Add a JSDoc for the `lockfileToDepGraph` function.
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/calc-dep-state@1002.0.4
+  - @pnpm/patching.config@1001.0.7
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/package-is-installable@1000.0.12
+
 ## 1002.2.2
 
 ### Patch Changes

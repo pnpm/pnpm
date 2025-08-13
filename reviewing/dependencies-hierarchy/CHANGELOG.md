@@ -1,5 +1,19 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1001.0.19
+
+### Patch Changes
+
+- 0b6264e: Update @pnpm/npm-package-arg.
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [adb097c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/lockfile.detect-dep-types@1001.0.13
+  - @pnpm/lockfile.fs@1001.1.17
+
 ## 1001.0.18
 
 ### Patch Changes

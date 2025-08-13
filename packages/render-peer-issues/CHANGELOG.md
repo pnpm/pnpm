@@ -1,5 +1,11 @@
 # @pnpm/render-peer-issues
 
+## 1002.0.2
+
+### Patch Changes
+
+- @pnpm/error@1000.0.4
+
 ## 1002.0.1
 
 ### Patch Changes

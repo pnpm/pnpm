@@ -1,5 +1,16 @@
 # @pnpm/resolver-base
 
+## 1005.0.0
+
+### Major Changes
+
+- d1edf73: Rename Resolution to AtomicResolution. Add support for binary resolution.
+- f91922c: Changed how the integrity of the node.js artifact is stored in the lockfile.
+
+### Minor Changes
+
+- 86b33e9: Added support for installing Bun runtime.
+
 ## 1004.1.0
 
 ### Minor Changes

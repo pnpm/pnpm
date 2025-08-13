@@ -1,5 +1,28 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.1.8
+
+### Patch Changes
+
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+
+## 1002.1.7
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/config@1004.2.1
+  - @pnpm/audit@1002.0.9
+  - @pnpm/error@1000.0.4
+  - @pnpm/cli-utils@1001.0.3
+  - @pnpm/config.config-writer@1000.0.9
+  - @pnpm/network.auth-header@1000.0.5
+
 ## 1002.1.6
 
 ### Patch Changes
