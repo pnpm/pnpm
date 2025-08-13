@@ -22,10 +22,16 @@ async function writeManifestFile (dir: string, manifest: Partial<WorkspaceManife
   })
 }
 
-export async function updateWorkspaceManifest (dir: string, updatedFields: Partial<WorkspaceManifest>): Promise<void> {
+export async function updateWorkspaceManifest (dir: string, opts: {
+  updatedFields?: Partial<WorkspaceManifest>
+  updatedCatalogs?: Catalogs
+}): Promise<void> {
   const manifest = await readWorkspaceManifest(dir) ?? {} as WorkspaceManifest
   let shouldBeUpdated = false
-  for (const [key, value] of Object.entries(updatedFields)) {
+  if (addCatalogs(manifest, opts.updatedCatalogs ?? {})) {
+    shouldBeUpdated = true
+  }
+  for (const [key, value] of Object.entries(opts.updatedFields ?? {})) {
     if (!equals(manifest[key as keyof WorkspaceManifest], value)) {
       shouldBeUpdated = true
       if (value == null) {
@@ -52,8 +58,7 @@ export interface NewCatalogs {
   }
 }
 
-export async function addCatalogs (workspaceDir: string, newCatalogs: Catalogs): Promise<void> {
-  const manifest: Partial<WorkspaceManifest> = await readWorkspaceManifest(workspaceDir) ?? {}
+function addCatalogs (manifest: Partial<WorkspaceManifest>, newCatalogs: Catalogs): boolean {
   let shouldBeUpdated = false
 
   for (const catalogName in newCatalogs) {
@@ -85,7 +90,5 @@ export async function addCatalogs (workspaceDir: string, newCatalogs: Catalogs):
     }
   }
 
-  if (shouldBeUpdated) {
-    await writeManifestFile(workspaceDir, manifest)
-  }
+  return shouldBeUpdated
 }

@@ -35,7 +35,9 @@ export async function configSet (opts: ConfigCommandOptions, key: string, value:
   }
   key = camelCase(key)
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
-    [key]: castField(value, kebabCase(key)),
+    updatedFields: ({
+      [key]: castField(value, kebabCase(key)),
+    }),
   })
 }
 
