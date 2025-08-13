@@ -86,7 +86,7 @@ export function settingShouldFallBackToNpm (key: string): boolean {
 
 export class ConfigSetKeyEmptyKeyError extends PnpmError {
   constructor () {
-    super('CONFIG_SET_KEY_VALIDATION', 'Cannot set config with an empty key')
+    super('CONFIG_SET_EMPTY_KEY', 'Cannot set config with an empty key')
   }
 }
 
