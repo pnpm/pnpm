@@ -20,18 +20,21 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
     key = validateSimpleKey(key)
     shouldFallbackToNpm = settingShouldFallBackToNpm(key)
   }
-  if (opts.global && settingShouldFallBackToNpm(key)) {
-    const _runNpm = runNpm.bind(null, opts.npmPath)
-    if (valueParam == null) {
-      _runNpm(['config', 'delete', key])
-    } else {
-      _runNpm(['config', 'set', `${key}=${valueParam}`])
-    }
-    return
-  }
   let value: unknown = valueParam
   if (valueParam != null && opts.json) {
     value = JSON.parse(valueParam)
+  }
+  if (opts.global && settingShouldFallBackToNpm(key)) {
+    const _runNpm = runNpm.bind(null, opts.npmPath)
+    if (value == null) {
+      _runNpm(['config', 'delete', key])
+      return
+    }
+    if (typeof value === 'string') {
+      _runNpm(['config', 'set', `${key}=${value}`])
+      return
+    }
+    throw new PnpmError('CONFIG_SET_AUTH_NON_STRING', `Cannot set ${key} to a non-string value (${JSON.stringify(value)})`)
   }
   if (opts.global === true || fs.existsSync(path.join(opts.dir, '.npmrc'))) {
     const configPath = opts.global ? path.join(opts.configDir, 'rc') : path.join(opts.dir, '.npmrc')
