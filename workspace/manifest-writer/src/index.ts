@@ -7,6 +7,9 @@ import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import writeYamlFile from 'write-yaml-file'
 import equals from 'ramda/src/equals'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
+import {
+  type Project,
+} from '@pnpm/types'
 
 async function writeManifestFile (dir: string, manifest: Partial<WorkspaceManifest>): Promise<void> {
   manifest = sortKeysByPriority({
@@ -25,9 +28,14 @@ async function writeManifestFile (dir: string, manifest: Partial<WorkspaceManife
 export async function updateWorkspaceManifest (dir: string, opts: {
   updatedFields?: Partial<WorkspaceManifest>
   updatedCatalogs?: Catalogs
+  cleanupUnusedCatalogs?: boolean
+  allProjects?: Project[]
 }): Promise<void> {
   const manifest = await readWorkspaceManifest(dir) ?? {} as WorkspaceManifest
   let shouldBeUpdated = opts.updatedCatalogs != null && addCatalogs(manifest, opts.updatedCatalogs)
+  if (opts.cleanupUnusedCatalogs) {
+    shouldBeUpdated ||= removePackagesFromWorkspaceCatalog(manifest, opts.allProjects ?? [])
+  }
 
   for (const [key, value] of Object.entries(opts.updatedFields ?? {})) {
     if (!equals(manifest[key as keyof WorkspaceManifest], value)) {
@@ -87,5 +95,47 @@ function addCatalogs (manifest: Partial<WorkspaceManifest>, newCatalogs: Catalog
     }
   }
 
+  return shouldBeUpdated
+}
+
+function removePackagesFromWorkspaceCatalog (manifest: Partial<WorkspaceManifest>, packagesJson: Project[]): boolean {
+  const packages: Record<string, string> = {}
+  for (const pkg of packagesJson) {
+    const manifest = pkg.manifest
+    Object.assign(packages, manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies, manifest.peerDependencies)
+  }
+  let shouldBeUpdated = false
+
+  if (manifest.catalog == null && manifest.catalogs == null) return shouldBeUpdated
+  if (manifest.catalog != null) {
+    Object.keys(manifest.catalog).forEach((pkg) => {
+      if (!packages[pkg] || packages[pkg] !== 'catalog:') {
+        delete manifest.catalog![pkg]
+        shouldBeUpdated = true
+      }
+    })
+    if (Object.keys(manifest.catalog).length === 0) {
+      delete manifest.catalog
+      shouldBeUpdated = true
+    }
+  }
+  for (const catalogName in manifest.catalogs) {
+    const catalog = manifest.catalogs[catalogName]
+    if (catalog == null) continue
+    Object.keys(catalog).forEach((pkg) => {
+      if (!packages[pkg] || (packages[pkg] !== `catalog:${catalogName}` && packages[pkg] !== 'catalog:')) {
+        delete catalog[pkg]
+        shouldBeUpdated = true
+      }
+    })
+    if (Object.keys(catalog).length === 0) {
+      delete manifest.catalogs[catalogName]
+      shouldBeUpdated = true
+    }
+  }
+  if (Object.keys(manifest.catalogs ?? {}).length === 0) {
+    delete manifest.catalogs
+    shouldBeUpdated = true
+  }
   return shouldBeUpdated
 }

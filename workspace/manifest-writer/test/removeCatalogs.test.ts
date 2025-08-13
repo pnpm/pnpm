@@ -5,6 +5,7 @@ import { prepare } from '@pnpm/prepare'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
+import { findPackages } from '@pnpm/fs.find-packages'
 
 test('remove the default catalog if it is empty', async () => {
   const dir = tempDir(false)
@@ -26,9 +27,10 @@ test('remove the default catalog if it is empty', async () => {
       foo: '^0.1.2',
     },
   })
-
+  const allProjects = await findPackages(dir)
   await updateWorkspaceManifest(dir, {
     cleanupUnusedCatalogs: true,
+    allProjects,
   })
   expect(readYamlFile(filePath)).toStrictEqual({})
 })
@@ -36,6 +38,7 @@ test('remove the default catalog if it is empty', async () => {
 test('remove the unused default catalog', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  const allProjects = await findPackages(dir)
   writeYamlFile(filePath, {
     catalog: {
       bar: '3.2.1',
@@ -47,6 +50,7 @@ test('remove the unused default catalog', async () => {
         foo: '^0.1.2',
       },
     },
+    allProjects,
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalog: {
@@ -63,6 +67,7 @@ test('remove the unused default catalog', async () => {
 
   await updateWorkspaceManifest(dir, {
     cleanupUnusedCatalogs: true,
+    allProjects,
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalog: {
@@ -74,6 +79,7 @@ test('remove the unused default catalog', async () => {
 test('remove the unused default catalog with catalogs', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  const allProjects = await findPackages(dir)
   writeYamlFile(filePath, {
     catalogs: {
       default: {
@@ -87,6 +93,7 @@ test('remove the unused default catalog with catalogs', async () => {
         foo: '^0.1.2',
       },
     },
+    allProjects,
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalogs: {
@@ -104,6 +111,7 @@ test('remove the unused default catalog with catalogs', async () => {
   }, { tempDir: dir })
   await updateWorkspaceManifest(dir, {
     cleanupUnusedCatalogs: true,
+    allProjects,
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalogs: {
@@ -117,6 +125,7 @@ test('remove the unused default catalog with catalogs', async () => {
 test('remove the unused named catalog', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  const allProjects = await findPackages(dir)
   await updateWorkspaceManifest(dir, {
     updatedCatalogs: {
       foo: {
@@ -126,6 +135,7 @@ test('remove the unused named catalog', async () => {
         def: '3.2.1',
       },
     },
+    allProjects,
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalogs: {
@@ -145,6 +155,7 @@ test('remove the unused named catalog', async () => {
   }, { tempDir: dir })
   await updateWorkspaceManifest(dir, {
     cleanupUnusedCatalogs: true,
+    allProjects,
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalogs: {
@@ -158,6 +169,7 @@ test('remove the unused named catalog', async () => {
 test('remove all unused named catalogs', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  const allProjects = await findPackages(dir)
   writeYamlFile(filePath, {
     catalogs: {
       foo: {
@@ -174,6 +186,7 @@ test('remove all unused named catalogs', async () => {
         def: '3.2.1',
       },
     },
+    allProjects,
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalogs: {
@@ -194,6 +207,7 @@ test('remove all unused named catalogs', async () => {
   }, { tempDir: dir })
   await updateWorkspaceManifest(dir, {
     cleanupUnusedCatalogs: true,
+    allProjects,
   })
   expect(readYamlFile(filePath)).toStrictEqual({
     catalogs: {

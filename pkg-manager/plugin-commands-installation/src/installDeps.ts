@@ -322,6 +322,8 @@ when running add/update with the --workspace option')
         writeProjectManifest(updatedProject.manifest),
         updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
           updatedCatalogs,
+          cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+          allProjects: opts.allProjects,
         }),
       ])
     }
@@ -347,6 +349,8 @@ when running add/update with the --workspace option')
       writeProjectManifest(updatedManifest),
       updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
         updatedCatalogs,
+        cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+        allProjects,
       }),
     ])
   }
