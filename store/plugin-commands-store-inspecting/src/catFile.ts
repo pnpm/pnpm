@@ -8,7 +8,7 @@ import { getStorePath } from '@pnpm/store-path'
 
 import renderHelp from 'render-help'
 
-// eslint-disable-next-line regexp/use-ignore-case
+// eslint-disable-next-line regexp/no-unused-capturing-group, regexp/use-ignore-case
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
 
 export const skipPackageManagerCheck = true
