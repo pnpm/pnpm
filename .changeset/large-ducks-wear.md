@@ -1,6 +1,7 @@
 ---
-"@pnpm/plugin-commands-installation": patch
-"@pnpm/workspace.manifest-writer": patch
+"@pnpm/plugin-commands-installation": minor
+"@pnpm/workspace.manifest-writer": minor
+"pnpm": minor
 ---
 
-Add `cleanupUnusedCatalogs` configuration. When its value is set to true, installing dependencies will remove unused catalog dependencies.
+Added the `cleanupUnusedCatalogs` configuration. When set to `true`, pnpm will remove unused catalog entries during installation [#9793](https://github.com/pnpm/pnpm/pull/9793).
