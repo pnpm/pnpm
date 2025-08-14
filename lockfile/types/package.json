@@ -39,6 +39,6 @@
     "@pnpm/lockfile.types": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   }
 }
