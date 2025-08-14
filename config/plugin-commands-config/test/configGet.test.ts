@@ -1,19 +1,6 @@
 import * as ini from 'ini'
 import { config } from '@pnpm/plugin-commands-config'
-
-/**
- * Recursively clone an object and give every object inside the clone a null prototype.
- * Making it possible to compare it to the result of `ini.decode` with `toStrictEqual`.
- */
-function deepNullProto<Value> (value: Value): Value {
-  if (value == null || typeof value !== 'object' || Array.isArray(value)) return value
-
-  const result: Value = Object.create(null)
-  for (const key in value) {
-    result[key] = deepNullProto(value[key])
-  }
-  return result
-}
+import { getOutputString } from './utils'
 
 test('config get', async () => {
   const getResult = await config.handler({
@@ -26,7 +13,7 @@ test('config get', async () => {
     },
   }, ['get', 'store-dir'])
 
-  expect(typeof getResult === 'object' && 'output' in getResult && getResult.output).toEqual('~/store')
+  expect(getOutputString(getResult)).toEqual('~/store')
 })
 
 test('config get works with camelCase', async () => {
@@ -40,7 +27,7 @@ test('config get works with camelCase', async () => {
     },
   }, ['get', 'storeDir'])
 
-  expect(typeof getResult === 'object' && 'output' in getResult && getResult.output).toEqual('~/store')
+  expect(getOutputString(getResult)).toEqual('~/store')
 })
 
 test('config get a boolean should return string format', async () => {
@@ -54,7 +41,7 @@ test('config get a boolean should return string format', async () => {
     },
   }, ['get', 'update-notifier'])
 
-  expect(typeof getResult === 'object' && 'output' in getResult && getResult.output).toEqual('true')
+  expect(getOutputString(getResult)).toEqual('true')
 })
 
 test('config get on array should return a comma-separated list', async () => {
@@ -71,7 +58,7 @@ test('config get on array should return a comma-separated list', async () => {
     },
   }, ['get', 'public-hoist-pattern'])
 
-  expect(typeof getResult === 'object' && 'output' in getResult && getResult.output).toBe('*eslint*,*prettier*')
+  expect(getOutputString(getResult)).toBe('*eslint*,*prettier*')
 })
 
 test('config get on object should return an ini string', async () => {
@@ -87,7 +74,7 @@ test('config get on object should return an ini string', async () => {
     },
   }, ['get', 'catalog'])
 
-  expect(typeof getResult === 'object' && 'output' in getResult && ini.decode(getResult.output)).toStrictEqual(deepNullProto({ react: '^19.0.0' }))
+  expect(ini.decode(getOutputString(getResult))).toEqual({ react: '^19.0.0' })
 })
 
 test('config get without key show list all settings ', async () => {
@@ -114,14 +101,6 @@ test('config get without key show list all settings ', async () => {
 })
 
 describe('config get with a property path', () => {
-  function getOutputString (result: config.ConfigHandlerResult): string {
-    if (result == null) throw new Error('output is null or undefined')
-    if (typeof result === 'string') return result
-    if (typeof result === 'object') return result.output
-    const _typeGuard: never = result // eslint-disable-line @typescript-eslint/no-unused-vars
-    throw new Error('unreachable')
-  }
-
   const rawConfig = {
     // rawConfig keys are always kebab-case
     'package-extensions': {
@@ -179,7 +158,7 @@ describe('config get with a property path', () => {
         rawConfig,
       }, ['get', propertyPath])
 
-      expect(ini.decode(getOutputString(getResult))).toStrictEqual(deepNullProto(expected))
+      expect(ini.decode(getOutputString(getResult))).toEqual(expected)
     })
   })
 
