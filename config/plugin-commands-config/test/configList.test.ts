@@ -41,7 +41,7 @@ test('config list censors protected settings', async () => {
   const rawConfig = {
     'store-dir': '~/store',
     'fetch-retries': '2',
-    'username': 'general-username',
+    username: 'general-username',
     '@my-org:registry': 'https://my-org.example.com/registry',
     '//my-org.example.com:username': 'my-username-in-my-org',
   }
@@ -64,7 +64,7 @@ test('config list --json censors protected settings', async () => {
   const rawConfig = {
     'store-dir': '~/store',
     'fetch-retries': '2',
-    'username': 'general-username',
+    username: 'general-username',
     '@my-org:registry': 'https://my-org.example.com/registry',
     '//my-org.example.com:username': 'my-username-in-my-org',
   }
