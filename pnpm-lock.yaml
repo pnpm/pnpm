@@ -1785,6 +1785,9 @@ importers:
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../../object/key-sorting
+      '@pnpm/object.property-path':
+        specifier: workspace:*
+        version: link:../../object/property-path
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../../exec/run-npm
@@ -4038,6 +4041,16 @@ importers:
         version: 4.2.0
     devDependencies:
       '@pnpm/object.key-sorting':
+        specifier: workspace:*
+        version: 'link:'
+
+  object/property-path:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+    devDependencies:
+      '@pnpm/object.property-path':
         specifier: workspace:*
         version: 'link:'
 

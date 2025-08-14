@@ -36,6 +36,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
+    "@pnpm/object.property-path": "workspace:*",
     "@pnpm/run-npm": "workspace:*",
     "@pnpm/workspace.manifest-writer": "workspace:*",
     "camelcase": "catalog:",
@@ -44,6 +45,9 @@
     "read-ini-file": "catalog:",
     "render-help": "catalog:",
     "write-ini-file": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
     "@pnpm/logger": "workspace:*",
