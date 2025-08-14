@@ -67,6 +67,7 @@ export interface NewCatalogs {
 
 function addCatalogs (manifest: Partial<WorkspaceManifest>, newCatalogs: Catalogs): boolean {
   let shouldBeUpdated = false
+
   for (const catalogName in newCatalogs) {
     let targetCatalog: Record<string, string> | undefined = catalogName === 'default'
       ? manifest.catalog ?? manifest.catalogs?.default
