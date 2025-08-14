@@ -35,11 +35,14 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@pnpm/workspace.read-manifest": "workspace:*",
     "ramda": "catalog:",
     "write-yaml-file": "catalog:"
   },
   "devDependencies": {
+    "@pnpm/fs.find-packages": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",
     "@pnpm/workspace.manifest-writer": "workspace:*",
     "@types/ramda": "catalog:",
