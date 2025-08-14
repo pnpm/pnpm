@@ -6,8 +6,8 @@ import { fetch, isRedirect, type Response, type RequestInfo, type RequestInit } 
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
-const ABBREVIATED_DOC = 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*'
-const JSON_DOC = 'application/json'
+const JSON_DOC = 'application/json; q=0.8, */*'
+const ABBREVIATED_DOC = `application/vnd.npm.install-v1+json; q=1.0, ${JSON_DOC}`
 const MAX_FOLLOWED_REDIRECTS = 20
 
 export interface FetchWithAgentOptions extends RequestInit {
