@@ -1,4 +1,5 @@
 import path from 'path'
+import fs from 'fs'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import { prepare } from '@pnpm/prepare'
@@ -38,7 +39,7 @@ test('remove the default catalog if it is empty', async () => {
     cleanupUnusedCatalogs: true,
     allProjects,
   })
-  expect(readYamlFile(filePath)).toStrictEqual({})
+  expect(fs.existsSync(filePath)).toBeFalsy()
 })
 
 test('remove the unused default catalog', async () => {
@@ -231,5 +232,5 @@ test('remove all unused named catalogs', async () => {
     cleanupUnusedCatalogs: true,
     allProjects: _allProjects,
   })
-  expect(readYamlFile(filePath)).toStrictEqual({})
+  expect(fs.existsSync(filePath)).toBeFalsy()
 })
