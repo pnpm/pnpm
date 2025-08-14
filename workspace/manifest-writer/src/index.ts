@@ -99,43 +99,81 @@ function addCatalogs (manifest: Partial<WorkspaceManifest>, newCatalogs: Catalog
 }
 
 function removePackagesFromWorkspaceCatalog (manifest: Partial<WorkspaceManifest>, packagesJson: Project[]): boolean {
-  const packages: Record<string, string> = {}
-  for (const pkg of packagesJson) {
-    const manifest = pkg.manifest
-    Object.assign(packages, manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies, manifest.peerDependencies)
-  }
   let shouldBeUpdated = false
 
-  if (manifest.catalog == null && manifest.catalogs == null) return shouldBeUpdated
-  if (manifest.catalog != null) {
-    Object.keys(manifest.catalog).forEach((pkg) => {
-      if (!packages[pkg] || packages[pkg] !== 'catalog:') {
-        delete manifest.catalog![pkg]
-        shouldBeUpdated = true
+  if (manifest.catalog == null && manifest.catalogs == null) {
+    return shouldBeUpdated
+  }
+  const packageReferences: Record<string, Set<string>> = {}
+
+  for (const pkg of packagesJson) {
+    const pkgManifest = pkg.manifest
+    const dependencyTypes = [
+      pkgManifest.dependencies,
+      pkgManifest.devDependencies,
+      pkgManifest.optionalDependencies,
+      pkgManifest.peerDependencies,
+    ]
+
+    for (const deps of dependencyTypes) {
+      if (!deps) continue
+
+      for (const [pkgName, version] of Object.entries(deps)) {
+        if (!packageReferences[pkgName]) {
+          packageReferences[pkgName] = new Set()
+        }
+        packageReferences[pkgName].add(version)
       }
-    })
+    }
+  }
+
+  if (manifest.catalog) {
+    const packagesToRemove = Object.keys(manifest.catalog).filter(pkg =>
+      !packageReferences[pkg]?.has('catalog:')
+    )
+
+    for (const pkg of packagesToRemove) {
+      delete manifest.catalog![pkg]
+      shouldBeUpdated = true
+    }
+
     if (Object.keys(manifest.catalog).length === 0) {
       delete manifest.catalog
       shouldBeUpdated = true
     }
   }
-  for (const catalogName in manifest.catalogs) {
-    const catalog = manifest.catalogs[catalogName]
-    if (catalog == null) continue
-    Object.keys(catalog).forEach((pkg) => {
-      if (!packages[pkg] || (packages[pkg] !== `catalog:${catalogName}` && packages[pkg] !== 'catalog:')) {
+
+  if (manifest.catalogs) {
+    const catalogsToRemove: string[] = []
+
+    for (const [catalogName, catalog] of Object.entries(manifest.catalogs)) {
+      if (!catalog) continue
+
+      const packagesToRemove = Object.keys(catalog).filter(pkg => {
+        const references = packageReferences[pkg]
+        return !references?.has(`catalog:${catalogName}`) && !references?.has('catalog:')
+      })
+
+      for (const pkg of packagesToRemove) {
         delete catalog[pkg]
         shouldBeUpdated = true
       }
-    })
-    if (Object.keys(catalog).length === 0) {
+
+      if (Object.keys(catalog).length === 0) {
+        catalogsToRemove.push(catalogName)
+        shouldBeUpdated = true
+      }
+    }
+
+    for (const catalogName of catalogsToRemove) {
       delete manifest.catalogs[catalogName]
+    }
+
+    if (Object.keys(manifest.catalogs).length === 0) {
+      delete manifest.catalogs
       shouldBeUpdated = true
     }
   }
-  if (Object.keys(manifest.catalogs ?? {}).length === 0) {
-    delete manifest.catalogs
-    shouldBeUpdated = true
-  }
+
   return shouldBeUpdated
 }

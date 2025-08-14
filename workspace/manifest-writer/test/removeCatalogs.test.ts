@@ -234,3 +234,65 @@ test('remove all unused named catalogs', async () => {
   })
   expect(fs.existsSync(filePath)).toBeFalsy()
 })
+
+test('same pkg with different version', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFile(filePath, {
+    catalogs: {
+      foo: {
+        ghi: '7.8.9',
+      },
+    },
+  })
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      foo: {
+        abc: '0.1.2',
+      },
+      bar: {
+        def: '3.2.1',
+        abc: '1.2.3',
+      },
+    },
+  })
+  expect(readYamlFile(filePath)).toStrictEqual({
+    catalogs: {
+      foo: {
+        abc: '0.1.2',
+        ghi: '7.8.9',
+      },
+      bar: {
+        def: '3.2.1',
+        abc: '1.2.3',
+      },
+    },
+  })
+  prepare({
+    dependencies: {
+      def: 'catalog:bar',
+      ghi: 'catalog:foo',
+      abc: 'catalog:foo',
+    },
+    optionalDependencies: {
+      abc: 'catalog:bar',
+    },
+  }, { tempDir: dir })
+  const allProjects = await findPackages(dir)
+  await updateWorkspaceManifest(dir, {
+    cleanupUnusedCatalogs: true,
+    allProjects,
+  })
+  expect(readYamlFile(filePath)).toStrictEqual({
+    catalogs: {
+      bar: {
+        abc: '1.2.3',
+        def: '3.2.1',
+      },
+      foo: {
+        abc: '0.1.2',
+        ghi: '7.8.9',
+      },
+    },
+  })
+})
