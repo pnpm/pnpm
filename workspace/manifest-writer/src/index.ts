@@ -34,8 +34,7 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   const manifest = await readWorkspaceManifest(dir) ?? {} as WorkspaceManifest
   let shouldBeUpdated = opts.updatedCatalogs != null && addCatalogs(manifest, opts.updatedCatalogs)
   if (opts.cleanupUnusedCatalogs) {
-    const _shouldBeUpdated = removePackagesFromWorkspaceCatalog(manifest, opts.allProjects ?? [])
-    shouldBeUpdated ||= _shouldBeUpdated
+    shouldBeUpdated = removePackagesFromWorkspaceCatalog(manifest, opts.allProjects ?? []) || shouldBeUpdated
   }
 
   for (const [key, value] of Object.entries(opts.updatedFields ?? {})) {
