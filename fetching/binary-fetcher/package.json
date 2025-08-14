@@ -47,7 +47,7 @@
     "@types/ssri": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

@@ -284,7 +284,7 @@ ignoredBuiltDependencies:
 
 managePackageManagerVersions: true
 
-nodeVersion: 18.18.0
+nodeVersion: 20.19.4
 
 onlyBuiltDependencies:
   - esbuild

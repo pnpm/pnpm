@@ -40,7 +40,7 @@
     "@pnpm/matcher": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"
