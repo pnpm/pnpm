@@ -42,7 +42,6 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       } else if (manifest.name === CLI_PKG_NAME && manifest.devDependencies) {
         delete manifest.devDependencies[manifest.name]
       }
-      if (manifest.private === true || isSubdir(utilsDir, dir)) return manifest
       manifest.keywords = [
         'pnpm',
         pnpmMajorKeyword,
@@ -95,7 +94,8 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       if (manifest.peerDependencies?.['@pnpm/worker'] != null) {
         manifest.peerDependencies['@pnpm/worker'] = 'workspace:^'
       }
-      if (manifest.name !== '@pnpm/make-dedicated-lockfile' && manifest.name !== '@pnpm/mount-modules') {
+      const isUtil = isSubdir(utilsDir, dir)
+      if (manifest.name !== '@pnpm/make-dedicated-lockfile' && manifest.name !== '@pnpm/mount-modules' && !isUtil && manifest.name !== '@pnpm-private/updater') {
         for (const depType of ['dependencies', 'optionalDependencies'] as const) {
           if (manifest[depType]?.['@pnpm/logger']) {
             delete manifest[depType]!['@pnpm/logger']
@@ -114,6 +114,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         }
         return sortKeysInManifest(manifest)
       }
+      if (manifest.private === true || isUtil) return manifest
       return updateManifest(workspaceDir, manifest, dir, nextTag)
     },
     'tsconfig.json': updateTSConfig.bind(null, {

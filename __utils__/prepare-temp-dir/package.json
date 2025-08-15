@@ -1,9 +1,8 @@
 {
   "name": "@pnpm/prepare-temp-dir",
-  "version": "0.0.0",
+  "version": "1000.0.0",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "dependencies": {},
   "devDependencies": {
     "@pnpm/prepare-temp-dir": "workspace:*",
     "@types/node": "catalog:"
@@ -13,5 +12,9 @@
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build"
-  }
+  },
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ]
 }

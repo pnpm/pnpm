@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/get-release-text",
-  "version": "0.0.1",
+  "version": "1000.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,12 +8,16 @@
     "lint": "eslint src/**/*.ts"
   },
   "dependencies": {
-    "mdast-util-to-string": "^2.0.0",
-    "remark-parse": "^9.0.0",
-    "remark-stringify": "^9.0.1",
-    "unified": "^9.2.2"
+    "mdast-util-to-string": "catalog:",
+    "remark-parse": "catalog:",
+    "remark-stringify": "catalog:",
+    "unified": "catalog:"
   },
   "devDependencies": {
     "@pnpm/get-release-text": "workspace:*"
-  }
+  },
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ]
 }
