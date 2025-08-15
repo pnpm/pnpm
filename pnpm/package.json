@@ -40,7 +40,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "bin/pnpm.cjs",
   "exports": {
     ".": "./package.json"
@@ -62,7 +62,7 @@
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm compile && publish-packed --prune --npm-client=pnpm --dest=dist",
     "postpublish": "publish-packed",

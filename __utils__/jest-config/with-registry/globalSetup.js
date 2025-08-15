@@ -1,8 +1,8 @@
-const getPort = require('get-port')
-const { promisify } = require('util')
+import getPort from 'get-port'
+import { promisify } from 'util'
 const kill = promisify(require('tree-kill'))
 
-module.exports = async () => {
+export default async () => {
   if (!process.env.PNPM_REGISTRY_MOCK_PORT) {
     process.env.PNPM_REGISTRY_MOCK_PORT = (await getPort({ port: getPort.makeRange(7700, 7800) })).toString()
   }

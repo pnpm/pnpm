@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'url'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import assert from 'assert/strict'
@@ -6,6 +7,8 @@ import fs from 'fs'
 import glob from 'fast-glob'
 import normalizePath from 'normalize-path'
 import path from 'path'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const repoRoot = path.resolve(__dirname, '../../../')
 const typeCheckDir = path.resolve(repoRoot, '__typecheck__')
