@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/test-fixtures",
   "description": "Test fixtures",
-  "version": "0.1.37",
+  "version": "1000.0.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -19,7 +19,10 @@
     "test": "test"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/privatePackages/test-fixtures#readme",
-  "keywords": [],
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=10"

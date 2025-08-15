@@ -1,18 +1,22 @@
 {
   "name": "@pnpm/scripts",
-  "version": "0.0.0",
+  "version": "1000.0.0",
   "private": true,
   "dependencies": {
-    "@pnpm/workspace.find-packages": "^1000.0.15",
-    "@pnpm/workspace.read-manifest": "^1000.1.1",
+    "@pnpm/workspace.find-packages": "catalog:",
+    "@pnpm/workspace.read-manifest": "catalog:",
     "execa": "catalog:",
     "fast-glob": "catalog:",
     "make-empty-dir": "catalog:",
     "normalize-path": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/logger": "^1000.0.0",
+    "@pnpm/logger": "catalog:",
     "@pnpm/scripts": "workspace:*",
     "@types/normalize-path": "catalog:"
-  }
+  },
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ]
 }

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/jest-config",
-  "version": "1.0.22",
+  "version": "1000.0.0",
   "private": true,
   "main": "jest-preset.js",
   "dependencies": {
@@ -11,5 +11,9 @@
   },
   "devDependencies": {
     "@pnpm/jest-config": "workspace:*"
-  }
+  },
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ]
 }
