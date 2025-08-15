@@ -50,5 +50,8 @@
     "isexe": "2.0.0",
     "read-yaml-file": "catalog:",
     "write-pkg": "catalog:"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }
