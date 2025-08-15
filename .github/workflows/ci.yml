@@ -22,7 +22,7 @@ jobs:
           - [18, 12, 1]
           - [20, 18, 1]
           - [22, 12, 0]
-          - [24, 0, 0]
+          - [24, 6, 0]
         platform:
           - ubuntu-latest
           - windows-latest
@@ -45,8 +45,8 @@ jobs:
     - name: Setup Node
       run: pnpm env use -g ${{ join(matrix.node, '.') }}
       timeout-minutes: 1
-    - name: Install npm@8
-      run: pnpm add --global npm@8
+    - name: Install npm@10
+      run: pnpm add --global npm@10
       timeout-minutes: 1
     - name: pnpm install
       run: pnpm install
