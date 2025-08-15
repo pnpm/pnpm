@@ -1,9 +1,12 @@
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
+
+const _dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // The testing folder should be outside of the project to avoid lookup in the project's node_modules
 // Not using the OS temp directory due to issues on Windows CI.
-const tmpBaseDir = path.join(__dirname, '../../../../pnpm_tmp')
+const tmpBaseDir = path.join(_dirname, '../../../../pnpm_tmp')
 
 const tmpPath = path.join(tmpBaseDir, `${getFilesCountInDir(tmpBaseDir).toString()}_${process.pid.toString()}`)
 

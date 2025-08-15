@@ -1,7 +1,10 @@
-const path = require('path')
-const baseConfig = require('./../config')
+import { fileURLToPath } from 'url'
+import path from 'path'
+import baseConfig from './../config.js'
 
-module.exports = {
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+
+export default {
   ...baseConfig,
   // Many tests change the dist tags of packages.
   // Unfortunately, this means that if two such tests will run at the same time,
