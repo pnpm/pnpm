@@ -366,12 +366,12 @@ overrides:
   yaml@<2.2.2: '>=2.2.2'
 
 packageExtensions:
-  '@verdaccio/auth':
-    peerDependencies:
-      express: '*'
   '@babel/parser':
     peerDependencies:
       '@babel/types': '*'
+  '@verdaccio/auth':
+    peerDependencies:
+      express: '*'
   jest-circus:
     dependencies:
       slash: '3'
