@@ -54,9 +54,6 @@ catalogs:
     '@pnpm/log.group':
       specifier: 3.0.1
       version: 3.0.1
-    '@pnpm/logger':
-      specifier: '>=1001.0.0 <1002.0.0'
-      version: 1001.0.0
     '@pnpm/meta-updater':
       specifier: 2.0.6
       version: 2.0.6
@@ -457,8 +454,8 @@ catalogs:
       specifier: ^2.2.0
       version: 2.2.0
     lru-cache:
-      specifier: ^10.4.3
-      version: 10.4.3
+      specifier: ^11.1.0
+      version: 11.1.0
     make-empty-dir:
       specifier: ^3.0.2
       version: 3.0.2
@@ -7079,7 +7076,7 @@ importers:
         version: 6.2.0
       lru-cache:
         specifier: 'catalog:'
-        version: 10.4.3
+        version: 11.1.0
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -13545,6 +13542,10 @@ packages:
   lru-cache@10.4.3:
     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
 
+  lru-cache@11.1.0:
+    resolution: {integrity: sha512-QIXZUBJUx+2zHUdQujWejBkcD9+cs94tLn0+YL8UrCh+D5sCXZ4c7LaEH48pNwRY3MLDgqUFyhlCyjJPf1WP0A==}
+    engines: {node: 20 || >=22}
+
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
@@ -16452,7 +16453,7 @@ snapshots:
       '@types/node': 20.5.1
       chalk: 4.1.2
       cosmiconfig: 8.3.6(typescript@5.5.4)
-      cosmiconfig-typescript-loader: 4.4.0(@types/node@20.5.1)(cosmiconfig@8.3.6(typescript@5.8.3))(ts-node@10.9.2(@types/node@22.15.30)(typescript@5.8.3))(typescript@5.5.4)
+      cosmiconfig-typescript-loader: 4.4.0(@types/node@20.5.1)(cosmiconfig@8.3.6(typescript@5.5.4))(ts-node@10.9.2(@types/node@22.15.30)(typescript@5.8.3))(typescript@5.5.4)
       lodash.isplainobject: 4.0.6
       lodash.merge: 4.6.2
       lodash.uniq: 4.5.0
@@ -19946,7 +19947,7 @@ snapshots:
       object-assign: 4.1.1
       vary: 1.1.2
 
-  cosmiconfig-typescript-loader@4.4.0(@types/node@20.5.1)(cosmiconfig@8.3.6(typescript@5.8.3))(ts-node@10.9.2(@types/node@22.15.30)(typescript@5.8.3))(typescript@5.5.4):
+  cosmiconfig-typescript-loader@4.4.0(@types/node@20.5.1)(cosmiconfig@8.3.6(typescript@5.5.4))(ts-node@10.9.2(@types/node@22.15.30)(typescript@5.8.3))(typescript@5.5.4):
     dependencies:
       '@types/node': 20.5.1
       cosmiconfig: 8.3.6(typescript@5.5.4)
@@ -22290,6 +22291,8 @@ snapshots:
   lowercase-keys@2.0.0: {}
 
   lru-cache@10.4.3: {}
+
+  lru-cache@11.1.0: {}
 
   lru-cache@5.1.1:
     dependencies:

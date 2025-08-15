@@ -198,7 +198,7 @@ catalog:
   lodash.kebabcase: ^4.1.1
   lodash.throttle: 4.1.1
   loud-rejection: ^2.2.0
-  lru-cache: ^10.4.3
+  lru-cache: ^11.1.0
   make-empty-dir: ^3.0.2
   mem: ^8.1.1
   micromatch: ^4.0.8
