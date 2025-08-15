@@ -6,8 +6,12 @@ import { fetch, isRedirect, type Response, type RequestInfo, type RequestInit } 
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
-const JSON_DOC = 'application/json; q=0.8, */*'
-const ABBREVIATED_DOC = `application/vnd.npm.install-v1+json; q=1.0, ${JSON_DOC}`
+const FULL_DOC = 'application/json'
+const ACCEPT_FULL_DOC = `${FULL_DOC}; q=1.0, */*`
+
+const ABBREVIATED_DOC = 'application/vnd.npm.install-v1+json'
+const ACCEPT_ABBREVIATED_DOC = `${ABBREVIATED_DOC}; q=1.0, ${FULL_DOC}; q=0.8, */*`
+
 const MAX_FOLLOWED_REDIRECTS = 20
 
 export interface FetchWithAgentOptions extends RequestInit {
@@ -102,7 +106,7 @@ function getHeaders (
   }
 ): Headers {
   const headers: { accept: string, authorization?: string, 'user-agent'?: string } = {
-    accept: opts.fullMetadata === true ? JSON_DOC : ABBREVIATED_DOC,
+    accept: opts.fullMetadata === true ? ACCEPT_FULL_DOC : ACCEPT_ABBREVIATED_DOC,
   }
   if (opts.auth) {
     headers['authorization'] = opts.auth
