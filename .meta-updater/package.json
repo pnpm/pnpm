@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/meta-updater": "catalog:",
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/parse-overrides": "workspace:*",

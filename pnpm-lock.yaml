@@ -924,6 +924,9 @@ importers:
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../lockfile/fs
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../packages/logger
       '@pnpm/meta-updater':
         specifier: 'catalog:'
         version: 2.0.6(@types/node@18.19.34)(typanion@3.14.0)
@@ -1100,6 +1103,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 'catalog:'
         version: 4.7.1(encoding@0.1.13)(typanion@3.14.0)
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:../../worker
       get-port:
         specifier: 'catalog:'
         version: 5.1.1
