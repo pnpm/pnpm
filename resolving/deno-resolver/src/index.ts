@@ -50,6 +50,9 @@ export async function resolveDenoRuntime (
   const res = await ctx.fetchFromRegistry(`https://api.github.com/repos/denoland/deno/releases/tags/v${version}`)
   const data = (await res.json()) as { assets: Array<{ name: string, browser_download_url: string }> }
   const assets: PlatformAssetResolution[] = []
+  if (data.assets == null) {
+    throw new PnpmError('DENO_MISSING_ASSETS', `No assets found for Deno v${version}`)
+  }
   await Promise.all(data.assets.map(async (asset) => {
     const targets = parseAssetName(asset.name)
     if (!targets) return
