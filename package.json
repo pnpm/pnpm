@@ -57,7 +57,8 @@
     "shx": "catalog:",
     "ts-jest": "catalog:",
     "ts-node": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "verdaccio": "catalog:"
   },
   "engines": {
     "pnpm": ">=9.6.0"
