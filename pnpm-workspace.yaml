@@ -197,7 +197,7 @@ catalog:
   lodash.kebabcase: ^4.1.1
   lodash.throttle: 4.1.1
   loud-rejection: ^2.2.0
-  lru-cache: ^10.4.3
+  lru-cache: ^11.1.0
   make-empty-dir: ^3.0.2
   mem: ^8.1.1
   micromatch: ^4.0.8
@@ -276,7 +276,7 @@ catalog:
   tree-kill: ^1.2.2
   ts-jest: 29.4.1
   ts-node: ^10.9.2
-  typescript: 5.5.4
+  typescript: 5.9.2
   uuid: ^9.0.1
   v8-compile-cache: 2.4.0
   validate-npm-package-name: 5.0.0
