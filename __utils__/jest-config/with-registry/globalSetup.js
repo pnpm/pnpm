@@ -9,10 +9,7 @@ module.exports = async () => {
   const { start, prepare } = require('@pnpm/registry-mock')
   prepare()
   const server = start({
-    // Verdaccio stopped working properly on Node.js 22.
-    // You can test the issue by running:
-    //   pnpm --filter=core run test test/install/auth.ts
-    useNodeVersion: '20.16.0',
+    useNodeVersion: '24.6.0',
     stdio: 'inherit',
     listen: process.env.PNPM_REGISTRY_MOCK_PORT,
   })
