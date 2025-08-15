@@ -124,7 +124,7 @@ export async function getConfig (opts: {
     cliOptions['prefix'] = cliOptions.dir // the npm config system still expects `prefix`
   }
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
-  const defaultOptions: Partial<KebabCaseConfig> | typeof npmTypes.types = {
+  const defaultOptions: Partial<KebabCaseConfig> = {
     'auto-install-peers': true,
     bail: true,
     'catalog-mode': 'manual',
