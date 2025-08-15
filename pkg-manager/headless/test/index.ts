@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
 import { assertProject } from '@pnpm/assert-project'
 import { hashObject } from '@pnpm/crypto.object-hasher'
 import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
@@ -25,7 +26,9 @@ import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import { testDefaults } from './utils/testDefaults'
 
-const f = fixtures(__dirname)
+const _dirname = path.dirname(fileURLToPath(import.meta.url))
+
+const f = fixtures(_dirname)
 
 test('installing a simple project', async () => {
   const prefix = f.prepare('simple')

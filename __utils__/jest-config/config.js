@@ -1,7 +1,7 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-const dirname = path.dirname(fileURLToPath(import.meta.url))
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const config = {
   preset: "ts-jest/presets/default-esm",
@@ -26,14 +26,14 @@ const config = {
   testPathIgnorePatterns: ["/fixtures/", "/__fixtures__/", "<rootDir>/test/utils/.+"],
   modulePathIgnorePatterns: ['\/__fixtures__\/.*'],
   testTimeout: 4 * 60 * 1000, // 4 minutes
-  setupFilesAfterEnv: [path.join(dirname, "setupFilesAfterEnv.js")],
+  setupFilesAfterEnv: [path.join(__dirname, "setupFilesAfterEnv.js")],
   maxWorkers: "50%",
 }
 
 if (process.env.PNPM_SCRIPT_SRC_DIR) {
   const pathAsArr = process.env.PNPM_SCRIPT_SRC_DIR.split(path.sep)
   const packageName = pathAsArr[pathAsArr.length - 1]
-  config.cacheDirectory = path.join(dirname, ".jest-cache", packageName)
+  config.cacheDirectory = path.join(__dirname, ".jest-cache", packageName)
 }
 
 // We are running test script from pnpm command, this seems to confuse tests

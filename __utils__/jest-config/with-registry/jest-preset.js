@@ -1,5 +1,8 @@
+import { fileURLToPath } from 'url'
 import path from 'path'
-import baseConfig from './../config'
+import baseConfig from './../config.js'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default {
   ...baseConfig,

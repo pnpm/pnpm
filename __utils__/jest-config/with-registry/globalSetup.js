@@ -1,12 +1,13 @@
 import getPort from 'get-port'
 import { promisify } from 'util'
-const kill = promisify(require('tree-kill'))
+import treeKill from 'tree-kill'
+const kill = promisify(treeKill)
 
 export default async () => {
   if (!process.env.PNPM_REGISTRY_MOCK_PORT) {
     process.env.PNPM_REGISTRY_MOCK_PORT = (await getPort({ port: getPort.makeRange(7700, 7800) })).toString()
   }
-  const { start, prepare } = require('@pnpm/registry-mock')
+  const { start, prepare } = await import('@pnpm/registry-mock')
   prepare()
   const server = start({
     // Verdaccio stopped working properly on Node.js 22.

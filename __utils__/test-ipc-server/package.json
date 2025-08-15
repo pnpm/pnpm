@@ -3,6 +3,7 @@
   "version": "1000.0.0",
   "private": true,
   "main": "lib/index.js",
+  "type": "module",
   "types": "lib/index.d.ts",
   "bin": {
     "test-ipc-server-client": "./bin/test-ipc-server-client.js"

@@ -1,13 +1,13 @@
 import fs from 'fs'
 import isWindows from 'is-windows'
-import { sync as isexe } from 'isexe'
+import isExe from 'isexe'
 
 const IS_WINDOWS = isWindows()
 
 // eslint-disable-next-line
 export default (ok: (value: any, comment: string) => void, filePath: string): void => {
   if (IS_WINDOWS) {
-    ok(isexe(`${filePath}.cmd`), `${filePath}.cmd is executable`)
+    ok(isExe.sync(`${filePath}.cmd`), `${filePath}.cmd is executable`)
     return
   }
 
