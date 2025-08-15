@@ -296,3 +296,62 @@ test('same pkg with different version', async () => {
     },
   })
 })
+
+test('update catalogs and remove catalog', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFile(filePath, {
+    catalogs: {
+      foo: {
+        ghi: '7.8.9',
+      },
+    },
+  })
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      foo: {
+        abc: '0.1.2',
+      },
+      bar: {
+        def: '3.2.1',
+      },
+    },
+  })
+  expect(readYamlFile(filePath)).toStrictEqual({
+    catalogs: {
+      foo: {
+        abc: '0.1.2',
+        ghi: '7.8.9',
+      },
+      bar: {
+        def: '3.2.1',
+      },
+    },
+  })
+  prepare({
+    dependencies: {
+      def: 'catalog:bar',
+      ghi: 'catalog:foo',
+    },
+  }, { tempDir: dir })
+  const allProjects = await findPackages(dir)
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      foo: {
+        ghi: '7.9.9',
+      },
+    },
+    cleanupUnusedCatalogs: true,
+    allProjects,
+  })
+  expect(readYamlFile(filePath)).toStrictEqual({
+    catalogs: {
+      foo: {
+        ghi: '7.9.9',
+      },
+      bar: {
+        def: '3.2.1',
+      },
+    },
+  })
+})
