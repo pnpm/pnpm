@@ -41,7 +41,6 @@
     "@pnpm/tgz-fixtures": "catalog:",
     "@pnpm/tsconfig": "workspace:*",
     "@types/jest": "catalog:",
-    "verdaccio": "catalog:",
     "@types/node": "catalog:",
     "c8": "catalog:",
     "concurrently": "catalog:",
