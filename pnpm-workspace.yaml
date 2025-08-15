@@ -93,7 +93,7 @@ catalog:
   '@types/lodash.kebabcase': 4.1.9
   '@types/lodash.throttle': 4.1.7
   '@types/micromatch': ^4.0.9
-  '@types/node': ^18.19.34
+  '@types/node': ^22.15.30
   '@types/normalize-package-data': ^2.4.4
   '@types/normalize-path': ^3.0.2
   '@types/object-hash': 3.0.6

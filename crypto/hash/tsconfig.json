@@ -14,9 +14,6 @@
     },
     {
       "path": "../../fs/graceful-fs"
-    },
-    {
-      "path": "../polyfill"
     }
   ]
 }
