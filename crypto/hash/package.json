@@ -33,7 +33,6 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/crypto.polyfill": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "ssri": "catalog:"
   },

@@ -1,9 +1,9 @@
+import crypto from 'crypto'
 import path from 'path'
 import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
 import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
-import * as crypto from '@pnpm/crypto.polyfill'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import {
