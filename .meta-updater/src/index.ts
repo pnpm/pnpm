@@ -42,7 +42,6 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       } else if (manifest.name === CLI_PKG_NAME && manifest.devDependencies) {
         delete manifest.devDependencies[manifest.name]
       }
-      if (manifest.private === true || isSubdir(utilsDir, dir)) return manifest
       manifest.keywords = [
         'pnpm',
         pnpmMajorKeyword,
@@ -114,6 +113,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         }
         return sortKeysInManifest(manifest)
       }
+      if (manifest.private === true || isSubdir(utilsDir, dir)) return manifest
       return updateManifest(workspaceDir, manifest, dir, nextTag)
     },
     'tsconfig.json': updateTSConfig.bind(null, {

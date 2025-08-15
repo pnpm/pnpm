@@ -20,9 +20,6 @@
       "path": "../object/key-sorting"
     },
     {
-      "path": "../packages/logger"
-    },
-    {
       "path": "../packages/types"
     },
     {
