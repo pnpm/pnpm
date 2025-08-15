@@ -37,6 +37,8 @@
     "@pnpm/env.system-node-version": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetch": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",

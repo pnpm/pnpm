@@ -2249,6 +2249,12 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@pnpm/manifest-utils':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/manifest-utils
       '@pnpm/node.fetcher':
         specifier: workspace:*
         version: link:../node.fetcher
@@ -2292,9 +2298,6 @@ importers:
         specifier: 'catalog:'
         version: 4.3.0
     devDependencies:
-      '@pnpm/logger':
-        specifier: workspace:*
-        version: link:../../packages/logger
       '@pnpm/plugin-commands-env':
         specifier: workspace:*
         version: 'link:'
@@ -6068,6 +6071,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/read-project-manifest':
+        specifier: workspace:*
+        version: link:../read-project-manifest
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -6253,6 +6259,9 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../packages/logger
+      '@pnpm/manifest-utils':
+        specifier: workspace:*
+        version: link:../pkg-manifest/manifest-utils
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../pkg-manager/modules-yaml

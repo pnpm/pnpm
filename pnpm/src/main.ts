@@ -16,7 +16,8 @@ import { PnpmError } from '@pnpm/error'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
-import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
+import { getNodeVersion, prepareExecutionEnv } from '@pnpm/plugin-commands-env'
+import { getNodeRuntime } from '@pnpm/manifest-utils'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
 import path from 'path'
@@ -283,20 +284,26 @@ export async function main (inputArgv: string[]): Promise<void> {
       ...(workspaceDir ? { workspacePrefix: workspaceDir } : {}),
     })
 
-    if (config.useNodeVersion != null) {
-      if ('webcontainer' in process.versions) {
-        globalWarn('Automatic installation of different Node.js versions is not supported in WebContainer')
-      } else {
-        config.extraBinPaths = (
-          await prepareExecutionEnv(config, {
-            extraBinPaths: config.extraBinPaths,
-            executionEnv: {
-              nodeVersion: config.useNodeVersion,
-            },
-          })
-        ).extraBinPaths
-        config.nodeVersion = config.useNodeVersion
+    const {devEngines} = config.rootProjectManifest ?? {}
+
+    if ('webcontainer' in process.versions) {
+      globalWarn('Automatic installation of different Node.js versions is not supported in WebContainer')
+    } else if (!config.useNodeVersion && devEngines) {
+      const {version} = getNodeRuntime(devEngines) ?? {}
+      if (version) {
+        const {nodeVersion} = await getNodeVersion(config, version)
+        config.useNodeVersion = nodeVersion ?? undefined
       }
+    } else {
+      config.extraBinPaths = (
+        await prepareExecutionEnv(config, {
+          extraBinPaths: config.extraBinPaths,
+          executionEnv: {
+            nodeVersion: config.useNodeVersion,
+          },
+        })
+      ).extraBinPaths
+      config.nodeVersion = config.useNodeVersion
     }
     let result = pnpmCmds[cmd ?? 'help'](
       // TypeScript doesn't currently infer that the type of config
