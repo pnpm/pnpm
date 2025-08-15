@@ -296,7 +296,7 @@ catalog:
   uuid: ^9.0.1
   v8-compile-cache: 2.4.0
   validate-npm-package-name: 5.0.0
-  verdaccio: 5.20.1
+  verdaccio: 6.1.6
   version-selector-type: ^3.0.0
   which: npm:@pnpm/which@^3.0.1
   write-file-atomic: ^5.0.1
@@ -369,6 +369,9 @@ packageExtensions:
   '@babel/parser':
     peerDependencies:
       '@babel/types': '*'
+  '@verdaccio/auth':
+    peerDependencies:
+      express: '*'
   jest-circus:
     dependencies:
       slash: '3'
