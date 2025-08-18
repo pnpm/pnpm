@@ -7,7 +7,7 @@ import { type LicensePackage } from '../lib/licenses'
 import { type GetPackageInfoOptions, type PackageInfo } from '../lib/getPkgInfo'
 
 jest.mock('../lib/getPkgInfo', () => {
-  const actualModule = jest.requireActual('../lib/getPkgInfo')
+  const actualModule = jest.requireActual<object>('../lib/getPkgInfo')
   return {
     ...actualModule,
     getPkgInfo: async (pkg: PackageInfo, _opts: GetPackageInfoOptions): Promise<

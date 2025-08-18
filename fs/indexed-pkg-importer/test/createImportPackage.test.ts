@@ -191,10 +191,10 @@ test('packageImportMethod=hardlink relinks package from store if package.json is
 
 test('packageImportMethod=hardlink does not relink package from store if package.json is not present in the store', () => {
   const importPackage = createIndexedPkgImporter('hardlink')
-  jest.mocked(gfs.statSync).mockImplementation((file) => {
+  jest.mocked(gfs.statSync).mockImplementation(((file: string) => {
     expect(typeof file).toBe('string')
     return { ino: BigInt(1) } as BigIntStats
-  })
+  }) as unknown as typeof gfs.statSync)
   expect(importPackage('project/package', {
     filesMap: {
       'index.js': 'hash2',
@@ -206,12 +206,12 @@ test('packageImportMethod=hardlink does not relink package from store if package
 
 test('packageImportMethod=hardlink links packages when they are not found', () => {
   const importPackage = createIndexedPkgImporter('hardlink')
-  jest.mocked(gfs.statSync).mockImplementation((file) => {
+  jest.mocked(gfs.statSync).mockImplementation(((file: string) => {
     if (file === path.join('project/package', 'package.json')) {
       throw Object.assign(new Error(), { code: 'ENOENT' })
     }
     return { ino: BigInt(0) } as BigIntStats
-  })
+  }) as unknown as typeof gfs.statSync)
   expect(importPackage('project/package', {
     filesMap: {
       'index.js': 'hash2',

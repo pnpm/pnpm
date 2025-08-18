@@ -11,7 +11,7 @@ import path from 'path'
 import { testDefaults } from './utils'
 
 jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual('@pnpm/logger')
+  const originalModule = jest.requireActual<any>('@pnpm/logger') // eslint-disable-line
   originalModule.logger.warn = jest.fn()
   return originalModule
 })
