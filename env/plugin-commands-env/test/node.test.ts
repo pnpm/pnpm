@@ -4,6 +4,7 @@ import fs from 'fs'
 import { Readable } from 'stream'
 import tar from 'tar-stream'
 import { globalWarn } from '@pnpm/logger'
+import { jest } from '@jest/globals'
 import { ZipFile } from 'yazl'
 import {
   getNodeDir,
@@ -54,7 +55,7 @@ jest.mock('@pnpm/fetch', () => ({
 }))
 
 jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual('@pnpm/logger')
+  const originalModule = jest.requireActual<object>('@pnpm/logger')
   return {
     ...originalModule,
     globalWarn: jest.fn(),

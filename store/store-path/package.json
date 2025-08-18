@@ -41,6 +41,7 @@
     "touch": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/store-path": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/node": "catalog:",

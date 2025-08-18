@@ -4,6 +4,7 @@ import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { logger } from '@pnpm/logger'
 import { exec } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 

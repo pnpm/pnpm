@@ -8,6 +8,7 @@ import tempy from 'tempy'
 import * as enquirer from 'enquirer'
 
 import { publish } from '@pnpm/plugin-commands-publishing'
+import { jest } from '@jest/globals'
 import { DEFAULT_OPTS } from './utils'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))

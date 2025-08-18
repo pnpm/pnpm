@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals'
 import { getSystemNodeVersionNonCached } from '../lib'
 import * as execa from 'execa'
 

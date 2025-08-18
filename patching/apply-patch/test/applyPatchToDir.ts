@@ -4,11 +4,12 @@ import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { fixtures } from '@pnpm/test-fixtures'
 import { tempDir } from '@pnpm/prepare'
 import { globalWarn } from '@pnpm/logger'
+import { jest } from '@jest/globals'
 
 const f = fixtures(__dirname)
 
 jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual('@pnpm/logger')
+  const originalModule = jest.requireActual<object>('@pnpm/logger')
   return {
     ...originalModule,
     globalWarn: jest.fn(),

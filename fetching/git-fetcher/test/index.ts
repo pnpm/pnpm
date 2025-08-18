@@ -3,11 +3,12 @@ import path from 'path'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { createGitFetcher } from '@pnpm/git-fetcher'
 import { globalWarn } from '@pnpm/logger'
+import { jest } from '@jest/globals'
 import tempy from 'tempy'
 import execa from 'execa'
 
 jest.mock('execa', () => {
-  const originalModule = jest.requireActual('execa')
+  const originalModule = jest.requireActual<any>('execa') // eslint-disable-line
   return {
     __esModule: true,
     ...originalModule,
@@ -16,7 +17,7 @@ jest.mock('execa', () => {
 })
 
 jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual('@pnpm/logger')
+  const originalModule = jest.requireActual<object>('@pnpm/logger')
   return {
     ...originalModule,
     globalWarn: jest.fn(),

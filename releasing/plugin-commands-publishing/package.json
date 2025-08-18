@@ -71,6 +71,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/catalogs.config": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-publishing": "workspace:*",

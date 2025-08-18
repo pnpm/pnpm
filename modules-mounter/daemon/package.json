@@ -55,6 +55,7 @@
     "fuse-native": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/mount-modules": "workspace:*",

@@ -43,6 +43,7 @@
     "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/git-fetcher": "workspace:*",
     "@pnpm/logger": "workspace:*",

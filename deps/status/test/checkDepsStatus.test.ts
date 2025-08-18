@@ -2,22 +2,23 @@ import { type Stats } from 'fs'
 import { checkDepsStatus, type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import * as workspaceStateModule from '@pnpm/workspace.state'
 import * as lockfileFs from '@pnpm/lockfile.fs'
+import { jest } from '@jest/globals'
 import * as fsUtils from '../lib/safeStat'
 import * as statManifestFileUtils from '../lib/statManifestFile'
 
 jest.mock('../lib/safeStat', () => ({
-  ...jest.requireActual('../lib/safeStat'),
+  ...jest.requireActual<object>('../lib/safeStat'),
   safeStatSync: jest.fn(),
   safeStat: jest.fn(),
 }))
 
 jest.mock('../lib/statManifestFile', () => ({
-  ...jest.requireActual('../lib/statManifestFile'),
+  ...jest.requireActual<object>('../lib/statManifestFile'),
   statManifestFile: jest.fn(),
 }))
 
 jest.mock('@pnpm/lockfile.fs', () => ({
-  ...jest.requireActual('@pnpm/lockfile.fs'),
+  ...jest.requireActual<object>('@pnpm/lockfile.fs'),
   readCurrentLockfile: jest.fn(),
   readWantedLockfile: jest.fn(),
 }))
