@@ -30,7 +30,7 @@ const binsConflictLogger = logger('bins-conflict')
 const f = fixtures(__dirname)
 
 beforeEach(() => {
-  (binsConflictLogger.debug as jest.Mock).mockClear()
+  jest.mocked(binsConflictLogger.debug).mockClear()
 })
 
 const POWER_SHELL_IS_SUPPORTED = isWindows()

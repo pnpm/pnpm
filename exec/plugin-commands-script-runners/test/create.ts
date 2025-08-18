@@ -4,7 +4,7 @@ import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
 
 jest.mock('../src/dlx', () => ({ handler: jest.fn() }))
 
-beforeEach((dlx.handler as jest.Mock).mockClear)
+beforeEach(() => jest.mocked(dlx.handler).mockClear())
 
 it('throws an error if called without arguments', async () => {
   await expect(create.handler({

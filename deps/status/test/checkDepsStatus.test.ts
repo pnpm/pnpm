@@ -1,3 +1,4 @@
+import { type Stats } from 'fs'
 import { checkDepsStatus, type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import * as workspaceStateModule from '@pnpm/workspace.state'
 import * as lockfileFs from '@pnpm/lockfile.fs'
@@ -45,33 +46,33 @@ describe('checkDepsStatus - pnpmfile modification', () => {
 
     jest.spyOn(workspaceStateModule, 'loadWorkspaceState').mockReturnValue(mockWorkspaceState)
 
-    ;(fsUtils.safeStatSync as jest.Mock).mockImplementation((filePath: string) => {
+    jest.mocked(fsUtils.safeStatSync).mockImplementation((filePath: string) => {
       if (filePath === 'pnpmfile.js') {
         return {
           mtime: new Date(beforeLastValidation),
           mtimeMs: beforeLastValidation,
-        }
+        } as Stats
       }
       if (filePath === 'modifiedPnpmfile.js') {
         return {
           mtime: new Date(afterLastValidation),
           mtimeMs: afterLastValidation,
-        }
+        } as Stats
       }
       return undefined
     })
-    ;(fsUtils.safeStat as jest.Mock).mockImplementation(async () => {
+    jest.mocked(fsUtils.safeStat).mockImplementation(async () => {
       return {
         mtime: new Date(beforeLastValidation),
         mtimeMs: beforeLastValidation,
-      }
+      } as Stats
     })
-    ;(statManifestFileUtils.statManifestFile as jest.Mock).mockImplementation(async () => {
+    jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => {
       return undefined
     })
-    const returnEmptyLockfile = async () => ({})
-    ;(lockfileFs.readCurrentLockfile as jest.Mock).mockImplementation(returnEmptyLockfile)
-    ;(lockfileFs.readWantedLockfile as jest.Mock).mockImplementation(returnEmptyLockfile)
+    const returnEmptyLockfile = async () => ({} as lockfileFs.LockfileObject)
+    jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(returnEmptyLockfile)
+    jest.mocked(lockfileFs.readWantedLockfile).mockImplementation(returnEmptyLockfile)
 
     const opts: CheckDepsStatusOptions = {
       rootProjectManifest: {},

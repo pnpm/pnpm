@@ -10,7 +10,7 @@ jest.mock('@pnpm/core-loggers', () => ({
 }))
 
 beforeEach(() => {
-  (updateCheckLogger.debug as jest.Mock).mockReset()
+  jest.mocked(updateCheckLogger.debug).mockReset()
 })
 
 test('check for updates when no pnpm state file is present', async () => {

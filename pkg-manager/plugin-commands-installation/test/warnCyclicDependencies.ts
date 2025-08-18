@@ -9,7 +9,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  (logger.warn as jest.Mock).mockRestore()
+  jest.mocked(logger.warn).mockRestore()
 })
 
 test('should warn about cyclic dependencies', async () => {

@@ -14,7 +14,7 @@ test('install with git-branch-lockfile = true', async () => {
   prepareEmpty()
 
   const branchName: string = 'main-branch'
-  ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
 
   const opts = testDefaults({
     useGitBranchLockfile: true,
@@ -34,7 +34,7 @@ test('install with git-branch-lockfile = true and no lockfile changes', async ()
   prepareEmpty()
 
   const branchName: string = 'main-branch'
-  ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
 
   const manifest: ProjectManifest = {
     dependencies: {
@@ -86,7 +86,7 @@ test('install a workspace with git-branch-lockfile = true', async () => {
   ])
 
   const branchName: string = 'main-branch'
-  ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
 
   const opts = testDefaults({
     useGitBranchLockfile: true,
@@ -132,7 +132,7 @@ test('install with --merge-git-branch-lockfiles', async () => {
   prepareEmpty()
 
   const branchName: string = 'main-branch'
-  ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
 
   const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')
   writeYamlFile(otherLockfilePath, {
@@ -185,7 +185,7 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
   }, { lineWidth: 1000 })
 
   const branchName: string = 'main-branch'
-  ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
 
   // is-positive installed in the other branch
   const otherLockfilePath: string = path.resolve('pnpm-lock.other.yaml')

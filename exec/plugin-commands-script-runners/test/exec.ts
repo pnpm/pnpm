@@ -5,7 +5,7 @@ import { DEFAULT_OPTS } from './utils'
 
 jest.mock('execa')
 
-beforeEach((execa as jest.Mock).mockClear)
+beforeEach(() => jest.mocked(execa).mockClear())
 
 test('exec should set npm_config_user_agent', async () => {
   prepareEmpty()
