@@ -199,7 +199,7 @@ test('writeLockfiles() does not fail if the lockfile has undefined properties', 
 
 test('writeLockfiles() when useGitBranchLockfile', async () => {
   const branchName: string = 'branch'
-  ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
   const projectPath = tempy.directory()
   const wantedLockfile = {
     importers: {

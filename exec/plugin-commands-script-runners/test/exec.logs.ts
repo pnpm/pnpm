@@ -18,7 +18,7 @@ jest.mock('@pnpm/logger', () => {
 const lifecycleLogger = logger('lifecycle')
 
 afterEach(() => {
-  (lifecycleLogger.debug as jest.Mock).mockClear()
+  jest.mocked(lifecycleLogger.debug).mockClear()
 })
 
 test('pnpm exec --recursive --no-reporter-hide-prefix prints prefixes', async () => {

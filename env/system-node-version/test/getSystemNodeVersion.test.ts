@@ -22,7 +22,7 @@ test('getSystemNodeVersion() from a non-executable pnpm CLI', () => {
 
 test('getSystemNodeVersion() returns undefined if execa.sync throws an error', () => {
   // Mock execa.sync to throw an error
-  (execa.sync as jest.Mock).mockImplementationOnce(() => {
+  jest.mocked(execa.sync).mockImplementationOnce(() => {
     throw new Error('not found: node')
   })
 

@@ -34,7 +34,7 @@ test('updateWorkspaceState()', async () => {
       injectWorkspacePackages: false,
     },
   })
-  expect((logger.debug as jest.Mock).mock.calls).toStrictEqual([[{ msg: 'updating workspace state' }]])
+  expect(jest.mocked(logger.debug).mock.calls).toStrictEqual([[{ msg: 'updating workspace state' }]])
   expect(loadWorkspaceState(workspaceDir)).toStrictEqual(expect.objectContaining({
     lastValidatedTimestamp: expect.any(Number),
     projects: {},
@@ -65,7 +65,7 @@ test('updateWorkspaceState()', async () => {
     ],
     filteredInstall: false,
   })
-  expect((logger.debug as jest.Mock).mock.calls).toStrictEqual([[{ msg: 'updating workspace state' }]])
+  expect(jest.mocked(logger.debug).mock.calls).toStrictEqual([[{ msg: 'updating workspace state' }]])
   expect(loadWorkspaceState(workspaceDir)).toStrictEqual(expect.objectContaining({
     settings: expect.objectContaining({
       catalogs: {

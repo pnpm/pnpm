@@ -8,7 +8,7 @@ import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
 // eslint-disable-next-line
-const prompt = enquirer.prompt as any as jest.Mock<any, any, any>
+const prompt = jest.mocked(enquirer.prompt)
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
