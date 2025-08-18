@@ -1,5 +1,6 @@
 import { STORE_VERSION } from '@pnpm/constants'
 import { getStorePath } from '@pnpm/store-path'
+import { jest } from '@jest/globals'
 import isWindows from 'is-windows'
 
 jest.mock('os')

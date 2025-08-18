@@ -50,6 +50,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/env.path": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/tools.plugin-commands-self-updater": "workspace:*",

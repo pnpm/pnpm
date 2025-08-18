@@ -7,6 +7,7 @@ import { getConfig } from '@pnpm/config'
 import loadNpmConf from '@pnpm/npm-conf'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+import { jest } from '@jest/globals'
 
 import symlinkDir from 'symlink-dir'
 

@@ -1,5 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { getCurrentBranch } from '@pnpm/git-utils'
+import { jest } from '@jest/globals'
 import { getWantedLockfileName } from '../lib/lockfileName'
 
 jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))

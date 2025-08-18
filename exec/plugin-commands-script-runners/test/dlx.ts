@@ -2,6 +2,7 @@ import path from 'path'
 import execa from 'execa'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
 
 jest.mock('execa')

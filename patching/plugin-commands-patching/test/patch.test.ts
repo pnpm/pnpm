@@ -12,6 +12,7 @@ import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DEFAULT_OPTS } from './utils/index'
 import { fixtures } from '@pnpm/test-fixtures'
+import { jest } from '@jest/globals'
 import * as enquirer from 'enquirer'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))

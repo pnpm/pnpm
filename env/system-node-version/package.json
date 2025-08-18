@@ -37,6 +37,7 @@
     "mem": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/env.system-node-version": "workspace:*"
   },
   "engines": {

@@ -39,6 +39,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",
     "@pnpm/prepare": "workspace:*",

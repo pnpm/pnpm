@@ -5,18 +5,20 @@ import { FetchError, PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { globalWarn } from '@pnpm/logger'
+import type * as Logger from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
 import {
   createTarballFetcher,
   BadTarballError,
   TarballIntegrityError,
 } from '@pnpm/tarball-fetcher'
+import { jest } from '@jest/globals'
 import nock from 'nock'
 import ssri from 'ssri'
 import tempy from 'tempy'
 
 jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual('@pnpm/logger')
+  const originalModule = jest.requireActual<typeof Logger>('@pnpm/logger')
   return {
     ...originalModule,
     globalWarn: jest.fn(),

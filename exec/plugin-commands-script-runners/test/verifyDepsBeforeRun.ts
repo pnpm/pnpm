@@ -4,11 +4,12 @@ import { globalWarn } from '@pnpm/logger'
 import { type VerifyDepsBeforeRun } from '@pnpm/config'
 import { run } from '@pnpm/plugin-commands-script-runners'
 import { prepare } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import { prompt } from 'enquirer'
 import { DEFAULT_OPTS } from './utils'
 
 jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual('@pnpm/logger')
+  const originalModule = jest.requireActual<object>('@pnpm/logger')
   return {
     ...originalModule,
     globalWarn: jest.fn(),

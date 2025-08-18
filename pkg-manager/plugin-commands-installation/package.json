@@ -95,6 +95,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",

@@ -1,6 +1,7 @@
 import execa from 'execa'
 import { exec } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import { DEFAULT_OPTS } from './utils'
 
 jest.mock('execa')
