@@ -4,6 +4,7 @@ import path from 'path'
 import { Readable } from 'stream'
 import { fetchNode, type FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetcher'
 import { tempDir } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import { isNonGlibcLinux } from 'detect-libc'
 
 jest.mock('detect-libc', () => ({

@@ -76,6 +76,7 @@
     "node-gyp": "^11.1.0"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/byline": "catalog:",
     "@pnpm/cache.commands": "workspace:*",

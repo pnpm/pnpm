@@ -8,6 +8,7 @@ import {
   linkBinsOfPkgsByAliases,
 } from '@pnpm/link-bins'
 import { fixtures } from '@pnpm/test-fixtures'
+import { jest } from '@jest/globals'
 import CMD_EXTENSION from 'cmd-extension'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'

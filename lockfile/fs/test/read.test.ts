@@ -8,6 +8,7 @@ import {
   writeWantedLockfile,
 } from '@pnpm/lockfile.fs'
 import { type DepPath, type ProjectId } from '@pnpm/types'
+import { jest } from '@jest/globals'
 import tempy from 'tempy'
 
 jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))

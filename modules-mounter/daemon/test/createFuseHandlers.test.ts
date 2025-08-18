@@ -1,4 +1,5 @@
 import { STORE_VERSION } from '@pnpm/constants'
+import { jest } from '@jest/globals'
 import path from 'path'
 
 jest.mock('fuse-native', () => ({ ENOENT: -2 }))

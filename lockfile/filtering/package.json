@@ -47,6 +47,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/lockfile.filtering": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/ramda": "catalog:",

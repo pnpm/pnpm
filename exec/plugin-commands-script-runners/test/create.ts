@@ -1,4 +1,5 @@
 import { PnpmError } from '@pnpm/error'
+import { jest } from '@jest/globals'
 import { create, dlx } from '../src'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
 

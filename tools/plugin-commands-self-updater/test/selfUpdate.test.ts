@@ -3,13 +3,14 @@ import path from 'path'
 import { prependDirsToPath } from '@pnpm/env.path'
 import { tempDir, prepare as prepareWithPkg } from '@pnpm/prepare'
 import { selfUpdate } from '@pnpm/tools.plugin-commands-self-updater'
+import { jest } from '@jest/globals'
 import spawn from 'cross-spawn'
 import nock from 'nock'
 
 const pnpmTarballPath = require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-9.1.0.tgz')
 
 jest.mock('@pnpm/cli-meta', () => {
-  const actualModule = jest.requireActual('@pnpm/cli-meta')
+  const actualModule = jest.requireActual<object>('@pnpm/cli-meta')
 
   return {
     ...actualModule,

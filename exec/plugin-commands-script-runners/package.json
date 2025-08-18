@@ -73,6 +73,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/env.system-node-version": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/logger": "workspace:*",

@@ -42,6 +42,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/error": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-setup": "workspace:*",

@@ -6,6 +6,7 @@ import {
   readWantedLockfile,
   writeLockfiles,
 } from '@pnpm/lockfile.fs'
+import { jest } from '@jest/globals'
 import tempy from 'tempy'
 import yaml from 'yaml-tag'
 import { getCurrentBranch } from '@pnpm/git-utils'

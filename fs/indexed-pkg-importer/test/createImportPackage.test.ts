@@ -3,11 +3,12 @@ import path from 'path'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import gfs from '@pnpm/graceful-fs'
 import { globalInfo } from '@pnpm/logger'
+import { jest } from '@jest/globals'
 
 const testOnLinuxOnly = (process.platform === 'darwin' || process.platform === 'win32') ? test.skip : test
 
 jest.mock('@pnpm/graceful-fs', () => {
-  const { access, promises } = jest.requireActual('fs')
+  const { access, promises } = jest.requireActual<typeof fs>('fs')
   const fsMock = {
     mkdirSync: promises.mkdir,
     readdirSync: promises.readdir,
