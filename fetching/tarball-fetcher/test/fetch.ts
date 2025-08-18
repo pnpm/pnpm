@@ -24,7 +24,7 @@ jest.mock('@pnpm/logger', () => {
 })
 
 beforeEach(() => {
-  ;(globalWarn as jest.Mock).mockClear()
+  jest.mocked(globalWarn).mockClear()
 })
 
 const storeDir = tempy.directory()

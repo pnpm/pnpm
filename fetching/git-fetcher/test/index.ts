@@ -24,8 +24,8 @@ jest.mock('@pnpm/logger', () => {
 })
 
 beforeEach(() => {
-  ;(execa as jest.Mock).mockClear()
-  ;(globalWarn as jest.Mock).mockClear()
+  jest.mocked(execa).mockClear()
+  jest.mocked(globalWarn).mockClear()
 })
 
 test('fetch', async () => {
@@ -170,7 +170,7 @@ test('still able to shallow fetch for allowed hosts', async () => {
     readManifest: true,
     filesIndexFile: path.join(storeDir, 'index.json'),
   })
-  const calls = (execa as jest.Mock).mock.calls
+  const calls = jest.mocked(execa).mock.calls
   const expectedCalls = [
     ['git', [...prefixGitArgs(), 'init']],
     ['git', [...prefixGitArgs(), 'remote', 'add', 'origin', resolution.repo]],

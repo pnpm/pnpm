@@ -168,7 +168,7 @@ test('do not fail when resolving from not existing directory', async () => {
     message: `Installing a dependency from a non-existent directory: ${path.join(__dirname, './dir-does-not-exist')}`,
     prefix: __dirname,
   })
-  ;(logger.warn as jest.Mock).mockRestore()
+  jest.mocked(logger.warn).mockRestore()
 })
 
 test('throw error when the path: protocol is used', async () => {

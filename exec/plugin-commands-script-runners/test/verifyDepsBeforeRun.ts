@@ -80,7 +80,7 @@ test('prompt the user if verifyDepsBeforeRun is set to prompt', async () => {
   prepare(rootProjectManifest)
 
   // Mock the user confirming the prompt
-  ;(prompt as jest.Mock).mockResolvedValue({ runInstall: true })
+  jest.mocked(prompt).mockResolvedValue({ runInstall: true })
 
   await runTest('prompt')
 
