@@ -7,8 +7,8 @@ import cliColumns from 'cli-columns'
 import sortBy from 'ramda/src/sortBy'
 import ramdaPath from 'ramda/src/path'
 import { type Ord } from 'ramda'
-import { getPkgInfo } from './getPkgInfo'
-import { type PackageDependencyHierarchy } from './types'
+import { getPkgInfo } from './getPkgInfo.js'
+import { type PackageDependencyHierarchy } from './types.js'
 
 const sortPackages = sortBy(ramdaPath(['name']) as (pkg: PackageNode) => Ord)
 

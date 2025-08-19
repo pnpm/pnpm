@@ -16,12 +16,12 @@ import { type DependenciesField, DEPENDENCIES_FIELDS, type Registries } from '@p
 import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
-import { type PackageNode } from './PackageNode'
-import { type SearchFunction } from './types'
-import { getTree } from './getTree'
-import { getTreeNodeChildId } from './getTreeNodeChildId'
-import { getPkgInfo } from './getPkgInfo'
-import { type TreeNodeId } from './TreeNodeId'
+import { type PackageNode } from './PackageNode.js'
+import { type SearchFunction } from './types.js'
+import { getTree } from './getTree.js'
+import { getTreeNodeChildId } from './getTreeNodeChildId.js'
+import { getPkgInfo } from './getPkgInfo.js'
+import { type TreeNodeId } from './TreeNodeId.js'
 
 export interface DependenciesHierarchy {
   dependencies?: PackageNode[]

@@ -5,7 +5,7 @@ import {
   type SnapshotsChanges,
 } from '@pnpm/dedupe.types'
 import { type DepPath, DEPENDENCIES_FIELDS } from '@pnpm/types'
-import { DedupeCheckIssuesError } from './DedupeCheckIssuesError'
+import { DedupeCheckIssuesError } from './DedupeCheckIssuesError.js'
 
 const PACKAGE_SNAPSHOT_DEP_FIELDS = ['dependencies', 'optionalDependencies'] as const
 

@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { getWantedLockfileName } from './lockfileName'
+import { getWantedLockfileName } from './lockfileName.js'
 
 interface existsNonEmptyWantedLockfileOptions {
   useGitBranchLockfile?: boolean

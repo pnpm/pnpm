@@ -1,21 +1,21 @@
 import { type AddToStoreResult, type FileWriteResult, type PackageFiles, type PackageFileInfo, type FilesIndex } from '@pnpm/cafs-types'
 import ssri from 'ssri'
-import { addFilesFromDir } from './addFilesFromDir'
-import { addFilesFromTarball } from './addFilesFromTarball'
+import { addFilesFromDir } from './addFilesFromDir.js'
+import { addFilesFromTarball } from './addFilesFromTarball.js'
 import {
   checkPkgFilesIntegrity,
   type PackageFilesIndex,
   type VerifyResult,
-} from './checkPkgFilesIntegrity'
-import { readManifestFromStore } from './readManifestFromStore'
+} from './checkPkgFilesIntegrity.js'
+import { readManifestFromStore } from './readManifestFromStore.js'
 import {
   getIndexFilePathInCafs,
   contentPathFromHex,
   type FileType,
   getFilePathByModeInCafs,
   modeIsExecutable,
-} from './getFilePathInCafs'
-import { optimisticRenameOverwrite, writeBufferToCafs } from './writeBufferToCafs'
+} from './getFilePathInCafs.js'
+import { optimisticRenameOverwrite, writeBufferToCafs } from './writeBufferToCafs.js'
 
 export type { IntegrityLike } from 'ssri'
 

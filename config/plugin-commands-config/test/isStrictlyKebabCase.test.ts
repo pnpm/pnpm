@@ -1,4 +1,4 @@
-import { isStrictlyKebabCase } from '../src/isStrictlyKebabCase'
+import { isStrictlyKebabCase } from '../src/isStrictlyKebabCase.js'
 
 test('kebab-case names with more than 1 words should satisfy', () => {
   expect(isStrictlyKebabCase('foo-bar')).toBe(true)

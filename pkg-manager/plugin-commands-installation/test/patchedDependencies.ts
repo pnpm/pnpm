@@ -6,7 +6,7 @@ import { add, install } from '@pnpm/plugin-commands-installation'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { jest } from '@jest/globals'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 jest.mock('@pnpm/logger', () => {
   const originalModule = jest.requireActual<object>('@pnpm/logger')

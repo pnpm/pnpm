@@ -1,4 +1,4 @@
-import { convertToLockfileFile, convertToLockfileObject } from '../lib/lockfileFormatConverters'
+import { convertToLockfileFile, convertToLockfileObject } from '../lib/lockfileFormatConverters.js'
 
 test('convertToLockfileFile()', () => {
   const lockfileV5 = {

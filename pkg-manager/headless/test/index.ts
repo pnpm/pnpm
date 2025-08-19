@@ -23,7 +23,7 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
-import { testDefaults } from './utils/testDefaults'
+import { testDefaults } from './utils/testDefaults.js'
 
 const f = fixtures(__dirname)
 

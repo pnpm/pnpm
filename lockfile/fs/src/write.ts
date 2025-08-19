@@ -6,10 +6,10 @@ import rimraf from '@zkochan/rimraf'
 import yaml from 'js-yaml'
 import isEmpty from 'ramda/src/isEmpty'
 import writeFileAtomicCB from 'write-file-atomic'
-import { lockfileLogger as logger } from './logger'
-import { sortLockfileKeys } from './sortLockfileKeys'
-import { getWantedLockfileName } from './lockfileName'
-import { convertToLockfileFile } from './lockfileFormatConverters'
+import { lockfileLogger as logger } from './logger.js'
+import { sortLockfileKeys } from './sortLockfileKeys.js'
+import { getWantedLockfileName } from './lockfileName.js'
+import { convertToLockfileFile } from './lockfileFormatConverters.js'
 
 async function writeFileAtomic (filename: string, data: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {

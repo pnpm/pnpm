@@ -7,7 +7,7 @@ import { type Registries } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import tempy from 'tempy'
-import { retryLoadJsonFile } from './utils'
+import { retryLoadJsonFile } from './utils/index.js'
 
 const f = fixtures(__dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */

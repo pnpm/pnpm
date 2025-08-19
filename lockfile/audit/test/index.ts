@@ -4,7 +4,7 @@ import { type PnpmError } from '@pnpm/error'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type DepPath, type ProjectId } from '@pnpm/types'
 import nock from 'nock'
-import { lockfileToAuditTree } from '../lib/lockfileToAuditTree'
+import { lockfileToAuditTree } from '../lib/lockfileToAuditTree.js'
 
 const f = fixtures(__dirname)
 

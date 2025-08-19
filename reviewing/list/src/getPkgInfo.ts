@@ -1,6 +1,6 @@
 import { type ProjectManifest } from '@pnpm/types'
 import path from 'path'
-import { readPkg } from './readPkg'
+import { readPkg } from './readPkg.js'
 
 interface PkgData {
   alias: string | undefined

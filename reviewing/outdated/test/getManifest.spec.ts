@@ -1,6 +1,6 @@
 import { type ResolveFunction } from '@pnpm/client'
 import { type PkgResolutionId, type TarballResolution } from '@pnpm/resolver-base'
-import { getManifest } from '../lib/createManifestGetter'
+import { getManifest } from '../lib/createManifestGetter.js'
 
 test('getManifest()', async () => {
   const opts = {

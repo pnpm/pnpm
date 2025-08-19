@@ -7,7 +7,7 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { stripVTControlCharacters as stripAnsi } from 'util'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 
 const f = fixtures(__dirname)

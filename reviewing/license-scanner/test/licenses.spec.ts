@@ -3,8 +3,8 @@ import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { type DepPath, type ProjectManifest, type Registries, type ProjectId } from '@pnpm/types'
 import { type LockfileObject } from '@pnpm/lockfile.fs'
 import { jest } from '@jest/globals'
-import { type LicensePackage } from '../lib/licenses'
-import { type GetPackageInfoOptions, type PackageInfo } from '../lib/getPkgInfo'
+import { type LicensePackage } from '../lib/licenses.js'
+import { type GetPackageInfoOptions, type PackageInfo } from '../lib/getPkgInfo.js'
 
 jest.mock('../lib/getPkgInfo', () => {
   const actualModule = jest.requireActual<object>('../lib/getPkgInfo')

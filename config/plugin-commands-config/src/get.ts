@@ -1,5 +1,5 @@
-import * as configCmd from './config'
-import { type ConfigCommandOptions } from './ConfigCommandOptions'
+import * as configCmd from './config.js'
+import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
 
 export const rcOptionsTypes = configCmd.rcOptionsTypes
 export const cliOptionsTypes = configCmd.cliOptionsTypes

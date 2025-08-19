@@ -16,8 +16,8 @@ import { mutateModulesInSingleProject } from '@pnpm/core'
 import pick from 'ramda/src/pick'
 import without from 'ramda/src/without'
 import renderHelp from 'render-help'
-import { getSaveType } from './getSaveType'
-import { recursive } from './recursive'
+import { getSaveType } from './getSaveType.js'
+import { recursive } from './recursive.js'
 
 class RemoveMissingDepsError extends PnpmError {
   constructor (

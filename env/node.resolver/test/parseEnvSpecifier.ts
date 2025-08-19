@@ -1,4 +1,4 @@
-import { parseEnvSpecifier } from '../lib/parseEnvSpecifier'
+import { parseEnvSpecifier } from '../lib/parseEnvSpecifier.js'
 
 test.each([
   ['6', '6', 'release'],

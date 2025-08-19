@@ -9,7 +9,7 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import { addFilesFromDir, importPackage, initStoreDir } from '@pnpm/worker'
-import { prune } from './prune'
+import { prune } from './prune.js'
 
 export { type CafsLocker }
 

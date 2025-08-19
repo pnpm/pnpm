@@ -1,4 +1,4 @@
-import { parsePropertyPath } from './parse'
+import { parsePropertyPath } from './parse.js'
 
 /**
  * Get the value of a property path in a nested object.

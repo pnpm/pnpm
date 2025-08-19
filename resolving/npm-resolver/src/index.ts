@@ -33,16 +33,16 @@ import {
   type PackageMetaCache,
   type PickPackageOptions,
   pickPackage,
-} from './pickPackage'
+} from './pickPackage.js'
 import {
   parseJsrSpecifierToRegistryPackageSpec,
   parseBareSpecifier,
   type JsrRegistryPackageSpec,
   type RegistryPackageSpec,
-} from './parseBareSpecifier'
-import { fromRegistry, RegistryResponseError } from './fetch'
-import { workspacePrefToNpm } from './workspacePrefToNpm'
-import { whichVersionIsPinned } from './whichVersionIsPinned'
+} from './parseBareSpecifier.js'
+import { fromRegistry, RegistryResponseError } from './fetch.js'
+import { workspacePrefToNpm } from './workspacePrefToNpm.js'
+import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 
 export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta

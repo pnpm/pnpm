@@ -15,19 +15,19 @@ import pLimit from 'p-limit'
 import { prependDirsToPath } from '@pnpm/env.path'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { existsInDir } from './existsInDir'
-import { makeEnv } from './makeEnv'
+import { existsInDir } from './existsInDir.js'
+import { makeEnv } from './makeEnv.js'
 import {
   PARALLEL_OPTION_HELP,
   REPORT_SUMMARY_OPTION_HELP,
   RESUME_FROM_OPTION_HELP,
   shorthands as runShorthands,
-} from './run'
+} from './run.js'
 import { PnpmError } from '@pnpm/error'
 import which from 'which'
 import writeJsonFile from 'write-json-file'
-import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint'
-import { runDepsStatusCheck } from './runDepsStatusCheck'
+import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint.js'
+import { runDepsStatusCheck } from './runDepsStatusCheck.js'
 
 export const shorthands: Record<string, string | string[]> = {
   parallel: runShorthands.parallel,

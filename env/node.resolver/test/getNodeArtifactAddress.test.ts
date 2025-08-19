@@ -1,4 +1,4 @@
-import { getNodeArtifactAddress } from '../lib/getNodeArtifactAddress'
+import { getNodeArtifactAddress } from '../lib/getNodeArtifactAddress.js'
 
 test.each([
   [

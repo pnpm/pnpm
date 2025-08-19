@@ -12,8 +12,8 @@ import difference from 'ramda/src/difference'
 import pick from 'ramda/src/pick'
 import pickBy from 'ramda/src/pickBy'
 import renderHelp from 'render-help'
-import { fix } from './fix'
-import { ignore } from './ignore'
+import { fix } from './fix.js'
+import { ignore } from './ignore.js'
 
 // eslint-disable
 const AUDIT_LEVEL_NUMBER = {

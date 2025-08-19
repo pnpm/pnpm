@@ -1,4 +1,4 @@
-import { getObjectValueByPropertyPathString } from '../src'
+import { getObjectValueByPropertyPathString } from '../src/index.js'
 
 const OBJECT = {
   packages: [

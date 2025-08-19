@@ -3,7 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import { logger as createLogger } from '@pnpm/logger'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import normalizePath from 'normalize-path'
-import { DirPatcher } from './DirPatcher'
+import { DirPatcher } from './DirPatcher.js'
 
 interface SkipSyncInjectedDepsMessage {
   message: string

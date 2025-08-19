@@ -11,8 +11,8 @@ import {
   type ProjectRootDir,
 } from '@pnpm/types'
 import unnest from 'ramda/src/unnest'
-import { createManifestGetter, type ManifestGetterOptions } from './createManifestGetter'
-import { outdated, type OutdatedPackage } from './outdated'
+import { createManifestGetter, type ManifestGetterOptions } from './createManifestGetter.js'
+import { outdated, type OutdatedPackage } from './outdated.js'
 
 export async function outdatedDepsOfProjects (
   pkgs: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>,

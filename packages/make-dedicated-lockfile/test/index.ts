@@ -3,7 +3,7 @@ import path from 'path'
 import execa from 'execa'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
-import { makeDedicatedLockfile } from '../lib'
+import { makeDedicatedLockfile } from '../lib/index.js'
 
 const f = fixtures(__dirname)
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')

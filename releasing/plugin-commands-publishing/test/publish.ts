@@ -10,7 +10,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import crossSpawn from 'cross-spawn'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { DEFAULT_OPTS, checkPkgExists } from './utils'
+import { DEFAULT_OPTS, checkPkgExists } from './utils/index.js'
 
 const skipOnWindowsCI = isCI && isWindows() ? test.skip : test
 

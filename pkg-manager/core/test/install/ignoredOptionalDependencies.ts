@@ -3,7 +3,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import {
   testDefaults,
-} from '../utils'
+} from '../utils/index.js'
 
 test('ignoredOptionalDependencies causes listed optional dependencies to be skipped', async () => {
   const project = prepareEmpty()

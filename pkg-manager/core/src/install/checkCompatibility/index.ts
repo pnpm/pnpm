@@ -1,9 +1,9 @@
 import path from 'path'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { type Modules } from '@pnpm/modules-yaml'
-import { ModulesBreakingChangeError } from './ModulesBreakingChangeError'
-import { UnexpectedStoreError } from './UnexpectedStoreError'
-import { UnexpectedVirtualStoreDirError } from './UnexpectedVirtualStoreDirError'
+import { ModulesBreakingChangeError } from './ModulesBreakingChangeError.js'
+import { UnexpectedStoreError } from './UnexpectedStoreError.js'
+import { UnexpectedVirtualStoreDirError } from './UnexpectedVirtualStoreDirError.js'
 
 export function checkCompatibility (
   modules: Modules,

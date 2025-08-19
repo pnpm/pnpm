@@ -52,7 +52,7 @@ import pShare from 'promise-share'
 import pick from 'ramda/src/pick'
 import semver from 'semver'
 import ssri from 'ssri'
-import { equalOrSemverEqual } from './equalOrSemverEqual'
+import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 
 let currentLibc: 'glibc' | 'musl' | undefined | null
 function getLibcFamilySync () {

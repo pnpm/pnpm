@@ -3,7 +3,7 @@ import fs from 'fs'
 import { prepare } from '@pnpm/prepare'
 import { getToolDirPath } from '@pnpm/tools.path'
 import { sync as writeJsonFile } from 'write-json-file'
-import { execPnpmSync } from './utils'
+import { execPnpmSync } from './utils/index.js'
 import isWindows from 'is-windows'
 
 test('switch to the pnpm version specified in the packageManager field of package.json', async () => {

@@ -12,7 +12,7 @@ import {
 import {
   type LicenseNode,
   lockfileToLicenseNodeTree,
-} from './lockfileToLicenseNodeTree'
+} from './lockfileToLicenseNodeTree.js'
 import semver from 'semver'
 
 export interface LicensePackage {

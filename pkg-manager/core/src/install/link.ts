@@ -38,7 +38,7 @@ import difference from 'ramda/src/difference'
 import pick from 'ramda/src/pick'
 import pickBy from 'ramda/src/pickBy'
 import props from 'ramda/src/props'
-import { type ImporterToUpdate } from './index'
+import { type ImporterToUpdate } from './index.js'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 

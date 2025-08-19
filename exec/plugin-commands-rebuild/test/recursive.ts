@@ -7,7 +7,7 @@ import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { type PackageManifest } from '@pnpm/types'
 import execa from 'execa'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { DEFAULT_OPTS, REGISTRY } from './utils'
+import { DEFAULT_OPTS, REGISTRY } from './utils/index.js'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 

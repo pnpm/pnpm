@@ -1,1 +1,1 @@
-export { parseCatalogProtocol } from './parseCatalogProtocol'
+export { parseCatalogProtocol } from './parseCatalogProtocol.js'

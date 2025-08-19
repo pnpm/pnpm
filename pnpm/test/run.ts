@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
-import { execPnpm, execPnpmSync } from './utils'
+import { execPnpm, execPnpmSync } from './utils/index.js'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
 const testOnPosix = isWindows() ? test.skip : test

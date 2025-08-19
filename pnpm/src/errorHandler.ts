@@ -1,7 +1,7 @@
 import { promisify } from 'util'
 import { logger } from '@pnpm/logger'
 import pidTree from 'pidtree'
-import { type Global, REPORTER_INITIALIZED } from './main'
+import { type Global, REPORTER_INITIALIZED } from './main.js'
 
 declare const global: Global
 

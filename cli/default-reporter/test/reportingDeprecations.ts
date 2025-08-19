@@ -9,7 +9,7 @@ import { firstValueFrom } from 'rxjs'
 import { map, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
-import { formatWarn } from '../src/reporterForClient/utils/formatWarn'
+import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
 
 test('prints summary of deprecated subdependencies', async () => {
   const prefix = '/home/jane/project'

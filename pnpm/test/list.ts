@@ -1,6 +1,6 @@
 import { preparePackages } from '@pnpm/prepare'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpmSync } from './utils'
+import { execPnpmSync } from './utils/index.js'
 
 test('ls --filter=not-exist --json should prints an empty array (#9672)', async () => {
   preparePackages([

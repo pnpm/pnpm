@@ -4,7 +4,7 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import {
   addDistTag,
   execPnpm,
-} from '../utils'
+} from '../utils/index.js'
 
 test('when prefer offline is used, meta from store is used, where latest might be out-of-date', async () => {
   const project = prepare()

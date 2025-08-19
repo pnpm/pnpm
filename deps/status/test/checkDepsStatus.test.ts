@@ -3,8 +3,8 @@ import { checkDepsStatus, type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import * as workspaceStateModule from '@pnpm/workspace.state'
 import * as lockfileFs from '@pnpm/lockfile.fs'
 import { jest } from '@jest/globals'
-import * as fsUtils from '../lib/safeStat'
-import * as statManifestFileUtils from '../lib/statManifestFile'
+import * as fsUtils from '../lib/safeStat.js'
+import * as statManifestFileUtils from '../lib/statManifestFile.js'
 
 jest.mock('../lib/safeStat', () => ({
   ...jest.requireActual<object>('../lib/safeStat'),

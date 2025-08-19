@@ -9,7 +9,7 @@ import {
   addDistTag,
   execPnpm,
   execPnpmSync,
-} from '../utils'
+} from '../utils/index.js'
 
 test('global installation', async () => {
   prepare()

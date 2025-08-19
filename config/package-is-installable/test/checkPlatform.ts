@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals'
 import type * as DetectLibc from 'detect-libc'
-import { checkPlatform } from '../lib/checkPlatform'
+import { checkPlatform } from '../lib/checkPlatform.js'
 
 const packageId = 'registry.npmjs.org/foo/1.0.0'
 

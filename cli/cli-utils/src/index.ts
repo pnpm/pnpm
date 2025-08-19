@@ -1,11 +1,11 @@
 import { packageManager } from '@pnpm/cli-meta'
 
-export { getConfig } from './getConfig'
-export * from './packageIsInstallable'
-export * from './readDepNameCompletions'
-export * from './readProjectManifest'
-export * from './recursiveSummary'
-export * from './style'
+export { getConfig } from './getConfig.js'
+export * from './packageIsInstallable.js'
+export * from './readDepNameCompletions.js'
+export * from './readProjectManifest.js'
+export * from './recursiveSummary.js'
+export * from './style.js'
 
 export function docsUrl (cmd: string): string {
   const [pnpmMajorVersion] = packageManager.version.split('.')

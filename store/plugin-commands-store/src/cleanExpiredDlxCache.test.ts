@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
-import { cleanExpiredDlxCache, cleanOrphans } from './cleanExpiredDlxCache'
+import { cleanExpiredDlxCache, cleanOrphans } from './cleanExpiredDlxCache.js'
 
 const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
   packages,

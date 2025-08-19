@@ -1,10 +1,10 @@
-import { type ExactToken, parseCloseBracket, parseDotOperator, parseOpenBracket } from './ExactToken'
-import { type Identifier, parseIdentifier } from './Identifier'
-import { type NumericLiteral, parseNumericLiteral } from './NumericLiteral'
-import { type StringLiteral, parseStringLiteral } from './StringLiteral'
-import { type Whitespace, parseWhitespace } from './Whitespace'
-import { combineParsers } from './combine'
-import { type TokenBase, type Tokenize } from './types'
+import { type ExactToken, parseCloseBracket, parseDotOperator, parseOpenBracket } from './ExactToken.js'
+import { type Identifier, parseIdentifier } from './Identifier.js'
+import { type NumericLiteral, parseNumericLiteral } from './NumericLiteral.js'
+import { type StringLiteral, parseStringLiteral } from './StringLiteral.js'
+import { type Whitespace, parseWhitespace } from './Whitespace.js'
+import { combineParsers } from './combine.js'
+import { type TokenBase, type Tokenize } from './types.js'
 
 export type ExpectedToken =
   | ExactToken<'.'>

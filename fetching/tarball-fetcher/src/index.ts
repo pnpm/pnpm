@@ -14,11 +14,11 @@ import { TarballIntegrityError } from '@pnpm/worker'
 import {
   createDownloader,
   type DownloadFunction,
-} from './remoteTarballFetcher'
-import { createLocalTarballFetcher } from './localTarballFetcher'
-import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher'
+} from './remoteTarballFetcher.js'
+import { createLocalTarballFetcher } from './localTarballFetcher.js'
+import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher.js'
 
-export { BadTarballError } from './errorTypes'
+export { BadTarballError } from './errorTypes/index.js'
 
 export { TarballIntegrityError }
 

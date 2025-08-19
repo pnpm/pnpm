@@ -18,9 +18,9 @@ import {
 } from '@pnpm/types'
 import partition from 'ramda/src/partition'
 import zipObj from 'ramda/src/zipObj'
-import { type WantedDependency } from './getNonDevWantedDependencies'
-import { type NodeId, nextNodeId } from './nextNodeId'
-import { parentIdsContainSequence } from './parentIdsContainSequence'
+import { type WantedDependency } from './getNonDevWantedDependencies.js'
+import { type NodeId, nextNodeId } from './nextNodeId.js'
+import { parentIdsContainSequence } from './parentIdsContainSequence.js'
 import {
   type ChildrenByParentId,
   type DependenciesTree,
@@ -35,9 +35,9 @@ import {
   type ResolvedPackage,
   type ResolvedPkgsById,
   type ResolutionContext,
-} from './resolveDependencies'
+} from './resolveDependencies.js'
 
-export type { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
+export type { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies.js'
 
 export interface ResolvedImporters {
   [id: string]: {

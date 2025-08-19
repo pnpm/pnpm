@@ -14,7 +14,7 @@ import { firstValueFrom } from 'rxjs'
 import { map, skip, take, toArray } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
-import { formatWarn } from '../src/reporterForClient/utils/formatWarn'
+import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
 
 const hlValue = chalk.cyanBright
 

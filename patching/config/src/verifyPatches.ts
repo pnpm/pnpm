@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import { type PatchGroupRecord } from '@pnpm/patching.types'
-import { allPatchKeys } from './allPatchKeys'
+import { allPatchKeys } from './allPatchKeys.js'
 
 export interface VerifyPatchesOptions {
   patchedDependencies: PatchGroupRecord

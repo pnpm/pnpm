@@ -5,7 +5,7 @@ import path from 'path'
 jest.mock('fuse-native', () => ({ ENOENT: -2 }))
 
 // eslint-disable-next-line
-import { type FuseHandlers, createFuseHandlers } from '../src/createFuseHandlers'
+import { type FuseHandlers, createFuseHandlers } from '../src/createFuseHandlers.js'
 // eslint-disable-next-line
 import Fuse from 'fuse-native'
 

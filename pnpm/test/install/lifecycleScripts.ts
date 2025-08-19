@@ -6,7 +6,7 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import PATH from 'path-name'
 import loadJsonFile from 'load-json-file'
 import writeYamlFile from 'write-yaml-file'
-import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
+import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 

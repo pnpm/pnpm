@@ -6,7 +6,7 @@ import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import { type FilesMap, type ImportOptions, type ImportIndexedPackage } from '@pnpm/store-controller-types'
-import { importIndexedDir, type ImportFile } from './importIndexedDir'
+import { importIndexedDir, type ImportFile } from './importIndexedDir.js'
 
 export { type FilesMap, type ImportOptions, type ImportIndexedPackage }
 

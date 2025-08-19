@@ -1,4 +1,4 @@
-import { InvalidWorkspaceManifestError } from './errors/InvalidWorkspaceManifestError'
+import { InvalidWorkspaceManifestError } from './errors/InvalidWorkspaceManifestError.js'
 
 export interface WorkspaceNamedCatalogs {
   [catalogName: string]: WorkspaceCatalog

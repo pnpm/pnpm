@@ -28,7 +28,7 @@ import difference from 'ramda/src/difference'
 import equals from 'ramda/src/equals'
 import mergeAll from 'ramda/src/mergeAll'
 import pickAll from 'ramda/src/pickAll'
-import { removeDirectDependency, removeIfEmpty } from './removeDirectDependency'
+import { removeDirectDependency, removeIfEmpty } from './removeDirectDependency.js'
 
 export async function prune (
   importers: Array<{

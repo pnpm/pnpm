@@ -12,7 +12,7 @@ import isWindows from 'is-windows'
 import {
   readJson5File,
   readJsonFile,
-} from './readFile'
+} from './readFile.js'
 
 export type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Promise<void>
 

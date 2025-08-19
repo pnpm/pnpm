@@ -1,5 +1,5 @@
-import { PREFIX_MAX_LENGTH } from '../outputConstants'
-import { formatPrefix } from './formatPrefix'
+import { PREFIX_MAX_LENGTH } from '../outputConstants.js'
+import { formatPrefix } from './formatPrefix.js'
 
 export function autozoom (
   currentPrefix: string,

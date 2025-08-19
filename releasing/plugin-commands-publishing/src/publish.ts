@@ -16,8 +16,8 @@ import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
-import * as pack from './pack'
-import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish'
+import * as pack from './pack.js'
+import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([

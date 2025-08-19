@@ -1,4 +1,4 @@
-import { optionTypesToCompletions } from './optionTypesToCompletions'
+import { optionTypesToCompletions } from './optionTypesToCompletions.js'
 
 test('optionTypesToCompletions', () => {
   expect(optionTypesToCompletions({

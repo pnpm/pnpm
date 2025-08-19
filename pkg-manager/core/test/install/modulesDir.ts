@@ -7,7 +7,7 @@ import {
 } from '@pnpm/core'
 import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('installing to a custom modules directory', async () => {
   const project = prepareEmpty()

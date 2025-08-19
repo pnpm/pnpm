@@ -1,1 +1,1 @@
-export * from './lockfileToDepGraph'
+export * from './lockfileToDepGraph.js'

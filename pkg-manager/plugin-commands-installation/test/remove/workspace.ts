@@ -4,7 +4,7 @@ import { type LockfileFile } from '@pnpm/lockfile.types'
 import { install, remove } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { sync as readYamlFile } from 'read-yaml-file'
-import { DEFAULT_OPTS } from '../utils'
+import { DEFAULT_OPTS } from '../utils/index.js'
 
 test('remove --filter only changes the specified dependency, when run with link-workspace-packages=false', async () => {
   const projects = preparePackages([

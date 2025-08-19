@@ -6,8 +6,8 @@ import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { getFetchFullMetadata } from './getFetchFullMetadata'
-import { installDeps, type InstallDepsOptions } from './installDeps'
+import { getFetchFullMetadata } from './getFetchFullMetadata.js'
+import { installDeps, type InstallDepsOptions } from './installDeps.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([

@@ -1,4 +1,4 @@
-import { complete } from './complete'
+import { complete } from './complete.js'
 
 test('complete an option value', async () => {
   const completions = await complete(

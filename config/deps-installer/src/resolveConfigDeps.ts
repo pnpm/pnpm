@@ -5,7 +5,7 @@ import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/npm-resolv
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type ConfigDependencies } from '@pnpm/types'
-import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps'
+import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 
 export type ResolveConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
   configDependencies?: ConfigDependencies

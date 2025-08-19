@@ -6,7 +6,7 @@ import {
   type UnexpectedToken,
   type UnexpectedTokenError,
   parsePropertyPath,
-} from '../src'
+} from '../src/index.js'
 
 test('valid property path', () => {
   expect(Array.from(parsePropertyPath(''))).toStrictEqual([])

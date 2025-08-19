@@ -7,7 +7,7 @@ import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import omit from 'ramda/src/omit'
 import pMapValues from 'p-map-values'
-import { overridePublishConfig } from './overridePublishConfig'
+import { overridePublishConfig } from './overridePublishConfig.js'
 
 const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',

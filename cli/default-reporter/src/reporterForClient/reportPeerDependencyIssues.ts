@@ -2,7 +2,7 @@ import { type PeerDependencyIssuesLog } from '@pnpm/core-loggers'
 import { renderPeerIssues } from '@pnpm/render-peer-issues'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
-import { formatWarn } from './utils/formatWarn'
+import { formatWarn } from './utils/formatWarn.js'
 
 export function reportPeerDependencyIssues (
   log$: {

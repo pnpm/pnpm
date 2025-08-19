@@ -3,7 +3,7 @@ import { type ProjectRootDir } from '@pnpm/types'
 import {
   createWorkspaceSpecs,
   updateToWorkspacePackagesFromManifest,
-} from '../lib/updateWorkspaceDependencies'
+} from '../lib/updateWorkspaceDependencies.js'
 
 const INCLUDE_ALL = {
   dependencies: true,
