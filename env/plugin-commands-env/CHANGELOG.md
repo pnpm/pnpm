@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-env
 
+## 1000.0.34
+
+### Patch Changes
+
+- Updated dependencies [87d3aa8]
+  - @pnpm/fetch@1000.2.4
+  - @pnpm/node.resolver@1001.0.0
+  - @pnpm/cli-utils@1001.1.1
+
 ## 1000.0.33
 
 ### Patch Changes

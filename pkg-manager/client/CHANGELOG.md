@@ -1,5 +1,14 @@
 # @pnpm/client
 
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [87d3aa8]
+  - @pnpm/fetch@1000.2.4
+  - @pnpm/tarball-fetcher@1001.0.12
+  - @pnpm/default-resolver@1002.2.2
+
 ## 1001.0.1
 
 ### Patch Changes
