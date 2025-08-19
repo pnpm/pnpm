@@ -10,9 +10,9 @@ import camelCase from 'camelcase'
 import kebabCase from 'lodash.kebabcase'
 import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
-import { type ConfigCommandOptions } from './ConfigCommandOptions'
-import { isStrictlyKebabCase } from './isStrictlyKebabCase'
-import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm'
+import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
+import { isStrictlyKebabCase } from './isStrictlyKebabCase.js'
+import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
 export async function configSet (opts: ConfigCommandOptions, key: string, valueParam: string | null): Promise<void> {
   let shouldFallbackToNpm = settingShouldFallBackToNpm(key)

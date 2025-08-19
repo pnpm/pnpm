@@ -8,7 +8,7 @@ import {
   install,
 } from '@pnpm/core'
 import { type ProjectRootDir } from '@pnpm/types'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(__dirname)
 

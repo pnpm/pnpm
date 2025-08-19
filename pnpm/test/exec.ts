@@ -1,5 +1,5 @@
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { execPnpmSync } from './utils'
+import { execPnpmSync } from './utils/index.js'
 
 test('exec with executionEnv', async () => {
   prepare({

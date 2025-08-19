@@ -5,7 +5,7 @@ import { createOrConnectStoreController, type CreateStoreControllerOptions } fro
 import { type InstallOptions, mutateModulesInSingleProject } from '@pnpm/core'
 import { type ProjectRootDir } from '@pnpm/types'
 import renderHelp from 'render-help'
-import { cliOptionsTypes } from './install'
+import { cliOptionsTypes } from './install.js'
 
 export const rcOptionsTypes = cliOptionsTypes
 

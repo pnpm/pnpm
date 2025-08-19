@@ -12,7 +12,7 @@ import { assertProject } from '@pnpm/assert-project'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
 import sinon from 'sinon'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(__dirname)
 const withGitProtocolDepFixture = f.find('with-git-protocol-dep')

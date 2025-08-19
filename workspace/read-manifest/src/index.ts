@@ -8,8 +8,8 @@ import {
   assertValidWorkspaceManifestCatalogs,
   type WorkspaceCatalog,
   type WorkspaceNamedCatalogs,
-} from './catalogs'
-import { InvalidWorkspaceManifestError } from './errors/InvalidWorkspaceManifestError'
+} from './catalogs.js'
+import { InvalidWorkspaceManifestError } from './errors/InvalidWorkspaceManifestError.js'
 
 export interface WorkspaceManifest extends PnpmSettings {
   packages: string[]

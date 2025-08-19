@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals'
-import { getSystemNodeVersionNonCached } from '../lib'
+import { getSystemNodeVersionNonCached } from '../lib/index.js'
 import * as execa from 'execa'
 
 jest.mock('execa', () => ({

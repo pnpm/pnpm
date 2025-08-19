@@ -9,7 +9,7 @@ import {
   install,
 } from '@pnpm/core'
 import sinon from 'sinon'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('install with lockfileOnly = true', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })

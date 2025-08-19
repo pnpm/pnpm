@@ -7,7 +7,7 @@ import {
   type SslConfig,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
-import { type OptionsFromRootManifest } from './getOptionsFromRootManifest'
+import { type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 

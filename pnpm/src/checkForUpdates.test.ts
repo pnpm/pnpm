@@ -4,7 +4,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
-import { checkForUpdates } from './checkForUpdates'
+import { checkForUpdates } from './checkForUpdates.js'
 
 jest.mock('@pnpm/core-loggers', () => ({
   updateCheckLogger: { debug: jest.fn() },

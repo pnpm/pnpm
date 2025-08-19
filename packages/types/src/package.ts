@@ -1,4 +1,4 @@
-import { type ExecutionEnv } from './env'
+import { type ExecutionEnv } from './env.js'
 
 export type Dependencies = Record<string, string>
 

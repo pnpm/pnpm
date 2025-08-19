@@ -1,5 +1,5 @@
-import { ParseErrorBase } from './ParseErrorBase'
-import { type TokenBase, type Tokenize } from './types'
+import { ParseErrorBase } from './ParseErrorBase.js'
+import { type TokenBase, type Tokenize } from './types.js'
 
 export interface NumericLiteral extends TokenBase {
   type: 'numeric-literal'

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('setting a custom virtual store directory max length', async () => {
   prepareEmpty()

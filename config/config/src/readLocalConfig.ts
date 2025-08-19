@@ -4,7 +4,7 @@ import camelcaseKeys from 'camelcase-keys'
 import { envReplace } from '@pnpm/config.env-replace'
 import { readIniFile } from 'read-ini-file'
 import { parseField } from '@pnpm/npm-conf/lib/util'
-import { types } from './types'
+import { types } from './types.js'
 
 export type LocalConfig = Record<string, string> & { hoist?: boolean }
 

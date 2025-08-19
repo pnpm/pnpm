@@ -3,10 +3,10 @@ import { type AgentOptions, fetchWithAgent, type RetryTimeoutOptions } from '@pn
 import { type GetAuthHeader } from '@pnpm/fetching-types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { type DependenciesField } from '@pnpm/types'
-import { lockfileToAuditTree } from './lockfileToAuditTree'
-import { type AuditReport } from './types'
+import { lockfileToAuditTree } from './lockfileToAuditTree.js'
+import { type AuditReport } from './types.js'
 
-export * from './types'
+export * from './types.js'
 
 export async function audit (
   lockfile: LockfileObject,

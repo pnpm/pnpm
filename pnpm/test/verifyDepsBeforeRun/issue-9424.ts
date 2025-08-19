@@ -4,7 +4,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import { type WorkspaceState, loadWorkspaceState } from '@pnpm/workspace.state'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm, execPnpmSync } from '../utils'
+import { execPnpm, execPnpmSync } from '../utils/index.js'
 
 test('hoisted node linker and node_modules not exist (#9424)', async () => {
   const config = [

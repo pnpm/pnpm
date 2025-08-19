@@ -12,7 +12,7 @@ import {
   getNodeVersionsBaseDir,
   type NvmNodeCommandOptions,
   prepareExecutionEnv,
-} from '../lib/node'
+} from '../lib/node.js'
 import { tempDir } from '@pnpm/prepare'
 
 const fetchMock = jest.fn(async (url: string) => {

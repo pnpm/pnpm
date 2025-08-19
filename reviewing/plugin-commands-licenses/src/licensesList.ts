@@ -6,8 +6,8 @@ import { getStorePath } from '@pnpm/store-path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { findDependencyLicenses } from '@pnpm/license-scanner'
-import { type LicensesCommandResult } from './LicensesCommandResult'
-import { renderLicences } from './outputRenderer'
+import { type LicensesCommandResult } from './LicensesCommandResult.js'
+import { renderLicences } from './outputRenderer.js'
 
 export type LicensesCommandOptions = {
   compatible?: boolean

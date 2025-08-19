@@ -6,7 +6,7 @@ import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { type DirectoryResolution, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
 import { type DependencyManifest } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
-import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier'
+import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier.js'
 
 export { type WantedLocalDependency }
 

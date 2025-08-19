@@ -732,6 +732,9 @@ catalogs:
     ts-jest:
       specifier: 29.2.3
       version: 29.2.3
+    ts-jest-resolver:
+      specifier: 2.0.1
+      version: 2.0.1
     ts-node:
       specifier: ^10.9.2
       version: 10.9.2
@@ -1124,6 +1127,9 @@ importers:
       '@pnpm/jest-config':
         specifier: workspace:*
         version: 'link:'
+      ts-jest-resolver:
+        specifier: 'catalog:'
+        version: 2.0.1
 
   __utils__/prepare:
     dependencies:
@@ -15355,6 +15361,9 @@ packages:
     peerDependencies:
       typescript: '>=4.2.0'
 
+  ts-jest-resolver@2.0.1:
+    resolution: {integrity: sha512-FolE73BqVZCs8/RbLKxC67iaAtKpBWx7PeLKFW2zJQlOf9j851I7JRxSDenri2NFvVH3QP7v3S8q1AmL24Zb9Q==}
+
   ts-jest@29.2.3:
     resolution: {integrity: sha512-yCcfVdiBFngVz9/keHin9EnsrQtQtEu3nRykNy9RVp+FiPFFbPJ3Sg6Qg4+TkmH0vMP5qsTKgXSsk80HRwvdgQ==}
     engines: {node: ^14.15.0 || ^16.10.0 || ^18.0.0 || >=20.0.0}
@@ -24042,6 +24051,10 @@ snapshots:
   ts-api-utils@1.4.3(typescript@5.5.4):
     dependencies:
       typescript: 5.5.4
+
+  ts-jest-resolver@2.0.1:
+    dependencies:
+      jest-resolve: 29.7.0
 
   ts-jest@29.2.3(@babel/core@7.26.10)(@jest/transform@29.7.0(@babel/types@7.26.10))(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.26.10)(@babel/types@7.26.10))(jest@29.7.0(@babel/types@7.26.10)(@types/node@18.19.34)(ts-node@10.9.2(@types/node@18.19.34)(typescript@5.5.4)))(typescript@5.5.4):
     dependencies:

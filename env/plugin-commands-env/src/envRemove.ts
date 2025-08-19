@@ -7,9 +7,9 @@ import { removeBin } from '@pnpm/remove-bins'
 import rimraf from '@zkochan/rimraf'
 import { existsSync } from 'fs'
 import path from 'path'
-import { getNodeVersion } from './downloadNodeVersion'
-import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
-import { getNodeExecPathAndTargetDir } from './utils'
+import { getNodeVersion } from './downloadNodeVersion.js'
+import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node.js'
+import { getNodeExecPathAndTargetDir } from './utils.js'
 
 export async function envRemove (opts: NvmNodeCommandOptions, params: string[]): Promise<{ exitCode: number }> {
   if (!opts.global) {

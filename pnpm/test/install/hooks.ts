@@ -10,7 +10,7 @@ import {
   addDistTag,
   execPnpm,
   execPnpmSync,
-} from '../utils'
+} from '../utils/index.js'
 
 test('readPackage hook', async () => {
   const project = prepare()

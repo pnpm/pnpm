@@ -42,7 +42,7 @@ import {
   extendRebuildOptions,
   type RebuildOptions,
   type StrictRebuildOptions,
-} from './extendRebuildOptions'
+} from './extendRebuildOptions.js'
 
 export type { RebuildOptions }
 

@@ -1,7 +1,7 @@
 import { type PkgResolutionId, type PkgIdWithPatchHash, type ProjectRootDir } from '@pnpm/types'
-import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
-import { type DependenciesTreeNode } from '../lib/resolveDependencies'
-import { type NodeId } from '../lib/nextNodeId'
+import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers.js'
+import { type DependenciesTreeNode } from '../lib/resolveDependencies.js'
+import { type NodeId } from '../lib/nextNodeId.js'
 
 test('packages are not deduplicated when versions do not match', async () => {
   const fooPkg: PartialResolvedPackage = {

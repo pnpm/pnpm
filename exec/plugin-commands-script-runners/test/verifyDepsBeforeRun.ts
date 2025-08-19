@@ -6,7 +6,7 @@ import { run } from '@pnpm/plugin-commands-script-runners'
 import { prepare } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
 import { prompt } from 'enquirer'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 jest.mock('@pnpm/logger', () => {
   const originalModule = jest.requireActual<object>('@pnpm/logger')

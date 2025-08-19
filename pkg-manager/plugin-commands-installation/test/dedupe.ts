@@ -9,7 +9,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { diff } from 'jest-diff'
 import { sync as readYamlFile } from 'read-yaml-file'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 const f = fixtures(__dirname)
 

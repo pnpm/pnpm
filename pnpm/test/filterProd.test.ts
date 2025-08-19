@@ -1,5 +1,5 @@
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm } from './utils'
+import { execPnpm } from './utils/index.js'
 import {
   preparePackages,
 } from '@pnpm/prepare'

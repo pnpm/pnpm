@@ -81,7 +81,7 @@ import pickBy from 'ramda/src/pickBy'
 import props from 'ramda/src/props'
 import union from 'ramda/src/union'
 import realpathMissing from 'realpath-missing'
-import { linkHoistedModules } from './linkHoistedModules'
+import { linkHoistedModules } from './linkHoistedModules.js'
 import {
   type DirectDependenciesByImporterId,
   type DependenciesGraph,
@@ -89,7 +89,7 @@ import {
   type LockfileToDepGraphOptions,
   lockfileToDepGraph,
 } from '@pnpm/deps.graph-builder'
-import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph'
+import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph.js'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
 
 export type { HoistingLimits }

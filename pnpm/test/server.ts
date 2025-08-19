@@ -19,7 +19,7 @@ import {
   execPnpmSync,
   retryLoadJsonFile,
   spawnPnpm,
-} from './utils'
+} from './utils/index.js'
 
 const skipOnWindows = isWindows() ? test.skip : test
 

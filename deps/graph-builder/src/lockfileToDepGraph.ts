@@ -23,7 +23,7 @@ import * as dp from '@pnpm/dependency-path'
 import pathExists from 'path-exists'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
-import { iteratePkgsForVirtualStore } from './iteratePkgsForVirtualStore'
+import { iteratePkgsForVirtualStore } from './iteratePkgsForVirtualStore.js'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 

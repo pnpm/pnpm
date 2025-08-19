@@ -15,17 +15,17 @@ import {
 import { depPathToFilename, createPeerDepGraphHash, type PeerId } from '@pnpm/dependency-path'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
-import { type NodeId } from './nextNodeId'
+import { type NodeId } from './nextNodeId.js'
 import {
   type ChildrenMap,
   type PeerDependencies,
   type DependenciesTree,
   type DependenciesTreeNode,
   type ResolvedPackage,
-} from './resolveDependencies'
-import { type ResolvedImporters } from './resolveDependencyTree'
-import { mergePeers } from './mergePeers'
-import { dedupeInjectedDeps } from './dedupeInjectedDeps'
+} from './resolveDependencies.js'
+import { type ResolvedImporters } from './resolveDependencyTree.js'
+import { mergePeers } from './mergePeers.js'
+import { dedupeInjectedDeps } from './dedupeInjectedDeps.js'
 
 export interface BaseGenericDependenciesGraphNode {
   // at this point the version is really needed only for logging

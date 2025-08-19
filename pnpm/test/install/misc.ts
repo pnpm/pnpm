@@ -19,7 +19,7 @@ import crossSpawn from 'cross-spawn'
 import {
   execPnpm,
   execPnpmSync,
-} from '../utils'
+} from '../utils/index.js'
 
 const skipOnWindows = isWindows() ? test.skip : test
 const f = fixtures(__dirname)

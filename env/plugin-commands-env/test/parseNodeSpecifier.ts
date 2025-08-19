@@ -1,4 +1,4 @@
-import { isValidVersion, parseNodeSpecifier } from '../lib/parseNodeSpecifier'
+import { isValidVersion, parseNodeSpecifier } from '../lib/parseNodeSpecifier.js'
 
 test.each([
   ['rc/16.0.0-rc.0', '16.0.0-rc.0', 'rc'],

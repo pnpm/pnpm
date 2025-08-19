@@ -13,9 +13,9 @@ import { fastPathTemp as pathTemp } from 'path-temp'
 import pick from 'ramda/src/pick'
 import semver from 'semver'
 import renameOverwrite from 'rename-overwrite'
-import { toRaw } from './toRaw'
-import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange } from './pickPackageFromMeta'
-import { type RegistryPackageSpec } from './parseBareSpecifier'
+import { toRaw } from './toRaw.js'
+import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange } from './pickPackageFromMeta.js'
+import { type RegistryPackageSpec } from './parseBareSpecifier.js'
 
 export interface PackageMeta {
   name: string

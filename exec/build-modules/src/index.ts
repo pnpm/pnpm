@@ -15,7 +15,7 @@ import { type DependencyManifest } from '@pnpm/types'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import pickBy from 'ramda/src/pickBy'
 import runGroups from 'run-groups'
-import { buildSequence, type DependenciesGraph, type DependenciesGraphNode } from './buildSequence'
+import { buildSequence, type DependenciesGraph, type DependenciesGraphNode } from './buildSequence.js'
 
 export type { DepsStateCache }
 

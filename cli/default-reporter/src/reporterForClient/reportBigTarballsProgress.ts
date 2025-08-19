@@ -4,7 +4,7 @@ import { filter, map, startWith } from 'rxjs/operators'
 import prettyBytes from 'pretty-bytes'
 import {
   hlValue,
-} from './outputConstants'
+} from './outputConstants.js'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 const PRETTY_OPTS = {

@@ -6,7 +6,7 @@ import {
   IF_PRESENT_OPTION,
   IF_PRESENT_OPTION_HELP,
   type RunOpts,
-} from './run'
+} from './run.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {

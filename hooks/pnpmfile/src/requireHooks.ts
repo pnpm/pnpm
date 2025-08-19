@@ -5,8 +5,8 @@ import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
 import pathAbsolute from 'path-absolute'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
-import { requirePnpmfile, type Pnpmfile } from './requirePnpmfile'
-import { type HookContext, type Hooks } from './Hooks'
+import { requirePnpmfile, type Pnpmfile } from './requirePnpmfile.js'
+import { type HookContext, type Hooks } from './Hooks.js'
 
 // eslint-disable-next-line
 type Cook<T extends (...args: any[]) => any> = (

@@ -8,7 +8,7 @@ import {
 } from '@pnpm/error'
 import { type FetchFromRegistry, type RetryTimeoutOptions } from '@pnpm/fetching-types'
 import * as retry from '@zkochan/retry'
-import { type PackageMeta } from './pickPackage'
+import { type PackageMeta } from './pickPackage.js'
 
 interface RegistryResponse {
   status: number

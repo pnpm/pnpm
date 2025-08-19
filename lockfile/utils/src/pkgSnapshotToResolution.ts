@@ -4,7 +4,7 @@ import { type Resolution } from '@pnpm/resolver-base'
 import { type Registries } from '@pnpm/types'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
-import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot'
+import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
 
 export function pkgSnapshotToResolution (
   depPath: string,

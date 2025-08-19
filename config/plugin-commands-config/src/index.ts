@@ -1,5 +1,5 @@
-import * as config from './config'
-import * as getCommand from './get'
-import * as setCommand from './set'
+import * as config from './config.js'
+import * as getCommand from './get.js'
+import * as setCommand from './set.js'
 
 export { config, getCommand, setCommand }

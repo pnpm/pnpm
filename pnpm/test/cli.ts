@@ -10,7 +10,7 @@ import {
   execPnpm,
   execPnpmSync,
   execPnpxSync,
-} from './utils'
+} from './utils/index.js'
 
 const f = fixtures(__dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')

@@ -12,9 +12,9 @@ import {
 import semver from 'semver'
 import versionSelectorType from 'version-selector-type'
 import { type PkgResolutionId } from '@pnpm/types'
-import { parseEnvSpecifier } from './parseEnvSpecifier'
-import { getNodeMirror } from './getNodeMirror'
-import { getNodeArtifactAddress } from './getNodeArtifactAddress'
+import { parseEnvSpecifier } from './parseEnvSpecifier.js'
+import { getNodeMirror } from './getNodeMirror.js'
+import { getNodeArtifactAddress } from './getNodeArtifactAddress.js'
 
 export { getNodeMirror, parseEnvSpecifier, getNodeArtifactAddress }
 

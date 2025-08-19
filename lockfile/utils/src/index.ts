@@ -1,11 +1,11 @@
 import { refToRelative } from '@pnpm/dependency-path'
 
-export { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs'
-export { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot'
-export { packageIdFromSnapshot } from './packageIdFromSnapshot'
-export { packageIsIndependent } from './packageIsIndependent'
-export { pkgSnapshotToResolution } from './pkgSnapshotToResolution'
-export { refIsLocalTarball, refIsLocalDirectory } from './refIsLocalTarball'
+export { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs.js'
+export { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
+export { packageIdFromSnapshot } from './packageIdFromSnapshot.js'
+export { packageIsIndependent } from './packageIsIndependent.js'
+export { pkgSnapshotToResolution } from './pkgSnapshotToResolution.js'
+export { refIsLocalTarball, refIsLocalDirectory } from './refIsLocalTarball.js'
 export * from '@pnpm/lockfile.types'
 
 // for backward compatibility

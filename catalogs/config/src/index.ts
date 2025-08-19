@@ -1,1 +1,1 @@
-export { getCatalogsFromWorkspaceManifest } from './getCatalogsFromWorkspaceManifest'
+export { getCatalogsFromWorkspaceManifest } from './getCatalogsFromWorkspaceManifest.js'

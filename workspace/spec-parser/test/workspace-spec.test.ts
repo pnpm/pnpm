@@ -1,4 +1,4 @@
-import { WorkspaceSpec } from '../src/index'
+import { WorkspaceSpec } from '../src/index.js'
 
 test('parse valid workspace spec', () => {
   expect(WorkspaceSpec.parse('workspace:*')).toStrictEqual(new WorkspaceSpec('*'))

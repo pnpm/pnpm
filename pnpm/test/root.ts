@@ -3,7 +3,7 @@ import path from 'path'
 import PATH_NAME from 'path-name'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare'
-import { execPnpmSync } from './utils'
+import { execPnpmSync } from './utils/index.js'
 
 test('pnpm root', async () => {
   tempDir()

@@ -3,8 +3,8 @@ import {
   updateProjectManifestObject,
 } from '@pnpm/manifest-utils'
 import { type ProjectManifest } from '@pnpm/types'
-import { type ResolvedDirectDependency } from './resolveDependencyTree'
-import { type ImporterToResolve } from '.'
+import { type ResolvedDirectDependency } from './resolveDependencyTree.js'
+import { type ImporterToResolve } from './index.js'
 
 export async function updateProjectManifest (
   importer: ImporterToResolve,

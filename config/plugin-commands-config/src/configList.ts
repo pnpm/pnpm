@@ -1,6 +1,6 @@
 import { encode } from 'ini'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
-import { type ConfigCommandOptions } from './ConfigCommandOptions'
+import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
 
 export async function configList (opts: ConfigCommandOptions): Promise<string> {
   const sortedConfig = sortDirectKeys(opts.rawConfig)

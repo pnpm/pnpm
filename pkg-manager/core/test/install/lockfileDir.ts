@@ -7,7 +7,7 @@ import { sync as readYamlFile } from 'read-yaml-file'
 import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
 import { type ProjectRootDir, type DepPath } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(__dirname)
 

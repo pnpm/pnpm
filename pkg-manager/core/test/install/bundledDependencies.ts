@@ -1,7 +1,7 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { addDependenciesToPackage } from '@pnpm/core'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(__dirname)
 

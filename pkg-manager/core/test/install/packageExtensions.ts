@@ -5,7 +5,7 @@ import { hashObject as _hashObject } from '@pnpm/crypto.object-hasher'
 import { type ProjectRootDir, type PackageExtension, type ProjectManifest } from '@pnpm/types'
 import {
   testDefaults,
-} from '../utils'
+} from '../utils/index.js'
 
 function hashObject (obj: Record<string, unknown>): string {
   return `sha256-${_hashObject(obj)}`

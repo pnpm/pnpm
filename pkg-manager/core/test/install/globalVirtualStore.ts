@@ -3,7 +3,7 @@ import path from 'path'
 import { prepareEmpty } from '@pnpm/prepare'
 import { install } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('using a global virtual store', async () => {
   prepareEmpty()

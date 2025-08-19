@@ -11,7 +11,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import execa from 'execa'
 import loadJsonFile from 'load-json-file'
 import sinon from 'sinon'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')

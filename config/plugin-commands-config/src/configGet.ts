@@ -3,10 +3,10 @@ import { encode } from 'ini'
 import { globalWarn } from '@pnpm/logger'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
 import { runNpm } from '@pnpm/run-npm'
-import { type ConfigCommandOptions } from './ConfigCommandOptions'
-import { isStrictlyKebabCase } from './isStrictlyKebabCase'
-import { parseConfigPropertyPath } from './parseConfigPropertyPath'
-import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm'
+import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
+import { isStrictlyKebabCase } from './isStrictlyKebabCase.js'
+import { parseConfigPropertyPath } from './parseConfigPropertyPath.js'
+import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
   if (opts.global && settingShouldFallBackToNpm(key)) {

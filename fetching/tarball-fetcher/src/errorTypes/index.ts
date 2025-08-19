@@ -1,1 +1,1 @@
-export { BadTarballError } from './BadTarballError'
+export { BadTarballError } from './BadTarballError.js'

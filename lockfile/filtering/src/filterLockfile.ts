@@ -1,6 +1,6 @@
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { type DependenciesField, type DepPath, type ProjectId } from '@pnpm/types'
-import { filterLockfileByImporters } from './filterLockfileByImporters'
+import { filterLockfileByImporters } from './filterLockfileByImporters.js'
 
 export function filterLockfile (
   lockfile: LockfileObject,

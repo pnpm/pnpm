@@ -7,7 +7,7 @@ import { sync as readYamlFile } from 'read-yaml-file'
 import { createPeerDepGraphHash } from '@pnpm/dependency-path'
 import { sync as loadJsonFile } from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm } from '../utils'
+import { execPnpm } from '../utils/index.js'
 
 test('deduplicate packages that have peers, when adding new dependency in a workspace', async () => {
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })

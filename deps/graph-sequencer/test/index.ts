@@ -1,4 +1,4 @@
-import { graphSequencer } from '../src'
+import { graphSequencer } from '../src/index.js'
 
 test('graph with three independent self-cycles', () => {
   expect(graphSequencer(new Map([

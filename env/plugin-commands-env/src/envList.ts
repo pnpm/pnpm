@@ -4,8 +4,8 @@ import { createFetchFromRegistry } from '@pnpm/fetch'
 import { resolveNodeVersions, parseEnvSpecifier, getNodeMirror } from '@pnpm/node.resolver'
 import { PnpmError } from '@pnpm/error'
 import semver from 'semver'
-import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
-import { getNodeExecPathAndTargetDir, getNodeExecPathInNodeDir } from './utils'
+import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node.js'
+import { getNodeExecPathAndTargetDir, getNodeExecPathInNodeDir } from './utils.js'
 
 export async function envList (opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
   if (opts.remote) {

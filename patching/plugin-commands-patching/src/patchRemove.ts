@@ -7,7 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import renderHelp from 'render-help'
 import { prompt } from 'enquirer'
 import pick from 'ramda/src/pick'
-import { updatePatchedDependencies } from './updatePatchedDependencies'
+import { updatePatchedDependencies } from './updatePatchedDependencies.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)

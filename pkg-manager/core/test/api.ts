@@ -1,5 +1,5 @@
 import * as pnpm from '@pnpm/core'
-import { testDefaults } from './utils'
+import { testDefaults } from './utils/index.js'
 
 test('API', () => {
   expect(typeof pnpm.install).toBe('function')

@@ -2,7 +2,7 @@
 import { getContext, arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { type ProjectRootDir } from '@pnpm/types'
 import path from 'path'
-import { type GetContextOptions } from '../src'
+import { type GetContextOptions } from '../src/index.js'
 
 const DEFAULT_OPTIONS: GetContextOptions = {
   allProjects: [],

@@ -38,9 +38,9 @@ import {
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { type WorkspaceState, type WorkspaceStateSettings, loadWorkspaceState, updateWorkspaceState } from '@pnpm/workspace.state'
-import { assertLockfilesEqual } from './assertLockfilesEqual'
-import { safeStat, safeStatSync } from './safeStat'
-import { statManifestFile } from './statManifestFile'
+import { assertLockfilesEqual } from './assertLockfilesEqual.js'
+import { safeStat, safeStatSync } from './safeStat.js'
+import { statManifestFile } from './statManifestFile.js'
 
 export type CheckDepsStatusOptions = Pick<Config,
 | 'allProjects'

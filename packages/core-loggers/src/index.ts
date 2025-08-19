@@ -22,9 +22,9 @@ import {
   type StatsLog,
   type SummaryLog,
   type UpdateCheckLog,
-} from './all'
+} from './all.js'
 
-export * from './all'
+export * from './all.js'
 
 export type Log =
   | ContextLog

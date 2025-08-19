@@ -1,7 +1,7 @@
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
-import { statManifestFile } from '../src/statManifestFile'
+import { statManifestFile } from '../src/statManifestFile.js'
 
 test.each(MANIFEST_BASE_NAMES)('load %s', async baseName => {
   prepareEmpty()

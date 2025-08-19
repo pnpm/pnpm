@@ -15,7 +15,7 @@ import {
   type LinkPkgMessage,
   type SymlinkAllModulesMessage,
   type HardLinkDirMessage,
-} from './types'
+} from './types.js'
 
 let workerPool: WorkerPool | undefined
 

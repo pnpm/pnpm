@@ -1,7 +1,7 @@
 import fs from 'fs'
 import { preparePackages } from '@pnpm/prepare'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm } from '../utils'
+import { execPnpm } from '../utils/index.js'
 
 // Covers https://github.com/pnpm/pnpm/issues/8959
 test('restores deleted modules dir of a workspace package', async () => {

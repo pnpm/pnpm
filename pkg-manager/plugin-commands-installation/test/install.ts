@@ -6,7 +6,7 @@ import { add, install } from '@pnpm/plugin-commands-installation'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { sync as loadJsonFile } from 'load-json-file'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 
