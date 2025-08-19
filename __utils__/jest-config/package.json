@@ -10,7 +10,8 @@
     "tree-kill": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/jest-config": "workspace:*"
+    "@pnpm/jest-config": "workspace:*",
+    "ts-jest-resolver": "catalog:"
   },
   "keywords": [
     "pnpm",
