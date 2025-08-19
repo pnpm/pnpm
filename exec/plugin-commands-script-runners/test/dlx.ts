@@ -3,7 +3,7 @@ import execa from 'execa'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
-import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
+import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
 
 jest.mock('execa')
 

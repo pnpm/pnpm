@@ -6,7 +6,7 @@ import { exec } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
 import writeYamlFile from 'write-yaml-file'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 jest.mock('@pnpm/logger', () => {
   const debug = jest.fn()

@@ -1,4 +1,4 @@
-import { type Token, tokenize } from '../../src'
+import { type Token, tokenize } from '../../src/index.js'
 
 test('valid tokens', () => {
   expect(Array.from(tokenize(''))).toStrictEqual([] as Token[])

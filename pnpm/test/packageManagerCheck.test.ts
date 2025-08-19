@@ -1,5 +1,5 @@
 import { prepare } from '@pnpm/prepare'
-import { execPnpmSync } from './utils'
+import { execPnpmSync } from './utils/index.js'
 
 test('install should fail if the used pnpm version does not satisfy the pnpm version specified in engines', async () => {
   prepare({

@@ -4,7 +4,7 @@ import {
   createStreamParser,
 } from '@pnpm/logger'
 import { firstValueFrom } from 'rxjs'
-import { formatWarn } from '../src/reporterForClient/utils/formatWarn'
+import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
 
 test('print warning about request retry', async () => {
   const output$ = toOutput$({

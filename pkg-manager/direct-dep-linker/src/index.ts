@@ -1,1 +1,1 @@
-export * from './linkDirectDeps'
+export * from './linkDirectDeps.js'

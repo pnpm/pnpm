@@ -2,8 +2,8 @@ import path from 'path'
 import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { type ProjectId, type DepPath } from '@pnpm/types'
-import { packageIdFromSnapshot } from './packageIdFromSnapshot'
-import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot'
+import { packageIdFromSnapshot } from './packageIdFromSnapshot.js'
+import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
 
 type GetLocalLocations = (depPath: DepPath, pkgName: string) => string[]
 

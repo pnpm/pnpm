@@ -1,5 +1,5 @@
 import path from 'path'
-import { getPkgInfo } from '../lib/getPkgInfo'
+import { getPkgInfo } from '../lib/getPkgInfo.js'
 
 export const DEFAULT_REGISTRIES = {
   default: 'https://registry.npmjs.org/',

@@ -18,33 +18,33 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
-import { inheritAuthConfig } from './auth'
-import { checkGlobalBinDir } from './checkGlobalBinDir'
-import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions'
-import { getNetworkConfigs } from './getNetworkConfigs'
-import { transformPathKeys } from './transformPath'
-import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
+import { inheritAuthConfig } from './auth.js'
+import { checkGlobalBinDir } from './checkGlobalBinDir.js'
+import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
+import { getNetworkConfigs } from './getNetworkConfigs.js'
+import { transformPathKeys } from './transformPath.js'
+import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import {
   type Config,
   type ConfigWithDeprecatedSettings,
   type UniversalOptions,
   type VerifyDepsBeforeRun,
   type WantedPackageManager,
-} from './Config'
-import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency'
+} from './Config.js'
+import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
-import { types } from './types'
-import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest'
+import { types } from './types.js'
+import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
-} from './overrideSupportedArchitecturesWithCLI'
+} from './overrideSupportedArchitecturesWithCLI.js'
 export { types }
 
-export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
-export * from './readLocalConfig'
-export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency'
+export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+export * from './readLocalConfig.js'
+export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 
 export type { Config, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
 

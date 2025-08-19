@@ -11,7 +11,7 @@ import { sync as readYamlFile } from 'read-yaml-file'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 import symlinkDir from 'symlink-dir'
 
 test('recursive add/remove', async () => {

@@ -8,7 +8,7 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import { sync as loadJsonFile } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('installing with hoisted node-linker', async () => {
   prepareEmpty()

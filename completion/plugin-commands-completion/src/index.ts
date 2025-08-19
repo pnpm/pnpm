@@ -1,2 +1,2 @@
-export * as generateCompletion from './generateCompletion'
-export { createCompletionServer } from './completionServer'
+export * as generateCompletion from './generateCompletion.js'
+export { createCompletionServer } from './completionServer.js'

@@ -4,7 +4,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import symlinkDir from 'symlink-dir'
-import { testDefaults } from './utils'
+import { testDefaults } from './utils/index.js'
 
 const f = fixtures(__dirname)
 

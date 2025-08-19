@@ -1,5 +1,5 @@
 import pick from 'ramda/src/pick'
-import { type WorkspaceState, type WorkspaceStateSettings, type ProjectsList } from './types'
+import { type WorkspaceState, type WorkspaceStateSettings, type ProjectsList } from './types.js'
 
 export interface CreateWorkspaceStateOptions {
   allProjects: ProjectsList

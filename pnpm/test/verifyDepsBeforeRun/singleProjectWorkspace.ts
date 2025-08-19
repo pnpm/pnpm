@@ -3,7 +3,7 @@ import path from 'path'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
-import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
+import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
 

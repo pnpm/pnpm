@@ -4,7 +4,7 @@ import { getIntegrity } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm } from './utils'
+import { execPnpm } from './utils/index.js'
 
 test('patch from configuration dependency is applied', async () => {
   prepare()

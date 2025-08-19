@@ -7,11 +7,11 @@ import { type WorkspacePackages } from '@pnpm/resolver-base'
 import { DEPENDENCIES_FIELDS, type ProjectId } from '@pnpm/types'
 import pEvery from 'p-every'
 import isEmpty from 'ramda/src/isEmpty'
-import { allCatalogsAreUpToDate } from './allCatalogsAreUpToDate'
-import { getWorkspacePackagesByDirectory } from './getWorkspacePackagesByDirectory'
-import { linkedPackagesAreUpToDate } from './linkedPackagesAreUpToDate'
-import { satisfiesPackageManifest } from './satisfiesPackageManifest'
-import { localTarballDepsAreUpToDate } from './localTarballDepsAreUpToDate'
+import { allCatalogsAreUpToDate } from './allCatalogsAreUpToDate.js'
+import { getWorkspacePackagesByDirectory } from './getWorkspacePackagesByDirectory.js'
+import { linkedPackagesAreUpToDate } from './linkedPackagesAreUpToDate.js'
+import { satisfiesPackageManifest } from './satisfiesPackageManifest.js'
+import { localTarballDepsAreUpToDate } from './localTarballDepsAreUpToDate.js'
 
 export async function allProjectsAreUpToDate (
   projects: Array<Pick<ProjectOptions, 'manifest' | 'rootDir'> & { id: ProjectId }>,

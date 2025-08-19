@@ -1,4 +1,4 @@
-import { type CommentSpecifier } from './CommentSpecifier'
+import { type CommentSpecifier } from './CommentSpecifier.js'
 
 export function insertComments (json: string, comments: CommentSpecifier[]): string {
   // We need to reintroduce the comments. So create an index of

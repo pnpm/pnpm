@@ -6,11 +6,11 @@ import {
 } from '@pnpm/resolver-base'
 import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
-import { type ImporterToResolve } from '.'
-import { getWantedDependencies, type WantedDependency } from './getWantedDependencies'
-import { type ImporterToResolveGeneric } from './resolveDependencyTree'
-import { safeIsInnerLink } from './safeIsInnerLink'
-import { validatePeerDependencies } from './validatePeerDependencies'
+import { type ImporterToResolve } from './index.js'
+import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
+import { type ImporterToResolveGeneric } from './resolveDependencyTree.js'
+import { safeIsInnerLink } from './safeIsInnerLink.js'
+import { validatePeerDependencies } from './validatePeerDependencies.js'
 
 export interface ResolveImporter extends ImporterToResolve, ImporterToResolveGeneric<{ isNew?: boolean }> {
   wantedDependencies: Array<WantedDependency & {

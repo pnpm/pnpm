@@ -6,7 +6,7 @@ import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { createPeerDepGraphHash } from '@pnpm/dependency-path'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('auto install non-optional peer dependencies', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })

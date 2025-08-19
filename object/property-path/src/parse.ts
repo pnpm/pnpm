@@ -7,7 +7,7 @@ import {
   type StringLiteral,
   type UnexpectedToken,
   tokenize,
-} from './token'
+} from './token/index.js'
 
 export class UnexpectedTokenError<Token extends ExactToken<string> | UnexpectedToken> extends PnpmError {
   readonly token: Token

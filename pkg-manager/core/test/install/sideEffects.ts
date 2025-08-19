@@ -9,7 +9,7 @@ import { ENGINE_NAME } from '@pnpm/constants'
 import { sync as rimraf } from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 

@@ -1,7 +1,7 @@
 import path from 'path'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
-import { createWorkspaceState } from '../src/createWorkspaceState'
+import { createWorkspaceState } from '../src/createWorkspaceState.js'
 
 test('createWorkspaceState() on empty list', () => {
   prepareEmpty()

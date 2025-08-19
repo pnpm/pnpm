@@ -8,7 +8,7 @@ import equals from 'ramda/src/equals'
 import pickBy from 'ramda/src/pickBy'
 import omit from 'ramda/src/omit'
 import semver from 'semver'
-import { type Diff, diffFlatRecords, isEqual } from './diffFlatRecords'
+import { type Diff, diffFlatRecords, isEqual } from './diffFlatRecords.js'
 
 export function satisfiesPackageManifest (
   opts: {

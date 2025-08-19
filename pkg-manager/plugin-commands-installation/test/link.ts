@@ -9,7 +9,7 @@ import { sync as loadJsonFile } from 'load-json-file'
 import PATH from 'path-name'
 import { sync as readYamlFile } from 'read-yaml-file'
 import writePkg from 'write-pkg'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 import { type PnpmError } from '@pnpm/error'
 import { sync as writeYamlFile } from 'write-yaml-file'
 

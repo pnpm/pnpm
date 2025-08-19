@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import ssri from 'ssri'
 import tempy from 'tempy'
-import { pathTemp, writeBufferToCafs } from '../src/writeBufferToCafs'
+import { pathTemp, writeBufferToCafs } from '../src/writeBufferToCafs.js'
 
 describe('writeBufferToCafs', () => {
   it('should not fail if a file already exists at the temp file location', () => {

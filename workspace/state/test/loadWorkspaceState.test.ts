@@ -3,8 +3,8 @@ import fs from 'fs'
 import { logger } from '@pnpm/logger'
 import { type ProjectRootDir } from '@pnpm/types'
 import { prepareEmpty } from '@pnpm/prepare'
-import { getFilePath } from '../src/filePath'
-import { type WorkspaceState, loadWorkspaceState } from '../src/index'
+import { getFilePath } from '../src/filePath.js'
+import { type WorkspaceState, loadWorkspaceState } from '../src/index.js'
 
 const lastValidatedTimestamp = Date.now()
 

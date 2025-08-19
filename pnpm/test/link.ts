@@ -5,7 +5,7 @@ import { isExecutable } from '@pnpm/assert-project'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm } from './utils'
+import { execPnpm } from './utils/index.js'
 
 const testLinkGlobal = (specifyGlobalOption: boolean) => async () => {
   prepare()

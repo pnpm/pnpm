@@ -12,7 +12,7 @@ import * as dp from '@pnpm/dependency-path'
 import mapValues from 'ramda/src/map'
 import pickBy from 'ramda/src/pickBy'
 import unnest from 'ramda/src/unnest'
-import { filterImporter } from './filterImporter'
+import { filterImporter } from './filterImporter.js'
 
 const lockfileLogger = logger('lockfile')
 

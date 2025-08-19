@@ -1,6 +1,6 @@
 import path from 'path'
-import { type Config } from '../src/Config'
-import { transformPath, transformPathKeys } from '../src/transformPath'
+import { type Config } from '../src/Config.js'
+import { transformPath, transformPathKeys } from '../src/transformPath.js'
 
 describe('transformPath', () => {
   test('replaces starting tilde with homedir', () => {

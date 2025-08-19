@@ -1,5 +1,5 @@
 import { type DependencyManifest } from '@pnpm/types'
-import { getAllDependenciesFromManifest } from './getAllDependenciesFromManifest'
+import { getAllDependenciesFromManifest } from './getAllDependenciesFromManifest.js'
 
 export function getAllUniqueSpecs (manifests: DependencyManifest[]): Record<string, string> {
   const allSpecs: Record<string, string> = {}

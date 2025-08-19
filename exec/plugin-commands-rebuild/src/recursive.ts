@@ -15,7 +15,7 @@ import { createOrConnectStoreController, type CreateStoreControllerOptions } fro
 import { type Project, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
 import mem from 'mem'
 import pLimit from 'p-limit'
-import { rebuildProjects as rebuildAll, type RebuildOptions, rebuildSelectedPkgs } from './implementation'
+import { rebuildProjects as rebuildAll, type RebuildOptions, rebuildSelectedPkgs } from './implementation/index.js'
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'hoistPattern'

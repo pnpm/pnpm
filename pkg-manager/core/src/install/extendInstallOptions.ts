@@ -20,8 +20,8 @@ import {
   type PrepareExecutionEnv,
 } from '@pnpm/types'
 import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
-import { pnpmPkgJson } from '../pnpmPkgJson'
-import { type ReporterFunction } from '../types'
+import { pnpmPkgJson } from '../pnpmPkgJson.js'
+import { type ReporterFunction } from '../types.js'
 import { type PreResolutionHookContext } from '@pnpm/hooks.types'
 
 export interface StrictInstallOptions {

@@ -6,9 +6,9 @@ import { PnpmError } from '@pnpm/error'
 import cmdShim from '@zkochan/cmd-shim'
 import isWindows from 'is-windows'
 import symlinkDir from 'symlink-dir'
-import { type NvmNodeCommandOptions } from './node'
-import { CURRENT_NODE_DIRNAME, getNodeExecPathInBinDir, getNodeExecPathInNodeDir } from './utils'
-import { downloadNodeVersion } from './downloadNodeVersion'
+import { type NvmNodeCommandOptions } from './node.js'
+import { CURRENT_NODE_DIRNAME, getNodeExecPathInBinDir, getNodeExecPathInNodeDir } from './utils.js'
+import { downloadNodeVersion } from './downloadNodeVersion.js'
 
 export async function envUse (opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
   if (!opts.global) {

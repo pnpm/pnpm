@@ -2,7 +2,7 @@ import { type HookLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map } from 'rxjs/operators'
 import chalk from 'chalk'
-import { autozoom } from './utils/zooming'
+import { autozoom } from './utils/zooming.js'
 
 export function reportHooks (
   hook$: Rx.Observable<HookLog>,

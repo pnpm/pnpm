@@ -18,7 +18,7 @@ import loadJsonFile from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import sinon from 'sinon'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('install only the dependencies of the specified importer', async () => {
   const projects = preparePackages([

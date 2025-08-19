@@ -25,8 +25,8 @@ import {
   DEFAULT_COMPARATORS,
   NAME_COMPARATOR,
   type OutdatedWithVersionDiff,
-} from './utils'
-import { outdatedRecursive } from './recursive'
+} from './utils.js'
+import { outdatedRecursive } from './recursive.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {

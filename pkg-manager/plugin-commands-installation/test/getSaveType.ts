@@ -1,4 +1,4 @@
-import { getSaveType } from '../lib/getSaveType'
+import { getSaveType } from '../lib/getSaveType.js'
 
 test('getSaveType()', () => {
   expect(getSaveType({ saveDev: true })).toEqual('devDependencies')

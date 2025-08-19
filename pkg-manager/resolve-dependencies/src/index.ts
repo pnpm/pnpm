@@ -28,10 +28,10 @@ import {
 import difference from 'ramda/src/difference'
 import zipWith from 'ramda/src/zipWith'
 import isSubdir from 'is-subdir'
-import { getWantedDependencies, type WantedDependency } from './getWantedDependencies'
-import { depPathToRef } from './depPathToRef'
-import { type NodeId } from './nextNodeId'
-import { createNodeIdForLinkedLocalPkg, type UpdateMatchingFunction } from './resolveDependencies'
+import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
+import { depPathToRef } from './depPathToRef.js'
+import { type NodeId } from './nextNodeId.js'
+import { createNodeIdForLinkedLocalPkg, type UpdateMatchingFunction } from './resolveDependencies.js'
 import {
   type Importer,
   type LinkedDependency,
@@ -39,17 +39,17 @@ import {
   type ResolvedDirectDependency,
   type ResolvedPackage,
   resolveDependencyTree,
-} from './resolveDependencyTree'
+} from './resolveDependencyTree.js'
 import {
   type DependenciesByProjectId,
   resolvePeers,
   type GenericDependenciesGraphWithResolvedChildren,
   type GenericDependenciesGraphNodeWithResolvedChildren,
-} from './resolvePeers'
-import { toResolveImporter } from './toResolveImporter'
-import { updateLockfile } from './updateLockfile'
-import { updateProjectManifest } from './updateProjectManifest'
-import { getCatalogSnapshots } from './getCatalogSnapshots'
+} from './resolvePeers.js'
+import { toResolveImporter } from './toResolveImporter.js'
+import { updateLockfile } from './updateLockfile.js'
+import { updateProjectManifest } from './updateProjectManifest.js'
+import { getCatalogSnapshots } from './getCatalogSnapshots.js'
 
 export type DependenciesGraph = GenericDependenciesGraphWithResolvedChildren<ResolvedPackage>
 

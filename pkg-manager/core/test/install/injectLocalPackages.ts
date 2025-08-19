@@ -6,7 +6,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { sync as writeJsonFile } from 'write-json-file'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('inject local packages', async () => {
   const project1Manifest = {

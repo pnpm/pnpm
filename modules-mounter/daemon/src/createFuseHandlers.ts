@@ -9,8 +9,8 @@ import { type DepPath } from '@pnpm/types'
 import * as schemas from 'hyperdrive-schemas'
 import loadJsonFile from 'load-json-file'
 import Fuse from 'fuse-native'
-import * as cafsExplorer from './cafsExplorer'
-import { makeVirtualNodeModules } from './makeVirtualNodeModules'
+import * as cafsExplorer from './cafsExplorer.js'
+import { makeVirtualNodeModules } from './makeVirtualNodeModules.js'
 
 const TIME = new Date()
 const STAT_DEFAULT = {

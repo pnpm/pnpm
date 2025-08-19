@@ -7,8 +7,8 @@ import difference from 'ramda/src/difference'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
 import * as micromatch from 'micromatch'
-import { getChangedPackages } from './getChangedPackages'
-import { parsePackageSelector, type PackageSelector } from './parsePackageSelector'
+import { getChangedPackages } from './getChangedPackages.js'
+import { parsePackageSelector, type PackageSelector } from './parsePackageSelector.js'
 
 export { parsePackageSelector, type PackageSelector }
 

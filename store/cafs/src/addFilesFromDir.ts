@@ -8,7 +8,7 @@ import {
 } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { type DependencyManifest } from '@pnpm/types'
-import { parseJsonBufferSync } from './parseJson'
+import { parseJsonBufferSync } from './parseJson.js'
 
 export function addFilesFromDir (
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,

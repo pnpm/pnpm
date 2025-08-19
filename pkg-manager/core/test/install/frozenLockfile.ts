@@ -8,7 +8,7 @@ import {
 } from '@pnpm/core'
 import { type ProjectRootDir } from '@pnpm/types'
 import sinon from 'sinon'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test(`frozen-lockfile: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async () => {
   prepareEmpty()

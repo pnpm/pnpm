@@ -53,9 +53,9 @@ const argv = process.argv.slice(2)
 })()
 
 async function runPnpm (): Promise<void> {
-  const { errorHandler } = await import('./errorHandler')
+  const { errorHandler } = await import('./errorHandler.js')
   try {
-    const { main } = await import('./main')
+    const { main } = await import('./main.js')
     await main(argv)
   } catch (err: any) { // eslint-disable-line
     await errorHandler(err)
@@ -63,7 +63,7 @@ async function runPnpm (): Promise<void> {
 }
 
 async function passThruToNpm (): Promise<void> {
-  const { runNpm } = await import('./runNpm')
+  const { runNpm } = await import('./runNpm.js')
   const { status } = await runNpm(argv)
   process.exit(status!)
 }

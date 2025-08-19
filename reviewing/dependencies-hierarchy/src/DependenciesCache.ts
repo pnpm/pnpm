@@ -1,5 +1,5 @@
-import { type PackageNode } from './PackageNode'
-import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId'
+import { type PackageNode } from './PackageNode.js'
+import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId.js'
 
 export interface GetDependenciesCacheEntryArgs {
   readonly parentId: TreeNodeId

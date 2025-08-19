@@ -17,7 +17,7 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeJsonFile } from 'write-json-file'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(__dirname)
 

@@ -7,7 +7,7 @@ import {
   mutateModulesInSingleProject,
 } from '@pnpm/core'
 import { type ProjectRootDir } from '@pnpm/types'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('the modules cache is pruned when it expires', async () => {
   const project = prepareEmpty()

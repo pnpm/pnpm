@@ -3,7 +3,7 @@ import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm } from './utils'
+import { execPnpm } from './utils/index.js'
 
 const f = fixtures(__dirname)
 

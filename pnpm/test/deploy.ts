@@ -3,7 +3,7 @@ import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { sync as loadJsonFile } from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm } from './utils'
+import { execPnpm } from './utils/index.js'
 
 // Covers https://github.com/pnpm/pnpm/issues/9550
 // This test is currently disabled because of https://github.com/pnpm/pnpm/issues/9596

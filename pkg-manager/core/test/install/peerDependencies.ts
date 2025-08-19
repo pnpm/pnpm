@@ -20,7 +20,7 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import sinon from 'sinon'
 import deepRequireCwd from 'deep-require-cwd'
 import { createPeerDepGraphHash, depPathToFilename } from '@pnpm/dependency-path'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(__dirname)
 

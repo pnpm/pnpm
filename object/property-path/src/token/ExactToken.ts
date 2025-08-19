@@ -1,4 +1,4 @@
-import { type TokenBase, type Tokenize } from './types'
+import { type TokenBase, type Tokenize } from './types.js'
 
 export interface ExactToken<Content extends string> extends TokenBase {
   type: 'exact'

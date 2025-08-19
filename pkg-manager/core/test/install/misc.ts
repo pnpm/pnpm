@@ -27,7 +27,7 @@ import semver from 'semver'
 import sinon from 'sinon'
 import deepRequireCwd from 'deep-require-cwd'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(__dirname)
 const IS_WINDOWS = isWindows()

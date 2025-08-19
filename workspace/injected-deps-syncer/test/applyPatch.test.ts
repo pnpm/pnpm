@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
-import { type DirDiff, DIR, applyPatch } from '../src/DirPatcher'
+import { type DirDiff, DIR, applyPatch } from '../src/DirPatcher.js'
 
 const originalRm = fs.promises.rm
 const originalMkdir = fs.promises.mkdir

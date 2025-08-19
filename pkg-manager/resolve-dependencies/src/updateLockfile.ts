@@ -11,9 +11,9 @@ import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { type KeyValuePair } from 'ramda'
 import partition from 'ramda/src/partition'
-import { depPathToRef } from './depPathToRef'
-import { type ResolvedPackage } from './resolveDependencies'
-import { type DependenciesGraph } from '.'
+import { depPathToRef } from './depPathToRef.js'
+import { type ResolvedPackage } from './resolveDependencies.js'
+import { type DependenciesGraph } from './index.js'
 
 export function updateLockfile (
   { dependenciesGraph, lockfile, prefix, registries, lockfileIncludeTarballUrl }: {

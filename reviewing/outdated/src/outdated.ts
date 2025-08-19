@@ -30,7 +30,7 @@ import { createMatcher } from '@pnpm/matcher'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import { parseOverrides } from '@pnpm/parse-overrides'
 
-export * from './createManifestGetter'
+export * from './createManifestGetter.js'
 
 export type GetLatestManifestFunction = (packageName: string, rangeOrTag: string) => Promise<PackageManifest | null>
 

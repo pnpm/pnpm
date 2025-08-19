@@ -5,9 +5,9 @@ import tabtab from '@pnpm/tabtab'
 import {
   currentTypedWordType,
   getLastOption,
-} from './getOptionType'
+} from './getOptionType.js'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
-import { complete } from './complete'
+import { complete } from './complete.js'
 
 export function createCompletionServer (
   opts: {

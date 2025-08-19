@@ -21,7 +21,7 @@ import {
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import existsSymlink from 'exists-link'
-import { testDefaults } from './utils'
+import { testDefaults } from './utils/index.js'
 
 const f = fixtures(__dirname)
 

@@ -6,7 +6,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT, getIntegrity } from '@pnpm/registry-mock'
 import loadJsonFile from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm, execPnpmSync } from './utils'
+import { execPnpm, execPnpmSync } from './utils/index.js'
 
 test('readPackage hook in single project doesn\'t modify manifest', async () => {
   const project = prepare()

@@ -1,3 +1,3 @@
-export * from './token'
-export * from './parse'
-export * from './get'
+export * from './token/index.js'
+export * from './parse.js'
+export * from './get.js'

@@ -23,8 +23,8 @@ import {
   renderLatest,
   renderPackageName,
   toOutdatedWithVersionDiff,
-} from './outdated'
-import { DEFAULT_COMPARATORS, type OutdatedWithVersionDiff } from './utils'
+} from './outdated.js'
+import { DEFAULT_COMPARATORS, type OutdatedWithVersionDiff } from './utils.js'
 
 const DEP_PRIORITY: Record<DependenciesField, number> = {
   dependencies: 1,

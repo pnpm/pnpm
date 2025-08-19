@@ -7,7 +7,7 @@ import { readModulesManifest } from '@pnpm/modules-yaml'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { type BaseManifest } from '@pnpm/types'
-import { execPnpm, execPnpmSync } from './utils'
+import { execPnpm, execPnpmSync } from './utils/index.js'
 
 let registries: Record<string, string>
 

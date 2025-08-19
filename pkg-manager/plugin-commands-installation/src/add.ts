@@ -7,9 +7,9 @@ import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { getFetchFullMetadata } from './getFetchFullMetadata'
-import { type InstallCommandOptions } from './install'
-import { installDeps } from './installDeps'
+import { getFetchFullMetadata } from './getFetchFullMetadata.js'
+import { type InstallCommandOptions } from './install.js'
+import { installDeps } from './installDeps.js'
 import { writeSettings } from '@pnpm/config.config-writer'
 
 export const shorthands: Record<string, string> = {

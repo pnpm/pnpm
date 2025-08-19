@@ -17,9 +17,9 @@ import { logger } from '@pnpm/logger'
 import pick from 'ramda/src/pick'
 import partition from 'ramda/src/partition'
 import renderHelp from 'render-help'
-import { createProjectManifestWriter } from './createProjectManifestWriter'
-import { getSaveType } from './getSaveType'
-import * as install from './install'
+import { createProjectManifestWriter } from './createProjectManifestWriter.js'
+import { getSaveType } from './getSaveType.js'
+import * as install from './install.js'
 import normalize from 'normalize-path'
 
 // @ts-expect-error
