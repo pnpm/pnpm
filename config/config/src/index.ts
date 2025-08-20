@@ -377,7 +377,10 @@ export async function getConfig (opts: {
         for (const [key, value] of Object.entries(newSettings)) {
           // @ts-expect-error
           pnpmConfig[key] = value
-          pnpmConfig.rawConfig[kebabCase(key)] = value
+          const kebabKey = kebabCase(key)
+          if (kebabKey in rcOptionsTypes) {
+            pnpmConfig.rawConfig[kebabCase(key)] = value
+          }
         }
         pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
       }
