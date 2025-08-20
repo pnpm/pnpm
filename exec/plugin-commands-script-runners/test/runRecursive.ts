@@ -8,7 +8,7 @@ import { type PnpmError } from '@pnpm/error'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import execa from 'execa'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
+import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 

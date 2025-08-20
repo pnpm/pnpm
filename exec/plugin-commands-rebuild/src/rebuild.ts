@@ -12,8 +12,8 @@ import renderHelp from 'render-help'
 import {
   rebuildProjects,
   rebuildSelectedPkgs,
-} from './implementation'
-import { recursiveRebuild } from './recursive'
+} from './implementation/index.js'
+import { recursiveRebuild } from './recursive.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {

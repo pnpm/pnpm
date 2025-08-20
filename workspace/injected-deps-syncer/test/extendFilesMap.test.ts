@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { prepareEmpty } from '@pnpm/prepare'
-import { type InodeMap, type ExtendFilesMapStats, DIR, extendFilesMap } from '../src/DirPatcher'
+import { type InodeMap, type ExtendFilesMapStats, DIR, extendFilesMap } from '../src/DirPatcher.js'
 
 const originalStat = fs.promises.stat
 

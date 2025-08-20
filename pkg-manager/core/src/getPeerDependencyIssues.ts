@@ -5,7 +5,7 @@ import { getContext, type GetContextOptions, type ProjectOptions } from '@pnpm/g
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { parseOverrides } from '@pnpm/parse-overrides'
-import { type InstallOptions } from './install/extendInstallOptions'
+import { type InstallOptions } from './install/extendInstallOptions.js'
 
 export type ListMissingPeersOptions = Partial<GetContextOptions>
 & Pick<InstallOptions, 'hooks'

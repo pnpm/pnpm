@@ -24,7 +24,7 @@ import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import sinon from 'sinon'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { testDefaults } from './utils'
+import { testDefaults } from './utils/index.js'
 
 const f = fixtures(__dirname)
 

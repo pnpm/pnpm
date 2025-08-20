@@ -43,13 +43,14 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@zkochan/rimraf": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

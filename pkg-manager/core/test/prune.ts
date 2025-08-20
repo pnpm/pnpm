@@ -10,7 +10,7 @@ import {
 import { type ProjectRootDir } from '@pnpm/types'
 import sinon from 'sinon'
 import symlinkDir from 'symlink-dir'
-import { testDefaults } from './utils'
+import { testDefaults } from './utils/index.js'
 
 const f = fixtures(__dirname)
 

@@ -5,7 +5,7 @@ import {
 } from '@pnpm/core'
 import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('spec not specified in package.json.dependencies', async () => {
   prepareEmpty()

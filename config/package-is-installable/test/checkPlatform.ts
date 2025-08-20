@@ -1,9 +1,11 @@
-import { checkPlatform } from '../lib/checkPlatform'
+import { jest } from '@jest/globals'
+import type * as DetectLibc from 'detect-libc'
+import { checkPlatform } from '../lib/checkPlatform.js'
 
 const packageId = 'registry.npmjs.org/foo/1.0.0'
 
 jest.mock('detect-libc', () => {
-  const original = jest.requireActual('detect-libc')
+  const original = jest.requireActual<typeof DetectLibc>('detect-libc')
   return {
     ...original,
     familySync: () => 'musl',

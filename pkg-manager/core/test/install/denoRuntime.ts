@@ -4,7 +4,7 @@ import { addDependenciesToPackage, install } from '@pnpm/core'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 const RESOLUTIONS = [
   {

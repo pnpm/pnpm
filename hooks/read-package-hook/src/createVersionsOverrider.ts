@@ -5,7 +5,7 @@ import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@
 import { type PackageSelector, type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
 import { isValidPeerRange } from '@pnpm/semver.peer-range'
 import normalizePath from 'normalize-path'
-import { isIntersectingRange } from './isIntersectingRange'
+import { isIntersectingRange } from './isIntersectingRange.js'
 
 export type VersionOverrideWithoutRawSelector = Omit<VersionOverrideBase, 'selector'>
 

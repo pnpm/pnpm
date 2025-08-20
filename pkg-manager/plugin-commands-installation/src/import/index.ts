@@ -22,8 +22,8 @@ import renderHelp from 'render-help'
 import { parse as parseYarnLock, type LockFileObject } from '@yarnpkg/lockfile'
 import * as structUtils from '@yarnpkg/core/structUtils'
 import { parseSyml } from '@yarnpkg/parsers'
-import { recursive } from '../recursive'
-import { yarnLockFileKeyNormalizer } from './yarnUtil'
+import { recursive } from '../recursive.js'
+import { yarnLockFileKeyNormalizer } from './yarnUtil.js'
 
 interface NpmPackageLock {
   dependencies: LockedPackagesMap

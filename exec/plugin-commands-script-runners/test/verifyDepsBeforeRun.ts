@@ -4,11 +4,12 @@ import { globalWarn } from '@pnpm/logger'
 import { type VerifyDepsBeforeRun } from '@pnpm/config'
 import { run } from '@pnpm/plugin-commands-script-runners'
 import { prepare } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import { prompt } from 'enquirer'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual('@pnpm/logger')
+  const originalModule = jest.requireActual<object>('@pnpm/logger')
   return {
     ...originalModule,
     globalWarn: jest.fn(),
@@ -80,7 +81,7 @@ test('prompt the user if verifyDepsBeforeRun is set to prompt', async () => {
   prepare(rootProjectManifest)
 
   // Mock the user confirming the prompt
-  ;(prompt as jest.Mock).mockResolvedValue({ runInstall: true })
+  jest.mocked(prompt).mockResolvedValue({ runInstall: true })
 
   await runTest('prompt')
 

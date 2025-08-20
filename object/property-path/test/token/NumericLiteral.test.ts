@@ -1,4 +1,4 @@
-import { type NumericLiteral, parseNumericLiteral } from '../../src'
+import { type NumericLiteral, parseNumericLiteral } from '../../src/index.js'
 
 test('not a numeric literal', () => {
   expect(parseNumericLiteral('')).toBeUndefined()

@@ -5,7 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import { type PackageManifest } from '@pnpm/types'
 import chalk from 'chalk'
-import { type Hooks } from './Hooks'
+import { type Hooks } from './Hooks.js'
 
 export class BadReadPackageHookError extends PnpmError {
   public readonly pnpmfile: string

@@ -4,11 +4,12 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { update, install } from '@pnpm/plugin-commands-installation'
 import * as enquirer from 'enquirer'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { jest } from '@jest/globals'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
 // eslint-disable-next-line
-const prompt = enquirer.prompt as any as jest.Mock<any, any, any>
+const prompt = jest.mocked(enquirer.prompt)
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 

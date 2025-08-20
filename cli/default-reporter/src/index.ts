@@ -4,12 +4,12 @@ import { type LogLevel, type StreamParser } from '@pnpm/logger'
 import * as Rx from 'rxjs'
 import { filter, map, mergeAll } from 'rxjs/operators'
 import createDiffer from 'ansi-diff'
-import { EOL } from './constants'
-import { mergeOutputs } from './mergeOutputs'
-import { reporterForClient } from './reporterForClient'
-import { formatWarn } from './reporterForClient/utils/formatWarn'
-import { reporterForServer } from './reporterForServer'
-import { type FilterPkgsDiff } from './reporterForClient/reportSummary'
+import { EOL } from './constants.js'
+import { mergeOutputs } from './mergeOutputs.js'
+import { reporterForClient } from './reporterForClient/index.js'
+import { formatWarn } from './reporterForClient/utils/formatWarn.js'
+import { reporterForServer } from './reporterForServer.js'
+import { type FilterPkgsDiff } from './reporterForClient/reportSummary.js'
 
 export { formatWarn }
 

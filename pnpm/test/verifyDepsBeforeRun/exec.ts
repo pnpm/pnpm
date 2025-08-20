@@ -4,7 +4,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm, execPnpmSync } from '../utils'
+import { execPnpm, execPnpmSync } from '../utils/index.js'
 
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
 

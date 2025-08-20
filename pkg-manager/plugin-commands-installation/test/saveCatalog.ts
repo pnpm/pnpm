@@ -6,7 +6,7 @@ import { addDistTag } from '@pnpm/registry-mock'
 import { type LockfileFile } from '@pnpm/lockfile.types'
 import { sync as loadJsonFile } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 // This must be a function because some of its values depend on CWD
 const createOptions = (saveCatalogName = 'default'): add.AddCommandOptions => ({

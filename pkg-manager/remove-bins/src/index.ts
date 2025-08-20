@@ -1,4 +1,4 @@
-import { removeBin, removeBinsOfDependency } from './removeBins'
+import { removeBin, removeBinsOfDependency } from './removeBins.js'
 
 export {
   removeBin,

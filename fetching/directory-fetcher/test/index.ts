@@ -6,6 +6,7 @@ import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import { debug } from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
 import { sync as rimraf } from '@zkochan/rimraf'
+import { jest } from '@jest/globals'
 
 const f = fixtures(__dirname)
 jest.mock('@pnpm/logger', () => {

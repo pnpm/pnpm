@@ -1,4 +1,4 @@
-import { type config } from '../../src'
+import { type config } from '../../src/index.js'
 
 export function getOutputString (result: config.ConfigHandlerResult): string {
   if (result == null) throw new Error('output is null or undefined')

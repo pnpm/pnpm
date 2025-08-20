@@ -43,6 +43,7 @@
     "detect-libc": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/prepare": "workspace:*",
@@ -51,7 +52,7 @@
     "node-fetch": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

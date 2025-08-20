@@ -26,10 +26,10 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import isSubdir from 'is-subdir'
-import { IgnoredBuildsError } from './errors'
-import { getPinnedVersion } from './getPinnedVersion'
-import { getSaveType } from './getSaveType'
-import { getNodeExecPath } from './nodeExecPath'
+import { IgnoredBuildsError } from './errors.js'
+import { getPinnedVersion } from './getPinnedVersion.js'
+import { getSaveType } from './getSaveType.js'
+import { getNodeExecPath } from './nodeExecPath.js'
 import {
   type CommandFullName,
   type RecursiveOptions,
@@ -38,8 +38,8 @@ import {
   matchDependencies,
   makeIgnorePatterns,
   recursive,
-} from './recursive'
-import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
+} from './recursive.js'
+import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -54,6 +54,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'bin'
 | 'catalogs'
 | 'catalogMode'
+| 'cleanupUnusedCatalogs'
 | 'cliOptions'
 | 'dedupePeerDependents'
 | 'depth'
@@ -321,6 +322,8 @@ when running add/update with the --workspace option')
         writeProjectManifest(updatedProject.manifest),
         updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
           updatedCatalogs,
+          cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+          allProjects: opts.allProjects,
         }),
       ])
     }
@@ -346,6 +349,8 @@ when running add/update with the --workspace option')
       writeProjectManifest(updatedManifest),
       updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
         updatedCatalogs,
+        cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+        allProjects,
       }),
     ])
   }

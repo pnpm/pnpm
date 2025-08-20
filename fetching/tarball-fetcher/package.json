@@ -52,6 +52,7 @@
     "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/fetch": "workspace:*",
@@ -68,7 +69,7 @@
     "tempy": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

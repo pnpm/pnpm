@@ -8,7 +8,7 @@ import { type Modules } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
 import writePkg from 'write-pkg'
-import isExecutable from './isExecutable'
+import isExecutable from './isExecutable.js'
 
 export { isExecutable, type Modules }
 

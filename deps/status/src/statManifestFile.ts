@@ -1,7 +1,7 @@
 import type fs from 'fs'
 import path from 'path'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
-import { safeStat } from './safeStat'
+import { safeStat } from './safeStat.js'
 
 export async function statManifestFile (projectRootDir: string): Promise<fs.Stats | undefined> {
   const attempts = await Promise.all(MANIFEST_BASE_NAMES.map((baseName) => {

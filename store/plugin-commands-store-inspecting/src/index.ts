@@ -1,5 +1,5 @@
-import * as catIndex from './catIndex'
-import * as catFile from './catFile'
-import * as findHash from './findHash'
+import * as catIndex from './catIndex.js'
+import * as catFile from './catFile.js'
+import * as findHash from './findHash.js'
 
 export { catIndex, catFile, findHash }

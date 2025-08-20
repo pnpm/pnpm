@@ -1,3 +1,3 @@
-import * as server from './server'
+import * as server from './server.js'
 
 export { server }

@@ -18,10 +18,10 @@ import pick from 'ramda/src/pick'
 import pluck from 'ramda/src/pluck'
 import unnest from 'ramda/src/unnest'
 import renderHelp from 'render-help'
-import { type InstallCommandOptions } from '../install'
-import { installDeps } from '../installDeps'
-import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices'
-import { parseUpdateParam } from '../recursive'
+import { type InstallCommandOptions } from '../install.js'
+import { installDeps } from '../installDeps.js'
+import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices.js'
+import { parseUpdateParam } from '../recursive.js'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',

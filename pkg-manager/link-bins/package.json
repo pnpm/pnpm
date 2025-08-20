@@ -56,6 +56,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
@@ -68,7 +69,7 @@
     "tempy": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

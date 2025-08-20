@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import tempy from 'tempy'
-import { optimisticRenameOverwrite } from '../src/writeBufferToCafs'
+import { optimisticRenameOverwrite } from '../src/writeBufferToCafs.js'
 
 test("optimisticRenameOverwrite() doesn't crash if target file exists", () => {
   const tempDir = tempy.directory()

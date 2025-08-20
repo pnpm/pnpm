@@ -73,6 +73,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/env.system-node-version": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/logger": "workspace:*",
@@ -88,7 +89,7 @@
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

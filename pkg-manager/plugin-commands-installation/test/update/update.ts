@@ -5,7 +5,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
-import { DEFAULT_OPTS } from '../utils'
+import { DEFAULT_OPTS } from '../utils/index.js'
 
 test('update with "*" pattern', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })

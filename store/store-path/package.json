@@ -41,6 +41,7 @@
     "touch": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/store-path": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/node": "catalog:",
@@ -50,7 +51,7 @@
     "rimraf": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

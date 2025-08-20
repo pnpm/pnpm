@@ -1,4 +1,4 @@
-import { hoistPeers, getHoistableOptionalPeers } from '../lib/hoistPeers'
+import { hoistPeers, getHoistableOptionalPeers } from '../lib/hoistPeers.js'
 
 test('hoistPeers picks an already available prerelease version', () => {
   expect(hoistPeers({

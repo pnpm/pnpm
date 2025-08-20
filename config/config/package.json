@@ -66,6 +66,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
@@ -76,7 +77,7 @@
     "symlink-dir": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

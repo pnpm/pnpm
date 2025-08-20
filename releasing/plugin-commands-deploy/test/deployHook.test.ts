@@ -1,4 +1,4 @@
-import { deployHook } from '../src/deployHook'
+import { deployHook } from '../src/deployHook.js'
 
 test('deployHook()', () => {
   expect(deployHook({

@@ -1,6 +1,6 @@
 import { type PreferredVersions } from '@pnpm/resolver-base'
 import semver from 'semver'
-import { type PkgAddressOrLink } from './resolveDependencies'
+import { type PkgAddressOrLink } from './resolveDependencies.js'
 
 export function hoistPeers (
   opts: {

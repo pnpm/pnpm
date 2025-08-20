@@ -4,7 +4,7 @@ import { type PlatformAssetTarget } from '@pnpm/resolver-base'
 
 export type { PatchFile, ProjectId }
 
-export * from './lockfileFileTypes'
+export * from './lockfileFileTypes.js'
 
 export interface LockfileSettings {
   autoInstallPeers?: boolean

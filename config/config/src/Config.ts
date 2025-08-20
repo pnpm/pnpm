@@ -7,7 +7,7 @@ import {
   type SslConfig,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
-import { type OptionsFromRootManifest } from './getOptionsFromRootManifest'
+import { type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 
@@ -152,6 +152,7 @@ export interface Config extends OptionsFromRootManifest {
   workspacePackagePatterns?: string[]
   catalogs?: Catalogs
   catalogMode?: 'strict' | 'prefer' | 'manual'
+  cleanupUnusedCatalogs?: boolean
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'

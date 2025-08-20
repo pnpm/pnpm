@@ -10,7 +10,7 @@ import {
   mutateModulesInSingleProject,
 } from '@pnpm/core'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { testDefaults } from './utils'
+import { testDefaults } from './utils/index.js'
 
 test('installation breaks if the lockfile contains the wrong checksum', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
@@ -34,7 +34,7 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
     manifest,
     mutation: 'install',
     rootDir: process.cwd() as ProjectRootDir,
-  }, testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))).rejects.toThrowError(/Got unexpected checksum for/)
+  }, testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))).rejects.toThrow(/Got unexpected checksum for/)
 
   await mutateModulesInSingleProject({
     manifest,
@@ -81,7 +81,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
       mutation: 'install',
       rootDir: process.cwd() as ProjectRootDir,
     }, testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))
-  ).rejects.toThrowError(/Got unexpected checksum/)
+  ).rejects.toThrow(/Got unexpected checksum/)
 
   await mutateModulesInSingleProject({
     manifest,

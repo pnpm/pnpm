@@ -9,7 +9,7 @@ import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { linkBins } from '@pnpm/link-bins'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { installPnpmToTools } from './installPnpmToTools'
+import { installPnpmToTools } from './installPnpmToTools.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)

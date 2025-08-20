@@ -6,6 +6,6 @@ export {
   type PatchGroupRangeItem,
   type PatchGroupRecord,
 } from '@pnpm/patching.types'
-export { groupPatchedDependencies } from './groupPatchedDependencies'
-export { getPatchInfo } from './getPatchInfo'
-export { type VerifyPatchesOptions, verifyPatches } from './verifyPatches'
+export { groupPatchedDependencies } from './groupPatchedDependencies.js'
+export { getPatchInfo } from './getPatchInfo.js'
+export { type VerifyPatchesOptions, verifyPatches } from './verifyPatches.js'

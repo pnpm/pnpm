@@ -1,6 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { setup } from '@pnpm/plugin-commands-setup'
 import { addDirToEnvPath, type PathExtenderReport } from '@pnpm/os.env.path-extender'
+import { jest } from '@jest/globals'
 
 jest.mock('@pnpm/os.env.path-extender', () => ({
   addDirToEnvPath: jest.fn(),
@@ -20,7 +21,7 @@ jest.mock('fs', () => {
 })
 
 test('setup makes no changes', async () => {
-  (addDirToEnvPath as jest.Mock).mockReturnValue(Promise.resolve<PathExtenderReport>({
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
     oldSettings: 'PNPM_HOME=dir',
     newSettings: 'PNPM_HOME=dir',
   }))
@@ -29,7 +30,7 @@ test('setup makes no changes', async () => {
 })
 
 test('setup makes changes on POSIX', async () => {
-  (addDirToEnvPath as jest.Mock).mockReturnValue(Promise.resolve<PathExtenderReport>({
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
     configFile: {
       changeType: 'created',
       path: '~/.bashrc',
@@ -49,7 +50,7 @@ source ~/.bashrc
 })
 
 test('setup makes changes on Windows', async () => {
-  (addDirToEnvPath as jest.Mock).mockReturnValue(Promise.resolve<PathExtenderReport>({
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
     oldSettings: 'export PNPM_HOME=dir1',
     newSettings: 'export PNPM_HOME=dir2',
   }))
@@ -61,7 +62,7 @@ Setup complete. Open a new terminal to start using pnpm.`)
 })
 
 test('hint is added to ERR_PNPM_BAD_ENV_FOUND error object', async () => {
-  (addDirToEnvPath as jest.Mock).mockReturnValue(Promise.reject(new PnpmError('BAD_ENV_FOUND', '')))
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(new PnpmError('BAD_ENV_FOUND', '')))
   let err!: PnpmError
   try {
     await setup.handler({ pnpmHomeDir: '' })
@@ -72,7 +73,7 @@ test('hint is added to ERR_PNPM_BAD_ENV_FOUND error object', async () => {
 })
 
 test('hint is added to ERR_PNPM_BAD_SHELL_SECTION error object', async () => {
-  (addDirToEnvPath as jest.Mock).mockReturnValue(Promise.reject(new PnpmError('BAD_SHELL_SECTION', '')))
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(new PnpmError('BAD_SHELL_SECTION', '')))
   let err!: PnpmError
   try {
     await setup.handler({ pnpmHomeDir: '' })

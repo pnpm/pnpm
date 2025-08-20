@@ -6,7 +6,7 @@ import { getToolDirPath } from '@pnpm/tools.path'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import renameOverwrite from 'rename-overwrite'
-import { type SelfUpdateCommandOptions } from './selfUpdate'
+import { type SelfUpdateCommandOptions } from './selfUpdate.js'
 
 export interface InstallPnpmToToolsResult {
   binDir: string

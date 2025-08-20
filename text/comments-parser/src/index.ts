@@ -1,3 +1,3 @@
-export * from './extractComments'
-export * from './insertComments'
-export * from './CommentSpecifier'
+export * from './extractComments.js'
+export * from './insertComments.js'
+export * from './CommentSpecifier.js'

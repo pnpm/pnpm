@@ -18,11 +18,11 @@ import execa from 'safe-execa'
 import escapeStringRegexp from 'escape-string-regexp'
 import makeEmptyDir from 'make-empty-dir'
 import renderHelp from 'render-help'
-import { type WritePackageOptions, writePackage } from './writePackage'
+import { type WritePackageOptions, writePackage } from './writePackage.js'
 import { type ParseWantedDependencyResult, parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency'
-import { readEditDirState } from './stateFile'
-import { updatePatchedDependencies } from './updatePatchedDependencies'
+import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency.js'
+import { readEditDirState } from './stateFile.js'
+import { updatePatchedDependencies } from './updatePatchedDependencies.js'
 
 export const rcOptionsTypes = cliOptionsTypes
 

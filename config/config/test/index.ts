@@ -7,6 +7,7 @@ import { getConfig } from '@pnpm/config'
 import loadNpmConf from '@pnpm/npm-conf'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+import { jest } from '@jest/globals'
 
 import symlinkDir from 'symlink-dir'
 
@@ -888,7 +889,7 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
 
     fs.writeFileSync('.npmrc', npmrc, 'utf8')
 
-    ;(getCurrentBranch as jest.Mock).mockReturnValue('develop')
+    jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('develop'))
     const { config } = await getConfig({
       cliOptions: {
         global: false,
@@ -903,7 +904,7 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
     expect(config.mergeGitBranchLockfiles).toBe(false)
   }
   {
-    (getCurrentBranch as jest.Mock).mockReturnValue('main')
+    jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('main'))
     const { config } = await getConfig({
       cliOptions: {
         global: false,
@@ -916,7 +917,7 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
     expect(config.mergeGitBranchLockfiles).toBe(true)
   }
   {
-    (getCurrentBranch as jest.Mock).mockReturnValue('release/1.0.0')
+    jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('release/1.0.0'))
     const { config } = await getConfig({
       cliOptions: {
         global: false,

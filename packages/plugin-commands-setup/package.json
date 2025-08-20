@@ -42,13 +42,14 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/error": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-setup": "workspace:*",
     "@pnpm/prepare": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

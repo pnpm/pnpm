@@ -1,3 +1,3 @@
-import * as deploy from './deploy'
+import * as deploy from './deploy.js'
 
 export { deploy }

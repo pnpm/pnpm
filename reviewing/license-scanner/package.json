@@ -54,6 +54,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/license-scanner": "workspace:*",
     "@pnpm/logger": "workspace:*",
@@ -61,7 +62,7 @@
     "@types/semver": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

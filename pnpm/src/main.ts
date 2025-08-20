@@ -22,12 +22,12 @@ import chalk from 'chalk'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
 import { stripVTControlCharacters as stripAnsi } from 'util'
-import { checkForUpdates } from './checkForUpdates'
-import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd'
-import { formatUnknownOptionsError } from './formatError'
-import { parseCliArgs } from './parseCliArgs'
-import { initReporter, type ReporterType } from './reporter'
-import { switchCliVersion } from './switchCliVersion'
+import { checkForUpdates } from './checkForUpdates.js'
+import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd/index.js'
+import { formatUnknownOptionsError } from './formatError.js'
+import { parseCliArgs } from './parseCliArgs.js'
+import { initReporter, type ReporterType } from './reporter/index.js'
+import { switchCliVersion } from './switchCliVersion.js'
 
 export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 

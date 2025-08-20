@@ -1,4 +1,4 @@
-import { parseBareSpecifier } from '../lib/parseBareSpecifier'
+import { parseBareSpecifier } from '../lib/parseBareSpecifier.js'
 
 test.each([
   ['ssh://username:password@example.com:repo.git', 'ssh://username:password@example.com/repo.git'],

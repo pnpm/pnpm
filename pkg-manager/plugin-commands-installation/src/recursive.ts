@@ -46,11 +46,11 @@ import isSubdir from 'is-subdir'
 import mem from 'mem'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
-import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
-import { getSaveType } from './getSaveType'
-import { getPinnedVersion } from './getPinnedVersion'
+import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
+import { getSaveType } from './getSaveType.js'
+import { getPinnedVersion } from './getPinnedVersion.js'
 import { type PreferredVersions } from '@pnpm/resolver-base'
-import { IgnoredBuildsError } from './errors'
+import { IgnoredBuildsError } from './errors.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
@@ -82,6 +82,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileIncludeTarballUrl'
 | 'sharedWorkspaceLockfile'
 | 'tag'
+| 'cleanupUnusedCatalogs'
 > & {
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
@@ -293,6 +294,8 @@ export async function recursive (
       })
       promises.push(updateWorkspaceManifest(opts.workspaceDir, {
         updatedCatalogs,
+        cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+        allProjects,
       }))
       await Promise.all(promises)
     }
@@ -441,6 +444,8 @@ export async function recursive (
 
   await updateWorkspaceManifest(opts.workspaceDir, {
     updatedCatalogs,
+    cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+    allProjects,
   })
 
   if (

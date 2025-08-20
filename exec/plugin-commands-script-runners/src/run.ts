@@ -21,11 +21,11 @@ import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
-import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand } from './runRecursive'
-import { existsInDir } from './existsInDir'
-import { handler as exec } from './exec'
-import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
-import { runDepsStatusCheck } from './runDepsStatusCheck'
+import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand } from './runRecursive.js'
+import { existsInDir } from './existsInDir.js'
+import { handler as exec } from './exec.js'
+import { buildCommandNotFoundHint } from './buildCommandNotFoundHint.js'
+import { runDepsStatusCheck } from './runDepsStatusCheck.js'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,

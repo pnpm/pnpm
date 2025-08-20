@@ -3,7 +3,7 @@ import { UNIVERSAL_OPTIONS, OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import * as install from './install'
+import * as install from './install.js'
 
 export const rcOptionsTypes = cliOptionsTypes
 

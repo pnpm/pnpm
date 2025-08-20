@@ -12,10 +12,10 @@ import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
-import { deployHook } from './deployHook'
+import { deployHook } from './deployHook.js'
 import { logger, globalWarn } from '@pnpm/logger'
 import { type Project } from '@pnpm/types'
-import { createDeployFiles } from './createDeployFiles'
+import { createDeployFiles } from './createDeployFiles.js'
 
 const FORCE_LEGACY_DEPLOY = 'force-legacy-deploy' satisfies keyof typeof configTypes
 

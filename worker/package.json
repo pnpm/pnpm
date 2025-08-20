@@ -33,7 +33,6 @@
   "dependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
-    "@pnpm/crypto.polyfill": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pkg-requires-build": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
@@ -56,7 +55,7 @@
     "@types/is-windows": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

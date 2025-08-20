@@ -4,6 +4,7 @@ import fs from 'fs'
 import { Readable } from 'stream'
 import tar from 'tar-stream'
 import { globalWarn } from '@pnpm/logger'
+import { jest } from '@jest/globals'
 import { ZipFile } from 'yazl'
 import {
   getNodeDir,
@@ -11,7 +12,7 @@ import {
   getNodeVersionsBaseDir,
   type NvmNodeCommandOptions,
   prepareExecutionEnv,
-} from '../lib/node'
+} from '../lib/node.js'
 import { tempDir } from '@pnpm/prepare'
 
 const fetchMock = jest.fn(async (url: string) => {
@@ -54,7 +55,7 @@ jest.mock('@pnpm/fetch', () => ({
 }))
 
 jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual('@pnpm/logger')
+  const originalModule = jest.requireActual<object>('@pnpm/logger')
   return {
     ...originalModule,
     globalWarn: jest.fn(),
@@ -63,7 +64,7 @@ jest.mock('@pnpm/logger', () => {
 
 beforeEach(() => {
   fetchMock.mockClear()
-  ;(globalWarn as jest.Mock).mockClear()
+  jest.mocked(globalWarn).mockClear()
 })
 
 test('check API (placeholder test)', async () => {
@@ -140,7 +141,7 @@ test('specified an invalid Node.js via use-node-version should not cause pnpm it
 
   expect(await getNodeBinDir(opts)).toBeTruthy()
 
-  const calls = (globalWarn as jest.Mock).mock.calls
+  const calls = jest.mocked(globalWarn).mock.calls
   expect(calls[calls.length - 1][0]).toContain('"22.14" is not a valid Node.js version.')
 })
 

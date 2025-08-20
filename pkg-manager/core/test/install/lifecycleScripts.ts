@@ -18,7 +18,7 @@ import isWindows from 'is-windows'
 import loadJsonFile from 'load-json-file'
 import PATH from 'path-name'
 import sinon from 'sinon'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 const testOnNonWindows = isWindows() ? test.skip : test
 

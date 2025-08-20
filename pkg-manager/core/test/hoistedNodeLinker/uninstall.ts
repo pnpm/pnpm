@@ -9,7 +9,7 @@ import {
 } from '@pnpm/core'
 import { type ProjectRootDir } from '@pnpm/types'
 import sinon from 'sinon'
-import { testDefaults } from './../utils'
+import { testDefaults } from './../utils/index.js'
 
 test('uninstall package with no dependencies', async () => {
   const project = prepareEmpty()

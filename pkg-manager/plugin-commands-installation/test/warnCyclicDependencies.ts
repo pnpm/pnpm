@@ -2,14 +2,14 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { preparePackages } from '@pnpm/prepare'
 import { logger } from '@pnpm/logger'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 beforeEach(() => {
   jest.spyOn(logger, 'warn')
 })
 
 afterEach(() => {
-  (logger.warn as jest.Mock).mockRestore()
+  jest.mocked(logger.warn).mockRestore()
 })
 
 test('should warn about cyclic dependencies', async () => {

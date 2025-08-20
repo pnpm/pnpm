@@ -3,7 +3,7 @@ import path from 'path'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { prepare } from '@pnpm/prepare'
 import PATH from 'path-name'
-import { execPnpm } from './utils'
+import { execPnpm } from './utils/index.js'
 
 test('uninstall package and remove from appropriate property', async () => {
   const project = prepare()

@@ -2,6 +2,7 @@ const path = require('path')
 
 const config = {
   preset: "ts-jest",
+  resolver: path.join(__dirname, 'node_modules/ts-jest-resolver'),
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       // For most projects, the tsconfig.json and test/tsconfig.json are almost

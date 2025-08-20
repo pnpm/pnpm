@@ -1,4 +1,4 @@
-import { whichVersionIsPinned } from '../lib/whichVersionIsPinned'
+import { whichVersionIsPinned } from '../lib/whichVersionIsPinned.js'
 
 test.each([
   ['^1.0.0', 'major'],

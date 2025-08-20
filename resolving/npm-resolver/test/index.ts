@@ -16,7 +16,7 @@ import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import omit from 'ramda/src/omit'
 import tempy from 'tempy'
-import { delay, retryLoadJsonFile } from './utils'
+import { delay, retryLoadJsonFile } from './utils/index.js'
 
 const f = fixtures(__dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */

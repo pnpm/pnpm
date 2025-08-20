@@ -1,7 +1,7 @@
 import { encode } from 'ini'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
-import { type ConfigCommandOptions } from './ConfigCommandOptions'
 import { censorProtectedSettings } from './protectedSettings'
+import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
 
 export async function configList (opts: ConfigCommandOptions): Promise<string> {
   const sortedConfig = censorProtectedSettings(sortDirectKeys(opts.rawConfig))

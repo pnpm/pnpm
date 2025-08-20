@@ -4,8 +4,8 @@ import {
   getCommandFullName,
   GLOBAL_OPTIONS,
   shorthandsByCommandName,
-} from './cmd'
-import { shorthands as universalShorthands } from './shorthands'
+} from './cmd/index.js'
+import { shorthands as universalShorthands } from './shorthands.js'
 
 const RENAMED_OPTIONS = {
   'lockfile-directory': 'lockfile-dir',

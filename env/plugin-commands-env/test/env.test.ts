@@ -208,7 +208,7 @@ describe('env add/remove', () => {
       rawConfig: {},
     }, ['rm', '16.4.0'])
 
-    expect(() => execa.sync('node', ['-v'], opts)).toThrowError()
+    expect(() => execa.sync('node', ['-v'], opts)).toThrow()
   })
 
   test('install and remove multiple Node.js versions in one command', async () => {

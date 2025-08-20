@@ -37,6 +37,10 @@ export default [...compat.extends('standard-with-typescript'), {
   },
 
   rules: {
+    "import/extensions": ["error", "always", {
+      "ignorePackages": true
+    }],
+
     'import/no-extraneous-dependencies': ['error', {
       devDependencies: ['**/pnpm/src/**', '**/test/**', '**/src/**/*.test.ts'],
     }],

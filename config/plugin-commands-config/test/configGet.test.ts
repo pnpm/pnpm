@@ -1,6 +1,6 @@
 import * as ini from 'ini'
 import { config } from '@pnpm/plugin-commands-config'
-import { getOutputString } from './utils'
+import { getOutputString } from './utils/index.js'
 
 test('config get', async () => {
   const getResult = await config.handler({

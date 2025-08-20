@@ -33,7 +33,6 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/crypto.polyfill": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "ssri": "catalog:"
   },
@@ -45,7 +44,7 @@
     "tar-stream": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

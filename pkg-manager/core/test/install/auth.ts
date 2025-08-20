@@ -3,7 +3,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 const skipOnNode17 = ['v14', 'v16'].includes(process.version.split('.')[0]) ? test : test.skip
 

@@ -9,7 +9,7 @@ import {
   type WantedDependency,
   type FetchPackageToStoreFunction,
 } from '@pnpm/store-controller-types'
-import { locking } from './lock'
+import { locking } from './lock.js'
 
 interface RequestBody {
   msgId: string

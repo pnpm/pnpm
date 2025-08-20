@@ -16,7 +16,7 @@ import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDistTag } from '@pnpm/registry-mock'
 import symlinkDir from 'symlink-dir'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('should hoist dependencies', async () => {
   const project = prepareEmpty()

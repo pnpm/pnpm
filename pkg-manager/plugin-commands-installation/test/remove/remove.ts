@@ -1,7 +1,7 @@
 import { type PnpmError } from '@pnpm/error'
 import { remove } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
-import { DEFAULT_OPTS } from '../utils'
+import { DEFAULT_OPTS } from '../utils/index.js'
 
 test('remove should fail if no dependency is specified for removal', async () => {
   prepare()

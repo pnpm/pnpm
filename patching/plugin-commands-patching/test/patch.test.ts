@@ -10,8 +10,9 @@ import tempy from 'tempy'
 import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { DEFAULT_OPTS } from './utils/index'
+import { DEFAULT_OPTS } from './utils/index.js'
 import { fixtures } from '@pnpm/test-fixtures'
+import { jest } from '@jest/globals'
 import * as enquirer from 'enquirer'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))

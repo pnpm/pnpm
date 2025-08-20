@@ -4,6 +4,7 @@ import path from 'path'
 import { Readable } from 'stream'
 import { fetchNode, type FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetcher'
 import { tempDir } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import { isNonGlibcLinux } from 'detect-libc'
 
 jest.mock('detect-libc', () => ({
@@ -25,7 +26,7 @@ const fetchMock = jest.fn(async (url: string) => {
 })
 
 beforeEach(() => {
-  (isNonGlibcLinux as jest.Mock).mockReturnValue(Promise.resolve(false))
+  jest.mocked(isNonGlibcLinux).mockReturnValue(Promise.resolve(false))
   fetchMock.mockClear()
 })
 
@@ -60,7 +61,7 @@ test.skip('install Node using the default node mirror', async () => {
 })
 
 test('install Node using a custom node mirror', async () => {
-  (isNonGlibcLinux as jest.Mock).mockReturnValue(Promise.resolve(true))
+  jest.mocked(isNonGlibcLinux).mockReturnValue(Promise.resolve(true))
   tempDir()
 
   const opts: FetchNodeOptions = {

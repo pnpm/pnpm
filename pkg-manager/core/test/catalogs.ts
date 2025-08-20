@@ -5,12 +5,13 @@ import { addDistTag } from '@pnpm/registry-mock'
 import { type MutatedProject, mutateModules, type ProjectOptions, type MutateModulesOptions, addDependenciesToPackage } from '@pnpm/core'
 import { type CatalogSnapshots } from '@pnpm/lockfile.types'
 import { logger } from '@pnpm/logger'
+import { jest } from '@jest/globals'
 import { sync as loadJsonFile } from 'load-json-file'
 import path from 'path'
-import { testDefaults } from './utils'
+import { testDefaults } from './utils/index.js'
 
 jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual('@pnpm/logger')
+  const originalModule = jest.requireActual<any>('@pnpm/logger') // eslint-disable-line
   originalModule.logger.warn = jest.fn()
   return originalModule
 })

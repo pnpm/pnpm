@@ -1,6 +1,6 @@
 import path from 'path'
 import fs from 'fs'
-import { findMetadataFiles } from './cacheList'
+import { findMetadataFiles } from './cacheList.js'
 
 export async function cacheDelete (opts: { cacheDir: string, registry?: string }, filter: string[]): Promise<string> {
   const metaFiles = await findMetadataFiles(opts, filter)

@@ -1,4 +1,4 @@
-import { type DirDiff, type InodeMap, DIR, diffDir } from '../src/DirPatcher'
+import { type DirDiff, type InodeMap, DIR, diffDir } from '../src/DirPatcher.js'
 
 test('produces a diff', () => {
   const unchangedParts = {

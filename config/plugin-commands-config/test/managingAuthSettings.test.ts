@@ -1,5 +1,6 @@
 import { config } from '@pnpm/plugin-commands-config'
 import { runNpm } from '@pnpm/run-npm'
+import { jest } from '@jest/globals'
 
 jest.mock('@pnpm/run-npm', () => ({
   runNpm: jest.fn(),

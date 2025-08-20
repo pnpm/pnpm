@@ -9,7 +9,7 @@ import { type ProjectManifest } from '@pnpm/types'
 import execa from 'execa'
 import crossSpawn from 'cross-spawn'
 import loadJsonFile from 'load-json-file'
-import { DEFAULT_OPTS, checkPkgExists } from './utils'
+import { DEFAULT_OPTS, checkPkgExists } from './utils/index.js'
 
 const CREDENTIALS = `\
 registry=http://localhost:${REGISTRY_MOCK_PORT}/

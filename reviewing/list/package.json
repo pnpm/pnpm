@@ -36,7 +36,6 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/crypto.polyfill": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
@@ -54,7 +53,7 @@
     "@types/ramda": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

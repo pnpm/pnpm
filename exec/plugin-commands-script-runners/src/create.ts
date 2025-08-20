@@ -3,7 +3,7 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { types } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import pick from 'ramda/src/pick'
-import * as dlx from './dlx'
+import * as dlx from './dlx.js'
 
 export const commandNames = ['create']
 

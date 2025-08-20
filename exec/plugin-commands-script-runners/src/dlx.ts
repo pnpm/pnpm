@@ -17,7 +17,7 @@ import execa from 'execa'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import symlinkDir from 'symlink-dir'
-import { makeEnv } from './makeEnv'
+import { makeEnv } from './makeEnv.js'
 
 export const skipPackageManagerCheck = true
 

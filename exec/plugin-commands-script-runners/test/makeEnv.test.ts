@@ -1,5 +1,5 @@
 import path from 'path'
-import { makeEnv } from '../src/makeEnv'
+import { makeEnv } from '../src/makeEnv.js'
 
 test('makeEnv should fail if prependPaths has a path with a colon', () => {
   const prependPath = `/foo/bar${path.delimiter}/baz`
