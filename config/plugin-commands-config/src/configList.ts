@@ -1,6 +1,6 @@
 import { encode } from 'ini'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
-import { censorProtectedSettings } from './protectedSettings'
+import { censorProtectedSettings } from './protectedSettings.js'
 import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
 
 export async function configList (opts: ConfigCommandOptions): Promise<string> {
