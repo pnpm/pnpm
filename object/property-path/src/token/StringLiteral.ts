@@ -37,9 +37,9 @@ export class IncompleteStringLiteralError extends ParseErrorBase {
 
 export const parseStringLiteral: Tokenize<StringLiteral> = source => {
   let quote: StringLiteralQuote
-  if (source.startsWith('"')) {
+  if (source[0] === '"') {
     quote = '"'
-  } else if (source.startsWith("'")) {
+  } else if (source[0] === "'") {
     quote = "'"
   } else {
     return undefined

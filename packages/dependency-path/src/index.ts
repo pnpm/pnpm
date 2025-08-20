@@ -103,7 +103,7 @@ export function refToRelative (
   if (reference.startsWith('link:')) {
     return null
   }
-  if (reference.startsWith('@')) return reference as DepPath
+  if (reference[0] === '@') return reference as DepPath
   const atIndex = reference.indexOf('@')
   if (atIndex === -1) return `${pkgName}@${reference}` as DepPath
   const colonIndex = reference.indexOf(':')
@@ -203,7 +203,7 @@ export function createPeerDepGraphHash (peerIds: PeerId[], maxLength: number = 1
       if (typeof peerId !== 'string') {
         return `${peerId.name}@${peerId.version}`
       }
-      if (peerId.startsWith('/')) {
+      if (peerId[0] === '/') {
         return peerId.substring(1)
       }
       return peerId

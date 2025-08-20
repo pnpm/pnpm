@@ -21,7 +21,7 @@ export function pkgSnapshotToResolution (
   const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
   let registry: string = ''
   if (name != null) {
-    if (name.startsWith('@')) {
+    if (name[0] === '@') {
       registry = registries[name.split('/')[0]]
     }
   }

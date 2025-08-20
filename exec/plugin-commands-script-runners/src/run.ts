@@ -233,7 +233,7 @@ export async function handler (
     if (opts.fallbackCommandUsed) {
       if (opts.argv == null) throw new Error('Could not fallback because opts.argv.original was not passed to the script runner')
       const params = opts.argv.original.slice(1)
-      while (params.length > 0 && params[0].startsWith('-') && params[0] !== '--') {
+      while (params.length > 0 && params[0][0] === '-' && params[0] !== '--') {
         params.shift()
       }
       if (params.length > 0 && params[0] === '--') {
