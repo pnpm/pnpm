@@ -215,6 +215,10 @@ export async function getConfig (opts: {
     const warn = npmConfig.addFile(path.join(configDir as string, 'rc'), 'pnpm-global')
     if (warn) warnings.push(warn)
   }
+  npmConfig.add({
+    registry: 'https://registry.npmjs.org/',
+    '@jsr:registry': 'https://npm.jsr.io/',
+  }, 'pnpm-builtin')
   {
     const warn = npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
     if (warn) warnings.push(warn)
@@ -257,10 +261,7 @@ export async function getConfig (opts: {
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   pnpmConfig.rawConfig = Object.assign.apply(Object, [
-    {
-      registry: 'https://registry.npmjs.org/',
-      '@jsr:registry': 'https://npm.jsr.io/',
-    },
+    {},
     ...[...npmConfig.list].reverse(),
     cliOptions,
     { 'user-agent': pnpmConfig.userAgent },
