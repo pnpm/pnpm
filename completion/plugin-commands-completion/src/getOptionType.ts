@@ -56,10 +56,10 @@ export function getLastOption (completionCtx: CompletionCtx): string | null {
 
 function isOption (word: string): boolean {
   return word.startsWith('--') && word.length >= 3 ||
-    word.startsWith('-') && word.length >= 2
+    word[0] === '-' && word.length >= 2
 }
 
 export function currentTypedWordType (completionCtx: CompletionCtx): 'option' | 'value' | null {
   if (completionCtx.partial.endsWith(' ')) return null
-  return completionCtx.lastPartial.startsWith('-') ? 'option' : 'value'
+  return completionCtx.lastPartial[0] === '-' ? 'option' : 'value'
 }

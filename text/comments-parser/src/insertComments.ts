@@ -46,7 +46,7 @@ export function insertComments (json: string, comments: CommentSpecifier[]): str
       if (jsonPrefix[location]) {
         jsonPrefix[location] += ' ' + comment.content
       } else {
-        const inlineWhitespace = comment.whitespace.startsWith('\n')
+        const inlineWhitespace = comment.whitespace[0] === '\n'
           ? comment.whitespace.slice(1)
           : comment.whitespace
         jsonPrefix[location] = inlineWhitespace + comment.content

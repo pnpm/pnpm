@@ -79,6 +79,6 @@ function * calcPnpmfilePathsOfPluginDeps (configModulesDir: string, configDepend
 
 function isPluginName (configDepName: string): boolean {
   if (configDepName.startsWith('pnpm-plugin-')) return true
-  if (!configDepName.startsWith('@')) return false
+  if (configDepName[0] !== '@') return false
   return configDepName.startsWith('@pnpm/plugin-') || configDepName.includes('/pnpm-plugin-')
 }
