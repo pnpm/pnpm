@@ -36,6 +36,7 @@ import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 import { types } from './types.js'
 import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+import { isRcSetting } from './isRcSetting.js'
 import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
@@ -266,6 +267,11 @@ export async function getConfig (opts: {
     cliOptions,
     { 'user-agent': pnpmConfig.userAgent },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  for (const key in pnpmConfig.rawConfig) {
+    if (!isRcSetting(key, opts.rcOptionsTypes)) {
+      delete pnpmConfig.rawConfig[key]
+    }
+  }
   const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
   pnpmConfig.registries = {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
