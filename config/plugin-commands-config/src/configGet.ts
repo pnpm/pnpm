@@ -1,6 +1,5 @@
 import kebabCase from 'lodash.kebabcase'
 import { encode } from 'ini'
-import { globalWarn } from '@pnpm/logger'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
 import { runNpm } from '@pnpm/run-npm'
 import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
@@ -27,10 +26,8 @@ function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPa
 type DisplayConfigOptions = Pick<ConfigCommandOptions, 'json'>
 
 function displayConfig (config: unknown, opts: DisplayConfigOptions): string {
-  if (opts.json) return JSON.stringify(config, undefined, 2)
-  if (Array.isArray(config)) {
-    globalWarn('`pnpm config get` would display an array as comma-separated list due to legacy implementation, use `--json` to print them as json')
-    return config.join(',') // TODO: change this in the next major version
+  if (Boolean(opts.json) || Array.isArray(config)) {
+    return JSON.stringify(config, undefined, 2)
   }
   if (typeof config === 'object' && config != null) {
     return encode(config)
