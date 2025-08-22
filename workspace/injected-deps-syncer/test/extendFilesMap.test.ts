@@ -9,7 +9,7 @@ const originalStat = fs.promises.stat
 function mockFsPromiseStat (): jest.Mock {
   const mockedMethod = jest.fn(fs.promises.stat)
   fs.promises.stat = mockedMethod as typeof fs.promises.stat
-  return mockedMethod
+  return mockedMethod as jest.Mock
 }
 
 afterEach(() => {

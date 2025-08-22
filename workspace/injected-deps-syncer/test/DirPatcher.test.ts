@@ -10,9 +10,9 @@ const originalMkdir = fs.promises.mkdir
 const originalLink = fs.promises.link
 
 function mockFsPromises (): Record<'rm' | 'mkdir' | 'link', jest.Mock> {
-  const rm = jest.fn(fs.promises.rm)
-  const mkdir = jest.fn(fs.promises.mkdir)
-  const link = jest.fn(fs.promises.link)
+  const rm = jest.fn(fs.promises.rm) as jest.Mock
+  const mkdir = jest.fn(fs.promises.mkdir) as jest.Mock
+  const link = jest.fn(fs.promises.link) as jest.Mock
   fs.promises.rm = rm as typeof fs.promises.rm
   fs.promises.mkdir = mkdir as typeof fs.promises.mkdir
   fs.promises.link = link as typeof fs.promises.link
