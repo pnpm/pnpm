@@ -8,8 +8,7 @@ import { getStorePath } from '@pnpm/store-path'
 
 import renderHelp from 'render-help'
 
-// eslint-disable-next-line regexp/use-ignore-case
-const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
+const INTEGRITY_REGEX: RegExp = /^[^-]+-([a-z0-9+/=]+)$/i
 
 export const skipPackageManagerCheck = true
 
@@ -39,7 +38,7 @@ export async function handler (opts: CatFileCommandOptions, params: string[]): P
     })
   }
 
-  const [, , integrityHash] = params[0].match(INTEGRITY_REGEX)!
+  const [, integrityHash] = params[0].match(INTEGRITY_REGEX)!
 
   const toHex = Buffer.from(integrityHash, 'base64').toString('hex')
   const storeDir = await getStorePath({
