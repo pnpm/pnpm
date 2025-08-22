@@ -7143,6 +7143,9 @@ importers:
         specifier: 'catalog:'
         version: 7.7.1
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.0.5
       '@pnpm/git-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -8139,6 +8142,9 @@ importers:
         specifier: 'catalog:'
         version: 1.0.3
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.0.5
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store

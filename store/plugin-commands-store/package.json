@@ -56,6 +56,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
