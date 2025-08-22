@@ -10,6 +10,7 @@ import { globalWarn } from '@pnpm/logger'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type ProjectManifest } from '@pnpm/types'
+import { jest } from '@jest/globals'
 import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -145,7 +146,7 @@ test('deploy with a shared lockfile after full install', async () => {
     project.hasNot('project-4')
     project.hasNot('project-5')
     expect(readPackageJson('deploy')).toStrictEqual(expectedDeployManifest)
-    expect(fs.existsSync('deploy/pnpm-lock.yaml'))
+    expect(fs.existsSync('deploy/pnpm-lock.yaml')).toBeTruthy()
     expect(fs.existsSync('deploy/index.js')).toBeTruthy()
     expect(fs.existsSync('deploy/test.js')).toBeFalsy()
     expect(fs.existsSync('deploy/node_modules/.modules.yaml')).toBeTruthy()
@@ -213,7 +214,7 @@ test('deploy with a shared lockfile after full install', async () => {
     project.hasNot('project-4')
     project.hasNot('project-5')
     expect(readPackageJson('deploy')).toStrictEqual(expectedDeployManifest)
-    expect(fs.existsSync('deploy/pnpm-lock.yaml'))
+    expect(fs.existsSync('deploy/pnpm-lock.yaml')).toBeTruthy()
     expect(fs.existsSync('deploy/index.js')).toBeTruthy()
     expect(fs.existsSync('deploy/test.js')).toBeFalsy()
     expect(fs.existsSync('deploy/node_modules/.modules.yaml')).toBeTruthy()

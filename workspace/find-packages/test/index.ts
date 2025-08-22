@@ -5,6 +5,7 @@ import {
 } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { logger } from '@pnpm/logger'
+import { jest } from '@jest/globals'
 
 beforeEach(() => {
   jest.spyOn(logger, 'warn')
@@ -25,7 +26,7 @@ test('findWorkspacePackagesNoCheck() skips engine checks', async () => {
   const pkgs = await findWorkspacePackagesNoCheck(fixturePath, {
     patterns: workspaceManifest.packages,
   })
-  expect(pkgs.length).toBe(1)
+  expect(pkgs).toHaveLength(1)
   expect(pkgs[0].manifest.name).toBe('pkg')
 })
 
@@ -41,7 +42,7 @@ test('findWorkspacePackages() output warnings for non-root workspace project', a
     patterns: workspaceManifest.packages,
     sharedWorkspaceLockfile: true,
   })
-  expect(pkgs.length).toBe(3)
+  expect(pkgs).toHaveLength(3)
   const fooPath = path.join(fixturePath, 'packages/foo')
   const barPath = path.join(fixturePath, 'packages/bar')
   expect(

@@ -55,6 +55,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-deploy": "workspace:*",

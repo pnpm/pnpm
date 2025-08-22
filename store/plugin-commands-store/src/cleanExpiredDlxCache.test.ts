@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import { cleanExpiredDlxCache, cleanOrphans } from './cleanExpiredDlxCache.js'
 
 const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
@@ -63,8 +64,8 @@ test('cleanExpiredCache removes items that outlive dlxCacheMaxAge', async () => 
     now,
   })
 
-  expect(fs.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('foo'))).length).toBe(2)
-  expect(fs.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('bar'))).length).toBe(2)
+  expect(fs.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('foo')))).toHaveLength(2)
+  expect(fs.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('bar')))).toHaveLength(2)
   expect(fs.existsSync(path.join(cacheDir, 'dlx', createCacheKey('baz')))).toBeFalsy()
 
   expect(readdirSyncSpy).toHaveBeenCalledWith(path.join(cacheDir, 'dlx'), expect.anything())
@@ -161,7 +162,7 @@ test('cleanExpiredCache does nothing if dlxCacheMaxAge is Infinity', async () =>
   )
 
   for (const entry of entries) {
-    expect(fs.readdirSync(path.join(dlxCacheDir, entry)).length).toBe(2)
+    expect(fs.readdirSync(path.join(dlxCacheDir, entry))).toHaveLength(2)
   }
 
   expect(readdirSpy).not.toHaveBeenCalled()
@@ -184,18 +185,18 @@ test("cleanOrphans deletes dirs that don't contain `link` and subdirs that aren'
   createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createCacheKey('foo'), `${now.getTime().toString(16)}-${(7000).toString(16)}`))
   createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createCacheKey('foo'), `${now.getTime().toString(16)}-${(7005).toString(16)}`))
   createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createCacheKey('foo'), `${now.getTime().toString(16)}-${(7102).toString(16)}`))
-  expect(fs.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('foo'))).length).toBe(5)
+  expect(fs.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('foo')))).toHaveLength(5)
 
   // has no link, only orphans
   createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createCacheKey('bar'), `${now.getTime().toString(16)}-${(7000).toString(16)}`))
   createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createCacheKey('bar'), `${now.getTime().toString(16)}-${(7005).toString(16)}`))
   createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createCacheKey('bar'), `${now.getTime().toString(16)}-${(7102).toString(16)}`))
-  expect(fs.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('bar'))).length).toBe(3)
+  expect(fs.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('bar')))).toHaveLength(3)
 
   await cleanOrphans(path.join(cacheDir, 'dlx'))
 
   // expecting all subdirectories that aren't pointed to by `link` to be deleted.
-  expect(fs.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('foo'))).length).toBe(2)
+  expect(fs.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('foo')))).toHaveLength(2)
 
   // expecting directory that doesn't contain `link` to be deleted.
   expect(fs.existsSync(path.join(cacheDir, 'dlx', createCacheKey('bar')))).toBe(false)

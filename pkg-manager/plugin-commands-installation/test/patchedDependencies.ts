@@ -71,7 +71,7 @@ test('bare package name as a patchedDependencies key should apply to all version
     expect(text).toContain('FIRST LINE')
     expect(text).not.toContain('first line')
     expect(text).toContain('second line')
-    expect(text.trim().split('\n').length).toBe(2)
+    expect(text.trim().split('\n')).toHaveLength(2)
   }
 
   {
@@ -81,7 +81,7 @@ test('bare package name as a patchedDependencies key should apply to all version
     expect(text).not.toContain('first line')
     expect(text).toContain('second line')
     expect(text).toContain('third line')
-    expect(text.trim().split('\n').length).toBe(3)
+    expect(text.trim().split('\n')).toHaveLength(3)
   }
 
   {
@@ -92,7 +92,7 @@ test('bare package name as a patchedDependencies key should apply to all version
     expect(text).toContain('second line')
     expect(text).toContain('third line')
     expect(text).toContain('fourth line')
-    expect(text.trim().split('\n').length).toBe(4)
+    expect(text.trim().split('\n')).toHaveLength(4)
   }
 
   expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('Could not apply patch'))
@@ -129,7 +129,7 @@ test('bare package name as a patchedDependencies key should apply to all possibl
     expect(text).toContain('second line')
     expect(text).toContain('THIRD LINE')
     expect(text).not.toContain('third line')
-    expect(text.trim().split('\n').length).toBe(3)
+    expect(text.trim().split('\n')).toHaveLength(3)
   }
 
   // the common patch applies to v3
@@ -141,7 +141,7 @@ test('bare package name as a patchedDependencies key should apply to all possibl
     expect(text).toContain('THIRD LINE')
     expect(text).not.toContain('third line')
     expect(text).toContain('fourth line')
-    expect(text.trim().split('\n').length).toBe(4)
+    expect(text.trim().split('\n')).toHaveLength(4)
   }
 })
 
@@ -173,7 +173,7 @@ test('package name with version is prioritized over bare package name as keys of
     expect(text).toContain('FIRST LINE')
     expect(text).not.toContain('first line')
     expect(text).toContain('second line')
-    expect(text.trim().split('\n').length).toBe(2)
+    expect(text.trim().split('\n')).toHaveLength(2)
   }
 
   // the specialized patch applies to v2
@@ -184,7 +184,7 @@ test('package name with version is prioritized over bare package name as keys of
     expect(text).toContain('SECOND LINE')
     expect(text).not.toContain('second line')
     expect(text).toContain('third line')
-    expect(text.trim().split('\n').length).toBe(3)
+    expect(text.trim().split('\n')).toHaveLength(3)
   }
 
   // the common patch applies to v3
@@ -196,7 +196,7 @@ test('package name with version is prioritized over bare package name as keys of
     expect(text).toContain('second line')
     expect(text).toContain('third line')
     expect(text).toContain('fourth line')
-    expect(text.trim().split('\n').length).toBe(4)
+    expect(text.trim().split('\n')).toHaveLength(4)
   }
 
   expect(globalWarn).not.toHaveBeenCalledWith(expect.stringContaining('Could not apply patch'))
@@ -234,7 +234,7 @@ test('package name with version as a patchedDependencies key does not affect oth
     expect(text).toContain('SECOND LINE')
     expect(text).not.toContain('second line')
     expect(text).toContain('third line')
-    expect(text.trim().split('\n').length).toBe(3)
+    expect(text.trim().split('\n')).toHaveLength(3)
   }
 
   // patch 3 applies to v3
@@ -246,7 +246,7 @@ test('package name with version as a patchedDependencies key does not affect oth
     expect(text).toContain('third line')
     expect(text).toContain('FOURTH LINE')
     expect(text).not.toContain('fourth line')
-    expect(text.trim().split('\n').length).toBe(4)
+    expect(text.trim().split('\n')).toHaveLength(4)
   }
 })
 

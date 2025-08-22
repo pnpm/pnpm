@@ -434,8 +434,8 @@ test('linkBins() would throw error if package has no name field', async () => {
     fail('linkBins should fail when package has no name')
   } catch (err: any) { // eslint-disable-line
     const packagePath = normalizePath(path.join(noNameFixture, 'node_modules/simple'))
-    expect(err.message).toEqual(`Package in ${packagePath} must have a name to get bin linked.`)
-    expect(err.code).toEqual('ERR_PNPM_INVALID_PACKAGE_NAME')
+    expect(err.message).toBe(`Package in ${packagePath} must have a name to get bin linked.`)
+    expect(err.code).toBe('ERR_PNPM_INVALID_PACKAGE_NAME')
     expect(warn).not.toHaveBeenCalled()
   }
 })

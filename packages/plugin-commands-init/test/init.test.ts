@@ -89,5 +89,5 @@ test('init a new package.json with init-type=module', async () => {
   prepareEmpty()
   await init.handler({ rawConfig: { 'init-type': 'module' }, cliOptions: {}, initType: 'module' })
   const manifest = loadJsonFile<ProjectManifest>(path.resolve('package.json'))
-  expect(manifest.type).toEqual('module')
+  expect(manifest.type).toBe('module')
 })

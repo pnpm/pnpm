@@ -53,5 +53,5 @@ test('self-update updates the packageManager field in package.json', async () =>
 
   await execPnpm(['self-update', '10.0.0'], { env })
 
-  expect(loadJsonFile<ProjectManifest>('package.json').packageManager).toStrictEqual('pnpm@10.0.0')
+  expect(loadJsonFile<ProjectManifest>('package.json').packageManager).toBe('pnpm@10.0.0')
 })

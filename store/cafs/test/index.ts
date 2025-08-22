@@ -39,7 +39,7 @@ describe('cafs', () => {
 
     addFilesResult = addFiles()
     expect(fs.readFileSync(filePath, 'utf8')).toBe('foo\n')
-    expect(addFilesResult.manifest).toEqual(undefined)
+    expect(addFilesResult.manifest).toBeUndefined()
   })
 
   it('ignores broken symlinks when traversing subdirectories', () => {

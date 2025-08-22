@@ -10,7 +10,7 @@ test('ignoring a pnpmfile that exports undefined', () => {
   expect(pnpmfile).toBeUndefined()
 })
 
-test('readPackage hook run fails when returns undefined ', () => {
+test('readPackage hook run fails when returns undefined', () => {
   const pnpmfilePath = path.join(__dirname, '__fixtures__/readPackageNoReturn.js')
   const { pnpmfileModule: pnpmfile } = requirePnpmfile(pnpmfilePath, __dirname)!
 
@@ -19,7 +19,7 @@ test('readPackage hook run fails when returns undefined ', () => {
   ).rejects.toEqual(new BadReadPackageHookError(pnpmfilePath, 'readPackage hook did not return a package manifest object.'))
 })
 
-test('readPackage hook run fails when returned dependencies is not an object ', () => {
+test('readPackage hook run fails when returned dependencies is not an object', () => {
   const pnpmfilePath = path.join(__dirname, '__fixtures__/readPackageNoObject.js')
   const { pnpmfileModule: pnpmfile } = requirePnpmfile(pnpmfilePath, __dirname)!
   return expect(
@@ -33,7 +33,7 @@ test('filterLog hook combines with the global hook', () => {
   const { hooks } = requireHooks(__dirname, { globalPnpmfile, pnpmfiles: [pnpmfile] })
 
   expect(hooks.filterLog).toBeDefined()
-  expect(hooks.filterLog!.length).toBe(2)
+  expect(hooks.filterLog!).toHaveLength(2)
   const filterLog = (log: Log) => hooks.filterLog!.every((hook) => hook(log))
   expect(filterLog({
     name: 'pnpm:summary',

@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import { DirPatcher } from '../src/DirPatcher.js'
 
 const originalRm = fs.promises.rm

@@ -562,8 +562,8 @@ test('peer dependencies', async () => {
     lockfileDir: withPeerFixture,
     virtualStoreDirMaxLength,
   })
-  expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].name).toEqual('ajv')
-  expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].isPeer).toEqual(true)
+  expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].name).toBe('ajv')
+  expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].isPeer).toBe(true)
 })
 
 // Test case for https://github.com/pnpm/pnpm/issues/1866

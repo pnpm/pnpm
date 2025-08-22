@@ -121,7 +121,7 @@ test('install-test: install dependencies and runs tests', async () => {
   await execPnpm(['install-test'])
 
   const scriptsRan = (fs.readFileSync('output.txt')).toString()
-  expect(scriptsRan.trim()).toStrictEqual('test')
+  expect(scriptsRan.trim()).toBe('test')
 })
 
 test('silent run only prints the output of the child process', async () => {

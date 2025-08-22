@@ -74,11 +74,11 @@ test('jest CLI should print the right version when multiple instances of jest ar
 
   {
     const jestVersion = fs.readFileSync('project-1/output.json').toString()
-    expect(jestVersion.trim()).toStrictEqual('27.5.1')
+    expect(jestVersion.trim()).toBe('27.5.1')
   }
   {
     const jestVersion = fs.readFileSync('project-2/output.json').toString()
-    expect(jestVersion.trim()).toStrictEqual('24.9.0')
+    expect(jestVersion.trim()).toBe('24.9.0')
   }
 })
 

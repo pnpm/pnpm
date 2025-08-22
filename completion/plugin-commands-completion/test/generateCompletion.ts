@@ -1,5 +1,6 @@
 import { SUPPORTED_SHELLS } from '@pnpm/tabtab'
 import { generateCompletion } from '@pnpm/plugin-commands-completion'
+import { jest } from '@jest/globals'
 
 function createHandler () {
   const log = jest.fn()

@@ -47,7 +47,7 @@ test('CLI fails when store status finds modified packages', async () => {
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_MODIFIED_DEPENDENCY')
-  expect(err.modified.length).toBe(1)
+  expect(err.modified).toHaveLength(1)
   expect(err.modified[0]).toMatch(/is-positive/)
 })
 

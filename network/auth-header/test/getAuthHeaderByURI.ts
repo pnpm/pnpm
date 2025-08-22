@@ -15,7 +15,7 @@ test('getAuthHeaderByURI()', () => {
   expect(getAuthHeaderByURI('https://reg.com/')).toBe('Bearer abc123')
   expect(getAuthHeaderByURI('https://reg.com/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
   expect(getAuthHeaderByURI('https://reg.com:8080/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
-  expect(getAuthHeaderByURI('https://reg.io/foo/-/foo-1.0.0.tgz')).toBe(undefined)
+  expect(getAuthHeaderByURI('https://reg.io/foo/-/foo-1.0.0.tgz')).toBeUndefined()
   expect(getAuthHeaderByURI('https://reg.co/tarballs/foo/-/foo-1.0.0.tgz')).toBe('Bearer xxx')
   expect(getAuthHeaderByURI('https://reg.gg:8888/foo/-/foo-1.0.0.tgz')).toBe('Bearer 0000')
   expect(getAuthHeaderByURI('https://reg.gg:8888/foo/-/foo-1.0.0.tgz')).toBe('Bearer 0000')
@@ -45,8 +45,8 @@ test('getAuthHeaderByURI() basic auth with settings', () => {
 test('getAuthHeaderByURI() https port 443 checks', () => {
   const getAuthHeaderByURI = createGetAuthHeaderByURI(opts)
   expect(getAuthHeaderByURI('https://custom.domain.com:443/artifactory/api/npm/npm-virtual/')).toBe('Bearer xyz')
-  expect(getAuthHeaderByURI('https://custom.domain.com:443/artifactory/api/npm/')).toBe(undefined)
-  expect(getAuthHeaderByURI('https://custom.domain.com:443/artifactory/api/npm/-/@platform/device-utils-1.0.0.tgz')).toBe(undefined)
+  expect(getAuthHeaderByURI('https://custom.domain.com:443/artifactory/api/npm/')).toBeUndefined()
+  expect(getAuthHeaderByURI('https://custom.domain.com:443/artifactory/api/npm/-/@platform/device-utils-1.0.0.tgz')).toBeUndefined()
   expect(getAuthHeaderByURI('https://custom.domain.com:443/artifactory/api/npm/npm-virtual/@platform/device-utils/-/@platform/device-utils-1.0.0.tgz')).toBe('Bearer xyz')
 })
 
@@ -62,7 +62,7 @@ test('getAuthHeaderByURI() when default ports are specified', () => {
 })
 
 test('returns undefined when the auth header is not found', () => {
-  expect(createGetAuthHeaderByURI({ allSettings: {}, userSettings: {} })('http://reg.com')).toBe(undefined)
+  expect(createGetAuthHeaderByURI({ allSettings: {}, userSettings: {} })('http://reg.com')).toBeUndefined()
 })
 
 test('getAuthHeaderByURI() when the registry has pathnames', () => {

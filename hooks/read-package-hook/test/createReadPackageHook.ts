@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals'
 import { createReadPackageHook } from '../lib/createReadPackageHook.js'
 
 test('createReadPackageHook() is passing directory to all hooks', async () => {

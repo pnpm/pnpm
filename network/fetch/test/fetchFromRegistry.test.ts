@@ -11,7 +11,7 @@ test('fetchFromRegistry', async () => {
   const fetchFromRegistry = createFetchFromRegistry({})
   const res = await fetchFromRegistry('https://registry.npmjs.org/is-positive')
   const metadata = await res.json() as any // eslint-disable-line
-  expect(metadata.name).toEqual('is-positive')
+  expect(metadata.name).toBe('is-positive')
   expect(metadata.versions['1.0.0'].scripts).not.toBeTruthy()
 })
 
@@ -19,7 +19,7 @@ test('fetchFromRegistry fullMetadata', async () => {
   const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
   const res = await fetchFromRegistry('https://registry.npmjs.org/is-positive')
   const metadata = await res.json() as any // eslint-disable-line
-  expect(metadata.name).toEqual('is-positive')
+  expect(metadata.name).toBe('is-positive')
   expect(metadata.versions['1.0.0'].scripts).toBeTruthy()
 })
 
@@ -71,7 +71,7 @@ test('switch to the correct agent for requests on redirect from http: to https:'
   // We can test this on any endpoint that redirects from http: to https:
   const { status } = await fetchFromRegistry('http://pnpm.io/pnpm.js')
 
-  expect(status).toEqual(200)
+  expect(status).toBe(200)
 })
 
 test('fetch from registry with client certificate authentication', async () => {
@@ -102,7 +102,7 @@ test('fetch from registry with client certificate authentication', async () => {
   try {
     const res = await fetchFromRegistry(`https://localhost:${randomPort}/is-positive`)
     const metadata = await res.json() as any // eslint-disable-line
-    expect(metadata.name).toEqual('is-positive')
+    expect(metadata.name).toBe('is-positive')
   } finally {
     await proxyServer.stop()
   }

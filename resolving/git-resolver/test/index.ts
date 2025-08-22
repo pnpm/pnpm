@@ -4,6 +4,7 @@ import { createGitResolver } from '@pnpm/git-resolver'
 import git from 'graceful-git'
 import isWindows from 'is-windows'
 import { fetchWithAgent } from '@pnpm/fetch'
+import { type jest } from '@jest/globals'
 
 const resolveFromGit = createGitResolver({})
 

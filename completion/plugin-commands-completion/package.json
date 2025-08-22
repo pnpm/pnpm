@@ -46,6 +46,7 @@
     "split-cmd": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/plugin-commands-completion": "workspace:*",
     "@types/ramda": "catalog:"
   },

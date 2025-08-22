@@ -260,9 +260,9 @@ test('update should work normal when set empty string version', async () => {
   expect(lockfile.packages['@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()
   expect(lockfile.packages['@pnpm.e2e/peer-c@2.0.0']).toBeTruthy()
   expect(lockfile.packages['@pnpm.e2e/foo@2.0.0']).toBeTruthy()
-  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/peer-a'].version).toEqual('1.0.1')
-  expect(lockfile.importers['.'].devDependencies?.['@pnpm.e2e/foo'].version).toEqual('2.0.0')
-  expect(lockfile.importers['.'].devDependencies?.['@pnpm.e2e/peer-c'].version).toEqual('2.0.0')
+  expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/peer-a'].version).toBe('1.0.1')
+  expect(lockfile.importers['.'].devDependencies?.['@pnpm.e2e/foo'].version).toBe('2.0.0')
+  expect(lockfile.importers['.'].devDependencies?.['@pnpm.e2e/peer-c'].version).toBe('2.0.0')
 })
 
 test('ignore packages in package.json > updateConfig.ignoreDependencies fields in update command', async () => {

@@ -12,7 +12,7 @@ test('getSpecFromPackageManifest()', () => {
       optionalDependencies: {
         foo: '1.0.0',
       },
-    }, 'foo')).toEqual('1.0.0')
+    }, 'foo')).toBe('1.0.0')
 
   expect(
     getSpecFromPackageManifest({
@@ -22,12 +22,12 @@ test('getSpecFromPackageManifest()', () => {
       devDependencies: {
         foo: '2.0.0',
       },
-    }, 'foo')).toEqual('3.0.0')
+    }, 'foo')).toBe('3.0.0')
 
   expect(
     getSpecFromPackageManifest({
       devDependencies: {
         foo: '2.0.0',
       },
-    }, 'foo')).toEqual('2.0.0')
+    }, 'foo')).toBe('2.0.0')
 })

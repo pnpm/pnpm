@@ -172,7 +172,7 @@ describe('audit', () => {
     }
 
     expect(err).toBeDefined()
-    expect(err.code).toEqual('ERR_PNPM_AUDIT_BAD_RESPONSE')
-    expect(err.message).toEqual('The audit endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}')
+    expect(err.code).toBe('ERR_PNPM_AUDIT_BAD_RESPONSE')
+    expect(err.message).toBe('The audit endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}')
   })
 })

@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { prepareEmpty } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import { type InodeMap, type ExtendFilesMapStats, DIR, extendFilesMap } from '../src/DirPatcher.js'
 
 const originalStat = fs.promises.stat

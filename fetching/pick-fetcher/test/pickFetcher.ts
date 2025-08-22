@@ -1,4 +1,5 @@
 import { pickFetcher } from '@pnpm/pick-fetcher'
+import { jest } from '@jest/globals'
 
 test('should pick localTarball fetcher', () => {
   const localTarball = jest.fn()

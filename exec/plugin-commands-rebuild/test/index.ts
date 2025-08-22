@@ -52,7 +52,7 @@ test('rebuilds dependencies', async () => {
 
   modules = project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.pendingBuilds.length).toBe(0)
+  expect(modules!.pendingBuilds).toHaveLength(0)
 
   {
     expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-prepare.js')).toBeFalsy()
@@ -132,7 +132,7 @@ test('skipIfHasSideEffectsCache', async () => {
 
   modules = project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.pendingBuilds.length).toBe(0)
+  expect(modules!.pendingBuilds).toHaveLength(0)
 
   cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
@@ -251,7 +251,7 @@ test('rebuild with pending option', async () => {
 
   modules = project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.pendingBuilds.length).toBe(0)
+  expect(modules!.pendingBuilds).toHaveLength(0)
 
   {
     const generatedByPreinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -287,7 +287,7 @@ test('rebuild dependencies in correct order', async () => {
 
   let modules = project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.pendingBuilds.length).not.toBe(0)
+  expect(modules!.pendingBuilds).not.toHaveLength(0)
 
   project.hasNot('.pnpm/@pnpm.e2e+with-postinstall-b@1.0.0/node_modules/@pnpm.e2e/with-postinstall-b/output.json')
   project.hasNot('@pnpm.e2e/with-postinstall-a/output.json')
@@ -303,7 +303,7 @@ test('rebuild dependencies in correct order', async () => {
 
   modules = project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.pendingBuilds.length).toBe(0)
+  expect(modules!.pendingBuilds).toHaveLength(0)
 
   expect(+project.requireModule('.pnpm/@pnpm.e2e+with-postinstall-b@1.0.0/node_modules/@pnpm.e2e/with-postinstall-b/output.json')[0] < +project.requireModule('@pnpm.e2e/with-postinstall-a/output.json')[0]).toBeTruthy()
 })

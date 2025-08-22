@@ -1650,7 +1650,7 @@ test('directory filtering', async () => {
 
   {
     const { stdout } = execPnpmSync(['list', '--filter=./packages', '--parseable', '--depth=-1'])
-    expect(stdout.toString()).toEqual('')
+    expect(stdout.toString()).toBe('')
   }
   {
     const { stdout } = execPnpmSync(['list', '--filter=./packages/**', '--parseable', '--depth=-1'])

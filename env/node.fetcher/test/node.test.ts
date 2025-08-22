@@ -60,7 +60,7 @@ test.skip('install Node using the default node mirror', async () => {
   }
 })
 
-test('install Node using a custom node mirror', async () => {
+test('install Node using a custom node mirror #2', async () => {
   jest.mocked(isNonGlibcLinux).mockReturnValue(Promise.resolve(true))
   tempDir()
 
