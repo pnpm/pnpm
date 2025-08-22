@@ -74,7 +74,7 @@ test('fetch a directory that has no package.json', async () => {
     readManifest: true,
   })
 
-  expect(fetchResult.manifest).toEqual(undefined)
+  expect(fetchResult.manifest).toBeUndefined()
   expect(fetchResult.local).toBe(true)
   expect(fetchResult.packageImportMethod).toBe('hardlink')
   expect(fetchResult.filesIndex['index.js']).toBe(path.resolve('index.js'))

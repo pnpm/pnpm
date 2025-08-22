@@ -45,6 +45,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/local-resolver": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@types/normalize-path": "catalog:"

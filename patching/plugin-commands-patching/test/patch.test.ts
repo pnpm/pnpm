@@ -1045,7 +1045,7 @@ describe('patch and commit in workspaces', () => {
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual(undefined)
+    expect(manifest.pnpm?.patchedDependencies).toBeUndefined()
     const workspaceManifest = await readWorkspaceManifest(process.cwd())
     expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
@@ -1109,7 +1109,7 @@ describe('patch and commit in workspaces', () => {
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual(undefined)
+    expect(manifest.pnpm?.patchedDependencies).toBeUndefined()
     const workspaceManifest = await readWorkspaceManifest(process.cwd())
     expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
@@ -1256,7 +1256,7 @@ describe('patch and commit in workspaces', () => {
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
-    expect(manifest.pnpm?.patchedDependencies).toStrictEqual(undefined)
+    expect(manifest.pnpm?.patchedDependencies).toBeUndefined()
     const workspaceManifest = await readWorkspaceManifest(process.cwd())
     expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'hi@1.0.0': 'patches/hi@1.0.0.patch',

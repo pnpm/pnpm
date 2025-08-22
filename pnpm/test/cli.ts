@@ -129,7 +129,7 @@ test('pnpx works', () => {
 
   const result = execPnpxSync(['@pnpm.e2e/hello-world-js-bin'], { env })
 
-  expect(result.stdout.toString()).toEqual('Hello world!\n')
+  expect(result.stdout.toString()).toBe('Hello world!\n')
   expect(result.status).toBe(0)
 })
 

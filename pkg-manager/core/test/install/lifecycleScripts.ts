@@ -13,6 +13,7 @@ import {
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { type ProjectRootDir } from '@pnpm/types'
 import { restartWorkerPool } from '@pnpm/worker'
+import { jest } from '@jest/globals'
 import { sync as rimraf } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
 import loadJsonFile from 'load-json-file'

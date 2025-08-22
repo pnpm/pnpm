@@ -192,7 +192,7 @@ test('a postinstall script does not modify the original sources added to the sto
   // The integrity of the original file differs from the integrity of the patched file
   expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
 
-  expect(fs.readFileSync(getFilePathByModeInCafs(opts.storeDir, originalFileIntegrity, 420), 'utf8')).toEqual('')
+  expect(fs.readFileSync(getFilePathByModeInCafs(opts.storeDir, originalFileIntegrity, 420), 'utf8')).toBe('')
 })
 
 test('a corrupted side-effects cache is ignored', async () => {

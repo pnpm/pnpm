@@ -39,10 +39,10 @@ test('getConfig()', async () => {
     },
   })
   expect(config).toBeDefined()
-  expect(config.fetchRetries).toEqual(2)
-  expect(config.fetchRetryFactor).toEqual(10)
-  expect(config.fetchRetryMintimeout).toEqual(10000)
-  expect(config.fetchRetryMaxtimeout).toEqual(60000)
+  expect(config.fetchRetries).toBe(2)
+  expect(config.fetchRetryFactor).toBe(10)
+  expect(config.fetchRetryMintimeout).toBe(10000)
+  expect(config.fetchRetryMaxtimeout).toBe(60000)
   // nodeVersion should not have a default value.
   // When not specified, the package-is-installable package detects nodeVersion automatically.
   expect(config.nodeVersion).toBeUndefined()
@@ -555,7 +555,7 @@ test('normalize the value of the color flag', async () => {
       },
     })
 
-    expect(config.color).toEqual('always')
+    expect(config.color).toBe('always')
   }
   {
     const { config } = await getConfig({
@@ -568,7 +568,7 @@ test('normalize the value of the color flag', async () => {
       },
     })
 
-    expect(config.color).toEqual('never')
+    expect(config.color).toBe('never')
   }
 })
 
@@ -585,10 +585,10 @@ test('read only supported settings from config', async () => {
     },
   })
 
-  expect(config.storeDir).toEqual('__store__')
+  expect(config.storeDir).toBe('__store__')
   // @ts-expect-error
   expect(config['foo']).toBeUndefined()
-  expect(config.rawConfig['foo']).toEqual('bar')
+  expect(config.rawConfig['foo']).toBe('bar')
 })
 
 test('all CLI options are added to the config', async () => {
@@ -603,7 +603,7 @@ test('all CLI options are added to the config', async () => {
   })
 
   // @ts-expect-error
-  expect(config['fooBar']).toEqual('qar')
+  expect(config['fooBar']).toBe('qar')
 })
 
 test('local prefix search stops on pnpm-workspace.yaml', async () => {
@@ -808,7 +808,7 @@ test('getConfig() returns the userconfig even when overridden locally', async ()
       version: '1.0.0',
     },
   })
-  expect(config.registry).toEqual('https://project-local.example.test')
+  expect(config.registry).toBe('https://project-local.example.test')
   expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
 })
 
@@ -1073,7 +1073,7 @@ test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect
   })
 
   expect(config.sharedWorkspaceLockfile).toBe(false)
-  expect(config.lockfileDir).toBe(undefined)
+  expect(config.lockfileDir).toBeUndefined()
 })
 
 test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async () => {

@@ -43,6 +43,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/hooks.read-package-hook": "workspace:*",
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",

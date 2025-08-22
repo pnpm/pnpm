@@ -45,7 +45,7 @@ test('fetch', async () => {
     }
   )
   expect(filesIndex['package.json']).toBeTruthy()
-  expect(manifest?.name).toEqual('is-positive')
+  expect(manifest?.name).toBe('is-positive')
 })
 
 test('fetch a package from Git sub folder', async () => {
@@ -87,7 +87,7 @@ test('prevent directory traversal attack when using Git sub folder', async () =>
   ).rejects.toThrow(`Failed to prepare git-hosted package fetched from "${repo}": Path "${pkgDir}" should be a sub directory`)
 })
 
-test('prevent directory traversal attack when using Git sub folder', async () => {
+test('prevent directory traversal attack when using Git sub folder #2', async () => {
   const storeDir = tempy.directory()
   const fetch = createGitFetcher({ rawConfig: {} }).git
   const repo = 'https://github.com/RexSkz/test-git-subfolder-fetch.git'
@@ -185,7 +185,7 @@ test('still able to shallow fetch for allowed hosts', async () => {
     expect(calls[i].slice(0, -1)).toEqual(expectedCalls[i])
   }
   expect(filesIndex['package.json']).toBeTruthy()
-  expect(manifest?.name).toEqual('is-positive')
+  expect(manifest?.name).toBe('is-positive')
 })
 
 test('fail when preparing a git-hosted package', async () => {

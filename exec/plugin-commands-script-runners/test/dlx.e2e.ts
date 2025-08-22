@@ -4,6 +4,7 @@ import { add } from '@pnpm/plugin-commands-installation'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import * as systemNodeVersion from '@pnpm/env.system-node-version'
 import { prepareEmpty } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
 
 const testOnWindowsOnly = process.platform === 'win32' ? test : test.skip

@@ -579,13 +579,13 @@ test('pnpm run with RegExp script selector should work', async () => {
     rawConfig: {},
   }, ['/^(lint|build):.*/'])
 
-  expect(fs.readFileSync('output-build-a.txt', { encoding: 'utf-8' })).toEqual('a')
-  expect(fs.readFileSync('output-build-b.txt', { encoding: 'utf-8' })).toEqual('b')
-  expect(fs.readFileSync('output-build-c.txt', { encoding: 'utf-8' })).toEqual('c')
+  expect(fs.readFileSync('output-build-a.txt', { encoding: 'utf-8' })).toBe('a')
+  expect(fs.readFileSync('output-build-b.txt', { encoding: 'utf-8' })).toBe('b')
+  expect(fs.readFileSync('output-build-c.txt', { encoding: 'utf-8' })).toBe('c')
 
-  expect(fs.readFileSync('output-lint-a.txt', { encoding: 'utf-8' })).toEqual('a')
-  expect(fs.readFileSync('output-lint-b.txt', { encoding: 'utf-8' })).toEqual('b')
-  expect(fs.readFileSync('output-lint-c.txt', { encoding: 'utf-8' })).toEqual('c')
+  expect(fs.readFileSync('output-lint-a.txt', { encoding: 'utf-8' })).toBe('a')
+  expect(fs.readFileSync('output-lint-b.txt', { encoding: 'utf-8' })).toBe('b')
+  expect(fs.readFileSync('output-lint-c.txt', { encoding: 'utf-8' })).toBe('c')
 })
 
 test('pnpm run with RegExp script selector should work also for pre/post script', async () => {
@@ -607,8 +607,8 @@ test('pnpm run with RegExp script selector should work also for pre/post script'
     enablePrePostScripts: true,
   }, ['/build:.*/'])
 
-  expect(fs.readFileSync('output-a.txt', { encoding: 'utf-8' })).toEqual('a')
-  expect(fs.readFileSync('output-pre-a.txt', { encoding: 'utf-8' })).toEqual('pre-a')
+  expect(fs.readFileSync('output-a.txt', { encoding: 'utf-8' })).toBe('a')
+  expect(fs.readFileSync('output-pre-a.txt', { encoding: 'utf-8' })).toBe('pre-a')
 })
 
 test('pnpm run with RegExp script selector should work parallel as a default behavior (parallel execution limits number is four)', async () => {

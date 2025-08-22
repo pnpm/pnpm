@@ -29,7 +29,7 @@ test('readProjectManifest()', async () => {
 
   expect(
     (await tryReadProjectManifest(__dirname)).manifest
-  ).toStrictEqual(null)
+  ).toBeNull()
 })
 
 test('readProjectManifest() converts devEngines runtime to devDependencies', async () => {

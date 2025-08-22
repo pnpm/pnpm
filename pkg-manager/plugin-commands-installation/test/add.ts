@@ -337,7 +337,7 @@ test('pnpm add automatically installs missing peer dependencies', async () => {
   }, ['@pnpm.e2e/abc@1.0.0'])
 
   const lockfile = project.readLockfile()
-  expect(Object.keys(lockfile.packages).length).toBe(5)
+  expect(Object.keys(lockfile.packages)).toHaveLength(5)
 })
 
 test('add: fail when global bin directory is not found', async () => {

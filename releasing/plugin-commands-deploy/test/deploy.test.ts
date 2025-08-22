@@ -5,6 +5,7 @@ import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
 import { logger, globalWarn } from '@pnpm/logger'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { jest } from '@jest/globals'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 beforeEach(async () => {

@@ -4,38 +4,39 @@ import { resolveFromLocal } from '@pnpm/local-resolver'
 import { type DirectoryResolution } from '@pnpm/resolver-base'
 import normalize from 'normalize-path'
 import { logger } from '@pnpm/logger'
+import { jest } from '@jest/globals'
 
 const TEST_DIR = path.dirname(require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-local-resolver-0.1.1.tgz'))
 
 test('resolve directory', async () => {
   const resolveResult = await resolveFromLocal({}, { bareSpecifier: '..' }, { projectDir: __dirname })
-  expect(resolveResult!.id).toEqual('link:..')
-  expect(resolveResult!.normalizedBareSpecifier).toEqual('link:..')
-  expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
+  expect(resolveResult!.id).toBe('link:..')
+  expect(resolveResult!.normalizedBareSpecifier).toBe('link:..')
+  expect(resolveResult!['manifest']!.name).toBe('@pnpm/local-resolver')
   expect((resolveResult!.resolution as DirectoryResolution).directory).toEqual(normalize(path.join(__dirname, '..')))
-  expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
+  expect((resolveResult!.resolution as DirectoryResolution).type).toBe('directory')
 })
 
 test('resolve directory specified using absolute path', async () => {
   const linkedDir = path.join(__dirname, '..')
   const normalizedLinkedDir = normalize(linkedDir)
   const resolveResult = await resolveFromLocal({}, { bareSpecifier: `link:${linkedDir}` }, { projectDir: __dirname })
-  expect(resolveResult!.id).toEqual('link:..')
-  expect(resolveResult!.normalizedBareSpecifier).toEqual(`link:${normalizedLinkedDir}`)
-  expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
+  expect(resolveResult!.id).toBe('link:..')
+  expect(resolveResult!.normalizedBareSpecifier).toBe(`link:${normalizedLinkedDir}`)
+  expect(resolveResult!['manifest']!.name).toBe('@pnpm/local-resolver')
   expect((resolveResult!.resolution as DirectoryResolution).directory).toEqual(normalizedLinkedDir)
-  expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
+  expect((resolveResult!.resolution as DirectoryResolution).type).toBe('directory')
 })
 
 test('resolve directory specified using absolute path with preserveAbsolutePaths', async () => {
   const linkedDir = path.join(__dirname, '..')
   const normalizedLinkedDir = normalize(linkedDir)
   const resolveResult = await resolveFromLocal({ preserveAbsolutePaths: true }, { bareSpecifier: `link:${linkedDir}` }, { projectDir: __dirname })
-  expect(resolveResult!.id).toEqual(`link:${normalizedLinkedDir}`)
-  expect(resolveResult!.normalizedBareSpecifier).toEqual(`link:${normalizedLinkedDir}`)
-  expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
+  expect(resolveResult!.id).toBe(`link:${normalizedLinkedDir}`)
+  expect(resolveResult!.normalizedBareSpecifier).toBe(`link:${normalizedLinkedDir}`)
+  expect(resolveResult!['manifest']!.name).toBe('@pnpm/local-resolver')
   expect((resolveResult!.resolution as DirectoryResolution).directory).toEqual(normalizedLinkedDir)
-  expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
+  expect((resolveResult!.resolution as DirectoryResolution).type).toBe('directory')
 })
 
 test('resolve directory specified using absolute path with preserveAbsolutePaths and file: scheme', async () => {
@@ -46,47 +47,47 @@ test('resolve directory specified using absolute path with preserveAbsolutePaths
     { bareSpecifier: `file:${linkedDir}` },
     { projectDir: __dirname }
   )
-  expect(resolveResult!.id).toEqual(`file:${normalizedLinkedDir}`)
-  expect(resolveResult!.normalizedBareSpecifier).toEqual(`file:${normalizedLinkedDir}`)
-  expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
+  expect(resolveResult!.id).toBe(`file:${normalizedLinkedDir}`)
+  expect(resolveResult!.normalizedBareSpecifier).toBe(`file:${normalizedLinkedDir}`)
+  expect(resolveResult!['manifest']!.name).toBe('@pnpm/local-resolver')
   expect((resolveResult!.resolution as DirectoryResolution).directory).toEqual(normalizedLinkedDir)
-  expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
+  expect((resolveResult!.resolution as DirectoryResolution).type).toBe('directory')
 })
 
 test('resolve injected directory', async () => {
   const resolveResult = await resolveFromLocal({}, { injected: true, bareSpecifier: '..' }, { projectDir: __dirname })
-  expect(resolveResult!.id).toEqual('file:..')
-  expect(resolveResult!.normalizedBareSpecifier).toEqual('file:..')
-  expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
-  expect((resolveResult!.resolution as DirectoryResolution).directory).toEqual('..')
-  expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
+  expect(resolveResult!.id).toBe('file:..')
+  expect(resolveResult!.normalizedBareSpecifier).toBe('file:..')
+  expect(resolveResult!['manifest']!.name).toBe('@pnpm/local-resolver')
+  expect((resolveResult!.resolution as DirectoryResolution).directory).toBe('..')
+  expect((resolveResult!.resolution as DirectoryResolution).type).toBe('directory')
 })
 
 test('resolve workspace directory', async () => {
   const resolveResult = await resolveFromLocal({}, { bareSpecifier: 'workspace:..' }, { projectDir: __dirname })
-  expect(resolveResult!.id).toEqual('link:..')
-  expect(resolveResult!.normalizedBareSpecifier).toEqual('link:..')
-  expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
+  expect(resolveResult!.id).toBe('link:..')
+  expect(resolveResult!.normalizedBareSpecifier).toBe('link:..')
+  expect(resolveResult!['manifest']!.name).toBe('@pnpm/local-resolver')
   expect((resolveResult!.resolution as DirectoryResolution).directory).toEqual(normalize(path.join(__dirname, '..')))
-  expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
+  expect((resolveResult!.resolution as DirectoryResolution).type).toBe('directory')
 })
 
 test('resolve directory specified using the file: protocol', async () => {
   const resolveResult = await resolveFromLocal({}, { bareSpecifier: 'file:..' }, { projectDir: __dirname })
-  expect(resolveResult!.id).toEqual('file:..')
-  expect(resolveResult!.normalizedBareSpecifier).toEqual('file:..')
-  expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
-  expect((resolveResult!.resolution as DirectoryResolution).directory).toEqual('..')
-  expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
+  expect(resolveResult!.id).toBe('file:..')
+  expect(resolveResult!.normalizedBareSpecifier).toBe('file:..')
+  expect(resolveResult!['manifest']!.name).toBe('@pnpm/local-resolver')
+  expect((resolveResult!.resolution as DirectoryResolution).directory).toBe('..')
+  expect((resolveResult!.resolution as DirectoryResolution).type).toBe('directory')
 })
 
 test('resolve directory specified using the link: protocol', async () => {
   const resolveResult = await resolveFromLocal({}, { bareSpecifier: 'link:..' }, { projectDir: __dirname })
-  expect(resolveResult!.id).toEqual('link:..')
-  expect(resolveResult!.normalizedBareSpecifier).toEqual('link:..')
-  expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
+  expect(resolveResult!.id).toBe('link:..')
+  expect(resolveResult!.normalizedBareSpecifier).toBe('link:..')
+  expect(resolveResult!['manifest']!.name).toBe('@pnpm/local-resolver')
   expect((resolveResult!.resolution as DirectoryResolution).directory).toEqual(normalize(path.join(__dirname, '..')))
-  expect((resolveResult!.resolution as DirectoryResolution).type).toEqual('directory')
+  expect((resolveResult!.resolution as DirectoryResolution).type).toBe('directory')
 })
 
 test('resolve file', async () => {
@@ -144,7 +145,7 @@ test('fail when resolving tarball specified with the link: protocol', async () =
     fail()
   } catch (err: any) { // eslint-disable-line
     expect(err).toBeDefined()
-    expect(err.code).toEqual('ERR_PNPM_NOT_PACKAGE_DIRECTORY')
+    expect(err.code).toBe('ERR_PNPM_NOT_PACKAGE_DIRECTORY')
   }
 })
 
@@ -177,8 +178,8 @@ test('throw error when the path: protocol is used', async () => {
     fail()
   } catch (err: any) { // eslint-disable-line
     expect(err).toBeDefined()
-    expect(err.code).toEqual('ERR_PNPM_PATH_IS_UNSUPPORTED_PROTOCOL')
-    expect(err.bareSpecifier).toEqual('path:..')
-    expect(err.protocol).toEqual('path:')
+    expect(err.code).toBe('ERR_PNPM_PATH_IS_UNSUPPORTED_PROTOCOL')
+    expect(err.bareSpecifier).toBe('path:..')
+    expect(err.protocol).toBe('path:')
   }
 })

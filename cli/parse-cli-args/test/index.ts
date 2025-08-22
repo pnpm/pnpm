@@ -180,7 +180,7 @@ test('no command', async () => {
   const { cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
   }, ['--version'])
-  expect(cmd).toBe(null)
+  expect(cmd).toBeNull()
 })
 
 test('use command-specific shorthands', async () => {
@@ -268,7 +268,7 @@ test("don't use the fallback command if no command is present", async () => {
     getCommandLongName: () => null,
     universalOptionsTypes: { filter: [String, Array] },
   }, [])
-  expect(cmd).toBe(null)
+  expect(cmd).toBeNull()
   expect(params).toStrictEqual([])
 })
 

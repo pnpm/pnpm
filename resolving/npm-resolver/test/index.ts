@@ -62,7 +62,7 @@ test('resolveFromNpm()', async () => {
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
   expect(resolveResult!.normalizedBareSpecifier).toBe('1.0.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
@@ -132,7 +132,7 @@ test('relative workspace protocol is skipped', async () => {
     projectDir: '/home/istvan/src',
   })
 
-  expect(resolveResult).toBe(null)
+  expect(resolveResult).toBeNull()
 })
 
 test('dry run', async () => {
@@ -150,7 +150,7 @@ test('dry run', async () => {
   })
 
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
@@ -935,7 +935,7 @@ test('resolve when tarball URL is requested from the registry', async () => {
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
@@ -967,7 +967,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
@@ -1012,7 +1012,7 @@ test('resolve from local directory when it matches the latest version of the pac
 
   expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:is-positive')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     directory: '/home/istvan/src/is-positive',
     type: 'directory',
@@ -1052,7 +1052,7 @@ test('resolve injected dependency from local directory when it matches the lates
   // via the 'workspace' rather than 'local-filesystem'.
   expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('file:is-positive')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     directory: 'is-positive',
     type: 'directory',
@@ -1090,7 +1090,7 @@ test('do not resolve from local directory when alwaysTryWorkspacePackages is fal
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
@@ -1198,7 +1198,7 @@ test('use version from the registry if it is newer than the local one', async ()
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9Qa5b+9n69IEuxk4FiNcavXqkixb9lD03BLtdTeu2bbORnLZQrw+pR/exiSg7SoODeu08yxS47mdZa9ddodNwQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
@@ -1280,7 +1280,7 @@ test('use local version if it is newer than the latest in the registry', async (
 
   expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:is-positive')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     directory: '/home/istvan/src/is-positive',
     type: 'directory',
@@ -1721,7 +1721,7 @@ test('resolveFromNpm() should always return the name of the package that is spec
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9Qa5b+9n69IEuxk4FiNcavXqkixb9lD03BLtdTeu2bbORnLZQrw+pR/exiSg7SoODeu08yxS47mdZa9ddodNwQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
@@ -1827,7 +1827,7 @@ test('resolveFromNpm() does not fail if the meta file contains no integrity info
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@2.0.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: undefined,
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-2.0.0.tgz',
@@ -1868,7 +1868,7 @@ test('resolveFromNpm() should normalize the registry', async () => {
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',

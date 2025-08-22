@@ -482,8 +482,8 @@ test('selection should fail when diffing to a branch that does not exist', async
     err = _err
   }
   expect(err).toBeDefined()
-  expect(err.code).toEqual('ERR_PNPM_FILTER_CHANGED')
-  expect(err.message).toEqual("Filtering by changed packages failed. fatal: bad revision 'branch-does-no-exist'")
+  expect(err.code).toBe('ERR_PNPM_FILTER_CHANGED')
+  expect(err.message).toBe("Filtering by changed packages failed. fatal: bad revision 'branch-does-no-exist'")
 })
 
 test('should return unmatched filters', async () => {

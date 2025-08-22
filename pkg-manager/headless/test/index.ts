@@ -19,6 +19,7 @@ import { type DepPath } from '@pnpm/types'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
+import { jest } from '@jest/globals'
 import { sync as rimraf } from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import sinon from 'sinon'
@@ -479,7 +480,7 @@ test('installing local dependency', async () => {
   await headlessInstall(await testDefaults({ lockfileDir: prefix, reporter }))
 
   const project = assertProject(prefix)
-  expect(project.requireModule('tar-pkg'))
+  expect(project.requireModule('tar-pkg')).toBeTruthy()
 })
 
 test('installing local directory dependency', async () => {

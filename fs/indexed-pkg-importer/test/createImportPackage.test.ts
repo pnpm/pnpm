@@ -171,7 +171,7 @@ test('packageImportMethod=hardlink does not relink package from store if package
     },
     force: false,
     resolvedFrom: 'store',
-  })).toBe(undefined)
+  })).toBeUndefined()
 })
 
 test('packageImportMethod=hardlink relinks package from store if package.json is not linked from the store', () => {
@@ -201,7 +201,7 @@ test('packageImportMethod=hardlink does not relink package from store if package
     },
     force: false,
     resolvedFrom: 'store',
-  })).toBe(undefined)
+  })).toBeUndefined()
 })
 
 test('packageImportMethod=hardlink links packages when they are not found', () => {

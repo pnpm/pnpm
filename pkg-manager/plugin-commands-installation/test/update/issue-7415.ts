@@ -8,7 +8,6 @@ import { jest } from '@jest/globals'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
-// eslint-disable-next-line
 const prompt = jest.mocked(enquirer.prompt)
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`

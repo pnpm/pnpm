@@ -41,7 +41,7 @@ describe('TestEchoServer', () => {
 
       // Wait a short amount of time for the server to handle incoming messages.
       await setTimeout(50)
-      expect(server.getBuffer()).toStrictEqual('hello\nworld\n')
+      expect(server.getBuffer()).toBe('hello\nworld\n')
       expect(server.getLines()).toStrictEqual(['hello', 'world'])
     })
 

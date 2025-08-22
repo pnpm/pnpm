@@ -10,6 +10,7 @@ import { tempDir, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { type DepPath, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
+import { jest } from '@jest/globals'
 import { sync as readYamlFile } from 'read-yaml-file'
 import {
   addDependenciesToPackage,
@@ -47,7 +48,7 @@ test('lockfile has correct format', async () => {
 
   const modules = project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.pendingBuilds.length).toBe(0)
+  expect(modules!.pendingBuilds).toHaveLength(0)
 
   const lockfile = project.readLockfile()
   const id = '@pnpm.e2e/pkg-with-1-dep@100.0.0'
@@ -147,7 +148,7 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
 
   const lockfile = project.readLockfile()
 
-  expect(Object.keys(lockfile.importers!['.'].dependencies!).length).toBe(1) // resolutions not duplicated
+  expect(Object.keys(lockfile.importers!['.'].dependencies!)).toHaveLength(1) // resolutions not duplicated
 })
 
 test('a lockfile created even when there are no deps in package.json', async () => {
@@ -826,7 +827,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   const modules = readYamlFile<any>(path.resolve('node_modules', '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(modules).toBeTruthy()
-  expect(modules.pendingBuilds.length).toBe(0)
+  expect(modules.pendingBuilds).toHaveLength(0)
 
   {
     const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)

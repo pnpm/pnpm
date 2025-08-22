@@ -31,6 +31,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/resolver-base": "workspace:*"
