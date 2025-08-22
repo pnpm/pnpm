@@ -7,6 +7,7 @@ import {
   type SslConfig,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
+import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
@@ -37,6 +38,7 @@ export interface Config extends OptionsFromRootManifest {
   filterProd: string[]
   rawLocalConfig: Record<string, any>, // eslint-disable-line
   rawConfig: Record<string, any>, // eslint-disable-line
+  workspaceManifest?: WorkspaceManifest
   dryRun?: boolean // This option might be not supported ever
   global?: boolean
   dir: string
