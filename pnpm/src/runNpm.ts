@@ -14,5 +14,8 @@ export async function runNpm (args: string[]): Promise<SpawnSyncReturns<Buffer>>
       ], allTypes),
     },
   })
+  if (args[0] === 'view' && args[2] === 'versions') {
+    console.log('registry: ' + config.registry)
+  }
   return _runNpm(config.npmPath, args)
 }
