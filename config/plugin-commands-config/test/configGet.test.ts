@@ -58,7 +58,10 @@ test('config get on array should return a comma-separated list', async () => {
     },
   }, ['get', 'public-hoist-pattern'])
 
-  expect(getOutputString(getResult)).toBe('*eslint*,*prettier*')
+  expect(JSON.parse(getOutputString(getResult))).toStrictEqual([
+    '*eslint*',
+    '*prettier*',
+  ])
 })
 
 test('config get on object should return an ini string', async () => {
