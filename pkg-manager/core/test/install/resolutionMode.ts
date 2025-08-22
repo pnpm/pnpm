@@ -92,3 +92,40 @@ test('the lowest version of a direct dependency is installed when resolution mod
     '@pnpm.e2e/pkg-with-1-dep': '^100.1.0',
   })
 })
+
+test('the lowest version of a direct dependency is installed when resolution mode is lowest-direct and already installed other version ', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/bravo'],
+    testDefaults({ resolutionMode: 'time-based' })
+  )
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages['@pnpm.e2e/bravo-dep@1.0.1']).toBeTruthy()
+  await install(
+    {
+      dependencies: {
+        '@pnpm.e2e/bravo-dep': '^1.0.0',
+      },
+    },
+    testDefaults({ resolutionMode: 'lowest-direct' })
+  )
+
+  {
+    const lockfile = project.readLockfile()
+    expect(lockfile.packages['@pnpm.e2e/bravo-dep@1.0.0']).toBeTruthy()
+  }
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/bravo-dep': '^1.1.0',
+    },
+  }, testDefaults({ resolutionMode: 'lowest-direct' }))
+
+  {
+    const lockfile = project.readLockfile()
+    expect(lockfile.packages['@pnpm.e2e/bravo-dep@1.1.0']).toBeTruthy()
+  }
+})
