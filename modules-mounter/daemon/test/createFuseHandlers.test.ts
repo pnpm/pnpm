@@ -3,10 +3,9 @@ import { jest } from '@jest/globals'
 import path from 'path'
 import { type FuseHandlers } from '../src/createFuseHandlers.js'
 
-const original = await import('fuse-native')
-jest.unstable_mockModule('fuse-native', () => ({ ...original, ENOENT: -2 }))
+jest.unstable_mockModule('fuse-native', () => ({ default: { ENOENT: -2 } }))
 
-const Fuse = await import('fuse-native')
+const { default: Fuse } = await import('fuse-native')
 const { createFuseHandlers } = await import('../src/createFuseHandlers.js')
 
 describe('FUSE handlers', () => {

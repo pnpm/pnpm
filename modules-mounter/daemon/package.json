@@ -31,7 +31,7 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "pretest": "node ../../pnpm/dist/pnpm.mjs install --dir=test/__fixtures__/simple",
+    "pretest": "node ../../pnpm/dist/pnpm.mjs install --dir=test/__fixtures__/simple --config.enableGlobalVirtualStore=false",
     "_test": "pnpm pretest && cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "compile": "tsc --build && pnpm run lint --fix"
   },
