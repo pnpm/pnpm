@@ -4,13 +4,13 @@ import { getAuthHeadersFromConfig } from '../src/getAuthHeadersFromConfig.js'
 import { Buffer } from 'safe-buffer'
 
 const osTokenHelper = {
-  linux: path.join(__dirname, 'utils/test-exec.js'),
-  win32: path.join(__dirname, 'utils/test-exec.bat'),
+  linux: path.join(import.meta.dirname, 'utils/test-exec.js'),
+  win32: path.join(import.meta.dirname, 'utils/test-exec.bat'),
 }
 
 const osErrorTokenHelper = {
-  linux: path.join(__dirname, 'utils/test-exec-error.js'),
-  win32: path.join(__dirname, 'utils/test-exec-error.bat'),
+  linux: path.join(import.meta.dirname, 'utils/test-exec-error.js'),
+  win32: path.join(import.meta.dirname, 'utils/test-exec-error.bat'),
 }
 
 // Only exception is win32, all others behave like linux

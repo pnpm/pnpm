@@ -1,17 +1,18 @@
 import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import {
-  readCurrentLockfile,
-  readWantedLockfile,
-  writeLockfiles,
-} from '@pnpm/lockfile.fs'
 import { jest } from '@jest/globals'
 import tempy from 'tempy'
 import yaml from 'yaml-tag'
-import { getCurrentBranch } from '@pnpm/git-utils'
 
-jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
+jest.unstable_mockModule('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
+
+const { getCurrentBranch } = await import('@pnpm/git-utils')
+const {
+  readCurrentLockfile,
+  readWantedLockfile,
+  writeLockfiles,
+} = await import('@pnpm/lockfile.fs')
 
 test('writeLockfiles()', async () => {
   const projectPath = tempy.directory()

@@ -22,7 +22,7 @@ import {
 } from '../utils/index.js'
 
 const skipOnWindows = isWindows() ? test.skip : test
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('bin files are found by lifecycle scripts', () => {
   prepare({
@@ -162,7 +162,7 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
   const storeDir = project.getStorePath()
-  if (await dirIsCaseSensitive(storeDir)) {
+  if (await dirIsCaseSensitive.default(storeDir)) {
     expect([...files].sort()).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   } else {
     expect([...files].map((f) => f.toLowerCase()).sort()).toStrictEqual(['foo.js', 'package.json'])
@@ -216,7 +216,7 @@ test('create a package.json if there is none', async () => {
 
   await execPnpm(['install', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
-  expect((await import(path.resolve('package.json'))).default).toStrictEqual({
+  expect((await import(path.resolve('package.json'))).default).toEqual({
     dependencies: {
       '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
     },

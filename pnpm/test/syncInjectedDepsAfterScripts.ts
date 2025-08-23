@@ -5,7 +5,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm } from './utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 const PKG_FILES = [
   ...fs.readdirSync(f.find('injected-dep-files')),

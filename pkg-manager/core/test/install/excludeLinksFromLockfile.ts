@@ -19,7 +19,7 @@ import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeJsonFile } from 'write-json-file'
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('links are not added to the lockfile when excludeLinksFromLockfile is true', async () => {
   const externalPkg1 = tempDir(false)

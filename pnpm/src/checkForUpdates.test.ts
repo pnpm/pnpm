@@ -1,14 +1,17 @@
 import { getConfig } from '@pnpm/config'
-import { updateCheckLogger } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
-import { checkForUpdates } from './checkForUpdates.js'
 
-jest.mock('@pnpm/core-loggers', () => ({
+const original = await import('@pnpm/core-loggers')
+jest.unstable_mockModule('@pnpm/core-loggers', () => ({
+  ...original,
   updateCheckLogger: { debug: jest.fn() },
 }))
+
+const { updateCheckLogger } = await import('@pnpm/core-loggers')
+const { checkForUpdates } = await import('./checkForUpdates.js')
 
 beforeEach(() => {
   jest.mocked(updateCheckLogger.debug).mockReset()

@@ -13,7 +13,7 @@ import { type Project, type ProjectsGraph, type ProjectRootDir, type ProjectRoot
 import execa from 'execa'
 import pLimit from 'p-limit'
 import { prependDirsToPath } from '@pnpm/env.path'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import { existsInDir } from './existsInDir.js'
 import { makeEnv } from './makeEnv.js'

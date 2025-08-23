@@ -8,7 +8,7 @@ import symlinkDir from 'symlink-dir'
 import fs from 'fs'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 const DEFAULT_OPTIONS = {
   argv: {

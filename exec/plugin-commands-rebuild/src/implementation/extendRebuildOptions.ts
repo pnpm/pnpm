@@ -58,7 +58,7 @@ Pick<StrictRebuildOptions, 'storeDir' | 'storeController'> & Pick<Config, 'rootP
 
 const defaults = async (opts: RebuildOptions): Promise<StrictRebuildOptions> => {
   const packageManager = opts.packageManager ??
-    await loadJsonFile<{ name: string, version: string }>(path.join(__dirname, '../../package.json'))!
+    await loadJsonFile<{ name: string, version: string }>(path.join(import.meta.dirname, '../../package.json'))!
   const dir = opts.dir ?? process.cwd()
   const lockfileDir = opts.lockfileDir ?? dir
   return {

@@ -1,16 +1,20 @@
-import { install } from '@pnpm/plugin-commands-installation'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { preparePackages } from '@pnpm/prepare'
-import { logger } from '@pnpm/logger'
 import { jest } from '@jest/globals'
 import { DEFAULT_OPTS } from './utils/index.js'
 
-beforeEach(() => {
-  jest.spyOn(logger, 'warn')
-})
+const warn = jest.fn()
+const info = jest.fn()
+const debug = jest.fn()
+const original = await import('@pnpm/logger')
+jest.unstable_mockModule('@pnpm/logger', () => ({
+  ...original,
+  logger: Object.assign(() => ({ warn, info, debug }), { warn, info, debug }),
+}))
+const { install } = await import('@pnpm/plugin-commands-installation')
 
 afterEach(() => {
-  jest.mocked(logger.warn).mockRestore()
+  jest.mocked(warn).mockRestore()
 })
 
 test('should warn about cyclic dependencies', async () => {
@@ -37,8 +41,8 @@ test('should warn about cyclic dependencies', async () => {
     workspaceDir: process.cwd(),
   })
 
-  expect(logger.warn).toHaveBeenCalledTimes(1)
-  expect(logger.warn).toHaveBeenCalledWith({
+  expect(warn).toHaveBeenCalledTimes(1)
+  expect(warn).toHaveBeenCalledWith({
     message: expect.stringMatching(/^There are cyclic workspace dependencies: /),
     prefix: process.cwd(),
   })
@@ -69,7 +73,7 @@ test('should not warn about cyclic dependencies if ignore-workspace-cycles is se
     ignoreWorkspaceCycles: true,
   })
 
-  expect(logger.warn).toHaveBeenCalledTimes(0)
+  expect(warn).toHaveBeenCalledTimes(0)
 })
 
 test('should not warn about cyclic dependencies if there are not', async () => {
@@ -95,5 +99,5 @@ test('should not warn about cyclic dependencies if there are not', async () => {
     workspaceDir: process.cwd(),
   })
 
-  expect(logger.warn).toHaveBeenCalledTimes(0)
+  expect(warn).toHaveBeenCalledTimes(0)
 })

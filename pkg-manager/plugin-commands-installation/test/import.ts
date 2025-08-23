@@ -8,7 +8,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import tempy from 'tempy'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 const TMP = tempy.directory()

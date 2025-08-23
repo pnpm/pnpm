@@ -3,7 +3,7 @@
   "compilerOptions": {
     "outDir": "lib",
     "rootDir": "src",
-    "module": "ES2020"
+    "module": "nodenext"
   },
   "include": [
     "src/**/*.ts",

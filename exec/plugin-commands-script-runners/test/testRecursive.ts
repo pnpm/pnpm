@@ -7,7 +7,7 @@ import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import execa from 'execa'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
 
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 test('pnpm recursive test', async () => {
   await using server1 = await createTestIpcServer()

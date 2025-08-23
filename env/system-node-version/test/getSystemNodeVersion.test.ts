@@ -1,12 +1,13 @@
 import { jest } from '@jest/globals'
-import { getSystemNodeVersionNonCached } from '../lib/index.js'
-import * as execa from 'execa'
 
-jest.mock('execa', () => ({
+jest.unstable_mockModule('execa', () => ({
   sync: jest.fn(() => ({
     stdout: 'v10.0.0',
   })),
 }))
+
+const { getSystemNodeVersionNonCached } = await import('../lib/index.js')
+const execa = await import('execa')
 
 test('getSystemNodeVersion() executed from an executable pnpm CLI', () => {
   // @ts-expect-error

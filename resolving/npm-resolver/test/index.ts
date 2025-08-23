@@ -14,11 +14,11 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { type Registries, type ProjectRootDir } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
-import omit from 'ramda/src/omit'
+import { omit } from 'ramda'
 import tempy from 'tempy'
 import { delay, retryLoadJsonFile } from './utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const isPositiveMeta = loadJsonFile.sync<any>(f.find('is-positive.json'))
 const isPositiveMetaWithDeprecated = loadJsonFile.sync<any>(f.find('is-positive-with-deprecated.json'))

@@ -1,29 +1,30 @@
 /// <reference path="../../../__typings__/index.d.ts" />
+import { jest } from '@jest/globals'
 import fs from 'fs'
 import path from 'path'
 import { FetchError, PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createCafsStore } from '@pnpm/create-cafs-store'
-import { globalWarn } from '@pnpm/logger'
-import type * as Logger from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
 import {
   createTarballFetcher,
   BadTarballError,
   TarballIntegrityError,
 } from '@pnpm/tarball-fetcher'
-import { jest } from '@jest/globals'
 import nock from 'nock'
 import ssri from 'ssri'
 import tempy from 'tempy'
 
-jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual<typeof Logger>('@pnpm/logger')
+const originalModule = await import('@pnpm/logger')
+
+jest.unstable_mockModule('@pnpm/logger', async () => {
   return {
     ...originalModule,
     globalWarn: jest.fn(),
   }
 })
+
+const { globalWarn } = await import('@pnpm/logger')
 
 beforeEach(() => {
   jest.mocked(globalWarn).mockClear()
@@ -33,7 +34,7 @@ const storeDir = tempy.directory()
 const filesIndexFile = path.join(storeDir, 'index.json')
 const cafs = createCafsStore(storeDir)
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const tarballPath = f.find('babel-helper-hoist-variables-6.24.1.tgz')
 const tarballSize = 1279
 const tarballIntegrity = 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY='

@@ -4,9 +4,7 @@ import {
   DEPENDENCIES_FIELDS,
   type ProjectManifest,
 } from '@pnpm/types'
-import equals from 'ramda/src/equals'
-import pickBy from 'ramda/src/pickBy'
-import omit from 'ramda/src/omit'
+import { equals, pickBy, omit } from 'ramda'
 import semver from 'semver'
 import { type Diff, diffFlatRecords, isEqual } from './diffFlatRecords.js'
 

@@ -1,20 +1,33 @@
 import fs from 'fs'
 import path from 'path'
-import { install, link } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages, prepareEmpty } from '@pnpm/prepare'
 import { isExecutable, assertProject } from '@pnpm/assert-project'
 import { fixtures } from '@pnpm/test-fixtures'
-import { logger } from '@pnpm/logger'
-import { jest } from '@jest/globals'
 import { sync as loadJsonFile } from 'load-json-file'
 import PATH from 'path-name'
 import { sync as readYamlFile } from 'read-yaml-file'
 import writePkg from 'write-pkg'
-import { DEFAULT_OPTS } from './utils/index.js'
 import { type PnpmError } from '@pnpm/error'
+import { jest } from '@jest/globals'
 import { sync as writeYamlFile } from 'write-yaml-file'
+import { DEFAULT_OPTS } from './utils/index.js'
 
-const f = fixtures(__dirname)
+const original = await import('@pnpm/logger')
+jest.unstable_mockModule('@pnpm/logger', () => {
+  const logger = {
+    ...original.logger,
+    warn: jest.fn(),
+  }
+  return {
+    ...original,
+    logger: Object.assign(() => logger, logger),
+  }
+})
+
+const { logger } = await import('@pnpm/logger')
+const { install, link } = await import('@pnpm/plugin-commands-installation')
+
+const f = fixtures(import.meta.dirname)
 
 test('linking multiple packages', async () => {
   const project = prepare()
@@ -260,8 +273,6 @@ test('link fails if nothing is linked', async () => {
 test('logger warns about peer dependencies when linking', async () => {
   prepare()
 
-  const warnMock = jest.spyOn(logger, 'warn')
-
   process.chdir('..')
   const globalDir = path.resolve('global')
 
@@ -292,17 +303,15 @@ test('logger warns about peer dependencies when linking', async () => {
     globalPkgDir: globalDir,
   }, ['linked-with-peer-deps'])
 
-  expect(warnMock).toHaveBeenCalledWith(expect.objectContaining({
+  expect(logger.warn).toHaveBeenCalledWith(expect.objectContaining({
     message: expect.stringContaining('has the following peerDependencies specified in its package.json'),
   }))
 
-  warnMock.mockRestore()
+  jest.mocked(logger.warn).mockRestore()
 })
 
 test('logger should not warn about peer dependencies when it is an empty object', async () => {
   prepare()
-
-  const warnMock = jest.spyOn(logger, 'warn')
 
   process.chdir('..')
   const globalDir = path.resolve('global')
@@ -333,11 +342,11 @@ test('logger should not warn about peer dependencies when it is an empty object'
     rootProjectManifestDir: process.cwd(),
   }, ['linked-with-empty-peer-deps'])
 
-  expect(warnMock).not.toHaveBeenCalledWith(expect.objectContaining({
+  expect(logger.warn).not.toHaveBeenCalledWith(expect.objectContaining({
     message: expect.stringContaining('has the following peerDependencies specified in its package.json'),
   }))
 
-  warnMock.mockRestore()
+  jest.mocked(logger.warn).mockRestore()
 })
 
 test('link: fail when global bin directory is not found', async () => {

@@ -9,7 +9,7 @@ import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import tempy from 'tempy'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 const registries: Registries = {
   default: 'https://registry.npmjs.org/',

@@ -1,28 +1,32 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
 import { createCafsStore } from '@pnpm/create-cafs-store'
-import { createGitFetcher } from '@pnpm/git-fetcher'
-import { globalWarn } from '@pnpm/logger'
 import { jest } from '@jest/globals'
 import tempy from 'tempy'
-import execa from 'execa'
 
-jest.mock('execa', () => {
-  const originalModule = jest.requireActual<any>('execa') // eslint-disable-line
-  return {
-    __esModule: true,
-    ...originalModule,
-    default: jest.fn(originalModule.default),
-  }
-})
+{
+  const originalModule = await import('execa')
+  jest.unstable_mockModule('execa', () => {
+    return {
+      __esModule: true,
+      ...originalModule,
+      default: jest.fn(originalModule.default),
+    }
+  })
+}
+{
+  const originalModule = await import('@pnpm/logger')
+  jest.unstable_mockModule('@pnpm/logger', () => {
+    return {
+      ...originalModule,
+      globalWarn: jest.fn(),
+    }
+  })
+}
 
-jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual<object>('@pnpm/logger')
-  return {
-    ...originalModule,
-    globalWarn: jest.fn(),
-  }
-})
+const { globalWarn } = await import('@pnpm/logger')
+const { default: execa } = await import('execa')
+const { createGitFetcher } = await import('@pnpm/git-fetcher')
 
 beforeEach(() => {
   jest.mocked(execa).mockClear()

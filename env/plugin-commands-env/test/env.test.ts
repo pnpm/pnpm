@@ -105,7 +105,7 @@ test('it re-attempts failed downloads', async () => {
   tempDir()
 
   // This fixture was retrieved from http://nodejs.org/download/release/index.json on 2021-12-12.
-  const testReleaseInfoPath = path.join(__dirname, './fixtures/node-16.4.0-release-info.json')
+  const testReleaseInfoPath = path.join(import.meta.dirname, './fixtures/node-16.4.0-release-info.json')
 
   const nockScope = nock('https://nodejs.org')
     // Using nock's persist option since the default fetcher retries requests.

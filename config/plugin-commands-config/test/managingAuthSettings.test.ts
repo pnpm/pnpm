@@ -1,10 +1,11 @@
-import { config } from '@pnpm/plugin-commands-config'
-import { runNpm } from '@pnpm/run-npm'
 import { jest } from '@jest/globals'
 
-jest.mock('@pnpm/run-npm', () => ({
+jest.unstable_mockModule('@pnpm/run-npm', () => ({
   runNpm: jest.fn(),
 }))
+
+const { config } = await import('@pnpm/plugin-commands-config')
+const { runNpm } = await import('@pnpm/run-npm')
 
 describe.each(
   [
@@ -21,7 +22,7 @@ describe.each(
     const configOpts = {
       dir: process.cwd(),
       cliOptions: {},
-      configDir: __dirname, // this doesn't matter, it won't be used
+      configDir: import.meta.dirname, // this doesn't matter, it won't be used
       rawConfig: {},
     }
     it(`should set ${key}`, async () => {
@@ -39,7 +40,7 @@ describe.each(
       json: true,
       dir: process.cwd(),
       cliOptions: {},
-      configDir: __dirname, // this doesn't matter, it won't be used
+      configDir: import.meta.dirname, // this doesn't matter, it won't be used
       rawConfig: {},
     }
     it(`should set ${key}`, async () => {
@@ -68,7 +69,7 @@ describe.each(
     json: true,
     dir: process.cwd(),
     cliOptions: {},
-    configDir: __dirname, // this doesn't matter, it won't be used
+    configDir: import.meta.dirname, // this doesn't matter, it won't be used
     rawConfig: {},
   }
   it(`${key} should reject a non-string value`, async () => {
@@ -87,7 +88,7 @@ describe.each(
   const configOpts = {
     dir: process.cwd(),
     cliOptions: {},
-    configDir: __dirname, // this doesn't matter, it won't be used
+    configDir: import.meta.dirname, // this doesn't matter, it won't be used
     rawConfig: {},
   }
   it('should set _auth', async () => {

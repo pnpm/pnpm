@@ -5,16 +5,14 @@ import { PnpmError } from '@pnpm/error'
 import execa from 'execa'
 import tempy from 'tempy'
 
-import * as enquirer from 'enquirer'
-
-import { publish } from '@pnpm/plugin-commands-publishing'
 import { jest } from '@jest/globals'
 import { DEFAULT_OPTS } from './utils/index.js'
 
-jest.mock('enquirer', () => ({ prompt: jest.fn() }))
+jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
+const { default: enquirer } = await import('enquirer')
+const { publish } = await import('@pnpm/plugin-commands-publishing')
 
-// eslint-disable-next-line
-const prompt = enquirer.prompt as any
+const prompt = jest.mocked(enquirer.prompt)
 
 const CREDENTIALS = [
   `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,

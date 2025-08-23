@@ -6,7 +6,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import tempy from 'tempy'
 import { type ProjectManifest } from '@pnpm/types'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('readProjectManifest()', async () => {
   expect(
@@ -28,7 +28,7 @@ test('readProjectManifest()', async () => {
   )
 
   expect(
-    (await tryReadProjectManifest(__dirname)).manifest
+    (await tryReadProjectManifest(import.meta.dirname)).manifest
   ).toBeNull()
 })
 

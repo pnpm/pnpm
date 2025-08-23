@@ -39,7 +39,7 @@ test('writeModulesManifest() and readModulesManifest()', async () => {
 })
 
 test('backward compatible read of .modules.yaml created with shamefully-hoist=true', async () => {
-  const modulesYaml = await readModulesManifest(path.join(__dirname, 'fixtures/old-shamefully-hoist'))
+  const modulesYaml = await readModulesManifest(path.join(import.meta.dirname, 'fixtures/old-shamefully-hoist'))
   if (modulesYaml == null) {
     fail('modulesYaml was nullish')
   }
@@ -52,7 +52,7 @@ test('backward compatible read of .modules.yaml created with shamefully-hoist=tr
 })
 
 test('backward compatible read of .modules.yaml created with shamefully-hoist=false', async () => {
-  const modulesYaml = await readModulesManifest(path.join(__dirname, 'fixtures/old-no-shamefully-hoist'))
+  const modulesYaml = await readModulesManifest(path.join(import.meta.dirname, 'fixtures/old-no-shamefully-hoist'))
   if (modulesYaml == null) {
     fail('modulesYaml was nullish')
   }
@@ -121,6 +121,6 @@ test('readModulesManifest() should create a node_modules directory if makeModule
 })
 
 test('readModulesManifest does not fail on empty file', async () => {
-  const modulesYaml = await readModulesManifest(path.join(__dirname, 'fixtures/empty-modules-yaml'))
+  const modulesYaml = await readModulesManifest(path.join(import.meta.dirname, 'fixtures/empty-modules-yaml'))
   expect(modulesYaml).toBeUndefined()
 })

@@ -19,7 +19,7 @@ import tempy from 'tempy'
 import { type PkgResolutionId, type PkgRequestFetchResult, type RequestPackageOptions } from '@pnpm/store-controller-types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const IS_POSITIVE_TARBALL = f.find('is-positive-1.0.0.tgz')
 
 const registries = { default: registry }

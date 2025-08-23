@@ -2,14 +2,16 @@ import AdmZip from 'adm-zip'
 import { Response } from 'node-fetch'
 import path from 'path'
 import { Readable } from 'stream'
-import { fetchNode, type FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetcher'
+import { type FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetcher'
 import { tempDir } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
-import { isNonGlibcLinux } from 'detect-libc'
 
-jest.mock('detect-libc', () => ({
+jest.unstable_mockModule('detect-libc', () => ({
   isNonGlibcLinux: jest.fn(),
 }))
+
+const { fetchNode } = await import('@pnpm/node.fetcher')
+const { isNonGlibcLinux } = await import('detect-libc')
 
 const fetchMock = jest.fn(async (url: string) => {
   if (url.endsWith('.zip')) {

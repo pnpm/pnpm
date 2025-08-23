@@ -3,7 +3,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { addDependenciesToPackage } from '@pnpm/core'
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async () => {
   const project = prepareEmpty()

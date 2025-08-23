@@ -26,7 +26,7 @@ import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import { testDefaults } from './utils/testDefaults.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('installing a simple project', async () => {
   const prefix = f.prepare('simple')

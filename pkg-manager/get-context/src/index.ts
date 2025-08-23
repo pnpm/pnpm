@@ -20,7 +20,7 @@ import {
   type ProjectRootDirRealPath,
 } from '@pnpm/types'
 import pathAbsolute from 'path-absolute'
-import clone from 'ramda/src/clone'
+import { clone } from 'ramda'
 import { readLockfiles } from './readLockfiles.js'
 
 /**

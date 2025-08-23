@@ -13,7 +13,7 @@ import loadJsonFile from 'load-json-file'
 import sinon from 'sinon'
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('patch package with exact version', async () => {
   const reporter = sinon.spy()

@@ -433,7 +433,7 @@ async function _rebuild (
     }
   ))
 
-  await runGroups(opts.childConcurrency || 5, groups)
+  await runGroups.default(opts.childConcurrency || 5, groups)
 
   if (builtDepPaths.size > 0) {
     // It may be optimized because some bins were already linked before running lifecycle scripts

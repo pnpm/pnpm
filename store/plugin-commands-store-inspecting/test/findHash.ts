@@ -9,7 +9,7 @@ import { type PnpmError } from '@pnpm/error'
 import execa from 'execa'
 import tempy from 'tempy'
 
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 test('print index file path with hash', async () => {
   const { PACKAGE_INFO_CLR, INDEX_PATH_CLR } = findHash

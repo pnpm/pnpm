@@ -1,2 +1,2 @@
 #!/usr/bin/env node
-require('../lib/clientBin')
+import {} from '../lib/clientBin.js'

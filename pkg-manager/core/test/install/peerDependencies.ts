@@ -23,7 +23,7 @@ import deepRequireCwd from 'deep-require-cwd'
 import { createPeerDepGraphHash, depPathToFilename } from '@pnpm/dependency-path'
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test("don't fail when peer dependency is fetched from GitHub", async () => {
   prepareEmpty()

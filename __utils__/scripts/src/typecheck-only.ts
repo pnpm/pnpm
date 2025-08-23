@@ -7,9 +7,9 @@ import glob from 'fast-glob'
 import normalizePath from 'normalize-path'
 import path from 'path'
 
-const repoRoot = path.resolve(__dirname, '../../../')
+const repoRoot = path.resolve(import.meta.dirname, '../../../')
 const typeCheckDir = path.resolve(repoRoot, '__typecheck__')
-const typingsDir = path.resolve(__dirname, '__typings__')
+const typingsDir = path.resolve(import.meta.dirname, '__typings__')
 
 async function main (): Promise<void> {
   const workspace = await readWorkspaceManifest(repoRoot)

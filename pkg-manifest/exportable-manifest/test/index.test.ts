@@ -7,7 +7,7 @@ import { type ProjectManifest } from '@pnpm/types'
 import crossSpawn from 'cross-spawn'
 import path from 'path'
 
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 const defaultOpts: MakePublishManifestOptions = {
   catalogs: {},

@@ -15,7 +15,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -31,8 +31,8 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "pretest": "node ../../pnpm/dist/pnpm.cjs install --dir=test/__fixtures__/simple",
-    "_test": "pnpm pretest && jest",
+    "pretest": "node ../../pnpm/dist/pnpm.mjs install --dir=test/__fixtures__/simple",
+    "_test": "pnpm pretest && cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {

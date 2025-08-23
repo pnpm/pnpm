@@ -532,11 +532,11 @@ test('installing with "workspace=true" should work even if link-workspace-packag
   }, ['project-2'])
 
   {
-    const pkg = await import(path.resolve('project-1/package.json'))
-    expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:2.0.0' })
+    const { default: pkg } = await import(path.resolve('project-1/package.json'))
+    expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:2.0.0' })
   }
   {
-    const pkg = await import(path.resolve('project-2/package.json'))
+    const { default: pkg } = await import(path.resolve('project-2/package.json'))
     expect(pkg.dependencies).toBeFalsy()
   }
 
@@ -573,11 +573,11 @@ test('installing with "workspace=true" should work even if link-workspace-packag
   }, ['project-2'])
 
   {
-    const pkg = await import(path.resolve('project-1/package.json'))
-    expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:*' })
+    const { default: pkg } = await import(path.resolve('project-1/package.json'))
+    expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:*' })
   }
   {
-    const pkg = await import(path.resolve('project-2/package.json'))
+    const { default: pkg } = await import(path.resolve('project-2/package.json'))
     expect(pkg.dependencies).toBeFalsy()
   }
 

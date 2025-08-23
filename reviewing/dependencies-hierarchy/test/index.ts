@@ -6,7 +6,7 @@ import { buildDependenciesHierarchy, type PackageNode } from '@pnpm/reviewing.de
 import { depPathToFilename } from '@pnpm/dependency-path'
 
 const virtualStoreDirMaxLength = process.platform === 'win32' ? 60 : 120
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const generalFixture = f.find('general')
 const withPeerFixture = f.find('with-peer')
 const circularFixture = f.find('circular')
@@ -14,7 +14,7 @@ const withFileDepFixture = f.find('with-file-dep')
 const withNonPackageDepFixture = f.find('with-non-package-dep')
 const withLinksOnlyFixture = f.find('fixtureWithLinks/with-links-only')
 const withUnsavedDepsFixture = f.find('with-unsaved-deps')
-const fixtureMonorepo = path.join(__dirname, '..', 'fixtureMonorepo')
+const fixtureMonorepo = path.join(import.meta.dirname, '..', 'fixtureMonorepo')
 const withAliasedDepFixture = f.find('with-aliased-dep')
 const workspaceWithNestedWorkspaceDeps = f.find('workspace-with-nested-workspace-deps')
 const customModulesDirFixture = f.find('custom-modules-dir')

@@ -9,7 +9,7 @@ import nock from 'nock'
 import tempy from 'tempy'
 import { retryLoadJsonFile } from './utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const jsrRusGreetMeta = loadJsonFile.sync<any>(f.find('jsr-rus-greet.json'))
 const jsrLucaCasesMeta = loadJsonFile.sync<any>(f.find('jsr-luca-cases.json'))

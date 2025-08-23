@@ -1,19 +1,20 @@
 import path from 'path'
-import { getCurrentBranch } from '@pnpm/git-utils'
-import {
+import { type DepPath, type ProjectId } from '@pnpm/types'
+import { jest } from '@jest/globals'
+import tempy from 'tempy'
+
+jest.unstable_mockModule('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
+
+const { getCurrentBranch } = await import('@pnpm/git-utils')
+const {
   existsNonEmptyWantedLockfile,
   readCurrentLockfile,
   readWantedLockfile,
   writeCurrentLockfile,
   writeWantedLockfile,
-} from '@pnpm/lockfile.fs'
-import { type DepPath, type ProjectId } from '@pnpm/types'
-import { jest } from '@jest/globals'
-import tempy from 'tempy'
+} = await import('@pnpm/lockfile.fs')
 
-jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
-
-process.chdir(__dirname)
+process.chdir(import.meta.dirname)
 
 test('readWantedLockfile()', async () => {
   {

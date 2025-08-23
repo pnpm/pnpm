@@ -8,7 +8,7 @@ function compare (a: string | undefined, b: string | undefined) {
   return a.localeCompare(b)
 }
 
-const fixtures = path.join(__dirname, 'fixtures')
+const fixtures = path.join(import.meta.dirname, 'fixtures')
 
 test('finds package', async () => {
   const root = path.join(fixtures, 'one-pkg')

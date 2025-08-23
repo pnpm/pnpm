@@ -14,7 +14,7 @@ import { jest } from '@jest/globals'
 import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 const resolvePathAsUrl = (...paths: string[]): string => url.pathToFileURL(path.resolve(...paths)).toString()
 

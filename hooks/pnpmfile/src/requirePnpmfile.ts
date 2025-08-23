@@ -1,11 +1,14 @@
 import assert from 'assert'
 import fs from 'fs'
 import util from 'util'
+import { createRequire } from 'module'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import { type PackageManifest } from '@pnpm/types'
 import chalk from 'chalk'
 import { type Hooks } from './Hooks.js'
+
+const require = createRequire(import.meta.url)
 
 export class BadReadPackageHookError extends PnpmError {
   public readonly pnpmfile: string
@@ -33,7 +36,7 @@ export interface Pnpmfile {
 
 export function requirePnpmfile (pnpmFilePath: string, prefix: string): { pnpmfileModule: Pnpmfile | undefined } | undefined {
   try {
-    const pnpmfile: Pnpmfile = require(pnpmFilePath) // eslint-disable-line
+    const pnpmfile: Pnpmfile = require(pnpmFilePath)
     if (typeof pnpmfile === 'undefined') {
       logger.warn({
         message: `Ignoring the pnpmfile at "${pnpmFilePath}". It exports "undefined".`,
