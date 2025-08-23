@@ -6,11 +6,6 @@ import { FetchError, PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { fixtures } from '@pnpm/test-fixtures'
-import {
-  createTarballFetcher,
-  BadTarballError,
-  TarballIntegrityError,
-} from '@pnpm/tarball-fetcher'
 import nock from 'nock'
 import ssri from 'ssri'
 import tempy from 'tempy'
@@ -25,6 +20,11 @@ jest.unstable_mockModule('@pnpm/logger', async () => {
 })
 
 const { globalWarn } = await import('@pnpm/logger')
+const {
+  createTarballFetcher,
+  BadTarballError,
+  TarballIntegrityError,
+} = await import('@pnpm/tarball-fetcher')
 
 beforeEach(() => {
   jest.mocked(globalWarn).mockClear()
