@@ -19,7 +19,7 @@ import pSettle from 'p-settle'
 import { isEmpty, unnest, groupBy, partition } from 'ramda'
 import semver from 'semver'
 import symlinkDir from 'symlink-dir'
-import fixBin from 'bin-links/lib/fix-bin'
+import fixBin from 'bin-links/lib/fix-bin.js'
 
 const binsConflictLogger = logger('bins-conflict')
 const IS_WINDOWS = isWindows()

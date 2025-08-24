@@ -29,7 +29,7 @@ declare module '@pnpm/npm-conf' {
   export = anything
 }
 
-declare module '@pnpm/npm-conf/lib/util' {
+declare module '@pnpm/npm-conf/lib/util.js' {
   export function parseField (types: any, field: string, value: any): unknown
 }
 

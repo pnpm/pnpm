@@ -64,7 +64,7 @@ declare module 'strip-comments-strings' {
     str: string, replacer?: CodeItemReplacer): string
 }
 
-declare module 'bin-links/lib/fix-bin' {
+declare module 'bin-links/lib/fix-bin.js' {
   function fixBin (path: string, execMode: number): Promise<void>
   export = fixBin
 }

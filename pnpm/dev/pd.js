@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-const fs = require('fs')
-const esbuild = require('esbuild')
-const pathLib = require('path')
-const childProcess = require('child_process')
-const { createRequire } = require('module')
-const { findWorkspacePackagesNoCheck } = require('@pnpm/workspace.find-packages')
-const { findWorkspaceDir } = require('@pnpm/find-workspace-dir')
-const { readWorkspaceManifest } = require('@pnpm/workspace.read-manifest')
+import fs from 'fs'
+import esbuild from 'esbuild'
+import pathLib from 'path'
+import childProcess from 'child_process'
+import { createRequire } from 'module'
+import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
+import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(import.meta.dirname, 'package.json'), 'utf8'))
 
@@ -52,10 +52,13 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(import.meta.dirn
     }
   }
 
+  const banner = { js: `import { createRequire as _cr } from 'module';const require = _cr(import.meta.url); const __filename = import.meta.filename; const __dirname = import.meta.dirname` }
   await esbuild.build({
     entryPoints: [pathLib.resolve(import.meta.dirname, '../../worker/src/worker.ts')],
     bundle: true,
+    banner,
     platform: 'node',
+    format: 'esm',
     outfile: pathLib.resolve(import.meta.dirname, 'dist/worker.js'),
     loader: {
       '.node': 'copy',
@@ -65,6 +68,8 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(import.meta.dirn
   await esbuild.build({
     bundle: true,
     platform: 'node',
+    format: 'esm',
+    banner,
     target: 'node14',
     entryPoints: [pathLib.resolve(import.meta.dirname, '../src/pnpm.ts')],
     outfile: pathLib.resolve(import.meta.dirname, 'dist/pnpm.mjs'),
