@@ -1,16 +1,29 @@
 import fs from 'fs'
 import path from 'path'
-import { deploy } from '@pnpm/plugin-commands-deploy'
 import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
-import { logger, globalWarn } from '@pnpm/logger'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { jest } from '@jest/globals'
 import { DEFAULT_OPTS } from './utils/index.js'
 
+const original = await import('@pnpm/logger')
+const warn = jest.fn()
+jest.unstable_mockModule('@pnpm/logger', () => {
+  const logger = {
+    ...original.logger,
+    warn,
+  }
+  return {
+    ...original,
+    globalWarn: jest.fn(),
+    logger: Object.assign(() => logger, logger),
+  }
+})
+const { globalWarn } = await import('@pnpm/logger')
+const { deploy } = await import('@pnpm/plugin-commands-deploy')
+
 beforeEach(async () => {
-  const logger = await import('@pnpm/logger')
-  jest.spyOn(logger, 'globalWarn')
+  jest.mocked(globalWarn).mockClear()
 })
 
 afterEach(() => {
@@ -337,8 +350,6 @@ test('deploy fails when the destination directory exists and is not empty', asyn
 })
 
 test('forced deploy succeeds with a warning when destination directory exists and is not empty', async () => {
-  const warnMock = jest.spyOn(logger, 'warn')
-
   preparePackages([
     {
       name: 'project',
@@ -374,7 +385,7 @@ test('forced deploy succeeds with a warning when destination directory exists an
     workspaceDir: process.cwd(),
   }, [deployPath])
 
-  expect(warnMock).toHaveBeenCalledWith({
+  expect(warn).toHaveBeenCalledWith({
     message: expect.stringMatching(/^using --force, deleting deploy pat/),
     prefix: deployFullPath,
   })
@@ -386,7 +397,7 @@ test('forced deploy succeeds with a warning when destination directory exists an
   expect(fs.existsSync('deploy/index.js')).toBeTruthy()
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 
-  warnMock.mockRestore()
+  warn.mockRestore()
 })
 
 test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDependents', async () => {

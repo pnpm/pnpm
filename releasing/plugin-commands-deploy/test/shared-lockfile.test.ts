@@ -1,12 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 import url from 'url'
-import { deploy } from '@pnpm/plugin-commands-deploy'
 import { install } from '@pnpm/plugin-commands-installation'
 import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
 import { type PatchFile, type LockfileFile, type LockfilePackageSnapshot } from '@pnpm/lockfile.types'
-import { globalWarn } from '@pnpm/logger'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type ProjectManifest } from '@pnpm/types'
@@ -18,9 +16,24 @@ const f = fixtures(import.meta.dirname)
 
 const resolvePathAsUrl = (...paths: string[]): string => url.pathToFileURL(path.resolve(...paths)).toString()
 
+const original = await import('@pnpm/logger')
+const warn = jest.fn()
+jest.unstable_mockModule('@pnpm/logger', () => {
+  const logger = {
+    ...original.logger,
+    warn,
+  }
+  return {
+    ...original,
+    globalWarn: jest.fn(),
+    logger: Object.assign(() => logger, logger),
+  }
+})
+const { globalWarn } = await import('@pnpm/logger')
+const { deploy } = await import('@pnpm/plugin-commands-deploy')
+
 beforeEach(async () => {
-  const logger = await import('@pnpm/logger')
-  jest.spyOn(logger, 'globalWarn')
+  jest.mocked(globalWarn).mockClear()
 })
 
 afterEach(() => {
