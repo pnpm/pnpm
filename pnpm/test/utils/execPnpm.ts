@@ -6,7 +6,7 @@ import crossSpawn from 'cross-spawn'
 
 export const binDir = path.join(import.meta.dirname, '../..', isWindows() ? 'dist' : 'bin')
 export const pnpmBinLocation = path.join(binDir, 'pnpm.mjs')
-export const pnpxBinLocation = path.join(import.meta.dirname, '../../bin/pnpx.cjs')
+export const pnpxBinLocation = path.join(import.meta.dirname, '../../bin/pnpx.mjs')
 
 // The default timeout for tests is 4 minutes. Set a timeout for execPnpm calls
 // for 3 minutes to make it more clear what specific part of a test is timing
