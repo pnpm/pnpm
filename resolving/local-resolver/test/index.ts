@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import { createRequire } from 'module'
 import path from 'path'
 import { resolveFromLocal } from '@pnpm/local-resolver'
 import { type DirectoryResolution } from '@pnpm/resolver-base'
@@ -6,6 +7,7 @@ import normalize from 'normalize-path'
 import { logger } from '@pnpm/logger'
 import { jest } from '@jest/globals'
 
+const require = createRequire(import.meta.dirname)
 const TEST_DIR = path.dirname(require.resolve('@pnpm/tgz-fixtures/tgz/pnpm-local-resolver-0.1.1.tgz'))
 
 test('resolve directory', async () => {

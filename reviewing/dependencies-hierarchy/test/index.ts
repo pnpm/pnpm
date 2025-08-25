@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -311,7 +312,7 @@ test('circular dependency', async () => {
 
   expect(tree).toStrictEqual({
     [circularFixture]: {
-      dependencies: require('./circularTree.json') // eslint-disable-line
+      dependencies: JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'circularTree.json'), 'utf8'))
         .dependencies
         .map((dep: PackageNode) => resolvePaths(modulesDir, dep)),
       devDependencies: [],
