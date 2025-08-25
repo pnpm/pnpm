@@ -1,11 +1,11 @@
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import execa from 'execa'
 import fs from 'fs'
 import path from 'path'
 import { getCurrentBranch, isGitRepo, isWorkingTreeClean } from '@pnpm/git-utils'
 
 test('isGitRepo', async () => {
-  const tempDir = tempy.directory()
+  const tempDir = temporaryDirectory()
   process.chdir(tempDir)
 
   await expect(isGitRepo()).resolves.toBe(false)
@@ -16,7 +16,7 @@ test('isGitRepo', async () => {
 })
 
 test('getCurrentBranch', async () => {
-  const tempDir = tempy.directory()
+  const tempDir = temporaryDirectory()
   process.chdir(tempDir)
 
   await execa('git', ['init'])
@@ -26,7 +26,7 @@ test('getCurrentBranch', async () => {
 })
 
 test('isWorkingTreeClean', async () => {
-  const tempDir = tempy.directory()
+  const tempDir = temporaryDirectory()
   process.chdir(tempDir)
 
   await execa('git', ['init'])

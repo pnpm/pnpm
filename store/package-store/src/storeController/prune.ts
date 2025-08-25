@@ -4,7 +4,7 @@ import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import ssri from 'ssri'
 
 const BIG_ONE = BigInt(1) as unknown

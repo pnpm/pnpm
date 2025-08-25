@@ -1,7 +1,7 @@
 import fs from 'fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage } from '@pnpm/core'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import { testDefaults } from './utils/index.js'
 
 test('packageImportMethod can be set to copy', async () => {
@@ -33,18 +33,18 @@ test('packages are updated in node_modules, when packageImportMethod is set to c
   const modulesManifestContent = fs.readFileSync('node_modules/.modules.yaml')
   const currentLockfile = fs.readFileSync('node_modules/.pnpm/lock.yaml')
   {
-    const pkg = loadJsonFile<any>('node_modules/is-negative/package.json') // eslint-disable-line
+    const pkg = loadJsonFileSync<any>('node_modules/is-negative/package.json') // eslint-disable-line
     expect(pkg.version).toBe('1.0.0')
   }
   await addDependenciesToPackage({}, ['is-negative@2.0.0'], opts)
   {
-    const pkg = loadJsonFile<any>('node_modules/is-negative/package.json') // eslint-disable-line
+    const pkg = loadJsonFileSync<any>('node_modules/is-negative/package.json') // eslint-disable-line
     expect(pkg.version).toBe('2.0.0')
   }
   fs.writeFileSync('node_modules/.modules.yaml', modulesManifestContent, 'utf8')
   fs.writeFileSync('node_modules/.pnpm/lock.yaml', currentLockfile, 'utf8')
   await addDependenciesToPackage({}, ['is-negative@1.0.0'], opts)
 
-  const pkg = loadJsonFile<any>('node_modules/is-negative/package.json') // eslint-disable-line
+  const pkg = loadJsonFileSync<any>('node_modules/is-negative/package.json') // eslint-disable-line
   expect(pkg.version).toBe('1.0.0')
 })

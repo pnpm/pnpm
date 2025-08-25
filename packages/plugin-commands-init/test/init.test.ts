@@ -3,12 +3,12 @@ import fs from 'fs'
 import { init } from '@pnpm/plugin-commands-init'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 
 test('init a new package.json', async () => {
   prepareEmpty()
   await init.handler({ rawConfig: {}, cliOptions: {} })
-  const manifest = loadJsonFile(path.resolve('package.json'))
+  const manifest = loadJsonFileSync(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
 })
 
@@ -30,7 +30,7 @@ test('init a new package.json with npmrc', async () => {
   }
   prepareEmpty()
   await init.handler({ rawConfig, cliOptions: {} })
-  const manifest: Record<string, string> = loadJsonFile(path.resolve('package.json'))
+  const manifest: Record<string, string> = loadJsonFileSync(path.resolve('package.json'))
   const expectAuthor = `${rawConfig['init-author-name']} <${rawConfig['init-author-email']}> (${rawConfig['init-author-url']})`
   expect(manifest.version).toBe(rawConfig['init-version'])
   expect(manifest.author).toBe(expectAuthor)
@@ -51,7 +51,7 @@ test('init a new package.json if a package.json exists in the parent directory',
   process.chdir('./empty-dir1')
 
   await init.handler({ rawConfig: {}, cliOptions: {} })
-  const manifest = loadJsonFile(path.resolve('package.json'))
+  const manifest = loadJsonFileSync(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
 })
 
@@ -65,14 +65,14 @@ test('init a new package.json if a package.json exists in the current directory 
       dir: './empty-dir2',
     },
   })
-  const manifest = loadJsonFile(path.resolve('empty-dir2/package.json'))
+  const manifest = loadJsonFileSync(path.resolve('empty-dir2/package.json'))
   expect(manifest).toBeTruthy()
 })
 
 test('init a new package.json with init-package-manager=true', async () => {
   prepareEmpty()
   await init.handler({ rawConfig: { 'init-package-manager': true }, cliOptions: {}, initPackageManager: true })
-  const manifest = loadJsonFile<ProjectManifest>(path.resolve('package.json'))
+  const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
   expect(manifest.packageManager).toBeTruthy()
 })
@@ -80,7 +80,7 @@ test('init a new package.json with init-package-manager=true', async () => {
 test('init a new package.json with init-package-manager=false', async () => {
   prepareEmpty()
   await init.handler({ rawConfig: { 'init-package-manager': false }, cliOptions: {}, initPackageManager: false })
-  const manifest = loadJsonFile<ProjectManifest>(path.resolve('package.json'))
+  const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest).toBeTruthy()
   expect(manifest).not.toHaveProperty('packageManager')
 })
@@ -88,6 +88,6 @@ test('init a new package.json with init-package-manager=false', async () => {
 test('init a new package.json with init-type=module', async () => {
   prepareEmpty()
   await init.handler({ rawConfig: { 'init-type': 'module' }, cliOptions: {}, initType: 'module' })
-  const manifest = loadJsonFile<ProjectManifest>(path.resolve('package.json'))
+  const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest.type).toBe('module')
 })

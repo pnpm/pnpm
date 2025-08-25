@@ -5,14 +5,14 @@ import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 test('CLI fails when store status finds modified packages', async () => {
   const project = prepare()
-  const tmp = tempy.directory()
+  const tmp = temporaryDirectory()
   const cacheDir = path.join(tmp, 'cache')
   const storeDir = path.join(tmp, 'store')
 
@@ -53,7 +53,7 @@ test('CLI fails when store status finds modified packages', async () => {
 
 test('CLI does not fail when store status does not find modified packages', async () => {
   const project = prepare()
-  const tmp = tempy.directory()
+  const tmp = temporaryDirectory()
   const cacheDir = path.join(tmp, 'cache')
   const storeDir = path.join(tmp, 'store')
 

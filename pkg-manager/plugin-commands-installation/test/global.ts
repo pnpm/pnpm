@@ -3,11 +3,11 @@ import path from 'path'
 import { add } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import { getNodeExecPath } from '../lib/nodeExecPath.js'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
-const tmp = tempy.directory()
+const tmp = temporaryDirectory()
 
 const DEFAULT_OPTIONS = {
   argv: {

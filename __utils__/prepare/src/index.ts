@@ -5,7 +5,7 @@ import { type ProjectManifest } from '@pnpm/types'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import { sync as writeJson5File } from 'write-json5-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import writePkg from 'write-pkg'
+import { writePackageSync } from 'write-pkg'
 
 export type { Modules, Project }
 export type ManifestFormat = 'JSON' | 'JSON5' | 'YAML'
@@ -58,7 +58,7 @@ export function prepare (
   fs.mkdirSync(dir, { recursive: true })
   switch (opts?.manifestFormat ?? 'JSON') {
   case 'JSON':
-      writePkg.sync(dir, { name: 'project', version: '0.0.0', ...manifest } as any) // eslint-disable-line
+      writePackageSync(dir, { name: 'project', version: '0.0.0', ...manifest } as any) // eslint-disable-line
     break
   case 'JSON5':
       writeJson5File(path.join(dir, 'package.json5'), { name: 'project', version: '0.0.0', ...manifest } as any) // eslint-disable-line

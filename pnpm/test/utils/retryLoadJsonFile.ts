@@ -1,4 +1,4 @@
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import * as retry from '@zkochan/retry'
 
 export async function retryLoadJsonFile<T> (filePath: string): Promise<T> {

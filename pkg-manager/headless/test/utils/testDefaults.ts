@@ -5,7 +5,7 @@ import { readProjectsContext } from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { getStorePath } from '@pnpm/store-path'
 import { createTempStore } from '@pnpm/testing.temp-store'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -15,7 +15,7 @@ export async function testDefaults (
   fetchOpts?: any, // eslint-disable-line
   storeOpts?: any, // eslint-disable-line
 ): Promise<HeadlessOptions> {
-  const tmp = tempy.directory()
+  const tmp = temporaryDirectory()
   let storeDir = opts?.storeDir ?? path.join(tmp, 'store')
   const lockfileDir = opts?.lockfileDir ?? process.cwd()
   const { include, pendingBuilds, projects } = await readProjectsContext(

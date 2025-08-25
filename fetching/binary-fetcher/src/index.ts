@@ -6,7 +6,7 @@ import { type BinaryFetcher, type FetchFunction } from '@pnpm/fetcher-base'
 import { addFilesFromDir } from '@pnpm/worker'
 import AdmZip from 'adm-zip'
 import renameOverwrite from 'rename-overwrite'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import ssri from 'ssri'
 
 export function createBinaryFetcher (ctx: {
@@ -78,7 +78,7 @@ export async function downloadAndUnpackZip (
   assetInfo: AssetInfo,
   targetDir: string
 ): Promise<void> {
-  const tmp = path.join(tempy.directory(), 'pnpm.zip')
+  const tmp = path.join(temporaryDirectory(), 'pnpm.zip')
 
   try {
     await downloadWithIntegrityCheck(fetchFromRegistry, assetInfo, tmp)

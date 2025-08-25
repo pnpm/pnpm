@@ -1,4 +1,4 @@
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 
 export async function retryLoadJsonFile<T> (filePath: string): Promise<T> {
   let retry = 0

@@ -4,7 +4,7 @@ import { type LogBase } from '@pnpm/logger'
 import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { type Registries } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 
 export type StrictRebuildOptions = {
   autoInstallPeers: boolean

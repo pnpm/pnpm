@@ -7,7 +7,7 @@ import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { type PatchCommandOptions, type PatchRemoveCommandOptions } from '@pnpm/plugin-commands-patching'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -322,7 +322,7 @@ describe('patch and commit', () => {
   })
 
   test('patch and commit with a custom edit dir', async () => {
-    const editDir = path.join(tempy.directory())
+    const editDir = path.join(temporaryDirectory())
 
     const output = await patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
@@ -401,7 +401,7 @@ describe('patch and commit', () => {
   })
 
   test('patch throws an error if the edit-dir already exists and is not empty', async () => {
-    const editDir = tempy.directory()
+    const editDir = temporaryDirectory()
     fs.writeFileSync(path.join(editDir, 'test.txt'), '', 'utf8')
 
     await expect(() => patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0']))
@@ -409,7 +409,7 @@ describe('patch and commit', () => {
   })
 
   test('patch and commit should work when the patch directory is specified with a trailing slash', async () => {
-    const editDir = path.join(tempy.directory()) + (os.platform() === 'win32' ? '\\' : '/')
+    const editDir = path.join(temporaryDirectory()) + (os.platform() === 'win32' ? '\\' : '/')
 
     const output = await patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)

@@ -7,7 +7,7 @@ import { sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
 import { parsePkgAndParentSelector } from '@pnpm/parse-overrides'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import isSubdir from 'is-subdir'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import normalizePath from 'normalize-path'
 import writeJsonFile from 'write-json-file'
 
@@ -15,7 +15,7 @@ const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => { // eslint-disable-line
   const workspaceManifest = await readWorkspaceManifest(workspaceDir)!
-  const pnpmManifest = loadJsonFile.sync<ProjectManifest>(path.join(workspaceDir, 'pnpm/package.json'))
+  const pnpmManifest = loadJsonFileSync<ProjectManifest>(path.join(workspaceDir, 'pnpm/package.json'))
   const pnpmVersion = pnpmManifest!.version!
   const pnpmMajorNumber = pnpmVersion.split('.')[0]
   const pnpmMajorKeyword = `pnpm${pnpmMajorNumber}`

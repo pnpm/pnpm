@@ -3,7 +3,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { prepare } from '@pnpm/prepare'
 import { PnpmError } from '@pnpm/error'
 import execa from 'execa'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 import { jest } from '@jest/globals'
 import { DEFAULT_OPTS } from './utils/index.js'
@@ -103,7 +103,7 @@ test('publish: fails git check if branch is not clean', async () => {
 })
 
 test('publish: fails git check if branch is not up to date', async () => {
-  const remote = tempy.directory()
+  const remote = temporaryDirectory()
 
   prepare({
     name: 'test-publish-package.json',

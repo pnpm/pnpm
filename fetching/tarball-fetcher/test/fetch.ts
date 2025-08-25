@@ -8,7 +8,7 @@ import { createCafsStore } from '@pnpm/create-cafs-store'
 import { fixtures } from '@pnpm/test-fixtures'
 import nock from 'nock'
 import ssri from 'ssri'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 const originalModule = await import('@pnpm/logger')
 
@@ -30,7 +30,7 @@ beforeEach(() => {
   jest.mocked(globalWarn).mockClear()
 })
 
-const storeDir = tempy.directory()
+const storeDir = temporaryDirectory()
 const filesIndexFile = path.join(storeDir, 'index.json')
 const cafs = createCafsStore(storeDir)
 
@@ -59,7 +59,7 @@ test('fail when tarball size does not match content-length', async () => {
       'Content-Length': (1024 * 1024).toString(),
     })
 
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const resolution = {
     // Even though the integrity of the downloaded tarball
@@ -99,7 +99,7 @@ test('retry when tarball size does not match content-length', async () => {
       'Content-Length': tarballSize.toString(),
     })
 
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const resolution = { tarball: 'http://example.com/foo.tgz' }
 
@@ -121,7 +121,7 @@ test('fail when integrity check fails two times in a row', async () => {
       'Content-Length': '1194',
     })
 
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const resolution = {
     integrity: tarballIntegrity,
@@ -157,7 +157,7 @@ test('retry when integrity check fails', async () => {
       'Content-Length': tarballSize.toString(),
     })
 
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const resolution = {
     integrity: tarballIntegrity,
@@ -181,7 +181,7 @@ test('retry when integrity check fails', async () => {
 })
 
 test('fail when integrity check of local file fails', async () => {
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   process.chdir(storeDir)
 
   f.copy('babel-helper-hoist-variables-7.0.0-alpha.10.tgz', 'tar.tgz')
@@ -208,7 +208,7 @@ test('fail when integrity check of local file fails', async () => {
 })
 
 test("don't fail when integrity check of local file succeeds", async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const localTarballLocation = path.resolve('tar.tgz')
   f.copy('babel-helper-hoist-variables-7.0.0-alpha.10.tgz', localTarballLocation)
@@ -227,7 +227,7 @@ test("don't fail when integrity check of local file succeeds", async () => {
 })
 
 test("don't fail when fetching a local tarball in offline mode", async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const tarballAbsoluteLocation = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const resolution = {
@@ -254,7 +254,7 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
 })
 
 test('fail when trying to fetch a non-local tarball in offline mode', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const tarballAbsoluteLocation = f.find('babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const resolution = {
@@ -293,7 +293,7 @@ test('retry on server error', async () => {
       'Content-Length': tarballSize.toString(),
     })
 
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const resolution = {
     integrity: tarballIntegrity,
@@ -316,7 +316,7 @@ test('throw error when accessing private package w/o authorization', async () =>
     .get('/foo.tgz')
     .reply(403)
 
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const resolution = {
     integrity: tarballIntegrity,
@@ -349,7 +349,7 @@ test('do not retry when package does not exist', async () => {
     .get('/foo.tgz')
     .reply(404)
 
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const resolution = {
     integrity: tarballIntegrity,
@@ -390,7 +390,7 @@ test('accessing private packages', async () => {
       'Content-Length': tarballSize.toString(),
     })
 
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const getAuthHeader = () => 'Bearer ofjergrg349gj3f2'
   const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
@@ -425,7 +425,7 @@ async function getFileIntegrity (filename: string) {
 
 // Covers the regression reported in https://github.com/pnpm/pnpm/issues/4064
 test('fetch a big repository', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const resolution = { tarball: 'https://codeload.github.com/sveltejs/action-deploy-docs/tar.gz/a65fbf5a90f53c9d72fed4daaca59da50f074355' }
 
@@ -439,7 +439,7 @@ test('fetch a big repository', async () => {
 })
 
 test('fail when preparing a git-hosted package', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const resolution = { tarball: 'https://codeload.github.com/pnpm-e2e/prepare-script-fails/tar.gz/ba58874aae1210a777eb309dd01a9fdacc7e54e7' }
 
@@ -453,7 +453,7 @@ test('fail when preparing a git-hosted package', async () => {
 })
 
 test('take only the files included in the package, when fetching a git-hosted package', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const resolution = { tarball: 'https://codeload.github.com/pnpm-e2e/pkg-with-ignored-files/tar.gz/958d6d487217512bb154d02836e9b5b922a600d8' }
 
@@ -476,7 +476,7 @@ test('fail when extracting a broken tarball', async () => {
     .times(2)
     .reply(200, 'this is not a valid tarball')
 
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const resolution = {
     tarball: `${registry}foo.tgz`,
@@ -494,7 +494,7 @@ test('fail when extracting a broken tarball', async () => {
 })
 
 test('do not build the package when scripts are ignored', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const tarball = 'https://codeload.github.com/pnpm-e2e/prepare-script-works/tar.gz/55416a9c468806a935636c0ad0371a14a64df8c9'
   const resolution = { tarball }
@@ -537,7 +537,7 @@ test('when extracting files with the same name, pick the last ones', async () =>
 })
 
 test('use the subfolder when path is present', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const resolution = {
     tarball: 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22',
@@ -564,7 +564,7 @@ test('use the subfolder when path is present', async () => {
 })
 
 test('prevent directory traversal attack when path is present', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const tarball = 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22'
   const path = '../../etc'
@@ -588,7 +588,7 @@ test('prevent directory traversal attack when path is present', async () => {
 })
 
 test('fail when path is not exists', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
 
   const tarball = 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22'
   const path = '/not-exists'

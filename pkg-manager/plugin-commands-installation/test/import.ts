@@ -6,12 +6,12 @@ import { importCommand } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 const f = fixtures(import.meta.dirname)
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
-const TMP = tempy.directory()
+const TMP = temporaryDirectory()
 
 const DEFAULT_OPTS = {
   ca: undefined,

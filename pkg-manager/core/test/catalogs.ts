@@ -5,7 +5,7 @@ import { addDistTag } from '@pnpm/registry-mock'
 import { type MutatedProject, type ProjectOptions, type MutateModulesOptions } from '@pnpm/core'
 import { type CatalogSnapshots } from '@pnpm/lockfile.types'
 import { jest } from '@jest/globals'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import path from 'path'
 import { testDefaults } from './utils/index.js'
 
@@ -379,7 +379,7 @@ test('lockfile catalog snapshots do not contain stale references on --filter', a
 
   // is-positive was not updated because only dependencies of project1 were.
   const pathToIsPositivePkgJson = path.join(options.allProjects[1].rootDir!, 'node_modules/is-positive/package.json')
-  expect(loadJsonFile<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('1.0.0')
+  expect(loadJsonFileSync<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('1.0.0')
 
   await mutateModules(installProjects(projects), {
     ...options,
@@ -391,7 +391,7 @@ test('lockfile catalog snapshots do not contain stale references on --filter', a
   })
 
   // is-positive is now updated because a full install took place.
-  expect(loadJsonFile<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('3.1.0')
+  expect(loadJsonFileSync<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('3.1.0')
 })
 
 // Regression test for https://github.com/pnpm/pnpm/issues/9112
