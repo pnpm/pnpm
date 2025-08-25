@@ -1,5 +1,4 @@
-import { readdirSync, type Stats } from 'fs'
-import fs from 'fs/promises'
+import { readdirSync, type Stats, promises as fs } from 'fs'
 import path from 'path'
 import util from 'util'
 
