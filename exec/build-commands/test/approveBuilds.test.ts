@@ -9,10 +9,10 @@ import { getConfig } from '@pnpm/config'
 import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { jest } from '@jest/globals'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import { omit } from 'ramda'
 import { tempDir } from '@pnpm/prepare-temp-dir'
-import writePkg from 'write-pkg'
+import { writePackageSync } from 'write-pkg'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 
@@ -93,7 +93,7 @@ test('approve selected build', async () => {
 
   await approveSomeBuilds()
 
-  const manifest = loadJsonFile<ProjectManifest>(path.resolve('package.json'))
+  const manifest = loadJsonFileSync<ProjectManifest>(path.resolve('package.json'))
   expect(manifest.pnpm?.onlyBuiltDependencies).toStrictEqual(['@pnpm.e2e/pre-and-postinstall-scripts-example'])
   expect(manifest.pnpm?.ignoredBuiltDependencies).toStrictEqual(['@pnpm.e2e/install-script-example'])
 
@@ -130,7 +130,7 @@ test('approve no builds', async () => {
 test("works when root project manifest doesn't exist in a workspace", async () => {
   tempDir()
 
-  await writePkg('workspace/packages/project', {
+  writePackageSync('workspace/packages/project', {
     dependencies: {
       '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
       '@pnpm.e2e/install-script-example': '*',
@@ -173,7 +173,7 @@ test('should update onlyBuiltDependencies when package.json exists with ignoredB
   expect(readYamlFile(workspaceManifestFile)).toStrictEqual({
     packages: ['packages/*'],
   })
-  expect(loadJsonFile<ProjectManifest>(path.join(temp, 'package.json'))!.pnpm).toStrictEqual({
+  expect(loadJsonFileSync<ProjectManifest>(path.join(temp, 'package.json'))!.pnpm).toStrictEqual({
     ignoredBuiltDependencies: ['@pnpm.e2e/install-script-example'],
     onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
   })
@@ -201,7 +201,7 @@ test('should approve builds when package.json exists with onlyBuiltDependencies 
   expect(readYamlFile(workspaceManifestFile)).toStrictEqual({
     packages: ['packages/*'],
   })
-  expect(loadJsonFile<ProjectManifest>(path.join(temp, 'package.json'))!.pnpm).toStrictEqual({
+  expect(loadJsonFileSync<ProjectManifest>(path.join(temp, 'package.json'))!.pnpm).toStrictEqual({
     onlyBuiltDependencies: ['@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example'],
   })
 })

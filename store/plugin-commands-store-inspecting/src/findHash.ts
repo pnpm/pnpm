@@ -64,7 +64,7 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
   }
 
   for (const filesIndexFile of indexFiles) {
-    const pkgFilesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
+    const pkgFilesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
 
     for (const [, file] of Object.entries(pkgFilesIndex.files)) {
       if (file?.integrity === hash) {

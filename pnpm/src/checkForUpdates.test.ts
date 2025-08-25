@@ -1,8 +1,8 @@
 import { getConfig } from '@pnpm/config'
 import { prepareEmpty } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
-import { loadJsonFile } from 'load-json-file'
-import writeJsonFile from 'write-json-file'
+import { loadJsonFileSync } from 'load-json-file'
+import { writeJsonFileSync } from 'write-json-file'
 
 const original = await import('@pnpm/core-loggers')
 jest.unstable_mockModule('@pnpm/core-loggers', () => ({
@@ -37,7 +37,7 @@ test('check for updates when no pnpm state file is present', async () => {
     latestVersion: expect.any(String),
   })
 
-  const state = loadJsonFile.sync('pnpm-state.json')
+  const state = loadJsonFileSync('pnpm-state.json')
   expect(state).toEqual({
     lastUpdateCheck: expect.any(String),
   })
@@ -47,7 +47,7 @@ test('do not check for updates when last update check happened recently', async 
   prepareEmpty()
 
   const lastUpdateCheck = new Date().toUTCString()
-  writeJsonFile.sync('pnpm-state.json', { lastUpdateCheck })
+  writeJsonFileSync('pnpm-state.json', { lastUpdateCheck })
 
   const { config } = await getConfig({
     cliOptions: {},
@@ -63,7 +63,7 @@ test('do not check for updates when last update check happened recently', async 
 
   expect(updateCheckLogger.debug).not.toHaveBeenCalled()
 
-  const state = loadJsonFile.sync('pnpm-state.json')
+  const state = loadJsonFileSync('pnpm-state.json')
   expect(state).toStrictEqual({ lastUpdateCheck })
 })
 
@@ -73,7 +73,7 @@ test('check for updates when last update check happened two days ago', async () 
   const lastUpdateCheckDate = new Date()
   lastUpdateCheckDate.setDate(lastUpdateCheckDate.getDate() - 2)
   const initialLastUpdateCheck = lastUpdateCheckDate.toUTCString()
-  writeJsonFile.sync('pnpm-state.json', {
+  writeJsonFileSync('pnpm-state.json', {
     lastUpdateCheck: initialLastUpdateCheck,
   })
 
@@ -94,7 +94,7 @@ test('check for updates when last update check happened two days ago', async () 
     latestVersion: expect.any(String),
   })
 
-  const state = loadJsonFile.sync<{ lastUpdateCheck: string }>('pnpm-state.json')
+  const state = loadJsonFileSync<{ lastUpdateCheck: string }>('pnpm-state.json')
   expect(state.lastUpdateCheck).toBeDefined()
   expect(state.lastUpdateCheck).not.toEqual(initialLastUpdateCheck)
 })

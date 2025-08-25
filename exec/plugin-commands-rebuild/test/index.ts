@@ -9,7 +9,7 @@ import { prepare } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import execa from 'execa'
-import { loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import sinon from 'sinon'
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -76,7 +76,7 @@ test('rebuilds dependencies', async () => {
   }
 
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const cacheIntegrity = loadJsonFileSync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -109,7 +109,7 @@ test('skipIfHasSideEffectsCache', async () => {
   ])
 
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  let cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  let cacheIntegrity = loadJsonFileSync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   cacheIntegrity.sideEffects = {
     [sideEffectsKey]: { added: { foo: 'bar' } },
@@ -136,7 +136,7 @@ test('skipIfHasSideEffectsCache', async () => {
   expect(modules).toBeTruthy()
   expect(modules!.pendingBuilds).toHaveLength(0)
 
-  cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  cacheIntegrity = loadJsonFileSync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'foo'])
 })

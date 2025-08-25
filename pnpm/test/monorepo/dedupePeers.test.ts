@@ -5,7 +5,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { createPeerDepGraphHash } from '@pnpm/dependency-path'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm } from '../utils/index.js'
 
@@ -90,8 +90,8 @@ test('partial update in a workspace should work with dedupe-peer-dependents is t
   await execPnpm(['update'])
   process.chdir('..')
 
-  expect(loadJsonFile<any>('project-1/package.json').dependencies['@pnpm.e2e/abc-grand-parent-with-c']).toBe('^1.0.0') // eslint-disable-line
-  expect(loadJsonFile<any>('project-2/package.json').dependencies['@pnpm.e2e/abc-grand-parent-with-c']).toBe('^1.0.1') // eslint-disable-line
+  expect(loadJsonFileSync<any>('project-1/package.json').dependencies['@pnpm.e2e/abc-grand-parent-with-c']).toBe('^1.0.0') // eslint-disable-line
+  expect(loadJsonFileSync<any>('project-2/package.json').dependencies['@pnpm.e2e/abc-grand-parent-with-c']).toBe('^1.0.1') // eslint-disable-line
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/8877
@@ -138,10 +138,10 @@ test('partial update --latest in a workspace should not affect other packages wh
   await execPnpm(['update', '--filter', 'project-2', '--latest', '@pnpm.e2e/foo'])
 
   // project 1's manifest is unaffected, while project 2 has only foo updated
-  expect(loadJsonFile<any>('project-1/package.json').dependencies['@pnpm.e2e/foo']).toBe('1.0.0') // eslint-disable-line
-  expect(loadJsonFile<any>('project-1/package.json').dependencies['@pnpm.e2e/bar']).toBe('100.0.0') // eslint-disable-line
-  expect(loadJsonFile<any>('project-2/package.json').dependencies['@pnpm.e2e/foo']).toBe('2.0.0') // eslint-disable-line
-  expect(loadJsonFile<any>('project-2/package.json').dependencies['@pnpm.e2e/bar']).toBe('100.0.0') // eslint-disable-line
+  expect(loadJsonFileSync<any>('project-1/package.json').dependencies['@pnpm.e2e/foo']).toBe('1.0.0') // eslint-disable-line
+  expect(loadJsonFileSync<any>('project-1/package.json').dependencies['@pnpm.e2e/bar']).toBe('100.0.0') // eslint-disable-line
+  expect(loadJsonFileSync<any>('project-2/package.json').dependencies['@pnpm.e2e/foo']).toBe('2.0.0') // eslint-disable-line
+  expect(loadJsonFileSync<any>('project-2/package.json').dependencies['@pnpm.e2e/bar']).toBe('100.0.0') // eslint-disable-line
 
   // similar for the importers in the lockfile; project 1 is unaffected, while
   // project 2 resolves the latest foo, but keeps bar to the previous version

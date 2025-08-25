@@ -5,7 +5,7 @@ import { STORE_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import {
   execPnpm,
   retryLoadJsonFile,
@@ -53,5 +53,5 @@ test('self-update updates the packageManager field in package.json', async () =>
 
   await execPnpm(['self-update', '10.0.0'], { env })
 
-  expect(loadJsonFile<ProjectManifest>('package.json').packageManager).toBe('pnpm@10.0.0')
+  expect(loadJsonFileSync<ProjectManifest>('package.json').packageManager).toBe('pnpm@10.0.0')
 })

@@ -6,10 +6,10 @@ import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
-const tmp = tempy.directory()
+const tmp = temporaryDirectory()
 
 const DEFAULT_OPTIONS = {
   argv: {
