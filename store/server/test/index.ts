@@ -8,7 +8,7 @@ import { connectStoreController, createServer } from '@pnpm/server'
 import { type Registries } from '@pnpm/types'
 import fetch from 'node-fetch'
 import { sync as rimraf } from '@zkochan/rimraf'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import tempy from 'tempy'
 import isPortReachable from 'is-port-reachable'
 

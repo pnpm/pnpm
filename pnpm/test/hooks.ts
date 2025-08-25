@@ -4,7 +4,7 @@ import { createHash } from '@pnpm/crypto.hash'
 import { type PackageManifest } from '@pnpm/types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT, getIntegrity } from '@pnpm/registry-mock'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from './utils/index.js'
 

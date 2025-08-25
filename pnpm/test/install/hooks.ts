@@ -4,7 +4,7 @@ import { type LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import {
   addDistTag,

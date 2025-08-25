@@ -7,7 +7,7 @@ import {
 } from '@pnpm/lockfile.utils'
 import { type DepPath } from '@pnpm/types'
 import schemas from 'hyperdrive-schemas'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import Fuse from 'fuse-native'
 import * as cafsExplorer from './cafsExplorer.js'
 import { makeVirtualNodeModules } from './makeVirtualNodeModules.js'

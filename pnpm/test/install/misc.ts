@@ -13,7 +13,7 @@ import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as rimraf } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import crossSpawn from 'cross-spawn'
 import {

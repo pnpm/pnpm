@@ -12,7 +12,7 @@ import {
 } from '@pnpm/npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type Registries, type ProjectRootDir } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import nock from 'nock'
 import { omit } from 'ramda'
 import tempy from 'tempy'

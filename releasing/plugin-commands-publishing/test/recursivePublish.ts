@@ -9,7 +9,7 @@ import { type ProjectManifest } from '@pnpm/types'
 import { jest } from '@jest/globals'
 import execa from 'execa'
 import crossSpawn from 'cross-spawn'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import { DEFAULT_OPTS, checkPkgExists } from './utils/index.js'
 
 const CREDENTIALS = `\

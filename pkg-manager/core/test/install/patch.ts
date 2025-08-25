@@ -9,7 +9,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { jest } from '@jest/globals'
 import { sync as rimraf } from '@zkochan/rimraf'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import sinon from 'sinon'
 import { testDefaults } from '../utils/index.js'
 

@@ -9,7 +9,7 @@ import { prepare } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import execa from 'execa'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import sinon from 'sinon'
 import { DEFAULT_OPTS } from './utils/index.js'
 

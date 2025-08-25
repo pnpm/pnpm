@@ -14,7 +14,7 @@ import {
 } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { createPeerDepGraphHash } from '@pnpm/dependency-path'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import sinon from 'sinon'
 import { sync as writeYamlFile } from 'write-yaml-file'

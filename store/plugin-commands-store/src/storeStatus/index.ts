@@ -10,7 +10,7 @@ import { streamParser } from '@pnpm/logger'
 import * as dp from '@pnpm/dependency-path'
 import { type DepPath } from '@pnpm/types'
 import dint from 'dint'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import pFilter from 'p-filter'
 import {
   extendStoreStatusOptions,

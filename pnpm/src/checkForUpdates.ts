@@ -3,7 +3,7 @@ import { packageManager } from '@pnpm/cli-meta'
 import { type Config } from '@pnpm/config'
 import { createResolver } from '@pnpm/client'
 import { updateCheckLogger } from '@pnpm/core-loggers'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 
 interface State {

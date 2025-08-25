@@ -5,7 +5,7 @@ import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createNpmResolver } from '@pnpm/npm-resolver'
 import { type Registries } from '@pnpm/types'
 import { fixtures } from '@pnpm/test-fixtures'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import nock from 'nock'
 import tempy from 'tempy'
 

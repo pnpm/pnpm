@@ -21,7 +21,7 @@ import {
   type ProjectOptions,
 } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import nock from 'nock'
 import sinon from 'sinon'
 import { sync as writeYamlFile } from 'write-yaml-file'

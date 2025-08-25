@@ -1,7 +1,7 @@
 import { getConfig } from '@pnpm/config'
 import { prepareEmpty } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 
 const original = await import('@pnpm/core-loggers')

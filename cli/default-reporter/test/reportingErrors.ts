@@ -8,7 +8,7 @@ import {
 import { firstValueFrom } from 'rxjs'
 import { map, take } from 'rxjs/operators'
 import chalk from 'chalk'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import normalizeNewline from 'normalize-newline'
 import StackTracey from 'stacktracey'
 

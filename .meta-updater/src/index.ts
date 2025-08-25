@@ -7,7 +7,7 @@ import { sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
 import { parsePkgAndParentSelector } from '@pnpm/parse-overrides'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import isSubdir from 'is-subdir'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import normalizePath from 'normalize-path'
 import writeJsonFile from 'write-json-file'
 

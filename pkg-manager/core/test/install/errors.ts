@@ -4,7 +4,7 @@ import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/co
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type ProjectRootDir } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import nock from 'nock'
 import { testDefaults } from '../utils/index.js'
 
