@@ -78,7 +78,7 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
     (pattern) => pattern.length
   )
   const changedFiles = (patterns.length > 0)
-    ? micromatch.not(allChangedFiles, patterns, {
+    ? micromatch.default.not(allChangedFiles, patterns, {
       dot: true,
     })
     : allChangedFiles
@@ -88,7 +88,7 @@ async function getChangedDirsSinceCommit (commit: string, workingDir: string, te
 
     if (changedDirs.get(dir) === 'source') continue
 
-    const changeType: ChangeType = testPattern.some(pattern => micromatch.isMatch(changedFile, pattern))
+    const changeType: ChangeType = testPattern.some(pattern => micromatch.default.isMatch(changedFile, pattern))
       ? 'test'
       : 'source'
     changedDirs.set(dir, changeType)

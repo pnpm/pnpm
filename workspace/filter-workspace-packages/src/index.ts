@@ -320,7 +320,7 @@ function matchPackagesByGlob<Pkg extends Package> (
 ): ProjectRootDir[] {
   const format = (str: string) => str.replace(/\/$/, '')
   const formattedFilter = pathStartsWith.replace(/\\/g, '/').replace(/\/$/, '')
-  return (Object.keys(graph) as ProjectRootDir[]).filter((parentDir) => micromatch.isMatch(parentDir, formattedFilter, { format }))
+  return (Object.keys(graph) as ProjectRootDir[]).filter((parentDir) => micromatch.default.isMatch(parentDir, formattedFilter, { format }))
 }
 
 function pickSubgraph (
