@@ -52,7 +52,7 @@ test('globally installed package is linked with active version of Node.js', asyn
     pnpmHomeDir: path.dirname(nodeExecPath),
   }, ['@pnpm.e2e/hello-world-js-bin'])
 
-  const manifest = (await import(path.resolve('package.json')))
+  const { default: manifest } = await import(path.resolve('package.json'))
 
   expect(
     manifest.dependenciesMeta['@pnpm.e2e/hello-world-js-bin']?.node
@@ -72,7 +72,7 @@ test('globally installed package isn not linked with active version of Node.js i
     pnpmHomeDir: path.resolve('pnpm-home'),
   }, ['@pnpm.e2e/hello-world-js-bin'])
 
-  const manifest = (await import(path.resolve('package.json')))
+  const { default: manifest } = await import(path.resolve('package.json'))
 
   expect(manifest.dependenciesMeta).toBeFalsy()
 })

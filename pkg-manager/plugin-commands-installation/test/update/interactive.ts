@@ -1,18 +1,17 @@
 import path from 'path'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { type LockfileObject } from '@pnpm/lockfile.types'
-import { add, install, update } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
 import { jest } from '@jest/globals'
 import { sync as readYamlFile } from 'read-yaml-file'
 import chalk from 'chalk'
-import * as enquirer from 'enquirer'
 
-jest.mock('enquirer', () => ({ prompt: jest.fn() }))
+jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
+const { default: enquirer } = await import('enquirer')
+const { add, install, update } = await import('@pnpm/plugin-commands-installation')
 
-// eslint-disable-next-line
-const prompt = enquirer.prompt as any
+const prompt = jest.mocked(enquirer.prompt)
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -95,7 +94,7 @@ test('interactively update', async () => {
   })
 
   prompt.mockClear()
-  // t.comment('update to compatible versions')
+  // Update to compatible versions
   await update.handler({
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
@@ -105,7 +104,8 @@ test('interactively update', async () => {
     storeDir,
   })
 
-  expect(prompt.mock.calls[0][0].choices).toStrictEqual([
+  // eslint-disable-next-line
+  expect((prompt.mock.calls[0][0] as any).choices).toStrictEqual([
     {
       choices: [
         headerChoice,
@@ -145,7 +145,7 @@ test('interactively update', async () => {
     expect(lockfile.packages['is-positive@2.0.0']).toBeTruthy()
   }
 
-  // t.comment('update to latest versions')
+  // Update to latest versions
   prompt.mockClear()
   await update.handler({
     ...DEFAULT_OPTIONS,
@@ -157,7 +157,8 @@ test('interactively update', async () => {
     storeDir,
   })
 
-  expect(prompt.mock.calls[0][0].choices).toStrictEqual([
+  // eslint-disable-next-line
+  expect((prompt.mock.calls[0][0] as any).choices).toStrictEqual([
     {
       choices: [
         headerChoice,
@@ -318,7 +319,8 @@ test('interactively update should ignore dependencies from the ignoreDependencie
     },
   })
 
-  expect(prompt.mock.calls[0][0].choices).toStrictEqual(
+  // eslint-disable-next-line
+  expect((prompt.mock.calls[0][0] as any).choices as any).toStrictEqual(
     [
       {
         choices: [

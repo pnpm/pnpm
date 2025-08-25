@@ -23,7 +23,7 @@ import writeJsonFile from 'write-json-file'
 import existsSymlink from 'exists-link'
 import { testDefaults } from './utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('uninstall package with no dependencies', async () => {
   const project = prepareEmpty()

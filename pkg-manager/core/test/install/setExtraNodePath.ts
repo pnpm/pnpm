@@ -10,7 +10,7 @@ import {
 import { type ProjectRootDir } from '@pnpm/types'
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('jest CLI should print the right version when multiple instances of jest are used in a workspace', async () => {
   preparePackages([

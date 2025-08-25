@@ -216,7 +216,7 @@ export async function getConfig (opts: {
     if (warn) warnings.push(warn)
   }
   {
-    const warn = npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
+    const warn = npmConfig.addFile(path.resolve(path.join(import.meta.dirname, 'pnpmrc')), 'pnpm-builtin')
     if (warn) warnings.push(warn)
   }
 

@@ -18,7 +18,7 @@ import {
 } from '@pnpm/lifecycle'
 import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
 import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand } from './runRecursive.js'

@@ -23,7 +23,7 @@ import { type DependencyManifest, type Registries, type PinnedVersion } from '@p
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'
-import clone from 'ramda/src/clone'
+import { clone } from 'ramda'
 import semver from 'semver'
 import ssri from 'ssri'
 import versionSelectorType from 'version-selector-type'

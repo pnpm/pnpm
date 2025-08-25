@@ -4,7 +4,7 @@ import { type PackageManifest } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import { execPnpm } from '../utils/index.js'
 
-const basicPackageManifest = loadJsonFile.sync<PackageManifest>(path.join(__dirname, '../utils/simple-package.json'))
+const basicPackageManifest = loadJsonFile.sync<PackageManifest>(path.join(import.meta.dirname, '../utils/simple-package.json'))
 
 test('production install (with --production flag)', async () => {
   const project = prepare(basicPackageManifest)

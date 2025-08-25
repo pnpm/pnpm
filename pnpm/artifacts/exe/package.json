@@ -13,6 +13,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "scripts": {
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",

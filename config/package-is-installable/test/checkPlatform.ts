@@ -1,6 +1,5 @@
 import { jest } from '@jest/globals'
 import type * as DetectLibc from 'detect-libc'
-import { checkPlatform } from '../lib/checkPlatform.js'
 
 const packageId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -11,6 +10,8 @@ jest.mock('detect-libc', () => {
     familySync: () => 'musl',
   }
 })
+
+const { checkPlatform } = await import('../lib/checkPlatform.js')
 
 test('target cpu wrong', () => {
   const target = {

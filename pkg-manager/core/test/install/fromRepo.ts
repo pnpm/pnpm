@@ -14,7 +14,7 @@ import { isCI } from 'ci-info'
 import sinon from 'sinon'
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const withGitProtocolDepFixture = f.find('with-git-protocol-dep')
 
 test('from a github repo', async () => {

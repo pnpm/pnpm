@@ -14,8 +14,8 @@ import sinon from 'sinon'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
-const f = fixtures(__dirname)
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
+const f = fixtures(import.meta.dirname)
 
 test('rebuilds dependencies', async () => {
   const project = prepare()
@@ -28,6 +28,7 @@ test('rebuilds dependencies', async () => {
     '--save-dev',
     '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
     'pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf',
+    '--config.enableGlobalVirtualStore=false',
     `--registry=${REGISTRY}`,
     `--store-dir=${storeDir}`,
     '--ignore-scripts',
@@ -104,6 +105,7 @@ test('skipIfHasSideEffectsCache', async () => {
     `--store-dir=${storeDir}`,
     '--ignore-scripts',
     `--cache-dir=${cacheDir}`,
+    '--config.enableGlobalVirtualStore=false',
   ])
 
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
@@ -154,6 +156,7 @@ test('rebuild does not fail when a linked package is present', async () => {
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
+    '--config.enableGlobalVirtualStore=false',
   ])
 
   const modulesManifest = project.readModulesManifest()
@@ -183,6 +186,7 @@ test('rebuilds specific dependencies', async () => {
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
+    '--config.enableGlobalVirtualStore=false',
   ])
 
   const modulesManifest = project.readModulesManifest()
@@ -217,6 +221,7 @@ test('rebuild with pending option', async () => {
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
+    '--config.enableGlobalVirtualStore=false',
   ])
   await execa('node', [
     pnpmBin,
@@ -226,6 +231,7 @@ test('rebuild with pending option', async () => {
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
+    '--config.enableGlobalVirtualStore=false',
   ])
 
   let modules = project.readModulesManifest()
@@ -283,6 +289,7 @@ test('rebuild dependencies in correct order', async () => {
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
+    '--config.enableGlobalVirtualStore=false',
   ])
 
   let modules = project.readModulesManifest()
@@ -322,6 +329,7 @@ test('rebuild links bins', async () => {
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
+    '--config.enableGlobalVirtualStore=false',
   ])
 
   expect(fs.existsSync(path.resolve('node_modules/.bin/cmd1'))).toBeFalsy()
@@ -366,6 +374,7 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
+    '--config.enableGlobalVirtualStore=false',
   ])
 
   const reporter = sinon.spy()
@@ -399,6 +408,7 @@ test('never build neverBuiltDependencies', async () => {
     `--registry=${REGISTRY}`,
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
+    '--config.enableGlobalVirtualStore=false',
   ])
 
   const modulesManifest = project.readModulesManifest()

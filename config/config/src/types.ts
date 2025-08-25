@@ -1,4 +1,4 @@
-import npmTypes from '@pnpm/npm-conf/lib/types'
+import npmTypes from '@pnpm/npm-conf/lib/types.js'
 
 export const types = Object.assign({
   'auto-install-peers': Boolean,

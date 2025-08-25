@@ -1,12 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import path from 'path'
-import { logger, globalWarn } from '@pnpm/logger'
-import {
-  linkBins,
-  linkBinsOfPackages,
-  linkBinsOfPkgsByAliases,
-} from '@pnpm/link-bins'
 import { fixtures } from '@pnpm/test-fixtures'
 import { jest } from '@jest/globals'
 import CMD_EXTENSION from 'cmd-extension'
@@ -15,7 +9,7 @@ import normalizePath from 'normalize-path'
 import tempy from 'tempy'
 import { spawnSync } from 'child_process'
 
-jest.mock('@pnpm/logger', () => {
+jest.unstable_mockModule('@pnpm/logger', () => {
   const debug = jest.fn()
   const globalWarn = jest.fn()
 
@@ -25,10 +19,17 @@ jest.mock('@pnpm/logger', () => {
   }
 })
 
+const { logger, globalWarn } = await import('@pnpm/logger')
+const {
+  linkBins,
+  linkBinsOfPackages,
+  linkBinsOfPkgsByAliases,
+} = await import('@pnpm/link-bins')
+
 const binsConflictLogger = logger('bins-conflict')
 // The fixture directories are copied to before the tests run
 // This happens because the tests convert some of the files into executables
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 beforeEach(() => {
   jest.mocked(binsConflictLogger.debug).mockClear()

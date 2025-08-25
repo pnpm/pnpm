@@ -1,17 +1,29 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
-import { createGitResolver } from '@pnpm/git-resolver'
-import git from 'graceful-git'
 import isWindows from 'is-windows'
-import { fetchWithAgent } from '@pnpm/fetch'
-import { type jest } from '@jest/globals'
+import { jest } from '@jest/globals'
+
+const { fetchWithAgent: fetchWithAgentOriginal } = await import('@pnpm/fetch')
+jest.unstable_mockModule('@pnpm/fetch', () => ({
+  fetchWithAgent: jest.fn(),
+}))
+const { default: gitOriginal } = await import('graceful-git')
+jest.unstable_mockModule('graceful-git', () => ({
+  default: jest.fn(),
+}))
+const { fetchWithAgent } = await import('@pnpm/fetch')
+const { default: git } = await import('graceful-git')
+const { createGitResolver } = await import('@pnpm/git-resolver')
 
 const resolveFromGit = createGitResolver({})
 
+beforeEach(() => {
+  jest.mocked(git).mockImplementation(gitOriginal)
+  jest.mocked(fetchWithAgent).mockImplementation(fetchWithAgentOriginal)
+})
+
 function mockFetchAsPrivate (): void {
-  type FetchWithAgent = typeof fetchWithAgent
-  type MockedFetchWithAgent = jest.MockedFunction<FetchWithAgent>
-  (fetchWithAgent as MockedFetchWithAgent).mockImplementation(async (_url, _opts) => {
+  jest.mocked(fetchWithAgent).mockImplementation(async (_url, _opts) => {
     return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any
   })
 }
@@ -437,7 +449,7 @@ test('resolveFromGit() private repo with commit hash', async () => {
 })
 
 test('resolve a private repository using the HTTPS protocol without auth token', async () => {
-  git.mockImplementation(async (args: string[]) => {
+  jest.mocked(git).mockImplementation(async (args: string[]) => {
     expect(args).toContain('git+ssh://git@github.com/foo/bar.git')
     if (args.includes('--refs')) {
       return {
@@ -463,7 +475,7 @@ test('resolve a private repository using the HTTPS protocol without auth token',
 })
 
 test('resolve a private repository using the HTTPS protocol with a commit hash', async () => {
-  git.mockImplementation(async (args: string[]) => {
+  jest.mocked(git).mockImplementation(async (args: string[]) => {
     expect(args).toContain('ls-remote')
     expect(args).toContain('https://github.com/foo/bar.git')
     return {

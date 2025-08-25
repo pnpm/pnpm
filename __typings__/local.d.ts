@@ -29,8 +29,13 @@ declare module '@pnpm/npm-conf' {
   export = anything
 }
 
-declare module '@pnpm/npm-conf/lib/util' {
+declare module '@pnpm/npm-conf/lib/util.js' {
   export function parseField (types: any, field: string, value: any): unknown
+}
+
+declare module '@pnpm/npm-conf/lib/conf' {
+  const anything: any
+  export = anything
 }
 
 declare module '@pnpm/npm-lifecycle' {
@@ -102,6 +107,10 @@ declare module 'process-exists' {
 declare module 'read-package-json' {
   const anything: any
   export = anything
+}
+
+declare module 'split-cmd/index.modern.mjs' {
+  export function split (command: string): string[]
 }
 
 declare module 'stacktracey' {

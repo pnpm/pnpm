@@ -33,9 +33,6 @@ catalogs:
     '@eslint/js':
       specifier: 9.9.1
       version: 9.9.1
-    '@gwhitney/detect-indent':
-      specifier: 7.0.1
-      version: 7.0.1
     '@jest/globals':
       specifier: 30.0.5
       version: 30.0.5
@@ -345,6 +342,9 @@ catalogs:
     delay:
       specifier: ^5.0.0
       version: 5.0.0
+    detect-indent:
+      specifier: 7.0.1
+      version: 7.0.1
     detect-libc:
       specifier: ^2.0.3
       version: 2.0.3
@@ -364,8 +364,8 @@ catalogs:
       specifier: ^2.4.1
       version: 2.4.1
     esbuild:
-      specifier: ^0.25.0
-      version: 0.25.0
+      specifier: ^0.25.9
+      version: 0.25.9
     escape-string-regexp:
       specifier: ^4.0.0
       version: 4.0.0
@@ -394,8 +394,8 @@ catalogs:
       specifier: 2.7.0
       version: 2.7.0
     execa:
-      specifier: npm:safe-execa@0.1.2
-      version: 0.1.2
+      specifier: npm:safe-execa@0.2.0
+      version: 0.2.0
     exists-link:
       specifier: 2.0.0
       version: 2.0.0
@@ -475,8 +475,8 @@ catalogs:
       specifier: ^29.7.0
       version: 29.7.0
     js-yaml:
-      specifier: npm:@zkochan/js-yaml@0.0.9
-      version: 0.0.9
+      specifier: npm:@zkochan/js-yaml@0.0.10
+      version: 0.0.10
     json5:
       specifier: ^2.2.3
       version: 2.2.3
@@ -520,8 +520,8 @@ catalogs:
       specifier: 13.3.4
       version: 13.3.4
     node-fetch:
-      specifier: npm:@pnpm/node-fetch@1.0.0
-      version: 1.0.0
+      specifier: ^3.3.2
+      version: 3.3.2
     normalize-newline:
       specifier: 3.0.0
       version: 3.0.0
@@ -562,8 +562,8 @@ catalogs:
       specifier: 4.0.1
       version: 4.0.1
     p-queue:
-      specifier: ^6.6.2
-      version: 6.6.2
+      specifier: ^8.1.0
+      version: 8.1.0
     p-settle:
       specifier: ^4.1.1
       version: 4.1.1
@@ -658,8 +658,8 @@ catalogs:
       specifier: 5.2.1
       version: 5.2.1
     safe-execa:
-      specifier: ^0.1.4
-      version: 0.1.4
+      specifier: ^0.2.0
+      version: 0.2.0
     safe-promise-defer:
       specifier: ^1.0.1
       version: 1.0.1
@@ -676,8 +676,8 @@ catalogs:
       specifier: ^1.1.4
       version: 1.1.4
     shlex:
-      specifier: ^2.1.2
-      version: 2.1.2
+      specifier: ^3.0.0
+      version: 3.0.0
     shx:
       specifier: ^0.3.4
       version: 0.3.4
@@ -800,7 +800,7 @@ overrides:
   hosted-git-info@1: npm:@pnpm/hosted-git-info@1.0.0
   http-proxy-middleware@<2.0.7: ^2.0.7
   istanbul-reports: npm:@zkochan/istanbul-reports
-  js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.9
+  js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.10
   json5@<2.2.2: ^2.2.3
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   nopt@5: npm:@pnpm/nopt@^0.2.1
@@ -822,6 +822,9 @@ packageExtensionsChecksum: sha256-1qxck4M+gjHKVxNHtl5ISCI+egyJsA5Hru0aRTpMm9I=
 pnpmfileChecksum: sha256-mx8+uzkaD2WO2V3h9zTchFZZX3QdTTMrkVNvy8svgCY=
 
 patchedDependencies:
+  '@pnpm/npm-lifecycle':
+    hash: 9ca23edf604c5e8ff290e3c0a5443646b5f9865624042a5c41d9b2beb8f98972
+    path: __patches__/@pnpm__npm-lifecycle.patch
   '@yao-pkg/pkg':
     hash: ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e
     path: __patches__/pkg.patch
@@ -1184,7 +1187,7 @@ importers:
         version: 1000.1.1
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
       fast-glob:
         specifier: 'catalog:'
         version: 3.3.2
@@ -1234,7 +1237,7 @@ importers:
         version: 22.15.30
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
 
   __utils__/tsconfig:
     devDependencies:
@@ -1317,7 +1320,7 @@ importers:
         version: 3.0.2
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
 
   catalogs/config:
     dependencies:
@@ -1873,7 +1876,7 @@ importers:
         version: 2.0.3
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
       mem:
         specifier: 'catalog:'
         version: 8.1.1
@@ -2266,7 +2269,7 @@ importers:
         version: 0.5.16
       node-fetch:
         specifier: 'catalog:'
-        version: '@pnpm/node-fetch@1.0.0'
+        version: 3.3.2
 
   env/node.resolver:
     dependencies:
@@ -2407,13 +2410,13 @@ importers:
         version: 3.3.0
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
       nock:
         specifier: 'catalog:'
         version: 13.3.4
       node-fetch:
         specifier: 'catalog:'
-        version: '@pnpm/node-fetch@1.0.0'
+        version: 3.3.2
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
@@ -2431,7 +2434,7 @@ importers:
         version: link:../../cli/cli-meta
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
       mem:
         specifier: 'catalog:'
         version: 8.1.1
@@ -2590,7 +2593,7 @@ importers:
         version: link:../../pkg-manager/link-bins
       '@pnpm/npm-lifecycle':
         specifier: 'catalog:'
-        version: 1000.0.4(typanion@3.14.0)
+        version: 1000.0.4(patch_hash=9ca23edf604c5e8ff290e3c0a5443646b5f9865624042a5c41d9b2beb8f98972)(typanion@3.14.0)
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -2611,7 +2614,7 @@ importers:
         version: 3.0.1
       shlex:
         specifier: 'catalog:'
-        version: 2.1.2
+        version: 3.0.0
     devDependencies:
       '@pnpm/lifecycle':
         specifier: workspace:*
@@ -2797,7 +2800,7 @@ importers:
         version: 10.0.20
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
       sinon:
         specifier: 'catalog:'
         version: 16.1.3
@@ -2890,7 +2893,7 @@ importers:
         version: 2.4.1
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
       p-limit:
         specifier: 'catalog:'
         version: 3.1.0
@@ -2960,7 +2963,7 @@ importers:
     dependencies:
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
     devDependencies:
       '@pnpm/exec.pnpm-cli-runner':
         specifier: workspace:*
@@ -2985,7 +2988,7 @@ importers:
         version: 3.0.2
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
       preferred-pm:
         specifier: 'catalog:'
         version: 3.1.4
@@ -3140,7 +3143,7 @@ importers:
         version: 3.0.2
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -3694,7 +3697,7 @@ importers:
         version: 1.0.0
       js-yaml:
         specifier: 'catalog:'
-        version: '@zkochan/js-yaml@0.0.9'
+        version: '@zkochan/js-yaml@0.0.10'
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
@@ -4197,7 +4200,7 @@ importers:
         version: 0.2.0
       node-fetch:
         specifier: 'catalog:'
-        version: '@pnpm/node-fetch@1.0.0'
+        version: 3.3.2
     devDependencies:
       '@pnpm/fetch':
         specifier: workspace:*
@@ -4219,7 +4222,7 @@ importers:
         version: 0.2.0
       node-fetch:
         specifier: 'catalog:'
-        version: '@pnpm/node-fetch@1.0.0'
+        version: 3.3.2
     devDependencies:
       '@pnpm/fetching-types':
         specifier: workspace:*
@@ -4325,7 +4328,7 @@ importers:
     dependencies:
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
     devDependencies:
       '@pnpm/git-utils':
         specifier: workspace:*
@@ -4394,7 +4397,7 @@ importers:
         version: 0.29.12
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
 
   packages/parse-wanted-dependency:
     dependencies:
@@ -4686,7 +4689,7 @@ importers:
         version: 1.0.3
       safe-execa:
         specifier: 'catalog:'
-        version: 0.1.4
+        version: 0.2.0
       semver:
         specifier: 'catalog:'
         version: 7.7.1
@@ -5052,7 +5055,7 @@ importers:
         version: 1.0.0
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
       exists-link:
         specifier: 'catalog:'
         version: 2.0.0
@@ -5612,7 +5615,7 @@ importers:
         version: 3.1.0
       p-queue:
         specifier: 'catalog:'
-        version: 6.6.2
+        version: 8.1.0
       promise-share:
         specifier: 'catalog:'
         version: 1.0.0
@@ -6255,9 +6258,6 @@ importers:
 
   pkg-manifest/read-project-manifest:
     dependencies:
-      '@gwhitney/detect-indent':
-        specifier: 'catalog:'
-        version: 7.0.1
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -6276,6 +6276,9 @@ importers:
       '@pnpm/write-project-manifest':
         specifier: workspace:*
         version: link:../write-project-manifest
+      detect-indent:
+        specifier: 'catalog:'
+        version: 7.0.1
       fast-deep-equal:
         specifier: 'catalog:'
         version: 3.1.3
@@ -6572,10 +6575,10 @@ importers:
         version: 2.0.0
       esbuild:
         specifier: 'catalog:'
-        version: 0.25.0
+        version: 0.25.9
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
       exists-link:
         specifier: 'catalog:'
         version: 2.0.0
@@ -6651,7 +6654,7 @@ importers:
         version: 'link:'
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
       pkg:
         specifier: 'catalog:'
         version: '@yao-pkg/pkg@6.6.0(patch_hash=ab0601976c8cb8df34650a3e9cb6bf5789ed5c381e473dcbda313b2511aa560e)(encoding@0.1.13)'
@@ -6724,7 +6727,7 @@ importers:
         version: link:../../workspace/read-manifest
       esbuild:
         specifier: 'catalog:'
-        version: 0.25.0
+        version: 0.25.9
     devDependencies:
       pd:
         specifier: workspace:*
@@ -6885,7 +6888,7 @@ importers:
         version: 2.4.1
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
       p-filter:
         specifier: 'catalog:'
         version: 2.1.0
@@ -7735,7 +7738,7 @@ importers:
         version: 0.29.12
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -8183,7 +8186,7 @@ importers:
         version: 3.0.2
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
       ssri:
         specifier: 'catalog:'
         version: 10.0.5
@@ -8241,7 +8244,7 @@ importers:
         version: link:../../__utils__/prepare
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -8299,7 +8302,7 @@ importers:
         version: 6.2.0
       node-fetch:
         specifier: 'catalog:'
-        version: '@pnpm/node-fetch@1.0.0'
+        version: 3.3.2
       tempy:
         specifier: 'catalog:'
         version: 1.0.1
@@ -8563,7 +8566,7 @@ importers:
         version: 3.1.0
       shlex:
         specifier: 'catalog:'
-        version: 2.1.2
+        version: 3.0.0
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -8613,7 +8616,7 @@ importers:
         version: link:../pkgs-graph
       execa:
         specifier: 'catalog:'
-        version: safe-execa@0.1.2
+        version: safe-execa@0.2.0
       find-up:
         specifier: 'catalog:'
         version: 5.0.0
@@ -9492,152 +9495,158 @@ packages:
   '@emnapi/wasi-threads@1.0.4':
     resolution: {integrity: sha512-PJR+bOmMOPH8AtcTGAyYNiuJ3/Fcoj2XN/gBEWzDIKh254XO+mM9XoXHk5GNEhodxeMznbg7BlRojVbKN+gC6g==}
 
-  '@esbuild/aix-ppc64@0.25.0':
-    resolution: {integrity: sha512-O7vun9Sf8DFjH2UtqK8Ku3LkquL9SZL8OLY1T5NZkA34+wG3OQF7cl4Ql8vdNzM6fzBbYfLaiRLIOZ+2FOCgBQ==}
+  '@esbuild/aix-ppc64@0.25.9':
+    resolution: {integrity: sha512-OaGtL73Jck6pBKjNIe24BnFE6agGl+6KxDtTfHhy1HmhthfKouEcOhqpSL64K4/0WCtbKFLOdzD/44cJ4k9opA==}
     engines: {node: '>=18'}
     cpu: [ppc64]
     os: [aix]
 
-  '@esbuild/android-arm64@0.25.0':
-    resolution: {integrity: sha512-grvv8WncGjDSyUBjN9yHXNt+cq0snxXbDxy5pJtzMKGmmpPxeAmAhWxXI+01lU5rwZomDgD3kJwulEnhTRUd6g==}
+  '@esbuild/android-arm64@0.25.9':
+    resolution: {integrity: sha512-IDrddSmpSv51ftWslJMvl3Q2ZT98fUSL2/rlUXuVqRXHCs5EUF1/f+jbjF5+NG9UffUDMCiTyh8iec7u8RlTLg==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [android]
 
-  '@esbuild/android-arm@0.25.0':
-    resolution: {integrity: sha512-PTyWCYYiU0+1eJKmw21lWtC+d08JDZPQ5g+kFyxP0V+es6VPPSUhM6zk8iImp2jbV6GwjX4pap0JFbUQN65X1g==}
+  '@esbuild/android-arm@0.25.9':
+    resolution: {integrity: sha512-5WNI1DaMtxQ7t7B6xa572XMXpHAaI/9Hnhk8lcxF4zVN4xstUgTlvuGDorBguKEnZO70qwEcLpfifMLoxiPqHQ==}
     engines: {node: '>=18'}
     cpu: [arm]
     os: [android]
 
-  '@esbuild/android-x64@0.25.0':
-    resolution: {integrity: sha512-m/ix7SfKG5buCnxasr52+LI78SQ+wgdENi9CqyCXwjVR2X4Jkz+BpC3le3AoBPYTC9NHklwngVXvbJ9/Akhrfg==}
+  '@esbuild/android-x64@0.25.9':
+    resolution: {integrity: sha512-I853iMZ1hWZdNllhVZKm34f4wErd4lMyeV7BLzEExGEIZYsOzqDWDf+y082izYUE8gtJnYHdeDpN/6tUdwvfiw==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [android]
 
-  '@esbuild/darwin-arm64@0.25.0':
-    resolution: {integrity: sha512-mVwdUb5SRkPayVadIOI78K7aAnPamoeFR2bT5nszFUZ9P8UpK4ratOdYbZZXYSqPKMHfS1wdHCJk1P1EZpRdvw==}
+  '@esbuild/darwin-arm64@0.25.9':
+    resolution: {integrity: sha512-XIpIDMAjOELi/9PB30vEbVMs3GV1v2zkkPnuyRRURbhqjyzIINwj+nbQATh4H9GxUgH1kFsEyQMxwiLFKUS6Rg==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [darwin]
 
-  '@esbuild/darwin-x64@0.25.0':
-    resolution: {integrity: sha512-DgDaYsPWFTS4S3nWpFcMn/33ZZwAAeAFKNHNa1QN0rI4pUjgqf0f7ONmXf6d22tqTY+H9FNdgeaAa+YIFUn2Rg==}
+  '@esbuild/darwin-x64@0.25.9':
+    resolution: {integrity: sha512-jhHfBzjYTA1IQu8VyrjCX4ApJDnH+ez+IYVEoJHeqJm9VhG9Dh2BYaJritkYK3vMaXrf7Ogr/0MQ8/MeIefsPQ==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [darwin]
 
-  '@esbuild/freebsd-arm64@0.25.0':
-    resolution: {integrity: sha512-VN4ocxy6dxefN1MepBx/iD1dH5K8qNtNe227I0mnTRjry8tj5MRk4zprLEdG8WPyAPb93/e4pSgi1SoHdgOa4w==}
+  '@esbuild/freebsd-arm64@0.25.9':
+    resolution: {integrity: sha512-z93DmbnY6fX9+KdD4Ue/H6sYs+bhFQJNCPZsi4XWJoYblUqT06MQUdBCpcSfuiN72AbqeBFu5LVQTjfXDE2A6Q==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [freebsd]
 
-  '@esbuild/freebsd-x64@0.25.0':
-    resolution: {integrity: sha512-mrSgt7lCh07FY+hDD1TxiTyIHyttn6vnjesnPoVDNmDfOmggTLXRv8Id5fNZey1gl/V2dyVK1VXXqVsQIiAk+A==}
+  '@esbuild/freebsd-x64@0.25.9':
+    resolution: {integrity: sha512-mrKX6H/vOyo5v71YfXWJxLVxgy1kyt1MQaD8wZJgJfG4gq4DpQGpgTB74e5yBeQdyMTbgxp0YtNj7NuHN0PoZg==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [freebsd]
 
-  '@esbuild/linux-arm64@0.25.0':
-    resolution: {integrity: sha512-9QAQjTWNDM/Vk2bgBl17yWuZxZNQIF0OUUuPZRKoDtqF2k4EtYbpyiG5/Dk7nqeK6kIJWPYldkOcBqjXjrUlmg==}
+  '@esbuild/linux-arm64@0.25.9':
+    resolution: {integrity: sha512-BlB7bIcLT3G26urh5Dmse7fiLmLXnRlopw4s8DalgZ8ef79Jj4aUcYbk90g8iCa2467HX8SAIidbL7gsqXHdRw==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [linux]
 
-  '@esbuild/linux-arm@0.25.0':
-    resolution: {integrity: sha512-vkB3IYj2IDo3g9xX7HqhPYxVkNQe8qTK55fraQyTzTX/fxaDtXiEnavv9geOsonh2Fd2RMB+i5cbhu2zMNWJwg==}
+  '@esbuild/linux-arm@0.25.9':
+    resolution: {integrity: sha512-HBU2Xv78SMgaydBmdor38lg8YDnFKSARg1Q6AT0/y2ezUAKiZvc211RDFHlEZRFNRVhcMamiToo7bDx3VEOYQw==}
     engines: {node: '>=18'}
     cpu: [arm]
     os: [linux]
 
-  '@esbuild/linux-ia32@0.25.0':
-    resolution: {integrity: sha512-43ET5bHbphBegyeqLb7I1eYn2P/JYGNmzzdidq/w0T8E2SsYL1U6un2NFROFRg1JZLTzdCoRomg8Rvf9M6W6Gg==}
+  '@esbuild/linux-ia32@0.25.9':
+    resolution: {integrity: sha512-e7S3MOJPZGp2QW6AK6+Ly81rC7oOSerQ+P8L0ta4FhVi+/j/v2yZzx5CqqDaWjtPFfYz21Vi1S0auHrap3Ma3A==}
     engines: {node: '>=18'}
     cpu: [ia32]
     os: [linux]
 
-  '@esbuild/linux-loong64@0.25.0':
-    resolution: {integrity: sha512-fC95c/xyNFueMhClxJmeRIj2yrSMdDfmqJnyOY4ZqsALkDrrKJfIg5NTMSzVBr5YW1jf+l7/cndBfP3MSDpoHw==}
+  '@esbuild/linux-loong64@0.25.9':
+    resolution: {integrity: sha512-Sbe10Bnn0oUAB2AalYztvGcK+o6YFFA/9829PhOCUS9vkJElXGdphz0A3DbMdP8gmKkqPmPcMJmJOrI3VYB1JQ==}
     engines: {node: '>=18'}
     cpu: [loong64]
     os: [linux]
 
-  '@esbuild/linux-mips64el@0.25.0':
-    resolution: {integrity: sha512-nkAMFju7KDW73T1DdH7glcyIptm95a7Le8irTQNO/qtkoyypZAnjchQgooFUDQhNAy4iu08N79W4T4pMBwhPwQ==}
+  '@esbuild/linux-mips64el@0.25.9':
+    resolution: {integrity: sha512-YcM5br0mVyZw2jcQeLIkhWtKPeVfAerES5PvOzaDxVtIyZ2NUBZKNLjC5z3/fUlDgT6w89VsxP2qzNipOaaDyA==}
     engines: {node: '>=18'}
     cpu: [mips64el]
     os: [linux]
 
-  '@esbuild/linux-ppc64@0.25.0':
-    resolution: {integrity: sha512-NhyOejdhRGS8Iwv+KKR2zTq2PpysF9XqY+Zk77vQHqNbo/PwZCzB5/h7VGuREZm1fixhs4Q/qWRSi5zmAiO4Fw==}
+  '@esbuild/linux-ppc64@0.25.9':
+    resolution: {integrity: sha512-++0HQvasdo20JytyDpFvQtNrEsAgNG2CY1CLMwGXfFTKGBGQT3bOeLSYE2l1fYdvML5KUuwn9Z8L1EWe2tzs1w==}
     engines: {node: '>=18'}
     cpu: [ppc64]
     os: [linux]
 
-  '@esbuild/linux-riscv64@0.25.0':
-    resolution: {integrity: sha512-5S/rbP5OY+GHLC5qXp1y/Mx//e92L1YDqkiBbO9TQOvuFXM+iDqUNG5XopAnXoRH3FjIUDkeGcY1cgNvnXp/kA==}
+  '@esbuild/linux-riscv64@0.25.9':
+    resolution: {integrity: sha512-uNIBa279Y3fkjV+2cUjx36xkx7eSjb8IvnL01eXUKXez/CBHNRw5ekCGMPM0BcmqBxBcdgUWuUXmVWwm4CH9kg==}
     engines: {node: '>=18'}
     cpu: [riscv64]
     os: [linux]
 
-  '@esbuild/linux-s390x@0.25.0':
-    resolution: {integrity: sha512-XM2BFsEBz0Fw37V0zU4CXfcfuACMrppsMFKdYY2WuTS3yi8O1nFOhil/xhKTmE1nPmVyvQJjJivgDT+xh8pXJA==}
+  '@esbuild/linux-s390x@0.25.9':
+    resolution: {integrity: sha512-Mfiphvp3MjC/lctb+7D287Xw1DGzqJPb/J2aHHcHxflUo+8tmN/6d4k6I2yFR7BVo5/g7x2Monq4+Yew0EHRIA==}
     engines: {node: '>=18'}
     cpu: [s390x]
     os: [linux]
 
-  '@esbuild/linux-x64@0.25.0':
-    resolution: {integrity: sha512-9yl91rHw/cpwMCNytUDxwj2XjFpxML0y9HAOH9pNVQDpQrBxHy01Dx+vaMu0N1CKa/RzBD2hB4u//nfc+Sd3Cw==}
+  '@esbuild/linux-x64@0.25.9':
+    resolution: {integrity: sha512-iSwByxzRe48YVkmpbgoxVzn76BXjlYFXC7NvLYq+b+kDjyyk30J0JY47DIn8z1MO3K0oSl9fZoRmZPQI4Hklzg==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [linux]
 
-  '@esbuild/netbsd-arm64@0.25.0':
-    resolution: {integrity: sha512-RuG4PSMPFfrkH6UwCAqBzauBWTygTvb1nxWasEJooGSJ/NwRw7b2HOwyRTQIU97Hq37l3npXoZGYMy3b3xYvPw==}
+  '@esbuild/netbsd-arm64@0.25.9':
+    resolution: {integrity: sha512-9jNJl6FqaUG+COdQMjSCGW4QiMHH88xWbvZ+kRVblZsWrkXlABuGdFJ1E9L7HK+T0Yqd4akKNa/lO0+jDxQD4Q==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [netbsd]
 
-  '@esbuild/netbsd-x64@0.25.0':
-    resolution: {integrity: sha512-jl+qisSB5jk01N5f7sPCsBENCOlPiS/xptD5yxOx2oqQfyourJwIKLRA2yqWdifj3owQZCL2sn6o08dBzZGQzA==}
+  '@esbuild/netbsd-x64@0.25.9':
+    resolution: {integrity: sha512-RLLdkflmqRG8KanPGOU7Rpg829ZHu8nFy5Pqdi9U01VYtG9Y0zOG6Vr2z4/S+/3zIyOxiK6cCeYNWOFR9QP87g==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [netbsd]
 
-  '@esbuild/openbsd-arm64@0.25.0':
-    resolution: {integrity: sha512-21sUNbq2r84YE+SJDfaQRvdgznTD8Xc0oc3p3iW/a1EVWeNj/SdUCbm5U0itZPQYRuRTW20fPMWMpcrciH2EJw==}
+  '@esbuild/openbsd-arm64@0.25.9':
+    resolution: {integrity: sha512-YaFBlPGeDasft5IIM+CQAhJAqS3St3nJzDEgsgFixcfZeyGPCd6eJBWzke5piZuZ7CtL656eOSYKk4Ls2C0FRQ==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [openbsd]
 
-  '@esbuild/openbsd-x64@0.25.0':
-    resolution: {integrity: sha512-2gwwriSMPcCFRlPlKx3zLQhfN/2WjJ2NSlg5TKLQOJdV0mSxIcYNTMhk3H3ulL/cak+Xj0lY1Ym9ysDV1igceg==}
+  '@esbuild/openbsd-x64@0.25.9':
+    resolution: {integrity: sha512-1MkgTCuvMGWuqVtAvkpkXFmtL8XhWy+j4jaSO2wxfJtilVCi0ZE37b8uOdMItIHz4I6z1bWWtEX4CJwcKYLcuA==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [openbsd]
 
-  '@esbuild/sunos-x64@0.25.0':
-    resolution: {integrity: sha512-bxI7ThgLzPrPz484/S9jLlvUAHYMzy6I0XiU1ZMeAEOBcS0VePBFxh1JjTQt3Xiat5b6Oh4x7UC7IwKQKIJRIg==}
+  '@esbuild/openharmony-arm64@0.25.9':
+    resolution: {integrity: sha512-4Xd0xNiMVXKh6Fa7HEJQbrpP3m3DDn43jKxMjxLLRjWnRsfxjORYJlXPO4JNcXtOyfajXorRKY9NkOpTHptErg==}
+    engines: {node: '>=18'}
+    cpu: [arm64]
+    os: [openharmony]
+
+  '@esbuild/sunos-x64@0.25.9':
+    resolution: {integrity: sha512-WjH4s6hzo00nNezhp3wFIAfmGZ8U7KtrJNlFMRKxiI9mxEK1scOMAaa9i4crUtu+tBr+0IN6JCuAcSBJZfnphw==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [sunos]
 
-  '@esbuild/win32-arm64@0.25.0':
-    resolution: {integrity: sha512-ZUAc2YK6JW89xTbXvftxdnYy3m4iHIkDtK3CLce8wg8M2L+YZhIvO1DKpxrd0Yr59AeNNkTiic9YLf6FTtXWMw==}
+  '@esbuild/win32-arm64@0.25.9':
+    resolution: {integrity: sha512-mGFrVJHmZiRqmP8xFOc6b84/7xa5y5YvR1x8djzXpJBSv/UsNK6aqec+6JDjConTgvvQefdGhFDAs2DLAds6gQ==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [win32]
 
-  '@esbuild/win32-ia32@0.25.0':
-    resolution: {integrity: sha512-eSNxISBu8XweVEWG31/JzjkIGbGIJN/TrRoiSVZwZ6pkC6VX4Im/WV2cz559/TXLcYbcrDN8JtKgd9DJVIo8GA==}
+  '@esbuild/win32-ia32@0.25.9':
+    resolution: {integrity: sha512-b33gLVU2k11nVx1OhX3C8QQP6UHQK4ZtN56oFWvVXvz2VkDoe6fbG8TOgHFxEvqeqohmRnIHe5A1+HADk4OQww==}
     engines: {node: '>=18'}
     cpu: [ia32]
     os: [win32]
 
-  '@esbuild/win32-x64@0.25.0':
-    resolution: {integrity: sha512-ZENoHJBxA20C2zFzh6AI4fT6RraMzjYw4xKWemRTRmRVtN9c5DcH9r/f2ihEkMjOW5eGgrwCslG/+Y/3bL+DHQ==}
+  '@esbuild/win32-x64@0.25.9':
+    resolution: {integrity: sha512-PPOl1mi6lpLNQxnGoyAfschAodRFYXJ+9fs6WHXz7CSWKbOqiMZsubC+BQsVKuul+3vKLuwTHsS2c2y9EoKwxQ==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
@@ -11153,8 +11162,8 @@ packages:
     resolution: {integrity: sha512-GeZZ9YNlvveT1CrMqe64s9+5hNF5p9Gj6J+PRQU3OnBS/9c2y5kSFavUZ9YAuoAgxFW8tKGKWIxJK4I6HBSigg==}
     engines: {node: '>=8'}
 
-  '@zkochan/js-yaml@0.0.9':
-    resolution: {integrity: sha512-SsdK25Upg5wLeGK2Wm8y5bDloMMxN/qE5H6aNOiPRh07a9/fQPYVhlLZz2zRFg9il9XOlpFdrnQnPKsU7FJIpQ==}
+  '@zkochan/js-yaml@0.0.10':
+    resolution: {integrity: sha512-pSVOuIjRa7PjIaCmL54Qaz68C3zvwdSxp0qMI5twIt1aw2c/PUVb2M46xnnLWsd2AEgsTbGNcOgHXsM9cENhjA==}
     hasBin: true
 
   '@zkochan/retry@0.2.0':
@@ -11983,6 +11992,10 @@ packages:
     resolution: {integrity: sha512-WboRycPNsVw3B3TL559F7kuBUM4d8CgMEvk6xEJlOp7OBPjt6G7z8WMWlD2rOFZLk6OYfFIUGsCOWzcQH9K2og==}
     engines: {node: '>= 6'}
 
+  data-uri-to-buffer@4.0.1:
+    resolution: {integrity: sha512-0R9ikRb668HB7QDxT1vkpuUBtqc53YyAwMwGeUFKRojY/NWKvdZ+9UYtRfGmhqNbRkTSVpMbmyhXipFFv2cb/A==}
+    engines: {node: '>= 12'}
+
   data-view-buffer@1.0.2:
     resolution: {integrity: sha512-EmKO5V3OLXh1rtK2wgXRansaK1/mtVdTUEiEI0W8RkvgT05kfxaH29PliLnpLP73yYO6142Q72QNa8Wx/A5CqQ==}
     engines: {node: '>= 0.4'}
@@ -12285,8 +12298,8 @@ packages:
     resolution: {integrity: sha512-w+5mJ3GuFL+NjVtJlvydShqE1eN3h3PbI7/5LAsYJP/2qtuMXjfL2LpHSRqo4b4eSF5K/DH1JXKUAHSB2UW50g==}
     engines: {node: '>= 0.4'}
 
-  esbuild@0.25.0:
-    resolution: {integrity: sha512-BXq5mqc8ltbaN34cDqWuYKyNhX8D/Z0J1xdtdQ8UcIIIyJyz+ZMKUt58tF3SrZ85jcfN/PZYhjR5uDQAYNVbuw==}
+  esbuild@0.25.9:
+    resolution: {integrity: sha512-CRbODhYyQx3qp7ZEwzxOk4JBqmD/seJrzPa/cGjY1VtIn5E09Oi9/dB4JwctnfZ8Q8iT7rioVv5k/FNT/uf54g==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -12492,6 +12505,9 @@ packages:
   eventemitter3@4.0.7:
     resolution: {integrity: sha512-8guHBZCwKnFhYdHr2ysuRWErTwhoN2X8XELRlrRwpmfeY2jjuUN4taQMsULKUVo1K4DvZl+0pgfyoysHxvmvEw==}
 
+  eventemitter3@5.0.1:
+    resolution: {integrity: sha512-GWkBvjiSZK87ELrYOSESUYeVIc9mvLLf/nXalMOS5dYrgZq9o5OVkbZAVM06CVxYsCwH9BDZFPlQTlPA1j4ahA==}
+
   events@3.3.0:
     resolution: {integrity: sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==}
     engines: {node: '>=0.8.x'}
@@ -12605,6 +12621,10 @@ packages:
       domexception:
         optional: true
 
+  fetch-blob@3.2.0:
+    resolution: {integrity: sha512-7yAQpD2UMJzLi1Dqv7qFYnPbaPx7ZfFK6PiIxQ4PfkGPyNyl2Ugx+a/umUonmKqjhM4DnfbMvdX6otXq83soQQ==}
+    engines: {node: ^12.20 || >= 14.13}
+
   figures@2.0.0:
     resolution: {integrity: sha512-Oa2M9atig69ZkfwiApY8F2Yy+tzMbazyvqv21R0NsSC8floSOC09BbT1ITWAdoMGQvJ/aZnR1KMwdx9tvHnTNA==}
     engines: {node: '>=4'}
@@ -12708,6 +12728,10 @@ packages:
   form-data@4.0.4:
     resolution: {integrity: sha512-KrGhL9Q4zjj0kiUt5OO4Mr/A/jlI2jDYs5eHBpYHPcBEVSiipAvn2Ko2HnPe20rmcuuvMHNdZFp+4IlGTMF0Ow==}
     engines: {node: '>= 6'}
+
+  formdata-polyfill@4.0.10:
+    resolution: {integrity: sha512-buewHzMvYL29jdeQTVILecSaZKnt/RJWjoZCF5OW60Z67/GmSLBkOFM7qh1PI3zFNtJbaZL5eQu1vLfazOwj4g==}
+    engines: {node: '>=12.20.0'}
 
   forwarded@0.2.0:
     resolution: {integrity: sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==}
@@ -14202,6 +14226,11 @@ packages:
     resolution: {integrity: sha512-OhYaY5sDsIka7H7AtijtI9jwGYLyl29eQn/W623DiN/MIv5sUqc4g7BIDThX+gb7di9f6xK02nkp8sdfFWZLTg==}
     engines: {node: '>=10'}
 
+  node-domexception@1.0.0:
+    resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
+    engines: {node: '>=10.5.0'}
+    deprecated: Use your platform's native DOMException instead
+
   node-fetch@2.6.7:
     resolution: {integrity: sha512-ZjMPFEfVx5j+y2yF35Kzx5sF7kDzxuDj6ziH4FFbOp87zKDZNx8yExJIb05OGF4Nlt9IHFIMBkRl41VdvcNdbQ==}
     engines: {node: 4.x || >=6.0.0}
@@ -14219,6 +14248,10 @@ packages:
     peerDependenciesMeta:
       encoding:
         optional: true
+
+  node-fetch@3.3.2:
+    resolution: {integrity: sha512-dRB78srN/l6gqWulah9SrxeYnxeddIG30+GOqK/9OlLVyLg3HPnr6SqOWTWOXKRwC2eGYCkZ59NNuSgvSrpgOA==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   node-gyp-build@4.8.4:
     resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
@@ -14484,6 +14517,10 @@ packages:
     resolution: {integrity: sha512-RwFpb72c/BhQLEXIZ5K2e+AhgNVmIejGlTgiB9MzZ0e93GRvqZ7uSi0dvRF7/XIXDeNkra2fNHBxTyPDGySpjQ==}
     engines: {node: '>=8'}
 
+  p-queue@8.1.0:
+    resolution: {integrity: sha512-mxLDbbGIBEXTJL0zEx8JIylaj3xQ7Z/7eEVjcF9fJX4DBiH9oqe+oahYnlKKxm0Ci9TlWTyhSHgygxMxjIB2jw==}
+    engines: {node: '>=18'}
+
   p-reflect@2.1.0:
     resolution: {integrity: sha512-paHV8NUz8zDHu5lhr/ngGWQiW067DK/+IbJ+RfZ4k+s8y4EKyYCz8pGYWjxCg35eHztpJAt+NUgvN4L+GCbPlg==}
     engines: {node: '>=8'}
@@ -14499,6 +14536,10 @@ packages:
   p-timeout@3.2.0:
     resolution: {integrity: sha512-rhIwUycgwwKcP9yTOOFK/AKsAopjjCakVqLHePO3CC6Mir1Z99xT+R63jZxAT5lFZLa2inS5h+ZS2GvR99/FBg==}
     engines: {node: '>=8'}
+
+  p-timeout@6.1.4:
+    resolution: {integrity: sha512-MyIV3ZA/PmyBN/ud8vV9XzwTrNtR4jFrObymZYnZqMmW0zA8Z17vnT0rBgFE/TlohB+YCHqXMgZzb3Csp49vqg==}
+    engines: {node: '>=14.16'}
 
   p-try@2.2.0:
     resolution: {integrity: sha512-R4nPAVTAU0B9D35/Gk3uJf/7XYbQcyohSKdvAxIRSNghFl4e71hVoGnBNQz9cWaXxO2I10KTC+3jMdvvoKw6dQ==}
@@ -15098,6 +15139,10 @@ packages:
     resolution: {integrity: sha512-GI3k4zl4aLC3lxZNEEXAxxcXE6E3TfOsJ5xxJPhcAv9MWwnH2O9I0HrDmZFsVnu/C8wzRYSsTHdoVRmL0VicDw==}
     engines: {node: '>=12'}
 
+  safe-execa@0.2.0:
+    resolution: {integrity: sha512-JNG61R7tOc7LnCme+Ek5O5x0OEV9pWriDBOooih8E+3uLPHUNfw0wNoxxJs6Zmr5OgULBDqKYQ4mZJdwNl4+0A==}
+    engines: {node: '>=18'}
+
   safe-promise-defer@1.0.1:
     resolution: {integrity: sha512-nKdAwtdSxWQpV2AIjU9rw5j/Pgt9+u+pegXJahWQY9D8G0tNvHnJnpL3zVJ1kKtWTo7s/Rvp9ZUDBtPPMpLctA==}
     engines: {node: '>=12'}
@@ -15189,8 +15234,8 @@ packages:
     engines: {node: '>=4'}
     hasBin: true
 
-  shlex@2.1.2:
-    resolution: {integrity: sha512-Nz6gtibMVgYeMEhUjp2KuwAgqaJA1K155dU/HuDaEJUGgnmYfVtVZah+uerVWdH8UGnyahhDCgABbYTbs254+w==}
+  shlex@3.0.0:
+    resolution: {integrity: sha512-jHPXQQk9d/QXCvJuLPYMOYWez3c43sORAgcIEoV7bFv5AJSJRAOyw5lQO12PMfd385qiLRCaDt7OtEzgrIGZUA==}
 
   short-tree@1.0.0:
     resolution: {integrity: sha512-SPhGxbdypMMjYlmdVL/dzBUCT/5FboztmleoS4WPgvCI7DqZXv8xrLSTuJqzmmuAtCTkgxkIKzfZ+jfJR6ODZg==}
@@ -16011,6 +16056,10 @@ packages:
 
   wcwidth@1.0.1:
     resolution: {integrity: sha512-XHPEwS0q6TaxcvG85+8EYkbiCux2XtWG2mkc47Ng2A77BQu9+DqIOJldST4HgPkuea7dvKSj5VgX3P1d4rW8Tg==}
+
+  web-streams-polyfill@3.3.3:
+    resolution: {integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==}
+    engines: {node: '>= 8'}
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
@@ -17128,79 +17177,82 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
-  '@esbuild/aix-ppc64@0.25.0':
+  '@esbuild/aix-ppc64@0.25.9':
     optional: true
 
-  '@esbuild/android-arm64@0.25.0':
+  '@esbuild/android-arm64@0.25.9':
     optional: true
 
-  '@esbuild/android-arm@0.25.0':
+  '@esbuild/android-arm@0.25.9':
     optional: true
 
-  '@esbuild/android-x64@0.25.0':
+  '@esbuild/android-x64@0.25.9':
     optional: true
 
-  '@esbuild/darwin-arm64@0.25.0':
+  '@esbuild/darwin-arm64@0.25.9':
     optional: true
 
-  '@esbuild/darwin-x64@0.25.0':
+  '@esbuild/darwin-x64@0.25.9':
     optional: true
 
-  '@esbuild/freebsd-arm64@0.25.0':
+  '@esbuild/freebsd-arm64@0.25.9':
     optional: true
 
-  '@esbuild/freebsd-x64@0.25.0':
+  '@esbuild/freebsd-x64@0.25.9':
     optional: true
 
-  '@esbuild/linux-arm64@0.25.0':
+  '@esbuild/linux-arm64@0.25.9':
     optional: true
 
-  '@esbuild/linux-arm@0.25.0':
+  '@esbuild/linux-arm@0.25.9':
     optional: true
 
-  '@esbuild/linux-ia32@0.25.0':
+  '@esbuild/linux-ia32@0.25.9':
     optional: true
 
-  '@esbuild/linux-loong64@0.25.0':
+  '@esbuild/linux-loong64@0.25.9':
     optional: true
 
-  '@esbuild/linux-mips64el@0.25.0':
+  '@esbuild/linux-mips64el@0.25.9':
     optional: true
 
-  '@esbuild/linux-ppc64@0.25.0':
+  '@esbuild/linux-ppc64@0.25.9':
     optional: true
 
-  '@esbuild/linux-riscv64@0.25.0':
+  '@esbuild/linux-riscv64@0.25.9':
     optional: true
 
-  '@esbuild/linux-s390x@0.25.0':
+  '@esbuild/linux-s390x@0.25.9':
     optional: true
 
-  '@esbuild/linux-x64@0.25.0':
+  '@esbuild/linux-x64@0.25.9':
     optional: true
 
-  '@esbuild/netbsd-arm64@0.25.0':
+  '@esbuild/netbsd-arm64@0.25.9':
     optional: true
 
-  '@esbuild/netbsd-x64@0.25.0':
+  '@esbuild/netbsd-x64@0.25.9':
     optional: true
 
-  '@esbuild/openbsd-arm64@0.25.0':
+  '@esbuild/openbsd-arm64@0.25.9':
     optional: true
 
-  '@esbuild/openbsd-x64@0.25.0':
+  '@esbuild/openbsd-x64@0.25.9':
     optional: true
 
-  '@esbuild/sunos-x64@0.25.0':
+  '@esbuild/openharmony-arm64@0.25.9':
     optional: true
 
-  '@esbuild/win32-arm64@0.25.0':
+  '@esbuild/sunos-x64@0.25.9':
     optional: true
 
-  '@esbuild/win32-ia32@0.25.0':
+  '@esbuild/win32-arm64@0.25.9':
     optional: true
 
-  '@esbuild/win32-x64@0.25.0':
+  '@esbuild/win32-ia32@0.25.9':
+    optional: true
+
+  '@esbuild/win32-x64@0.25.9':
     optional: true
 
   '@eslint-community/eslint-utils@4.7.0(eslint@8.57.1)':
@@ -17218,7 +17270,7 @@ snapshots:
       globals: 13.24.0
       ignore: 5.3.2
       import-fresh: 3.3.1
-      js-yaml: '@zkochan/js-yaml@0.0.9'
+      js-yaml: '@zkochan/js-yaml@0.0.10'
       minimatch: 3.1.2
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
@@ -17232,7 +17284,7 @@ snapshots:
       globals: 14.0.0
       ignore: 5.3.2
       import-fresh: 3.3.1
-      js-yaml: '@zkochan/js-yaml@0.0.9'
+      js-yaml: '@zkochan/js-yaml@0.0.10'
       minimatch: 3.1.2
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
@@ -18035,7 +18087,7 @@ snapshots:
       '@pnpm/error': 1000.0.2
       '@pnpm/link-bins': 1000.0.13(@pnpm/logger@1001.0.0)
       '@pnpm/logger': 1001.0.0
-      '@pnpm/npm-lifecycle': 1000.0.4(typanion@3.14.0)
+      '@pnpm/npm-lifecycle': 1000.0.4(patch_hash=9ca23edf604c5e8ff290e3c0a5443646b5f9865624042a5c41d9b2beb8f98972)(typanion@3.14.0)
       '@pnpm/read-package-json': 1000.0.9
       '@pnpm/store-controller-types': 1003.0.2
       '@pnpm/types': 1000.6.0
@@ -18184,7 +18236,7 @@ snapshots:
       '@pnpm/network.ca-file': 1.0.2
       config-chain: 1.1.13
 
-  '@pnpm/npm-lifecycle@1000.0.4(typanion@3.14.0)':
+  '@pnpm/npm-lifecycle@1000.0.4(patch_hash=9ca23edf604c5e8ff290e3c0a5443646b5f9865624042a5c41d9b2beb8f98972)(typanion@3.14.0)':
     dependencies:
       '@pnpm/byline': 1.0.0
       '@pnpm/error': 1000.0.2
@@ -18919,7 +18971,7 @@ snapshots:
 
   '@types/keyv@3.1.4':
     dependencies:
-      '@types/node': 22.15.29
+      '@types/node': 22.15.30
 
   '@types/lodash.kebabcase@4.1.9':
     dependencies:
@@ -19266,7 +19318,7 @@ snapshots:
     dependencies:
       '@verdaccio/core': 8.0.0-next-8.19
       debug: 4.4.1
-      js-yaml: '@zkochan/js-yaml@0.0.9'
+      js-yaml: '@zkochan/js-yaml@0.0.10'
       lodash: 4.17.21
       minimatch: 7.4.6
     transitivePeerDependencies:
@@ -19581,7 +19633,7 @@ snapshots:
       html-escaper: 2.0.2
       istanbul-lib-report: 3.0.1
 
-  '@zkochan/js-yaml@0.0.9':
+  '@zkochan/js-yaml@0.0.10':
     dependencies:
       argparse: 2.0.1
 
@@ -20451,7 +20503,7 @@ snapshots:
   cosmiconfig@8.3.6(typescript@5.9.2):
     dependencies:
       import-fresh: 3.3.1
-      js-yaml: '@zkochan/js-yaml@0.0.9'
+      js-yaml: '@zkochan/js-yaml@0.0.10'
       parse-json: 5.2.0
       path-type: 4.0.0
     optionalDependencies:
@@ -20573,6 +20625,8 @@ snapshots:
   data-uri-to-buffer@2.0.2: {}
 
   data-uri-to-buffer@3.0.1: {}
+
+  data-uri-to-buffer@4.0.1: {}
 
   data-view-buffer@1.0.2:
     dependencies:
@@ -20891,33 +20945,34 @@ snapshots:
       is-date-object: 1.1.0
       is-symbol: 1.1.1
 
-  esbuild@0.25.0:
+  esbuild@0.25.9:
     optionalDependencies:
-      '@esbuild/aix-ppc64': 0.25.0
-      '@esbuild/android-arm': 0.25.0
-      '@esbuild/android-arm64': 0.25.0
-      '@esbuild/android-x64': 0.25.0
-      '@esbuild/darwin-arm64': 0.25.0
-      '@esbuild/darwin-x64': 0.25.0
-      '@esbuild/freebsd-arm64': 0.25.0
-      '@esbuild/freebsd-x64': 0.25.0
-      '@esbuild/linux-arm': 0.25.0
-      '@esbuild/linux-arm64': 0.25.0
-      '@esbuild/linux-ia32': 0.25.0
-      '@esbuild/linux-loong64': 0.25.0
-      '@esbuild/linux-mips64el': 0.25.0
-      '@esbuild/linux-ppc64': 0.25.0
-      '@esbuild/linux-riscv64': 0.25.0
-      '@esbuild/linux-s390x': 0.25.0
-      '@esbuild/linux-x64': 0.25.0
-      '@esbuild/netbsd-arm64': 0.25.0
-      '@esbuild/netbsd-x64': 0.25.0
-      '@esbuild/openbsd-arm64': 0.25.0
-      '@esbuild/openbsd-x64': 0.25.0
-      '@esbuild/sunos-x64': 0.25.0
-      '@esbuild/win32-arm64': 0.25.0
-      '@esbuild/win32-ia32': 0.25.0
-      '@esbuild/win32-x64': 0.25.0
+      '@esbuild/aix-ppc64': 0.25.9
+      '@esbuild/android-arm': 0.25.9
+      '@esbuild/android-arm64': 0.25.9
+      '@esbuild/android-x64': 0.25.9
+      '@esbuild/darwin-arm64': 0.25.9
+      '@esbuild/darwin-x64': 0.25.9
+      '@esbuild/freebsd-arm64': 0.25.9
+      '@esbuild/freebsd-x64': 0.25.9
+      '@esbuild/linux-arm': 0.25.9
+      '@esbuild/linux-arm64': 0.25.9
+      '@esbuild/linux-ia32': 0.25.9
+      '@esbuild/linux-loong64': 0.25.9
+      '@esbuild/linux-mips64el': 0.25.9
+      '@esbuild/linux-ppc64': 0.25.9
+      '@esbuild/linux-riscv64': 0.25.9
+      '@esbuild/linux-s390x': 0.25.9
+      '@esbuild/linux-x64': 0.25.9
+      '@esbuild/netbsd-arm64': 0.25.9
+      '@esbuild/netbsd-x64': 0.25.9
+      '@esbuild/openbsd-arm64': 0.25.9
+      '@esbuild/openbsd-x64': 0.25.9
+      '@esbuild/openharmony-arm64': 0.25.9
+      '@esbuild/sunos-x64': 0.25.9
+      '@esbuild/win32-arm64': 0.25.9
+      '@esbuild/win32-ia32': 0.25.9
+      '@esbuild/win32-x64': 0.25.9
 
   escalade@3.2.0: {}
 
@@ -21113,7 +21168,7 @@ snapshots:
       imurmurhash: 0.1.4
       is-glob: 4.0.3
       is-path-inside: 3.0.3
-      js-yaml: '@zkochan/js-yaml@0.0.9'
+      js-yaml: '@zkochan/js-yaml@0.0.10'
       json-stable-stringify-without-jsonify: 1.0.1
       levn: 0.4.1
       lodash.merge: 4.6.2
@@ -21158,6 +21213,8 @@ snapshots:
   event-target-shim@5.0.1: {}
 
   eventemitter3@4.0.7: {}
+
+  eventemitter3@5.0.1: {}
 
   events@3.3.0: {}
 
@@ -21290,6 +21347,11 @@ snapshots:
 
   fetch-blob@2.1.2: {}
 
+  fetch-blob@3.2.0:
+    dependencies:
+      node-domexception: 1.0.0
+      web-streams-polyfill: 3.3.3
+
   figures@2.0.0:
     dependencies:
       escape-string-regexp: 1.0.5
@@ -21407,6 +21469,10 @@ snapshots:
       es-set-tostringtag: 2.1.0
       hasown: 2.0.2
       mime-types: 2.1.35
+
+  formdata-polyfill@4.0.10:
+    dependencies:
+      fetch-blob: 3.2.0
 
   forwarded@0.2.0: {}
 
@@ -23179,6 +23245,8 @@ snapshots:
     dependencies:
       semver: 7.7.2
 
+  node-domexception@1.0.0: {}
+
   node-fetch@2.6.7(encoding@0.1.13):
     dependencies:
       whatwg-url: 5.0.0
@@ -23190,6 +23258,12 @@ snapshots:
       whatwg-url: 5.0.0
     optionalDependencies:
       encoding: 0.1.13
+
+  node-fetch@3.3.2:
+    dependencies:
+      data-uri-to-buffer: 4.0.1
+      fetch-blob: 3.2.0
+      formdata-polyfill: 4.0.10
 
   node-gyp-build@4.8.4:
     optional: true
@@ -23482,6 +23556,11 @@ snapshots:
       eventemitter3: 4.0.7
       p-timeout: 3.2.0
 
+  p-queue@8.1.0:
+    dependencies:
+      eventemitter3: 5.0.1
+      p-timeout: 6.1.4
+
   p-reflect@2.1.0: {}
 
   p-settle@4.1.1:
@@ -23497,6 +23576,8 @@ snapshots:
   p-timeout@3.2.0:
     dependencies:
       p-finally: 1.0.0
+
+  p-timeout@6.1.4: {}
 
   p-try@2.2.0: {}
 
@@ -23879,7 +23960,7 @@ snapshots:
 
   read-yaml-file@2.1.0:
     dependencies:
-      js-yaml: '@zkochan/js-yaml@0.0.9'
+      js-yaml: '@zkochan/js-yaml@0.0.10'
       strip-bom: 4.0.0
 
   readable-stream@2.3.8:
@@ -24123,6 +24204,12 @@ snapshots:
       execa: 5.1.1
       path-name: 1.0.0
 
+  safe-execa@0.2.0:
+    dependencies:
+      '@zkochan/which': 2.0.3
+      execa: 5.1.1
+      path-name: 1.0.0
+
   safe-promise-defer@1.0.1:
     dependencies:
       promise-share: 1.0.0
@@ -24235,7 +24322,7 @@ snapshots:
       interpret: 1.4.0
       rechoir: 0.6.2
 
-  shlex@2.1.2: {}
+  shlex@3.0.0: {}
 
   short-tree@1.0.0:
     dependencies:
@@ -25234,6 +25321,8 @@ snapshots:
     dependencies:
       defaults: 1.0.4
 
+  web-streams-polyfill@3.3.3: {}
+
   webidl-conversions@3.0.1: {}
 
   whatwg-url@5.0.0:
@@ -25389,12 +25478,12 @@ snapshots:
 
   write-yaml-file@4.2.0:
     dependencies:
-      js-yaml: '@zkochan/js-yaml@0.0.9'
+      js-yaml: '@zkochan/js-yaml@0.0.10'
       write-file-atomic: 3.0.3
 
   write-yaml-file@5.0.0:
     dependencies:
-      js-yaml: '@zkochan/js-yaml@0.0.9'
+      js-yaml: '@zkochan/js-yaml@0.0.10'
       write-file-atomic: 5.0.1
 
   xdg-basedir@5.1.0: {}

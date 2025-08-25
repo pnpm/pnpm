@@ -1,26 +1,27 @@
 import fs from 'fs'
 import path from 'path'
 import { type ProjectManifest } from '@pnpm/types'
-import { globalWarn } from '@pnpm/logger'
-import { add, install } from '@pnpm/plugin-commands-installation'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { jest } from '@jest/globals'
 import { DEFAULT_OPTS } from './utils/index.js'
 
-jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual<object>('@pnpm/logger')
+const originalModule = await import('@pnpm/logger')
+jest.unstable_mockModule('@pnpm/logger', () => {
   return {
     ...originalModule,
     globalWarn: jest.fn(),
   }
 })
 
+const { globalWarn } = await import('@pnpm/logger')
+const { add, install } = await import('@pnpm/plugin-commands-installation')
+
 beforeEach(() => {
   jest.mocked(globalWarn).mockClear()
 })
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 function addPatch (key: string, patchFixture: string, patchDest: string): ProjectManifest {
   fs.mkdirSync(path.dirname(patchDest), { recursive: true })

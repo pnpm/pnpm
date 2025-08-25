@@ -6,7 +6,7 @@ export { packageIdFromSnapshot } from './packageIdFromSnapshot.js'
 export { packageIsIndependent } from './packageIsIndependent.js'
 export { pkgSnapshotToResolution } from './pkgSnapshotToResolution.js'
 export { refIsLocalTarball, refIsLocalDirectory } from './refIsLocalTarball.js'
-export * from '@pnpm/lockfile.types'
+export * from '@pnpm/lockfile.types' // eslint-disable-line
 
 // for backward compatibility
 export const getPkgShortId = refToRelative

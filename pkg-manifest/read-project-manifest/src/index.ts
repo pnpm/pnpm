@@ -6,7 +6,7 @@ import { type ProjectManifest, type DevEngineDependency } from '@pnpm/types'
 import { extractComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import readYamlFile from 'read-yaml-file'
-import detectIndent from '@gwhitney/detect-indent'
+import detectIndent from 'detect-indent'
 import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
 import {
@@ -188,7 +188,7 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
 
 async function readPackageYaml (filePath: string): Promise<ProjectManifest> {
   try {
-    return await readYamlFile<ProjectManifest>(filePath)
+    return await readYamlFile.default<ProjectManifest>(filePath)
   } catch (err: any) { // eslint-disable-line
     if (err.name !== 'YAMLException') throw err
     err.message = `${err.message as string}\nin ${filePath}`

@@ -3,7 +3,7 @@ import path from 'path'
 import { assertProject } from '../src/index.js'
 
 test('assertProject()', async () => {
-  const project = assertProject(path.join(__dirname, '../../..'))
+  const project = assertProject(path.join(import.meta.dirname, '../../..'))
 
   project.has('rimraf')
   project.hasNot('sfdsff3g34') // cspell:disable-line
@@ -12,7 +12,7 @@ test('assertProject()', async () => {
 })
 
 test('assertProject() store functions', async () => {
-  const project = assertProject(path.join(__dirname, 'fixture/project'), 'registry.npmjs.org')
+  const project = assertProject(path.join(import.meta.dirname, 'fixture/project'), 'registry.npmjs.org')
 
   expect(typeof project.getStorePath()).toBe('string')
   project.storeHas('is-positive', '3.1.0')

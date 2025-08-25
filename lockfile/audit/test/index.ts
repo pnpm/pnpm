@@ -6,7 +6,7 @@ import { type DepPath, type ProjectId } from '@pnpm/types'
 import nock from 'nock'
 import { lockfileToAuditTree } from '../lib/lockfileToAuditTree.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 describe('audit', () => {
   test('lockfileToAuditTree()', async () => {

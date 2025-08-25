@@ -183,8 +183,9 @@ async function updateTSConfig (
       extends: '../tsconfig.json',
       compilerOptions: {
         noEmit: false,
-        outDir: '../test.lib',
-        rootDir: '.',
+        outDir: '../node_modules/.test.lib',
+        rootDir: '..',
+        isolatedModules: true,
       },
       include: [
         '**/*.ts',
@@ -277,9 +278,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     if (manifest.name === '@pnpm/core') {
       // @pnpm/core tests currently works only with port 7769 due to the usage of
       // the next package: pkg-with-tarball-dep-from-registry
-      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} jest`
+      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} NODE_OPTIONS=--experimental-vm-modules jest`
     } else {
-      scripts._test = 'jest'
+      scripts._test = 'cross-env NODE_OPTIONS=--experimental-vm-modules jest'
     }
     break
   }
@@ -287,7 +288,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     if (fs.existsSync(path.join(dir, 'test'))) {
       scripts = {
         ...(manifest.scripts as Record<string, string>),
-        _test: 'jest',
+        _test: 'cross-env NODE_OPTIONS=--experimental-vm-modules jest',
         test: 'pnpm run compile && pnpm run _test',
       }
     } else {
@@ -368,7 +369,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     })
   }
   return sortKeysInManifest({
-    type: 'commonjs',
+    type: 'module',
     ...manifest,
     bugs: {
       url: 'https://github.com/pnpm/pnpm/issues',

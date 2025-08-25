@@ -10,7 +10,7 @@ import execa from 'execa'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
 
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 test('pnpm recursive run', async () => {
   await using server1 = await createTestIpcServer()

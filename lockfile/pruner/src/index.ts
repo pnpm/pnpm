@@ -7,10 +7,9 @@ import {
 } from '@pnpm/lockfile.types'
 import { type DepPath, type PackageManifest, type ProjectId } from '@pnpm/types'
 import { refToRelative } from '@pnpm/dependency-path'
-import difference from 'ramda/src/difference'
-import isEmpty from 'ramda/src/isEmpty'
-import unnest from 'ramda/src/unnest'
+import { difference, isEmpty, unnest } from 'ramda'
 
+// eslint-disable-next-line
 export * from '@pnpm/lockfile.types'
 
 // cannot import DependenciesGraph from @pnpm/resolve-dependencies due to circular dependency

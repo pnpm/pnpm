@@ -111,9 +111,9 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
 
   const { default: pkg } = await import(path.resolve('package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^' }) // spec of linked package added to dependencies
-  expect(pkg?.devDependencies).toStrictEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
-  expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:^' }) // spec of linked package added to dependencies
+  expect(pkg?.devDependencies).toEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
+  expect(pkg?.optionalDependencies).toEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
 
   projects['project-1'].has('project-2')
   projects['project-1'].has('project-3')
@@ -156,9 +156,9 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
 
   const { default: pkg } = await import(path.resolve('package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^' }) // spec of linked package added to dependencies
-  expect(pkg?.devDependencies).toStrictEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
-  expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:^' }) // spec of linked package added to dependencies
+  expect(pkg?.devDependencies).toEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
+  expect(pkg?.optionalDependencies).toEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
 
   projects['project-1'].has('project-2')
   projects['project-1'].has('project-3')

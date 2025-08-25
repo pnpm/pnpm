@@ -5,7 +5,7 @@ import nock from 'nock'
 import { ProxyServer } from 'https-proxy-server-express'
 import fs from 'fs'
 
-const CERTS_DIR = path.join(__dirname, '__certs__')
+const CERTS_DIR = path.join(import.meta.dirname, '__certs__')
 
 test('fetchFromRegistry', async () => {
   const fetchFromRegistry = createFetchFromRegistry({})

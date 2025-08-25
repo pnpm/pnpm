@@ -38,14 +38,14 @@ export async function linkedPackagesAreUpToDate (
     snapshot: ProjectSnapshot
   }
 ): Promise<boolean> {
-  return pEvery(
+  return pEvery.default(
     DEPENDENCIES_FIELDS,
     (depField) => {
       const lockfileDeps = project.snapshot[depField]
       const manifestDeps = project.manifest[depField]
       if ((lockfileDeps == null) || (manifestDeps == null)) return true
       const depNames = Object.keys(lockfileDeps)
-      return pEvery(
+      return pEvery.default(
         depNames,
         async (depName) => {
           const currentSpec = manifestDeps[depName]

@@ -66,9 +66,9 @@ test('installing with "workspace:" should work even if link-workspace-packages i
     workspaceDir: process.cwd(),
   }, ['project-2@workspace:*'])
 
-  const pkg = await import(path.resolve('project-1/package.json'))
+  const { default: pkg } = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:^2.0.0' })
 
   projects['project-1'].has('project-2')
 })
@@ -93,9 +93,9 @@ test('installing with "workspace:" should work even if link-workspace-packages i
     workspaceDir: process.cwd(),
   }, ['project-2@workspace:*'])
 
-  const pkg = await import(path.resolve('project-1/package.json'))
+  const { default: pkg } = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:*' })
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:*' })
 
   projects['project-1'].has('project-2')
 })
@@ -121,9 +121,9 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     workspaceDir: process.cwd(),
   }, ['project-2'])
 
-  const pkg = await import(path.resolve('project-1/package.json'))
+  const { default: pkg } = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:^2.0.0' })
 
   projects['project-1'].has('project-2')
 })
@@ -210,9 +210,9 @@ test('installing with "workspace=true" with linkWorkspacePackages on and saveWor
     workspaceDir: process.cwd(),
   }, ['project-2'])
 
-  const pkg = await import(path.resolve('project-1/package.json'))
+  const { default: pkg } = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:^2.0.0' })
 
   projects['project-1'].has('project-2')
 })
@@ -319,7 +319,7 @@ test('pnpm add - should add prefix when set in .npmrc when a range is not specif
   }, ['is-positive'])
 
   {
-    const manifest = (await import(path.resolve('package.json')))
+    const { default: manifest } = (await import(path.resolve('package.json')))
 
     expect(
       manifest.dependencies['is-positive']

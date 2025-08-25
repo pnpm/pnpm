@@ -9,7 +9,7 @@ import {
   getFilePathByModeInCafs,
 } from '../src/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 describe('cafs', () => {
   it('unpack', () => {
@@ -28,7 +28,7 @@ describe('cafs', () => {
 
   it('replaces an already existing file, if the integrity of it was broken', () => {
     const storeDir = tempy.directory()
-    const srcDir = path.join(__dirname, 'fixtures/one-file')
+    const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
     const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir)
 
     let addFilesResult = addFiles()
@@ -44,7 +44,7 @@ describe('cafs', () => {
 
   it('ignores broken symlinks when traversing subdirectories', () => {
     const storeDir = tempy.directory()
-    const srcDir = path.join(__dirname, 'fixtures/broken-symlink')
+    const srcDir = path.join(import.meta.dirname, 'fixtures/broken-symlink')
     const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir)
 
     const { filesIndex } = addFiles()

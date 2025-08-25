@@ -8,7 +8,7 @@ import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('fail if none of the available resolvers support a version spec', async () => {
   prepareEmpty()

@@ -1,18 +1,17 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import path from 'path'
-import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
-// @ts-expect-error
-import { debug } from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { jest } from '@jest/globals'
 
-const f = fixtures(__dirname)
-jest.mock('@pnpm/logger', () => {
-  const debug = jest.fn()
+const debug = jest.fn()
+jest.unstable_mockModule('@pnpm/logger', () => {
   return ({ debug, logger: () => ({ debug }) })
 })
+const { createDirectoryFetcher } = await import('@pnpm/directory-fetcher')
+
+const f = fixtures(import.meta.dirname)
 
 test('fetch including only package files', async () => {
   process.chdir(f.find('simple-pkg'))
@@ -86,7 +85,7 @@ test('fetch a directory that has no package.json', async () => {
 })
 
 test('fetch does not fail on package with broken symlink', async () => {
-  debug.mockClear()
+  jest.mocked(debug).mockClear()
   process.chdir(f.find('pkg-with-broken-symlink'))
   const fetcher = createDirectoryFetcher()
 

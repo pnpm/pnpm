@@ -78,7 +78,7 @@ test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
 
 test('overwriting existing files in node_modules', async () => {
   prepareEmpty()
-  await symlinkDir(__dirname, path.resolve('node_modules/is-positive'))
+  await symlinkDir(import.meta.dirname, path.resolve('node_modules/is-positive'))
 
   const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},

@@ -12,7 +12,7 @@ import {
   execPnpxSync,
 } from './utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
 
 test('some commands pass through to npm', () => {

@@ -13,8 +13,7 @@ import {
   type ProjectRootDir,
 } from '@pnpm/types'
 import { depPathToFilename, createPeerDepGraphHash, type PeerId } from '@pnpm/dependency-path'
-import partition from 'ramda/src/partition'
-import pick from 'ramda/src/pick'
+import { partition, pick } from 'ramda'
 import { type NodeId } from './nextNodeId.js'
 import {
   type ChildrenMap,

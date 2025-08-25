@@ -1,27 +1,45 @@
 import { type Stats } from 'fs'
-import { checkDepsStatus, type CheckDepsStatusOptions } from '@pnpm/deps.status'
-import * as workspaceStateModule from '@pnpm/workspace.state'
-import * as lockfileFs from '@pnpm/lockfile.fs'
+import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
+import { type WorkspaceState } from '@pnpm/workspace.state'
 import { jest } from '@jest/globals'
-import * as fsUtils from '../lib/safeStat.js'
-import * as statManifestFileUtils from '../lib/statManifestFile.js'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 
-jest.mock('../lib/safeStat', () => ({
-  ...jest.requireActual<object>('../lib/safeStat'),
-  safeStatSync: jest.fn(),
-  safeStat: jest.fn(),
-}))
+{
+  const original = await import('@pnpm/workspace.state')
+  jest.unstable_mockModule('@pnpm/workspace.state', () => ({
+    ...original,
+    loadWorkspaceState: jest.fn(),
+  }))
+}
+{
+  const original = await import('../lib/safeStat.js')
+  jest.unstable_mockModule('../lib/safeStat', () => ({
+    ...original,
+    safeStatSync: jest.fn(),
+    safeStat: jest.fn(),
+  }))
+}
+{
+  const original = await import('../lib/statManifestFile.js')
+  jest.unstable_mockModule('../lib/statManifestFile', () => ({
+    ...original,
+    statManifestFile: jest.fn(),
+  }))
+}
+{
+  const original = await import('@pnpm/lockfile.fs')
+  jest.unstable_mockModule('@pnpm/lockfile.fs', () => ({
+    ...original,
+    readCurrentLockfile: jest.fn(),
+    readWantedLockfile: jest.fn(),
+  }))
+}
 
-jest.mock('../lib/statManifestFile', () => ({
-  ...jest.requireActual<object>('../lib/statManifestFile'),
-  statManifestFile: jest.fn(),
-}))
-
-jest.mock('@pnpm/lockfile.fs', () => ({
-  ...jest.requireActual<object>('@pnpm/lockfile.fs'),
-  readCurrentLockfile: jest.fn(),
-  readWantedLockfile: jest.fn(),
-}))
+const { checkDepsStatus } = await import('@pnpm/deps.status')
+const { loadWorkspaceState } = await import('@pnpm/workspace.state')
+const lockfileFs = await import('@pnpm/lockfile.fs')
+const fsUtils = await import('../lib/safeStat.js')
+const statManifestFileUtils = await import('../lib/statManifestFile.js')
 
 describe('checkDepsStatus - pnpmfile modification', () => {
   beforeEach(() => {
@@ -33,7 +51,7 @@ describe('checkDepsStatus - pnpmfile modification', () => {
     const lastValidatedTimestamp = Date.now() - 10_000
     const beforeLastValidation = lastValidatedTimestamp - 10_000
     const afterLastValidation = lastValidatedTimestamp + 1_000
-    const mockWorkspaceState: workspaceStateModule.WorkspaceState = {
+    const mockWorkspaceState: WorkspaceState = {
       lastValidatedTimestamp,
       pnpmfiles: ['pnpmfile.js', 'modifiedPnpmfile.js'],
       settings: {
@@ -45,7 +63,7 @@ describe('checkDepsStatus - pnpmfile modification', () => {
       filteredInstall: false,
     }
 
-    jest.spyOn(workspaceStateModule, 'loadWorkspaceState').mockReturnValue(mockWorkspaceState)
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
 
     jest.mocked(fsUtils.safeStatSync).mockImplementation((filePath: string) => {
       if (filePath === 'pnpmfile.js') {
@@ -71,7 +89,7 @@ describe('checkDepsStatus - pnpmfile modification', () => {
     jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => {
       return undefined
     })
-    const returnEmptyLockfile = async () => ({} as lockfileFs.LockfileObject)
+    const returnEmptyLockfile = async () => ({} as LockfileObject)
     jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(returnEmptyLockfile)
     jest.mocked(lockfileFs.readWantedLockfile).mockImplementation(returnEmptyLockfile)
 

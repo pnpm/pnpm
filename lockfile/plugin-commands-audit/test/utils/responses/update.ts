@@ -4,7 +4,7 @@ import { audit } from '@pnpm/audit'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { fixtures } from '@pnpm/test-fixtures'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 async function writeResponse (lockfileDir: string, filename: string, opts: {
   production?: boolean
@@ -23,7 +23,7 @@ async function writeResponse (lockfileDir: string, filename: string, opts: {
     include,
     registry: 'https://registry.npmjs.org/',
   })
-  fs.writeFileSync(path.join(__dirname, filename), JSON.stringify(auditReport, null, 2))
+  fs.writeFileSync(path.join(import.meta.dirname, filename), JSON.stringify(auditReport, null, 2))
 }
 
 // eslint-disable-next-line

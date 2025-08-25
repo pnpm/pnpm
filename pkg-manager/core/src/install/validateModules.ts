@@ -13,7 +13,7 @@ import {
 } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import enquirer from 'enquirer'
-import equals from 'ramda/src/equals'
+import { equals } from 'ramda'
 import { checkCompatibility } from './checkCompatibility/index.js'
 
 interface ImporterToPurge {

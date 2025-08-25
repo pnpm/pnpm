@@ -10,7 +10,7 @@ import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
-const pkgRoot = path.join(__dirname, '..', '..')
+const pkgRoot = path.join(import.meta.dirname, '..', '..')
 const pnpmPkg = loadJsonFile.sync<PackageManifest>(path.join(pkgRoot, 'package.json'))
 
 test('installation fails if lifecycle script fails', () => {
@@ -121,7 +121,7 @@ test('dependency should not be added to package.json and lockfile if it was not 
   expect(project.readLockfile()).toBeFalsy()
 
   const { default: pkg } = await import(path.resolve('package.json'))
-  expect(pkg).toStrictEqual(initialPkg)
+  expect(pkg).toEqual(initialPkg)
 })
 
 test('node-gyp is in the PATH', async () => {

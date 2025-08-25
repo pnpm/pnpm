@@ -32,7 +32,7 @@ test('getBinsFromPackageManifest() should allow $ as command name', async () => 
 })
 
 test('find all the bin files from a bin directory', async () => {
-  const fixtures = path.join(__dirname, 'fixtures')
+  const fixtures = path.join(import.meta.dirname, 'fixtures')
   expect(
     await getBinsFromPackageManifest({
       name: 'bin-dir',

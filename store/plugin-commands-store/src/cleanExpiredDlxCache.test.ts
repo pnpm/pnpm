@@ -1,9 +1,28 @@
-import fs from 'fs'
 import path from 'path'
-import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
-import { cleanExpiredDlxCache, cleanOrphans } from './cleanExpiredDlxCache.js'
+
+const fsOriginal = await import('fs')
+jest.unstable_mockModule('fs', () => ({
+  ...fsOriginal,
+  readdirSync: jest.fn(fsOriginal.readdirSync),
+  promises: {
+    ...fsOriginal.promises,
+    readdir: jest.fn(fsOriginal.promises.readdir),
+    lstat: jest.fn(fsOriginal.promises.lstat),
+    rm: jest.fn(fsOriginal.promises.rm),
+  },
+}))
+const fs = await import('fs')
+const { cleanExpiredDlxCache, cleanOrphans } = await import('./cleanExpiredDlxCache.js')
+const { dlx } = await import('@pnpm/plugin-commands-script-runners')
+
+beforeEach(() => {
+  jest.mocked(fs.readdirSync).mockClear()
+  jest.mocked(fs.promises.readdir).mockClear()
+  jest.mocked(fs.promises.lstat).mockClear()
+  jest.mocked(fs.promises.rm).mockClear()
+})
 
 const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
   packages,
@@ -11,11 +30,11 @@ const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
 })
 
 function createSampleDlxCacheLinkTarget (dirPath: string): void {
-  fs.mkdirSync(path.join(dirPath, 'node_modules', '.pnpm'), { recursive: true })
-  fs.mkdirSync(path.join(dirPath, 'node_modules', '.bin'), { recursive: true })
-  fs.writeFileSync(path.join(dirPath, 'node_modules', '.modules.yaml'), '')
-  fs.writeFileSync(path.join(dirPath, 'package.json'), '')
-  fs.writeFileSync(path.join(dirPath, 'pnpm-lock.yaml'), '')
+  fsOriginal.mkdirSync(path.join(dirPath, 'node_modules', '.pnpm'), { recursive: true })
+  fsOriginal.mkdirSync(path.join(dirPath, 'node_modules', '.bin'), { recursive: true })
+  fsOriginal.writeFileSync(path.join(dirPath, 'node_modules', '.modules.yaml'), '')
+  fsOriginal.writeFileSync(path.join(dirPath, 'package.json'), '')
+  fsOriginal.writeFileSync(path.join(dirPath, 'pnpm-lock.yaml'), '')
 }
 
 function createSampleDlxCacheItem (cacheDir: string, cmd: string, now: Date, age: number): void {
@@ -27,8 +46,8 @@ function createSampleDlxCacheItem (cacheDir: string, cmd: string, now: Date, age
   const linkTarget = path.join(cacheDir, 'dlx', hash, targetName)
   const linkPath = path.join(cacheDir, 'dlx', hash, 'pkg')
   createSampleDlxCacheLinkTarget(linkTarget)
-  fs.symlinkSync(linkTarget, linkPath, 'junction')
-  fs.lutimesSync(linkPath, newDate, newDate)
+  fsOriginal.symlinkSync(linkTarget, linkPath, 'junction')
+  fsOriginal.lutimesSync(linkPath, newDate, newDate)
 }
 
 function createSampleDlxCacheFsTree (cacheDir: string, now: Date, ageTable: Record<string, number>): void {
@@ -36,10 +55,6 @@ function createSampleDlxCacheFsTree (cacheDir: string, now: Date, ageTable: Reco
     createSampleDlxCacheItem(cacheDir, cmd, now, age)
   }
 }
-
-afterEach(() => {
-  jest.restoreAllMocks()
-})
 
 test('cleanExpiredCache removes items that outlive dlxCacheMaxAge', async () => {
   prepareEmpty()
@@ -54,40 +69,32 @@ test('cleanExpiredCache removes items that outlive dlxCacheMaxAge', async () => 
     baz: 20,
   })
 
-  const readdirSyncSpy = jest.spyOn(fs, 'readdirSync')
-  const lstatSpy = jest.spyOn(fs.promises, 'lstat')
-  const rmSpy = jest.spyOn(fs.promises, 'rm')
-
   await cleanExpiredDlxCache({
     cacheDir,
     dlxCacheMaxAge,
     now,
   })
 
-  expect(fs.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('foo')))).toHaveLength(2)
-  expect(fs.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('bar')))).toHaveLength(2)
-  expect(fs.existsSync(path.join(cacheDir, 'dlx', createCacheKey('baz')))).toBeFalsy()
+  expect(fsOriginal.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('foo')))).toHaveLength(2)
+  expect(fsOriginal.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('bar')))).toHaveLength(2)
+  expect(fsOriginal.existsSync(path.join(cacheDir, 'dlx', createCacheKey('baz')))).toBeFalsy()
 
-  expect(readdirSyncSpy).toHaveBeenCalledWith(path.join(cacheDir, 'dlx'), expect.anything())
+  expect(fs.readdirSync).toHaveBeenCalledWith(path.join(cacheDir, 'dlx'), expect.anything())
   for (const key of ['foo', 'bar', 'baz']) {
-    expect(lstatSpy).toHaveBeenCalledWith(path.join(cacheDir, 'dlx', createCacheKey(key), 'pkg'))
+    expect(fs.promises.lstat).toHaveBeenCalledWith(path.join(cacheDir, 'dlx', createCacheKey(key), 'pkg'))
   }
-  expect(rmSpy).not.toHaveBeenCalledWith(
+  expect(fs.promises.rm).not.toHaveBeenCalledWith(
     expect.stringContaining(path.join(cacheDir, 'dlx', createCacheKey('foo'))),
     expect.anything()
   )
-  expect(rmSpy).not.toHaveBeenCalledWith(
+  expect(fs.promises.rm).not.toHaveBeenCalledWith(
     expect.stringContaining(path.join(cacheDir, 'dlx', createCacheKey('bar'))),
     expect.anything()
   )
-  expect(rmSpy).toHaveBeenCalledWith(
+  expect(fs.promises.rm).toHaveBeenCalledWith(
     expect.stringContaining(path.join(cacheDir, 'dlx', createCacheKey('baz'))),
     { recursive: true, force: true }
   )
-
-  readdirSyncSpy.mockRestore()
-  lstatSpy.mockRestore()
-  rmSpy.mockRestore()
 })
 
 test('cleanExpiredCache removes all directories without checking stat if dlxCacheMaxAge is 0', async () => {
@@ -103,10 +110,6 @@ test('cleanExpiredCache removes all directories without checking stat if dlxCach
     baz: 20,
   })
 
-  const readdirSyncSpy = jest.spyOn(fs, 'readdirSync')
-  const lstatSpy = jest.spyOn(fs.promises, 'lstat')
-  const rmSpy = jest.spyOn(fs.promises, 'rm')
-
   await cleanExpiredDlxCache({
     cacheDir,
     dlxCacheMaxAge,
@@ -118,15 +121,11 @@ test('cleanExpiredCache removes all directories without checking stat if dlxCach
       .sort()
   ).toStrictEqual([])
 
-  expect(readdirSyncSpy).toHaveBeenCalledWith(path.join(cacheDir, 'dlx'), expect.anything())
-  expect(lstatSpy).not.toHaveBeenCalled()
+  expect(fs.readdirSync).toHaveBeenCalledWith(path.join(cacheDir, 'dlx'), expect.anything())
+  expect(fs.promises.lstat).not.toHaveBeenCalled()
   for (const key of ['foo', 'bar', 'baz']) {
-    expect(rmSpy).toHaveBeenCalledWith(path.join(cacheDir, 'dlx', createCacheKey(key)), { recursive: true, force: true })
+    expect(fs.promises.rm).toHaveBeenCalledWith(path.join(cacheDir, 'dlx', createCacheKey(key)), { recursive: true, force: true })
   }
-
-  readdirSyncSpy.mockRestore()
-  lstatSpy.mockRestore()
-  rmSpy.mockRestore()
 })
 
 test('cleanExpiredCache does nothing if dlxCacheMaxAge is Infinity', async () => {
@@ -141,10 +140,6 @@ test('cleanExpiredCache does nothing if dlxCacheMaxAge is Infinity', async () =>
     bar: 5,
     baz: 20,
   })
-
-  const readdirSpy = jest.spyOn(fs.promises, 'readdir')
-  const lstatSpy = jest.spyOn(fs.promises, 'lstat')
-  const rmSpy = jest.spyOn(fs.promises, 'rm')
 
   await cleanExpiredDlxCache({
     cacheDir,
@@ -165,13 +160,9 @@ test('cleanExpiredCache does nothing if dlxCacheMaxAge is Infinity', async () =>
     expect(fs.readdirSync(path.join(dlxCacheDir, entry))).toHaveLength(2)
   }
 
-  expect(readdirSpy).not.toHaveBeenCalled()
-  expect(lstatSpy).not.toHaveBeenCalled()
-  expect(rmSpy).not.toHaveBeenCalled()
-
-  readdirSpy.mockRestore()
-  lstatSpy.mockRestore()
-  rmSpy.mockRestore()
+  expect(fs.promises.readdir).not.toHaveBeenCalled()
+  expect(fs.promises.lstat).not.toHaveBeenCalled()
+  expect(fs.promises.rm).not.toHaveBeenCalled()
 })
 
 test("cleanOrphans deletes dirs that don't contain `link` and subdirs that aren't pointed to by `link` from the same parent", async () => {
@@ -185,7 +176,7 @@ test("cleanOrphans deletes dirs that don't contain `link` and subdirs that aren'
   createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createCacheKey('foo'), `${now.getTime().toString(16)}-${(7000).toString(16)}`))
   createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createCacheKey('foo'), `${now.getTime().toString(16)}-${(7005).toString(16)}`))
   createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createCacheKey('foo'), `${now.getTime().toString(16)}-${(7102).toString(16)}`))
-  expect(fs.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('foo')))).toHaveLength(5)
+  expect(fsOriginal.readdirSync(path.join(cacheDir, 'dlx', createCacheKey('foo')))).toHaveLength(5)
 
   // has no link, only orphans
   createSampleDlxCacheLinkTarget(path.join(cacheDir, 'dlx', createCacheKey('bar'), `${now.getTime().toString(16)}-${(7000).toString(16)}`))

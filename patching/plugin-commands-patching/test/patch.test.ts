@@ -6,20 +6,20 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
+import { type PatchCommandOptions, type PatchRemoveCommandOptions } from '@pnpm/plugin-commands-patching'
 import tempy from 'tempy'
-import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DEFAULT_OPTS } from './utils/index.js'
 import { fixtures } from '@pnpm/test-fixtures'
 import { jest } from '@jest/globals'
-import * as enquirer from 'enquirer'
 
-jest.mock('enquirer', () => ({ prompt: jest.fn() }))
+jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
+const { default: enquirer } = await import('enquirer')
+const { patch, patchCommit, patchRemove } = await import('@pnpm/plugin-commands-patching')
 
-// eslint-disable-next-line
-const prompt = enquirer.prompt as any
-const f = fixtures(__dirname)
+const prompt = jest.mocked(enquirer.prompt)
+const f = fixtures(import.meta.dirname)
 
 const basePatchOption = {
   pnpmHomeDir: '',
@@ -33,7 +33,7 @@ const basePatchOption = {
 }
 
 describe('patch and commit', () => {
-  let defaultPatchOption: patch.PatchCommandOptions
+  let defaultPatchOption: PatchCommandOptions
   let cacheDir: string
   let storeDir: string
 
@@ -624,7 +624,7 @@ describe('patch and commit', () => {
 })
 
 describe('multiple versions', () => {
-  let defaultPatchOption: patch.PatchCommandOptions
+  let defaultPatchOption: PatchCommandOptions
   let cacheDir: string
   let storeDir: string
   beforeEach(() => {
@@ -718,7 +718,7 @@ describe('multiple versions', () => {
 })
 
 describe('prompt to choose version', () => {
-  let defaultPatchOption: patch.PatchCommandOptions
+  let defaultPatchOption: PatchCommandOptions
   let cacheDir: string
   let storeDir: string
   beforeEach(() => {
@@ -874,7 +874,7 @@ describe('prompt to choose version', () => {
 })
 
 describe('patching should work when there is a no EOL in the patched file', () => {
-  let defaultPatchOption: patch.PatchCommandOptions
+  let defaultPatchOption: PatchCommandOptions
 
   beforeEach(async () => {
     prepare({
@@ -960,7 +960,7 @@ describe('patching should work when there is a no EOL in the patched file', () =
 })
 
 describe('patch and commit in workspaces', () => {
-  let defaultPatchOption: patch.PatchCommandOptions
+  let defaultPatchOption: PatchCommandOptions
   let cacheDir: string
   let storeDir: string
 
@@ -1269,7 +1269,7 @@ describe('patch and commit in workspaces', () => {
 })
 
 describe('patch with custom modules-dir and virtual-store-dir', () => {
-  let defaultPatchOption: patch.PatchCommandOptions
+  let defaultPatchOption: PatchCommandOptions
   let customModulesDirFixture: string
   let cacheDir: string
   let storeDir: string
@@ -1329,7 +1329,7 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
 })
 
 describe('patch-remove', () => {
-  let defaultPatchRemoveOption: patchRemove.PatchRemoveCommandOptions
+  let defaultPatchRemoveOption: PatchRemoveCommandOptions
   let cacheDir: string
   let storeDir: string
 
@@ -1395,7 +1395,8 @@ describe('patch-remove', () => {
       rootProjectManifest: manifest,
       patchedDependencies: manifest.pnpm.patchedDependencies,
     }, [])
-    expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining(['is-positive@1.0.0', 'chalk@4.1.2']))
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((prompt.mock.calls[0][0] as any).choices).toEqual(expect.arrayContaining(['is-positive@1.0.0', 'chalk@4.1.2']))
     prompt.mockClear()
 
     const { manifest: newManifest } = await readProjectManifest(process.cwd())

@@ -7,7 +7,7 @@ import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { fixtures } from '@pnpm/test-fixtures'
 import tempy from 'tempy'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 const TMP = tempy.directory()
 

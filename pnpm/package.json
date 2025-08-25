@@ -40,8 +40,8 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
-  "main": "bin/pnpm.cjs",
+  "type": "module",
+  "main": "bin/pnpm.mjs",
   "exports": {
     ".": "./package.json"
   },
@@ -50,19 +50,19 @@
     "bin"
   ],
   "bin": {
-    "pnpm": "bin/pnpm.cjs",
-    "pnpx": "bin/pnpx.cjs"
+    "pnpm": "bin/pnpm.mjs",
+    "pnpx": "bin/pnpx.mjs"
   },
   "directories": {
     "test": "test"
   },
-  "unpkg": "dist/pnpm.cjs",
+  "unpkg": "dist/pnpm.mjs",
   "scripts": {
-    "bundle": "ts-node bundle.ts",
+    "bundle": "pnpm --config.useNodeVersion=24.6.0 exec ts-node bundle.ts",
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm compile && publish-packed --prune --npm-client=pnpm --dest=dist",
     "postpublish": "publish-packed",
@@ -192,7 +192,7 @@
       "hosted-git-info@1": "npm:@pnpm/hosted-git-info@1.0.0",
       "http-proxy-middleware@<2.0.7": "^2.0.7",
       "istanbul-reports": "npm:@zkochan/istanbul-reports",
-      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.9",
+      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.10",
       "json5@<2.2.2": "^2.2.3",
       "jsonwebtoken@<=8.5.1": ">=9.0.0",
       "nopt@5": "npm:@pnpm/nopt@^0.2.1",

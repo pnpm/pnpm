@@ -1,8 +1,7 @@
 import fs from 'fs'
 import path from 'path'
-import * as enquirer from 'enquirer'
-import { approveBuilds } from '@pnpm/exec.build-commands'
 import { install } from '@pnpm/plugin-commands-installation'
+import { type ApproveBuildsCommandOpts } from '@pnpm/exec.build-commands'
 import { type RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
@@ -11,20 +10,21 @@ import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { jest } from '@jest/globals'
 import { sync as loadJsonFile } from 'load-json-file'
-import omit from 'ramda/src/omit'
+import { omit } from 'ramda'
 import { tempDir } from '@pnpm/prepare-temp-dir'
 import writePkg from 'write-pkg'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 
-jest.mock('enquirer', () => ({ prompt: jest.fn() }))
+jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
+const { default: enquirer } = await import('enquirer')
+const { approveBuilds } = await import('@pnpm/exec.build-commands')
 
-// eslint-disable-next-line
-const prompt = enquirer.prompt as any
+const prompt = jest.mocked(enquirer.prompt)
 
-type ApproveBuildsOptions = Partial<approveBuilds.ApproveBuildsCommandOpts & RebuildCommandOpts>
+type _ApproveBuildsOptions = Partial<ApproveBuildsCommandOpts & RebuildCommandOpts>
 
-async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
+async function approveSomeBuilds (opts?: _ApproveBuildsOptions) {
   const cliOptions = {
     argv: [],
     dir: process.cwd(),
@@ -38,6 +38,7 @@ async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
     storeDir: path.resolve('store'),
     cacheDir: path.resolve('cache'),
     pnpmfile: [], // this is only needed because the pnpmfile returned by getConfig is string | string[]
+    enableGlobalVirtualStore: false,
   }
   await install.handler({ ...config, argv: { original: [] } })
 
@@ -55,7 +56,7 @@ async function approveSomeBuilds (opts?: ApproveBuildsOptions) {
   await approveBuilds.handler({ ...config, ...opts })
 }
 
-async function approveNoBuilds (opts?: ApproveBuildsOptions) {
+async function approveNoBuilds (opts?: _ApproveBuildsOptions) {
   const cliOptions = {
     argv: [],
     dir: process.cwd(),
