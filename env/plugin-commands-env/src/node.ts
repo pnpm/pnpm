@@ -10,7 +10,7 @@ import { getNodeMirror } from '@pnpm/node.resolver'
 import { getStorePath } from '@pnpm/store-path'
 import { type PrepareExecutionEnvOptions, type PrepareExecutionEnvResult } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
-import writeJsonFile from 'write-json-file'
+import { writeJsonFile } from 'write-json-file'
 import { isValidVersion, parseNodeSpecifier } from './parseNodeSpecifier.js'
 
 export type NvmNodeCommandOptions = Pick<Config,

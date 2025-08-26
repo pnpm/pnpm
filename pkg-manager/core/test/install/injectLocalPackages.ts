@@ -5,7 +5,7 @@ import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/c
 import { preparePackages } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
-import { sync as writeJsonFile } from 'write-json-file'
+import { writeJsonFileSync } from 'write-json-file'
 import { testDefaults } from '../utils/index.js'
 
 test('inject local packages', async () => {
@@ -584,7 +584,7 @@ test('inject local packages declared via file protocol', async () => {
 
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
-  writeJsonFile('project-1/package.json', allProjects[0].manifest)
+  writeJsonFileSync('project-1/package.json', allProjects[0].manifest)
   await mutateModules(importers, testDefaults({ autoInstallPeers: false, allProjects }))
   {
     const lockfile = rootModules.readLockfile()
@@ -774,7 +774,7 @@ test('inject local packages when the file protocol is used', async () => {
 
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
-  writeJsonFile('project-1/package.json', allProjects[0].manifest)
+  writeJsonFileSync('project-1/package.json', allProjects[0].manifest)
   await mutateModules(importers, testDefaults({
     autoInstallPeers: false,
     allProjects,

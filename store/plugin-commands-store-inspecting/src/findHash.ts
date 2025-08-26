@@ -7,7 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import { getStorePath } from '@pnpm/store-path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 
-import { loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import renderHelp from 'render-help'
 
 export const PACKAGE_INFO_CLR = chalk.greenBright

@@ -9,7 +9,7 @@ import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { loadJsonFile } from 'load-json-file'
-import writeJsonFile from 'write-json-file'
+import { writeJsonFileSync } from 'write-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 import symlinkDir from 'symlink-dir'
@@ -345,7 +345,7 @@ test('second run of `recursive install` after package.json has been edited manua
     workspaceDir: process.cwd(),
   })
 
-  writeJsonFile.sync('is-negative/package.json', {
+  writeJsonFileSync('is-negative/package.json', {
     name: 'is-negative',
     version: '1.0.0',
 

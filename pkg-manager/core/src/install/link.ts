@@ -31,7 +31,7 @@ import {
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
-import pathExists from 'path-exists'
+import { pathExists } from 'path-exists'
 import { equals, isEmpty, difference, pick, pickBy, props } from 'ramda'
 import { type ImporterToUpdate } from './index.js'
 

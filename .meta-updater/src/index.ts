@@ -9,7 +9,7 @@ import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import isSubdir from 'is-subdir'
 import { loadJsonFileSync } from 'load-json-file'
 import normalizePath from 'normalize-path'
-import writeJsonFile from 'write-json-file'
+import { writeJsonFile } from 'write-json-file'
 
 const CLI_PKG_NAME = 'pnpm'
 
