@@ -5,7 +5,7 @@ const kill = promisify(treeKill)
 
 export default async () => {
   if (!process.env.PNPM_REGISTRY_MOCK_PORT) {
-    process.env.PNPM_REGISTRY_MOCK_PORT = (await getPort({ port: getPort.makeRange(7700, 7800) })).toString()
+    process.env.PNPM_REGISTRY_MOCK_PORT = (await getPort({ from: 7700, to: 7800 })).toString()
   }
   const { start, prepare } = await import('@pnpm/registry-mock')
   prepare()
