@@ -183,7 +183,7 @@ export function depPathToFilename (depPath: string, maxLengthWithoutHash: number
 }
 
 function depPathToFilenameUnescaped (depPath: string): string {
-  if (depPath.indexOf('file:') !== 0) {
+  if (!depPath.startsWith('file:')) {
     if (depPath[0] === '/') {
       depPath = depPath.substring(1)
     }
