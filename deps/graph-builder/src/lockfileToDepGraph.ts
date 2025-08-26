@@ -297,7 +297,7 @@ function getChildrenPaths (
       children[alias] = ctx.locationByDepPath[childRelDepPath]
     } else if (ctx.graph[childRelDepPath]) {
       children[alias] = ctx.graph[childRelDepPath].dir
-    } else if (ref.indexOf('file:') === 0) {
+    } else if (ref.startsWith('file:')) {
       children[alias] = path.resolve(ctx.lockfileDir, ref.slice(5))
     } else if (!ctx.skipped.has(childRelDepPath) && ((peerDeps == null) || !peerDeps.has(alias))) {
       throw new Error(`${childRelDepPath} not found in ${WANTED_LOCKFILE}`)
