@@ -95,6 +95,9 @@ export function lockfileToPackageRegistry (
     if (!packageLocation.startsWith('../')) {
       packageLocation = `./${packageLocation}`
     }
+    if (!packageLocation.endsWith('/')) {
+      packageLocation += '/'
+    }
     packageStore.set(pnpVersion, {
       packageDependencies: new Map([
         [name, pnpVersion],
