@@ -561,9 +561,6 @@ catalogs:
     p-queue:
       specifier: ^6.6.2
       version: 6.6.2
-    p-settle:
-      specifier: ^4.1.1
-      version: 4.1.1
     parse-json:
       specifier: ^5.2.0
       version: 5.2.0
@@ -5399,9 +5396,6 @@ importers:
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
-      p-settle:
-        specifier: 'catalog:'
-        version: 4.1.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
