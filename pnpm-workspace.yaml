@@ -224,7 +224,6 @@ catalog:
   normalize-registry-url: 2.0.0
   npm-packlist: 5.1.3
   object-hash: 3.0.0
-  p-any: 3.0.0
   p-defer: ^3.0.0
   p-every: ^2.0.0
   p-filter: ^2.1.0
@@ -412,13 +411,11 @@ updateConfig:
     - npm-packlist
     - node-fetch
     - normalize-newline
-    - p-any
     - p-defer
     - p-filter
     - p-limit
     - p-memoize
     - p-queue
-    - p-settle
     - parse-json
     - path-exists
     - pretty-bytes

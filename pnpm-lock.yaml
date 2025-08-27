@@ -537,9 +537,6 @@ catalogs:
     object-hash:
       specifier: 3.0.0
       version: 3.0.0
-    p-any:
-      specifier: 3.0.0
-      version: 3.0.0
     p-defer:
       specifier: ^3.0.0
       version: 3.0.0
@@ -6562,9 +6559,6 @@ importers:
         specifier: 'catalog:'
         version: 2.2.0
       normalize-newline:
-        specifier: 'catalog:'
-        version: 3.0.0
-      p-any:
         specifier: 'catalog:'
         version: 3.0.0
       p-defer:
@@ -14114,10 +14108,6 @@ packages:
     resolution: {integrity: sha512-qFOyK5PjiWZd+QQIh+1jhdb9LpxTF0qs7Pm8o5QHYZ0M3vKqSqzsZaEB6oWlxZ+q2sJBMI/Ktgd2N5ZwQoRHfg==}
     engines: {node: '>= 0.4'}
 
-  p-any@3.0.0:
-    resolution: {integrity: sha512-5rqbqfsRWNb0sukt0awwgJMlaep+8jV45S15SKKB34z4UuzjcofIfnriCBhWjZP2jbVtjt9yRl7buB6RlKsu9w==}
-    engines: {node: '>=10'}
-
   p-cancelable@2.1.1:
     resolution: {integrity: sha512-BZOr3nRQHOntUjTrH8+Lh54smKHoHyur8We1V8DSMVrl5A2malOOwuJRnKRDjSnkoeBh4at6BwEnb5I7Jl31wg==}
     engines: {node: '>=8'}
@@ -14200,10 +14190,6 @@ packages:
 
   p-settle@4.1.1:
     resolution: {integrity: sha512-6THGh13mt3gypcNMm0ADqVNCcYa3BK6DWsuJWFCuEKP1rpY+OKGp7gaZwVmLspmic01+fsg/fN57MfvDzZ/PuQ==}
-    engines: {node: '>=10'}
-
-  p-some@5.0.0:
-    resolution: {integrity: sha512-Js5XZxo6vHjB9NOYAzWDYAIyyiPvva0DWESAIWIK7uhSpGsyg5FwUPxipU/SOQx5x9EqhOh545d1jo6cVkitig==}
     engines: {node: '>=10'}
 
   p-timeout@3.2.0:
@@ -22811,11 +22797,6 @@ snapshots:
       object-keys: 1.1.1
       safe-push-apply: 1.0.0
 
-  p-any@3.0.0:
-    dependencies:
-      p-cancelable: 2.1.1
-      p-some: 5.0.0
-
   p-cancelable@2.1.1: {}
 
   p-defer@1.0.0: {}
@@ -22884,11 +22865,6 @@ snapshots:
     dependencies:
       p-limit: 2.3.0
       p-reflect: 2.1.0
-
-  p-some@5.0.0:
-    dependencies:
-      aggregate-error: 3.1.0
-      p-cancelable: 2.1.1
 
   p-timeout@3.2.0:
     dependencies:
