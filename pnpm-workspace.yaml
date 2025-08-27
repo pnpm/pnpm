@@ -218,7 +218,6 @@ catalog:
   ndjson: ^2.0.0
   nock: 13.3.4
   node-fetch: npm:@pnpm/node-fetch@1.0.0
-  node-gyp: ^11.0.0
   normalize-newline: 3.0.0
   normalize-package-data: ^7.0.1
   normalize-path: ^3.0.0
@@ -233,7 +232,6 @@ catalog:
   p-map-values: ^1.0.0
   p-memoize: 4.0.1
   p-queue: ^6.6.2
-  p-settle: ^4.1.1
   parse-json: ^5.2.0
   parse-npm-tarball-url: ^3.0.0
   path-absolute: ^1.0.1
@@ -259,7 +257,6 @@ catalog:
   rename-overwrite: ^6.0.2
   render-help: ^1.0.3
   resolve-link-target: ^2.0.0
-  rfc4648: ^1.5.3
   rimraf: ^3.0.2
   root-link-target: ^3.1.0
   run-groups: ^3.0.1
@@ -296,7 +293,6 @@ catalog:
   typescript: 5.5.4
   unified: ^9.2.2
   uuid: ^9.0.1
-  v8-compile-cache: 2.4.0
   validate-npm-package-name: 5.0.0
   verdaccio: 5.20.1
   version-selector-type: ^3.0.0
@@ -311,6 +307,8 @@ catalog:
   yazl: ^3.3.1
 
 catalogMode: strict
+
+cleanupUnusedCatalogs: true
 
 enableGlobalVirtualStore: true
 
