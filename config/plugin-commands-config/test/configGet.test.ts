@@ -193,4 +193,18 @@ describe('config get with a property path', () => {
       expect(getOutputString(getResult)).toStrictEqual(expected)
     })
   })
+
+  describe('non-rc kebab-case keys', () => {
+    test.each(['package-extensions'])('%s', async (key) => {
+      const getResult = await config.handler({
+        dir: process.cwd(),
+        cliOptions: {},
+        configDir: process.cwd(),
+        global: true,
+        rawConfig,
+      }, ['get', key])
+
+      expect(getOutputString(getResult)).toBe('undefined')
+    })
+  })
 })
