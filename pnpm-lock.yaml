@@ -295,11 +295,11 @@ catalogs:
       specifier: ^7.14.0
       version: 7.14.0
     camelcase:
-      specifier: ^6.3.0
-      version: 6.3.0
+      specifier: ^8.0.0
+      version: 8.0.0
     camelcase-keys:
-      specifier: ^6.2.2
-      version: 6.2.2
+      specifier: ^9.1.3
+      version: 9.1.3
     can-link:
       specifier: ^2.0.0
       version: 2.0.0
@@ -307,8 +307,8 @@ catalogs:
       specifier: ^1.1.1
       version: 1.1.1
     chalk:
-      specifier: ^4.1.2
-      version: 4.1.2
+      specifier: ^5.6.0
+      version: 5.6.0
     ci-info:
       specifier: ^3.9.0
       version: 3.9.0
@@ -316,8 +316,8 @@ catalogs:
       specifier: ^4.0.0
       version: 4.0.0
     cli-truncate:
-      specifier: ^2.1.0
-      version: 2.1.0
+      specifier: ^4.0.0
+      version: 4.0.0
     cmd-extension:
       specifier: ^1.0.2
       version: 1.0.2
@@ -340,8 +340,8 @@ catalogs:
       specifier: 1.0.0
       version: 1.0.0
     delay:
-      specifier: ^5.0.0
-      version: 5.0.0
+      specifier: ^6.0.0
+      version: 6.0.0
     detect-indent:
       specifier: 7.0.1
       version: 7.0.1
@@ -367,8 +367,8 @@ catalogs:
       specifier: ^0.25.9
       version: 0.25.9
     escape-string-regexp:
-      specifier: ^4.0.0
-      version: 4.0.0
+      specifier: ^5.0.0
+      version: 5.0.0
     eslint:
       specifier: ^8.57.1
       version: 8.57.1
@@ -409,11 +409,11 @@ catalogs:
       specifier: ^4.3.0
       version: 4.3.0
     find-up:
-      specifier: ^5.0.0
-      version: 5.0.0
+      specifier: ^7.0.0
+      version: 7.0.0
     fs-extra:
-      specifier: ^11.3.0
-      version: 11.3.0
+      specifier: ^11.3.1
+      version: 11.3.1
     fuse-native:
       specifier: ^2.2.6
       version: 2.2.6
@@ -421,8 +421,8 @@ catalogs:
       specifier: ^2.1.0
       version: 2.1.0
     get-port:
-      specifier: ^5.1.1
-      version: 5.1.1
+      specifier: ^7.1.0
+      version: 7.1.0
     ghooks:
       specifier: 2.0.4
       version: 2.0.4
@@ -457,8 +457,8 @@ catalogs:
       specifier: ^4.0.0
       version: 4.0.0
     is-port-reachable:
-      specifier: 3.0.0
-      version: 3.0.0
+      specifier: 4.0.0
+      version: 4.0.0
     is-subdir:
       specifier: ^1.2.0
       version: 1.2.0
@@ -508,8 +508,8 @@ catalogs:
       specifier: ^2.0.0
       version: 2.0.0
     mem:
-      specifier: ^8.1.1
-      version: 8.1.1
+      specifier: ^10.0.0
+      version: 10.0.0
     micromatch:
       specifier: ^4.0.8
       version: 4.0.8
@@ -541,32 +541,32 @@ catalogs:
       specifier: 3.0.0
       version: 3.0.0
     p-any:
-      specifier: 3.0.0
-      version: 3.0.0
+      specifier: 4.0.0
+      version: 4.0.0
     p-defer:
-      specifier: ^3.0.0
-      version: 3.0.0
+      specifier: ^4.0.1
+      version: 4.0.1
     p-every:
       specifier: ^2.0.0
       version: 2.0.0
     p-filter:
-      specifier: ^2.1.0
-      version: 2.1.0
+      specifier: ^4.1.0
+      version: 4.1.0
     p-limit:
-      specifier: ^3.1.0
-      version: 3.1.0
+      specifier: ^7.1.0
+      version: 7.1.0
     p-map-values:
       specifier: ^1.0.0
       version: 1.0.0
     p-memoize:
-      specifier: 4.0.1
-      version: 4.0.1
+      specifier: 8.0.0
+      version: 8.0.0
     p-queue:
       specifier: ^8.1.0
       version: 8.1.0
     p-settle:
-      specifier: ^4.1.1
-      version: 4.1.1
+      specifier: ^5.1.1
+      version: 5.1.1
     parse-json:
       specifier: ^5.2.0
       version: 5.2.0
@@ -577,8 +577,8 @@ catalogs:
       specifier: ^1.0.1
       version: 1.0.1
     path-exists:
-      specifier: ^4.0.0
-      version: 4.0.0
+      specifier: ^5.0.0
+      version: 5.0.0
     path-name:
       specifier: ^1.0.0
       version: 1.0.0
@@ -595,11 +595,11 @@ catalogs:
       specifier: ^3.1.4
       version: 3.1.4
     pretty-bytes:
-      specifier: ^5.6.0
-      version: 5.6.0
-    pretty-ms:
       specifier: ^7.0.1
       version: 7.0.1
+    pretty-ms:
+      specifier: ^9.2.0
+      version: 9.2.0
     process-exists:
       specifier: ^4.1.0
       version: 4.1.0
@@ -610,8 +610,8 @@ catalogs:
       specifier: ^2.1.3
       version: 2.1.3
     ps-list:
-      specifier: ^7.2.0
-      version: 7.2.0
+      specifier: ^8.1.1
+      version: 8.1.1
     publish-packed:
       specifier: ^4.1.2
       version: 4.1.2
@@ -688,8 +688,8 @@ catalogs:
       specifier: ^16.1.3
       version: 16.1.3
     sort-keys:
-      specifier: ^4.2.0
-      version: 4.2.0
+      specifier: ^6.0.0
+      version: 6.0.0
     split-cmd:
       specifier: ^1.1.0
       version: 1.1.0
@@ -700,11 +700,11 @@ catalogs:
       specifier: ^2.1.8
       version: 2.1.8
     string-length:
-      specifier: ^4.0.2
-      version: 4.0.2
+      specifier: ^6.0.0
+      version: 6.0.0
     strip-bom:
-      specifier: ^4.0.0
-      version: 4.0.0
+      specifier: ^5.0.0
+      version: 5.0.0
     strip-comments-strings:
       specifier: 1.2.0
       version: 1.2.0
@@ -721,8 +721,8 @@ catalogs:
       specifier: 3.0.0
       version: 3.0.0
     terminal-link:
-      specifier: ^2.1.1
-      version: 2.1.1
+      specifier: ^4.0.0
+      version: 4.0.0
     tinyglobby:
       specifier: ^0.2.14
       version: 0.2.14
@@ -1128,7 +1128,7 @@ importers:
         version: link:../../worker
       get-port:
         specifier: 'catalog:'
-        version: 5.1.1
+        version: 7.1.0
       tree-kill:
         specifier: 'catalog:'
         version: 1.2.2
@@ -1215,7 +1215,7 @@ importers:
         version: link:../prepare-temp-dir
       fs-extra:
         specifier: 'catalog:'
-        version: 11.3.0
+        version: 11.3.1
     devDependencies:
       '@pnpm/test-fixtures':
         specifier: workspace:*
@@ -1422,7 +1422,7 @@ importers:
         version: 3.0.2
       chalk:
         specifier: 'catalog:'
-        version: 4.1.2
+        version: 5.6.0
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
@@ -1496,19 +1496,19 @@ importers:
         version: '@zkochan/boxen@5.1.2'
       chalk:
         specifier: 'catalog:'
-        version: 4.1.2
+        version: 5.6.0
       cli-truncate:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 4.0.0
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
       pretty-bytes:
         specifier: 'catalog:'
-        version: 5.6.0
+        version: 7.0.1
       pretty-ms:
         specifier: 'catalog:'
-        version: 7.0.1
+        version: 9.2.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -1523,7 +1523,7 @@ importers:
         version: 2.1.8
       string-length:
         specifier: 'catalog:'
-        version: 4.0.2
+        version: 6.0.0
     devDependencies:
       '@pnpm/default-reporter':
         specifier: workspace:*
@@ -1667,10 +1667,10 @@ importers:
         version: 1.0.0
       camelcase:
         specifier: 'catalog:'
-        version: 6.3.0
+        version: 8.0.0
       camelcase-keys:
         specifier: 'catalog:'
-        version: 6.2.2
+        version: 9.1.3
       can-write-to-dir:
         specifier: 'catalog:'
         version: 1.1.1
@@ -1829,7 +1829,7 @@ importers:
     dependencies:
       escape-string-regexp:
         specifier: 'catalog:'
-        version: 4.0.0
+        version: 5.0.0
     devDependencies:
       '@pnpm/matcher':
         specifier: workspace:*
@@ -1879,7 +1879,7 @@ importers:
         version: safe-execa@0.2.0
       mem:
         specifier: 'catalog:'
-        version: 8.1.1
+        version: 10.0.0
       semver:
         specifier: 'catalog:'
         version: 7.7.1
@@ -1951,7 +1951,7 @@ importers:
         version: link:../../workspace/manifest-writer
       camelcase:
         specifier: 'catalog:'
-        version: 6.3.0
+        version: 8.0.0
       ini:
         specifier: 'catalog:'
         version: 4.1.1
@@ -2079,7 +2079,7 @@ importers:
         version: 1.0.0
       chalk:
         specifier: 'catalog:'
-        version: 4.1.2
+        version: 5.6.0
     devDependencies:
       '@pnpm/dedupe.issues-renderer':
         specifier: workspace:*
@@ -2134,7 +2134,7 @@ importers:
         version: link:../../packages/types
       path-exists:
         specifier: 'catalog:'
-        version: 4.0.0
+        version: 5.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -2437,7 +2437,7 @@ importers:
         version: safe-execa@0.2.0
       mem:
         specifier: 'catalog:'
-        version: 8.1.1
+        version: 10.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -2471,7 +2471,7 @@ importers:
         version: 3.0.2
       chalk:
         specifier: 'catalog:'
-        version: 4.1.2
+        version: 5.6.0
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
@@ -2559,7 +2559,7 @@ importers:
         version: link:../../worker
       p-defer:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 4.0.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -2608,7 +2608,7 @@ importers:
         version: 1.0.2
       path-exists:
         specifier: 'catalog:'
-        version: 4.0.0
+        version: 5.0.0
       run-groups:
         specifier: 'catalog:'
         version: 3.0.1
@@ -2745,10 +2745,10 @@ importers:
         version: 7.0.1
       mem:
         specifier: 'catalog:'
-        version: 8.1.1
+        version: 10.0.0
       p-limit:
         specifier: 'catalog:'
-        version: 3.1.0
+        version: 7.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -2896,7 +2896,7 @@ importers:
         version: safe-execa@0.2.0
       p-limit:
         specifier: 'catalog:'
-        version: 3.1.0
+        version: 7.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -3286,7 +3286,7 @@ importers:
         version: 3.0.2
       p-filter:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 4.1.0
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.14
@@ -3342,13 +3342,13 @@ importers:
         version: 3.0.2
       fs-extra:
         specifier: 'catalog:'
-        version: 11.3.0
+        version: 11.3.1
       make-empty-dir:
         specifier: 'catalog:'
         version: 3.0.2
       p-limit:
         specifier: 'catalog:'
-        version: 3.1.0
+        version: 7.1.0
       path-temp:
         specifier: 'catalog:'
         version: 2.1.0
@@ -3451,7 +3451,7 @@ importers:
         version: link:../../packages/types
       chalk:
         specifier: 'catalog:'
-        version: 4.1.2
+        version: 5.6.0
       path-absolute:
         specifier: 'catalog:'
         version: 1.0.1
@@ -3709,7 +3709,7 @@ importers:
         version: 7.7.1
       strip-bom:
         specifier: 'catalog:'
-        version: 4.0.0
+        version: 5.0.0
       write-file-atomic:
         specifier: 'catalog:'
         version: 5.0.1
@@ -3850,10 +3850,10 @@ importers:
         version: 2.0.1
       chalk:
         specifier: 'catalog:'
-        version: 4.1.2
+        version: 5.6.0
       mem:
         specifier: 'catalog:'
-        version: 8.1.1
+        version: 10.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -4235,7 +4235,7 @@ importers:
         version: 3.0.2
       sort-keys:
         specifier: 'catalog:'
-        version: 4.2.0
+        version: 6.0.0
     devDependencies:
       '@pnpm/object.key-sorting':
         specifier: workspace:*
@@ -4459,7 +4459,7 @@ importers:
         version: link:../../pkg-manifest/write-project-manifest
       camelcase-keys:
         specifier: 'catalog:'
-        version: 6.2.2
+        version: 9.1.3
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -4530,7 +4530,7 @@ importers:
         version: 1.0.0
       chalk:
         specifier: 'catalog:'
-        version: 4.1.2
+        version: 5.6.0
       cli-columns:
         specifier: 'catalog:'
         version: 4.0.0
@@ -4662,13 +4662,13 @@ importers:
         version: link:../../workspace/read-manifest
       chalk:
         specifier: 'catalog:'
-        version: 4.1.2
+        version: 5.6.0
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
       escape-string-regexp:
         specifier: 'catalog:'
-        version: 4.0.0
+        version: 5.0.0
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -4695,7 +4695,7 @@ importers:
         version: 7.7.1
       terminal-link:
         specifier: 'catalog:'
-        version: 2.1.1
+        version: 4.0.0
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.14
@@ -4964,13 +4964,13 @@ importers:
         version: 3.0.0
       p-filter:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 4.1.0
       p-limit:
         specifier: 'catalog:'
-        version: 3.1.0
+        version: 7.1.0
       path-exists:
         specifier: 'catalog:'
-        version: 4.0.0
+        version: 5.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -5249,13 +5249,13 @@ importers:
         version: 3.0.2
       p-limit:
         specifier: 'catalog:'
-        version: 3.1.0
+        version: 7.1.0
       path-absolute:
         specifier: 'catalog:'
         version: 1.0.1
       path-exists:
         specifier: 'catalog:'
-        version: 4.0.0
+        version: 5.0.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -5422,7 +5422,7 @@ importers:
         version: 3.0.0
       p-settle:
         specifier: 'catalog:'
-        version: 4.1.1
+        version: 5.1.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -5609,10 +5609,10 @@ importers:
         version: 2.0.3
       p-defer:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 4.0.1
       p-limit:
         specifier: 'catalog:'
-        version: 3.1.0
+        version: 7.1.0
       p-queue:
         specifier: 'catalog:'
         version: 8.1.0
@@ -5667,7 +5667,7 @@ importers:
         version: 7.1.5
       delay:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 6.0.0
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
@@ -5820,7 +5820,7 @@ importers:
         version: 2.0.1
       chalk:
         specifier: 'catalog:'
-        version: 4.1.2
+        version: 5.6.0
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
@@ -5835,16 +5835,16 @@ importers:
         version: 7.0.1
       mem:
         specifier: 'catalog:'
-        version: 8.1.1
+        version: 10.0.0
       normalize-path:
         specifier: 'catalog:'
         version: 3.0.0
       p-filter:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 4.1.0
       p-limit:
         specifier: 'catalog:'
-        version: 3.1.0
+        version: 7.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -5914,7 +5914,7 @@ importers:
         version: 3.9.0
       delay:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 6.0.0
       jest-diff:
         specifier: 'catalog:'
         version: 29.7.0
@@ -6127,10 +6127,10 @@ importers:
         version: 3.0.0
       p-defer:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 4.0.1
       path-exists:
         specifier: 'catalog:'
-        version: 4.0.0
+        version: 5.0.0
       promise-share:
         specifier: 'catalog:'
         version: 1.0.0
@@ -6296,7 +6296,7 @@ importers:
         version: 2.1.0
       strip-bom:
         specifier: 'catalog:'
-        version: 4.0.0
+        version: 5.0.0
     devDependencies:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
@@ -6557,7 +6557,7 @@ importers:
         version: 3.0.2
       chalk:
         specifier: 'catalog:'
-        version: 4.1.2
+        version: 5.6.0
       ci-info:
         specifier: 'catalog:'
         version: 3.9.0
@@ -6569,7 +6569,7 @@ importers:
         version: 1.0.0
       delay:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 6.0.0
       dir-is-case-sensitive:
         specifier: 'catalog:'
         version: 2.0.0
@@ -6596,10 +6596,10 @@ importers:
         version: 3.0.0
       p-any:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 4.0.0
       p-defer:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 4.0.1
       path-name:
         specifier: 'catalog:'
         version: 1.0.0
@@ -6608,7 +6608,7 @@ importers:
         version: 0.6.0
       ps-list:
         specifier: 'catalog:'
-        version: 7.2.0
+        version: 8.1.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -6882,7 +6882,7 @@ importers:
         version: 3.0.2
       chalk:
         specifier: 'catalog:'
-        version: 4.1.2
+        version: 5.6.0
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
@@ -6891,10 +6891,10 @@ importers:
         version: safe-execa@0.2.0
       p-filter:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 4.1.0
       p-limit:
         specifier: 'catalog:'
-        version: 3.1.0
+        version: 7.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -7267,10 +7267,10 @@ importers:
         version: 3.0.0
       p-limit:
         specifier: 'catalog:'
-        version: 3.1.0
+        version: 7.1.0
       p-memoize:
         specifier: 'catalog:'
-        version: 4.0.1
+        version: 8.0.0
       parse-npm-tarball-url:
         specifier: 'catalog:'
         version: 3.0.0
@@ -7460,7 +7460,7 @@ importers:
         version: 7.0.1
       p-limit:
         specifier: 'catalog:'
-        version: 3.1.0
+        version: 7.1.0
       path-absolute:
         specifier: 'catalog:'
         version: 1.0.1
@@ -7509,13 +7509,13 @@ importers:
         version: 1.0.0
       chalk:
         specifier: 'catalog:'
-        version: 4.1.2
+        version: 5.6.0
       cli-columns:
         specifier: 'catalog:'
         version: 4.0.0
       p-limit:
         specifier: 'catalog:'
-        version: 3.1.0
+        version: 7.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -7637,7 +7637,7 @@ importers:
         version: 2.0.1
       chalk:
         specifier: 'catalog:'
-        version: 4.1.2
+        version: 5.6.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -7792,7 +7792,7 @@ importers:
         version: 2.0.1
       chalk:
         specifier: 'catalog:'
-        version: 4.1.2
+        version: 5.6.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -7860,7 +7860,7 @@ importers:
         version: 2.0.0
       p-limit:
         specifier: 'catalog:'
-        version: 3.1.0
+        version: 7.1.0
       rename-overwrite:
         specifier: 'catalog:'
         version: 6.0.2
@@ -7869,7 +7869,7 @@ importers:
         version: 10.0.5
       strip-bom:
         specifier: 'catalog:'
-        version: 4.0.0
+        version: 5.0.0
     devDependencies:
       '@pnpm/cafs-types':
         specifier: workspace:*
@@ -7930,7 +7930,7 @@ importers:
         version: link:../cafs
       mem:
         specifier: 'catalog:'
-        version: 8.1.1
+        version: 10.0.0
       path-temp:
         specifier: 'catalog:'
         version: 2.1.0
@@ -8046,10 +8046,10 @@ importers:
         version: 1.0.2
       delay:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 6.0.0
       get-port:
         specifier: 'catalog:'
-        version: 5.1.1
+        version: 7.1.0
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -8137,7 +8137,7 @@ importers:
         version: 7.0.1
       p-filter:
         specifier: 'catalog:'
-        version: 2.1.0
+        version: 4.1.0
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -8228,7 +8228,7 @@ importers:
         version: link:../../packages/types
       chalk:
         specifier: 'catalog:'
-        version: 4.1.2
+        version: 5.6.0
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
@@ -8262,7 +8262,7 @@ importers:
         version: link:../../packages/types
       p-limit:
         specifier: 'catalog:'
-        version: 3.1.0
+        version: 7.1.0
       promise-share:
         specifier: 'catalog:'
         version: 1.0.0
@@ -8293,10 +8293,10 @@ importers:
         version: 3.0.2
       get-port:
         specifier: 'catalog:'
-        version: 5.1.1
+        version: 7.1.0
       is-port-reachable:
         specifier: 'catalog:'
-        version: 3.0.0
+        version: 4.0.0
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1
@@ -8335,7 +8335,7 @@ importers:
         version: 1.0.2
       delay:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 6.0.0
       dir-is-case-sensitive:
         specifier: 'catalog:'
         version: 2.0.0
@@ -8563,7 +8563,7 @@ importers:
         version: 7.0.1
       p-limit:
         specifier: 'catalog:'
-        version: 3.1.0
+        version: 7.1.0
       shlex:
         specifier: 'catalog:'
         version: 3.0.0
@@ -8619,7 +8619,7 @@ importers:
         version: safe-execa@0.2.0
       find-up:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 7.0.0
       is-subdir:
         specifier: 'catalog:'
         version: 1.2.0
@@ -8699,7 +8699,7 @@ importers:
         version: link:../../packages/error
       find-up:
         specifier: 'catalog:'
-        version: 5.0.0
+        version: 7.0.0
     devDependencies:
       '@pnpm/find-workspace-dir':
         specifier: workspace:*
@@ -11240,6 +11240,10 @@ packages:
     resolution: {integrity: sha512-4I7Td01quW/RpocfNayFdFVk1qSuoh0E7JrbRJ16nH01HhKFQ88INq9Sd+nd72zqRySlr9BmDA8xlEJ6vJMrYA==}
     engines: {node: '>=8'}
 
+  aggregate-error@4.0.1:
+    resolution: {integrity: sha512-0poP0T7el6Vq3rstR8Mn4V/IQrpBLO6POkUSrN7RhyY+GF/InCFShQzsQ39T25gkHhLgSLByyAz+Kjb+c2L98w==}
+    engines: {node: '>=12'}
+
   ajv@6.12.6:
     resolution: {integrity: sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==}
 
@@ -11270,6 +11274,10 @@ packages:
   ansi-escapes@4.3.2:
     resolution: {integrity: sha512-gKXj5ALrKWQLsYG9jlTRmR/xKluxHV+Z9QEwNIgCfM1/uwPMCuzVVnh5mwTd+OuBZcwSIMbqssNWRm1lE51QaQ==}
     engines: {node: '>=8'}
+
+  ansi-escapes@7.0.0:
+    resolution: {integrity: sha512-GdYO7a61mR0fOlAsvC9/rIHf7L96sBc6dEWzeOu+KAea5bZyQRPIpojrVoI4AXGJS/ycu/fBTdLrUkA4ODrvjw==}
+    engines: {node: '>=18'}
 
   ansi-regex@2.1.1:
     resolution: {integrity: sha512-TIGnTpdo+E3+pCyAluZvtED5p5wCqLdezCyhPZzKPcxvFplEt4i+W7OONCKgeZFT3+y5NZZfOOS/Bdcanm1MYA==}
@@ -11613,6 +11621,10 @@ packages:
     resolution: {integrity: sha512-qMKdlOfsjlezMqxkUGGMaWWs17i2HoL15tM+wtx8ld4nLrUwU58TFdvyGOz/piNP842KeO8yXvggVQSdQ828NA==}
     engines: {node: '>=14.16'}
 
+  camelcase-keys@9.1.3:
+    resolution: {integrity: sha512-Rircqi9ch8AnZscQcsA1C47NFdaO3wukpmIRzYcDOrmvgt78hM/sj5pZhZNec2NM12uk5vTwRHZ4anGcrC4ZTg==}
+    engines: {node: '>=16'}
+
   camelcase@5.3.1:
     resolution: {integrity: sha512-L28STB170nwWS63UjtlEOE3dldQApaJXZkOI1uMFfzf3rRuPegHaHesyee+YxQ+W6SvRDQV6UrdOdRiR153wJg==}
     engines: {node: '>=6'}
@@ -11624,6 +11636,10 @@ packages:
   camelcase@7.0.1:
     resolution: {integrity: sha512-xlx1yCK2Oc1APsPXDL2LdlNP6+uu8OCDdhOBSVT279M/S+y75O30C2VuD8T2ogdePBBl7PfPF4504tnLgX3zfw==}
     engines: {node: '>=14.16'}
+
+  camelcase@8.0.0:
+    resolution: {integrity: sha512-8WB3Jcas3swSvjIeA2yvCJ+Miyz5l1ZmB6HFb9R1317dt9LCQoswg/BGrmAmkWVEszSrrg4RwmO46qIm2OEnSA==}
+    engines: {node: '>=16'}
 
   can-link@2.0.0:
     resolution: {integrity: sha512-2W2yAdkQQrrL0WM6BrGqkrLkWlVon8riZch0EBNklid2CZsOzZnqR5HE7W3Q3BrMWUop+9I2dpjyZqhSOYh6Yg==}
@@ -11705,6 +11721,10 @@ packages:
     resolution: {integrity: sha512-4diC9HaTE+KRAMWhDhrGOECgWZxoevMc5TlkObMqNSsVU62PYzXZ/SMTjzyGAFF1YusgxGcSWTEXBhp0CPwQ1A==}
     engines: {node: '>=6'}
 
+  clean-stack@4.2.0:
+    resolution: {integrity: sha512-LYv6XPxoyODi36Dp976riBtSY27VmFo+MKqEU9QCCWyTrdEPDog+RWA7xQWHi6Vbp61j5c4cdzzX1NidnwtUWg==}
+    engines: {node: '>=12'}
+
   clear-module@4.1.2:
     resolution: {integrity: sha512-LWAxzHqdHsAZlPlEyJ2Poz6AIs384mPeqLVCru2p0BrP9G/kVGuhNyZYClLO6cXlnuJjzC8xtsJIuMjKqLXoAw==}
     engines: {node: '>=8'}
@@ -11724,6 +11744,10 @@ packages:
   cli-truncate@2.1.0:
     resolution: {integrity: sha512-n8fOixwDD6b/ObinzTrp1ZKFzbgvKZvuz/TvejnLn1aQfC6r52XEx85FmuC+3HI+JM7coBRXUvNqEU2PHVrHpg==}
     engines: {node: '>=8'}
+
+  cli-truncate@4.0.0:
+    resolution: {integrity: sha512-nPdaFdQ0h/GEigbPClz11D0v/ZJEwxmeVZGeMo3Z5StPtUTkA9o1lD6QwoirYiSDzbcwn2XcjwmCp68W1IS4TA==}
+    engines: {node: '>=18'}
 
   cli-width@2.2.1:
     resolution: {integrity: sha512-GRMWDxpOB6Dgk2E5Uo+3eEBvtOOlimMmpbFiKuLFnQzYDavtLFY3K5ona41jgN/WdRZtG7utuVSVTL4HbZHGkw==}
@@ -12120,6 +12144,10 @@ packages:
     resolution: {integrity: sha512-ReEBKkIfe4ya47wlPYf/gu5ib6yUG0/Aez0JQZQz94kiWtRQvZIQbTiehsnwHvLSWJnQdhVeqYue7Id1dKr0qw==}
     engines: {node: '>=10'}
 
+  delay@6.0.0:
+    resolution: {integrity: sha512-2NJozoOHQ4NuZuVIr5CWd0iiLVIRSDepakaovIN+9eIDHEhdCAEvSy2cuf1DCrPPQLvHmbqTHODlhHg8UCy4zw==}
+    engines: {node: '>=16'}
+
   delayed-stream@1.0.0:
     resolution: {integrity: sha512-ZySD7Nf91aLB0RxL4KGrKHBXl7Eds1DAmEdcoVawXnLD7SDhpNgtuII2aAkg7a7QS41jxPSZ17p4VdGnMHk3MQ==}
     engines: {node: '>=0.4.0'}
@@ -12235,6 +12263,9 @@ packages:
     resolution: {integrity: sha512-DeWwawk6r5yR9jFgnDKYt4sLS0LmHJJi3ZOnb5/JdbYwj3nW+FxQnHIjhBKz8YLC7oRNPVM9NQ47I3CVx34eqQ==}
     engines: {node: '>=12'}
 
+  emoji-regex@10.4.0:
+    resolution: {integrity: sha512-EC+0oUMY1Rqm4O6LLrgjtYDvcVYTy7chDnM4Q7030tP4Kwj3u/pR6gP9ygnp2CJMK5Gq+9Q2oqmrFJAz01DXjw==}
+
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
 
@@ -12275,6 +12306,10 @@ packages:
     resolution: {integrity: sha512-CO40UI41xDQzhLB1hWyqUKgFhs250pNcGbyGKe1l/e4FSaI/+YE4IMG76GDt0In67WLPACIITC+sOi08x4wIvg==}
     engines: {node: '>=4'}
     hasBin: true
+
+  environment@1.1.0:
+    resolution: {integrity: sha512-xUtoPkMggbz0MPyPiIWr1Kp4aeWJjDZ6SMvURhimjdZgsRuDplF5/s9hcgGhyXMhs+6vpnuoiZ2kFiu3FMnS8Q==}
+    engines: {node: '>=18'}
 
   err-code@2.0.3:
     resolution: {integrity: sha512-2bmlRpNKBxT/CRmPOlyISQpNj+qSeYvcym/uT0Jx2bMOlKLtSy1ZmLuVxSEKKyor/N5yhvp/ZiG1oE3DEYMSFA==}
@@ -12333,6 +12368,10 @@ packages:
   escape-string-regexp@4.0.0:
     resolution: {integrity: sha512-TtpcNJ3XAzx3Gq8sWRzJaVajRs0uVxA2YAkdb1jm2YkPz4G6egUFAyA3n5vtEIZefPk5Wa4UXbKuS5fKkJWdgA==}
     engines: {node: '>=10'}
+
+  escape-string-regexp@5.0.0:
+    resolution: {integrity: sha512-/veY75JbMK4j1yjvuUxuVsiS/hr/4iHs9FTT6cgTexxdE0Ly/glccBAkloH/DofkjRbZU3bnoj38mOmhkZ0lHw==}
+    engines: {node: '>=12'}
 
   eslint-compat-utils@0.5.1:
     resolution: {integrity: sha512-3z3vFexKIEnjHE3zCMRo6fn/e44U7T1khUjg+Hp0ZQMCigh28rALD0nPFBcGZuiLC5rLZa2ubQHDRln09JfU2Q==}
@@ -12688,6 +12727,10 @@ packages:
     resolution: {integrity: sha512-v2ZsoEuVHYy8ZIlYqwPe/39Cy+cFDzp4dXPaxNvkEuouymu+2Jbz0PxpKarJHYJTmv2HWT3O382qY8l4jMWthw==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
+  find-up@7.0.0:
+    resolution: {integrity: sha512-YyZM99iHrqLKjmt4LJDj58KI+fYyufRLBSYcqycxf//KpBk9FoewoGX0450m9nB44qrZnovzC2oeP5hUibxc/g==}
+    engines: {node: '>=18'}
+
   find-yarn-workspace-root2@1.2.16:
     resolution: {integrity: sha512-hr6hb1w8ePMpPVUK39S4RlwJzi+xPLuVuG8XlwXU3KD5Yn3qgBWVfy3AzNlDhWvE1EORCE65/Qm26rFQt3VLVA==}
 
@@ -12844,6 +12887,10 @@ packages:
     resolution: {integrity: sha512-DyFP3BM/3YHTQOCUL/w0OZHR0lpKeGrxotcHWcqNEdnltqFwXVfhEBQ94eIo34AfQpo0rGki4cyIiftY06h2Fg==}
     engines: {node: 6.* || 8.* || >= 10.*}
 
+  get-east-asian-width@1.3.0:
+    resolution: {integrity: sha512-vpeMIQKxczTD/0s2CdEWHcb0eeJe6TFjxb+J5xgX7hScxqrGuyjmv4c1D4A/gelKfyox0gJJwIHF+fLjeaM8kQ==}
+    engines: {node: '>=18'}
+
   get-intrinsic@1.3.0:
     resolution: {integrity: sha512-9fSjSaos/fRIVIp+xSJlE6lfwhES7LNtKaCBIamHsjr2na1BiABJPo0mOjjz8GJDURarmCPGqaiVg5mfjb98CQ==}
     engines: {node: '>= 0.4'}
@@ -12856,9 +12903,9 @@ packages:
     resolution: {integrity: sha512-pjzuKtY64GYfWizNAJ0fr9VqttZkNiK2iS430LtIHzjBEr6bX8Am2zm4sW4Ro5wjWW5cAlRL1qAMTcXbjNAO2Q==}
     engines: {node: '>=8.0.0'}
 
-  get-port@5.1.1:
-    resolution: {integrity: sha512-g/Q1aTSDOxFpchXC4i8ZWvxA1lnPqx/JHqcpIw0/LX9T8x/GBbi6YnlN5nhaKIFkT8oFsscUKgDJYxfwfS6QsQ==}
-    engines: {node: '>=8'}
+  get-port@7.1.0:
+    resolution: {integrity: sha512-QB9NKEeDg3xxVwCCwJQ9+xycaz6pBB6iQ76wiWMl1927n0Kir6alPiP+yuiICLLU4jpMe08dXfpebuQppFA2zw==}
+    engines: {node: '>=16'}
 
   get-proto@1.0.1:
     resolution: {integrity: sha512-sTSfBjoXBp89JvIKIefqw7U2CCebsc74kiY6awiGogKtoSGbgjYE/G/+l9sF3MWFPNc9IcoOC4ODfKHfxFmp0g==}
@@ -13323,6 +13370,10 @@ packages:
     resolution: {integrity: sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg==}
     engines: {node: '>=8'}
 
+  is-fullwidth-code-point@4.0.0:
+    resolution: {integrity: sha512-O4L094N2/dZ7xqVdrXhh9r1KODPJpFms8B5sGdJLPy664AgvXsreZUyCQQNItZRDlYug4xStLjNp/sz3HvBowQ==}
+    engines: {node: '>=12'}
+
   is-generator-fn@2.1.0:
     resolution: {integrity: sha512-cTIB4yPYL/Grw0EaSzASzg6bBy9gqCofvWN8okThAYIxKJZC+udlRAmGbM0XLeniEJSs8uEgHPGuHSe1XsOLSQ==}
     engines: {node: '>=6'}
@@ -13401,9 +13452,9 @@ packages:
     resolution: {integrity: sha512-+Pgi+vMuUNkJyExiMBt5IlFoMyKnr5zhJ4Uspz58WOhBF5QoIZkFyNHIbBAtHwzVAgk5RtndVNsDRN61/mmDqg==}
     engines: {node: '>=12'}
 
-  is-port-reachable@3.0.0:
-    resolution: {integrity: sha512-056IzLiWHdgVd6Eq1F9HtJl+cIkvi5X2MJ/A1fjQtByHkzQE1wGardnPhqrarOGDF88BOW+297X7PDvZ2vcyVg==}
-    engines: {node: '>=8'}
+  is-port-reachable@4.0.0:
+    resolution: {integrity: sha512-9UoipoxYmSk6Xy7QFgRv2HDyaysmgSG75TFQs6S+3pDM7ZhKTF/bskZV+0UlABHzKjNVhPjYCLfeZUEg1wXxig==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   is-promise@2.2.2:
     resolution: {integrity: sha512-+lP4/6lKUBfQjZ2pdxThZvLUAafmZb8OAxFb8XXtiQmS35INgr85hdOGoEs124ez1FCnZJt6jau/T+alh58QFQ==}
@@ -13986,6 +14037,10 @@ packages:
     resolution: {integrity: sha512-hdN1wVrZbb29eBGiGjJbeP8JbKjq1urkHJ/LIP/NY48MZ1QVXUsQBV1G1zvYFHn1XE06cwjBsOI2K3Ulnj1YXQ==}
     engines: {node: '>=8'}
 
+  map-obj@5.0.0:
+    resolution: {integrity: sha512-2L3MIgJynYrZ3TYMriLDLWocz15okFakV6J12HXvMXDHui2x/zgChzg1u9mFFGbbGWE+GsLpQByt4POb9Or+uA==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
+
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
@@ -14002,6 +14057,11 @@ packages:
   media-typer@0.3.0:
     resolution: {integrity: sha512-dq+qelQ9akHpcOl/gUVRTxVIOkAJ1wR3QAvb4RsVjS8oVoFjDGTc679wJYmUmknUF5HwMLOgb5O+a3KxfWapPQ==}
     engines: {node: '>= 0.6'}
+
+  mem@10.0.0:
+    resolution: {integrity: sha512-ucHuGY0h9IKre1NAf8iRyBQhlmuISr0zEOHuLc7szfkUWiaVzuG1g7piPkVl4rVj362pjxsqiOANtDdI7mv86A==}
+    engines: {node: '>=12.20'}
+    deprecated: 'Renamed to memoize: https://www.npmjs.com/package/memoize'
 
   mem@6.1.1:
     resolution: {integrity: sha512-Ci6bIfq/UgcxPTYa8dQQ5FY3BzKkT894bwXWXxC/zqs0XgMO2cT20CGkOqda7gZNkmK5VP4x89IGZ6K7hfbn3Q==}
@@ -14082,6 +14142,14 @@ packages:
   mimic-fn@3.1.0:
     resolution: {integrity: sha512-Ysbi9uYW9hFyfrThdDEQuykN4Ey6BuwPD2kpI5ES/nFTDn/98yxYNLZJcgUAKPT/mcrLLKaGzJR9YVxJrIdASQ==}
     engines: {node: '>=8'}
+
+  mimic-fn@4.0.0:
+    resolution: {integrity: sha512-vqiC06CuhBTUdZH+RYl8sFrL096vA45Ok5ISO6sE/Mr1jRbGH4Csnhi8f3wKVl7x8mO4Au7Ir9D3Oyv1VYMFJw==}
+    engines: {node: '>=12'}
+
+  mimic-function@5.0.1:
+    resolution: {integrity: sha512-VP79XUPxV2CigYP3jWwAUFSku2aKqBH7uTAapFWCBqutsbmDo96KY5o8uh6U+/YSIn5OxJnXp73beVkpqMIGhA==}
+    engines: {node: '>=18'}
 
   mimic-response@1.0.1:
     resolution: {integrity: sha512-j5EctnkH7amfV/q5Hgmoal1g2QHFJRraOtmx0JpIqkxhBhI/lJSl1nMpQ45hVarwNETOoWEimndZ4QK0RHxuxQ==}
@@ -14473,13 +14541,17 @@ packages:
     resolution: {integrity: sha512-qFOyK5PjiWZd+QQIh+1jhdb9LpxTF0qs7Pm8o5QHYZ0M3vKqSqzsZaEB6oWlxZ+q2sJBMI/Ktgd2N5ZwQoRHfg==}
     engines: {node: '>= 0.4'}
 
-  p-any@3.0.0:
-    resolution: {integrity: sha512-5rqbqfsRWNb0sukt0awwgJMlaep+8jV45S15SKKB34z4UuzjcofIfnriCBhWjZP2jbVtjt9yRl7buB6RlKsu9w==}
-    engines: {node: '>=10'}
+  p-any@4.0.0:
+    resolution: {integrity: sha512-S/B50s+pAVe0wmEZHmBs/9yJXeZ5KhHzOsgKzt0hRdgkoR3DxW9ts46fcsWi/r3VnzsnkKS7q4uimze+zjdryw==}
+    engines: {node: '>=12.20'}
 
   p-cancelable@2.1.1:
     resolution: {integrity: sha512-BZOr3nRQHOntUjTrH8+Lh54smKHoHyur8We1V8DSMVrl5A2malOOwuJRnKRDjSnkoeBh4at6BwEnb5I7Jl31wg==}
     engines: {node: '>=8'}
+
+  p-cancelable@3.0.0:
+    resolution: {integrity: sha512-mlVgR3PGuzlo0MmTdk4cXqXWlwQDLnONTAg6sm62XkMJEiRxN3GL3SffkYvqwonbkJBcrI7Uvv5Zh9yjvn2iUw==}
+    engines: {node: '>=12.20'}
 
   p-defer@1.0.0:
     resolution: {integrity: sha512-wB3wfAxZpk2AzOfUMJNL+d36xothRSyj8EXOa4f6GMqYDN9BJaaSISbsk+wS9abmnebVw95C2Kb5t85UmpCxuw==}
@@ -14489,6 +14561,10 @@ packages:
     resolution: {integrity: sha512-ugZxsxmtTln604yeYd29EGrNhazN2lywetzpKhfmQjW/VJmhpDmWbiX+h0zL8V91R0UXkhb3KtPmyq9PZw3aYw==}
     engines: {node: '>=8'}
 
+  p-defer@4.0.1:
+    resolution: {integrity: sha512-Mr5KC5efvAK5VUptYEIopP1bakB85k2IWXaRC0rsh1uwn1L6M0LVml8OIQ4Gudg4oyZakf7FmeRLkMMtZW1i5A==}
+    engines: {node: '>=12'}
+
   p-every@2.0.0:
     resolution: {integrity: sha512-MCz9DqD5opPC48Zsd+BHm56O/HfhYIQQtupfDzhXoVgQdg/Ux4F8/JcdRuQ+arq7zD5fB6zP3axbH3d9Nr8dlw==}
     engines: {node: '>=8'}
@@ -14496,6 +14572,10 @@ packages:
   p-filter@2.1.0:
     resolution: {integrity: sha512-ZBxxZ5sL2HghephhpGAQdoskxplTwr7ICaehZwLIlfL6acuVgZPm8yBNuRAFBGEqtD/hmUeq9eqLg2ys9Xr/yw==}
     engines: {node: '>=8'}
+
+  p-filter@4.1.0:
+    resolution: {integrity: sha512-37/tPdZ3oJwHaS3gNJdenCDB3Tz26i9sjhnguBtvN0vYlRIiDNnvTWkuh+0hETV9rLPdJ3rlL3yVOYPIAnM8rw==}
+    engines: {node: '>=18'}
 
   p-finally@1.0.0:
     resolution: {integrity: sha512-LICb2p9CB7FS+0eR1oqWnHhp0FljGLZCWBE9aix0Uye9W8LTQPwMTYVGWQWIw9RdQiDg4+epXQODwIYJtSJaow==}
@@ -14516,6 +14596,10 @@ packages:
   p-limit@4.0.0:
     resolution: {integrity: sha512-5b0R4txpzjPWVw/cXXUResoD4hb6U/x9BH08L7nw+GN1sezDzPdxeRvpc9c433fZhBan/wusjbCsqwqm4EIBIQ==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
+
+  p-limit@7.1.0:
+    resolution: {integrity: sha512-7LbrpOjbzBWFHFgRtVrIAwBwW1bB7c7n914Q2+CXr1TvOfbTrVHAEH1Ya9PwDwAoKLeiRrczymYWPwaHNOQ0vA==}
+    engines: {node: '>=20'}
 
   p-locate@4.1.0:
     resolution: {integrity: sha512-R79ZZ/0wAxKGu3oYMlz8jy/kbhsNrS7SKZ7PxEHBgJ5+F2mtFW2fK2cOtBh1cHYkQsbzFV7I+EoRKe6Yt0oK7A==}
@@ -14549,6 +14633,10 @@ packages:
     resolution: {integrity: sha512-km0sP12uE0dOZ5qP+s7kGVf07QngxyG0gS8sYFvFWhqlgzOsSy+m71aUejf/0akxj5W7gE//2G74qTv6b4iMog==}
     engines: {node: '>=10'}
 
+  p-memoize@8.0.0:
+    resolution: {integrity: sha512-jdZ10MCxavHoIHwJ5oweOtYy6ElPixEHaMkz0AuaEMovR1MRpVvYFzIEHRxgMEpXYzNpRVByFAniAzwmd1/uug==}
+    engines: {node: '>=20'}
+
   p-queue@6.6.2:
     resolution: {integrity: sha512-RwFpb72c/BhQLEXIZ5K2e+AhgNVmIejGlTgiB9MzZ0e93GRvqZ7uSi0dvRF7/XIXDeNkra2fNHBxTyPDGySpjQ==}
     engines: {node: '>=8'}
@@ -14561,13 +14649,21 @@ packages:
     resolution: {integrity: sha512-paHV8NUz8zDHu5lhr/ngGWQiW067DK/+IbJ+RfZ4k+s8y4EKyYCz8pGYWjxCg35eHztpJAt+NUgvN4L+GCbPlg==}
     engines: {node: '>=8'}
 
+  p-reflect@3.1.0:
+    resolution: {integrity: sha512-3sG3UlpisPSaX+o7u2q01hIQmrpkvdl5GSO1ZwL7pfc5kHB2bPF0eFNCfYTrW1/LTUdgmPwBAvmT0Zr8eSmaAQ==}
+    engines: {node: '>=12'}
+
   p-settle@4.1.1:
     resolution: {integrity: sha512-6THGh13mt3gypcNMm0ADqVNCcYa3BK6DWsuJWFCuEKP1rpY+OKGp7gaZwVmLspmic01+fsg/fN57MfvDzZ/PuQ==}
     engines: {node: '>=10'}
 
-  p-some@5.0.0:
-    resolution: {integrity: sha512-Js5XZxo6vHjB9NOYAzWDYAIyyiPvva0DWESAIWIK7uhSpGsyg5FwUPxipU/SOQx5x9EqhOh545d1jo6cVkitig==}
-    engines: {node: '>=10'}
+  p-settle@5.1.1:
+    resolution: {integrity: sha512-VLgSBpA71aMncPVP5Es4nhQYxcxN0lit8hGlobJke8YTAhtwdRDu/s4KePP5gCT5LFfZty3qosBFYMgD5rFpCg==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
+
+  p-some@6.0.0:
+    resolution: {integrity: sha512-CJbQCKdfSX3fIh8/QKgS+9rjm7OBNUTmwWswAFQAhc8j1NR1dsEDETUEuVUtQHZpV+J03LqWBEwvu0g1Yn+TYg==}
+    engines: {node: '>=12.20'}
 
   p-timeout@3.2.0:
     resolution: {integrity: sha512-rhIwUycgwwKcP9yTOOFK/AKsAopjjCakVqLHePO3CC6Mir1Z99xT+R63jZxAT5lFZLa2inS5h+ZS2GvR99/FBg==}
@@ -14612,6 +14708,10 @@ packages:
   parse-ms@2.1.0:
     resolution: {integrity: sha512-kHt7kzLoS9VBZfUsiKjv43mr91ea+U05EyKkEtqp7vNbHxmaVuEqN7XxeEVnGrMtYOAxGrDElSi96K7EgO1zCA==}
     engines: {node: '>=6'}
+
+  parse-ms@4.0.0:
+    resolution: {integrity: sha512-TXfryirbmq34y8QBwgqCVLi+8oA3oWx2eAnSn62ITyEhEYaWRlVZ2DvMM9eZbMs/RfxPu/PK/aBLyGj4IrqMHw==}
+    engines: {node: '>=18'}
 
   parse-npm-tarball-url@3.0.0:
     resolution: {integrity: sha512-InpdgIdNe5xWMEUcrVQUniQKwnggBtJ7+SCwh7zQAZwbbIYZV9XdgJyhtmDSSvykFyQXoe4BINnzKTfCwWLs5g==}
@@ -14763,6 +14863,10 @@ packages:
     resolution: {integrity: sha512-FFw039TmrBqFK8ma/7OL3sDz/VytdtJr044/QUJtH0wK9lb9jLq9tJyIxUwtQJHwar2BqtiA4iCWSwo9JLkzFg==}
     engines: {node: '>=6'}
 
+  pretty-bytes@7.0.1:
+    resolution: {integrity: sha512-285/jRCYIbMGDciDdrw0KPNC4LKEEwz/bwErcYNxSJOi4CpGUuLpb9gQpg3XJP0XYj9ldSRluXxih4lX2YN8Xw==}
+    engines: {node: '>=20'}
+
   pretty-format@29.7.0:
     resolution: {integrity: sha512-Pdlw/oPxN+aXdmM9R00JVC9WVFoCLTKJvDVLgmJ+qAffBMxsV85l/Lu7sNx4zSzPyoL2euImuEwHhOXdEgNFZQ==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
@@ -14774,6 +14878,10 @@ packages:
   pretty-ms@7.0.1:
     resolution: {integrity: sha512-973driJZvxiGOQ5ONsFhOF/DtzPMOMtgC11kCpUrPGMTgqp2q/1gwzCquocrN33is0VZ5GFHXZYMM9l6h67v2Q==}
     engines: {node: '>=10'}
+
+  pretty-ms@9.2.0:
+    resolution: {integrity: sha512-4yf0QO/sllf/1zbZWYnvWw3NxCQwLXKzIj0G849LSufP15BXKM0rbD2Z3wVnkMfjdn/CB0Dpp444gYAACdsplg==}
+    engines: {node: '>=18'}
 
   print-diff@2.0.0:
     resolution: {integrity: sha512-8dp/OpRSNveJHqOluVCcMyJWnE8LDLRrlvHFAoaxbM9GKUqOUs0aZhdzS34Em5YAiZC9lwwJJUlxScsunrktmw==}
@@ -14839,9 +14947,9 @@ packages:
     resolution: {integrity: sha512-qau0czUSB0fzSlBOQt0bo+I2v6R+xiQdj78e1BR/Qjfl5OHWJ/urXi8+ilw1eHe+5hSeDI1wrwVTgDp2wst4oA==}
     engines: {node: '>=8'}
 
-  ps-list@7.2.0:
-    resolution: {integrity: sha512-v4Bl6I3f2kJfr5o80ShABNHAokIgY+wFDTQfE+X3zWYgSGQOCBeYptLZUpoOALBqO5EawmDN/tjTldJesd0ujQ==}
-    engines: {node: '>=10'}
+  ps-list@8.1.1:
+    resolution: {integrity: sha512-OPS9kEJYVmiO48u/B9qneqhkMvgCxT+Tm28VCEJpheTpl8cJ0ffZRRNgS5mrQRTrX5yRTpaJ+hRDeefXYmmorQ==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   psl@1.15.0:
     resolution: {integrity: sha512-JZd3gMVBAVQkSs6HdNZo9Sdo0LNcQeMNP3CozBJb3JYC/QUYZTnKxP+f8oWRX4rHP5EurWxqAHTSwUCjlNKa1w==}
@@ -15341,6 +15449,10 @@ packages:
     resolution: {integrity: sha512-qMCMfhY040cVHT43K9BFygqYbUPFZKHOg7K73mtTWJRb8pyP3fzf4Ixd5SzdEJQ6MRUg/WBnOLxghZtKKurENQ==}
     engines: {node: '>=10'}
 
+  slice-ansi@5.0.0:
+    resolution: {integrity: sha512-FC+lgizVPfie0kkhqUScwRu1O/lF6NOgJmlCgK+/LYxDCTk8sGelYaHDhFcDN+Sn3Cv+3VSa4Byeo+IMCzpMgQ==}
+    engines: {node: '>=12'}
+
   slide@1.1.6:
     resolution: {integrity: sha512-NwrtjCg+lZoqhFU8fOwl4ay2ei8PaqCBOUV3/ektPY9trO1yQ1oXEfmHAhKArUVUr/hOHvy5f6AdP17dCM0zMw==}
 
@@ -15373,6 +15485,10 @@ packages:
   sort-keys@5.1.0:
     resolution: {integrity: sha512-aSbHV0DaBcr7u0PVHXzM6NbZNAtrr9sF6+Qfs9UUVG7Ll3jQ6hHi8F/xqIIcn2rvIVbr0v/2zyjSdwSV47AgLQ==}
     engines: {node: '>=12'}
+
+  sort-keys@6.0.0:
+    resolution: {integrity: sha512-ueSlHJMwpIw42CJ4B11Uxzh/S0p0AlOyiNktlv2KOu5e1JpUE6DlC4AAUjXqesHdBRv/g0wC9Q4vwq0NP2pA9w==}
+    engines: {node: '>=20'}
 
   source-map-support@0.5.13:
     resolution: {integrity: sha512-SHSKFHadjVA5oR4PPqhtAVdcBWwRYVd6g6cAXnIbRiIwc2EhPrTuKUBdSLvlEKyIP3GCf89fltvcZiP9MMFA1w==}
@@ -15472,6 +15588,10 @@ packages:
     resolution: {integrity: sha512-+l6rNN5fYHNhZZy41RXsYptCjA2Igmq4EG7kZAYFQI1E1VTXarr6ZPXBg6eq7Y6eK4FEhY6AJlyuFIb/v/S0VQ==}
     engines: {node: '>=10'}
 
+  string-length@6.0.0:
+    resolution: {integrity: sha512-1U361pxZHEQ+FeSjzqRpV+cu2vTzYeWeafXFLykiFlv4Vc0n3njgU8HrMbyik5uwm77naWMuVG8fhEF+Ovb1Kg==}
+    engines: {node: '>=16'}
+
   string-width@1.0.2:
     resolution: {integrity: sha512-0XsVpQLnVCXHJfyEs8tC0zpTVIr5PKKsQtkT29IwupnPTjtPmQ3xT/4yCREF9hYkV/3M3kzcUTSAZT6a6h81tw==}
     engines: {node: '>=0.10.0'}
@@ -15487,6 +15607,10 @@ packages:
   string-width@5.1.2:
     resolution: {integrity: sha512-HnLOCR3vjcY8beoNLtcjZ5/nxn2afmME6lhrDrebokqMap+XbeW8n9TXpPDOqdGK5qcI3oT0GKTW6wC7EMiVqA==}
     engines: {node: '>=12'}
+
+  string-width@7.2.0:
+    resolution: {integrity: sha512-tsaTIkKW9b4N+AEj+SVA+WhJzV7/zMhcSu78mLKWSk7cXMOSHsBKFWUs0fWwq8QyK3MgJBQRX6Gbi4kYbdvGkQ==}
+    engines: {node: '>=18'}
 
   string.prototype.matchall@4.0.12:
     resolution: {integrity: sha512-6CC9uyBL+/48dYizRf7H7VAYCMCNTBeM78x/VTUe9bFEaxBepPJDa1Ow99LqI/1yF7kuy7Q3cQsYMrcjGUcskA==}
@@ -15538,6 +15662,10 @@ packages:
     resolution: {integrity: sha512-3xurFv5tEgii33Zi8Jtp55wEIILR9eh34FAW00PZf+JnSsTmV/ioewSgQl97JHvgjoRGwPShsWm+IdrxB35d0w==}
     engines: {node: '>=8'}
 
+  strip-bom@5.0.0:
+    resolution: {integrity: sha512-p+byADHF7SzEcVnLvc/r3uognM1hUhObuHXxJcgLCfD194XAkaLbjq3Wzb0N5G2tgIjH0dgT708Z51QxMeu60A==}
+    engines: {node: '>=12'}
+
   strip-comments-strings@1.2.0:
     resolution: {integrity: sha512-zwF4bmnyEjZwRhaak9jUWNxc0DoeKBJ7lwSN/LEc8dQXZcUFG6auaaTQJokQWXopLdM3iTx01nQT8E4aL29DAQ==}
 
@@ -15577,9 +15705,9 @@ packages:
     resolution: {integrity: sha512-MpUEN2OodtUzxvKQl72cUF7RQ5EiHsGvSsVG0ia9c5RbWGL2CI4C7EpPS8UTBIplnlzZiNuV56w+FuNxy3ty2Q==}
     engines: {node: '>=10'}
 
-  supports-hyperlinks@2.3.0:
-    resolution: {integrity: sha512-RpsAZlpWcDwOPQA22aCH4J0t7L8JmAvsCxfOSEwm7cQs3LshN36QaTkwd70DnBOXDWGssw2eUoc8CaRWT0XunA==}
-    engines: {node: '>=8'}
+  supports-hyperlinks@3.2.0:
+    resolution: {integrity: sha512-zFObLMyZeEwzAoKCyu1B91U79K2t7ApXuQfo8OuxwXLDgcKxuwM+YvcbIhm6QWqz7mHUH1TVytR1PwVVjEuMig==}
+    engines: {node: '>=14.18'}
 
   supports-preserve-symlinks-flag@1.0.0:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
@@ -15632,9 +15760,9 @@ packages:
     resolution: {integrity: sha512-wK0Ri4fOGjv/XPy8SBHZChl8CM7uMc5VML7SqiQ0zG7+J5Vr+RMQDoHa2CNT6KHUnTGIXH34UDMkPzAUyapBZg==}
     engines: {node: '>=8'}
 
-  terminal-link@2.1.1:
-    resolution: {integrity: sha512-un0FmiRUQNr5PJqy9kP7c40F5BOfpGlYTrxonDChEZB7pzZxRNp/bt+ymiy9/npwXya9KH99nJ/GXFIiUkYGFQ==}
-    engines: {node: '>=8'}
+  terminal-link@4.0.0:
+    resolution: {integrity: sha512-lk+vH+MccxNqgVqSnkMVKx4VLJfnLjDBGzH16JVZjKE2DoxP57s6/vt6JmXV5I3jBcfGrxNrYtC+mPtU7WJztA==}
+    engines: {node: '>=18'}
 
   test-exclude@6.0.0:
     resolution: {integrity: sha512-cAGWPIyOHU6zlmg88jwm7VRyXnMN7iV68OGAbYDk/Mh/xC/pzVPlQtY6ngoIH/5/tciuhGfvESU8GrHrcxD56w==}
@@ -15935,6 +16063,10 @@ packages:
 
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
+
+  unicorn-magic@0.1.0:
+    resolution: {integrity: sha512-lRfVq8fE8gz6QMBuDM6a+LO3IAzTi05H6gCVaUpir2E1Rwpo4ZUog45KpNXKC/Mn3Yb9UDuHumeFTo9iV/D9FQ==}
+    engines: {node: '>=18'}
 
   unified@9.2.2:
     resolution: {integrity: sha512-Sg7j110mtefBD+qunSLO1lqOEKdrwBFBrR6Qd8f4uwkhWNlbkaqwHse6e7QvD3AP/MNoJdEDLaf8OxYyoWgorQ==}
@@ -19765,6 +19897,11 @@ snapshots:
       clean-stack: 2.2.0
       indent-string: 4.0.0
 
+  aggregate-error@4.0.1:
+    dependencies:
+      clean-stack: 4.2.0
+      indent-string: 5.0.0
+
   ajv@6.12.6:
     dependencies:
       fast-deep-equal: 3.1.3
@@ -19817,6 +19954,10 @@ snapshots:
   ansi-escapes@4.3.2:
     dependencies:
       type-fest: 0.21.3
+
+  ansi-escapes@7.0.0:
+    dependencies:
+      environment: 1.1.0
 
   ansi-regex@2.1.1:
     optional: true
@@ -20294,11 +20435,20 @@ snapshots:
       quick-lru: 6.1.2
       type-fest: 2.19.0
 
+  camelcase-keys@9.1.3:
+    dependencies:
+      camelcase: 8.0.0
+      map-obj: 5.0.0
+      quick-lru: 6.1.2
+      type-fest: 4.41.0
+
   camelcase@5.3.1: {}
 
   camelcase@6.3.0: {}
 
   camelcase@7.0.1: {}
+
+  camelcase@8.0.0: {}
 
   can-link@2.0.0: {}
 
@@ -20358,6 +20508,10 @@ snapshots:
 
   clean-stack@2.2.0: {}
 
+  clean-stack@4.2.0:
+    dependencies:
+      escape-string-regexp: 5.0.0
+
   clear-module@4.1.2:
     dependencies:
       parent-module: 2.0.0
@@ -20378,6 +20532,11 @@ snapshots:
     dependencies:
       slice-ansi: 3.0.0
       string-width: 4.2.3
+
+  cli-truncate@4.0.0:
+    dependencies:
+      slice-ansi: 5.0.0
+      string-width: 7.2.0
 
   cli-width@2.2.1: {}
 
@@ -20797,6 +20956,8 @@ snapshots:
 
   delay@5.0.0: {}
 
+  delay@6.0.0: {}
+
   delayed-stream@1.0.0: {}
 
   delegates@1.0.0:
@@ -20894,6 +21055,8 @@ snapshots:
 
   emittery@0.13.1: {}
 
+  emoji-regex@10.4.0: {}
+
   emoji-regex@8.0.0: {}
 
   emoji-regex@9.2.2: {}
@@ -20925,6 +21088,8 @@ snapshots:
   env-paths@3.0.0: {}
 
   envinfo@7.14.0: {}
+
+  environment@1.1.0: {}
 
   err-code@2.0.3: {}
 
@@ -21052,6 +21217,8 @@ snapshots:
   escape-string-regexp@2.0.0: {}
 
   escape-string-regexp@4.0.0: {}
+
+  escape-string-regexp@5.0.0: {}
 
   eslint-compat-utils@0.5.1(eslint@8.57.1):
     dependencies:
@@ -21481,6 +21648,12 @@ snapshots:
       locate-path: 7.2.0
       path-exists: 5.0.0
 
+  find-up@7.0.0:
+    dependencies:
+      locate-path: 7.2.0
+      path-exists: 5.0.0
+      unicorn-magic: 0.1.0
+
   find-yarn-workspace-root2@1.2.16:
     dependencies:
       micromatch: 4.0.8
@@ -21663,6 +21836,8 @@ snapshots:
 
   get-caller-file@2.0.5: {}
 
+  get-east-asian-width@1.3.0: {}
+
   get-intrinsic@1.3.0:
     dependencies:
       call-bind-apply-helpers: 1.0.2
@@ -21680,7 +21855,7 @@ snapshots:
 
   get-package-type@0.1.0: {}
 
-  get-port@5.1.1: {}
+  get-port@7.1.0: {}
 
   get-proto@1.0.1:
     dependencies:
@@ -22195,6 +22370,8 @@ snapshots:
 
   is-fullwidth-code-point@3.0.0: {}
 
+  is-fullwidth-code-point@4.0.0: {}
+
   is-generator-fn@2.1.0: {}
 
   is-generator-function@1.1.0:
@@ -22248,7 +22425,7 @@ snapshots:
 
   is-plain-obj@4.1.0: {}
 
-  is-port-reachable@3.0.0: {}
+  is-port-reachable@4.0.0: {}
 
   is-promise@2.2.2: {}
 
@@ -23047,6 +23224,8 @@ snapshots:
 
   map-obj@4.3.0: {}
 
+  map-obj@5.0.0: {}
+
   math-intrinsics@1.1.0: {}
 
   mdast-util-from-markdown@0.8.5:
@@ -23071,6 +23250,11 @@ snapshots:
   mdast-util-to-string@2.0.0(patch_hash=78bd3240806e30c963b9f930251eb10b9940e506f7cc8910fb3d17d7867956a2): {}
 
   media-typer@0.3.0: {}
+
+  mem@10.0.0:
+    dependencies:
+      map-age-cleaner: 0.1.3
+      mimic-fn: 4.0.0
 
   mem@6.1.1:
     dependencies:
@@ -23165,6 +23349,10 @@ snapshots:
   mimic-fn@2.1.0: {}
 
   mimic-fn@3.1.0: {}
+
+  mimic-fn@4.0.0: {}
+
+  mimic-function@5.0.1: {}
 
   mimic-response@1.0.1: {}
 
@@ -23580,16 +23768,20 @@ snapshots:
       object-keys: 1.1.1
       safe-push-apply: 1.0.0
 
-  p-any@3.0.0:
+  p-any@4.0.0:
     dependencies:
-      p-cancelable: 2.1.1
-      p-some: 5.0.0
+      p-cancelable: 3.0.0
+      p-some: 6.0.0
 
   p-cancelable@2.1.1: {}
+
+  p-cancelable@3.0.0: {}
 
   p-defer@1.0.0: {}
 
   p-defer@3.0.0: {}
+
+  p-defer@4.0.1: {}
 
   p-every@2.0.0:
     dependencies:
@@ -23598,6 +23790,10 @@ snapshots:
   p-filter@2.1.0:
     dependencies:
       p-map: 2.1.0
+
+  p-filter@4.1.0:
+    dependencies:
+      p-map: 7.0.3
 
   p-finally@1.0.0: {}
 
@@ -23612,6 +23808,10 @@ snapshots:
       yocto-queue: 0.1.0
 
   p-limit@4.0.0:
+    dependencies:
+      yocto-queue: 1.2.1
+
+  p-limit@7.1.0:
     dependencies:
       yocto-queue: 1.2.1
 
@@ -23642,6 +23842,11 @@ snapshots:
       mem: 6.1.1
       mimic-fn: 3.1.0
 
+  p-memoize@8.0.0:
+    dependencies:
+      mimic-function: 5.0.1
+      type-fest: 4.41.0
+
   p-queue@6.6.2:
     dependencies:
       eventemitter3: 4.0.7
@@ -23654,15 +23859,22 @@ snapshots:
 
   p-reflect@2.1.0: {}
 
+  p-reflect@3.1.0: {}
+
   p-settle@4.1.1:
     dependencies:
       p-limit: 2.3.0
       p-reflect: 2.1.0
 
-  p-some@5.0.0:
+  p-settle@5.1.1:
     dependencies:
-      aggregate-error: 3.1.0
-      p-cancelable: 2.1.1
+      p-limit: 4.0.0
+      p-reflect: 3.1.0
+
+  p-some@6.0.0:
+    dependencies:
+      aggregate-error: 4.0.1
+      p-cancelable: 3.0.0
 
   p-timeout@3.2.0:
     dependencies:
@@ -23713,6 +23925,8 @@ snapshots:
       type-fest: 3.13.1
 
   parse-ms@2.1.0: {}
+
+  parse-ms@4.0.0: {}
 
   parse-npm-tarball-url@3.0.0:
     dependencies:
@@ -23865,6 +24079,8 @@ snapshots:
 
   pretty-bytes@5.6.0: {}
 
+  pretty-bytes@7.0.1: {}
+
   pretty-format@29.7.0:
     dependencies:
       '@jest/schemas': 29.6.3
@@ -23880,6 +24096,10 @@ snapshots:
   pretty-ms@7.0.1:
     dependencies:
       parse-ms: 2.1.0
+
+  pretty-ms@9.2.0:
+    dependencies:
+      parse-ms: 4.0.0
 
   print-diff@2.0.0:
     dependencies:
@@ -23937,7 +24157,7 @@ snapshots:
 
   ps-list@6.3.0: {}
 
-  ps-list@7.2.0: {}
+  ps-list@8.1.1: {}
 
   psl@1.15.0:
     dependencies:
@@ -24509,6 +24729,11 @@ snapshots:
       astral-regex: 2.0.0
       is-fullwidth-code-point: 3.0.0
 
+  slice-ansi@5.0.0:
+    dependencies:
+      ansi-styles: 6.2.1
+      is-fullwidth-code-point: 4.0.0
+
   slide@1.1.6: {}
 
   smart-buffer@4.2.0: {}
@@ -24543,6 +24768,10 @@ snapshots:
       is-plain-obj: 2.1.0
 
   sort-keys@5.1.0:
+    dependencies:
+      is-plain-obj: 4.1.0
+
+  sort-keys@6.0.0:
     dependencies:
       is-plain-obj: 4.1.0
 
@@ -24658,6 +24887,10 @@ snapshots:
       char-regex: 1.0.2
       strip-ansi: 6.0.1
 
+  string-length@6.0.0:
+    dependencies:
+      strip-ansi: 7.1.0
+
   string-width@1.0.2:
     dependencies:
       code-point-at: 1.1.0
@@ -24680,6 +24913,12 @@ snapshots:
     dependencies:
       eastasianwidth: 0.2.0
       emoji-regex: 9.2.2
+      strip-ansi: 7.1.0
+
+  string-width@7.2.0:
+    dependencies:
+      emoji-regex: 10.4.0
+      get-east-asian-width: 1.3.0
       strip-ansi: 7.1.0
 
   string.prototype.matchall@4.0.12:
@@ -24754,6 +24993,8 @@ snapshots:
 
   strip-bom@4.0.0: {}
 
+  strip-bom@5.0.0: {}
+
   strip-comments-strings@1.2.0: {}
 
   strip-final-newline@2.0.0: {}
@@ -24786,7 +25027,7 @@ snapshots:
     dependencies:
       has-flag: 4.0.0
 
-  supports-hyperlinks@2.3.0:
+  supports-hyperlinks@3.2.0:
     dependencies:
       has-flag: 4.0.0
       supports-color: 7.2.0
@@ -24868,10 +25109,10 @@ snapshots:
 
   term-size@2.2.1: {}
 
-  terminal-link@2.1.1:
+  terminal-link@4.0.0:
     dependencies:
-      ansi-escapes: 4.3.2
-      supports-hyperlinks: 2.3.0
+      ansi-escapes: 7.0.0
+      supports-hyperlinks: 3.2.0
 
   test-exclude@6.0.0:
     dependencies:
@@ -25157,6 +25398,8 @@ snapshots:
   undici-types@5.26.5: {}
 
   undici-types@6.21.0: {}
+
+  unicorn-magic@0.1.0: {}
 
   unified@9.2.2:
     dependencies:

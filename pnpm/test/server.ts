@@ -7,7 +7,7 @@ import byline from '@pnpm/byline'
 import { STORE_VERSION } from '@pnpm/constants'
 import { type Project, prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import delay, { type ClearablePromise } from 'delay'
+import delay, { clearDelay } from 'delay'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import isWindows from 'is-windows'
 
@@ -257,13 +257,13 @@ async function testParallelServerStart (
   }
 
   const timeoutMillis = options.timeoutMillis ?? 10000
-  let timeoutPromise: ClearablePromise<void> | null = delay(timeoutMillis)
+  let timeoutPromise: Promise<number> | null = delay(timeoutMillis)
   await pAny([
     (async () => {
       await completedPromise
       // Don't fire timeout if all server processes completed for some reason.
       if (timeoutPromise !== null) {
-        timeoutPromise.clear()
+        clearDelay(timeoutPromise)
       }
     })(),
     (async () => {

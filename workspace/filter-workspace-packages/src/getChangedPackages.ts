@@ -4,7 +4,7 @@ import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import * as micromatch from 'micromatch'
 import execa from 'execa'
-import findUp from 'find-up'
+import { findUp } from 'find-up'
 import { type ProjectRootDir } from '@pnpm/types'
 
 type ChangeType = 'source' | 'test'
