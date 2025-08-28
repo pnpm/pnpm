@@ -200,7 +200,7 @@ catalog:
   is-port-reachable: 4.0.0
   is-subdir: ^1.2.0
   is-windows: ^1.0.2
-  isexe: 3.1.1
+  isexe: 2.0.0
   jest: ^30.0.5
   jest-diff: ^30.1.1
   js-yaml: npm:@zkochan/js-yaml@0.0.10
