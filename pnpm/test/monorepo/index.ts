@@ -15,7 +15,7 @@ import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { sync as readYamlFile } from 'read-yaml-file'
 import execa from 'execa'
 import { sync as rimraf } from '@zkochan/rimraf'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import symlink from 'symlink-dir'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from '../utils/index.js'
@@ -303,7 +303,7 @@ test('topological order of packages with self-dependencies in monorepo is correc
 test('test-pattern is respected by the test script', async () => {
   await using server = await createTestIpcServer()
 
-  const remote = tempy.directory()
+  const remote = temporaryDirectory()
 
   const projects: Array<ProjectManifest & { name: string }> = [
     {
@@ -369,7 +369,7 @@ test('test-pattern is respected by the test script', async () => {
 })
 
 test('changed-files-ignore-pattern is respected', async () => {
-  const remote = tempy.directory()
+  const remote = temporaryDirectory()
 
   preparePackages([
     {

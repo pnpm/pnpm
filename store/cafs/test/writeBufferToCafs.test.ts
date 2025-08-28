@@ -1,12 +1,12 @@
 import fs from 'fs'
 import path from 'path'
 import ssri from 'ssri'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import { pathTemp, writeBufferToCafs } from '../src/writeBufferToCafs.js'
 
 describe('writeBufferToCafs', () => {
   it('should not fail if a file already exists at the temp file location', () => {
-    const storeDir = tempy.directory()
+    const storeDir = temporaryDirectory()
     const fileDest = 'abc'
     const buffer = Buffer.from('abc')
     const fullFileDest = path.join(storeDir, fileDest)

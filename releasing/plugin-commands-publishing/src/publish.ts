@@ -15,7 +15,7 @@ import rimraf from '@zkochan/rimraf'
 import { pick } from 'ramda'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import * as pack from './pack.js'
 import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish.js'
 
@@ -236,7 +236,7 @@ Do you want to continue?`,
   // Otherwise, npm would publish the package with the package.json file
   // from the current working directory, ignoring the package.json file
   // that was generated and packed to the tarball.
-  const packDestination = tempy.directory()
+  const packDestination = temporaryDirectory()
   const { tarballPath } = await pack.api({
     ...opts,
     dir,

@@ -9,7 +9,7 @@ import { type Registries } from '@pnpm/types'
 import fetch from 'node-fetch'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import isPortReachable from 'is-port-reachable'
 
 const registry = 'https://registry.npmjs.org/'
@@ -17,7 +17,7 @@ const registry = 'https://registry.npmjs.org/'
 const registries: Registries = { default: registry }
 
 async function createStoreController (storeDir?: string) {
-  const tmp = tempy.directory()
+  const tmp = temporaryDirectory()
   if (!storeDir) {
     storeDir = path.join(tmp, 'store')
   }
@@ -80,7 +80,7 @@ test('fetchPackage', async () => {
   const port = await getPort()
   const hostname = 'localhost'
   const remotePrefix = `http://${hostname}:${port}`
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const storeCtrlForServer = await createStoreController(storeDir)
   const server = createServer(storeCtrlForServer, {
     hostname,
@@ -160,7 +160,7 @@ test('server upload', async () => {
   const port = await getPort()
   const hostname = 'localhost'
   const remotePrefix = `http://${hostname}:${port}`
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const storeCtrlForServer = await createStoreController(storeDir)
   const server = createServer(storeCtrlForServer, {
     hostname,
@@ -206,7 +206,7 @@ test('disable server upload', async () => {
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
 
   const fakeEngine = 'client-engine'
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const filesIndexFile = path.join(storeDir, 'test.example.com/fake-pkg/1.0.0.json')
 
   let thrown = false

@@ -15,7 +15,7 @@ import { jest } from '@jest/globals'
 import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import normalize from 'normalize-path'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import { type PkgResolutionId, type PkgRequestFetchResult, type RequestPackageOptions } from '@pnpm/store-controller-types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
@@ -34,7 +34,7 @@ const { resolve, fetchers } = createClient({
 })
 
 test('request package', async () => {
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
@@ -47,7 +47,7 @@ test('request package', async () => {
   })
   expect(typeof requestPackage).toBe('function')
 
-  const projectDir = tempy.directory()
+  const projectDir = temporaryDirectory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
     downloadPriority: 0,
     lockfileDir: projectDir,
@@ -88,7 +88,7 @@ test('request package but skip fetching', async () => {
   })
   expect(typeof requestPackage).toBe('function')
 
-  const projectDir = tempy.directory()
+  const projectDir = temporaryDirectory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
     downloadPriority: 0,
     lockfileDir: projectDir,
@@ -127,7 +127,7 @@ test('request package but skip fetching, when resolution is already available', 
   })
   expect(typeof requestPackage).toBe('function')
 
-  const projectDir = tempy.directory()
+  const projectDir = temporaryDirectory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
     currentPkg: {
       id: 'is-positive@1.0.0' as PkgResolutionId,
@@ -166,13 +166,13 @@ test('request package but skip fetching, when resolution is already available', 
 })
 
 test('refetch local tarball if its integrity has changed', async () => {
-  const projectDir = tempy.directory()
+  const projectDir = temporaryDirectory()
   const tarballPath = path.join(projectDir, 'tarball.tgz')
   const tarballRelativePath = path.relative(projectDir, tarballPath)
   f.copy('pnpm-package-requester-0.8.1.tgz', tarballPath)
   const tarball = `file:${tarballRelativePath}`
   const wantedPackage = { bareSpecifier: tarball }
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const pkgId = `file:${normalize(tarballRelativePath)}`
   const requestPackageOpts = {
@@ -274,7 +274,7 @@ test('refetch local tarball if its integrity has changed', async () => {
 })
 
 test('refetch local tarball if its integrity has changed. The requester does not know the correct integrity', async () => {
-  const projectDir = tempy.directory()
+  const projectDir = temporaryDirectory()
   const tarballPath = path.join(projectDir, 'tarball.tgz')
   f.copy('pnpm-package-requester-0.8.1.tgz', tarballPath)
   const tarball = `file:${tarballPath}`
@@ -353,7 +353,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
 })
 
 test('fetchPackageToStore()', async () => {
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const packageRequester = createPackageRequester({
     resolve,
@@ -368,7 +368,7 @@ test('fetchPackageToStore()', async () => {
   const pkgId = 'is-positive@1.0.0'
   const fetchResult = packageRequester.fetchPackageToStore({
     force: false,
-    lockfileDir: tempy.directory(),
+    lockfileDir: temporaryDirectory(),
     pkg: {
       name: 'is-positive',
       version: '1.0.0',
@@ -392,7 +392,7 @@ test('fetchPackageToStore()', async () => {
   const fetchResult2 = packageRequester.fetchPackageToStore({
     fetchRawManifest: true,
     force: false,
-    lockfileDir: tempy.directory(),
+    lockfileDir: temporaryDirectory(),
     pkg: {
       name: 'is-positive',
       version: '1.0.0',
@@ -419,7 +419,7 @@ test('fetchPackageToStore()', async () => {
 })
 
 test('fetchPackageToStore() concurrency check', async () => {
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const packageRequester = createPackageRequester({
     resolve,
@@ -432,8 +432,8 @@ test('fetchPackageToStore() concurrency check', async () => {
   })
 
   const pkgId = 'is-positive@1.0.0'
-  const projectDir1 = tempy.directory()
-  const projectDir2 = tempy.directory()
+  const projectDir1 = temporaryDirectory()
+  const projectDir2 = temporaryDirectory()
   const fetchResults = await Promise.all([
     packageRequester.fetchPackageToStore({
       force: false,
@@ -506,7 +506,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     registries,
   })
 
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const packageRequester = createPackageRequester({
     resolve: noRetry.resolve,
@@ -522,7 +522,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
 
   const badRequest = packageRequester.fetchPackageToStore({
     force: false,
-    lockfileDir: tempy.directory(),
+    lockfileDir: temporaryDirectory(),
     pkg: {
       name: 'is-positive',
       version: '1.0.0',
@@ -537,7 +537,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
 
   const fetchResult = packageRequester.fetchPackageToStore({
     force: false,
-    lockfileDir: tempy.directory(),
+    lockfileDir: temporaryDirectory(),
     pkg: {
       name: 'is-positive',
       version: '1.0.0',
@@ -558,7 +558,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
 // This test was added to cover the issue described here: https://github.com/pnpm/supi/issues/65
 test('always return a package manifest in the response', async () => {
   nock.cleanAll()
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
@@ -570,7 +570,7 @@ test('always return a package manifest in the response', async () => {
     virtualStoreDirMaxLength: 120,
   })
   expect(typeof requestPackage).toBe('function')
-  const projectDir = tempy.directory()
+  const projectDir = temporaryDirectory()
 
   {
     const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
@@ -619,7 +619,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
     .get('/is-positive/-/is-positive-1.0.0.tgz')
     .replyWithFile(200, IS_POSITIVE_TARBALL)
 
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const packageRequester = createPackageRequester({
     resolve,
@@ -639,7 +639,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
     packageRequester.fetchPackageToStore({
       fetchRawManifest: false,
       force: false,
-      lockfileDir: tempy.directory(),
+      lockfileDir: temporaryDirectory(),
       pkg: {
         name: 'is-positive',
         version: '1.0.0',
@@ -650,7 +650,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
     packageRequester.fetchPackageToStore({
       fetchRawManifest: true,
       force: false,
-      lockfileDir: tempy.directory(),
+      lockfileDir: temporaryDirectory(),
       pkg: {
         name: 'is-positive',
         version: '1.0.0',
@@ -665,8 +665,8 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
 
 test('refetch package to store if it has been modified', async () => {
   nock.cleanAll()
-  const storeDir = tempy.directory()
-  const lockfileDir = tempy.directory()
+  const storeDir = temporaryDirectory()
+  const lockfileDir = temporaryDirectory()
 
   const pkgId = 'magic-hook@2.0.0'
   const resolution = {
@@ -766,7 +766,7 @@ test('do not fetch an optional package that is not installable', async () => {
   })
   expect(typeof requestPackage).toBe('function')
 
-  const projectDir = tempy.directory()
+  const projectDir = temporaryDirectory()
   const pkgResponse = await requestPackage({ alias: '@pnpm.e2e/not-compatible-with-any-os', optional: true, bareSpecifier: '*' }, {
     downloadPriority: 0,
     lockfileDir: projectDir,
@@ -790,7 +790,7 @@ test('fetch a git package without a package.json', async () => {
   const commit = 'aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b'
 
   nock.cleanAll()
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const requestPackage = createPackageRequester({
     resolve,
@@ -802,7 +802,7 @@ test('fetch a git package without a package.json', async () => {
     virtualStoreDirMaxLength: 120,
   })
   expect(typeof requestPackage).toBe('function')
-  const projectDir = tempy.directory()
+  const projectDir = temporaryDirectory()
 
   {
     const pkgResponse = await requestPackage({ alias: 'camelcase', bareSpecifier: `${repo}#${commit}` }, {
@@ -820,7 +820,7 @@ test('fetch a git package without a package.json', async () => {
 })
 
 test('throw exception if the package data in the store differs from the expected data', async () => {
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   let pkgResponse!: PackageResponse
 
@@ -835,7 +835,7 @@ test('throw exception if the package data in the store differs from the expected
       virtualStoreDirMaxLength: 120,
     })
 
-    const projectDir = tempy.directory()
+    const projectDir = temporaryDirectory()
     pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
       downloadPriority: 0,
       lockfileDir: projectDir,
@@ -858,7 +858,7 @@ test('throw exception if the package data in the store differs from the expected
     })
     const { fetching } = requestPackage.fetchPackageToStore({
       force: false,
-      lockfileDir: tempy.directory(),
+      lockfileDir: temporaryDirectory(),
       pkg: {
         name: 'is-negative',
         version: '1.0.0',
@@ -882,7 +882,7 @@ test('throw exception if the package data in the store differs from the expected
     })
     const { fetching } = requestPackage.fetchPackageToStore({
       force: false,
-      lockfileDir: tempy.directory(),
+      lockfileDir: temporaryDirectory(),
       pkg: {
         name: 'is-negative',
         version: '2.0.0',
@@ -906,7 +906,7 @@ test('throw exception if the package data in the store differs from the expected
     })
     const { fetching } = requestPackage.fetchPackageToStore({
       force: false,
-      lockfileDir: tempy.directory(),
+      lockfileDir: temporaryDirectory(),
       pkg: {
         name: 'is-positive',
         version: 'v1.0.0',
@@ -929,7 +929,7 @@ test('throw exception if the package data in the store differs from the expected
     })
     const { fetching } = requestPackage.fetchPackageToStore({
       force: false,
-      lockfileDir: tempy.directory(),
+      lockfileDir: temporaryDirectory(),
       pkg: {
         name: 'IS-positive',
         version: 'v1.0.0',
@@ -942,7 +942,7 @@ test('throw exception if the package data in the store differs from the expected
 })
 
 test("don't throw an error if the package was updated, so the expectedPkg has a different version than the version in the store", async () => {
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   {
     const requestPackage = createPackageRequester({
@@ -955,7 +955,7 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
       virtualStoreDirMaxLength: 120,
     })
 
-    const projectDir = tempy.directory()
+    const projectDir = temporaryDirectory()
     const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '3.1.0' }, {
       downloadPriority: 0,
       lockfileDir: projectDir,
@@ -973,10 +973,10 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
     verifyStoreIntegrity: true,
     virtualStoreDirMaxLength: 120,
   })
-  const projectDir = tempy.directory()
+  const projectDir = temporaryDirectory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '3.1.0' }, {
     downloadPriority: 0,
-    lockfileDir: tempy.directory(),
+    lockfileDir: temporaryDirectory(),
     preferredVersions: {},
     projectDir,
     expectedPkg: {
@@ -988,7 +988,7 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
 })
 
 test('the version in the bundled manifest should be normalized', async () => {
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
 
   const requestPackage = createPackageRequester({
@@ -1003,15 +1003,15 @@ test('the version in the bundled manifest should be normalized', async () => {
 
   const pkgResponse = await requestPackage({ alias: 'react-terminal', bareSpecifier: '1.2.1' }, {
     downloadPriority: 0,
-    lockfileDir: tempy.directory(),
+    lockfileDir: temporaryDirectory(),
     preferredVersions: {},
-    projectDir: tempy.directory(),
+    projectDir: temporaryDirectory(),
   })
   expect((await pkgResponse.fetching!()).bundledManifest?.version).toBe('1.2.1')
 })
 
 test('should skip store integrity check and resolve manifest if fetchRawManifest is true', async () => {
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
 
   let pkgResponse!: PackageResponse
@@ -1027,7 +1027,7 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
       virtualStoreDirMaxLength: 120,
     })
 
-    const projectDir = tempy.directory()
+    const projectDir = temporaryDirectory()
 
     pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
       downloadPriority: 0,
@@ -1053,7 +1053,7 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
     const fetchResult = requestPackage.fetchPackageToStore({
       force: false,
       fetchRawManifest: true,
-      lockfileDir: tempy.directory(),
+      lockfileDir: temporaryDirectory(),
       pkg: {
         name: 'is-positive',
         version: '1.0.0',

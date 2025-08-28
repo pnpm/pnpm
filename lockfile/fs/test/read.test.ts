@@ -1,7 +1,7 @@
 import path from 'path'
 import { type DepPath, type ProjectId } from '@pnpm/types'
 import { jest } from '@jest/globals'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 jest.unstable_mockModule('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
@@ -76,7 +76,7 @@ test('readCurrentLockfile()', async () => {
 })
 
 test('writeWantedLockfile()', async () => {
-  const projectPath = tempy.directory()
+  const projectPath = temporaryDirectory()
   const wantedLockfile = {
     importers: {
       '.': {
@@ -119,7 +119,7 @@ test('writeWantedLockfile()', async () => {
 })
 
 test('writeCurrentLockfile()', async () => {
-  const projectPath = tempy.directory()
+  const projectPath = temporaryDirectory()
   const wantedLockfile = {
     importers: {
       '.': {
@@ -162,7 +162,7 @@ test('writeCurrentLockfile()', async () => {
 })
 
 test('existsNonEmptyWantedLockfile()', async () => {
-  const projectPath = tempy.directory()
+  const projectPath = temporaryDirectory()
   expect(await existsNonEmptyWantedLockfile(projectPath)).toBe(false)
   await writeWantedLockfile(projectPath, {
     importers: {
