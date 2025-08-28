@@ -310,8 +310,8 @@ catalogs:
       specifier: ^5.6.0
       version: 5.6.0
     ci-info:
-      specifier: ^3.9.0
-      version: 3.9.0
+      specifier: ^4.3.0
+      version: 4.3.0
     cli-columns:
       specifier: ^4.0.0
       version: 4.0.0
@@ -349,8 +349,8 @@ catalogs:
       specifier: ^2.0.3
       version: 2.0.3
     didyoumean2:
-      specifier: ^6.0.1
-      version: 6.0.1
+      specifier: ^7.0.4
+      version: 7.0.4
     dint:
       specifier: ^5.1.0
       version: 5.1.0
@@ -433,8 +433,8 @@ catalogs:
       specifier: ^4.0.0
       version: 4.0.0
     graph-cycles:
-      specifier: 1.2.1
-      version: 1.2.1
+      specifier: 3.0.0
+      version: 3.0.0
     hosted-git-info:
       specifier: npm:@pnpm/hosted-git-info@1.0.0
       version: 1.0.0
@@ -448,8 +448,8 @@ catalogs:
       specifier: ^2.0.0
       version: 2.0.0
     ini:
-      specifier: 4.1.1
-      version: 4.1.1
+      specifier: 5.0.0
+      version: 5.0.0
     is-gzip:
       specifier: 2.0.0
       version: 2.0.0
@@ -526,8 +526,8 @@ catalogs:
       specifier: 4.1.0
       version: 4.1.0
     normalize-package-data:
-      specifier: ^7.0.1
-      version: 7.0.1
+      specifier: ^8.0.0
+      version: 8.0.0
     normalize-path:
       specifier: ^3.0.0
       version: 3.0.0
@@ -694,8 +694,8 @@ catalogs:
       specifier: ^1.1.0
       version: 1.1.0
     ssri:
-      specifier: 10.0.5
-      version: 10.0.5
+      specifier: 12.0.0
+      version: 12.0.0
     stacktracey:
       specifier: ^2.1.8
       version: 2.1.8
@@ -834,9 +834,6 @@ patchedDependencies:
   mdast-util-to-string@2.0.0:
     hash: 78bd3240806e30c963b9f930251eb10b9940e506f7cc8910fb3d17d7867956a2
     path: __patches__/mdast-util-to-string@2.0.0.patch
-  normalize-package-data@7.0.1:
-    hash: af60eac3676a4332c8fa7d590432a962fe77991523e608340cd80eb2a8a035db
-    path: __patches__/normalize-package-data@7.0.1.patch
 
 importers:
 
@@ -1563,7 +1560,7 @@ importers:
         version: 0.2.1
       didyoumean2:
         specifier: 'catalog:'
-        version: 6.0.1
+        version: 7.0.4
     devDependencies:
       '@pnpm/parse-cli-args':
         specifier: workspace:*
@@ -1676,7 +1673,7 @@ importers:
         version: 1.1.1
       ci-info:
         specifier: 'catalog:'
-        version: 3.9.0
+        version: 4.3.0
       is-subdir:
         specifier: 'catalog:'
         version: 1.2.0
@@ -1954,7 +1951,7 @@ importers:
         version: 8.0.0
       ini:
         specifier: 'catalog:'
-        version: 4.1.1
+        version: 5.0.0
       lodash.kebabcase:
         specifier: 'catalog:'
         version: 4.1.1
@@ -1997,7 +1994,7 @@ importers:
         version: link:../../fs/graceful-fs
       ssri:
         specifier: 'catalog:'
-        version: 10.0.5
+        version: 12.0.0
     devDependencies:
       '@pnpm/crypto.hash':
         specifier: workspace:*
@@ -2887,7 +2884,7 @@ importers:
         version: 3.0.2
       didyoumean2:
         specifier: 'catalog:'
-        version: 6.0.1
+        version: 7.0.4
       enquirer:
         specifier: 'catalog:'
         version: 2.4.1
@@ -3053,7 +3050,7 @@ importers:
         version: 6.0.2
       ssri:
         specifier: 'catalog:'
-        version: 10.0.5
+        version: 12.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -3268,7 +3265,7 @@ importers:
         version: 13.3.4
       ssri:
         specifier: 'catalog:'
-        version: 10.0.5
+        version: 12.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -5049,7 +5046,7 @@ importers:
         version: 4.2.0(typanion@3.14.0)
       ci-info:
         specifier: 'catalog:'
-        version: 3.9.0
+        version: 4.3.0
       deep-require-cwd:
         specifier: 'catalog:'
         version: 1.0.0
@@ -5627,7 +5624,7 @@ importers:
         version: 7.7.2
       ssri:
         specifier: 'catalog:'
-        version: 10.0.5
+        version: 12.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -5911,7 +5908,7 @@ importers:
         version: '@types/table@6.0.0'
       ci-info:
         specifier: 'catalog:'
-        version: 3.9.0
+        version: 4.3.0
       delay:
         specifier: 'catalog:'
         version: 6.0.0
@@ -6115,7 +6112,7 @@ importers:
         version: 2.1.0
       graph-cycles:
         specifier: 'catalog:'
-        version: 1.2.1
+        version: 3.0.0
       is-inner-link:
         specifier: 'catalog:'
         version: 4.0.0
@@ -6247,7 +6244,7 @@ importers:
         version: 7.0.1
       normalize-package-data:
         specifier: 'catalog:'
-        version: 7.0.1(patch_hash=af60eac3676a4332c8fa7d590432a962fe77991523e608340cd80eb2a8a035db)
+        version: 8.0.0
     devDependencies:
       '@pnpm/read-package-json':
         specifier: workspace:*
@@ -6560,7 +6557,7 @@ importers:
         version: 5.6.0
       ci-info:
         specifier: 'catalog:'
-        version: 3.9.0
+        version: 4.3.0
       cross-spawn:
         specifier: 'catalog:'
         version: 7.0.6
@@ -6970,7 +6967,7 @@ importers:
         version: 4.0.2
       ci-info:
         specifier: 'catalog:'
-        version: 3.9.0
+        version: 4.3.0
       cross-spawn:
         specifier: 'catalog:'
         version: 7.0.6
@@ -7291,7 +7288,7 @@ importers:
         version: 1.1.4
       ssri:
         specifier: 'catalog:'
-        version: 10.0.5
+        version: 12.0.0
       version-selector-type:
         specifier: 'catalog:'
         version: 3.0.0
@@ -7866,7 +7863,7 @@ importers:
         version: 6.0.2
       ssri:
         specifier: 'catalog:'
-        version: 10.0.5
+        version: 12.0.0
       strip-bom:
         specifier: 'catalog:'
         version: 5.0.0
@@ -7991,7 +7988,7 @@ importers:
         version: '@pnpm/ramda@0.28.1'
       ssri:
         specifier: 'catalog:'
-        version: 10.0.5
+        version: 12.0.0
     devDependencies:
       '@pnpm/client':
         specifier: workspace:*
@@ -8189,7 +8186,7 @@ importers:
         version: safe-execa@0.2.0
       ssri:
         specifier: 'catalog:'
-        version: 10.0.5
+        version: 12.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -8650,7 +8647,7 @@ importers:
         version: 3.1.5
       ci-info:
         specifier: 'catalog:'
-        version: 3.9.0
+        version: 4.3.0
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -9098,10 +9095,6 @@ packages:
     engines: {node: '>=6.9.0'}
     peerDependencies:
       '@babel/core': ^7.0.0-0
-
-  '@babel/runtime@7.28.2':
-    resolution: {integrity: sha512-KHp2IflsnGywDjBWDkR9iEqiWSpc8GIi0lgTT3mOElT0PP1tG26P4tmFI2YvAdzgq9RGyoHZQEIEdZy6Ec5xCA==}
-    engines: {node: '>=6.9.0'}
 
   '@babel/runtime@7.28.3':
     resolution: {integrity: sha512-9uIQ10o0WGdpP6GDhXcdOJPJuDgFtIDtN/9+ArJQ2NAfAmiuhTQdzkaTGR33v43GYS2UrSA0eX2pPPHoFVvpxA==}
@@ -11720,8 +11713,8 @@ packages:
     resolution: {integrity: sha512-NIxF55hv4nSqQswkAeiOi1r83xy8JldOFDTWiug55KBu9Jnblncd2U6ViHmYgHf01TPZS77NJBhBMKdWj9HQMQ==}
     engines: {node: '>=8'}
 
-  ci-info@4.2.0:
-    resolution: {integrity: sha512-cYY9mypksY8NRqgDB1XD1RiJL338v/551niynFTGkZOO2LHuB2OmOYxDIe/ttN9AHwrqdum1360G3ald0W9kCg==}
+  ci-info@4.3.0:
+    resolution: {integrity: sha512-l+2bNRMiQgcfILUi33labAZYIWlH1kWDp+ecNo5iisRKrbm0xcRyCww71/YU0Fkw0mAFpz9bJayXPjey6vkmaQ==}
     engines: {node: '>=8'}
 
   cjs-module-lexer@2.1.0:
@@ -12199,9 +12192,9 @@ packages:
     resolution: {integrity: sha512-TLz+x/vEXm/Y7P7wn1EJFNLxYpUD4TgMosxY6fAVJUnJMbupHBOncxyWUG9OpTaH9EBD7uFI5LfEgmMOc54DsA==}
     engines: {node: '>=8'}
 
-  didyoumean2@6.0.1:
-    resolution: {integrity: sha512-PSy0zQwMg5O+LjT5Mz7vnKC8I7DfWLPF6M7oepqW7WP5mn2CY3hz46xZOa1GJY+KVfyXhdmz6+tdgXwrHlZc5g==}
-    engines: {node: ^16.14.0 || >=18.12.0}
+  didyoumean2@7.0.4:
+    resolution: {integrity: sha512-+yW4SNY7W2DOWe2Jx5H4c2qMTFbLGM6wIyoDPkAPy66X+sD1KfYjBPAIWPVsYqMxelflaMQCloZDudELIPhLqA==}
+    engines: {node: ^18.12.0 || >=20.9.0}
 
   diff-sequences@29.6.3:
     resolution: {integrity: sha512-EjePK1srD3P08o2j4f0ExnylqRs5B9tJjcp9t1krH2qRi8CCdsYfwe9JgSLurFBWwq4uOlipzfk5fHNvwFKr8Q==}
@@ -12649,9 +12642,9 @@ packages:
   fast-safe-stringify@2.1.1:
     resolution: {integrity: sha512-W+KJc2dmILlPplD/H4K9l9LcAHAfPtP6BY84uVLXQ6Evcz9Lcg33Y2z1IVblT6xdY54PXYVHEv+0Wpq8Io6zkA==}
 
-  fast-string-compare@1.0.0:
-    resolution: {integrity: sha512-R0f7E2MvKy3LltU/eK7P9IYMc7kovnoaQIvWVvKx1LDDgHArVCrqgb4/6hlYJn6I9VYFn7mQoTKrsO3ELMVE8Q==}
-    engines: {node: '>=10'}
+  fast-string-compare@3.0.0:
+    resolution: {integrity: sha512-PY66/8HelapGo5nqMN17ZTKqJj1nppuS1OoC9Y0aI2jsUDlZDEYhMODTpb68wVCq+xMbaEbPGXRd7qutHzkRXA==}
+    engines: {node: ^14.13.1 || >=16.0.0}
 
   fast-uri@3.0.6:
     resolution: {integrity: sha512-Atfo14OibSv5wAp4VWNsFYE1AchQRTv9cBGWET4pZWHzYshFSS9NQI6I57rdKn9croWVMbYFbLhJ+yJvmZIIHw==}
@@ -13015,9 +13008,9 @@ packages:
   graceful-readlink@1.0.1:
     resolution: {integrity: sha512-8tLu60LgxF6XpdbK8OW3FA+IfTNBn1ZHGHKF4KQbEeSkajYw5PlYJcKluntgegDPTg8UkHjpet1T82vk6TQ68w==}
 
-  graph-cycles@1.2.1:
-    resolution: {integrity: sha512-IJly1QJTKrACgy+HVQYELr9igxhCC6zGn78PbvEX9tj4AZBvv7ZNU45m9rOrhDgprrkLtJZYmOPyhY8exZLD/Q==}
-    engines: {node: '>=12'}
+  graph-cycles@3.0.0:
+    resolution: {integrity: sha512-9qxd8BQK0tZJ3cRUW0Yn2q6P/9h+bgz/4UYuscpdxPz6851NNBA1IwoYDRHDpKzCqmr1UHlGHcp5+0WzpY9F7A==}
+    engines: {node: ^14.13.1 || >=16.0.0}
 
   grapheme-splitter@1.0.4:
     resolution: {integrity: sha512-bzh50DW9kTPM00T8y4o8vQg89Di9oLJVLW/KaOGIXJWP/iqCN6WKYkbNOF04vFLJhwcpYUh9ydh/+5vpOqV4YQ==}
@@ -13100,9 +13093,9 @@ packages:
     resolution: {integrity: sha512-puUZAUKT5m8Zzvs72XWy3HtvVbTWljRE66cP60bxJzAqf2DgICo7lYTY2IHUmLnNpjYvw5bvmoHvPc0QO2a62w==}
     engines: {node: ^16.14.0 || >=18.0.0}
 
-  hosted-git-info@8.1.0:
-    resolution: {integrity: sha512-Rw/B2DNQaPBICNXEm8balFz9a6WpZrkCGpcWFpy7nCj+NyhSdqXipmfvtmWt9xGfp0wZnBxB+iVpLmQMYt47Tw==}
-    engines: {node: ^18.17.0 || >=20.5.0}
+  hosted-git-info@9.0.0:
+    resolution: {integrity: sha512-gEf705MZLrDPkbbhi8PnoO4ZwYgKoNL+ISZ3AjZMht2r3N5tuTwncyDi6Fv2/qDnMmZxgs0yI8WDOyR8q3G+SQ==}
+    engines: {node: ^20.17.0 || >=22.9.0}
 
   html-escaper@2.0.2:
     resolution: {integrity: sha512-H2iMtd0I4Mt5eYiapRdIDjp+XzelXQ0tFE4JS7YFwFevXXMmOp9myNrUvCg0D6ws8iqkRPBfKHgbwig1SmlLfg==}
@@ -13249,6 +13242,10 @@ packages:
   ini@4.1.1:
     resolution: {integrity: sha512-QQnnxNyfvmHFIsj7gkPcYymR8Jdw/o7mp5ZFihxn6h8Ci6fh3Dx4E1gPjpQEpIuPo9XVNY/ZUwh4BPMjGyL01g==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
+
+  ini@5.0.0:
+    resolution: {integrity: sha512-+N0ngpO3e7cRUWOJAS7qw0IZIVc6XPrW4MlFBdD066F2L4k1L6ker3hLqSq7iXxU5tgS4WGkIUElWn5vogAEnw==}
+    engines: {node: ^18.17.0 || >=20.5.0}
 
   inquirer@9.3.7:
     resolution: {integrity: sha512-LJKFHCSeIRq9hanN14IlOtPSTe3lNES7TYDTE2xxdAy1LS5rYphajK1qtwvj3YmQXvvk0U2Vbmcni8P9EIQW9w==}
@@ -14406,9 +14403,9 @@ packages:
     resolution: {integrity: sha512-V6gygoYb/5EmNI+MEGrWkC+e6+Rr7mTmfHrxDbLzxQogBkgzo76rkok0Am6thgSF7Mv2nLOajAJj5vDJZEFn7g==}
     engines: {node: ^16.14.0 || >=18.0.0}
 
-  normalize-package-data@7.0.1:
-    resolution: {integrity: sha512-linxNAT6M0ebEYZOx2tO6vBEFsVgnPpv+AVjk0wJHfaUIbq31Jm3T6vvZaarnOeWDh8ShnwXuaAyM7WT3RzErA==}
-    engines: {node: ^18.17.0 || >=20.5.0}
+  normalize-package-data@8.0.0:
+    resolution: {integrity: sha512-RWk+PI433eESQ7ounYxIp67CYuVsS1uYSonX3kA6ps/3LWfjVQa/ptEg6Y3T6uAMq1mWpX9PQ+qx+QaHpsc7gQ==}
+    engines: {node: ^20.17.0 || >=22.9.0}
 
   normalize-path@2.1.1:
     resolution: {integrity: sha512-3pKJwH184Xo/lnH6oyP1q2pMd7HcypqqmRs91/6/i2CGtWwIKGCkOOMTm/zXbgTEWHw1uNpNi/igc3ePOYHb6w==}
@@ -15272,9 +15269,9 @@ packages:
     resolution: {integrity: sha512-hdke7IGy7j6TCIGhUDnaX41OFpHgZOaZ70GHUS2RdolaHj9Gn3jVvV9xE+sd6rTuRd4t7bNpzYSKSpAz/74H/A==}
     engines: {node: '>=10'}
 
-  rotated-array-set@1.0.0:
-    resolution: {integrity: sha512-MmMz9ERrZw7DVn8e6V7U/wkAWzEaULiPySEBXLWh4nA/F5gwSFx96bu+As4wyDpZ9bdhc+flB1CyTYmStwZo8A==}
-    engines: {node: '>=12'}
+  rotated-array-set@3.0.0:
+    resolution: {integrity: sha512-G7689wvCM0szMFXUAhi3GfNGcSPlndg077cdRWoq7UegOAwfU2MJ0jD7s7jB+2ppKA75Kr/O0HwAP9+rRdBctg==}
+    engines: {node: ^14.13.1 || >=16.0.0}
 
   run-async@3.0.0:
     resolution: {integrity: sha512-540WwVDOMxA6dN6We19EcT9sc3hkXPw5mzRNGM3FkdN/vtE9NFvj5lFAPNwUDmJjXidm3v7TC1cTE7t17Ulm1Q==}
@@ -15396,9 +15393,9 @@ packages:
   shlex@3.0.0:
     resolution: {integrity: sha512-jHPXQQk9d/QXCvJuLPYMOYWez3c43sORAgcIEoV7bFv5AJSJRAOyw5lQO12PMfd385qiLRCaDt7OtEzgrIGZUA==}
 
-  short-tree@1.0.0:
-    resolution: {integrity: sha512-SPhGxbdypMMjYlmdVL/dzBUCT/5FboztmleoS4WPgvCI7DqZXv8xrLSTuJqzmmuAtCTkgxkIKzfZ+jfJR6ODZg==}
-    engines: {node: '>=12'}
+  short-tree@3.0.0:
+    resolution: {integrity: sha512-Yd9NFs/o9QSoH4/wTjxk4Xe0+CIzitDRN1Qg7iBeTSejKjlCg/3PbgiRwDUVuaIxD0RRdv7Iz9jKr7e0HljtUg==}
+    engines: {node: ^14.13.1 || >=16.0.0}
 
   shx@0.4.0:
     resolution: {integrity: sha512-Z0KixSIlGPpijKgcH6oCMCbltPImvaKy0sGH8AkLRXw1KyzpKtaCTizP2xen+hNDqVF4xxgvA0KXSb9o4Q6hnA==}
@@ -15529,8 +15526,8 @@ packages:
   spdx-expression-parse@3.0.1:
     resolution: {integrity: sha512-cbqHunsQWnJNE6KhVSMsMeH5H/L9EpymbzqTQ3uLwNCLZ1Q481oWaofqH7nO6V07xlXwY6PhQdQ2IedWx/ZK4Q==}
 
-  spdx-license-ids@3.0.21:
-    resolution: {integrity: sha512-Bvg/8F5XephndSK3JffaRqdT+gyhfqIPwDHpX80tJrF8QQRYMo8sNMeaZ2Dp5+jhwKnUmIOyFFQfHRkjJm5nXg==}
+  spdx-license-ids@3.0.22:
+    resolution: {integrity: sha512-4PRT4nh1EImPbt2jASOKHX7PB7I+e4IWNLvkKFDxNhJlfjbYlleYQh285Z/3mPTHSAK/AvdMmw5BNNuYH8ShgQ==}
 
   split-cmd@1.1.0:
     resolution: {integrity: sha512-WhWthSU0kpuxXPbm3QW/QGS+B7ngFb+E1SGXccrUO/ZBcwnG0zuHk1E8v0UJ9HfyDi46k8wZ3dcl5gwa4c2v8g==}
@@ -16687,8 +16684,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@babel/runtime@7.28.2': {}
-
   '@babel/runtime@7.28.3': {}
 
   '@babel/template@7.27.2':
@@ -17427,7 +17422,7 @@ snapshots:
       '@types/node': 22.15.30
       ansi-escapes: 4.3.2
       chalk: 4.1.2
-      ci-info: 4.2.0
+      ci-info: 4.3.0
       exit-x: 0.2.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       jest-changed-files: 30.0.5
@@ -19549,7 +19544,7 @@ snapshots:
       '@yarnpkg/shell': 4.1.2(typanion@3.14.0)
       camelcase: 5.3.1
       chalk: 3.0.0
-      ci-info: 4.2.0
+      ci-info: 4.3.0
       clipanion: 3.2.0-rc.6(typanion@3.14.0)
       cross-spawn: 7.0.6
       diff: 5.2.0
@@ -19580,7 +19575,7 @@ snapshots:
       '@yarnpkg/shell': 4.1.2(typanion@3.14.0)
       camelcase: 5.3.1
       chalk: 3.0.0
-      ci-info: 4.2.0
+      ci-info: 4.3.0
       clipanion: 3.2.0-rc.6(typanion@3.14.0)
       cross-spawn: 7.0.6
       diff: 5.2.0
@@ -20313,7 +20308,7 @@ snapshots:
 
   ci-info@3.9.0: {}
 
-  ci-info@4.2.0: {}
+  ci-info@4.3.0: {}
 
   cjs-module-lexer@2.1.0: {}
 
@@ -20684,7 +20679,7 @@ snapshots:
 
   date-fns@2.30.0:
     dependencies:
-      '@babel/runtime': 7.28.2
+      '@babel/runtime': 7.28.3
 
   dayjs@1.11.13: {}
 
@@ -20789,9 +20784,9 @@ snapshots:
 
   detect-newline@3.1.0: {}
 
-  didyoumean2@6.0.1:
+  didyoumean2@7.0.4:
     dependencies:
-      '@babel/runtime': 7.28.2
+      '@babel/runtime': 7.28.3
       fastest-levenshtein: 1.0.16
       lodash.deburr: 4.1.0
 
@@ -21377,7 +21372,7 @@ snapshots:
 
   fast-safe-stringify@2.1.1: {}
 
-  fast-string-compare@1.0.0: {}
+  fast-string-compare@3.0.0: {}
 
   fast-uri@3.0.6: {}
 
@@ -21809,11 +21804,11 @@ snapshots:
 
   graceful-readlink@1.0.1: {}
 
-  graph-cycles@1.2.1:
+  graph-cycles@3.0.0:
     dependencies:
-      fast-string-compare: 1.0.0
-      rotated-array-set: 1.0.0
-      short-tree: 1.0.0
+      fast-string-compare: 3.0.0
+      rotated-array-set: 3.0.0
+      short-tree: 3.0.0
 
   grapheme-splitter@1.0.4: {}
 
@@ -21891,9 +21886,9 @@ snapshots:
     dependencies:
       lru-cache: 10.4.3
 
-  hosted-git-info@8.1.0:
+  hosted-git-info@9.0.0:
     dependencies:
-      lru-cache: 10.4.3
+      lru-cache: 11.1.0
 
   html-escaper@2.0.2: {}
 
@@ -22042,6 +22037,8 @@ snapshots:
   ini@3.0.1: {}
 
   ini@4.1.1: {}
+
+  ini@5.0.0: {}
 
   inquirer@9.3.7:
     dependencies:
@@ -22400,7 +22397,7 @@ snapshots:
       '@jest/types': 30.0.5
       babel-jest: 30.0.5(@babel/core@7.28.3)(@babel/types@7.28.2)
       chalk: 4.1.2
-      ci-info: 4.2.0
+      ci-info: 4.3.0
       deepmerge: 4.3.1
       glob: 10.4.5
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -22662,7 +22659,7 @@ snapshots:
       '@jest/types': 30.0.5
       '@types/node': 22.15.30
       chalk: 4.1.2
-      ci-info: 4.2.0
+      ci-info: 4.3.0
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       picomatch: 4.0.2
 
@@ -23397,9 +23394,9 @@ snapshots:
       semver: 7.7.2
       validate-npm-package-license: 3.0.4
 
-  normalize-package-data@7.0.1(patch_hash=af60eac3676a4332c8fa7d590432a962fe77991523e608340cd80eb2a8a035db):
+  normalize-package-data@8.0.0:
     dependencies:
-      hosted-git-info: 8.1.0
+      hosted-git-info: 9.0.0
       semver: 7.7.2
       validate-npm-package-license: 3.0.4
 
@@ -24286,7 +24283,7 @@ snapshots:
       next-path: 1.0.0
       path-temp: 2.0.0
 
-  rotated-array-set@1.0.0: {}
+  rotated-array-set@3.0.0: {}
 
   run-async@3.0.0: {}
 
@@ -24441,7 +24438,7 @@ snapshots:
 
   shlex@3.0.0: {}
 
-  short-tree@1.0.0:
+  short-tree@3.0.0:
     dependencies:
       '@types/bintrees': 1.0.6
       bintrees: 1.0.2
@@ -24591,16 +24588,16 @@ snapshots:
   spdx-correct@3.2.0:
     dependencies:
       spdx-expression-parse: 3.0.1
-      spdx-license-ids: 3.0.21
+      spdx-license-ids: 3.0.22
 
   spdx-exceptions@2.5.0: {}
 
   spdx-expression-parse@3.0.1:
     dependencies:
       spdx-exceptions: 2.5.0
-      spdx-license-ids: 3.0.21
+      spdx-license-ids: 3.0.22
 
-  spdx-license-ids@3.0.21: {}
+  spdx-license-ids@3.0.22: {}
 
   split-cmd@1.1.0: {}
 
