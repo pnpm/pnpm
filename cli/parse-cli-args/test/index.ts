@@ -1,7 +1,7 @@
 import os from 'os'
 import { type PnpmError } from '@pnpm/error'
 import { parseCliArgs } from '@pnpm/parse-cli-args'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 const DEFAULT_OPTS = {
   getCommandLongName: (commandName: string) => commandName,
@@ -290,7 +290,7 @@ test('--workspace-root fails if used with --global', async () => {
 })
 
 test('--workspace-root fails if used outside of a workspace', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
   let err!: PnpmError
   try {
     await parseCliArgs({ ...DEFAULT_OPTS }, ['--workspace-root'])

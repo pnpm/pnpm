@@ -7,7 +7,7 @@ import { type Registries } from '@pnpm/types'
 import { fixtures } from '@pnpm/test-fixtures'
 import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 const f = fixtures(import.meta.dirname)
 
@@ -37,7 +37,7 @@ test('fall back to a newer version if there is no version published by the given
     .get('/bad-dates')
     .reply(200, badDatesMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     filterMetadata: true,
@@ -53,7 +53,7 @@ test('fall back to a newer version if there is no version published by the given
 })
 
 test('request metadata when the one in cache does not have a version satisfying the range', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const cachedMeta = {
     'dist-tags': {},
     versions: {},

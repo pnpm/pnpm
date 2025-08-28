@@ -6,7 +6,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { type Registries } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import { retryLoadJsonFile } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -46,7 +46,7 @@ test('resolveFromJsr() on jsr', async () => {
     .get(`/@jsr${slash}luca__cases`)
     .reply(200, jsrLucaCasesMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromJsr } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -91,7 +91,7 @@ test('resolveFromJsr() on jsr with alias renaming', async () => {
     .get(`/@jsr${slash}luca__cases`)
     .reply(200, jsrLucaCasesMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromJsr } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -123,7 +123,7 @@ test('resolveFromJsr() on jsr with alias renaming', async () => {
 })
 
 test('resolveFromJsr() on jsr with packages without scope', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromJsr } = createResolveFromNpm({
     cacheDir,
     registries,

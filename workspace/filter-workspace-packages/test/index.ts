@@ -10,7 +10,7 @@ import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
 import path from 'path'
 import { omit } from 'ramda'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import touchCB from 'touch'
 
 const touch = promisify(touchCB)
@@ -348,7 +348,7 @@ test('select changed packages', async () => {
     return
   }
 
-  const workspaceDir = tempy.directory() as ProjectRootDir
+  const workspaceDir = temporaryDirectory() as ProjectRootDir
   await execa('git', ['init', '--initial-branch=main'], { cwd: workspaceDir })
   await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
   await execa('git', ['config', 'user.name', 'xyz'], { cwd: workspaceDir })

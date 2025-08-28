@@ -718,8 +718,8 @@ catalogs:
       specifier: ^2.2.0
       version: 2.2.0
     tempy:
-      specifier: ^1.0.1
-      version: 1.0.1
+      specifier: 3.0.0
+      version: 3.0.0
     terminal-link:
       specifier: ^2.1.1
       version: 2.1.1
@@ -1570,7 +1570,7 @@ importers:
         version: 'link:'
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   completion/plugin-commands-completion:
     dependencies:
@@ -3056,7 +3056,7 @@ importers:
         version: 10.0.5
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
     devDependencies:
       '@pnpm/fetching.binary-fetcher':
         specifier: workspace:*
@@ -3165,7 +3165,7 @@ importers:
         version: link:../../packages/types
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   fetching/pick-fetcher:
     devDependencies:
@@ -3271,7 +3271,7 @@ importers:
         version: 10.0.5
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   fs/find-packages:
     dependencies:
@@ -3603,7 +3603,7 @@ importers:
         version: 'link:'
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   lockfile/filtering:
     dependencies:
@@ -3652,7 +3652,7 @@ importers:
         version: 2.0.3
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -3740,7 +3740,7 @@ importers:
         version: 4.0.3
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -3887,7 +3887,7 @@ importers:
         version: 2.1.0
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   lockfile/preferred-versions:
     dependencies:
@@ -4015,7 +4015,7 @@ importers:
         version: 0.29.12
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -4107,7 +4107,7 @@ importers:
         version: 'link:'
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   modules-mounter/daemon:
     dependencies:
@@ -4335,7 +4335,7 @@ importers:
         version: 'link:'
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   packages/logger:
     dependencies:
@@ -4735,7 +4735,7 @@ importers:
         version: 7.5.3
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
       write-yaml-file:
         specifier: 'catalog:'
         version: 5.0.0
@@ -5328,7 +5328,7 @@ importers:
         version: 16.1.3
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
       write-json-file:
         specifier: 'catalog:'
         version: 6.0.0
@@ -5465,7 +5465,7 @@ importers:
         version: 1.0.2
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   pkg-manager/modules-cleaner:
     dependencies:
@@ -5542,7 +5542,7 @@ importers:
         version: 0.29.12
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   pkg-manager/package-bins:
     dependencies:
@@ -5679,7 +5679,7 @@ importers:
         version: 3.0.0
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   pkg-manager/plugin-commands-installation:
     dependencies:
@@ -5935,7 +5935,7 @@ importers:
         version: 6.0.5
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
       write-json-file:
         specifier: 'catalog:'
         version: 6.0.0
@@ -6312,7 +6312,7 @@ importers:
         version: 4.0.2
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   pkg-manifest/write-project-manifest:
     dependencies:
@@ -6340,7 +6340,7 @@ importers:
         version: 4.0.3
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   pnpm:
     dependencies:
@@ -6629,7 +6629,7 @@ importers:
         version: 6.0.5
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
       tree-kill:
         specifier: 'catalog:'
         version: 1.2.2
@@ -6909,7 +6909,7 @@ importers:
         version: 2.2.0
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.14
@@ -7325,7 +7325,7 @@ importers:
         version: 13.3.4
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   resolving/resolver-base:
     dependencies:
@@ -7897,7 +7897,7 @@ importers:
         version: 6.0.5
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   store/cafs-types:
     devDependencies:
@@ -8013,7 +8013,7 @@ importers:
         version: 7.1.5
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   store/plugin-commands-server:
     dependencies:
@@ -8192,7 +8192,7 @@ importers:
         version: 10.0.5
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   store/plugin-commands-store-inspecting:
     dependencies:
@@ -8247,7 +8247,7 @@ importers:
         version: safe-execa@0.2.0
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   store/server:
     dependencies:
@@ -8305,7 +8305,7 @@ importers:
         version: 3.3.2
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
 
   store/store-connection-manager:
     dependencies:
@@ -8656,7 +8656,7 @@ importers:
         version: 1.0.2
       tempy:
         specifier: 'catalog:'
-        version: 1.0.1
+        version: 3.0.0
       touch:
         specifier: 'catalog:'
         version: 3.1.0
@@ -11938,6 +11938,10 @@ packages:
     resolution: {integrity: sha512-v1plID3y9r/lPhviJ1wrXpLeyUIGAZ2SHNYTEapm7/8A9nLPoyvVp3RK/EPFqn5kEznyWgYZNsRtYYIWbuG8KA==}
     engines: {node: '>=8'}
 
+  crypto-random-string@4.0.0:
+    resolution: {integrity: sha512-x8dy3RnvYdlUcPOjkEHqozhiwzKNSq7GcPuXFbnyMOCHxX8V3OgIg/pYuabl2sbUPfIJaeAQB7PMOK8DFIdoRA==}
+    engines: {node: '>=12'}
+
   cspell-config-lib@8.17.5:
     resolution: {integrity: sha512-XDc+UJO5RZ9S9e2Ajz332XjT7dv6Og2UqCiSnAlvHt7t/MacLHSPARZFIivheObNkWZ7E1iWI681RxKoH4o40w==}
     engines: {node: '>=18'}
@@ -13423,6 +13427,10 @@ packages:
   is-stream@2.0.1:
     resolution: {integrity: sha512-hFoiJiTl63nn+kstHGBtewWSKnQLpyb155KHheA1l39uvtO9nWIop1p3udqPcUd/xbF1VLMO4n7OI6p7RbngDg==}
     engines: {node: '>=8'}
+
+  is-stream@3.0.0:
+    resolution: {integrity: sha512-LnQR4bZ9IADDRSkvpqMGvt/tEJWclzklNgSw48V5EAaAeDd6qGvN8ei6k5p0tvxSR171VmGyHuTiAOfxAbr8kA==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   is-string@1.1.1:
     resolution: {integrity: sha512-BtEeSsoaQjlSPBemMQIrY1MY0uM6vnS1g5fmufYOtnxLGUZM2178PKbhsk7Ffv58IX+ZtcvoGwccYsh0PglkAA==}
@@ -15616,6 +15624,10 @@ packages:
     resolution: {integrity: sha512-biM9brNqxSc04Ee71hzFbryD11nX7VPhQQY32AdDmjFvodsRFz/3ufeoTZ6uYkRFfGo188tENcASNs3vTdsM0w==}
     engines: {node: '>=10'}
 
+  tempy@3.0.0:
+    resolution: {integrity: sha512-B2I9X7+o2wOaW4r/CWMkpOO9mdiTRCxXNgob6iGvPmfPWgH/KyUD6Uy5crtWBxIBe3YrNZKR2lSzv1JJKWD4vA==}
+    engines: {node: '>=14.16'}
+
   term-size@2.2.1:
     resolution: {integrity: sha512-wK0Ri4fOGjv/XPy8SBHZChl8CM7uMc5VML7SqiQ0zG7+J5Vr+RMQDoHa2CNT6KHUnTGIXH34UDMkPzAUyapBZg==}
     engines: {node: '>=8'}
@@ -15848,6 +15860,10 @@ packages:
     resolution: {integrity: sha512-4dbzIzqvjtgiM5rw1k5rEHtBANKmdudhGyBEajN01fEyhaAIhsoKNy6y7+IN93IfpFtwY9iqi7kD+xwKhQsNJA==}
     engines: {node: '>=8'}
 
+  type-fest@1.4.0:
+    resolution: {integrity: sha512-yGSza74xk0UG8k+pLh5oeoYirvIiWo5t0/o3zHHAO2tRDiZcxWP7fywNlXhqb6/r6sWvwi+RsyQMWhVLe4BVuA==}
+    engines: {node: '>=10'}
+
   type-fest@2.19.0:
     resolution: {integrity: sha512-RAH822pAdBgcNMAfWnCBU3CFZcfZ/i1eZjwFU/dsLKumyuuP3niueg2UAukXYF0E2AAoc82ZSSf9J0WQBinzHA==}
     engines: {node: '>=12.20'}
@@ -15937,6 +15953,10 @@ packages:
   unique-string@2.0.0:
     resolution: {integrity: sha512-uNaeirEPvpZWSgzwsPGtU2zVSTrn/8L5q/IexZmH0eH6SA73CmAA5U4GwORTxQAZs95TAXLNqeLoPPNO5gZfWg==}
     engines: {node: '>=8'}
+
+  unique-string@3.0.0:
+    resolution: {integrity: sha512-VGXBUVwxKMBUznyffQweQABPRRW1vHZAbadFZud4pLFAqRGvv/96vafgjWFqzourzr8YonlQiPgH0YCJfawoGQ==}
+    engines: {node: '>=12'}
 
   unist-util-stringify-position@2.0.3:
     resolution: {integrity: sha512-3faScn5I+hy9VleOq/qNbAd6pAx7iH5jYBMS9I1HgQVijz/4mv5Bvw5iw1sC/90CODiKo81G/ps8AJrISn687g==}
@@ -20566,6 +20586,10 @@ snapshots:
 
   crypto-random-string@2.0.0: {}
 
+  crypto-random-string@4.0.0:
+    dependencies:
+      type-fest: 1.4.0
+
   cspell-config-lib@8.17.5:
     dependencies:
       '@cspell/cspell-types': 8.17.5
@@ -22246,6 +22270,8 @@ snapshots:
       call-bound: 1.0.4
 
   is-stream@2.0.1: {}
+
+  is-stream@3.0.0: {}
 
   is-string@1.1.1:
     dependencies:
@@ -24833,6 +24859,13 @@ snapshots:
       type-fest: 0.16.0
       unique-string: 2.0.0
 
+  tempy@3.0.0:
+    dependencies:
+      is-stream: 3.0.0
+      temp-dir: 2.0.0
+      type-fest: 2.19.0
+      unique-string: 3.0.0
+
   term-size@2.2.1: {}
 
   terminal-link@2.1.1:
@@ -25047,6 +25080,8 @@ snapshots:
 
   type-fest@0.8.1: {}
 
+  type-fest@1.4.0: {}
+
   type-fest@2.19.0: {}
 
   type-fest@3.13.1: {}
@@ -25149,6 +25184,10 @@ snapshots:
   unique-string@2.0.0:
     dependencies:
       crypto-random-string: 2.0.0
+
+  unique-string@3.0.0:
+    dependencies:
+      crypto-random-string: 4.0.0
 
   unist-util-stringify-position@2.0.3:
     dependencies:
