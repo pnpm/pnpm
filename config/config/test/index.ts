@@ -588,6 +588,7 @@ test('read only supported settings from config', async () => {
   expect(config.storeDir).toEqual('__store__')
   // @ts-expect-error
   expect(config['foo']).toBeUndefined()
+  expect(config.rawConfig['foo']).toEqual('bar')
 })
 
 test('all CLI options are added to the config', async () => {
