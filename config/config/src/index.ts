@@ -386,7 +386,9 @@ export async function getConfig (opts: {
           pnpmConfig[key] = value
 
           const kebabKey = kebabCase(key)
-          const targetKey = kebabKey in rcOptionsTypes ? kebabKey : key
+          // Q: Why `types` instead of `rcOptionTypes`?
+          // A: `rcOptionTypes` includes options that would matter to the `npm` cli which wouldn't care about `pnpm-workspace.yaml`.
+          const targetKey = kebabKey in types ? kebabKey : key
           pnpmConfig.rawConfig[targetKey] = value
         }
         pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
