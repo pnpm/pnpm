@@ -176,6 +176,8 @@ describe('config get with a property path', () => {
     test.each([
       ['dlx-cache-max-age', rawConfig['dlx-cache-max-age']],
       ['dlxCacheMaxAge', rawConfig['dlx-cache-max-age']],
+      ['onlyBuiltDependencies[0]', rawConfig['only-built-dependencies'][0]],
+      ['onlyBuiltDependencies[1]', rawConfig['only-built-dependencies'][1]],
       ['package-extensions', 'undefined'], // it cannot be defined by rc, it can't be kebab-case
       ['packageExtensions["@babel/parser"].peerDependencies["@babel/types"]', rawConfig.packageExtensions['@babel/parser'].peerDependencies['@babel/types']],
       ['packageExtensions["jest-circus"].dependencies.slash', rawConfig.packageExtensions['jest-circus'].dependencies.slash],
