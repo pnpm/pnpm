@@ -153,7 +153,7 @@ catalog:
   cli-truncate: ^4.0.0
   cmd-extension: ^1.0.2
   comver-to-semver: ^1.0.0
-  concurrently: 8.2.1
+  concurrently: 9.2.1
   cross-env: ^10.0.0
   cross-spawn: ^7.0.6
   cspell: 9.2.0
@@ -200,9 +200,9 @@ catalog:
   is-port-reachable: 4.0.0
   is-subdir: ^1.2.0
   is-windows: ^1.0.2
-  isexe: 2.0.0
+  isexe: 3.1.1
   jest: ^30.0.5
-  jest-diff: ^29.7.0
+  jest-diff: ^30.1.1
   js-yaml: npm:@zkochan/js-yaml@0.0.10
   json5: ^2.2.3
   keyv: 4.5.4
@@ -261,7 +261,7 @@ catalog:
   render-help: ^1.0.3
   resolve-link-target: ^2.0.0
   rfc4648: ^1.5.3
-  rimraf: ^3.0.2
+  rimraf: ^6.0.1
   root-link-target: ^3.1.0
   run-groups: ^3.0.1
   rxjs: ^7.8.2
@@ -298,7 +298,7 @@ catalog:
   unified: ^9.2.2
   uuid: ^9.0.1
   v8-compile-cache: 2.4.0
-  validate-npm-package-name: 5.0.0
+  validate-npm-package-name: 6.0.2
   verdaccio: 6.1.6
   version-selector-type: ^3.0.0
   which: npm:@pnpm/which@^3.0.1
