@@ -105,8 +105,9 @@ test('config get without key show list all settings ', async () => {
 
 describe('config get with a property path', () => {
   const rawConfig = {
-    // rawConfig keys are always kebab-case
-    'package-extensions': {
+    'dlx-cache-max-age': '1234',
+    'only-built-dependencies': ['foo', 'bar'],
+    packageExtensions: {
       '@babel/parser': {
         peerDependencies: {
           '@babel/types': '*',
@@ -123,13 +124,19 @@ describe('config get with a property path', () => {
   describe('anything with --json', () => {
     test.each([
       ['', rawConfig],
-      ['packageExtensions', rawConfig['package-extensions']],
-      ['packageExtensions["@babel/parser"]', rawConfig['package-extensions']['@babel/parser']],
-      ['packageExtensions["@babel/parser"].peerDependencies', rawConfig['package-extensions']['@babel/parser'].peerDependencies],
-      ['packageExtensions["@babel/parser"].peerDependencies["@babel/types"]', rawConfig['package-extensions']['@babel/parser'].peerDependencies['@babel/types']],
-      ['packageExtensions["jest-circus"]', rawConfig['package-extensions']['jest-circus']],
-      ['packageExtensions["jest-circus"].dependencies', rawConfig['package-extensions']['jest-circus'].dependencies],
-      ['packageExtensions["jest-circus"].dependencies.slash', rawConfig['package-extensions']['jest-circus'].dependencies.slash],
+      ['dlx-cache-max-age', rawConfig['dlx-cache-max-age']],
+      ['dlxCacheMaxAge', rawConfig['dlx-cache-max-age']],
+      ['only-built-dependencies', rawConfig['only-built-dependencies']],
+      ['onlyBuiltDependencies', rawConfig['only-built-dependencies']],
+      ['onlyBuiltDependencies[0]', rawConfig['only-built-dependencies'][0]],
+      ['onlyBuiltDependencies[1]', rawConfig['only-built-dependencies'][1]],
+      ['packageExtensions', rawConfig.packageExtensions],
+      ['packageExtensions["@babel/parser"]', rawConfig.packageExtensions['@babel/parser']],
+      ['packageExtensions["@babel/parser"].peerDependencies', rawConfig.packageExtensions['@babel/parser'].peerDependencies],
+      ['packageExtensions["@babel/parser"].peerDependencies["@babel/types"]', rawConfig.packageExtensions['@babel/parser'].peerDependencies['@babel/types']],
+      ['packageExtensions["jest-circus"]', rawConfig.packageExtensions['jest-circus']],
+      ['packageExtensions["jest-circus"].dependencies', rawConfig.packageExtensions['jest-circus'].dependencies],
+      ['packageExtensions["jest-circus"].dependencies.slash', rawConfig.packageExtensions['jest-circus'].dependencies.slash],
     ] as Array<[string, unknown]>)('%s', async (propertyPath, expected) => {
       const getResult = await config.handler({
         dir: process.cwd(),
@@ -147,11 +154,11 @@ describe('config get with a property path', () => {
   describe('object without --json', () => {
     test.each([
       ['', rawConfig],
-      ['packageExtensions', rawConfig['package-extensions']],
-      ['packageExtensions["@babel/parser"]', rawConfig['package-extensions']['@babel/parser']],
-      ['packageExtensions["@babel/parser"].peerDependencies', rawConfig['package-extensions']['@babel/parser'].peerDependencies],
-      ['packageExtensions["jest-circus"]', rawConfig['package-extensions']['jest-circus']],
-      ['packageExtensions["jest-circus"].dependencies', rawConfig['package-extensions']['jest-circus'].dependencies],
+      ['packageExtensions', rawConfig.packageExtensions],
+      ['packageExtensions["@babel/parser"]', rawConfig.packageExtensions['@babel/parser']],
+      ['packageExtensions["@babel/parser"].peerDependencies', rawConfig.packageExtensions['@babel/parser'].peerDependencies],
+      ['packageExtensions["jest-circus"]', rawConfig.packageExtensions['jest-circus']],
+      ['packageExtensions["jest-circus"].dependencies', rawConfig.packageExtensions['jest-circus'].dependencies],
     ] as Array<[string, unknown]>)('%s', async (propertyPath, expected) => {
       const getResult = await config.handler({
         dir: process.cwd(),
@@ -167,8 +174,11 @@ describe('config get with a property path', () => {
 
   describe('string without --json', () => {
     test.each([
-      ['packageExtensions["@babel/parser"].peerDependencies["@babel/types"]', rawConfig['package-extensions']['@babel/parser'].peerDependencies['@babel/types']],
-      ['packageExtensions["jest-circus"].dependencies.slash', rawConfig['package-extensions']['jest-circus'].dependencies.slash],
+      ['dlx-cache-max-age', rawConfig['dlx-cache-max-age']],
+      ['dlxCacheMaxAge', rawConfig['dlx-cache-max-age']],
+      ['package-extensions', 'undefined'], // it cannot be defined by rc, it can't be kebab-case
+      ['packageExtensions["@babel/parser"].peerDependencies["@babel/types"]', rawConfig.packageExtensions['@babel/parser'].peerDependencies['@babel/types']],
+      ['packageExtensions["jest-circus"].dependencies.slash', rawConfig.packageExtensions['jest-circus'].dependencies.slash],
     ] as Array<[string, string]>)('%s', async (propertyPath, expected) => {
       const getResult = await config.handler({
         dir: process.cwd(),
