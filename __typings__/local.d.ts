@@ -94,11 +94,6 @@ declare module 'is-inner-link' {
   export = anything
 }
 
-declare module 'process-exists' {
-  const anything: any
-  export = anything
-}
-
 declare module 'read-package-json' {
   const anything: any
   export = anything

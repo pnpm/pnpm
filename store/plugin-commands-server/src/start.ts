@@ -22,7 +22,7 @@ import { getStorePath } from '@pnpm/store-path'
 import Diable from '@zkochan/diable'
 import getPort from 'get-port'
 import isWindows from 'is-windows'
-import onExit from 'signal-exit'
+import { onExit } from 'signal-exit'
 
 const storeServerLogger = logger('store-server')
 const write = promisify(_write)
