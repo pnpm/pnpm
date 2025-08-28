@@ -207,7 +207,7 @@ catalog:
   json5: ^2.2.3
   keyv: 4.5.4
   lcov-result-merger: ^3.3.0
-  load-json-file: ^6.2.0
+  load-json-file: ^7.0.1
   lodash.kebabcase: ^4.1.1
   lodash.throttle: 4.1.1
   loud-rejection: ^2.2.0
@@ -304,9 +304,9 @@ catalog:
   which: npm:@pnpm/which@^3.0.1
   write-file-atomic: ^5.0.1
   write-ini-file: 4.0.1
-  write-json-file: ^4.3.0
+  write-json-file: ^6.0.0
   write-json5-file: ^3.1.0
-  write-pkg: 4.0.0
+  write-pkg: 7.0.0
   write-yaml-file: ^5.0.0
   yaml-tag: 1.1.0
   yazl: ^3.3.1
@@ -401,42 +401,5 @@ resolutionMode: lowest-direct
 savePrefix: ''
 
 sharedWorkspaceLockfile: true
-
-updateConfig:
-  ignoreDependencies:
-    - boxen
-    - camelcase
-    - camelcase-keys
-    - chalk
-    - escape-string-regexp
-    - filenamify
-    - find-up
-    - get-port
-    - is-port-reachable
-    - load-json-file
-    - mem
-    - npm-packlist
-    - node-fetch
-    - normalize-newline
-    - p-any
-    - p-defer
-    - p-filter
-    - p-limit
-    - p-memoize
-    - p-queue
-    - p-settle
-    - parse-json
-    - path-exists
-    - pretty-bytes
-    - pretty-ms
-    - process-exists
-    - ps-list
-    - sort-keys
-    - string-length
-    - strip-bom
-    - tempy
-    - unique-string
-    - write-json-file
-    - write-pkg
 
 verifyDepsBeforeRun: install

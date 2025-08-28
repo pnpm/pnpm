@@ -4,14 +4,14 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { type PackageManifest, type ProjectManifest } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import PATH from 'path-name'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import writeYamlFile from 'write-yaml-file'
 import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 const pkgRoot = path.join(import.meta.dirname, '..', '..')
-const pnpmPkg = loadJsonFile.sync<PackageManifest>(path.join(pkgRoot, 'package.json'))
+const pnpmPkg = loadJsonFileSync<PackageManifest>(path.join(pkgRoot, 'package.json'))
 
 test('installation fails if lifecycle script fails', () => {
   prepare({
@@ -183,7 +183,7 @@ test('selectively allow scripts in some dependencies by --allow-build flag', asy
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
-  const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
+  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
   expect(manifest.pnpm?.onlyBuiltDependencies).toBeUndefined()
   const modulesManifest = await readWorkspaceManifest(project.dir())
   expect(modulesManifest?.onlyBuiltDependencies).toStrictEqual(['@pnpm.e2e/install-script-example'])
@@ -200,7 +200,7 @@ test('--allow-build flag should specify the package', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
 
-  const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
+  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
   expect(manifest.pnpm?.onlyBuiltDependencies).toBeUndefined()
   const modulesManifest = await readWorkspaceManifest(project.dir())
   expect(modulesManifest?.onlyBuiltDependencies).toBeUndefined()
@@ -342,7 +342,7 @@ test('throw an error when strict-dep-builds is true and there are ignored script
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
 
-  const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
+  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
   expect(manifest.dependencies).toStrictEqual({
     '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
   })

@@ -16,7 +16,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { sync as rimraf } from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
 import { sync as readYamlFile } from 'read-yaml-file'
-import { sync as writeJsonFile } from 'write-json-file'
+import { writeJsonFileSync } from 'write-json-file'
 import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)
@@ -222,7 +222,7 @@ test('path to external link is not added to the lockfile, when it resolves a pee
   await addDistTag({ package: '@pnpm.e2e/peer-b', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
   const externalPkg = tempDir(false)
-  writeJsonFile(path.join(externalPkg, 'package.json'), {
+  writeJsonFileSync(path.join(externalPkg, 'package.json'), {
     name: '@pnpm.e2e/peer-a',
     version: '1.0.0',
   })

@@ -18,7 +18,7 @@ import {
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import { type DependencyManifest } from '@pnpm/types'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import { parentPort } from 'worker_threads'
 import {
   type AddDirToStoreMessage,
@@ -75,7 +75,7 @@ async function handleMessage (
       let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
-        pkgFilesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
+        pkgFilesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
       } catch {
         // ignoring. It is fine if the integrity file is not present. Just refetch the package
       }
@@ -206,7 +206,7 @@ function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, 
   if (sideEffectsCacheKey) {
     let filesIndex!: PackageFilesIndex
     try {
-      filesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
+      filesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
     } catch {
       // If there is no existing index file, then we cannot store the side effects.
       return {

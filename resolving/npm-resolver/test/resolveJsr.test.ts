@@ -4,15 +4,15 @@ import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createNpmResolver } from '@pnpm/npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type Registries } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import tempy from 'tempy'
 import { retryLoadJsonFile } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const jsrRusGreetMeta = loadJsonFile.sync<any>(f.find('jsr-rus-greet.json'))
-const jsrLucaCasesMeta = loadJsonFile.sync<any>(f.find('jsr-luca-cases.json'))
+const jsrRusGreetMeta = loadJsonFileSync<any>(f.find('jsr-rus-greet.json'))
+const jsrLucaCasesMeta = loadJsonFileSync<any>(f.find('jsr-luca-cases.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const registries = {

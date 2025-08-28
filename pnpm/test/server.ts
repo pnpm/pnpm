@@ -12,7 +12,7 @@ import pDefer, { type DeferredPromise } from 'p-defer'
 import isWindows from 'is-windows'
 
 import killcb from 'tree-kill'
-import writeJsonFile from 'write-json-file'
+import { writeJsonFileSync } from 'write-json-file'
 import pAny from 'p-any'
 import {
   execPnpm,
@@ -334,7 +334,7 @@ test.skip('fail if the store server is run by a different version of pnpm', asyn
   prepare()
 
   const serverJsonPath = path.resolve('..', `store/${STORE_VERSION}/server/server.json`)
-  writeJsonFile.sync(serverJsonPath, { pnpmVersion: '2.0.0' })
+  writeJsonFileSync(serverJsonPath, { pnpmVersion: '2.0.0' })
 
   const result = execPnpmSync(['install', 'is-positive@1.0.0'])
 

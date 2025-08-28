@@ -25,7 +25,7 @@ import {
 } from './run.js'
 import { PnpmError } from '@pnpm/error'
 import which from 'which'
-import writeJsonFile from 'write-json-file'
+import { writeJsonFile } from 'write-json-file'
 import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint.js'
 import { runDepsStatusCheck } from './runDepsStatusCheck.js'
 

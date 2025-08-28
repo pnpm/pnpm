@@ -19,7 +19,7 @@ import {
   mutateModulesInSingleProject,
 } from '@pnpm/core'
 import sinon from 'sinon'
-import writeJsonFile from 'write-json-file'
+import { writeJsonFileSync } from 'write-json-file'
 import existsSymlink from 'exists-link'
 import { testDefaults } from './utils/index.js'
 
@@ -338,7 +338,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
 test('uninstall remove modules that is not in package.json', async () => {
   const project = prepareEmpty()
 
-  writeJsonFile.sync('node_modules/foo/package.json', { name: 'foo', version: '1.0.0' })
+  writeJsonFileSync('node_modules/foo/package.json', { name: 'foo', version: '1.0.0' })
 
   project.has('foo')
 
