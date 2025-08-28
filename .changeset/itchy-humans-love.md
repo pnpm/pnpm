@@ -15,6 +15,6 @@
 > packages[]=packages/bar
 > ```
 >
-> And then run `pnpm config get --json packages` to get a JSON array of ["packages/foo", "packages/bar"].
+> And then run `pnpm config get --json packages` to get a JSON array of `["packages/foo", "packages/bar"]`.
 > However, `pnpm install` does not acknowledge such workspace packages.
 > Therefore, it was wrong for `pnpm config get` and `pnpm config list` to include them.
