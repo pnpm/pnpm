@@ -1919,9 +1919,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/npm-conf':
-        specifier: 'catalog:'
-        version: 3.0.0
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../../object/key-sorting

@@ -35,7 +35,6 @@
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/npm-conf": "catalog:",
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/object.property-path": "workspace:*",
     "@pnpm/run-npm": "workspace:*",

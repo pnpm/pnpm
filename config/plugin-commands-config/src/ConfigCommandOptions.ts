@@ -8,7 +8,6 @@ export type ConfigCommandOptions = Pick<Config,
 | 'npmPath'
 | 'rawConfig'
 | 'workspaceDir'
-| 'workspaceManifest'
 > & {
   json?: boolean
   location?: 'global' | 'project'
