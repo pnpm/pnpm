@@ -238,13 +238,13 @@ test('stop server with remote call', async () => {
   })
   await server.waitForListen
 
-  expect(await isPortReachable(port)).toBeTruthy()
+  expect(await isPortReachable(port, { host: 'localhost' })).toBeTruthy()
 
   const response = await fetch(`${remotePrefix}/stop`, { method: 'POST' })
 
   expect(response.status).toBe(200)
 
-  expect(await isPortReachable(port)).toBeFalsy()
+  expect(await isPortReachable(port, { host: 'localhost' })).toBeFalsy()
 })
 
 test('disallow stop server with remote call', async () => {
@@ -259,12 +259,12 @@ test('disallow stop server with remote call', async () => {
   })
   await server.waitForListen
 
-  expect(await isPortReachable(port)).toBeTruthy()
+  expect(await isPortReachable(port, { host: 'localhost' })).toBeTruthy()
 
   const response = await fetch(`${remotePrefix}/stop`, { method: 'POST' })
   expect(response.status).toBe(403)
 
-  expect(await isPortReachable(port)).toBeTruthy()
+  expect(await isPortReachable(port, { host: 'localhost' })).toBeTruthy()
 
   await server.close()
 })
@@ -280,7 +280,7 @@ test('disallow store prune', async () => {
   })
   await server.waitForListen
 
-  expect(await isPortReachable(port)).toBeTruthy()
+  expect(await isPortReachable(port, { host: 'localhost' })).toBeTruthy()
 
   const response = await fetch(`${remotePrefix}/prune`, { method: 'POST' })
   expect(response.status).toBe(403)
@@ -300,7 +300,7 @@ test('server should only allow POST', async () => {
   })
   await server.waitForListen
 
-  expect(await isPortReachable(port)).toBeTruthy()
+  expect(await isPortReachable(port, { host: 'localhost' })).toBeTruthy()
 
   // Try various methods (not including POST)
   const methods = ['GET', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
@@ -329,7 +329,7 @@ test('server route not found', async () => {
   })
   await server.waitForListen
 
-  expect(await isPortReachable(port)).toBeTruthy()
+  expect(await isPortReachable(port, { host: 'localhost' })).toBeTruthy()
 
   // Ensure 404 error is received
   const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method: 'POST' })
