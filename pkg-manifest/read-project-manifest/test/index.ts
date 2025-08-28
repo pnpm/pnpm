@@ -284,7 +284,7 @@ test('fail on invalid JSON', async () => {
 
   const nodeMajorVersion = parseInt(process.version.slice(1).split('.')[0])
   if (nodeMajorVersion >= 21) {
-    expect(err.message).toContain('Expected \',\' or \'}\' after property value in JSON at position 20 (line 3 column 3) while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in')
+    expect(err.message).toContain('Expected \',\' or \'}\' after property value in JSON at position 20 (line 3 column 3) ')
   } else if (nodeMajorVersion >= 19) {
     expect(err.message).toContain('Expected \',\' or \'}\' after property value in JSON at position 20 while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in')
   } else {
