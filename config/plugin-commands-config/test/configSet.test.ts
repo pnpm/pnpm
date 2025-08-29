@@ -182,11 +182,11 @@ test('config set key=value, when value contains a "="', async () => {
     configDir,
     location: 'project',
     rawConfig: {},
-  }, ['set', 'foo=bar=qar'])
+  }, ['set', 'lockfile-dir=foo=bar'])
 
   expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
     'store-dir': '~/store',
-    foo: 'bar=qar',
+    'lockfile-dir': 'foo=bar',
   })
 })
 
