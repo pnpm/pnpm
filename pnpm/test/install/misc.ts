@@ -13,8 +13,8 @@ import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as rimraf } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
-import loadJsonFile from 'load-json-file'
-import writeJsonFile from 'write-json-file'
+import { loadJsonFileSync } from 'load-json-file'
+import { writeJsonFileSync } from 'write-json-file'
 import crossSpawn from 'cross-spawn'
 import {
   execPnpm,
@@ -22,7 +22,7 @@ import {
 } from '../utils/index.js'
 
 const skipOnWindows = isWindows() ? test.skip : test
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('bin files are found by lifecycle scripts', () => {
   prepare({
@@ -156,13 +156,13 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 
   project.has('@pnpm.e2e/with-same-file-in-different-cases')
 
-  const { files: integrityFile } = loadJsonFile.sync<{ files: object }>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
+  const { files: integrityFile } = loadJsonFileSync<{ files: object }>(project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
   const packageFiles = Object.keys(integrityFile).sort()
 
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
   const storeDir = project.getStorePath()
-  if (await dirIsCaseSensitive(storeDir)) {
+  if (await dirIsCaseSensitive.default(storeDir)) {
     expect([...files].sort()).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   } else {
     expect([...files].map((f) => f.toLowerCase()).sort()).toStrictEqual(['foo.js', 'package.json'])
@@ -216,7 +216,7 @@ test('create a package.json if there is none', async () => {
 
   await execPnpm(['install', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
-  expect((await import(path.resolve('package.json'))).default).toStrictEqual({
+  expect((await import(path.resolve('package.json'))).default).toEqual({
     dependencies: {
       '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
     },
@@ -450,9 +450,9 @@ test('installation fails when the stored package name and version do not match t
   await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0', ...settings])
 
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
-  const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const cacheIntegrity = loadJsonFileSync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   cacheIntegrity.name = 'foo'
-  writeJsonFile.sync(cacheIntegrityPath, {
+  writeJsonFileSync(cacheIntegrityPath, {
     ...cacheIntegrity,
     name: 'foo',
   })

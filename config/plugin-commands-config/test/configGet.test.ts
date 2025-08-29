@@ -13,7 +13,7 @@ test('config get', async () => {
     },
   }, ['get', 'store-dir'])
 
-  expect(getOutputString(getResult)).toEqual('~/store')
+  expect(getOutputString(getResult)).toBe('~/store')
 })
 
 test('config get works with camelCase', async () => {
@@ -27,7 +27,7 @@ test('config get works with camelCase', async () => {
     },
   }, ['get', 'storeDir'])
 
-  expect(getOutputString(getResult)).toEqual('~/store')
+  expect(getOutputString(getResult)).toBe('~/store')
 })
 
 test('config get a boolean should return string format', async () => {
@@ -41,7 +41,7 @@ test('config get a boolean should return string format', async () => {
     },
   }, ['get', 'update-notifier'])
 
-  expect(getOutputString(getResult)).toEqual('true')
+  expect(getOutputString(getResult)).toBe('true')
 })
 
 test('config get on array should return a comma-separated list', async () => {
@@ -80,7 +80,7 @@ test('config get on object should return an ini string', async () => {
   expect(ini.decode(getOutputString(getResult))).toEqual({ react: '^19.0.0' })
 })
 
-test('config get without key show list all settings ', async () => {
+test('config get without key show list all settings', async () => {
   const rawConfig = {
     'store-dir': '~/store',
     'fetch-retries': '2',

@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.5.0
+
+### Minor Changes
+
+- 8747b4e: Added the `cleanupUnusedCatalogs` configuration. When set to `true`, pnpm will remove unused catalog entries during installation [#9793](https://github.com/pnpm/pnpm/pull/9793).
+
+### Patch Changes
+
+- Updated dependencies [9dbada8]
+- Updated dependencies [8747b4e]
+  - @pnpm/workspace.manifest-writer@1001.0.0
+  - @pnpm/config.config-writer@1000.0.10
+  - @pnpm/config.deps-installer@1000.0.11
+  - @pnpm/plugin-commands-env@1000.0.34
+  - @pnpm/cli-utils@1001.1.1
+  - @pnpm/outdated@1001.0.27
+  - @pnpm/package-store@1002.0.9
+  - @pnpm/store-connection-manager@1002.0.10
+  - @pnpm/plugin-commands-rebuild@1002.0.23
+  - @pnpm/workspace.find-packages@1000.0.33
+  - @pnpm/core@1010.0.1
+  - @pnpm/deps.status@1003.0.5
+  - @pnpm/filter-workspace-packages@1000.0.33
+
 ## 1004.4.2
 
 ### Patch Changes

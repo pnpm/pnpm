@@ -8,8 +8,8 @@ import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
 import { sync as readYamlFile } from 'read-yaml-file'
-import loadJsonFile from 'load-json-file'
-import writeJsonFile from 'write-json-file'
+import { loadJsonFile } from 'load-json-file'
+import { writeJsonFileSync } from 'write-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 import symlinkDir from 'symlink-dir'
@@ -345,7 +345,7 @@ test('second run of `recursive install` after package.json has been edited manua
     workspaceDir: process.cwd(),
   })
 
-  writeJsonFile.sync('is-negative/package.json', {
+  writeJsonFileSync('is-negative/package.json', {
     name: 'is-negative',
     version: '1.0.0',
 
@@ -532,11 +532,11 @@ test('installing with "workspace=true" should work even if link-workspace-packag
   }, ['project-2'])
 
   {
-    const pkg = await import(path.resolve('project-1/package.json'))
-    expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:2.0.0' })
+    const { default: pkg } = await import(path.resolve('project-1/package.json'))
+    expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:2.0.0' })
   }
   {
-    const pkg = await import(path.resolve('project-2/package.json'))
+    const { default: pkg } = await import(path.resolve('project-2/package.json'))
     expect(pkg.dependencies).toBeFalsy()
   }
 
@@ -573,11 +573,11 @@ test('installing with "workspace=true" should work even if link-workspace-packag
   }, ['project-2'])
 
   {
-    const pkg = await import(path.resolve('project-1/package.json'))
-    expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:*' })
+    const { default: pkg } = await import(path.resolve('project-1/package.json'))
+    expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:*' })
   }
   {
-    const pkg = await import(path.resolve('project-2/package.json'))
+    const { default: pkg } = await import(path.resolve('project-2/package.json'))
     expect(pkg.dependencies).toBeFalsy()
   }
 

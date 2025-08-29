@@ -3,7 +3,7 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { FULL_FILTERED_META_DIR, ABBREVIATED_META_DIR } from '@pnpm/constants'
 import { getStorePath } from '@pnpm/store-path'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import {
   cacheList,

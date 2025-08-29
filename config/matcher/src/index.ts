@@ -80,7 +80,7 @@ function matcherFromPattern (pattern: string): Matcher {
 }
 
 function isIgnorePattern (pattern: string): boolean {
-  return pattern.startsWith('!')
+  return pattern[0] === '!'
 }
 
 function matcherWhenOnlyOnePatternWithIndex (pattern: string): MatcherWithIndex {

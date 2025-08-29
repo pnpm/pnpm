@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/git-resolver",
-  "version": "1001.1.2",
+  "version": "1001.1.3",
   "description": "Resolver for git-hosted packages",
   "keywords": [
     "pnpm",
@@ -15,7 +15,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -27,7 +27,7 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
@@ -41,6 +41,7 @@
     "semver": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/git-resolver": "workspace:*",
     "@pnpm/network.agent": "catalog:",
     "@types/hosted-git-info": "catalog:",

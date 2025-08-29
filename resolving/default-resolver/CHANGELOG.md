@@ -1,5 +1,14 @@
 # @pnpm/default-resolver
 
+## 1002.2.2
+
+### Patch Changes
+
+- @pnpm/node.resolver@1001.0.0
+- @pnpm/git-resolver@1001.1.3
+- @pnpm/npm-resolver@1004.1.3
+- @pnpm/tarball-resolver@1002.1.2
+
 ## 1002.2.1
 
 ### Patch Changes

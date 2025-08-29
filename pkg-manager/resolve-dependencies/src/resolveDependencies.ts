@@ -44,12 +44,10 @@ import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import { type PatchInfo } from '@pnpm/patching.types'
 import normalizePath from 'normalize-path'
-import exists from 'path-exists'
+import { pathExists } from 'path-exists'
 import pDefer from 'p-defer'
 import pShare from 'promise-share'
-import pickBy from 'ramda/src/pickBy'
-import omit from 'ramda/src/omit'
-import zipWith from 'ramda/src/zipWith'
+import { pickBy, omit, zipWith } from 'ramda'
 import semver from 'semver'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies.js'
 import { safeIntersect } from './mergePeers.js'
@@ -1276,7 +1274,7 @@ async function resolveDependency (
     currentPkg.depPath &&
     currentPkg.dependencyLockfile &&
     currentPkg.name &&
-    await exists(
+    await pathExists(
       path.join(
         ctx.virtualStoreDir,
         dp.depPathToFilename(currentPkg.depPath, ctx.virtualStoreDirMaxLength),

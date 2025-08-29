@@ -5,7 +5,7 @@ import execa from 'execa'
 import { cache } from '@pnpm/cache.commands'
 import { sync as rimraf } from '@zkochan/rimraf'
 
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 describe('cache delete', () => {
@@ -49,7 +49,7 @@ describe('cache delete', () => {
       pnpmHomeDir: storeDir,
     }, ['list'])
 
-    expect(result).toEqual(`localhost+${REGISTRY_MOCK_PORT}/is-negative.json
+    expect(result).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-negative.json
 registry.npmjs.org/is-negative.json`)
   })
 })

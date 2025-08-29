@@ -10,7 +10,7 @@ test('guessDependencyType()', () => {
         foo: '',
       },
     })
-  ).toEqual('devDependencies')
+  ).toBe('devDependencies')
 
   expect(
     guessDependencyType('bar', {
@@ -21,5 +21,5 @@ test('guessDependencyType()', () => {
         foo: '1.0.0',
       },
     })
-  ).toEqual('dependencies')
+  ).toBe('dependencies')
 })

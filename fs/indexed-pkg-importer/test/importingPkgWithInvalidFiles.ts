@@ -9,11 +9,11 @@ test('importing a package with invalid files', () => {
   const target = path.resolve('target')
   importPackage(target, {
     filesMap: {
-      'foo?bar/qar>zoo.txt': __filename,
-      '1*2.txt': __filename,
+      'foo?bar/qar>zoo.txt': import.meta.filename,
+      '1*2.txt': import.meta.filename,
     },
     force: false,
     resolvedFrom: 'remote',
   })
-  expect((fs.readdirSync(target)).length).toBe(2)
+  expect((fs.readdirSync(target))).toHaveLength(2)
 })

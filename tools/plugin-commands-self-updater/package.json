@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tools.plugin-commands-self-updater",
-  "version": "1000.1.20",
+  "version": "1000.1.21",
   "description": "A command for updating pnpm itself",
   "keywords": [
     "pnpm",
@@ -13,7 +13,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "type": "commonjs",
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -28,7 +28,7 @@
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile && pnpm run _test",
     "compile": "tsc --build && pnpm run lint --fix",
-    "_test": "jest"
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:*",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exe",
-  "version": "10.14.0",
+  "version": "10.15.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -13,6 +13,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "scripts": {
     "preinstall": "node setup.js",
     "prepare": "node prepare.js",

@@ -18,7 +18,7 @@ import {
 } from '@pnpm/lifecycle'
 import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
 import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand } from './runRecursive.js'
@@ -233,7 +233,7 @@ export async function handler (
     if (opts.fallbackCommandUsed) {
       if (opts.argv == null) throw new Error('Could not fallback because opts.argv.original was not passed to the script runner')
       const params = opts.argv.original.slice(1)
-      while (params.length > 0 && params[0].startsWith('-') && params[0] !== '--') {
+      while (params.length > 0 && params[0][0] === '-' && params[0] !== '--') {
         params.shift()
       }
       if (params.length > 0 && params[0] === '--') {

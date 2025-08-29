@@ -1,13 +1,10 @@
 import fs, { type BigIntStats } from 'fs'
 import path from 'path'
-import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
-import gfs from '@pnpm/graceful-fs'
-import { globalInfo } from '@pnpm/logger'
 import { jest } from '@jest/globals'
 
 const testOnLinuxOnly = (process.platform === 'darwin' || process.platform === 'win32') ? test.skip : test
 
-jest.mock('@pnpm/graceful-fs', () => {
+jest.unstable_mockModule('@pnpm/graceful-fs', () => {
   const { access, promises } = jest.requireActual<typeof fs>('fs')
   const fsMock = {
     mkdirSync: promises.mkdir,
@@ -22,16 +19,22 @@ jest.mock('@pnpm/graceful-fs', () => {
     default: fsMock,
   }
 })
-jest.mock('path-temp', () => ({ fastPathTemp: (file: string) => `${file}_tmp` }))
-jest.mock('rename-overwrite', () => ({ sync: jest.fn() }))
-jest.mock('fs-extra', () => ({
-  copySync: jest.fn(),
+jest.unstable_mockModule('path-temp', () => ({ fastPathTemp: (file: string) => `${file}_tmp` }))
+jest.unstable_mockModule('rename-overwrite', () => ({ default: { sync: jest.fn() } }))
+jest.unstable_mockModule('fs-extra', () => ({
+  default: {
+    copySync: jest.fn(),
+  },
 }))
-jest.mock('@pnpm/logger', () => ({
+jest.unstable_mockModule('@pnpm/logger', () => ({
   logger: jest.fn(() => ({ debug: jest.fn() })),
   globalWarn: jest.fn(),
   globalInfo: jest.fn(),
 }))
+
+const { default: gfs } = await import('@pnpm/graceful-fs')
+const { createIndexedPkgImporter } = await import('@pnpm/fs.indexed-pkg-importer')
+const { globalInfo } = await import('@pnpm/logger')
 
 beforeEach(() => {
   jest.mocked(gfs.copyFileSync).mockClear()
@@ -171,7 +174,7 @@ test('packageImportMethod=hardlink does not relink package from store if package
     },
     force: false,
     resolvedFrom: 'store',
-  })).toBe(undefined)
+  })).toBeUndefined()
 })
 
 test('packageImportMethod=hardlink relinks package from store if package.json is not linked from the store', () => {
@@ -201,7 +204,7 @@ test('packageImportMethod=hardlink does not relink package from store if package
     },
     force: false,
     resolvedFrom: 'store',
-  })).toBe(undefined)
+  })).toBeUndefined()
 })
 
 test('packageImportMethod=hardlink links packages when they are not found', () => {

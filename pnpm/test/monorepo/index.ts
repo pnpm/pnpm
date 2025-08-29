@@ -15,7 +15,7 @@ import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { sync as readYamlFile } from 'read-yaml-file'
 import execa from 'execa'
 import { sync as rimraf } from '@zkochan/rimraf'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import symlink from 'symlink-dir'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from '../utils/index.js'
@@ -111,9 +111,9 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
 
   const { default: pkg } = await import(path.resolve('package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^' }) // spec of linked package added to dependencies
-  expect(pkg?.devDependencies).toStrictEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
-  expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:^' }) // spec of linked package added to dependencies
+  expect(pkg?.devDependencies).toEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
+  expect(pkg?.optionalDependencies).toEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
 
   projects['project-1'].has('project-2')
   projects['project-1'].has('project-3')
@@ -156,9 +156,9 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
 
   const { default: pkg } = await import(path.resolve('package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^' }) // spec of linked package added to dependencies
-  expect(pkg?.devDependencies).toStrictEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
-  expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:^' }) // spec of linked package added to dependencies
+  expect(pkg?.devDependencies).toEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
+  expect(pkg?.optionalDependencies).toEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
 
   projects['project-1'].has('project-2')
   projects['project-1'].has('project-3')
@@ -303,7 +303,7 @@ test('topological order of packages with self-dependencies in monorepo is correc
 test('test-pattern is respected by the test script', async () => {
   await using server = await createTestIpcServer()
 
-  const remote = tempy.directory()
+  const remote = temporaryDirectory()
 
   const projects: Array<ProjectManifest & { name: string }> = [
     {
@@ -369,7 +369,7 @@ test('test-pattern is respected by the test script', async () => {
 })
 
 test('changed-files-ignore-pattern is respected', async () => {
-  const remote = tempy.directory()
+  const remote = temporaryDirectory()
 
   preparePackages([
     {
@@ -1650,7 +1650,7 @@ test('directory filtering', async () => {
 
   {
     const { stdout } = execPnpmSync(['list', '--filter=./packages', '--parseable', '--depth=-1'])
-    expect(stdout.toString()).toEqual('')
+    expect(stdout.toString()).toBe('')
   }
   {
     const { stdout } = execPnpmSync(['list', '--filter=./packages/**', '--parseable', '--depth=-1'])

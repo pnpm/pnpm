@@ -4,7 +4,7 @@ import { assertStore } from '@pnpm/assert-store'
 import { STORE_VERSION } from '@pnpm/constants'
 
 test('assertStore() store assertions', async () => {
-  const storePath = path.join(__dirname, `fixture/store/${STORE_VERSION}/`)
+  const storePath = path.join(import.meta.dirname, `fixture/store/${STORE_VERSION}/`)
   const encodedRegistryName = 'registry.npmjs.org'
   const store = assertStore(storePath, encodedRegistryName)
 
@@ -14,7 +14,7 @@ test('assertStore() store assertions', async () => {
 })
 
 test('assertStore() resolve', async () => {
-  const storePath = path.join(__dirname, `fixture/store/${STORE_VERSION}/`)
+  const storePath = path.join(import.meta.dirname, `fixture/store/${STORE_VERSION}/`)
   const encodedRegistryName = 'registry.npmjs.org'
   const store = assertStore(storePath, encodedRegistryName)
 

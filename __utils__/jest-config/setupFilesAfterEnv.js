@@ -1,4 +1,4 @@
-const { finishWorkers } = require('@pnpm/worker')
+import { finishWorkers } from '@pnpm/worker'
 
 afterAll(async () => {
   await finishWorkers()

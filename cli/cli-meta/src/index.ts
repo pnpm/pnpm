@@ -1,7 +1,3 @@
-import path from 'path'
-import { type DependencyManifest } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
-
 const defaultManifest = {
   name: process.env.npm_package_name != null && process.env.npm_package_name !== ''
     ? process.env.npm_package_name
@@ -10,21 +6,7 @@ const defaultManifest = {
     ? process.env.npm_package_version
     : '0.0.0',
 }
-let pkgJson
-if (require.main == null) {
-  pkgJson = defaultManifest
-} else {
-  try {
-    pkgJson = {
-      ...defaultManifest,
-      ...loadJsonFile.sync<DependencyManifest>(
-        path.join(path.dirname(require.main.filename), '../package.json')
-      ),
-    }
-  } catch {
-    pkgJson = defaultManifest
-  }
-}
+const pkgJson = defaultManifest
 
 export const packageManager = {
   name: pkgJson.name,

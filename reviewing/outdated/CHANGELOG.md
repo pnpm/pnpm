@@ -1,5 +1,12 @@
 # @pnpm/outdated
 
+## 1001.0.27
+
+### Patch Changes
+
+- @pnpm/client@1001.0.2
+- @pnpm/npm-resolver@1004.1.3
+
 ## 1001.0.26
 
 ### Patch Changes

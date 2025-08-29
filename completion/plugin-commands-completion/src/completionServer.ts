@@ -1,6 +1,6 @@
 import { type CompletionItem, getShellFromEnv } from '@pnpm/tabtab'
 import { type CompletionFunc } from '@pnpm/command'
-import { split as splitCmd } from 'split-cmd'
+import { split as splitCmd } from 'split-cmd/index.modern.mjs'
 import tabtab from '@pnpm/tabtab'
 import {
   currentTypedWordType,

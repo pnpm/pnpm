@@ -7,11 +7,14 @@ import { build } from 'esbuild'
  */
 ;(async () => {
   try {
+    const banner = { js: `import { createRequire as _cr } from 'module';const require = _cr(import.meta.url); const __filename = import.meta.filename; const __dirname = import.meta.dirname` }
     await build({
       entryPoints: ['lib/pnpm.js'],
       bundle: true,
       platform: 'node',
-      outfile: 'dist/pnpm.cjs',
+      outfile: 'dist/pnpm.mjs',
+      format: 'esm',
+      banner,
       external: [
         'node-gyp',
         './get-uid-gid.js', // traces back to: https://github.com/npm/uid-number/blob/6e9bdb302ae4799d05abf12e922ccdb4bd9ea023/uid-number.js#L31
@@ -33,7 +36,9 @@ import { build } from 'esbuild'
       entryPoints: ['../worker/lib/worker.js'],
       bundle: true,
       platform: 'node',
+      format: 'esm',
       outfile: 'dist/worker.js',
+      banner,
       loader: {
         '.node': 'copy',
       },

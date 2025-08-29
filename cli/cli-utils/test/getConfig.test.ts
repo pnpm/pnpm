@@ -2,6 +2,7 @@
 import fs from 'fs'
 import { getConfig } from '@pnpm/cli-utils'
 import { prepare } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 
 beforeEach(() => {
   jest.spyOn(console, 'warn')

@@ -1,5 +1,4 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { filterLockfileByImportersAndEngine } from '@pnpm/lockfile.filtering'
 import { type DepPath, type ProjectId } from '@pnpm/types'
 import { jest } from '@jest/globals'
 
@@ -13,6 +12,8 @@ jest.mock('detect-libc', () => {
     familySync: () => 'musl',
   }
 })
+
+const { filterLockfileByImportersAndEngine } = await import('@pnpm/lockfile.filtering')
 
 afterEach(() => {
   Object.defineProperties(process, {

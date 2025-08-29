@@ -9,7 +9,7 @@ import execa from 'execa'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import { sync as writeYamlFile } from 'write-yaml-file'
 
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 test('listing packages', async () => {
   prepare({

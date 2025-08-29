@@ -4,7 +4,8 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
-import clone from 'ramda/src/clone'
+import { jest } from '@jest/globals'
+import { clone } from 'ramda'
 import {
   addDependenciesToPackage,
   mutateModulesInSingleProject,

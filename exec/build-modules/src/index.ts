@@ -13,7 +13,7 @@ import { type StoreController } from '@pnpm/store-controller-types'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { type DependencyManifest } from '@pnpm/types'
 import pDefer, { type DeferredPromise } from 'p-defer'
-import pickBy from 'ramda/src/pickBy'
+import { pickBy } from 'ramda'
 import runGroups from 'run-groups'
 import { buildSequence, type DependenciesGraph, type DependenciesGraphNode } from './buildSequence.js'
 
@@ -88,7 +88,7 @@ export async function buildModules<T extends string> (
       }
     )
   })
-  await runGroups(getWorkspaceConcurrency(opts.childConcurrency), groups)
+  await runGroups.default(getWorkspaceConcurrency(opts.childConcurrency), groups)
   if (opts.ignoredBuiltDependencies?.length) {
     for (const ignoredBuild of opts.ignoredBuiltDependencies) {
       // We already ignore the build of this dependency.

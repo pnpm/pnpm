@@ -612,7 +612,7 @@ test('do not override the direct dependency with an auto installed peer dependen
     },
   }))
   const lockfile = project.readLockfile()
-  expect(lockfile.importers['.'].dependencies?.rxjs.version).toStrictEqual('6.6.7')
+  expect(lockfile.importers['.'].dependencies?.rxjs.version).toBe('6.6.7')
 })
 
 test('auto install hoisted peer dependency', async () => {

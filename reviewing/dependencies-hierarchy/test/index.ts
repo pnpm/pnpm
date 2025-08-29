@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -6,7 +7,7 @@ import { buildDependenciesHierarchy, type PackageNode } from '@pnpm/reviewing.de
 import { depPathToFilename } from '@pnpm/dependency-path'
 
 const virtualStoreDirMaxLength = process.platform === 'win32' ? 60 : 120
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const generalFixture = f.find('general')
 const withPeerFixture = f.find('with-peer')
 const circularFixture = f.find('circular')
@@ -14,7 +15,7 @@ const withFileDepFixture = f.find('with-file-dep')
 const withNonPackageDepFixture = f.find('with-non-package-dep')
 const withLinksOnlyFixture = f.find('fixtureWithLinks/with-links-only')
 const withUnsavedDepsFixture = f.find('with-unsaved-deps')
-const fixtureMonorepo = path.join(__dirname, '..', 'fixtureMonorepo')
+const fixtureMonorepo = path.join(import.meta.dirname, '..', 'fixtureMonorepo')
 const withAliasedDepFixture = f.find('with-aliased-dep')
 const workspaceWithNestedWorkspaceDeps = f.find('workspace-with-nested-workspace-deps')
 const customModulesDirFixture = f.find('custom-modules-dir')
@@ -311,7 +312,7 @@ test('circular dependency', async () => {
 
   expect(tree).toStrictEqual({
     [circularFixture]: {
-      dependencies: require('./circularTree.json') // eslint-disable-line
+      dependencies: JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'circularTree.json'), 'utf8'))
         .dependencies
         .map((dep: PackageNode) => resolvePaths(modulesDir, dep)),
       devDependencies: [],
@@ -562,8 +563,8 @@ test('peer dependencies', async () => {
     lockfileDir: withPeerFixture,
     virtualStoreDirMaxLength,
   })
-  expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].name).toEqual('ajv')
-  expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].isPeer).toEqual(true)
+  expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].name).toBe('ajv')
+  expect(hierarchy[withPeerFixture].dependencies![1].dependencies![0].isPeer).toBe(true)
 })
 
 // Test case for https://github.com/pnpm/pnpm/issues/1866

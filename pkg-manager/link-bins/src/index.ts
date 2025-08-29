@@ -15,14 +15,10 @@ import rimraf from '@zkochan/rimraf'
 import isSubdir from 'is-subdir'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
-import pSettle from 'p-settle'
-import isEmpty from 'ramda/src/isEmpty'
-import unnest from 'ramda/src/unnest'
-import groupBy from 'ramda/src/groupBy'
-import partition from 'ramda/src/partition'
+import { isEmpty, unnest, groupBy, partition } from 'ramda'
 import semver from 'semver'
 import symlinkDir from 'symlink-dir'
-import fixBin from 'bin-links/lib/fix-bin'
+import fixBin from 'bin-links/lib/fix-bin.js'
 
 const binsConflictLogger = logger('bins-conflict')
 const IS_WINDOWS = isWindows()
@@ -143,11 +139,11 @@ async function _linkBins (
 
   await fs.mkdir(binsDir, { recursive: true })
 
-  const results = await pSettle(allCmds.map(async cmd => linkBin(cmd, binsDir, opts)))
+  const results = await Promise.allSettled(allCmds.map(async cmd => linkBin(cmd, binsDir, opts)))
 
   // We want to create all commands that we can create before throwing an exception
   for (const result of results) {
-    if (result.isRejected) {
+    if (result.status === 'rejected') {
       throw result.reason
     }
   }

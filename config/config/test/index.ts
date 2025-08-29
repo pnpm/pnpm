@@ -2,8 +2,6 @@
 import fs from 'fs'
 import path from 'path'
 import PATH from 'path-name'
-import { getCurrentBranch } from '@pnpm/git-utils'
-import { getConfig } from '@pnpm/config'
 import loadNpmConf from '@pnpm/npm-conf'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -11,7 +9,10 @@ import { jest } from '@jest/globals'
 
 import symlinkDir from 'symlink-dir'
 
-jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
+jest.unstable_mockModule('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
+
+const { getConfig } = await import('@pnpm/config')
+const { getCurrentBranch } = await import('@pnpm/git-utils')
 
 // To override any local settings,
 // we force the default values of config
@@ -25,10 +26,10 @@ delete process.env.npm_config_node_version
 delete process.env.npm_config_fetch_retries
 
 const env = {
-  PNPM_HOME: __dirname,
-  [PATH]: __dirname,
+  PNPM_HOME: import.meta.dirname,
+  [PATH]: import.meta.dirname,
 }
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('getConfig()', async () => {
   const { config } = await getConfig({
@@ -39,10 +40,10 @@ test('getConfig()', async () => {
     },
   })
   expect(config).toBeDefined()
-  expect(config.fetchRetries).toEqual(2)
-  expect(config.fetchRetryFactor).toEqual(10)
-  expect(config.fetchRetryMintimeout).toEqual(10000)
-  expect(config.fetchRetryMaxtimeout).toEqual(60000)
+  expect(config.fetchRetries).toBe(2)
+  expect(config.fetchRetryFactor).toBe(10)
+  expect(config.fetchRetryMintimeout).toBe(10000)
+  expect(config.fetchRetryMaxtimeout).toBe(60000)
   // nodeVersion should not have a default value.
   // When not specified, the package-is-installable package detects nodeVersion automatically.
   expect(config.nodeVersion).toBeUndefined()
@@ -195,7 +196,7 @@ test('when using --global, link-workspace-packages, shared-workspace-lockfile an
 test('registries of scoped packages are read and normalized', async () => {
   const { config } = await getConfig({
     cliOptions: {
-      userconfig: path.join(__dirname, 'scoped-registries.ini'),
+      userconfig: path.join(import.meta.dirname, 'scoped-registries.ini'),
     },
     packageManager: {
       name: 'pnpm',
@@ -219,7 +220,7 @@ test('registries in current directory\'s .npmrc have bigger priority then global
 
   const { config } = await getConfig({
     cliOptions: {
-      userconfig: path.join(__dirname, 'scoped-registries.ini'),
+      userconfig: path.join(import.meta.dirname, 'scoped-registries.ini'),
     },
     packageManager: {
       name: 'pnpm',
@@ -555,7 +556,7 @@ test('normalize the value of the color flag', async () => {
       },
     })
 
-    expect(config.color).toEqual('always')
+    expect(config.color).toBe('always')
   }
   {
     const { config } = await getConfig({
@@ -568,7 +569,7 @@ test('normalize the value of the color flag', async () => {
       },
     })
 
-    expect(config.color).toEqual('never')
+    expect(config.color).toBe('never')
   }
 })
 
@@ -585,7 +586,7 @@ test('read only supported settings from config', async () => {
     },
   })
 
-  expect(config.storeDir).toEqual('__store__')
+  expect(config.storeDir).toBe('__store__')
   // @ts-expect-error
   expect(config['foo']).toBeUndefined()
   expect(config.rawConfig['foo']).toBeUndefined()
@@ -603,11 +604,11 @@ test('all CLI options are added to the config', async () => {
   })
 
   // @ts-expect-error
-  expect(config['fooBar']).toEqual('qar')
+  expect(config['fooBar']).toBe('qar')
 })
 
 test('local prefix search stops on pnpm-workspace.yaml', async () => {
-  const workspaceDir = path.join(__dirname, 'has-workspace-yaml')
+  const workspaceDir = path.join(import.meta.dirname, 'has-workspace-yaml')
   process.chdir(workspaceDir)
   const { config } = await getConfig({
     cliOptions: {},
@@ -621,7 +622,7 @@ test('local prefix search stops on pnpm-workspace.yaml', async () => {
 })
 
 test('reads workspacePackagePatterns', async () => {
-  const workspaceDir = path.join(__dirname, 'fixtures/pkg-with-valid-workspace-yaml')
+  const workspaceDir = path.join(import.meta.dirname, 'fixtures/pkg-with-valid-workspace-yaml')
   process.chdir(workspaceDir)
   const { config } = await getConfig({
     cliOptions: {},
@@ -636,7 +637,7 @@ test('reads workspacePackagePatterns', async () => {
 })
 
 test('setting workspace-concurrency to negative number', async () => {
-  const workspaceDir = path.join(__dirname, 'fixtures/pkg-with-valid-workspace-yaml')
+  const workspaceDir = path.join(import.meta.dirname, 'fixtures/pkg-with-valid-workspace-yaml')
   process.chdir(workspaceDir)
   const { config } = await getConfig({
     cliOptions: {
@@ -664,7 +665,7 @@ test('respects test-pattern', async () => {
     expect(config.testPattern).toBeUndefined()
   }
   {
-    const workspaceDir = path.join(__dirname, 'using-test-pattern')
+    const workspaceDir = path.join(import.meta.dirname, 'using-test-pattern')
     process.chdir(workspaceDir)
     const { config } = await getConfig({
       cliOptions: {},
@@ -808,7 +809,7 @@ test('getConfig() returns the userconfig even when overridden locally', async ()
       version: '1.0.0',
     },
   })
-  expect(config.registry).toEqual('https://project-local.example.test')
+  expect(config.registry).toBe('https://project-local.example.test')
   expect(config.userConfig).toEqual({ registry: 'https://registry.example.test' })
 })
 
@@ -830,7 +831,7 @@ test('getConfig() sets sideEffectsCacheRead and sideEffectsCacheWrite when side-
 test('getConfig() should read cafile', async () => {
   const { config } = await getConfig({
     cliOptions: {
-      cafile: path.join(__dirname, 'cafile.txt'),
+      cafile: path.join(import.meta.dirname, 'cafile.txt'),
     },
     packageManager: {
       name: 'pnpm',
@@ -1073,7 +1074,7 @@ test('settings sharedWorkspaceLockfile in pnpm-workspace.yaml should take effect
   })
 
   expect(config.sharedWorkspaceLockfile).toBe(false)
-  expect(config.lockfileDir).toBe(undefined)
+  expect(config.lockfileDir).toBeUndefined()
 })
 
 test('settings shamefullyHoist in pnpm-workspace.yaml should take effect', async () => {

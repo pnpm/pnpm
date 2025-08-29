@@ -1,5 +1,15 @@
 # @pnpm/workspace.manifest-writer
 
+## 1001.0.0
+
+### Major Changes
+
+- 9dbada8: Combine the logic of the `addCatalogs` function into the `updateWorkspaceManifest` function.
+
+### Minor Changes
+
+- 8747b4e: Added the `cleanupUnusedCatalogs` configuration. When set to `true`, pnpm will remove unused catalog entries during installation [#9793](https://github.com/pnpm/pnpm/pull/9793).
+
 ## 1000.2.3
 
 ### Patch Changes

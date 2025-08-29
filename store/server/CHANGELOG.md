@@ -1,5 +1,12 @@
 # @pnpm/server
 
+## 1001.0.9
+
+### Patch Changes
+
+- Updated dependencies [87d3aa8]
+  - @pnpm/fetch@1000.2.4
+
 ## 1001.0.8
 
 ### Patch Changes

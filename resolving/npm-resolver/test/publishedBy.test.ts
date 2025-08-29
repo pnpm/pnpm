@@ -5,18 +5,18 @@ import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createNpmResolver } from '@pnpm/npm-resolver'
 import { type Registries } from '@pnpm/types'
 import { fixtures } from '@pnpm/test-fixtures'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 const registries: Registries = {
   default: 'https://registry.npmjs.org/',
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const badDatesMeta = loadJsonFile.sync<any>(f.find('bad-dates.json'))
+const badDatesMeta = loadJsonFileSync<any>(f.find('bad-dates.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const fetch = createFetchFromRegistry({})
@@ -37,7 +37,7 @@ test('fall back to a newer version if there is no version published by the given
     .get('/bad-dates')
     .reply(200, badDatesMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     filterMetadata: true,
@@ -53,7 +53,7 @@ test('fall back to a newer version if there is no version published by the given
 })
 
 test('request metadata when the one in cache does not have a version satisfying the range', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const cachedMeta = {
     'dist-tags': {},
     versions: {},

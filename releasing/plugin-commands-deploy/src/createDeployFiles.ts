@@ -1,7 +1,7 @@
 import path from 'path'
 import url from 'url'
 import normalizePath from 'normalize-path'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import { USEFUL_NON_ROOT_PNPM_FIELDS } from '@pnpm/constants'
 import * as dp from '@pnpm/dependency-path'
 import {
