@@ -219,10 +219,10 @@ export async function handler (
   )
   await Promise.all([
     writeProjectManifest(mutationResult.updatedProject.manifest),
-    ...(opts.workspaceDir ? [updateWorkspaceManifest(opts.workspaceDir, {
+    updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
       updatedCatalogs: mutationResult.updatedCatalogs,
       cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
       allProjects: opts.allProjects,
-    })] : []),
+    }),
   ])
 }
