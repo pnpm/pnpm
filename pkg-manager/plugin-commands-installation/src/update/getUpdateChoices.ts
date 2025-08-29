@@ -4,6 +4,7 @@ import semverDiff from '@pnpm/semver-diff'
 import { getBorderCharacters, table } from '@zkochan/table'
 import { pipe, groupBy, pluck, uniqBy, pickBy, and } from 'ramda'
 import isEmpty from 'ramda/src/isEmpty'
+import chalk from 'chalk'
 
 export interface ChoiceRow {
   name: string
@@ -41,6 +42,7 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
     Target: true,
     Workspace: workspacesEnabled,
     URL: true,
+    Provenance: true,
   }
   // returns only the keys that are true
   const header: string[] = Object.keys(pickBy(and, headerRow))
@@ -101,6 +103,7 @@ function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolea
     ? outdatedPkg.latestManifest!.version
     : colorizeSemverDiff(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   const label = outdatedPkg.packageName
+  const provenance = Boolean(outdatedPkg.latestManifest?.dist?.attestations?.provenance)
 
   const lineParts = {
     label,
@@ -109,6 +112,7 @@ function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolea
     nextVersion,
     workspace: outdatedPkg.workspace,
     url: getPkgUrl(outdatedPkg),
+    provenance: provenance ? chalk.green(provenance) : chalk.red(provenance),
   }
 
   if (!workspacesEnabled) {
