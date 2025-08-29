@@ -1,4 +1,4 @@
-import npmTypes from '@pnpm/npm-conf/lib/types'
+import npmTypes from '@pnpm/npm-conf/lib/types.js'
 import { types } from './types.js'
 
 export const isRcSetting = (kebabKey: string, extraTypes: Record<string, unknown> = {}): boolean =>
