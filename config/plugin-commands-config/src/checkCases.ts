@@ -13,5 +13,5 @@ export function isStrictlyKebabCase (name: string): boolean {
  * Check if a name is camelCase.
  */
 export function isCamelCase (name: string): boolean {
-  return /^[a-z][a-zA-Z0-9]$/.test(name)
+  return /^[a-z][a-zA-Z0-9]*$/.test(name)
 }
