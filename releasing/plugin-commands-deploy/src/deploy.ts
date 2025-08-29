@@ -82,7 +82,9 @@ export type DeployOptions =
 
 export async function handler (opts: DeployOptions, params: string[]): Promise<void> {
   if (!opts.workspaceDir) {
-    throw new PnpmError('CANNOT_DEPLOY', 'A deploy is only possible from inside a workspace')
+    throw new PnpmError('CANNOT_DEPLOY', 'A deploy is only possible from inside a workspace', {
+      hint: 'Maybe you wanted to invoke "pnpm run deploy"'
+    })
   }
   const selectedProjects = Object.values(opts.selectedProjectsGraph ?? {})
   if (selectedProjects.length === 0) {
