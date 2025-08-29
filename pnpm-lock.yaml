@@ -1726,6 +1726,9 @@ importers:
       symlink-dir:
         specifier: 'catalog:'
         version: 6.0.5
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 5.0.0
 
   config/config-writer:
     dependencies:

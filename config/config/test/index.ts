@@ -2,6 +2,7 @@
 import fs from 'fs'
 import path from 'path'
 import PATH from 'path-name'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import loadNpmConf from '@pnpm/npm-conf'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -146,6 +147,133 @@ test('throw error if --virtual-store-dir is used with --global', async () => {
   })).rejects.toMatchObject({
     code: 'ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
     message: 'Configuration conflict. "virtual-store-dir" may not be used with "global"',
+  })
+})
+
+test('.npmrc does not load workspace-specific settings', async () => {
+  prepareEmpty()
+
+  const npmrc = [
+    'shared-workspace-lockfile=true',
+    'packages[]=foo',
+    'packages[]=bar',
+  ].join('\n')
+  fs.writeFileSync('.npmrc', npmrc)
+
+  const { config } = await getConfig({
+    cliOptions: {
+      global: false,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  // rc options appear as usual
+  expect(config.sharedWorkspaceLockfile).toBe(true)
+  expect(config.rawConfig['shared-workspace-lockfile']).toBe(true)
+
+  // workspace-specific settings are omitted
+  expect(config.rawConfig.packages).toBeUndefined()
+})
+
+test('rc options appear as kebab-case in rawConfig even if it was defined as camelCase by pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    ignoreScripts: true,
+    linkWorkspacePackages: true,
+    nodeLinker: 'hoisted',
+    sharedWorkspaceLockfile: true,
+  })
+
+
+  const { config } = await getConfig({
+    cliOptions: {
+      global: false,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config).toMatchObject({
+    ignoreScripts: true,
+    linkWorkspacePackages: true,
+    nodeLinker: 'hoisted',
+    sharedWorkspaceLockfile: true,
+    rawConfig: {
+      'ignore-scripts': true,
+      'link-workspace-packages': true,
+      'node-linker': 'hoisted',
+      'shared-workspace-lockfile': true,
+    },
+  })
+
+  expect(config.rawConfig.ignoreScripts).toBeUndefined()
+  expect(config.rawConfig.linkWorkspacePackages).toBeUndefined()
+  expect(config.rawConfig.nodeLinker).toBeUndefined()
+  expect(config.rawConfig.sharedWorkspaceLockfile).toBeUndefined()
+})
+
+test('workspace-specific settings preserve case in rawConfig', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['foo', 'bar'],
+    packageExtensions: {
+      '@babel/parser': {
+        peerDependencies: {
+          '@babel/types': '*',
+        },
+      },
+      'jest-circus': {
+        dependencies: {
+          slash: '3',
+        },
+      },
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {
+      global: false,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.rawConfig.packages).toStrictEqual(['foo', 'bar'])
+  expect(config.rawConfig.packageExtensions).toStrictEqual({
+    '@babel/parser': {
+      peerDependencies: {
+        '@babel/types': '*',
+      },
+    },
+    'jest-circus': {
+      dependencies: {
+        slash: '3',
+      },
+    },
+  })
+  expect(config.rawConfig['package-extensions']).toBeUndefined()
+  expect(config.packageExtensions).toStrictEqual({
+    '@babel/parser': {
+      peerDependencies: {
+        '@babel/types': '*',
+      },
+    },
+    'jest-circus': {
+      dependencies: {
+        slash: '3',
+      },
+    },
   })
 })
 
