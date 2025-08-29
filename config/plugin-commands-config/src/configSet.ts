@@ -39,7 +39,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   if (opts.global === true || fs.existsSync(path.join(opts.dir, '.npmrc'))) {
     const configPath = opts.global ? path.join(opts.configDir, 'rc') : path.join(opts.dir, '.npmrc')
     const settings = await safeReadIniFile(configPath)
-    key = kebabCase(key)
+    key = validateRcKey(key)
     if (value == null) {
       if (settings[key] == null) return
       delete settings[key]
@@ -122,6 +122,27 @@ function validateSimpleKey (key: string): string {
   if (!second.done) throw new ConfigSetDeepKeyError()
 
   return first.value.toString()
+}
+
+export class ConfigSetUnsupportedRcKeyError extends PnpmError {
+  readonly key: string
+  constructor (key: string) {
+    super('CONFIG_SET_UNSUPPORTED_RC_KEY', `Key ${JSON.stringify(key)} isn't supported by rc files`)
+    this.key = key
+  }
+}
+
+/**
+ * Validate if the kebab-case of {@link key} is supported by rc files.
+ *
+ * Return the kebab-case if it is, throw an error otherwise.
+ */
+function validateRcKey (key: string): string {
+  const kebabKey = kebabCase(key)
+  if (kebabKey in types) {
+    return kebabKey
+  }
+  throw new ConfigSetUnsupportedRcKeyError(key)
 }
 
 async function safeReadIniFile (configPath: string): Promise<Record<string, unknown>> {
