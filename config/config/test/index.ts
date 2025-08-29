@@ -188,7 +188,6 @@ test('rc options appear as kebab-case in rawConfig even if it was defined as cam
     sharedWorkspaceLockfile: true,
   })
 
-
   const { config } = await getConfig({
     cliOptions: {
       global: false,
