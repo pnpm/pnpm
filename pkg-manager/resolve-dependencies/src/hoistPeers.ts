@@ -17,6 +17,11 @@ export function hoistPeers (
       dependencies[peerName] = rootDep.version
       continue
     }
+    const rootDepByAlias = opts.workspaceRootDeps.find((rootDep) => rootDep.alias === peerName)
+    if (rootDepByAlias?.normalizedBareSpecifier) {
+      dependencies[peerName] = rootDepByAlias.normalizedBareSpecifier
+      continue
+    }
     if (opts.allPreferredVersions![peerName]) {
       const versions: string[] = []
       const nonVersions: string[] = []
