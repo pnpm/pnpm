@@ -127,7 +127,9 @@ function validateSimpleKey (key: string): string {
 export class ConfigSetUnsupportedRcKeyError extends PnpmError {
   readonly key: string
   constructor (key: string) {
-    super('CONFIG_SET_UNSUPPORTED_RC_KEY', `Key ${JSON.stringify(key)} isn't supported by rc files`)
+    super('CONFIG_SET_UNSUPPORTED_RC_KEY', `Key ${JSON.stringify(key)} isn't supported by rc files`, {
+      hint: `Add ${JSON.stringify(camelCase(key))} to the project workspace manifest instead`,
+    })
     this.key = key
   }
 }
