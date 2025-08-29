@@ -128,6 +128,7 @@ export async function getConfig (opts: {
     'auto-install-peers': true,
     bail: true,
     'catalog-mode': 'manual',
+    'cleanup-unused-catalogs': false,
     ci: isCI,
     color: 'auto',
     'dangerously-allow-all-builds': false,

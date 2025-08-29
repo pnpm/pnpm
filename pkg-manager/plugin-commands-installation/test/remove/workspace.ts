@@ -163,3 +163,65 @@ test('remove from within a workspace package dir only affects the specified depe
     version: '1.0.0',
   })
 })
+
+test('remove cleans up unused catalogs when cleanupUnusedCatalogs is enabled', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': 'catalog:',
+      },
+    },
+    {
+      name: 'project-2', 
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': 'catalog:',
+      },
+    },
+  ])
+
+  // Create workspace with catalog entries
+  const fs = await import('fs')
+  await fs.promises.writeFile('pnpm-workspace.yaml', `
+packages:
+  - project-1
+  - project-2
+
+catalog:
+  is-negative: "1.0.0"
+  is-positive: "1.0.0"
+  unused-pkg: "2.0.0"
+`)
+
+  const sharedOpts = {
+    dir: process.cwd(),
+    recursive: true,
+    workspaceDir: process.cwd(),
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    linkWorkspacePackages: false,
+    cleanupUnusedCatalogs: true,
+  }
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterPackagesFromDir(process.cwd(), []),
+    ...sharedOpts,
+  })
+
+  // Remove is-negative dependency, which should cleanup unused-pkg from catalog
+  await remove.handler({
+    ...DEFAULT_OPTS,
+    ...await filterPackagesFromDir(process.cwd(), [{ namePattern: 'project-1' }]),
+    ...sharedOpts,
+  }, ['is-negative'])
+
+  // Check that unused catalog entry was cleaned up
+  const workspaceManifest = readYamlFile('./pnpm-workspace.yaml')
+  expect(workspaceManifest.catalog).toStrictEqual({
+    'is-positive': '1.0.0',
+    // 'unused-pkg' should be removed since it's not referenced by any project
+  })
+})

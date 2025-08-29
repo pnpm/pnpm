@@ -6,6 +6,7 @@ export const types = Object.assign({
   ci: Boolean,
   'cache-dir': String,
   'catalog-mode': ['strict', 'prefer', 'manual'],
+  'cleanup-unused-catalogs': Boolean,
   'child-concurrency': Number,
   'merge-git-branch-lockfiles': Boolean,
   'merge-git-branch-lockfiles-branch-pattern': Array,

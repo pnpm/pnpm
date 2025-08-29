@@ -13,6 +13,7 @@ import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type DependenciesField, type ProjectRootDir } from '@pnpm/types'
 import { mutateModulesInSingleProject } from '@pnpm/core'
+import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import pick from 'ramda/src/pick'
 import without from 'ramda/src/without'
 import renderHelp from 'render-help'
@@ -46,6 +47,7 @@ class RemoveMissingDepsError extends PnpmError {
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
+    'cleanup-unused-catalogs',
     'global-dir',
     'global-pnpmfile',
     'global',
@@ -129,6 +131,7 @@ export async function handler (
   | 'allProjectsGraph'
   | 'bail'
   | 'bin'
+  | 'cleanupUnusedCatalogs'
   | 'configDependencies'
   | 'dev'
   | 'engineStrict'
@@ -214,5 +217,12 @@ export async function handler (
     },
     removeOpts
   )
-  await writeProjectManifest(mutationResult.updatedProject.manifest)
+  await Promise.all([
+    writeProjectManifest(mutationResult.updatedProject.manifest),
+    ...(opts.workspaceDir ? [updateWorkspaceManifest(opts.workspaceDir, {
+      updatedCatalogs: mutationResult.updatedCatalogs,
+      cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+      allProjects: opts.allProjects,
+    })] : []),
+  ])
 }
