@@ -410,6 +410,94 @@ test('peer dependency is resolved from the dependencies of the workspace root pr
   }
 })
 
+test('workspace overrides should be respected when resolving peer dependencies from workspace root', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        dependencies: {
+          ajv: '4.10.0',
+        },
+        pnpm: {
+          overrides: {
+            ajv: 'npm:@pnpm.e2e/qar@100.0.0',
+          },
+        },
+      },
+    },
+    {
+      location: 'foo',
+      package: {
+        name: 'foo',
+        dependencies: {
+          'ajv-keywords': '1.5.0',
+        },
+      },
+    },
+  ])
+
+  await addDistTag({ package: '@pnpm.e2e/qar', version: '100.0.0', distTag: 'latest' })
+
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'root',
+        version: '1.0.0',
+        dependencies: {
+          ajv: '4.10.0',
+        },
+        pnpm: {
+          overrides: {
+            ajv: 'npm:@pnpm.e2e/qar@100.0.0',
+          },
+        },
+      },
+      rootDir: process.cwd() as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'foo',
+        version: '1.0.0',
+        dependencies: {
+          'ajv-keywords': '1.5.0',
+        },
+      },
+      rootDir: path.resolve('foo') as ProjectRootDir,
+    },
+  ]
+
+  const reporter = jest.fn()
+  await mutateModules([
+    {
+      mutation: 'install',
+      rootDir: process.cwd() as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('foo') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects,
+    reporter,
+    resolvePeersFromWorkspaceRoot: true,
+    overrides: {
+      ajv: 'npm:@pnpm.e2e/qar@100.0.0',
+    },
+  }))
+
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:peer-dependency-issues',
+  }))
+
+  const lockfile = projects.root.readLockfile()
+  // Check that ajv override is respected and @pnpm.e2e/qar is used instead of ajv
+  // The peer dependency resolution should use the overridden package
+  expect(lockfile.importers.foo?.dependencies?.['ajv-keywords'].version).toMatch(/@pnpm\.e2e\/qar/)
+})
+
 test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async () => {
   prepareEmpty()
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })

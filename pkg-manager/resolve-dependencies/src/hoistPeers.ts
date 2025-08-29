@@ -14,8 +14,14 @@ export function hoistPeers (
   for (const [peerName, { range }] of missingRequiredPeers) {
     const rootDep = opts.workspaceRootDeps.find((rootDep) => rootDep.alias === peerName)
     if (rootDep?.version) {
-      dependencies[peerName] = rootDep.version
-      continue
+      // Check if this dependency is overridden by comparing pkgId with alias
+      // If pkgId doesn't start with the alias, it means this is an overridden package
+      // and we should skip this optimization to let the normal resolution process handle it
+      const isOverridden = !rootDep.pkgId.startsWith(`${peerName}@`)
+      if (!isOverridden) {
+        dependencies[peerName] = rootDep.version
+        continue
+      }
     }
     if (opts.allPreferredVersions![peerName]) {
       const versions: string[] = []
