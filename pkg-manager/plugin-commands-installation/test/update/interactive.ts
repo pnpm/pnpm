@@ -62,7 +62,7 @@ test('interactively update', async () => {
   const storeDir = path.resolve('pnpm-store')
 
   const headerChoice = {
-    name: 'Package                                                    Current   Target            URL ',
+    name: 'Package                                                    Current   Target            URL   Provenance ',
     disabled: true,
     hint: '',
     value: '',
@@ -110,12 +110,12 @@ test('interactively update', async () => {
       choices: [
         headerChoice,
         {
-          message: chalk`is-negative                                                  1.0.0 ❯ 1.0.{greenBright.bold 1}                 `,
+          message: chalk`is-negative                                                  1.0.0 ❯ 1.0.{greenBright.bold 1}                   {red false}      `,
           value: 'is-negative',
           name: 'is-negative',
         },
         {
-          message: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
+          message: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                  {red false}      `,
           value: 'micromatch',
           name: 'micromatch',
         },
@@ -162,17 +162,17 @@ test('interactively update', async () => {
       choices: [
         headerChoice,
         {
-          message: chalk`is-negative                                                  1.0.1 ❯ {redBright.bold 2.1.0}                 `,
+          message: chalk`is-negative                                                  1.0.1 ❯ {redBright.bold 2.1.0}                   {red false}      `,
           value: 'is-negative',
           name: 'is-negative',
         },
         {
-          message: chalk`is-positive                                                  2.0.0 ❯ {redBright.bold 3.1.0}                 `,
+          message: chalk`is-positive                                                  2.0.0 ❯ {redBright.bold 3.1.0}                   {red false}      `,
           value: 'is-positive',
           name: 'is-positive',
         },
         {
-          message: chalk`micromatch                                                   3.0.0 ❯ {redBright.bold 4.0.0}                 `,
+          message: chalk`micromatch                                                   3.0.0 ❯ {redBright.bold 4.0.0}                   {red false}      `,
           value: 'micromatch',
           name: 'micromatch',
         },
@@ -325,11 +325,11 @@ test('interactively update should ignore dependencies from the ignoreDependencie
           {
             disabled: true,
             hint: '',
-            name: 'Package                                                    Current   Target            URL ',
+            name: 'Package                                                    Current   Target            URL   Provenance ',
             value: '',
           },
           {
-            message: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
+            message: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                  {red false}      `,
             value: 'micromatch',
             name: 'micromatch',
           },
