@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { type Project } from '@pnpm/assert-project'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
@@ -331,162 +332,122 @@ test('peer dependency is resolved from the dependencies of the workspace root pr
   }
 })
 
-test('peer dependency is resolved from the dependencies of the workspace root project even if there are other versions of the peer dependency present in the dependency graph', async () => {
-  const projects = preparePackages([
-    {
-      location: '.',
-      package: { name: 'root' },
-    },
-    {
-      location: 'pkg',
-      package: {},
-    },
-    {
-      location: 'pkg2',
-      package: {},
-    },
-  ])
-  const allProjects: ProjectOptions[] = [
-    {
-      buildIndex: 0,
-      manifest: {
-        name: 'root',
-        version: '1.0.0',
-
-        dependencies: {
-          ajv: '4.10.0',
-        },
+describe('peer dependency is resolved from the root of the workspace even if there are other versions of the peer dependency present in the dependency graph', () => {
+  let nonRootProjects: ProjectOptions[]
+  let projects: Record<string, Project>
+  let mutatedProjects: MutatedProject[]
+  beforeEach(() => {
+    projects = preparePackages([
+      {
+        location: '.',
+        package: { name: 'root' },
       },
-      rootDir: process.cwd() as ProjectRootDir,
-    },
-    {
-      buildIndex: 0,
-      manifest: {
-        name: 'pkg',
-        version: '1.0.0',
-
-        dependencies: {
-          'ajv-keywords': '1.5.0',
-        },
+      {
+        location: 'pkg',
+        package: {},
       },
-      rootDir: path.resolve('pkg') as ProjectRootDir,
-    },
-    {
-      buildIndex: 0,
-      manifest: {
-        name: 'pkg2',
-        version: '1.0.0',
-
-        dependencies: {
-          ajv: '5.0.0',
-        },
+      {
+        location: 'pkg2',
+        package: {},
       },
-      rootDir: path.resolve('pkg2') as ProjectRootDir,
-    },
-  ]
-  const reporter = jest.fn()
-  await mutateModules([
-    {
-      mutation: 'install',
-      rootDir: process.cwd() as ProjectRootDir,
-    },
-    {
-      mutation: 'install',
-      rootDir: path.resolve('pkg') as ProjectRootDir,
-    },
-    {
-      mutation: 'install',
-      rootDir: path.resolve('pkg2') as ProjectRootDir,
-    },
-  ], testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true }))
+    ])
+    nonRootProjects = [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'pkg',
+          version: '1.0.0',
 
-  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
-    name: 'pnpm:peer-dependency-issues',
-  }))
-
-  {
-    const lockfile = projects.root.readLockfile()
-    expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@4.10.0)')
-  }
-})
-
-test('peer dependency is resolved from an aliased dependency of the workspace root project even if there are other versions of the peer dependency present in the dependency graph', async () => {
-  const projects = preparePackages([
-    {
-      location: '.',
-      package: { name: 'root' },
-    },
-    {
-      location: 'pkg',
-      package: {},
-    },
-    {
-      location: 'pkg2',
-      package: {},
-    },
-  ])
-  const allProjects: ProjectOptions[] = [
-    {
-      buildIndex: 0,
-      manifest: {
-        name: 'root',
-        version: '1.0.0',
-
-        dependencies: {
-          ajv: 'npm:@pnpm.e2e/foo@100.0.0',
+          dependencies: {
+            'ajv-keywords': '1.5.0',
+          },
         },
+        rootDir: path.resolve('pkg') as ProjectRootDir,
       },
-      rootDir: process.cwd() as ProjectRootDir,
-    },
-    {
-      buildIndex: 0,
-      manifest: {
-        name: 'pkg',
-        version: '1.0.0',
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'pkg2',
+          version: '1.0.0',
 
-        dependencies: {
-          'ajv-keywords': '1.5.0',
+          dependencies: {
+            ajv: '5.0.0',
+          },
         },
+        rootDir: path.resolve('pkg2') as ProjectRootDir,
       },
-      rootDir: path.resolve('pkg') as ProjectRootDir,
-    },
-    {
-      buildIndex: 0,
-      manifest: {
-        name: 'pkg2',
-        version: '1.0.0',
+    ]
+    mutatedProjects = [
+      {
+        mutation: 'install',
+        rootDir: process.cwd() as ProjectRootDir,
+      },
+      {
+        mutation: 'install',
+        rootDir: path.resolve('pkg') as ProjectRootDir,
+      },
+      {
+        mutation: 'install',
+        rootDir: path.resolve('pkg2') as ProjectRootDir,
+      },
+    ]
+  })
+  test('the package in the root is a regular non-aliased npm-hosted dependency', async () => {
+    const allProjects: ProjectOptions[] = [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'root',
+          version: '1.0.0',
 
-        dependencies: {
-          ajv: '5.0.0',
+          dependencies: {
+            ajv: '4.10.0',
+          },
         },
+        rootDir: process.cwd() as ProjectRootDir,
       },
-      rootDir: path.resolve('pkg2') as ProjectRootDir,
-    },
-  ]
-  const reporter = jest.fn()
-  await mutateModules([
-    {
-      mutation: 'install',
-      rootDir: process.cwd() as ProjectRootDir,
-    },
-    {
-      mutation: 'install',
-      rootDir: path.resolve('pkg') as ProjectRootDir,
-    },
-    {
-      mutation: 'install',
-      rootDir: path.resolve('pkg2') as ProjectRootDir,
-    },
-  ], testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true }))
+      ...nonRootProjects,
+    ]
+    const reporter = jest.fn()
+    await mutateModules(mutatedProjects, testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true }))
 
-  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
-    name: 'pnpm:peer-dependency-issues',
-  }))
+    expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+      name: 'pnpm:peer-dependency-issues',
+    }))
 
-  {
-    const lockfile = projects.root.readLockfile()
-    expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(@pnpm.e2e/foo@100.0.0)')
-  }
+    {
+      const lockfile = projects.root.readLockfile()
+      expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@4.10.0)')
+    }
+  })
+  test('the package in the root is aliased', async () => {
+    const allProjects: ProjectOptions[] = [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'root',
+          version: '1.0.0',
+
+          dependencies: {
+            ajv: 'npm:@pnpm.e2e/foo@100.0.0',
+          },
+        },
+        rootDir: process.cwd() as ProjectRootDir,
+      },
+      ...nonRootProjects,
+    ]
+    const reporter = jest.fn()
+    await mutateModules(mutatedProjects, testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true }))
+
+    expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+      name: 'pnpm:peer-dependency-issues',
+    }))
+
+    {
+      const lockfile = projects.root.readLockfile()
+      expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(@pnpm.e2e/foo@100.0.0)')
+    }
+  })
 })
 
 test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async () => {
