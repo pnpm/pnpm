@@ -1,5 +1,23 @@
 # pnpm
 
+## 10.15.0
+
+### Minor Changes
+
+- Added the `cleanupUnusedCatalogs` configuration. When set to `true`, pnpm will remove unused catalog entries during installation [#9793](https://github.com/pnpm/pnpm/pull/9793).
+- Automatically load pnpmfiles from config dependencies that are named `@*/pnpm-plugin-*` [#9780](https://github.com/pnpm/pnpm/issues/9780).
+- `pnpm config get` now prints an INI string for an object value [#9797](https://github.com/pnpm/pnpm/issues/9797).
+- `pnpm config get` now accepts property paths (e.g. `pnpm config get catalog.react`, `pnpm config get .catalog.react`, `pnpm config get 'packageExtensions["@babel/parser"].peerDependencies["@babel/types"]'`), and `pnpm config set` now accepts dot-leading or subscripted keys (e.g. `pnpm config set .ignoreScripts true`).
+- `pnpm config get --json` now prints a JSON serialization of config value, and `pnpm config set --json` now parses the input value as JSON.
+
+### Patch Changes
+
+- **Semi-breaking.** When automatically installing missing peer dependencies, prefer versions that are already present in the direct dependencies of the root workspace package [#9835](https://github.com/pnpm/pnpm/pull/9835).
+- When executing the `pnpm create` command, must verify whether the node version is supported even if a cache already exists [#9775](https://github.com/pnpm/pnpm/pull/9775).
+- When making requests for the non-abbreviated packument, add `*/*` to the `Accept` header to avoid getting a 406 error on AWS CodeArtifact [#9862](https://github.com/pnpm/pnpm/issues/9862).
+- The standalone exe version of pnpm works with glibc 2.26 again [#9734](https://github.com/pnpm/pnpm/issues/9734).
+- Fix a regression in which `pnpm dlx pkg --help` doesn't pass `--help` to `pkg` [#9823](https://github.com/pnpm/pnpm/issues/9823).
+
 ## 10.14.0
 
 ### Minor Changes

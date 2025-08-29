@@ -13,7 +13,6 @@ import isWindows from 'is-windows'
 
 import killcb from 'tree-kill'
 import { writeJsonFileSync } from 'write-json-file'
-import pAny from 'p-any'
 import {
   execPnpm,
   execPnpmSync,
@@ -258,7 +257,7 @@ async function testParallelServerStart (
 
   const timeoutMillis = options.timeoutMillis ?? 10000
   let timeoutPromise: Promise<number> | null = delay(timeoutMillis)
-  await pAny([
+  await Promise.any([
     (async () => {
       await completedPromise
       // Don't fire timeout if all server processes completed for some reason.

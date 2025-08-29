@@ -47,7 +47,6 @@
     "is-subdir": "catalog:",
     "is-windows": "catalog:",
     "normalize-path": "catalog:",
-    "p-settle": "catalog:",
     "ramda": "catalog:",
     "semver": "catalog:",
     "symlink-dir": "catalog:"

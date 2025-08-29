@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 1002.0.10
+
+### Patch Changes
+
+- Updated dependencies [87d3aa8]
+  - @pnpm/fetch@1000.2.4
+
 ## 1002.0.9
 
 ### Patch Changes

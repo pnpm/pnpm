@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "10.14.0",
+  "version": "10.15.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -158,7 +158,6 @@
     "load-json-file": "catalog:",
     "loud-rejection": "catalog:",
     "normalize-newline": "catalog:",
-    "p-any": "catalog:",
     "p-defer": "catalog:",
     "path-name": "catalog:",
     "pidtree": "catalog:",

@@ -1,5 +1,11 @@
 # @pnpm/parse-cli-args
 
+## 1000.1.2
+
+### Patch Changes
+
+- 778ba1e: Fix a regression in which `pnpm dlx pkg --help` doesn't pass `--help` to `pkg` [#9823](https://github.com/pnpm/pnpm/issues/9823).
+
 ## 1000.1.1
 
 ### Patch Changes
