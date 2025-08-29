@@ -81,13 +81,13 @@ test('getUpdateChoices()', () => {
         message: 'dependencies',
         choices: [
           {
-            name: 'Package                                                    Current   Target            URL              ',
+            name: 'Package                                                    Current   Target            URL                Provenance ',
             disabled: true,
             hint: '',
             value: '',
           },
           {
-            message: chalk`foo                                                          1.0.0 ❯ {redBright.bold 2.0.0}             https://pnpm.io/ `,
+            message: chalk`foo                                                          1.0.0 ❯ {redBright.bold 2.0.0}             https://pnpm.io/   {red false}      `,
             value: 'foo',
             name: 'foo',
           },
@@ -98,23 +98,23 @@ test('getUpdateChoices()', () => {
         message: 'devDependencies',
         choices: [
           {
-            name: 'Package                                                    Current   Target            URL ',
+            name: 'Package                                                    Current   Target            URL   Provenance ',
             disabled: true,
             hint: '',
             value: '',
           },
           {
-            message: chalk`qar                                                          1.0.0 ❯ 1.{yellowBright.bold 2.0}                 `,
+            message: chalk`qar                                                          1.0.0 ❯ 1.{yellowBright.bold 2.0}                   {red false}      `,
             name: 'qar',
             value: 'qar',
           },
           {
-            message: chalk`zoo                                                          1.1.0 ❯ 1.{yellowBright.bold 2.0}                 `,
+            message: chalk`zoo                                                          1.1.0 ❯ 1.{yellowBright.bold 2.0}                   {red false}      `,
             name: 'zoo',
             value: 'zoo',
           },
           {
-            message: chalk`foo                                                          1.0.1 ❯ 1.{yellowBright.bold 2.0}                 `,
+            message: chalk`foo                                                          1.0.1 ❯ 1.{yellowBright.bold 2.0}                   {red false}      `,
             name: 'foo',
             value: 'foo',
           },
@@ -125,13 +125,13 @@ test('getUpdateChoices()', () => {
         message: 'optionalDependencies',
         choices: [
           {
-            name: 'Package                                                    Current   Target            URL ',
+            name: 'Package                                                    Current   Target            URL   Provenance ',
             disabled: true,
             hint: '',
             value: '',
           },
           {
-            message: chalk`qaz                                                          1.0.1 ❯ 1.{yellowBright.bold 2.0}                 `,
+            message: chalk`qaz                                                          1.0.1 ❯ 1.{yellowBright.bold 2.0}                   {red false}      `,
             name: 'qaz',
             value: 'qaz',
           },
