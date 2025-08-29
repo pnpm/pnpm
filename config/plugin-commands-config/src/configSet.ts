@@ -10,7 +10,7 @@ import camelCase from 'camelcase'
 import kebabCase from 'lodash.kebabcase'
 import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
-import { isStrictlyKebabCase } from './checkCases.js'
+import { isCamelCase, isStrictlyKebabCase } from './checkCases.js'
 import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
 import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
@@ -49,7 +49,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
     await writeIniFile(configPath, settings)
     return
   }
-  key = camelCase(key)
+  key = validateWorkspaceKey(key)
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
     updatedFields: ({
       [key]: castField(value, kebabCase(key)),
@@ -145,6 +145,27 @@ function validateRcKey (key: string): string {
     return kebabKey
   }
   throw new ConfigSetUnsupportedRcKeyError(key)
+}
+
+export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
+  readonly key: string
+  constructor (key: string) {
+    super('CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY', `The key ${JSON.stringify(key)} isn't supported by the workspace manifest`, {
+      hint: `Try ${JSON.stringify(camelCase(key))}`,
+    })
+    this.key = key
+  }
+}
+
+/**
+ * Only an rc option key would be allowed to be kebab-case, otherwise, it must be camelCase.
+ *
+ * Return the camelCase of {@link key} if it's valid.
+ */
+function validateWorkspaceKey (key: string): string {
+  if (key in types) return camelCase(key)
+  if (!isCamelCase(key)) throw new ConfigSetUnsupportedWorkspaceKeyError(key)
+  return key
 }
 
 async function safeReadIniFile (configPath: string): Promise<Record<string, unknown>> {

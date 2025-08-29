@@ -289,6 +289,44 @@ test('config set with location=project and json=true', async () => {
       react: '19',
     },
   })
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    json: true,
+    rawConfig: {},
+  }, ['set', 'packageExtensions', JSON.stringify({
+    '@babel/parser': {
+      peerDependencies: {
+        '@babel/types': '*',
+      },
+    },
+    'jest-circus': {
+      dependencies: {
+        slash: '3',
+      },
+    },
+  })])
+
+  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toStrictEqual({
+    catalog: {
+      react: '19',
+    },
+    packageExtensions: {
+      '@babel/parser': {
+        peerDependencies: {
+          '@babel/types': '*',
+        },
+      },
+      'jest-circus': {
+        dependencies: {
+          slash: '3',
+        },
+      },
+    },
+  })
 })
 
 test('config set refuses writing workspace-specific settings to the global config', async () => {
@@ -417,6 +455,35 @@ test('config set refuses writing workspace-specific settings to .npmrc', async (
     },
   })])).rejects.toMatchObject({
     code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_RC_KEY',
+    key: 'package-extensions',
+  })
+})
+
+test('config set refuses kebab-case workspace-specific settings', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await expect(config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    json: true,
+    rawConfig: {},
+  }, ['set', 'package-extensions', JSON.stringify({
+    '@babel/parser': {
+      peerDependencies: {
+        '@babel/types': '*',
+      },
+    },
+    'jest-circus': {
+      dependencies: {
+        slash: '3',
+      },
+    },
+  })])).rejects.toMatchObject({
+    code: 'ERR_PNPM_CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY',
     key: 'package-extensions',
   })
 })
