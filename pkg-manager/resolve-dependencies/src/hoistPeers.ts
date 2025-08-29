@@ -12,14 +12,14 @@ export function hoistPeers (
 ): Record<string, string> {
   const dependencies: Record<string, string> = {}
   for (const [peerName, { range }] of missingRequiredPeers) {
-    const rootDep = opts.workspaceRootDeps.find((rootDep) => rootDep.pkg.name === peerName)
-    if (rootDep?.version) {
-      dependencies[peerName] = rootDep.version
-      continue
-    }
     const rootDepByAlias = opts.workspaceRootDeps.find((rootDep) => rootDep.alias === peerName)
     if (rootDepByAlias?.normalizedBareSpecifier) {
       dependencies[peerName] = rootDepByAlias.normalizedBareSpecifier
+      continue
+    }
+    const rootDep = opts.workspaceRootDeps.find((rootDep) => rootDep.pkg.name === peerName)
+    if (rootDep?.normalizedBareSpecifier) {
+      dependencies[peerName] = rootDep.normalizedBareSpecifier
       continue
     }
     if (opts.allPreferredVersions![peerName]) {
