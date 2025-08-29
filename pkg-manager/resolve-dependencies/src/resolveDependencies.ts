@@ -108,6 +108,7 @@ export interface LinkedDependency {
   dev: boolean
   resolution: DirectoryResolution
   pkgId: PkgResolutionId
+  pkg: PackageManifest
   version: string
   name: string
   alias: string
@@ -1406,6 +1407,7 @@ async function resolveDependency (
       resolution: pkgResponse.body.resolution,
       version: pkgResponse.body.manifest.version,
       normalizedBareSpecifier: pkgResponse.body.normalizedBareSpecifier,
+      pkg: pkgResponse.body.manifest,
     }
   }
 
