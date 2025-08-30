@@ -102,18 +102,21 @@ DependenciesTreeNode<T>
 
 export type ResolvedPkgsById = Record<PkgResolutionId, ResolvedPackage>
 
-export interface LinkedDependency {
-  isLinkedDependency: true
-  optional: boolean
-  dev: boolean
-  resolution: DirectoryResolution
-  pkgId: PkgResolutionId
-  pkg: PackageManifest
-  version: string
-  name: string
+export interface PkgAddressOrLinkBase {
   alias: string
   catalogLookup?: CatalogLookupMetadata
   normalizedBareSpecifier?: string
+  optional: boolean
+  pkg: PackageManifest
+  pkgId: PkgResolutionId
+}
+
+export interface LinkedDependency extends PkgAddressOrLinkBase {
+  isLinkedDependency: true
+  dev: boolean
+  resolution: DirectoryResolution
+  version: string
+  name: string
 }
 
 export interface PendingNode {
@@ -191,32 +194,21 @@ interface MissingPeersOfChildren {
   resolved?: boolean
 }
 
-export type PkgAddress = {
-  alias: string
+export interface PkgAddress extends PkgAddressOrLinkBase {
   depIsLinked: boolean
   isNew: boolean
   isLinkedDependency?: false
   resolvedVia?: string
   nodeId: NodeId
-  pkgId: PkgResolutionId
   installable: boolean
-  pkg: PackageManifest
   version?: string
   updated: boolean
   rootDir: string
   missingPeers: MissingPeers
   missingPeersOfChildren?: MissingPeersOfChildren
   publishedAt?: string
-  catalogLookup?: CatalogLookupMetadata
-  optional: boolean
-  normalizedBareSpecifier?: string
   saveCatalogName?: string
-} & ({
-  isLinkedDependency: true
-  version: string
-} | {
-  isLinkedDependency: undefined
-})
+}
 
 export type PkgAddressOrLink = PkgAddress | LinkedDependency
 
