@@ -420,7 +420,7 @@ describe('peer dependency is resolved from the root of the workspace even if the
       expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@4.10.0)')
     }
   })
-  test('the package in the root is aliased', async () => {
+  test('the package in the root is aliasing a package with a different name', async () => {
     const allProjects: ProjectOptions[] = [
       {
         buildIndex: 0,
@@ -446,6 +446,36 @@ describe('peer dependency is resolved from the root of the workspace even if the
     {
       const lockfile = projects.root.readLockfile()
       expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(@pnpm.e2e/foo@100.0.0)')
+    }
+  })
+  test('the package in the root is under an alias', async () => {
+    const allProjects: ProjectOptions[] = [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'root',
+          version: '1.0.0',
+
+          dependencies: {
+            b: 'npm:ajv@1.0.0',
+            a: 'npm:ajv@4.10.0',
+            c: 'npm:ajv@2.0.0',
+          },
+        },
+        rootDir: process.cwd() as ProjectRootDir,
+      },
+      ...nonRootProjects,
+    ]
+    const reporter = jest.fn()
+    await mutateModules(mutatedProjects, testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true }))
+
+    expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+      name: 'pnpm:peer-dependency-issues',
+    }))
+
+    {
+      const lockfile = projects.root.readLockfile()
+      expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords'].version).toBe('1.5.0(ajv@4.10.0)')
     }
   })
 })
