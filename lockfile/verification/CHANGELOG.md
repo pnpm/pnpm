@@ -1,5 +1,56 @@
 # @pnpm/lockfile.verification
 
+## 1001.2.5
+
+### Patch Changes
+
+- eac7bab: satisfiesPackageManifest also checks if the version in the importer satisfied the range in the `package.json`.
+
+## 1001.2.4
+
+### Patch Changes
+
+- 19b1880: Fix a bug causing `pnpm install` to incorrectly assume the lockfile is up to date after changing a local tarball that has peers dependencies.
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [adb097c]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/get-context@1001.1.4
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1001.2.3
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/get-context@1001.1.3
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1001.2.2
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/dependency-path@1001.0.1
+  - @pnpm/lockfile.utils@1002.0.1
+  - @pnpm/get-context@1001.1.2
+
 ## 1001.2.1
 
 ### Patch Changes

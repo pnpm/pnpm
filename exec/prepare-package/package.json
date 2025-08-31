@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/prepare-package",
-  "version": "1000.0.17",
+  "version": "1000.0.20",
   "description": "Prepares a Git-hosted package",
   "keywords": [
     "pnpm",
@@ -13,6 +13,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -27,7 +28,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix",
-    "_test": "jest"
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
@@ -48,7 +49,7 @@
     "load-json-file": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

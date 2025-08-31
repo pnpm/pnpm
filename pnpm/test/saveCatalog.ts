@@ -2,10 +2,10 @@ import { type LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm } from './utils'
+import { execPnpm } from './utils/index.js'
 
 test('--save-catalog adds catalogs to the manifest of a single package workspace', async () => {
   const manifest: ProjectManifest = {
@@ -92,7 +92,7 @@ test('--save-catalog adds catalogs to the manifest of a single package workspace
       '@pnpm.e2e/foo': '^100.1.0',
     },
   })
-  expect(loadJsonFile('package.json')).toStrictEqual({
+  expect(loadJsonFileSync('package.json')).toStrictEqual({
     ...manifest,
     dependencies: {
       ...manifest.dependencies,
@@ -200,7 +200,7 @@ test('--save-catalog adds catalogs to the manifest of a shared lockfile workspac
     packages: ['project-0', 'project-1'],
     sharedWorkspaceLockfile: true,
   })
-  expect(loadJsonFile('project-1/package.json')).toStrictEqual({
+  expect(loadJsonFileSync('project-1/package.json')).toStrictEqual({
     ...manifests[1],
     dependencies: {
       '@pnpm.e2e/foo': 'catalog:',
@@ -318,7 +318,7 @@ test('--save-catalog adds catalogs to the manifest of a multi-lockfile workspace
       sharedWorkspaceLockfile: false,
     })
 
-    expect(loadJsonFile('project-1/package.json')).toStrictEqual({
+    expect(loadJsonFileSync('project-1/package.json')).toStrictEqual({
       ...manifests[1],
       dependencies: {
         ...manifests[1].dependencies,
@@ -378,7 +378,7 @@ test('--save-catalog does not add local workspace dependency as a catalog', asyn
       packages: ['project-0', 'project-1'],
     })
 
-    expect(loadJsonFile('project-1/package.json')).toStrictEqual({
+    expect(loadJsonFileSync('project-1/package.json')).toStrictEqual({
       ...manifests[1],
       dependencies: {
         'project-0': 'workspace:*',
@@ -473,7 +473,7 @@ test('--save-catalog does not affect new dependencies from package.json', async 
     },
   } as LockfileFile['importers'])
 
-  expect(loadJsonFile('package.json')).toStrictEqual({
+  expect(loadJsonFileSync('package.json')).toStrictEqual({
     ...manifest,
     dependencies: {
       ...manifest.dependencies,
@@ -577,8 +577,8 @@ test('--save-catalog does not overwrite existing catalogs', async () => {
     },
     packages: ['project-0', 'project-1'],
   })
-  expect(loadJsonFile('project-0/package.json')).toStrictEqual(manifests[0])
-  expect(loadJsonFile('project-1/package.json')).toStrictEqual({
+  expect(loadJsonFileSync('project-0/package.json')).toStrictEqual(manifests[0])
+  expect(loadJsonFileSync('project-1/package.json')).toStrictEqual({
     ...manifests[1],
     dependencies: {
       ...manifests[1].dependencies,
@@ -651,14 +651,14 @@ test('--save-catalog creates new workspace manifest with the new catalog (recurs
     },
   })
 
-  expect(loadJsonFile('project-0/package.json')).toStrictEqual({
+  expect(loadJsonFileSync('project-0/package.json')).toStrictEqual({
     ...manifests[0],
     dependencies: {
       ...manifests[0].dependencies,
       '@pnpm.e2e/foo': 'catalog:',
     },
   } as ProjectManifest)
-  expect(loadJsonFile('project-1/package.json')).toStrictEqual({
+  expect(loadJsonFileSync('project-1/package.json')).toStrictEqual({
     ...manifests[1],
     dependencies: {
       ...manifests[1].dependencies,
@@ -758,7 +758,7 @@ test('--save-catalog-name', async () => {
       },
     },
   })
-  expect(loadJsonFile('package.json')).toStrictEqual({
+  expect(loadJsonFileSync('package.json')).toStrictEqual({
     ...manifest,
     dependencies: {
       ...manifest.dependencies,

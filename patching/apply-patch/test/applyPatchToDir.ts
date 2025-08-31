@@ -1,22 +1,24 @@
 import fs from 'fs'
 import path from 'path'
-import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { fixtures } from '@pnpm/test-fixtures'
 import { tempDir } from '@pnpm/prepare'
-import { globalWarn } from '@pnpm/logger'
+import { jest } from '@jest/globals'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
-jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual('@pnpm/logger')
+const originalModule = await import('@pnpm/logger')
+jest.unstable_mockModule('@pnpm/logger', () => {
   return {
     ...originalModule,
     globalWarn: jest.fn(),
   }
 })
 
+const { globalWarn } = await import('@pnpm/logger')
+const { applyPatchToDir } = await import('@pnpm/patching.apply-patch')
+
 beforeEach(() => {
-  ;(globalWarn as jest.Mock).mockClear()
+  jest.mocked(globalWarn).mockClear()
 })
 
 function prepareDirToPatch () {
@@ -100,7 +102,7 @@ describe('applyPatchToDir() with allowFailure', () => {
         patchedDir,
       })
     ).toBe(false)
-    expect((globalWarn as jest.Mock).mock.calls).toStrictEqual([[
+    expect(jest.mocked(globalWarn).mock.calls).toStrictEqual([[
       `Could not apply patch ${patchFilePath} to ${patchedDir}`,
     ]])
     expect(fs.readFileSync(path.join(patchedDir, 'patch-target.txt'), 'utf-8')).toBe(fs.readFileSync(f.find('patch-target.txt'), 'utf-8'))

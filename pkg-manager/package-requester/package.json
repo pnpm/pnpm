@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "1004.0.4",
+  "version": "1006.0.0",
   "description": "Concurrent downloader of npm-compatible packages",
   "keywords": [
     "pnpm",
@@ -15,6 +15,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -27,7 +28,7 @@
   "scripts": {
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
@@ -45,6 +46,7 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "detect-libc": "catalog:",
     "p-defer": "catalog:",
     "p-limit": "catalog:",
     "p-queue": "catalog:",
@@ -58,6 +60,7 @@
     "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
@@ -76,7 +79,7 @@
     "tempy": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

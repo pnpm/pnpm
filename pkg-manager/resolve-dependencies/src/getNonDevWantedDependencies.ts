@@ -1,5 +1,5 @@
 import { type Dependencies, type DependencyManifest, type DependenciesMeta } from '@pnpm/types'
-import pickBy from 'ramda/src/pickBy'
+import { pickBy } from 'ramda'
 
 export interface WantedDependency {
   alias: string

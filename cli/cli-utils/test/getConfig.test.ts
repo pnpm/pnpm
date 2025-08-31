@@ -2,13 +2,14 @@
 import fs from 'fs'
 import { getConfig } from '@pnpm/cli-utils'
 import { prepare } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 
 beforeEach(() => {
   jest.spyOn(console, 'warn')
 })
 
 afterEach(() => {
-  (console.warn as jest.Mock).mockRestore()
+  jest.mocked(console.warn).mockRestore()
 })
 
 test('console a warning when the .npmrc has an env variable that does not exist', async () => {

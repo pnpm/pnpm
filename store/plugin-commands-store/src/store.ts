@@ -4,11 +4,11 @@ import { PnpmError } from '@pnpm/error'
 import { logger, type LogBase } from '@pnpm/logger'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { getStorePath } from '@pnpm/store-path'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
-import { storeAdd } from './storeAdd'
-import { storePrune } from './storePrune'
-import { storeStatus } from './storeStatus'
+import { storeAdd } from './storeAdd.js'
+import { storePrune } from './storePrune.js'
+import { storeStatus } from './storeStatus/index.js'
 
 export const skipPackageManagerCheck = true
 

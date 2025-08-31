@@ -1,5 +1,26 @@
 # @pnpm/patching.config
 
+## 1001.0.7
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/error@1000.0.4
+
+## 1001.0.6
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.2
+- @pnpm/error@1000.0.3
+
+## 1001.0.5
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+
 ## 1001.0.4
 
 ### Patch Changes

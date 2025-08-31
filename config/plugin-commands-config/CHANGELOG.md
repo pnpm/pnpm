@@ -1,5 +1,67 @@
 # @pnpm/plugin-commands-config
 
+## 1000.2.0
+
+### Minor Changes
+
+- b84c71d: `pnpm config get` now prints an INI string for an object value [#9797](https://github.com/pnpm/pnpm/issues/9797).
+- b84c71d: `pnpm config get` now accepts property paths (e.g. `pnpm config get catalog.react`, `pnpm config get .catalog.react`, `pnpm config get 'packageExtensions["@babel/parser"].peerDependencies["@babel/types"]'`), and `pnpm config set` now accepts dot-leading or subscripted keys (e.g. `pnpm config set .ignoreScripts true`).
+- b84c71d: `pnpm config get --json` now prints a JSON serialization of config value, and `pnpm config set --json` now parses the input value as JSON.
+
+### Patch Changes
+
+- Updated dependencies [b84c71d]
+- Updated dependencies [9dbada8]
+- Updated dependencies [8747b4e]
+  - @pnpm/object.property-path@1000.0.0
+  - @pnpm/workspace.manifest-writer@1001.0.0
+  - @pnpm/cli-utils@1001.1.1
+
+## 1000.1.14
+
+### Patch Changes
+
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+
+## 1000.1.13
+
+### Patch Changes
+
+- @pnpm/config@1004.2.1
+- @pnpm/error@1000.0.4
+- @pnpm/workspace.manifest-writer@1000.2.3
+- @pnpm/cli-utils@1001.0.3
+
+## 1000.1.12
+
+### Patch Changes
+
+- Updated dependencies [6f7ac0f]
+  - @pnpm/config@1004.2.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/workspace.manifest-writer@1000.2.2
+  - @pnpm/error@1000.0.3
+
+## 1000.1.11
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+
+## 1000.1.10
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [95a9b82]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/workspace.manifest-writer@1000.2.1
+
 ## 1000.1.9
 
 ### Patch Changes

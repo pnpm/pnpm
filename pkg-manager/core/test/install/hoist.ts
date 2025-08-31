@@ -16,7 +16,7 @@ import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDistTag } from '@pnpm/registry-mock'
 import symlinkDir from 'symlink-dir'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('should hoist dependencies', async () => {
   const project = prepareEmpty()
@@ -139,7 +139,7 @@ test('should not override root packages with hoisted dependencies', async () => 
   // this installs express@4.16.2, that depends on debug 2.6.9, but we don't want to flatten debug@2.6.9
   await addDependenciesToPackage(manifest, ['express@4.16.2'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
-  expect(project.requireModule('debug/package.json').version).toEqual('3.1.0')
+  expect(project.requireModule('debug/package.json').version).toBe('3.1.0')
 })
 
 test('should rehoist when uninstalling a package', async () => {
@@ -155,8 +155,8 @@ test('should rehoist when uninstalling a package', async () => {
     rootDir: process.cwd() as ProjectRootDir,
   }, testDefaults({ hoistPattern: '*' }))
 
-  expect(project.requireModule('.pnpm/node_modules/debug/package.json').version).toEqual('2.6.9')
-  expect(project.requireModule('express/package.json').version).toEqual('4.16.0')
+  expect(project.requireModule('.pnpm/node_modules/debug/package.json').version).toBe('2.6.9')
+  expect(project.requireModule('express/package.json').version).toBe('4.16.0')
 
   const modules = project.readModulesManifest()
   expect(modules).toBeTruthy()
@@ -173,8 +173,8 @@ test('should rehoist after running a general install', async () => {
     },
   }, testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
-  expect(project.requireModule('debug/package.json').version).toEqual('3.1.0')
-  expect(project.requireModule('express/package.json').version).toEqual('4.16.0')
+  expect(project.requireModule('debug/package.json').version).toBe('3.1.0')
+  expect(project.requireModule('express/package.json').version).toBe('4.16.0')
 
   project.hasNot('.pnpm/node_modules/debug') // debug not hoisted because it is a direct dep
 
@@ -200,7 +200,7 @@ test('should not override aliased dependencies', async () => {
   // now I install is-negative, but aliased as "debug". I do not want the "debug" dependency of express to override my alias
   await addDependenciesToPackage({}, ['debug@npm:is-negative@1.0.0', 'express@4.21.2'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
-  expect(project.requireModule('debug/package.json').version).toEqual('1.0.0')
+  expect(project.requireModule('debug/package.json').version).toBe('1.0.0')
 })
 
 test('hoistPattern=* throws exception when executed on node_modules installed w/o the option', async () => {
@@ -301,8 +301,8 @@ test('should rehoist after pruning', async () => {
     },
   }, testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
-  expect(project.requireModule('debug/package.json').version).toEqual('3.1.0')
-  expect(project.requireModule('express/package.json').version).toEqual('4.16.0')
+  expect(project.requireModule('debug/package.json').version).toBe('3.1.0')
+  expect(project.requireModule('express/package.json').version).toBe('4.16.0')
 
   project.hasNot('.pnpm/node_modules/debug') // debug is not hoisted because it is a direct dep
   // read this module path because we can't use requireModule again, as it is cached

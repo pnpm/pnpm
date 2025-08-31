@@ -1,5 +1,60 @@
 # @pnpm/build-modules
 
+## 1000.3.12
+
+### Patch Changes
+
+- 2b0d35f: `@pnpm/worker` should always be a peer dependency.
+
+## 1000.3.11
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [adb097c]
+  - @pnpm/link-bins@1000.2.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/calc-dep-state@1002.0.4
+  - @pnpm/config@1004.2.1
+  - @pnpm/lifecycle@1001.0.19
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/patching.apply-patch@1000.0.6
+  - @pnpm/worker@1000.1.11
+  - @pnpm/fs.hard-link-dir@1000.0.1
+
+## 1000.3.10
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [6f7ac0f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/link-bins@1000.1.0
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/config@1004.2.0
+  - @pnpm/lifecycle@1001.0.18
+  - @pnpm/calc-dep-state@1002.0.3
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/worker@1000.1.10
+  - @pnpm/fs.hard-link-dir@1000.0.1
+  - @pnpm/patching.apply-patch@1000.0.5
+
+## 1000.3.9
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [589ac1f]
+  - @pnpm/config@1004.1.0
+  - @pnpm/lifecycle@1001.0.17
+  - @pnpm/worker@1000.1.9
+  - @pnpm/calc-dep-state@1002.0.2
+
 ## 1000.3.8
 
 ### Patch Changes

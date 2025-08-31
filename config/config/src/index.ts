@@ -18,29 +18,33 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
-import { inheritAuthConfig } from './auth'
-import { checkGlobalBinDir } from './checkGlobalBinDir'
-import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions'
-import { getNetworkConfigs } from './getNetworkConfigs'
-import { transformPathKeys } from './transformPath'
-import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
+import { inheritAuthConfig } from './auth.js'
+import { checkGlobalBinDir } from './checkGlobalBinDir.js'
+import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
+import { getNetworkConfigs } from './getNetworkConfigs.js'
+import { transformPathKeys } from './transformPath.js'
+import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import {
   type Config,
   type ConfigWithDeprecatedSettings,
   type UniversalOptions,
   type VerifyDepsBeforeRun,
   type WantedPackageManager,
-} from './Config'
-import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency'
+} from './Config.js'
+import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
-import { types } from './types'
-import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest'
+import { types } from './types.js'
+import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+import {
+  type CliOptions as SupportedArchitecturesCliOptions,
+  overrideSupportedArchitecturesWithCLI,
+} from './overrideSupportedArchitecturesWithCLI.js'
 export { types }
 
-export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
-export * from './readLocalConfig'
-export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency'
+export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+export * from './readLocalConfig.js'
+export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 
 export type { Config, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
 
@@ -54,7 +58,7 @@ type KebabCaseConfig = {
 
 const npmDefaults = loadNpmConf.defaults
 
-export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }
+export type CliOptions = Record<string, unknown> & SupportedArchitecturesCliOptions & { dir?: string, json?: boolean }
 
 export async function getConfig (opts: {
   globalDirShouldAllowWrite?: boolean
@@ -120,7 +124,7 @@ export async function getConfig (opts: {
     cliOptions['prefix'] = cliOptions.dir // the npm config system still expects `prefix`
   }
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
-  const defaultOptions: Partial<KebabCaseConfig> | typeof npmTypes.types = {
+  const defaultOptions: Partial<KebabCaseConfig> = {
     'auto-install-peers': true,
     bail: true,
     'catalog-mode': 'manual',
@@ -160,7 +164,7 @@ export async function getConfig (opts: {
     'ignore-workspace-root-check': false,
     'optimistic-repeat-install': false,
     'init-package-manager': true,
-    'init-type': 'commonjs',
+    'init-type': 'module',
     'inject-workspace-packages': false,
     'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
@@ -211,8 +215,12 @@ export async function getConfig (opts: {
     const warn = npmConfig.addFile(path.join(configDir as string, 'rc'), 'pnpm-global')
     if (warn) warnings.push(warn)
   }
+  npmConfig.add({
+    registry: 'https://registry.npmjs.org/',
+    '@jsr:registry': 'https://npm.jsr.io/',
+  }, 'pnpm-builtin')
   {
-    const warn = npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
+    const warn = npmConfig.addFile(path.resolve(path.join(import.meta.dirname, 'pnpmrc')), 'pnpm-builtin')
     if (warn) warnings.push(warn)
   }
 
@@ -253,10 +261,7 @@ export async function getConfig (opts: {
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   pnpmConfig.rawConfig = Object.assign.apply(Object, [
-    {
-      registry: 'https://registry.npmjs.org/',
-      '@jsr:registry': 'https://npm.jsr.io/',
-    },
+    {},
     ...[...npmConfig.list].reverse(),
     cliOptions,
     { 'user-agent': pnpmConfig.userAgent },
@@ -379,6 +384,9 @@ export async function getConfig (opts: {
       }
     }
   }
+
+  overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
+
   if (opts.cliOptions['global']) {
     extractAndRemoveDependencyBuildOptions(pnpmConfig)
     Object.assign(pnpmConfig, globalDepsBuildConfig)

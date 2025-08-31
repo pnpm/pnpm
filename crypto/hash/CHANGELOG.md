@@ -1,5 +1,11 @@
 # @pnpm/crypto.hash
 
+## 1000.2.0
+
+### Minor Changes
+
+- cf630a8: A new function added: createHashFromMultipleFiles.
+
 ## 1000.1.1
 
 ### Patch Changes

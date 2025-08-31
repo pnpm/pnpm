@@ -14,6 +14,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -28,13 +29,13 @@
     "compile": "tsc --build && pnpm run lint --fix",
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile && pnpm run _test",
-    "_test": "jest"
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "devDependencies": {
     "@pnpm/catalogs.protocol-parser": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

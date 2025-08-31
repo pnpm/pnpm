@@ -2,14 +2,14 @@ import { type StatsLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { filter, take, reduce, map } from 'rxjs/operators'
 import chalk from 'chalk'
-import repeat from 'ramda/src/repeat'
+import { repeat } from 'ramda'
 import stringLength from 'string-length'
-import { EOL } from '../constants'
+import { EOL } from '../constants.js'
 import {
   ADDED_CHAR,
   REMOVED_CHAR,
-} from './outputConstants'
-import { zoomOut } from './utils/zooming'
+} from './outputConstants.js'
+import { zoomOut } from './utils/zooming.js'
 
 export function reportStats (
   log$: {

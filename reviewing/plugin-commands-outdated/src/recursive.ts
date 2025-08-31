@@ -12,8 +12,7 @@ import {
 } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
-import isEmpty from 'ramda/src/isEmpty'
-import sortWith from 'ramda/src/sortWith'
+import { isEmpty, sortWith } from 'ramda'
 import {
   getCellWidth,
   type OutdatedCommandOptions,
@@ -23,8 +22,8 @@ import {
   renderLatest,
   renderPackageName,
   toOutdatedWithVersionDiff,
-} from './outdated'
-import { DEFAULT_COMPARATORS, type OutdatedWithVersionDiff } from './utils'
+} from './outdated.js'
+import { DEFAULT_COMPARATORS, type OutdatedWithVersionDiff } from './utils.js'
 
 const DEP_PRIORITY: Record<DependenciesField, number> = {
   dependencies: 1,

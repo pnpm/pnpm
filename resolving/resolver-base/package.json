@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolver-base",
-  "version": "1004.0.0",
+  "version": "1005.0.0",
   "description": "Types for pnpm-compatible resolvers",
   "keywords": [
     "pnpm",
@@ -14,6 +14,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -37,7 +38,7 @@
     "@pnpm/resolver-base": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

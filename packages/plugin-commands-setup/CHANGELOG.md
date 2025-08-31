@@ -1,5 +1,46 @@
 # @pnpm/plugin-commands-setup
 
+## 1000.1.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.1.1
+
+## 1000.1.8
+
+### Patch Changes
+
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+
+## 1000.1.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.0.3
+
+## 1000.1.6
+
+### Patch Changes
+
+- @pnpm/cli-meta@1000.0.9
+- @pnpm/cli-utils@1001.0.2
+
+## 1000.1.5
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/cli-utils@1001.0.0
+
 ## 1000.1.3
 
 ### Patch Changes

@@ -10,6 +10,7 @@ import { tempDir, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { type DepPath, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
+import { jest } from '@jest/globals'
 import { sync as readYamlFile } from 'read-yaml-file'
 import {
   addDependenciesToPackage,
@@ -20,13 +21,13 @@ import {
   type ProjectOptions,
 } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import sinon from 'sinon'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { testDefaults } from './utils'
+import { testDefaults } from './utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 const LOCKFILE_WARN_LOG = {
   level: 'warn',
@@ -47,7 +48,7 @@ test('lockfile has correct format', async () => {
 
   const modules = project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.pendingBuilds.length).toBe(0)
+  expect(modules!.pendingBuilds).toHaveLength(0)
 
   const lockfile = project.readLockfile()
   const id = '@pnpm.e2e/pkg-with-1-dep@100.0.0'
@@ -147,7 +148,7 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
 
   const lockfile = project.readLockfile()
 
-  expect(Object.keys(lockfile.importers!['.'].dependencies!).length).toBe(1) // resolutions not duplicated
+  expect(Object.keys(lockfile.importers!['.'].dependencies!)).toHaveLength(1) // resolutions not duplicated
 })
 
 test('a lockfile created even when there are no deps in package.json', async () => {
@@ -826,7 +827,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   const modules = readYamlFile<any>(path.resolve('node_modules', '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(modules).toBeTruthy()
-  expect(modules.pendingBuilds.length).toBe(0)
+  expect(modules.pendingBuilds).toHaveLength(0)
 
   {
     const lockfile: LockfileFile = readYamlFile(WANTED_LOCKFILE)
@@ -1058,10 +1059,10 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 })
 
-const REGISTRY_MIRROR_DIR = path.join(__dirname, './registry-mirror')
+const REGISTRY_MIRROR_DIR = path.join(import.meta.dirname, './registry-mirror')
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const isPositiveMeta = loadJsonFile.sync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-positive.json'))
+const isPositiveMeta = loadJsonFileSync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-positive.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 const tarballPath = f.find('is-positive-3.1.0.tgz')
 

@@ -1,5 +1,87 @@
 # @pnpm/package-requester
 
+## 1006.0.0
+
+### Major Changes
+
+- d1edf73: Removed node fetcher. The binary fetcher should be used for downloading node assets.
+- f91922c: Changed how the integrity of the node.js artifact is stored in the lockfile.
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [adb097c]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/fetcher-base@1001.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/error@1000.0.4
+  - @pnpm/store.cafs@1000.0.16
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/package-is-installable@1000.0.12
+  - @pnpm/worker@1000.1.11
+
+## 1005.0.0
+
+### Major Changes
+
+- 1a07b8f: expectedPkg removed from options of the fetch package to store function.
+
+### Minor Changes
+
+- 1a07b8f: Added support for resolving and downloading the Node.js runtime specified in the [devEngines](https://github.com/openjs-foundation/package-metadata-interoperability-collab-space/issues/15) field of `package.json`.
+
+  Usage example:
+
+  ```json
+  {
+    "devEngines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.4.0",
+        "onFail": "download"
+      }
+    }
+  }
+  ```
+
+  When running `pnpm install`, pnpm will resolve Node.js to the latest version that satisfies the specified range and install it as a dependency of the project. As a result, when running scripts, the locally installed Node.js version will be used.
+
+  Unlike the existing options, `useNodeVersion` and `executionEnv.nodeVersion`, this new field supports version ranges, which are locked to exact versions during installation. The resolved version is stored in the pnpm lockfile, along with an integrity checksum for future validation of the Node.js content's validity.
+
+  Related PR: [#9755](https://github.com/pnpm/pnpm/pull/9755).
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/fetcher-base@1000.1.0
+  - @pnpm/pick-fetcher@1000.1.0
+  - @pnpm/package-is-installable@1000.0.11
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/store.cafs@1000.0.15
+  - @pnpm/worker@1000.1.10
+  - @pnpm/error@1000.0.3
+
+## 1004.0.5
+
+### Patch Changes
+
+- Updated dependencies [589ac1f]
+  - @pnpm/worker@1000.1.9
+  - @pnpm/dependency-path@1001.0.1
+
 ## 1004.0.4
 
 ### Patch Changes

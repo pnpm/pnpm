@@ -1,9 +1,9 @@
 import { preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpmSync } from '../utils'
+import { execPnpmSync } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('allowUnusedPatches=false errors on unused patches', async () => {
   preparePackages([

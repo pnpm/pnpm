@@ -1,5 +1,5 @@
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { execPnpmSync } from './utils'
+import { execPnpmSync } from './utils/index.js'
 
 test('exec with executionEnv', async () => {
   prepare({
@@ -13,7 +13,7 @@ test('exec with executionEnv', async () => {
   })
 
   const output = execPnpmSync(['exec', 'node', '--version']).stdout.toString().trim()
-  expect(output).toStrictEqual('v18.0.0')
+  expect(output).toBe('v18.0.0')
 })
 
 test('recursive exec when some packages define different executionEnv', async () => {

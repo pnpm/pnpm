@@ -16,11 +16,10 @@ import {
   type Registries,
   type ProjectRootDir,
 } from '@pnpm/types'
-import partition from 'ramda/src/partition'
-import zipObj from 'ramda/src/zipObj'
-import { type WantedDependency } from './getNonDevWantedDependencies'
-import { type NodeId, nextNodeId } from './nextNodeId'
-import { parentIdsContainSequence } from './parentIdsContainSequence'
+import { partition, zipObj } from 'ramda'
+import { type WantedDependency } from './getNonDevWantedDependencies.js'
+import { type NodeId, nextNodeId } from './nextNodeId.js'
+import { parentIdsContainSequence } from './parentIdsContainSequence.js'
 import {
   type ChildrenByParentId,
   type DependenciesTree,
@@ -30,13 +29,14 @@ import {
   type ParentPkgAliases,
   type PendingNode,
   type PkgAddress,
+  type PkgAddressOrLink,
   resolveRootDependencies,
   type ResolvedPackage,
   type ResolvedPkgsById,
   type ResolutionContext,
-} from './resolveDependencies'
+} from './resolveDependencies.js'
 
-export type { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
+export type { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies.js'
 
 export interface ResolvedImporters {
   [id: string]: {
@@ -179,6 +179,7 @@ export async function resolveDependencyTree<T> (
     readPackageHook: opts.hooks.readPackage,
     registries: opts.registries,
     resolvedPkgsById: {} as ResolvedPkgsById,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     resolutionMode: opts.resolutionMode,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
@@ -364,8 +365,8 @@ function buildTree (
   * In order to make sure that the latest 1.0.1 version is installed, we need to remove the duplicate dependency.
   * fix https://github.com/pnpm/pnpm/issues/6966
   */
-function dedupeSameAliasDirectDeps (directDeps: Array<PkgAddress | LinkedDependency>, wantedDependencies: Array<WantedDependency & { isNew?: boolean }>): Array<PkgAddress | LinkedDependency> {
-  const deps = new Map<string, PkgAddress | LinkedDependency>()
+function dedupeSameAliasDirectDeps (directDeps: PkgAddressOrLink[], wantedDependencies: Array<WantedDependency & { isNew?: boolean }>): PkgAddressOrLink[] {
+  const deps = new Map<string, PkgAddressOrLink>()
   for (const directDep of directDeps) {
     const { alias, normalizedBareSpecifier } = directDep
     if (!deps.has(alias)) {

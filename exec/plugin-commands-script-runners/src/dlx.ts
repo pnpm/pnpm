@@ -1,7 +1,7 @@
 import fs, { type Stats } from 'fs'
 import path from 'path'
 import util from 'util'
-import { docsUrl } from '@pnpm/cli-utils'
+import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { createResolver } from '@pnpm/client'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
@@ -11,12 +11,13 @@ import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import { type PnpmSettings } from '@pnpm/types'
+import { type PackageManifest, type PnpmSettings, type SupportedArchitectures } from '@pnpm/types'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import execa from 'execa'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import symlinkDir from 'symlink-dir'
-import { makeEnv } from './makeEnv'
+import { makeEnv } from './makeEnv.js'
 
 export const skipPackageManagerCheck = true
 
@@ -29,6 +30,9 @@ export const shorthands: Record<string, string> = {
 export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
+      'cpu',
+      'libc',
+      'os',
       'use-node-version',
     ], types),
     'shell-mode': Boolean,
@@ -97,11 +101,13 @@ export async function handler (
     })
     return resolved.id
   }))
-  const { cacheLink, cacheExists, cachedDir } = findCache(resolvedPkgs, {
+  const { cacheLink, cacheExists, cachedDir } = findCache({
+    packages: resolvedPkgs,
     dlxCacheMaxAge: opts.dlxCacheMaxAge,
     cacheDir: opts.cacheDir,
     registries: opts.registries,
-    allowBuild: opts.allowBuild ?? [],
+    allowBuild: opts.allowBuild,
+    supportedArchitectures: opts.supportedArchitectures,
   })
   if (!cacheExists) {
     fs.mkdirSync(cachedDir, { recursive: true })
@@ -132,15 +138,14 @@ export async function handler (
       }
     }
   }
-  const modulesDir = path.join(cachedDir, 'node_modules')
-  const binsDir = path.join(modulesDir, '.bin')
+  const binsDir = path.join(cachedDir, 'node_modules/.bin')
   const env = makeEnv({
     userAgent: opts.userAgent,
     prependPaths: [binsDir, ...opts.extraBinPaths],
   })
   const binName = opts.package
     ? command
-    : await getBinName(modulesDir, await getPkgName(cachedDir))
+    : await getBinName(cachedDir, opts)
   try {
     await execa(binName, args, {
       cwd: process.cwd(),
@@ -168,9 +173,10 @@ async function getPkgName (pkgDir: string): Promise<string> {
   return dependencyNames[0]
 }
 
-async function getBinName (modulesDir: string, pkgName: string): Promise<string> {
-  const pkgDir = path.join(modulesDir, pkgName)
-  const manifest = await readPackageJsonFromDir(pkgDir)
+async function getBinName (cachedDir: string, opts: Pick<DlxCommandOptions, 'engineStrict'>): Promise<string> {
+  const pkgName = await getPkgName(cachedDir)
+  const pkgDir = path.join(cachedDir, 'node_modules', pkgName)
+  const manifest = await readProjectManifestOnly(pkgDir, opts) as PackageManifest
   const bins = await getBinsFromPackageManifest(manifest, pkgDir)
   if (bins.length === 0) {
     throw new PnpmError('DLX_NO_BIN', `No binaries found in ${pkgName}`)
@@ -196,13 +202,15 @@ function scopeless (pkgName: string): string {
   return pkgName
 }
 
-function findCache (pkgs: string[], opts: {
+function findCache (opts: {
+  packages: string[]
   cacheDir: string
   dlxCacheMaxAge: number
   registries: Record<string, string>
-  allowBuild: string[]
+  allowBuild?: string[]
+  supportedArchitectures?: SupportedArchitectures
 }): { cacheLink: string, cacheExists: boolean, cachedDir: string } {
-  const dlxCommandCacheDir = createDlxCommandCacheDir(pkgs, opts)
+  const dlxCommandCacheDir = createDlxCommandCacheDir(opts)
   const cacheLink = path.join(dlxCommandCacheDir, 'pkg')
   const cachedDir = getValidCacheDir(cacheLink, opts.dlxCacheMaxAge)
   return {
@@ -213,26 +221,44 @@ function findCache (pkgs: string[], opts: {
 }
 
 function createDlxCommandCacheDir (
-  pkgs: string[],
   opts: {
+    packages: string[]
     registries: Record<string, string>
     cacheDir: string
-    allowBuild: string[]
+    allowBuild?: string[]
+    supportedArchitectures?: SupportedArchitectures
   }
 ): string {
   const dlxCacheDir = path.resolve(opts.cacheDir, 'dlx')
-  const cacheKey = createCacheKey(pkgs, opts.registries, opts.allowBuild)
+  const cacheKey = createCacheKey(opts)
   const cachePath = path.join(dlxCacheDir, cacheKey)
   fs.mkdirSync(cachePath, { recursive: true })
   return cachePath
 }
 
-export function createCacheKey (pkgs: string[], registries: Record<string, string>, allowBuild?: string[]): string {
-  const sortedPkgs = [...pkgs].sort((a, b) => a.localeCompare(b))
-  const sortedRegistries = Object.entries(registries).sort(([k1], [k2]) => k1.localeCompare(k2))
+export function createCacheKey (opts: {
+  packages: string[]
+  registries: Record<string, string>
+  allowBuild?: string[]
+  supportedArchitectures?: SupportedArchitectures
+}): string {
+  const sortedPkgs = [...opts.packages].sort((a, b) => a.localeCompare(b))
+  const sortedRegistries = Object.entries(opts.registries).sort(([k1], [k2]) => k1.localeCompare(k2))
   const args: unknown[] = [sortedPkgs, sortedRegistries]
-  if (allowBuild?.length) {
-    args.push({ allowBuild: allowBuild.sort((pkg1, pkg2) => pkg1.localeCompare(pkg2)) })
+  if (opts.allowBuild?.length) {
+    args.push({ allowBuild: opts.allowBuild.sort(lexCompare) })
+  }
+  if (opts.supportedArchitectures) {
+    const supportedArchitecturesKeys = ['cpu', 'libc', 'os'] as const satisfies Array<keyof SupportedArchitectures>
+    for (const key of supportedArchitecturesKeys) {
+      const value = opts.supportedArchitectures[key]
+      if (!value?.length) continue
+      args.push({
+        supportedArchitectures: {
+          [key]: [...new Set(value)].sort(lexCompare),
+        },
+      })
+    }
   }
   const hashStr = JSON.stringify(args)
   return createHexHash(hashStr)

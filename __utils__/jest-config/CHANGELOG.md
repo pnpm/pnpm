@@ -1,5 +1,24 @@
 # @pnpm/jest-config
 
+## 1.0.22
+
+### Patch Changes
+
+- @pnpm/worker@1000.1.11
+
+## 1.0.21
+
+### Patch Changes
+
+- @pnpm/worker@1000.1.10
+
+## 1.0.20
+
+### Patch Changes
+
+- Updated dependencies [589ac1f]
+  - @pnpm/worker@1000.1.9
+
 ## 1.0.19
 
 ### Patch Changes

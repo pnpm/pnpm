@@ -19,11 +19,11 @@ import {
   mutateModulesInSingleProject,
 } from '@pnpm/core'
 import sinon from 'sinon'
-import writeJsonFile from 'write-json-file'
+import { writeJsonFileSync } from 'write-json-file'
 import existsSymlink from 'exists-link'
-import { testDefaults } from './utils'
+import { testDefaults } from './utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('uninstall package with no dependencies', async () => {
   const project = prepareEmpty()
@@ -217,7 +217,7 @@ test('pendingBuilds gets updated after uninstall', async () => {
 
   const modules1 = project.readModulesManifest()
   expect(modules1).toBeTruthy()
-  expect(modules1!.pendingBuilds.length).toBe(2)
+  expect(modules1!.pendingBuilds).toHaveLength(2)
 
   await mutateModulesInSingleProject({
     dependencyNames: ['@pnpm.e2e/with-postinstall-b'],
@@ -228,7 +228,7 @@ test('pendingBuilds gets updated after uninstall', async () => {
 
   const modules2 = project.readModulesManifest()
   expect(modules2).toBeTruthy()
-  expect(modules2!.pendingBuilds.length).toBe(1)
+  expect(modules2!.pendingBuilds).toHaveLength(1)
 })
 
 test('uninstalling a dependency from package that uses shared lockfile', async () => {
@@ -338,7 +338,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
 test('uninstall remove modules that is not in package.json', async () => {
   const project = prepareEmpty()
 
-  writeJsonFile.sync('node_modules/foo/package.json', { name: 'foo', version: '1.0.0' })
+  writeJsonFileSync('node_modules/foo/package.json', { name: 'foo', version: '1.0.0' })
 
   project.has('foo')
 

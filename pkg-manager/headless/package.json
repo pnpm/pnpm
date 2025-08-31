@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/headless",
-  "version": "1004.1.1",
+  "version": "1004.2.2",
   "description": "Fast installation using only pnpm-lock.yaml",
   "keywords": [
     "pnpm",
@@ -15,6 +15,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -30,10 +31,10 @@
   "scripts": {
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "runPrepareFixtures": "node ../../pnpm/bin/pnpm.cjs i -r -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force --no-strict-peer-dependencies",
+    "runPrepareFixtures": "node ../../pnpm/bin/pnpm.mjs i -r -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force --no-strict-peer-dependencies",
     "prepareFixtures": "git clean -fdx test/fixtures && rm -rf \"test/fixtures/*/pnpm-lock.yaml\" && registry-mock prepare && concurrently --success=first --kill-others registry-mock \"pnpm run runPrepareFixtures\"",
     "compile": "tsc --build && pnpm run lint --fix"
   },
@@ -77,6 +78,7 @@
     "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/headless": "workspace:*",
@@ -101,7 +103,7 @@
     "write-json-file": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

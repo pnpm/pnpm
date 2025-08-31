@@ -1,4 +1,4 @@
-import { createInstallArgs } from '../src/runDepsStatusCheck'
+import { createInstallArgs } from '../src/runDepsStatusCheck.js'
 
 describe('createInstallArgs', () => {
   test.each([

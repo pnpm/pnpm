@@ -24,11 +24,8 @@ import {
 } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import rimraf from '@zkochan/rimraf'
-import difference from 'ramda/src/difference'
-import equals from 'ramda/src/equals'
-import mergeAll from 'ramda/src/mergeAll'
-import pickAll from 'ramda/src/pickAll'
-import { removeDirectDependency, removeIfEmpty } from './removeDirectDependency'
+import { difference, equals, mergeAll, pickAll } from 'ramda'
+import { removeDirectDependency, removeIfEmpty } from './removeDirectDependency.js'
 
 export async function prune (
   importers: Array<{
@@ -241,7 +238,7 @@ function getPkgsDepPaths (
 ): Record<DepPath, string> {
   const acc: Record<DepPath, string> = {}
   for (const [depPath, pkg] of Object.entries(packages)) {
-    if (skipped.has(depPath)) return acc
+    if (skipped.has(depPath)) continue
     acc[depPath as DepPath] = packageIdFromSnapshot(depPath as DepPath, pkg)
   }
   return acc

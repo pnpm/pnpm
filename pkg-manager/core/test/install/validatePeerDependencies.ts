@@ -3,7 +3,7 @@ import path from 'path'
 import { install } from '@pnpm/core'
 import { readWantedLockfile } from '@pnpm/lockfile.fs'
 import { preparePackages } from '@pnpm/prepare'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('throws an error when the peerDependencies have unallowed specs', async () => {
   preparePackages([
@@ -14,6 +14,7 @@ test('throws an error when the peerDependencies have unallowed specs', async () 
     },
   ])
 
+  // eslint-disable-next-line
   const { rejects } = expect(
     install({
       name: 'root',
@@ -83,6 +84,7 @@ test("empty overrides don't disable peer dependencies validation", async () => {
 
   const overrides = {}
 
+  // eslint-disable-next-line
   const { rejects } = expect(
     install({
       name: 'root',

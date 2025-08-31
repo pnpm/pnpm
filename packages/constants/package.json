@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/constants",
-  "version": "1001.1.0",
+  "version": "1001.3.0",
   "description": "pnpm constants",
   "keywords": [
     "pnpm",
@@ -14,6 +14,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -33,7 +34,7 @@
     "@pnpm/constants": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

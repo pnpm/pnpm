@@ -1,5 +1,85 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.2.9
+
+### Patch Changes
+
+- @pnpm/plugin-commands-env@1000.0.34
+- @pnpm/client@1001.0.2
+- @pnpm/cli-utils@1001.1.1
+
+## 1000.2.8
+
+### Patch Changes
+
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+  - @pnpm/plugin-commands-env@1000.0.33
+  - @pnpm/client@1001.0.1
+
+## 1000.2.7
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/client@1001.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/config@1004.2.1
+  - @pnpm/error@1000.0.4
+  - @pnpm/lifecycle@1001.0.19
+  - @pnpm/cli-utils@1001.0.3
+  - @pnpm/exportable-manifest@1000.1.3
+  - @pnpm/plugin-commands-env@1000.0.32
+  - @pnpm/network.auth-header@1000.0.5
+
+## 1000.2.6
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1ba2e15]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/plugin-commands-env@1000.0.31
+  - @pnpm/config@1004.2.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/client@1000.1.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/pick-registry-for-package@1000.0.9
+  - @pnpm/lifecycle@1001.0.18
+  - @pnpm/package-bins@1000.0.9
+  - @pnpm/exportable-manifest@1000.1.2
+  - @pnpm/sort-packages@1000.0.9
+  - @pnpm/error@1000.0.3
+  - @pnpm/network.auth-header@1000.0.4
+
+## 1000.2.5
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+  - @pnpm/plugin-commands-env@1000.0.30
+
+## 1000.2.4
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+- Updated dependencies [589ac1f]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/lifecycle@1001.0.17
+  - @pnpm/plugin-commands-env@1000.0.29
+  - @pnpm/client@1000.0.21
+
 ## 1000.2.3
 
 ### Patch Changes

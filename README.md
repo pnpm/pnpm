@@ -40,9 +40,6 @@ To quote the [Rush](https://rushjs.io/) team:
       <td align="center" valign="middle">
         <a href="https://bit.dev/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80" alt="Bit"></a>
       </td>
-      <td align="center" valign="middle">
-        <a href="https://sanity.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/sanity.svg" width="180" alt="Bit"></a>
-      </td>
     </tr>
   </tbody>
 </table>

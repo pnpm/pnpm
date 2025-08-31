@@ -2,9 +2,9 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
-import { handler as list, type ListCommandOptions, EXCLUDE_PEERS_HELP } from './list'
+import { handler as list, type ListCommandOptions, EXCLUDE_PEERS_HELP } from './list.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([

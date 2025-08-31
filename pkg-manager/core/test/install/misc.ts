@@ -27,9 +27,9 @@ import semver from 'semver'
 import sinon from 'sinon'
 import deepRequireCwd from 'deep-require-cwd'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const IS_WINDOWS = isWindows()
 
 const testOnNonWindows = IS_WINDOWS ? test.skip : test
@@ -467,7 +467,7 @@ test('circular deps', async () => {
 
   const m = project.requireModule('@pnpm.e2e/circular-deps-1-of-2/mirror')
 
-  expect(m()).toEqual('@pnpm.e2e/circular-deps-1-of-2')
+  expect(m()).toBe('@pnpm.e2e/circular-deps-1-of-2')
 
   expect(fs.existsSync(path.join('node_modules', '@pnpm.e2e/circular-deps-1-of-2', 'node_modules', '@pnpm.e2e/circular-deps-2-of-2', 'node_modules', '@pnpm.e2e/circular-deps-1-of-2'))).toBeFalsy()
 })
@@ -507,7 +507,7 @@ test('big with dependencies and circular deps (babel-preset-2015)', async () => 
   await addDependenciesToPackage({}, ['babel-preset-es2015@6.3.13'], testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('babel-preset-es2015')
-  expect(typeof m).toEqual('object')
+  expect(typeof m).toBe('object')
 })
 
 test('compiled modules (ursa@0.9.1)', async () => {
@@ -521,7 +521,7 @@ test('compiled modules (ursa@0.9.1)', async () => {
   await addDependenciesToPackage({}, ['ursa@0.9.1'], testDefaults())
 
   const m = project.requireModule('ursa')
-  expect(typeof m).toEqual('object')
+  expect(typeof m).toBe('object')
 })
 
 test('bin specified in the directories property linked to .bin folder', async () => {
@@ -587,7 +587,7 @@ test('should update subdep on second install', async () => {
   expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
-  expect(deepRequireCwd(['@pnpm.e2e/pkg-with-1-dep', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json']).version).toEqual('100.1.0')
+  expect(deepRequireCwd(['@pnpm.e2e/pkg-with-1-dep', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json']).version).toBe('100.1.0')
 })
 
 test('should not update subdep when depth is smaller than depth of package', async () => {
@@ -614,20 +614,20 @@ test('should not update subdep when depth is smaller than depth of package', asy
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
   expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
-  expect(deepRequireCwd(['@pnpm.e2e/pkg-with-1-dep', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json']).version).toEqual('100.0.0')
+  expect(deepRequireCwd(['@pnpm.e2e/pkg-with-1-dep', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json']).version).toBe('100.0.0')
 })
 
 test('should install dependency in second project', async () => {
   const project1 = prepareEmpty()
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ fastUnpack: false, save: true, store: '../store' }))
-  expect(project1.requireModule('@pnpm.e2e/pkg-with-1-dep')().name).toEqual('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  expect(project1.requireModule('@pnpm.e2e/pkg-with-1-dep')().name).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   const project2 = prepareEmpty()
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ fastUnpack: false, save: true, store: '../store' }))
 
-  expect(project2.requireModule('@pnpm.e2e/pkg-with-1-dep')().name).toEqual('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  expect(project2.requireModule('@pnpm.e2e/pkg-with-1-dep')().name).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep')
 })
 
 test('should throw error when trying to install using a different store then the previous one', async () => {
@@ -727,7 +727,7 @@ test('lockfile locks npm dependencies', async () => {
 
   const m = project.requireModule('.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json')
 
-  expect(m.version).toEqual('100.0.0')
+  expect(m.version).toBe('100.0.0')
 })
 
 test('self-require should work', async () => {
@@ -792,7 +792,7 @@ test('rewrites node_modules created by npm', async () => {
   const { updatedManifest: manifest } = await install({}, testDefaults())
 
   const m = project.requireModule('rimraf')
-  expect(typeof m).toEqual('function')
+  expect(typeof m).toBe('function')
   project.isExecutable('.bin/rimraf')
 
   await execa('npm', ['install', '-f', 'rimraf@2.5.1', '@types/node', '--save'])
@@ -1093,9 +1093,9 @@ test('ignore files in node_modules', async () => {
   )
 
   const m = project.requireModule('lodash')
-  expect(typeof m).toEqual('function')
-  expect(typeof m.clone).toEqual('function')
-  expect(fs.readFileSync('node_modules/foo', 'utf8')).toEqual('x')
+  expect(typeof m).toBe('function')
+  expect(typeof m.clone).toBe('function')
+  expect(fs.readFileSync('node_modules/foo', 'utf8')).toBe('x')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2339
@@ -1215,7 +1215,7 @@ test('two dependencies have the same version and name. The only difference is th
     },
   }))
 
-  expect(fs.readdirSync(path.resolve('node_modules/.pnpm')).length).toBe(5)
+  expect(fs.readdirSync(path.resolve('node_modules/.pnpm'))).toHaveLength(5)
 })
 
 test('installing a package with broken bin', async () => {

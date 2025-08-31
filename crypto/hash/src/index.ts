@@ -1,4 +1,4 @@
-import * as crypto from '@pnpm/crypto.polyfill'
+import crypto from 'crypto'
 import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
 import ssri from 'ssri'

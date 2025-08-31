@@ -1,5 +1,44 @@
 # @pnpm/npm-resolver
 
+## 1004.1.3
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/error@1000.0.4
+  - @pnpm/resolving.jsr-specifier-parser@1000.0.2
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1004.1.2
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1ba2e15]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/fetching-types@1000.2.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/pick-registry-for-package@1000.0.9
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/error@1000.0.3
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/resolving.jsr-specifier-parser@1000.0.1
+
+## 1004.1.1
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+  - @pnpm/crypto.hash@1000.2.0
+
 ## 1004.1.0
 
 ### Minor Changes

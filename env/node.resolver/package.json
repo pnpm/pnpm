@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/node.resolver",
-  "version": "1000.0.19",
+  "version": "1001.0.0",
   "description": "Resolves a Node.js version specifier to an exact Node.js version",
   "keywords": [
     "pnpm",
@@ -15,6 +15,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -26,14 +27,19 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/config": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/crypto.shasums-file": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/node.fetcher": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "semver": "catalog:",
     "version-selector-type": "catalog:"
   },
@@ -43,7 +49,7 @@
     "@types/semver": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

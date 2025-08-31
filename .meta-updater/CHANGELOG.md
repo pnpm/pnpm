@@ -1,5 +1,35 @@
 # @pnpm-private/updater
 
+## 3.0.19
+
+### Patch Changes
+
+- 2b0d35f: `@pnpm/worker` should always be a peer dependency.
+
+## 3.0.18
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.17
+- @pnpm/workspace.read-manifest@1000.2.2
+- @pnpm/parse-overrides@1001.0.2
+
+## 3.0.17
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.fs@1001.1.16
+  - @pnpm/workspace.read-manifest@1000.2.1
+  - @pnpm/parse-overrides@1001.0.1
+
+## 3.0.16
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.15
+
 ## 3.0.15
 
 ### Patch Changes

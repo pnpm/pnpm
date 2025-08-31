@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-project-manifest",
-  "version": "1000.0.11",
+  "version": "1001.1.0",
   "description": "Read a project manifest (called package.json in most cases)",
   "keywords": [
     "pnpm",
@@ -13,6 +13,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -24,18 +25,18 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@gwhitney/detect-indent": "catalog:",
     "@pnpm/error": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/text.comments-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
+    "detect-indent": "catalog:",
     "fast-deep-equal": "catalog:",
     "is-windows": "catalog:",
     "json5": "catalog:",
@@ -43,14 +44,18 @@
     "read-yaml-file": "catalog:",
     "strip-bom": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
     "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/parse-json": "catalog:",
     "tempy": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

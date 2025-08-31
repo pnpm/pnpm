@@ -1,4 +1,4 @@
-import { replaceVersionInBareSpecifier } from '../lib/replaceVersionInBareSpecifier'
+import { replaceVersionInBareSpecifier } from '../lib/replaceVersionInBareSpecifier.js'
 
 test('replaceVersionInBareSpecifier()', () => {
   expect(replaceVersionInBareSpecifier('^1.0.0', '1.1.0')).toBe('1.1.0')

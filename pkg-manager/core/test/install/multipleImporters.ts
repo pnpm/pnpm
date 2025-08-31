@@ -14,11 +14,11 @@ import {
 } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { createPeerDepGraphHash } from '@pnpm/dependency-path'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import sinon from 'sinon'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('install only the dependencies of the specified importer', async () => {
   const projects = preparePackages([
@@ -1820,7 +1820,7 @@ test('symlink local package from the location described in its publishConfig.dir
   await mutateModules(importers, testDefaults({ allProjects }))
 
   {
-    const linkedManifest = loadJsonFile.sync<{ name: string }>('project-2/node_modules/project-1/package.json')
+    const linkedManifest = loadJsonFileSync<{ name: string }>('project-2/node_modules/project-1/package.json')
     expect(linkedManifest.name).toBe('project-1-dist')
   }
 
@@ -1832,7 +1832,7 @@ test('symlink local package from the location described in its publishConfig.dir
   await mutateModules(importers, testDefaults({ allProjects, frozenLockfile: true }))
 
   {
-    const linkedManifest = loadJsonFile.sync<{ name: string }>('project-2/node_modules/project-1/package.json')
+    const linkedManifest = loadJsonFileSync<{ name: string }>('project-2/node_modules/project-1/package.json')
     expect(linkedManifest.name).toBe('project-1-dist')
   }
 })
@@ -1893,7 +1893,7 @@ test('do not symlink local package from the location described in its publishCon
   ]
   await mutateModules(importers, testDefaults({ allProjects }))
 
-  const linkedManifest = loadJsonFile.sync<{ name: string }>('project-2/node_modules/project-1/package.json')
+  const linkedManifest = loadJsonFileSync<{ name: string }>('project-2/node_modules/project-1/package.json')
   expect(linkedManifest.name).toBe('project-1')
 })
 

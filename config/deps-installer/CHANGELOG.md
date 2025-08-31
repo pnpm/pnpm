@@ -1,5 +1,51 @@
 # @pnpm/config.deps-installer
 
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [87d3aa8]
+  - @pnpm/fetch@1000.2.4
+  - @pnpm/config.config-writer@1000.0.10
+  - @pnpm/npm-resolver@1004.1.3
+  - @pnpm/package-store@1002.0.9
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [adb097c]
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/error@1000.0.4
+  - @pnpm/npm-resolver@1004.1.3
+  - @pnpm/config.config-writer@1000.0.9
+  - @pnpm/package-store@1002.0.9
+  - @pnpm/network.auth-header@1000.0.5
+
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/config.config-writer@1000.0.8
+  - @pnpm/pick-registry-for-package@1000.0.9
+  - @pnpm/fetch@1000.2.3
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/npm-resolver@1004.1.2
+  - @pnpm/package-store@1002.0.8
+  - @pnpm/error@1000.0.3
+  - @pnpm/network.auth-header@1000.0.4
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/config.config-writer@1000.0.7
+- @pnpm/npm-resolver@1004.1.1
+- @pnpm/package-store@1002.0.7
+
 ## 1000.0.7
 
 ### Patch Changes

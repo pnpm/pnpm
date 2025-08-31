@@ -1,6 +1,6 @@
-import * as crypto from '@pnpm/crypto.polyfill'
+import crypto from 'crypto'
 import { type DependenciesHierarchy, type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
-import { type PackageDependencyHierarchy } from './types'
+import { type PackageDependencyHierarchy } from './types.js'
 
 export function pruneDependenciesTrees (trees: PackageDependencyHierarchy[] | null, limit: number): PackageDependencyHierarchy[] {
   if (trees === null) {

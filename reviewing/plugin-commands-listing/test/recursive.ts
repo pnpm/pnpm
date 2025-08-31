@@ -8,7 +8,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { stripVTControlCharacters as stripAnsi } from 'util'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 test('recursive list', async () => {
   preparePackages([

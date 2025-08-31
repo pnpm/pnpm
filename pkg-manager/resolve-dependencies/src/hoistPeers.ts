@@ -1,15 +1,22 @@
 import { type PreferredVersions } from '@pnpm/resolver-base'
 import semver from 'semver'
+import { type PkgAddressOrLink } from './resolveDependencies.js'
 
 export function hoistPeers (
-  missingRequiredPeers: Array<[string, { range: string }]>,
   opts: {
     autoInstallPeers: boolean
     allPreferredVersions?: PreferredVersions
-  }
+    workspaceRootDeps: PkgAddressOrLink[]
+  },
+  missingRequiredPeers: Array<[string, { range: string }]>
 ): Record<string, string> {
   const dependencies: Record<string, string> = {}
   for (const [peerName, { range }] of missingRequiredPeers) {
+    const rootDep = opts.workspaceRootDeps.find((rootDep) => rootDep.alias === peerName)
+    if (rootDep?.version) {
+      dependencies[peerName] = rootDep.version
+      continue
+    }
     if (opts.allPreferredVersions![peerName]) {
       const versions: string[] = []
       const nonVersions: string[] = []

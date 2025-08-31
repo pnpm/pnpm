@@ -1,5 +1,187 @@
 # @pnpm/core
 
+## 1010.0.1
+
+### Patch Changes
+
+- Updated dependencies [eac7bab]
+- Updated dependencies [aa24e7f]
+- Updated dependencies [2b0d35f]
+  - @pnpm/lockfile.verification@1001.2.5
+  - @pnpm/resolve-dependencies@1008.0.1
+  - @pnpm/build-modules@1000.3.12
+  - @pnpm/headless@1004.2.2
+  - @pnpm/package-requester@1006.0.0
+
+## 1010.0.0
+
+### Major Changes
+
+- d1edf73: Removed node fetcher. The binary fetcher should be used for downloading node assets.
+- f91922c: Changed how the integrity of the node.js artifact is stored in the lockfile.
+
+### Patch Changes
+
+- 9908269: Fix an edge case bug causing local tarballs to not re-link into the virtual store. This bug would happen when changing the contents of the tarball without renaming the file and running a filtered install.
+- 98dd75a: Dedupe catalog entries when running the `pnpm dedupe` command.
+- 0b6264e: Update @pnpm/npm-package-arg.
+- Updated dependencies [9908269]
+- Updated dependencies [d1edf73]
+- Updated dependencies [19b1880]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/headless@1004.2.1
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/link-bins@1000.2.0
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/lockfile.verification@1001.2.4
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/package-requester@1006.0.0
+  - @pnpm/resolve-dependencies@1008.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/lockfile.filtering@1001.0.17
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/lockfile-to-pnp@1001.0.18
+  - @pnpm/lockfile.pruner@1001.0.13
+  - @pnpm/lockfile.walker@1001.0.13
+  - @pnpm/calc-dep-state@1002.0.4
+  - @pnpm/patching.config@1001.0.7
+  - @pnpm/modules-cleaner@1001.0.19
+  - @pnpm/error@1000.0.4
+  - @pnpm/get-context@1001.1.4
+  - @pnpm/hoist@1002.0.2
+  - @pnpm/build-modules@1000.3.11
+  - @pnpm/lifecycle@1001.0.19
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/hooks.types@1001.0.10
+  - @pnpm/lockfile.settings-checker@1001.0.12
+  - @pnpm/lockfile.preferred-versions@1000.0.18
+  - @pnpm/remove-bins@1000.0.12
+  - @pnpm/catalogs.resolver@1000.0.5
+  - @pnpm/parse-overrides@1001.0.2
+  - @pnpm/hooks.read-package-hook@1000.0.12
+  - @pnpm/manifest-utils@1001.0.3
+  - @pnpm/worker@1000.1.11
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/symlink-dependency@1000.0.10
+
+## 1009.1.0
+
+### Minor Changes
+
+- 1a07b8f: Added support for resolving and downloading the Node.js runtime specified in the [devEngines](https://github.com/openjs-foundation/package-metadata-interoperability-collab-space/issues/15) field of `package.json`.
+
+  Usage example:
+
+  ```json
+  {
+    "devEngines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.4.0",
+        "onFail": "download"
+      }
+    }
+  }
+  ```
+
+  When running `pnpm install`, pnpm will resolve Node.js to the latest version that satisfies the specified range and install it as a dependency of the project. As a result, when running scripts, the locally installed Node.js version will be used.
+
+  Unlike the existing options, `useNodeVersion` and `executionEnv.nodeVersion`, this new field supports version ranges, which are locked to exact versions during installation. The resolved version is stored in the pnpm lockfile, along with an integrity checksum for future validation of the Node.js content's validity.
+
+  Related PR: [#9755](https://github.com/pnpm/pnpm/pull/9755).
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [ece236d]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [02d58a6]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/resolve-dependencies@1007.2.0
+  - @pnpm/link-bins@1000.1.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/package-requester@1005.0.0
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/headless@1004.2.0
+  - @pnpm/modules-cleaner@1001.0.18
+  - @pnpm/constants@1001.2.0
+  - @pnpm/normalize-registries@1000.1.2
+  - @pnpm/build-modules@1000.3.10
+  - @pnpm/lifecycle@1001.0.18
+  - @pnpm/symlink-dependency@1000.0.10
+  - @pnpm/hooks.read-package-hook@1000.0.11
+  - @pnpm/hooks.types@1001.0.9
+  - @pnpm/lockfile.filtering@1001.0.16
+  - @pnpm/lockfile.fs@1001.1.16
+  - @pnpm/lockfile-to-pnp@1001.0.17
+  - @pnpm/lockfile.preferred-versions@1000.0.17
+  - @pnpm/lockfile.pruner@1001.0.12
+  - @pnpm/lockfile.verification@1001.2.3
+  - @pnpm/lockfile.walker@1001.0.12
+  - @pnpm/calc-dep-state@1002.0.3
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/get-context@1001.1.3
+  - @pnpm/hoist@1002.0.1
+  - @pnpm/modules-yaml@1000.3.4
+  - @pnpm/remove-bins@1000.0.11
+  - @pnpm/manifest-utils@1001.0.2
+  - @pnpm/worker@1000.1.10
+  - @pnpm/lockfile.settings-checker@1001.0.11
+  - @pnpm/error@1000.0.3
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.10
+  - @pnpm/patching.config@1001.0.6
+  - @pnpm/catalogs.resolver@1000.0.4
+  - @pnpm/parse-overrides@1001.0.1
+
+## 1009.0.0
+
+### Major Changes
+
+- cf630a8: `hooks.preResolution` is now an array of functions.
+
+### Minor Changes
+
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+- Updated dependencies [589ac1f]
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/lifecycle@1001.0.17
+  - @pnpm/worker@1000.1.9
+  - @pnpm/build-modules@1000.3.9
+  - @pnpm/lockfile.settings-checker@1001.0.10
+  - @pnpm/lockfile.verification@1001.2.2
+  - @pnpm/dependency-path@1001.0.1
+  - @pnpm/headless@1004.1.2
+  - @pnpm/package-requester@1004.0.5
+  - @pnpm/lockfile.filtering@1001.0.15
+  - @pnpm/lockfile.fs@1001.1.15
+  - @pnpm/lockfile-to-pnp@1001.0.16
+  - @pnpm/lockfile.pruner@1001.0.11
+  - @pnpm/lockfile.utils@1002.0.1
+  - @pnpm/lockfile.walker@1001.0.11
+  - @pnpm/calc-dep-state@1002.0.2
+  - @pnpm/patching.config@1001.0.5
+  - @pnpm/modules-cleaner@1001.0.17
+  - @pnpm/resolve-dependencies@1007.1.3
+  - @pnpm/get-context@1001.1.2
+  - @pnpm/lockfile.preferred-versions@1000.0.16
+
 ## 1008.1.3
 
 ### Patch Changes

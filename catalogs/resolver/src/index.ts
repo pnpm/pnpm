@@ -7,5 +7,5 @@ export {
   type CatalogResolutionResult,
   type CatalogResolver,
   type WantedDependency,
-} from './resolveFromCatalog'
-export { type CatalogResultMatcher, matchCatalogResolveResult } from './matchCatalogResolveResult'
+} from './resolveFromCatalog.js'
+export { type CatalogResultMatcher, matchCatalogResolveResult } from './matchCatalogResolveResult.js'

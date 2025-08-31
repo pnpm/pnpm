@@ -112,5 +112,5 @@ function getHomedir (): string {
 }
 
 function isHomepath (filepath: string): boolean {
-  return filepath.indexOf('~/') === 0 || filepath.indexOf('~\\') === 0
+  return filepath.startsWith('~/') || filepath.startsWith('~\\')
 }

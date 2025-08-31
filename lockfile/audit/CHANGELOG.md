@@ -1,5 +1,54 @@
 # @pnpm/audit
 
+## 1002.0.10
+
+### Patch Changes
+
+- Updated dependencies [87d3aa8]
+  - @pnpm/fetch@1000.2.4
+
+## 1002.0.9
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [f91922c]
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/lockfile.detect-dep-types@1001.0.13
+  - @pnpm/lockfile.walker@1001.0.13
+  - @pnpm/error@1000.0.4
+
+## 1002.0.8
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1ba2e15]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/fetching-types@1000.2.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/lockfile.detect-dep-types@1001.0.12
+  - @pnpm/lockfile.walker@1001.0.12
+  - @pnpm/fetch@1000.2.3
+  - @pnpm/error@1000.0.3
+
+## 1002.0.7
+
+### Patch Changes
+
+- @pnpm/lockfile.detect-dep-types@1001.0.11
+- @pnpm/lockfile.utils@1002.0.1
+- @pnpm/lockfile.walker@1001.0.11
+
 ## 1002.0.6
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-store",
-  "version": "1002.0.6",
+  "version": "1002.0.9",
   "description": "A storage for packages",
   "keywords": [
     "pnpm",
@@ -20,6 +20,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -37,7 +38,7 @@
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest": "rimraf .tmp",
-    "_test": "pnpm pretest && jest",
+    "_test": "pnpm pretest && cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
@@ -69,7 +70,7 @@
     "tempy": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

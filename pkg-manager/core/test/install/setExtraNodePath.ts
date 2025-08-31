@@ -8,9 +8,9 @@ import {
   install,
 } from '@pnpm/core'
 import { type ProjectRootDir } from '@pnpm/types'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('jest CLI should print the right version when multiple instances of jest are used in a workspace', async () => {
   preparePackages([
@@ -74,11 +74,11 @@ test('jest CLI should print the right version when multiple instances of jest ar
 
   {
     const jestVersion = fs.readFileSync('project-1/output.json').toString()
-    expect(jestVersion.trim()).toStrictEqual('27.5.1')
+    expect(jestVersion.trim()).toBe('27.5.1')
   }
   {
     const jestVersion = fs.readFileSync('project-2/output.json').toString()
-    expect(jestVersion.trim()).toStrictEqual('24.9.0')
+    expect(jestVersion.trim()).toBe('24.9.0')
   }
 })
 

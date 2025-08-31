@@ -3,9 +3,9 @@ import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { dedupeDiffCheck } from '@pnpm/dedupe.check'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import renderHelp from 'render-help'
-import { type InstallCommandOptions, rcOptionsTypes as installCommandRcOptionsTypes } from './install'
-import { installDeps } from './installDeps'
-import omit from 'ramda/src/omit'
+import { type InstallCommandOptions, rcOptionsTypes as installCommandRcOptionsTypes } from './install.js'
+import { installDeps } from './installDeps.js'
+import { omit } from 'ramda'
 
 // In general, the "pnpm dedupe" command should use .npmrc options that "pnpm install" would also accept.
 export function rcOptionsTypes (): Record<string, unknown> {

@@ -3,6 +3,7 @@ import path from 'path'
 import { type LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
+import { jest } from '@jest/globals'
 import deepRequireCwd from 'deep-require-cwd'
 import { sync as readYamlFile } from 'read-yaml-file'
 import {
@@ -14,7 +15,7 @@ import {
 } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'
 import sinon from 'sinon'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('successfully install optional dependency with subdependencies', async () => {
   prepareEmpty()
@@ -314,7 +315,7 @@ test('optional subdependency is skipped', async () => {
 
   const lockfile = project.readLockfile()
 
-  expect(Object.keys(lockfile.packages).length).toBe(3)
+  expect(Object.keys(lockfile.packages)).toHaveLength(3)
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
 
   // forced headless install should install non-compatible optional deps
@@ -346,7 +347,7 @@ test('optional subdependency of newly added optional dependency is skipped', asy
 
   const lockfile = project.readLockfile()
 
-  expect(Object.keys(lockfile.packages).length).toBe(3)
+  expect(Object.keys(lockfile.packages)).toHaveLength(3)
   expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/not-compatible-with-any-os@1.0.0'])
 })
 
@@ -453,7 +454,7 @@ test('only skip optional dependencies', async () => {
     optionalDependencies: {
       '@google-cloud/functions-emulator': '1.0.0-beta.5',
     },
-  }, testDefaults({ fastUnpack: false, preferredVersions }))
+  }, testDefaults({ fastUnpack: false, preferredVersions, ignoreScripts: true }))
 
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/duplexify@3.6.0'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('node_modules/.pnpm/stream-shift@1.0.0'))).toBeTruthy()
@@ -620,7 +621,7 @@ describe('supported architectures', () => {
       ...opts,
       supportedArchitectures: { os: ['darwin'], cpu: ['x64'] },
     })
-    expect(fs.readdirSync('node_modules/.pnpm').length).toBe(3)
+    expect(fs.readdirSync('node_modules/.pnpm')).toHaveLength(3)
   })
   test('remove optional dependencies that are not used, when hoisted node linker is used', async () => {
     prepareEmpty()
@@ -650,7 +651,7 @@ describe('supported architectures', () => {
       ...opts,
       supportedArchitectures: { os: ['darwin'], cpu: ['x64'] },
     })
-    expect(fs.readdirSync('node_modules/.pnpm').length).toBe(5)
+    expect(fs.readdirSync('node_modules/.pnpm')).toHaveLength(5)
   })
 })
 
@@ -696,8 +697,8 @@ test('complex scenario with same optional dependencies appearing in many places 
   prepareEmpty()
   await addDependenciesToPackage({}, ['@storybook/addon-essentials@7.6.17', 'storybook@7.6.17', 'vite@5.2.8'], testDefaults())
 
-  expect(fs.readdirSync('node_modules/.pnpm/esbuild@0.18.20/node_modules/@esbuild').length).toEqual(1)
-  expect(fs.readdirSync('node_modules/.pnpm/esbuild@0.20.2/node_modules/@esbuild').length).toEqual(1)
+  expect(fs.readdirSync('node_modules/.pnpm/esbuild@0.18.20/node_modules/@esbuild')).toHaveLength(1)
+  expect(fs.readdirSync('node_modules/.pnpm/esbuild@0.20.2/node_modules/@esbuild')).toHaveLength(1)
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/8066

@@ -1,5 +1,46 @@
 # @pnpm/filter-lockfile
 
+## 1001.0.17
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/lockfile.walker@1001.0.13
+  - @pnpm/error@1000.0.4
+  - @pnpm/package-is-installable@1000.0.12
+
+## 1001.0.16
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/package-is-installable@1000.0.11
+  - @pnpm/lockfile.walker@1001.0.12
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/error@1000.0.3
+
+## 1001.0.15
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/lockfile.utils@1002.0.1
+- @pnpm/lockfile.walker@1001.0.11
+
 ## 1001.0.14
 
 ### Patch Changes

@@ -1,12 +1,12 @@
-import { findDependencyLicenses } from '@pnpm/license-scanner'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { type DepPath, type ProjectManifest, type Registries, type ProjectId } from '@pnpm/types'
 import { type LockfileObject } from '@pnpm/lockfile.fs'
-import { type LicensePackage } from '../lib/licenses'
-import { type GetPackageInfoOptions, type PackageInfo } from '../lib/getPkgInfo'
+import { jest } from '@jest/globals'
+import { type LicensePackage } from '../lib/licenses.js'
+import { type GetPackageInfoOptions, type PackageInfo } from '../lib/getPkgInfo.js'
 
-jest.mock('../lib/getPkgInfo', () => {
-  const actualModule = jest.requireActual('../lib/getPkgInfo')
+const actualModule = await import('../lib/getPkgInfo.js')
+jest.unstable_mockModule('../lib/getPkgInfo.js', () => {
   return {
     ...actualModule,
     getPkgInfo: async (pkg: PackageInfo, _opts: GetPackageInfoOptions): Promise<
@@ -32,6 +32,8 @@ jest.mock('../lib/getPkgInfo', () => {
     },
   }
 })
+
+const { findDependencyLicenses } = await import('@pnpm/license-scanner')
 
 describe('licences', () => {
   test('findDependencyLicenses()', async () => {

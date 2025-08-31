@@ -73,15 +73,9 @@ import * as dp from '@pnpm/dependency-path'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
-import equals from 'ramda/src/equals'
-import isEmpty from 'ramda/src/isEmpty'
-import omit from 'ramda/src/omit'
-import pick from 'ramda/src/pick'
-import pickBy from 'ramda/src/pickBy'
-import props from 'ramda/src/props'
-import union from 'ramda/src/union'
+import { equals, isEmpty, omit, pick, pickBy, props, union } from 'ramda'
 import realpathMissing from 'realpath-missing'
-import { linkHoistedModules } from './linkHoistedModules'
+import { linkHoistedModules } from './linkHoistedModules.js'
 import {
   type DirectDependenciesByImporterId,
   type DependenciesGraph,
@@ -89,7 +83,7 @@ import {
   type LockfileToDepGraphOptions,
   lockfileToDepGraph,
 } from '@pnpm/deps.graph-builder'
-import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph'
+import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph.js'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
 
 export type { HoistingLimits }
@@ -886,7 +880,7 @@ async function linkAllPkgs (
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
-        force: opts.force,
+        force: depNode.forceImportPackage ?? opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         requiresBuild: depNode.patch != null || depNode.requiresBuild,
         sideEffectsCacheKey,

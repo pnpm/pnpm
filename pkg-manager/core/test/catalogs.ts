@@ -2,18 +2,21 @@ import { createPeerDepGraphHash } from '@pnpm/dependency-path'
 import { type ProjectRootDir, type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { type MutatedProject, mutateModules, type ProjectOptions, type MutateModulesOptions, addDependenciesToPackage } from '@pnpm/core'
+import { type MutatedProject, type ProjectOptions, type MutateModulesOptions } from '@pnpm/core'
 import { type CatalogSnapshots } from '@pnpm/lockfile.types'
-import { logger } from '@pnpm/logger'
-import { sync as loadJsonFile } from 'load-json-file'
+import { jest } from '@jest/globals'
+import { loadJsonFileSync } from 'load-json-file'
 import path from 'path'
-import { testDefaults } from './utils'
+import { testDefaults } from './utils/index.js'
 
-jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual('@pnpm/logger')
+const originalModule = await import('@pnpm/logger')
+jest.unstable_mockModule('@pnpm/logger', () => {
   originalModule.logger.warn = jest.fn()
   return originalModule
 })
+
+const { logger } = await import('@pnpm/logger')
+const { mutateModules, addDependenciesToPackage } = await import('@pnpm/core')
 
 function preparePackagesAndReturnObjects (manifests: Array<ProjectManifest & Required<Pick<ProjectManifest, 'name'>>>) {
   const project = prepareEmpty()
@@ -376,7 +379,7 @@ test('lockfile catalog snapshots do not contain stale references on --filter', a
 
   // is-positive was not updated because only dependencies of project1 were.
   const pathToIsPositivePkgJson = path.join(options.allProjects[1].rootDir!, 'node_modules/is-positive/package.json')
-  expect(loadJsonFile<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('1.0.0')
+  expect(loadJsonFileSync<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('1.0.0')
 
   await mutateModules(installProjects(projects), {
     ...options,
@@ -388,7 +391,7 @@ test('lockfile catalog snapshots do not contain stale references on --filter', a
   })
 
   // is-positive is now updated because a full install took place.
-  expect(loadJsonFile<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('3.1.0')
+  expect(loadJsonFileSync<ProjectManifest>(pathToIsPositivePkgJson)?.version).toBe('3.1.0')
 })
 
 // Regression test for https://github.com/pnpm/pnpm/issues/9112
@@ -1011,6 +1014,74 @@ test('catalogs work when inject-workspace-packages=true', async () => {
     'project2@file:project2': {
       dependencies: { 'is-positive': '1.0.0' },
     },
+  })
+})
+
+describe('dedupe', () => {
+  test('catalogs are deduped when running pnpm dedupe', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+      {
+        name: 'project1',
+        dependencies: {
+          '@pnpm.e2e/foo': 'catalog:',
+        },
+      },
+      {
+        name: 'project2',
+      },
+    ])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '100.0.0' },
+    }
+
+    await mutateModules(installProjects(projects), {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    })
+
+    // Add a ^ to the existing 100.0.0 specifier. Despite higher versions
+    // published to the registry mock, pnpm should prefer the existing 100.0.0
+    // specifier in the lockfile.
+    catalogs.default['@pnpm.e2e/foo'] = '^100.0.0'
+
+    await mutateModules(installProjects(projects), {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    })
+
+    // Check that our testing state is set up correctly and that the addition of
+    // ^ above didn't accidentally upgrade.
+    expect(Object.keys(readLockfile().packages)).toEqual(['@pnpm.e2e/foo@100.0.0'])
+
+    projects['project2' as ProjectId].dependencies = {
+      '@pnpm.e2e/foo': '100.1.0',
+    }
+
+    await mutateModules(installProjects(projects), {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    })
+
+    // Due to project2 directly adding a new dependency on @pnpm.e2e/foo version
+    // 100.1.0, both versions should now exist in the lockfile.
+    const lockfile = readLockfile()
+    expect(Object.keys(lockfile.packages)).toEqual(['@pnpm.e2e/foo@100.0.0', '@pnpm.e2e/foo@100.1.0'])
+    expect(lockfile.catalogs.default['@pnpm.e2e/foo'].version).toBe('100.0.0')
+
+    // Perform a dedupe and expect the catalog version to update.
+    await mutateModules(installProjects(projects), {
+      ...options,
+      dedupe: true,
+      lockfileOnly: true,
+      catalogs,
+    })
+    const dedupedLockfile = readLockfile()
+    expect(Object.keys(dedupedLockfile.packages)).toEqual(['@pnpm.e2e/foo@100.1.0'])
+    expect(dedupedLockfile.catalogs.default['@pnpm.e2e/foo'].version).toBe('100.1.0')
   })
 })
 

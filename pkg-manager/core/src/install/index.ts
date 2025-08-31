@@ -73,23 +73,19 @@ import {
 } from '@pnpm/types'
 import isSubdir from 'is-subdir'
 import pLimit from 'p-limit'
-import mapValues from 'ramda/src/map'
-import clone from 'ramda/src/clone'
-import isEmpty from 'ramda/src/isEmpty'
-import pipeWith from 'ramda/src/pipeWith'
-import props from 'ramda/src/props'
-import { parseWantedDependencies } from '../parseWantedDependencies'
-import { removeDeps } from '../uninstall/removeDeps'
+import { map as mapValues, clone, isEmpty, pipeWith, props } from 'ramda'
+import { parseWantedDependencies } from '../parseWantedDependencies.js'
+import { removeDeps } from '../uninstall/removeDeps.js'
 import {
   extendOptions,
   type InstallOptions,
   type ProcessedInstallOptions as StrictInstallOptions,
-} from './extendInstallOptions'
-import { linkPackages } from './link'
-import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
-import { validateModules } from './validateModules'
+} from './extendInstallOptions.js'
+import { linkPackages } from './link.js'
+import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
+import { validateModules } from './validateModules.js'
 import semver from 'semver'
-import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError'
+import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError.js'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -904,6 +900,11 @@ function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): 
     wantedLockfile.packages = mapValues(
       ({ dependencies, optionalDependencies, ...rest }) => rest,
       wantedLockfile.packages)
+  }
+
+  // Also clear the resolutions in catalogs so they're re-resolved and deduped.
+  if ((wantedLockfile.catalogs != null) && !isEmpty(wantedLockfile.catalogs)) {
+    wantedLockfile.catalogs = undefined
   }
 }
 

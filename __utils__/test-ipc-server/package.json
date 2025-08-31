@@ -1,8 +1,9 @@
 {
   "name": "@pnpm/test-ipc-server",
-  "version": "0.0.0",
+  "version": "1000.0.0",
   "private": true,
   "main": "lib/index.js",
+  "type": "module",
   "types": "lib/index.d.ts",
   "bin": {
     "test-ipc-server-client": "./bin/test-ipc-server-client.js"
@@ -16,6 +17,13 @@
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build",
-    "test": "pnpm run compile && jest"
+    "test": "pnpm run compile && cross-env NODE_OPTIONS=--experimental-vm-modules jest"
+  },
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

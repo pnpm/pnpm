@@ -1,3 +1,3 @@
-import * as outdated from './outdated'
+import * as outdated from './outdated.js'
 
 export { outdated }

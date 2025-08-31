@@ -5,10 +5,10 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('installing with hoisted node-linker', async () => {
   prepareEmpty()
@@ -73,12 +73,12 @@ test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
 
   project.storeHas('is-positive', '3.1.0')
   expect(updatedManifest.dependencies?.['is-positive']).toBe('3.1.0')
-  expect(loadJsonFile<{ version: string }>('node_modules/is-positive/package.json').version).toBe('3.1.0')
+  expect(loadJsonFileSync<{ version: string }>('node_modules/is-positive/package.json').version).toBe('3.1.0')
 })
 
 test('overwriting existing files in node_modules', async () => {
   prepareEmpty()
-  await symlinkDir(__dirname, path.resolve('node_modules/is-positive'))
+  await symlinkDir(import.meta.dirname, path.resolve('node_modules/is-positive'))
 
   const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
@@ -87,7 +87,7 @@ test('overwriting existing files in node_modules', async () => {
   )
 
   expect(manifest.dependencies?.['is-positive']).toBe('3.0.0')
-  expect(loadJsonFile<{ version: string }>('node_modules/is-positive/package.json').version).toBe('3.0.0')
+  expect(loadJsonFileSync<{ version: string }>('node_modules/is-positive/package.json').version).toBe('3.0.0')
 })
 
 test('preserve subdeps on update', async () => {
@@ -107,9 +107,9 @@ test('preserve subdeps on update', async () => {
     testDefaults({ nodeLinker: 'hoisted' })
   )
 
-  expect(loadJsonFile<{ version: string }>('node_modules/@pnpm.e2e/bar/package.json').version).toBe('100.1.0')
-  expect(loadJsonFile<{ version: string }>('node_modules/@pnpm.e2e/foobarqar/package.json').version).toBe('1.0.1')
-  expect(loadJsonFile<{ version: string }>('node_modules/@pnpm.e2e/foobarqar/node_modules/@pnpm.e2e/bar/package.json').version).toBe('100.0.0')
+  expect(loadJsonFileSync<{ version: string }>('node_modules/@pnpm.e2e/bar/package.json').version).toBe('100.1.0')
+  expect(loadJsonFileSync<{ version: string }>('node_modules/@pnpm.e2e/foobarqar/package.json').version).toBe('1.0.1')
+  expect(loadJsonFileSync<{ version: string }>('node_modules/@pnpm.e2e/foobarqar/node_modules/@pnpm.e2e/bar/package.json').version).toBe('100.0.0')
 })
 
 test('adding a new dependency to one of the workspace projects', async () => {
@@ -161,8 +161,8 @@ test('adding a new dependency to one of the workspace projects', async () => {
 
   expect(manifest.dependencies).toStrictEqual({ '@pnpm.e2e/bar': '100.0.0' })
   expect(manifest.devDependencies).toStrictEqual({ 'is-negative': '1.0.0' })
-  expect(loadJsonFile<{ version: string }>('node_modules/@pnpm.e2e/bar/package.json').version).toBe('100.0.0')
-  expect(loadJsonFile<{ version: string }>('node_modules/is-negative/package.json').version).toBe('1.0.0')
+  expect(loadJsonFileSync<{ version: string }>('node_modules/@pnpm.e2e/bar/package.json').version).toBe('100.0.0')
+  expect(loadJsonFileSync<{ version: string }>('node_modules/is-negative/package.json').version).toBe('1.0.0')
 })
 
 test('installing the same package with alias and no alias', async () => {
@@ -175,9 +175,9 @@ test('installing the same package with alias and no alias', async () => {
     testDefaults({ nodeLinker: 'hoisted' })
   )
 
-  expect(loadJsonFile<{ version: string }>('node_modules/@pnpm.e2e/pkg-with-1-aliased-dep/package.json').version).toBe('100.0.0')
-  expect(loadJsonFile<{ version: string }>('node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json').version).toBe('100.0.0')
-  expect(loadJsonFile<{ version: string }>('node_modules/dep/package.json').version).toBe('100.0.0')
+  expect(loadJsonFileSync<{ version: string }>('node_modules/@pnpm.e2e/pkg-with-1-aliased-dep/package.json').version).toBe('100.0.0')
+  expect(loadJsonFileSync<{ version: string }>('node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json').version).toBe('100.0.0')
+  expect(loadJsonFileSync<{ version: string }>('node_modules/dep/package.json').version).toBe('100.0.0')
 })
 
 test('run pre/postinstall scripts. bin files should be linked in a hoisted node_modules', async () => {

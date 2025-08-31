@@ -1,5 +1,40 @@
 # @pnpm/config.config-writer
 
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [9dbada8]
+- Updated dependencies [8747b4e]
+  - @pnpm/workspace.manifest-writer@1001.0.0
+
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/workspace.manifest-writer@1000.2.3
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/workspace.manifest-writer@1000.2.2
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [95a9b82]
+  - @pnpm/workspace.manifest-writer@1000.2.1
+
 ## 1000.0.6
 
 ### Patch Changes

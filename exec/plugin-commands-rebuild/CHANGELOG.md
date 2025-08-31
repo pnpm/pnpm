@@ -1,5 +1,118 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1002.0.23
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.1.1
+- @pnpm/store-connection-manager@1002.0.10
+- @pnpm/workspace.find-packages@1000.0.33
+
+## 1002.0.22
+
+### Patch Changes
+
+- 2b0d35f: `@pnpm/worker` should always be a peer dependency.
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+  - @pnpm/workspace.find-packages@1000.0.32
+  - @pnpm/store-connection-manager@1002.0.9
+
+## 1002.0.21
+
+### Patch Changes
+
+- 0b6264e: Update @pnpm/npm-package-arg.
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [adb097c]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/link-bins@1000.2.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/lockfile.walker@1001.0.13
+  - @pnpm/calc-dep-state@1002.0.4
+  - @pnpm/config@1004.2.1
+  - @pnpm/error@1000.0.4
+  - @pnpm/get-context@1001.1.4
+  - @pnpm/workspace.find-packages@1000.0.31
+  - @pnpm/lifecycle@1001.0.19
+  - @pnpm/cli-utils@1001.0.3
+  - @pnpm/store.cafs@1000.0.16
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/store-connection-manager@1002.0.8
+  - @pnpm/worker@1000.1.11
+
+## 1002.0.20
+
+### Patch Changes
+
+- 15ba5ab: Rebuild should not fail if it cannot find an index file in the store for the built package.
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/link-bins@1000.1.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/config@1004.2.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/normalize-registries@1000.1.2
+  - @pnpm/lifecycle@1001.0.18
+  - @pnpm/exec.pkg-requires-build@1000.0.9
+  - @pnpm/lockfile.walker@1001.0.12
+  - @pnpm/calc-dep-state@1002.0.3
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/get-context@1001.1.3
+  - @pnpm/modules-yaml@1000.3.4
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/store.cafs@1000.0.15
+  - @pnpm/worker@1000.1.10
+  - @pnpm/workspace.find-packages@1000.0.30
+  - @pnpm/sort-packages@1000.0.9
+  - @pnpm/store-connection-manager@1002.0.7
+  - @pnpm/error@1000.0.3
+
+## 1002.0.19
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+  - @pnpm/workspace.find-packages@1000.0.29
+
+## 1002.0.18
+
+### Patch Changes
+
+- ab155a5: The `pnpm rebuild` command should not add pkgs included in `ignoredBuiltDependencies` to `ignoredBuilds` in `node_modules/.modules.yaml` [#9338](https://github.com/pnpm/pnpm/issues/9338).
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+- Updated dependencies [589ac1f]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/lifecycle@1001.0.17
+  - @pnpm/worker@1000.1.9
+  - @pnpm/store-connection-manager@1002.0.6
+  - @pnpm/workspace.find-packages@1000.0.28
+  - @pnpm/dependency-path@1001.0.1
+  - @pnpm/lockfile.utils@1002.0.1
+  - @pnpm/lockfile.walker@1001.0.11
+  - @pnpm/calc-dep-state@1002.0.2
+  - @pnpm/get-context@1001.1.2
+
 ## 1002.0.17
 
 ### Patch Changes

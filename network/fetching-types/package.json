@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching-types",
-  "version": "1000.1.0",
+  "version": "1000.2.0",
   "description": "Types for fetching",
   "keywords": [
     "pnpm",
@@ -14,6 +14,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -37,7 +38,7 @@
     "@pnpm/fetching-types": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

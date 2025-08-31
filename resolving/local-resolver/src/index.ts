@@ -6,7 +6,7 @@ import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { type DirectoryResolution, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
 import { type DependencyManifest } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
-import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier'
+import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier.js'
 
 export { type WantedLocalDependency }
 
@@ -21,13 +21,17 @@ export interface LocalResolveResult extends ResolveResult {
  * Resolves a package hosted on the local filesystem
  */
 export async function resolveFromLocal (
+  ctx: {
+    preserveAbsolutePaths?: boolean
+  },
   wantedDependency: WantedLocalDependency,
   opts: {
     lockfileDir?: string
     projectDir: string
   }
 ): Promise<LocalResolveResult | null> {
-  const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir)
+  const preserveAbsolutePaths = ctx.preserveAbsolutePaths ?? false
+  const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir, { preserveAbsolutePaths })
   if (spec == null) return null
   if (spec.type === 'file') {
     return {

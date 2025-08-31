@@ -7,12 +7,16 @@ import { store } from '@pnpm/plugin-commands-store'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as rimraf } from '@zkochan/rimraf'
+import { jest } from '@jest/globals'
 import execa from 'execa'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
-const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, { default: REGISTRY })
+const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
+  packages,
+  registries: { default: REGISTRY },
+})
 
 test('remove unreferenced packages', async () => {
   const project = prepare()
@@ -87,7 +91,7 @@ test('remove unreferenced packages', async () => {
   expect(fs.readdirSync(cacheDir)).toStrictEqual([])
 })
 
-test.skip('remove packages that are used by project that no longer exist', async () => {
+test('remove packages that are used by project that no longer exist', async () => {
   prepare()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store', STORE_VERSION)
@@ -118,7 +122,14 @@ test.skip('remove packages that are used by project that no longer exist', async
   expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
       level: 'info',
-      message: `- localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
+      message: 'Removed 1 package',
+    })
+  )
+
+  expect(reporter).toHaveBeenCalledWith(
+    expect.objectContaining({
+      level: 'info',
+      message: 'Removed 4 files',
     })
   )
 

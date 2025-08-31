@@ -1,17 +1,19 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { filterLockfileByImportersAndEngine } from '@pnpm/lockfile.filtering'
 import { type DepPath, type ProjectId } from '@pnpm/types'
+import { jest } from '@jest/globals'
 
 const REGIONAL_ARCH = Object.assign({}, process.arch)
 const REGIONAL_CPU = Object.assign({}, process.platform)
 
 jest.mock('detect-libc', () => {
-  const original = jest.requireActual('detect-libc')
+  const original = jest.requireActual<object>('detect-libc')
   return {
     ...original,
     familySync: () => 'musl',
   }
 })
+
+const { filterLockfileByImportersAndEngine } = await import('@pnpm/lockfile.filtering')
 
 afterEach(() => {
   Object.defineProperties(process, {

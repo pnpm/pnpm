@@ -1,1 +1,1 @@
-export * from './DedupeCheckIssues'
+export * from './DedupeCheckIssues.js'

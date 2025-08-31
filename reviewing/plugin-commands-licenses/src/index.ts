@@ -1,3 +1,3 @@
-import * as licenses from './licenses'
+import * as licenses from './licenses.js'
 
 export { licenses }

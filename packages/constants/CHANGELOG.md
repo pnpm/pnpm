@@ -1,5 +1,18 @@
 # @pnpm/constants
 
+## 1001.3.0
+
+### Minor Changes
+
+- d1edf73: Add support for installing deno runtime.
+- 86b33e9: Added support for installing Bun runtime.
+
+## 1001.2.0
+
+### Minor Changes
+
+- 1a07b8f: Add getNodeBinLocationForCurrentOS.
+
 ## 1001.1.0
 
 ### Minor Changes

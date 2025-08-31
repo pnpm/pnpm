@@ -3,8 +3,8 @@ import { type LockfileFile } from '@pnpm/lockfile.types'
 import { add } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
-import { sync as loadJsonFile } from 'load-json-file'
-import { DEFAULT_OPTS } from './utils'
+import { loadJsonFileSync } from 'load-json-file'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 // This must be a function because some of its values depend on CWD
 const createOptions = (jsr: string = 'https://npm.jsr.io/') => ({
@@ -31,7 +31,7 @@ test('pnpm add jsr:@<scope>/<name>', async () => {
 
   await add.handler(createOptions(), ['jsr:@pnpm-e2e/foo'])
 
-  expect(loadJsonFile('package.json')).toMatchObject({
+  expect(loadJsonFileSync('package.json')).toMatchObject({
     dependencies: {
       '@pnpm-e2e/foo': 'jsr:^0.1.0',
     },
@@ -70,7 +70,7 @@ test('pnpm add jsr:@<scope>/<name>@latest', async () => {
 
   await add.handler(createOptions(), ['jsr:@pnpm-e2e/foo@latest'])
 
-  expect(loadJsonFile('package.json')).toMatchObject({
+  expect(loadJsonFileSync('package.json')).toMatchObject({
     dependencies: {
       '@pnpm-e2e/foo': 'jsr:^0.1.0',
     },
@@ -109,7 +109,7 @@ test('pnpm add jsr:@<scope>/<name>@<version_selector>', async () => {
 
   await add.handler(createOptions(), ['jsr:@pnpm-e2e/foo@0.1'])
 
-  expect(loadJsonFile('package.json')).toMatchObject({
+  expect(loadJsonFileSync('package.json')).toMatchObject({
     dependencies: {
       '@pnpm-e2e/foo': 'jsr:~0.1.0',
     },
@@ -148,7 +148,7 @@ test('pnpm add <alias>@jsr:@<scope>/<name>', async () => {
 
   await add.handler(createOptions(), ['foo-from-jsr@jsr:@pnpm-e2e/foo'])
 
-  expect(loadJsonFile('package.json')).toMatchObject({
+  expect(loadJsonFileSync('package.json')).toMatchObject({
     dependencies: {
       'foo-from-jsr': 'jsr:@pnpm-e2e/foo@^0.1.0',
     },
@@ -187,7 +187,7 @@ test('pnpm add <alias>@jsr:@<scope>/<name>@<version_selector>', async () => {
 
   await add.handler(createOptions(), ['foo-from-jsr@jsr:@pnpm-e2e/foo@0.1'])
 
-  expect(loadJsonFile('package.json')).toMatchObject({
+  expect(loadJsonFileSync('package.json')).toMatchObject({
     dependencies: {
       'foo-from-jsr': 'jsr:@pnpm-e2e/foo@~0.1.0',
     },

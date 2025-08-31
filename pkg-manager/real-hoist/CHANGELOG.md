@@ -1,5 +1,32 @@
 # @pnpm/real-hoist
 
+## 1001.0.16
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/error@1000.0.4
+
+## 1001.0.15
+
+### Patch Changes
+
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/error@1000.0.3
+
+## 1001.0.14
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/lockfile.utils@1002.0.1
+
 ## 1001.0.13
 
 ### Patch Changes

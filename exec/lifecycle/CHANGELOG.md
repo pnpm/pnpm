@@ -1,5 +1,39 @@
 # @pnpm/lifecycle
 
+## 1001.0.19
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [adb097c]
+  - @pnpm/link-bins@1000.2.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/error@1000.0.4
+  - @pnpm/directory-fetcher@1000.1.10
+  - @pnpm/store-controller-types@1004.0.1
+
+## 1001.0.18
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/link-bins@1000.1.0
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/directory-fetcher@1000.1.9
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/error@1000.0.3
+
+## 1001.0.17
+
+### Patch Changes
+
+- 589ac1f: Replaced `shell-quote` with `shlex` for quoting command arguments [#9381](https://github.com/pnpm/pnpm/issues/9381).
+
 ## 1001.0.16
 
 ### Patch Changes

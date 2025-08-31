@@ -8,7 +8,7 @@ function compare (a: string | undefined, b: string | undefined) {
   return a.localeCompare(b)
 }
 
-const fixtures = path.join(__dirname, 'fixtures')
+const fixtures = path.join(import.meta.dirname, 'fixtures')
 
 test('finds package', async () => {
   const root = path.join(fixtures, 'one-pkg')
@@ -79,9 +79,9 @@ test('json and yaml manifests are also found', async () => {
 
   expect(pkgs).toHaveLength(3)
   expect(pkgs[0].rootDir).toBeDefined()
-  expect(pkgs[0].manifest.name).toEqual('component-1')
+  expect(pkgs[0].manifest.name).toBe('component-1')
   expect(pkgs[1].rootDir).toBeDefined()
-  expect(pkgs[1].manifest.name).toEqual('component-2')
+  expect(pkgs[1].manifest.name).toBe('component-2')
   expect(pkgs[2].rootDir).toBeDefined()
-  expect(pkgs[2].manifest.name).toEqual('foo')
+  expect(pkgs[2].manifest.name).toBe('foo')
 })

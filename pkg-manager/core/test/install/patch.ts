@@ -7,12 +7,13 @@ import { type IgnoredScriptsLog } from '@pnpm/core-loggers'
 import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+import { jest } from '@jest/globals'
 import { sync as rimraf } from '@zkochan/rimraf'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import sinon from 'sinon'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 test('patch package with exact version', async () => {
   const reporter = sinon.spy()
@@ -56,7 +57,7 @@ test('patch package with exact version', async () => {
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
   const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
-  const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
+  const filesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey].added?.['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
@@ -151,7 +152,7 @@ test('patch package with version range', async () => {
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
   const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
-  const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
+  const filesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey].added?.['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
@@ -318,7 +319,7 @@ test('patch package when scripts are ignored', async () => {
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
   const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
-  const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
+  const filesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey].added?.['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
@@ -406,7 +407,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   expect(lockfile.snapshots[`is-positive@1.0.0(patch_hash=${patchFileHash})`]).toBeTruthy()
 
   const filesIndexFile = path.join(opts.storeDir, 'index/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812-is-positive@1.0.0.json')
-  const filesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
+  const filesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
   const sideEffectsKey = `${ENGINE_NAME};patch=${patchFileHash}`
   const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey].added?.['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()

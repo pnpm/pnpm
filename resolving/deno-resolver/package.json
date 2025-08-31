@@ -1,0 +1,61 @@
+{
+  "name": "@pnpm/resolving.deno-resolver",
+  "version": "1000.0.1",
+  "description": "Resolves the Deno runtime",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "deno",
+    "runtime"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/resolving/deno-resolver",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/deno-resolver#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "pnpm run compile",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/crypto.shasums-file": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/fetching.binary-fetcher": "workspace:*",
+    "@pnpm/node.fetcher": "workspace:*",
+    "@pnpm/npm-resolver": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
+    "semver": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/worker": "workspace:^"
+  },
+  "devDependencies": {
+    "@pnpm/resolving.deno-resolver": "workspace:*",
+    "@types/semver": "catalog:"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

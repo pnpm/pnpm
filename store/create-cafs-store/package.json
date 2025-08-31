@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/create-cafs-store",
-  "version": "1000.0.15",
+  "version": "1000.0.17",
   "description": "Create a CAFS store controller",
   "keywords": [
     "pnpm",
@@ -20,6 +20,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -61,7 +62,7 @@
     "@types/ramda": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

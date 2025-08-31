@@ -1,9 +1,9 @@
+import crypto from 'crypto'
 import path from 'path'
 import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
 import { type Cafs, type PackageFiles, type SideEffects, type SideEffectsDiff } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
-import * as crypto from '@pnpm/crypto.polyfill'
 import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import {
@@ -18,7 +18,7 @@ import {
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import { type DependencyManifest } from '@pnpm/types'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import { parentPort } from 'worker_threads'
 import {
   type AddDirToStoreMessage,
@@ -28,7 +28,7 @@ import {
   type TarballExtractMessage,
   type HardLinkDirMessage,
   type InitStoreMessage,
-} from './types'
+} from './types.js'
 
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([a-z0-9+/=]+)$/i
 
@@ -75,7 +75,7 @@ async function handleMessage (
       let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
-        pkgFilesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
+        pkgFilesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
       } catch {
         // ignoring. It is fine if the integrity file is not present. Just refetch the package
       }
@@ -206,7 +206,7 @@ function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, 
   if (sideEffectsCacheKey) {
     let filesIndex!: PackageFilesIndex
     try {
-      filesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
+      filesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
     } catch {
       // If there is no existing index file, then we cannot store the side effects.
       return {

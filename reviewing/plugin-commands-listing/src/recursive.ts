@@ -3,7 +3,7 @@ import util from 'util'
 import { type Config } from '@pnpm/config'
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies, type Project } from '@pnpm/types'
-import { render } from './list'
+import { render } from './list.js'
 
 export async function listRecursive (
   pkgs: Project[],

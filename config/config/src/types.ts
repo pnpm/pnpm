@@ -1,4 +1,4 @@
-import npmTypes from '@pnpm/npm-conf/lib/types'
+import npmTypes from '@pnpm/npm-conf/lib/types.js'
 
 export const types = Object.assign({
   'auto-install-peers': Boolean,
@@ -81,6 +81,7 @@ export const types = Object.assign({
   'prefer-offline': Boolean,
   'prefer-symlinked-executables': Boolean,
   'prefer-workspace-packages': Boolean,
+  'preserve-absolute-paths': Boolean,
   production: [null, true],
   'public-hoist-pattern': Array,
   'publish-branch': String,
@@ -129,4 +130,7 @@ export const types = Object.assign({
   'registry-supports-time-field': Boolean,
   'fail-if-no-match': Boolean,
   'sync-injected-deps-after-scripts': Array,
+  cpu: [String, Array],
+  libc: [String, Array],
+  os: [String, Array],
 }, npmTypes.types)

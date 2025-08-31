@@ -2,8 +2,7 @@ import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { type OutdatedPackage } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
 import { getBorderCharacters, table } from '@zkochan/table'
-import { pipe, groupBy, pluck, uniqBy, pickBy, and } from 'ramda'
-import isEmpty from 'ramda/src/isEmpty'
+import { pipe, groupBy, pluck, uniqBy, pickBy, and, isEmpty } from 'ramda'
 
 export interface ChoiceRow {
   name: string
@@ -96,10 +95,10 @@ interface RawChoice {
 }
 
 function buildPkgChoice (outdatedPkg: OutdatedPackage, workspacesEnabled: boolean): RawChoice {
-  const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
+  const sdiff = semverDiff.default(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
   const nextVersion = sdiff.change === null
     ? outdatedPkg.latestManifest!.version
-    : colorizeSemverDiff(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    : colorizeSemverDiff.default(sdiff as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   const label = outdatedPkg.packageName
 
   const lineParts = {

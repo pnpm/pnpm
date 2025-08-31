@@ -80,7 +80,12 @@ export function tryGetPackageId (relDepPath: DepPath): PkgId {
     pkgId = pkgId.substring(0, sepIndex)
   }
   if (pkgId.includes(':')) {
-    pkgId = pkgId.substring(pkgId.indexOf('@', 1) + 1)
+    const newPkgId = pkgId.substring(pkgId.indexOf('@', 1) + 1)
+    // TODO: change the format of package ID to always start with the package name.
+    // not only in the case of "runtime:"
+    if (!newPkgId.startsWith('runtime:')) {
+      pkgId = newPkgId
+    }
   }
   return pkgId as PkgId
 }
@@ -98,7 +103,7 @@ export function refToRelative (
   if (reference.startsWith('link:')) {
     return null
   }
-  if (reference.startsWith('@')) return reference as DepPath
+  if (reference[0] === '@') return reference as DepPath
   const atIndex = reference.indexOf('@')
   if (atIndex === -1) return `${pkgName}@${reference}` as DepPath
   const colonIndex = reference.indexOf(':')
@@ -178,7 +183,7 @@ export function depPathToFilename (depPath: string, maxLengthWithoutHash: number
 }
 
 function depPathToFilenameUnescaped (depPath: string): string {
-  if (depPath.indexOf('file:') !== 0) {
+  if (!depPath.startsWith('file:')) {
     if (depPath[0] === '/') {
       depPath = depPath.substring(1)
     }
@@ -198,7 +203,7 @@ export function createPeerDepGraphHash (peerIds: PeerId[], maxLength: number = 1
       if (typeof peerId !== 'string') {
         return `${peerId.name}@${peerId.version}`
       }
-      if (peerId.startsWith('/')) {
+      if (peerId[0] === '/') {
         return peerId.substring(1)
       }
       return peerId

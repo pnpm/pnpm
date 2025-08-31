@@ -1,5 +1,13 @@
 # @pnpm/symlink-dependency
 
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/core-loggers@1001.0.2
+
 ## 1000.0.9
 
 ### Patch Changes

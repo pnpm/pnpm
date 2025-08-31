@@ -2,12 +2,15 @@ import assert from 'assert'
 import fs from 'fs'
 import util from 'util'
 import { pathToFileURL } from 'url'
+import { createRequire } from 'module'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import { type PackageManifest } from '@pnpm/types'
 import chalk from 'chalk'
 import { type Hooks } from './Hooks'
 import { dynamicImport } from '../dynamicImport.js'
+
+const require = createRequire(import.meta.url)
 
 export class BadReadPackageHookError extends PnpmError {
   public readonly pnpmfile: string
@@ -44,7 +47,7 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
       pnpmfile = module.default || module
     } else {
       // Use require for CommonJS modules
-      pnpmfile = require(pnpmFilePath) // eslint-disable-line
+      pnpmfile = require(pnpmFilePath)
     }
     if (typeof pnpmfile === 'undefined') {
       logger.warn({

@@ -37,10 +37,11 @@ class PathIsUnsupportedProtocolError extends PnpmError {
 export function parseBareSpecifier (
   wd: WantedLocalDependency,
   projectDir: string,
-  lockfileDir: string
+  lockfileDir: string,
+  opts: { preserveAbsolutePaths: boolean }
 ): LocalPackageSpec | null {
   if (wd.bareSpecifier.startsWith('link:') || wd.bareSpecifier.startsWith('workspace:')) {
-    return fromLocal(wd, projectDir, lockfileDir, 'directory')
+    return fromLocal(wd, projectDir, lockfileDir, 'directory', opts)
   }
   if (wd.bareSpecifier.endsWith('.tgz') ||
     wd.bareSpecifier.endsWith('.tar.gz') ||
@@ -50,7 +51,7 @@ export function parseBareSpecifier (
     isFilespec.test(wd.bareSpecifier)
   ) {
     const type = isFilename.test(wd.bareSpecifier) ? 'file' : 'directory'
-    return fromLocal(wd, projectDir, lockfileDir, type)
+    return fromLocal(wd, projectDir, lockfileDir, type, opts)
   }
   if (wd.bareSpecifier.startsWith('path:')) {
     throw new PathIsUnsupportedProtocolError(wd.bareSpecifier, 'path:')
@@ -62,7 +63,8 @@ function fromLocal (
   { bareSpecifier, injected }: WantedLocalDependency,
   projectDir: string,
   lockfileDir: string,
-  type: 'file' | 'directory'
+  type: 'file' | 'directory',
+  opts: { preserveAbsolutePaths: boolean }
 ): LocalPackageSpec {
   const spec = bareSpecifier.replace(/\\/g, '/')
     .replace(/^(?:file|link|workspace):\/*([A-Z]:)/i, '$1') // drive name paths on windows
@@ -91,14 +93,24 @@ function fromLocal (
     }
   }
 
+  function normalizeRelativeOrAbsolute (relativeTo: string, fromPath: string) {
+    let specPath
+    if (opts.preserveAbsolutePaths && isAbsolute(spec)) {
+      specPath = path.resolve(fromPath)
+    } else {
+      specPath = path.relative(relativeTo, fromPath)
+    }
+    return normalize(specPath)
+  }
+
   injected = protocol === 'file:'
   const dependencyPath = injected
-    ? normalize(path.relative(lockfileDir, fetchSpec))
+    ? normalizeRelativeOrAbsolute(lockfileDir, fetchSpec)
     : normalize(path.resolve(fetchSpec))
   const id = (
     !injected && (type === 'directory' || projectDir === lockfileDir)
-      ? `${protocol}${normalize(path.relative(projectDir, fetchSpec))}`
-      : `${protocol}${normalize(path.relative(lockfileDir, fetchSpec))}`
+      ? `${protocol}${normalizeRelativeOrAbsolute(projectDir, fetchSpec)}`
+      : `${protocol}${normalizeRelativeOrAbsolute(lockfileDir, fetchSpec)}`
   ) as PkgResolutionId
 
   return {

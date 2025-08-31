@@ -1,5 +1,70 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1000.1.21
+
+### Patch Changes
+
+- @pnpm/client@1001.0.2
+- @pnpm/cli-utils@1001.1.1
+
+## 1000.1.20
+
+### Patch Changes
+
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+  - @pnpm/client@1001.0.1
+
+## 1000.1.19
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/link-bins@1000.2.0
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/client@1001.0.0
+  - @pnpm/config@1004.2.1
+  - @pnpm/error@1000.0.4
+  - @pnpm/cli-utils@1001.0.3
+
+## 1000.1.18
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/link-bins@1000.1.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/config@1004.2.0
+  - @pnpm/client@1000.1.0
+  - @pnpm/cli-meta@1000.0.9
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/error@1000.0.3
+
+## 1000.1.17
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+
+## 1000.1.16
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/client@1000.0.21
+
 ## 1000.1.15
 
 ### Patch Changes

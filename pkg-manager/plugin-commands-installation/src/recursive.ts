@@ -31,7 +31,7 @@ import {
   type ProjectRootDir,
   type ProjectRootDirRealPath,
 } from '@pnpm/types'
-import { addCatalogs } from '@pnpm/workspace.manifest-writer'
+import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import {
   addDependenciesToPackage,
   install,
@@ -46,11 +46,11 @@ import isSubdir from 'is-subdir'
 import mem from 'mem'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
-import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
-import { getSaveType } from './getSaveType'
-import { getPinnedVersion } from './getPinnedVersion'
+import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
+import { getSaveType } from './getSaveType.js'
+import { getPinnedVersion } from './getPinnedVersion.js'
 import { type PreferredVersions } from '@pnpm/resolver-base'
-import { IgnoredBuildsError } from './errors'
+import { IgnoredBuildsError } from './errors.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
@@ -82,6 +82,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileIncludeTarballUrl'
 | 'sharedWorkspaceLockfile'
 | 'tag'
+| 'cleanupUnusedCatalogs'
 > & {
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
@@ -291,9 +292,11 @@ export async function recursive (
       const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
         return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
       })
-      if (updatedCatalogs) {
-        promises.push(addCatalogs(opts.workspaceDir, updatedCatalogs))
-      }
+      promises.push(updateWorkspaceManifest(opts.workspaceDir, {
+        updatedCatalogs,
+        cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+        allProjects,
+      }))
       await Promise.all(promises)
     }
     if (opts.strictDepBuilds && ignoredBuilds?.length) {
@@ -439,9 +442,11 @@ export async function recursive (
     })
   ))
 
-  if (updatedCatalogs) {
-    await addCatalogs(opts.workspaceDir, updatedCatalogs)
-  }
+  await updateWorkspaceManifest(opts.workspaceDir, {
+    updatedCatalogs,
+    cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+    allProjects,
+  })
 
   if (
     !opts.lockfileOnly && !opts.ignoreScripts && (

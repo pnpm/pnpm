@@ -1,5 +1,182 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.5.0
+
+### Minor Changes
+
+- 8747b4e: Added the `cleanupUnusedCatalogs` configuration. When set to `true`, pnpm will remove unused catalog entries during installation [#9793](https://github.com/pnpm/pnpm/pull/9793).
+
+### Patch Changes
+
+- Updated dependencies [9dbada8]
+- Updated dependencies [8747b4e]
+  - @pnpm/workspace.manifest-writer@1001.0.0
+  - @pnpm/config.config-writer@1000.0.10
+  - @pnpm/config.deps-installer@1000.0.11
+  - @pnpm/plugin-commands-env@1000.0.34
+  - @pnpm/cli-utils@1001.1.1
+  - @pnpm/outdated@1001.0.27
+  - @pnpm/package-store@1002.0.9
+  - @pnpm/store-connection-manager@1002.0.10
+  - @pnpm/plugin-commands-rebuild@1002.0.23
+  - @pnpm/workspace.find-packages@1000.0.33
+  - @pnpm/core@1010.0.1
+  - @pnpm/deps.status@1003.0.5
+  - @pnpm/filter-workspace-packages@1000.0.33
+
+## 1004.4.2
+
+### Patch Changes
+
+- Updated dependencies [3ebc0ce]
+- Updated dependencies [2b0d35f]
+  - @pnpm/cli-utils@1001.1.0
+  - @pnpm/plugin-commands-rebuild@1002.0.22
+  - @pnpm/deps.status@1003.0.4
+  - @pnpm/core@1010.0.1
+  - @pnpm/plugin-commands-env@1000.0.33
+  - @pnpm/workspace.find-packages@1000.0.32
+  - @pnpm/filter-workspace-packages@1000.0.32
+  - @pnpm/outdated@1001.0.26
+  - @pnpm/package-store@1002.0.9
+  - @pnpm/store-connection-manager@1002.0.9
+  - @pnpm/config.deps-installer@1000.0.10
+
+## 1004.4.1
+
+### Patch Changes
+
+- Updated dependencies [9908269]
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [98dd75a]
+- Updated dependencies [0b6264e]
+- Updated dependencies [d1edf73]
+- Updated dependencies [adb097c]
+- Updated dependencies [f91922c]
+  - @pnpm/core@1010.0.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/plugin-commands-rebuild@1002.0.21
+  - @pnpm/workspace.pkgs-graph@1000.0.18
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/outdated@1001.0.25
+  - @pnpm/config@1004.2.1
+  - @pnpm/deps.status@1003.0.3
+  - @pnpm/error@1000.0.4
+  - @pnpm/get-context@1001.1.4
+  - @pnpm/workspace.find-packages@1000.0.31
+  - @pnpm/workspace.manifest-writer@1000.2.3
+  - @pnpm/cli-utils@1001.0.3
+  - @pnpm/config.config-writer@1000.0.9
+  - @pnpm/plugin-commands-env@1000.0.32
+  - @pnpm/pnpmfile@1002.0.2
+  - @pnpm/package-store@1002.0.9
+  - @pnpm/dedupe.check@1001.0.10
+  - @pnpm/store-connection-manager@1002.0.8
+  - @pnpm/filter-workspace-packages@1000.0.31
+  - @pnpm/config.deps-installer@1000.0.10
+  - @pnpm/workspace.state@1002.0.2
+  - @pnpm/manifest-utils@1001.0.3
+  - @pnpm/find-workspace-dir@1000.1.2
+
+## 1004.4.0
+
+### Minor Changes
+
+- 6f7ac0f: Add `--cpu`, `--libc`, and `--os` to `pnpm install`, `pnpm add`, and `pnpm dlx` to customize `supportedArchitectures` via the CLI [#7510](https://github.com/pnpm/pnpm/issues/7510).
+
+### Patch Changes
+
+- 6f7ac0f: Fix a bug in which `pnpm add` downloads packages whose `libc` differ from `pnpm.supportedArchitectures.libc`.
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [15ba5ab]
+- Updated dependencies [1ba2e15]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/plugin-commands-rebuild@1002.0.20
+  - @pnpm/plugin-commands-env@1000.0.31
+  - @pnpm/config@1004.2.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/core@1009.1.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/config.config-writer@1000.0.8
+  - @pnpm/config.deps-installer@1000.0.9
+  - @pnpm/pick-registry-for-package@1000.0.9
+  - @pnpm/dedupe.check@1001.0.9
+  - @pnpm/deps.status@1003.0.2
+  - @pnpm/pnpmfile@1002.0.1
+  - @pnpm/get-context@1001.1.3
+  - @pnpm/manifest-utils@1001.0.2
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/write-project-manifest@1000.0.9
+  - @pnpm/outdated@1001.0.24
+  - @pnpm/package-store@1002.0.8
+  - @pnpm/filter-workspace-packages@1000.0.30
+  - @pnpm/workspace.find-packages@1000.0.30
+  - @pnpm/workspace.pkgs-graph@1000.0.17
+  - @pnpm/sort-packages@1000.0.9
+  - @pnpm/workspace.state@1002.0.1
+  - @pnpm/store-connection-manager@1002.0.7
+  - @pnpm/workspace.manifest-writer@1000.2.2
+  - @pnpm/error@1000.0.3
+  - @pnpm/find-workspace-dir@1000.1.1
+
+## 1004.3.1
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+  - @pnpm/plugin-commands-env@1000.0.30
+  - @pnpm/plugin-commands-rebuild@1002.0.19
+  - @pnpm/workspace.find-packages@1000.0.29
+  - @pnpm/deps.status@1003.0.1
+  - @pnpm/filter-workspace-packages@1000.0.29
+
+## 1004.3.0
+
+### Minor Changes
+
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [e225310]
+- Updated dependencies [cf630a8]
+- Updated dependencies [95a9b82]
+- Updated dependencies [ab155a5]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/pnpmfile@1002.0.0
+  - @pnpm/workspace.state@1002.0.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/deps.status@1003.0.0
+  - @pnpm/core@1009.0.0
+  - @pnpm/workspace.manifest-writer@1000.2.1
+  - @pnpm/plugin-commands-rebuild@1002.0.18
+  - @pnpm/plugin-commands-env@1000.0.29
+  - @pnpm/store-connection-manager@1002.0.6
+  - @pnpm/workspace.find-packages@1000.0.28
+  - @pnpm/config.config-writer@1000.0.7
+  - @pnpm/package-store@1002.0.7
+  - @pnpm/filter-workspace-packages@1000.0.28
+  - @pnpm/config.deps-installer@1000.0.8
+  - @pnpm/outdated@1001.0.23
+  - @pnpm/workspace.pkgs-graph@1000.0.16
+  - @pnpm/get-context@1001.1.2
+
 ## 1004.2.2
 
 ### Patch Changes

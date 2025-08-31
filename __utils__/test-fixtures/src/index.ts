@@ -40,7 +40,7 @@ function copyAndRename (src: string, dest: string): void {
 
   for (const entry of entries) {
     const srcPath = path.join(src, entry)
-    const destPath = path.join(dest, entry.startsWith('_') ? entry.substring(1) : entry)
+    const destPath = path.join(dest, entry[0] === '_' ? entry.substring(1) : entry)
     const stats = fs.statSync(srcPath)
 
     if (stats.isDirectory()) {

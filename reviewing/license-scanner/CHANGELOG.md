@@ -1,5 +1,55 @@
 # @pnpm/license-scanner
 
+## 1001.0.23
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [adb097c]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/lockfile.detect-dep-types@1001.0.13
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/lockfile.walker@1001.0.13
+  - @pnpm/error@1000.0.4
+  - @pnpm/directory-fetcher@1000.1.10
+  - @pnpm/store.cafs@1000.0.16
+  - @pnpm/package-is-installable@1000.0.12
+
+## 1001.0.22
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/package-is-installable@1000.0.11
+  - @pnpm/directory-fetcher@1000.1.9
+  - @pnpm/lockfile.detect-dep-types@1001.0.12
+  - @pnpm/lockfile.fs@1001.1.16
+  - @pnpm/lockfile.walker@1001.0.12
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/store.cafs@1000.0.15
+  - @pnpm/error@1000.0.3
+
+## 1001.0.21
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/lockfile.detect-dep-types@1001.0.11
+- @pnpm/lockfile.fs@1001.1.15
+- @pnpm/lockfile.utils@1002.0.1
+- @pnpm/lockfile.walker@1001.0.11
+
 ## 1001.0.20
 
 ### Patch Changes

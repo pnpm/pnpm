@@ -1,5 +1,45 @@
 # @pnpm/plugin-commands-completion
 
+## 1000.0.31
+
+### Patch Changes
+
+- @pnpm/error@1000.0.4
+- @pnpm/workspace.find-packages@1000.0.31
+- @pnpm/workspace.read-manifest@1000.2.2
+- @pnpm/cli-utils@1001.0.3
+- @pnpm/parse-cli-args@1000.1.1
+- @pnpm/find-workspace-dir@1000.1.2
+
+## 1000.0.30
+
+### Patch Changes
+
+- Updated dependencies [6bcfa69]
+  - @pnpm/parse-cli-args@1000.1.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/workspace.find-packages@1000.0.30
+  - @pnpm/workspace.read-manifest@1000.2.1
+  - @pnpm/error@1000.0.3
+  - @pnpm/find-workspace-dir@1000.1.1
+
+## 1000.0.29
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+  - @pnpm/workspace.find-packages@1000.0.29
+
+## 1000.0.28
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/workspace.find-packages@1000.0.28
+
 ## 1000.0.27
 
 ### Patch Changes

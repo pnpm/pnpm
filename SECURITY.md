@@ -10,4 +10,6 @@
 
 ## Reporting a Vulnerability
 
-Send and email to security@pnpm.io
+Submit your findings here: https://github.com/pnpm/pnpm/security/advisories
+
+**We do not operate a bounty program.**

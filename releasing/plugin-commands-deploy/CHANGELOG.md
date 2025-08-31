@@ -1,5 +1,87 @@
 # @pnpm/plugin-commands-deploy
 
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [8747b4e]
+  - @pnpm/plugin-commands-installation@1004.5.0
+  - @pnpm/cli-utils@1001.1.1
+
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+  - @pnpm/plugin-commands-installation@1004.4.2
+
+## 1002.0.0
+
+### Major Changes
+
+- d1edf73: Removed node fetcher. The binary fetcher should be used for downloading node assets.
+- f91922c: Changed how the integrity of the node.js artifact is stored in the lockfile.
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/plugin-commands-installation@1004.4.1
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/config@1004.2.1
+  - @pnpm/error@1000.0.4
+  - @pnpm/cli-utils@1001.0.3
+  - @pnpm/directory-fetcher@1000.1.10
+  - @pnpm/fs.indexed-pkg-importer@1000.1.11
+
+## 1001.1.31
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/plugin-commands-installation@1004.4.0
+  - @pnpm/config@1004.2.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/directory-fetcher@1000.1.9
+  - @pnpm/lockfile.fs@1001.1.16
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/fs.indexed-pkg-importer@1000.1.10
+  - @pnpm/error@1000.0.3
+
+## 1001.1.30
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+  - @pnpm/plugin-commands-installation@1004.3.1
+
+## 1001.1.29
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/plugin-commands-installation@1004.3.0
+  - @pnpm/dependency-path@1001.0.1
+  - @pnpm/lockfile.fs@1001.1.15
+
 ## 1001.1.28
 
 ### Patch Changes

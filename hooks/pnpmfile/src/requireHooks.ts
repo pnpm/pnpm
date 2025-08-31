@@ -5,8 +5,8 @@ import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
 import pathAbsolute from 'path-absolute'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
-import { requirePnpmfile, type Pnpmfile } from './requirePnpmfile'
-import { type HookContext, type Hooks } from './Hooks'
+import { requirePnpmfile, type Pnpmfile } from './requirePnpmfile.js'
+import { type HookContext, type Hooks } from './Hooks.js'
 
 // eslint-disable-next-line
 type Cook<T extends (...args: any[]) => any> = (
@@ -47,7 +47,8 @@ export async function requireHooks (
   prefix: string,
   opts: {
     globalPnpmfile?: string
-    pnpmfile?: string[] | string
+    pnpmfiles?: string[]
+    tryLoadDefaultPnpmfile?: boolean
   }
 ): Promise<RequireHooksResult> {
   const pnpmfiles: PnpmfileEntry[] = []
@@ -57,22 +58,17 @@ export async function requireHooks (
       includeInChecksum: false,
     })
   }
-  pnpmfiles.push({
-    path: '.pnpmfile.cjs',
-    includeInChecksum: true,
-    optional: true,
-  })
-  if (opts.pnpmfile) {
-    if (Array.isArray(opts.pnpmfile)) {
-      for (const pnpmfile of opts.pnpmfile) {
-        pnpmfiles.push({
-          path: pnpmfile,
-          includeInChecksum: true,
-        })
-      }
-    } else {
+  if (opts.tryLoadDefaultPnpmfile) {
+    pnpmfiles.push({
+      path: '.pnpmfile.cjs',
+      includeInChecksum: true,
+      optional: true,
+    })
+  }
+  if (opts.pnpmfiles) {
+    for (const pnpmfile of opts.pnpmfiles) {
       pnpmfiles.push({
-        path: opts.pnpmfile,
+        path: pnpmfile,
         includeInChecksum: true,
       })
     }

@@ -8,7 +8,7 @@ import { type PnpmError } from '@pnpm/error'
 
 import execa from 'execa'
 
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
 
 // cat-index
 test('print cat index file content', async () => {

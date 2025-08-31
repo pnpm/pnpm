@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.preferred-versions",
-  "version": "1000.0.15",
+  "version": "1000.0.18",
   "description": "Get preferred version from lockfile",
   "keywords": [
     "pnpm",
@@ -15,6 +15,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -41,7 +42,7 @@
     "@pnpm/lockfile.preferred-versions": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

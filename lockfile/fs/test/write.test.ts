@@ -1,19 +1,21 @@
 import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import {
+import { jest } from '@jest/globals'
+import { temporaryDirectory } from 'tempy'
+import yaml from 'yaml-tag'
+
+jest.unstable_mockModule('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
+
+const { getCurrentBranch } = await import('@pnpm/git-utils')
+const {
   readCurrentLockfile,
   readWantedLockfile,
   writeLockfiles,
-} from '@pnpm/lockfile.fs'
-import tempy from 'tempy'
-import yaml from 'yaml-tag'
-import { getCurrentBranch } from '@pnpm/git-utils'
-
-jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
+} = await import('@pnpm/lockfile.fs')
 
 test('writeLockfiles()', async () => {
-  const projectPath = tempy.directory()
+  const projectPath = temporaryDirectory()
   const wantedLockfile = {
     importers: {
       '.': {
@@ -70,7 +72,7 @@ test('writeLockfiles()', async () => {
 })
 
 test('writeLockfiles() when no specifiers but dependencies present', async () => {
-  const projectPath = tempy.directory()
+  const projectPath = temporaryDirectory()
   const wantedLockfile = {
     importers: {
       '.': {
@@ -94,7 +96,7 @@ test('writeLockfiles() when no specifiers but dependencies present', async () =>
 })
 
 test('write does not use yaml anchors/aliases', async () => {
-  const projectPath = tempy.directory()
+  const projectPath = temporaryDirectory()
   const wantedLockfile = {
     importers: {
       '.': {
@@ -154,7 +156,7 @@ test('write does not use yaml anchors/aliases', async () => {
 })
 
 test('writeLockfiles() does not fail if the lockfile has undefined properties', async () => {
-  const projectPath = tempy.directory()
+  const projectPath = temporaryDirectory()
   const wantedLockfile = {
     importers: {
       '.': {
@@ -199,8 +201,8 @@ test('writeLockfiles() does not fail if the lockfile has undefined properties', 
 
 test('writeLockfiles() when useGitBranchLockfile', async () => {
   const branchName: string = 'branch'
-  ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
-  const projectPath = tempy.directory()
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
+  const projectPath = temporaryDirectory()
   const wantedLockfile = {
     importers: {
       '.': {

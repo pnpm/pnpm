@@ -1,5 +1,5 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { sortLockfileKeys } from '../lib/sortLockfileKeys'
+import { sortLockfileKeys } from '../lib/sortLockfileKeys.js'
 
 test('sorts keys alphabetically', () => {
   const normalizedLockfile = sortLockfileKeys({

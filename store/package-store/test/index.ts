@@ -3,11 +3,11 @@ import path from 'path'
 import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
 import { type FetchPackageToStoreFunction } from '@pnpm/store-controller-types'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 describe('store.importPackage()', () => {
   it('selects import method automatically', async () => {
-    const tmp = tempy.directory()
+    const tmp = temporaryDirectory()
     const storeDir = path.join(tmp, 'store')
     const cacheDir = path.join(tmp, 'cache')
     const registry = 'https://registry.npmjs.org/'
@@ -30,7 +30,7 @@ describe('store.importPackage()', () => {
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
     const fetchResponse = (storeController.fetchPackage as FetchPackageToStoreFunction)({
       force: false,
-      lockfileDir: tempy.directory(),
+      lockfileDir: temporaryDirectory(),
       pkg: {
         id: pkgId,
         resolution: {
@@ -39,7 +39,7 @@ describe('store.importPackage()', () => {
         },
       },
     })
-    const importTo = tempy.directory()
+    const importTo = temporaryDirectory()
     const { importMethod } = await storeController.importPackage(importTo, {
       filesResponse: (await fetchResponse.fetching()).files,
       force: false,
@@ -49,7 +49,7 @@ describe('store.importPackage()', () => {
   })
 
   it('uses copying', async () => {
-    const tmp = tempy.directory()
+    const tmp = temporaryDirectory()
     const storeDir = path.join(tmp, 'store')
     const cacheDir = path.join(tmp, 'cache')
     const registry = 'https://registry.npmjs.org/'
@@ -73,7 +73,7 @@ describe('store.importPackage()', () => {
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
     const fetchResponse = (storeController.fetchPackage as FetchPackageToStoreFunction)({
       force: false,
-      lockfileDir: tempy.directory(),
+      lockfileDir: temporaryDirectory(),
       pkg: {
         id: pkgId,
         resolution: {
@@ -82,7 +82,7 @@ describe('store.importPackage()', () => {
         },
       },
     })
-    const importTo = tempy.directory()
+    const importTo = temporaryDirectory()
     const { importMethod } = await storeController.importPackage(importTo, {
       filesResponse: (await fetchResponse.fetching()).files,
       force: false,

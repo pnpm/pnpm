@@ -1,7 +1,7 @@
 import os from 'os'
 import { type PnpmError } from '@pnpm/error'
 import { parseCliArgs } from '@pnpm/parse-cli-args'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 
 const DEFAULT_OPTS = {
   getCommandLongName: (commandName: string) => commandName,
@@ -180,7 +180,7 @@ test('no command', async () => {
   const { cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
   }, ['--version'])
-  expect(cmd).toBe(null)
+  expect(cmd).toBeNull()
 })
 
 test('use command-specific shorthands', async () => {
@@ -268,7 +268,7 @@ test("don't use the fallback command if no command is present", async () => {
     getCommandLongName: () => null,
     universalOptionsTypes: { filter: [String, Array] },
   }, [])
-  expect(cmd).toBe(null)
+  expect(cmd).toBeNull()
   expect(params).toStrictEqual([])
 })
 
@@ -290,7 +290,7 @@ test('--workspace-root fails if used with --global', async () => {
 })
 
 test('--workspace-root fails if used outside of a workspace', async () => {
-  process.chdir(tempy.directory())
+  process.chdir(temporaryDirectory())
   let err!: PnpmError
   try {
     await parseCliArgs({ ...DEFAULT_OPTS }, ['--workspace-root'])
@@ -335,4 +335,52 @@ test('should not swallows empty string in params', async () => {
   }, ['run', 'echo', '', 'foo', '', 'bar'])
   expect(cmd).toBe('run')
   expect(params).toStrictEqual(['echo', '', 'foo', '', 'bar'])
+})
+
+test('dlx parses CLI options in between "dlx" and the command name', async () => {
+  const { params, options, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+  }, [
+    '--reporter=append-only',
+    'dlx',
+    '--allow-build=some-package',
+    '--package=some-bin-package',
+    'some-command',
+    '--this-is-not-a-flag',
+    'another-argument',
+  ])
+  expect(cmd).toBe('dlx')
+  expect(options).toStrictEqual({
+    reporter: 'append-only',
+    'allow-build': 'some-package',
+    package: 'some-bin-package',
+  })
+  expect(params).toStrictEqual([
+    'some-command',
+    '--this-is-not-a-flag',
+    'another-argument',
+  ])
+})
+
+test('dlx stops parsing after "--"', async () => {
+  const { params, options, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+  }, [
+    'dlx',
+    '--package=some-package',
+    '--allow-build=foo',
+    '--allow-build=bar',
+    '--',
+    '--this-is-a-command',
+    'argument',
+  ])
+  expect(cmd).toBe('dlx')
+  expect(options).toStrictEqual({
+    package: 'some-package',
+    'allow-build': ['foo', 'bar'],
+  })
+  expect(params).toStrictEqual([
+    '--this-is-a-command',
+    'argument',
+  ])
 })

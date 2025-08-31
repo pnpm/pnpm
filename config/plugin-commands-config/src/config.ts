@@ -1,10 +1,10 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { PnpmError } from '@pnpm/error'
 import renderHelp from 'render-help'
-import { configGet } from './configGet'
-import { configSet } from './configSet'
-import { configList } from './configList'
-import { type ConfigCommandOptions } from './ConfigCommandOptions'
+import { configGet } from './configGet.js'
+import { configSet } from './configSet.js'
+import { configList } from './configList.js'
+import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {}

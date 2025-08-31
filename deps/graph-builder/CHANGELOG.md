@@ -1,5 +1,54 @@
 # @pnpm/deps.graph-builder
 
+## 1002.2.3
+
+### Patch Changes
+
+- 9908269: Fix an edge case bug causing local tarballs to not re-link into the virtual store. This bug would happen when changing the contents of the tarball without renaming the file and running a filtered install.
+- e9b589c: Add a JSDoc for the `lockfileToDepGraph` function.
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/calc-dep-state@1002.0.4
+  - @pnpm/patching.config@1001.0.7
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/package-is-installable@1000.0.12
+
+## 1002.2.2
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/package-is-installable@1000.0.11
+  - @pnpm/lockfile.fs@1001.1.16
+  - @pnpm/calc-dep-state@1002.0.3
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/modules-yaml@1000.3.4
+  - @pnpm/patching.config@1001.0.6
+
+## 1002.2.1
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/lockfile.fs@1001.1.15
+- @pnpm/lockfile.utils@1002.0.1
+- @pnpm/calc-dep-state@1002.0.2
+- @pnpm/patching.config@1001.0.5
+
 ## 1002.2.0
 
 ### Minor Changes

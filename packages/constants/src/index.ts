@@ -18,3 +18,15 @@ export const FULL_META_DIR = 'metadata-full-v1.3' // This is currently not used 
 export const FULL_FILTERED_META_DIR = 'metadata-v1.3'
 
 export const USEFUL_NON_ROOT_PNPM_FIELDS = ['executionEnv'] as const
+
+export function getNodeBinLocationForCurrentOS (platform: string = process.platform): string {
+  return platform === 'win32' ? 'node.exe' : 'bin/node'
+}
+
+export function getDenoBinLocationForCurrentOS (platform: string = process.platform): string {
+  return platform === 'win32' ? 'deno.exe' : 'deno'
+}
+
+export function getBunBinLocationForCurrentOS (platform: string = process.platform): string {
+  return platform === 'win32' ? 'bun.exe' : 'bun'
+}

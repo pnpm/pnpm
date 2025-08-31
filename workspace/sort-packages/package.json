@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/sort-packages",
-  "version": "1000.0.8",
+  "version": "1000.0.9",
   "description": "Sort packages",
   "keywords": [
     "pnpm",
@@ -13,6 +13,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -36,7 +37,7 @@
     "@pnpm/sort-packages": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

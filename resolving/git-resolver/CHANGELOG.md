@@ -1,5 +1,29 @@
 # @pnpm/git-resolver
 
+## 1001.1.3
+
+### Patch Changes
+
+- Updated dependencies [87d3aa8]
+  - @pnpm/fetch@1000.2.4
+
+## 1001.1.2
+
+### Patch Changes
+
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/resolver-base@1005.0.0
+
+## 1001.1.1
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/fetch@1000.2.3
+
 ## 1001.1.0
 
 ### Minor Changes

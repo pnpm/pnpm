@@ -8,7 +8,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type MutatedProject, type ProjectOptions, addDependenciesToPackage, mutateModulesInSingleProject, mutateModules } from '@pnpm/core'
 import { type LockfileFile } from '@pnpm/lockfile.types'
 import { type ProjectRootDir, type ProjectManifest } from '@pnpm/types'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('versions are replaced with versions specified through overrides option', async () => {
   const project = prepareEmpty()

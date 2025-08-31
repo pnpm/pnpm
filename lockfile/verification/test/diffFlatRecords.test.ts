@@ -1,4 +1,4 @@
-import { type Diff, diffFlatRecords } from '../src/diffFlatRecords'
+import { type Diff, diffFlatRecords } from '../src/diffFlatRecords.js'
 
 test('diffFlatRecords', () => {
   const diff = diffFlatRecords<string, string>({

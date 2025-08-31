@@ -1,6 +1,6 @@
 import os from 'os'
 import path from 'path'
-import { getCacheDir, getConfigDir, getDataDir, getStateDir } from '../lib/dirs'
+import { getCacheDir, getConfigDir, getDataDir, getStateDir } from '../lib/dirs.js'
 
 test('getCacheDir()', () => {
   expect(getCacheDir({

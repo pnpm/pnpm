@@ -10,12 +10,12 @@ import { streamParser } from '@pnpm/logger'
 import * as dp from '@pnpm/dependency-path'
 import { type DepPath } from '@pnpm/types'
 import dint from 'dint'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile } from 'load-json-file'
 import pFilter from 'p-filter'
 import {
   extendStoreStatusOptions,
   type StoreStatusOptions,
-} from './extendStoreStatusOptions'
+} from './extendStoreStatusOptions.js'
 import { type TarballResolution } from '@pnpm/store-controller-types'
 
 export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<string[]> {

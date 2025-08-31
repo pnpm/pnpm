@@ -13,11 +13,10 @@ import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type DependenciesField, type ProjectRootDir } from '@pnpm/types'
 import { mutateModulesInSingleProject } from '@pnpm/core'
-import pick from 'ramda/src/pick'
-import without from 'ramda/src/without'
+import { pick, without } from 'ramda'
 import renderHelp from 'render-help'
-import { getSaveType } from './getSaveType'
-import { recursive } from './recursive'
+import { getSaveType } from './getSaveType.js'
+import { recursive } from './recursive.js'
 
 class RemoveMissingDepsError extends PnpmError {
   constructor (

@@ -1,7 +1,7 @@
 import { getPeerDependencyIssues } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
-import { testDefaults } from './utils'
+import { testDefaults } from './utils/index.js'
 
 test('cannot resolve peer dependency for top-level dependency', async () => {
   prepareEmpty()
@@ -37,5 +37,5 @@ test('a conflict is detected when the same peer is required with ranges that do 
     },
   ], testDefaults())
 
-  expect(peerDependencyIssues['.'].conflicts.length).toBe(1)
+  expect(peerDependencyIssues['.'].conflicts).toHaveLength(1)
 })

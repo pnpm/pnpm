@@ -1,10 +1,10 @@
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpmSync } from './utils'
+import { execPnpmSync } from './utils/index.js'
 import { fixtures } from '@pnpm/test-fixtures'
-import { isPortInUse } from './utils/isPortInUse'
+import { isPortInUse } from './utils/isPortInUse.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const multipleScriptsErrorExit = f.find('multiple-scripts-error-exit')
 
 test('should print json format error when publish --json failed', async () => {

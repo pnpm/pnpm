@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-rebuild",
-  "version": "1002.0.17",
+  "version": "1002.0.23",
   "description": "Commands for rebuilding dependencies",
   "keywords": [
     "pnpm",
@@ -14,6 +14,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -25,7 +26,7 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
@@ -57,7 +58,6 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
     "load-json-file": "catalog:",
     "mem": "catalog:",
@@ -68,7 +68,8 @@
     "semver": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
@@ -88,7 +89,7 @@
     "write-yaml-file": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config/with-registry"

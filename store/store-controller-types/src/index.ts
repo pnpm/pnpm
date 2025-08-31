@@ -92,11 +92,8 @@ export interface FetchPackageToStoreOptions {
     id: string
     resolution: Resolution
   }
-  /**
-   * Expected package is the package name and version that are found in the lockfile.
-   */
-  expectedPkg?: PkgNameVersion
   onFetchError?: OnFetchError
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export type OnFetchError = (error: Error) => Error

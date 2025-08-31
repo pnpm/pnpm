@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 1000.7.0
+
+### Minor Changes
+
+- 1a07b8f: Added "devEngines" to the manifest fields.
+
 ## 1000.6.0
 
 ### Minor Changes

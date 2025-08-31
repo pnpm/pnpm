@@ -21,8 +21,8 @@ import { map, skip, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
 import { firstValueFrom } from 'rxjs'
-import repeat from 'ramda/src/repeat'
-import { formatWarn } from '../src/reporterForClient/utils/formatWarn'
+import { repeat } from 'ramda'
+import { formatWarn } from '../src/reporterForClient/utils/formatWarn.js'
 
 const formatErrorCode = (code: string) => chalk.bgRed.black(`\u2009${code}\u2009`)
 const formatError = (code: string, message: string) => {

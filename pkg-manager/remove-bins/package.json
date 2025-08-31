@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/remove-bins",
-  "version": "1000.0.10",
+  "version": "1000.0.12",
   "description": "Remove bins from .bin",
   "keywords": [
     "pnpm",
@@ -13,6 +13,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -48,7 +49,7 @@
     "@types/ramda": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

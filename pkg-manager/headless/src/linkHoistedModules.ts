@@ -16,8 +16,7 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import pLimit from 'p-limit'
-import difference from 'ramda/src/difference'
-import isEmpty from 'ramda/src/isEmpty'
+import { difference, isEmpty } from 'ramda'
 import rimraf from '@zkochan/rimraf'
 
 const limitLinking = pLimit(16)

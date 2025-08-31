@@ -2,23 +2,39 @@ import fs from 'fs'
 import path from 'path'
 import util from 'util'
 import { types } from '@pnpm/config'
+import { PnpmError } from '@pnpm/error'
+import { parsePropertyPath } from '@pnpm/object.property-path'
 import { runNpm } from '@pnpm/run-npm'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import camelCase from 'camelcase'
 import kebabCase from 'lodash.kebabcase'
 import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
-import { type ConfigCommandOptions } from './ConfigCommandOptions'
+import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
+import { isStrictlyKebabCase } from './isStrictlyKebabCase.js'
+import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
-export async function configSet (opts: ConfigCommandOptions, key: string, value: string | null): Promise<void> {
+export async function configSet (opts: ConfigCommandOptions, key: string, valueParam: string | null): Promise<void> {
+  let shouldFallbackToNpm = settingShouldFallBackToNpm(key)
+  if (!shouldFallbackToNpm) {
+    key = validateSimpleKey(key)
+    shouldFallbackToNpm = settingShouldFallBackToNpm(key)
+  }
+  let value: unknown = valueParam
+  if (valueParam != null && opts.json) {
+    value = JSON.parse(valueParam)
+  }
   if (opts.global && settingShouldFallBackToNpm(key)) {
     const _runNpm = runNpm.bind(null, opts.npmPath)
     if (value == null) {
       _runNpm(['config', 'delete', key])
-    } else {
-      _runNpm(['config', 'set', `${key}=${value}`])
+      return
     }
-    return
+    if (typeof value === 'string') {
+      _runNpm(['config', 'set', `${key}=${value}`])
+      return
+    }
+    throw new PnpmError('CONFIG_SET_AUTH_NON_STRING', `Cannot set ${key} to a non-string value (${JSON.stringify(value)})`)
   }
   if (opts.global === true || fs.existsSync(path.join(opts.dir, '.npmrc'))) {
     const configPath = opts.global ? path.join(opts.configDir, 'rc') : path.join(opts.dir, '.npmrc')
@@ -35,7 +51,9 @@ export async function configSet (opts: ConfigCommandOptions, key: string, value:
   }
   key = camelCase(key)
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
-    [key]: castField(value, kebabCase(key)),
+    updatedFields: ({
+      [key]: castField(value, kebabCase(key)),
+    }),
   })
 }
 
@@ -72,12 +90,38 @@ function castField (value: unknown, key: string) {
   return value
 }
 
-export function settingShouldFallBackToNpm (key: string): boolean {
-  return (
-    ['registry', '_auth', '_authToken', 'username', '_password'].includes(key) ||
-    key[0] === '@' ||
-    key.startsWith('//')
-  )
+export class ConfigSetKeyEmptyKeyError extends PnpmError {
+  constructor () {
+    super('CONFIG_SET_EMPTY_KEY', 'Cannot set config with an empty key')
+  }
+}
+
+export class ConfigSetDeepKeyError extends PnpmError {
+  constructor () {
+    // it shouldn't be supported until there is a mechanism to validate the config value
+    super('CONFIG_SET_DEEP_KEY', 'Setting deep property path is not supported')
+  }
+}
+
+/**
+ * Validate if {@link key} is a simple key or a property path.
+ *
+ * If it is an empty property path or a property path longer than 1, throw an error.
+ *
+ * If it is a simple key (or a property path with length of 1), return it.
+ */
+function validateSimpleKey (key: string): string {
+  if (isStrictlyKebabCase(key)) return key
+
+  const iter = parsePropertyPath(key)
+
+  const first = iter.next()
+  if (first.done) throw new ConfigSetKeyEmptyKeyError()
+
+  const second = iter.next()
+  if (!second.done) throw new ConfigSetDeepKeyError()
+
+  return first.value.toString()
 }
 
 async function safeReadIniFile (configPath: string): Promise<Record<string, unknown>> {

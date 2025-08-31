@@ -10,14 +10,14 @@ import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
 import { loadToken } from '@pnpm/network.auth-header'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
-import { prompt } from 'enquirer'
+import enquirer from 'enquirer'
 import rimraf from '@zkochan/rimraf'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
-import tempy from 'tempy'
-import * as pack from './pack'
-import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish'
+import { temporaryDirectory } from 'tempy'
+import * as pack from './pack.js'
+import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -162,7 +162,7 @@ export async function publish (
       )
     }
     if (!branches.includes(currentBranch)) {
-      const { confirm } = await prompt({
+      const { confirm } = await enquirer.prompt({
         message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". \
 Do you want to continue?`,
         name: 'confirm',
@@ -199,7 +199,7 @@ Do you want to continue?`,
   if (index !== -1) {
     // If --publish-branch follows with another cli option, only remove this argument
     // otherwise remove the following argument as well
-    if (args[index + 1]?.startsWith('-')) {
+    if (args[index + 1]?.[0] === '-') {
       args.splice(index, 1)
     } else {
       args.splice(index, 2)
@@ -236,7 +236,7 @@ Do you want to continue?`,
   // Otherwise, npm would publish the package with the package.json file
   // from the current working directory, ignoring the package.json file
   // that was generated and packed to the tarball.
-  const packDestination = tempy.directory()
+  const packDestination = temporaryDirectory()
   const { tarballPath } = await pack.api({
     ...opts,
     dir,

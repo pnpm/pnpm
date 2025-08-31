@@ -1,5 +1,17 @@
 # @pnpm/patching.apply-patch
 
+## 1000.0.6
+
+### Patch Changes
+
+- @pnpm/error@1000.0.4
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/error@1000.0.3
+
 ## 1000.0.4
 
 ### Patch Changes

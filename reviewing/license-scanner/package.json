@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/license-scanner",
-  "version": "1001.0.20",
+  "version": "1001.0.23",
   "description": "Check for licenses packages",
   "keywords": [
     "pnpm",
@@ -14,6 +14,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -27,7 +28,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
@@ -53,6 +54,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/license-scanner": "workspace:*",
     "@pnpm/logger": "workspace:*",
@@ -60,7 +62,7 @@
     "@types/semver": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

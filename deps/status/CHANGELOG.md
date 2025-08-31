@@ -1,5 +1,87 @@
 # @pnpm/deps.status
 
+## 1003.0.5
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.33
+
+## 1003.0.4
+
+### Patch Changes
+
+- Updated dependencies [eac7bab]
+  - @pnpm/lockfile.verification@1001.2.5
+  - @pnpm/workspace.find-packages@1000.0.32
+
+## 1003.0.3
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [19b1880]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/lockfile.verification@1001.2.4
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/config@1004.2.1
+  - @pnpm/error@1000.0.4
+  - @pnpm/get-context@1001.1.4
+  - @pnpm/workspace.find-packages@1000.0.31
+  - @pnpm/workspace.read-manifest@1000.2.2
+  - @pnpm/lockfile.settings-checker@1001.0.12
+  - @pnpm/workspace.state@1002.0.2
+  - @pnpm/parse-overrides@1001.0.2
+
+## 1003.0.2
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/config@1004.2.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/lockfile.fs@1001.1.16
+  - @pnpm/lockfile.verification@1001.2.3
+  - @pnpm/get-context@1001.1.3
+  - @pnpm/workspace.find-packages@1000.0.30
+  - @pnpm/workspace.read-manifest@1000.2.1
+  - @pnpm/workspace.state@1002.0.1
+  - @pnpm/lockfile.settings-checker@1001.0.11
+  - @pnpm/error@1000.0.3
+  - @pnpm/parse-overrides@1001.0.1
+
+## 1003.0.1
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.29
+
+## 1003.0.0
+
+### Major Changes
+
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+  - @pnpm/config@1004.1.0
+  - @pnpm/workspace.state@1002.0.0
+  - @pnpm/workspace.find-packages@1000.0.28
+  - @pnpm/lockfile.settings-checker@1001.0.10
+  - @pnpm/lockfile.verification@1001.2.2
+  - @pnpm/lockfile.fs@1001.1.15
+  - @pnpm/get-context@1001.1.2
+
 ## 1002.1.5
 
 ### Patch Changes

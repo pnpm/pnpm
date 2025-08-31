@@ -1,1 +1,1 @@
-export { testDefaults } from './testDefaults'
+export { testDefaults } from './testDefaults.js'

@@ -1,5 +1,69 @@
 # @pnpm/default-resolver
 
+## 1002.2.2
+
+### Patch Changes
+
+- @pnpm/node.resolver@1001.0.0
+- @pnpm/git-resolver@1001.1.3
+- @pnpm/npm-resolver@1004.1.3
+- @pnpm/tarball-resolver@1002.1.2
+
+## 1002.2.1
+
+### Patch Changes
+
+- Updated dependencies [2b0d35f]
+  - @pnpm/resolving.deno-resolver@1000.0.1
+  - @pnpm/resolving.bun-resolver@1000.0.1
+
+## 1002.2.0
+
+### Minor Changes
+
+- d1edf73: Add support for installing deno runtime.
+- 86b33e9: Added support for installing Bun runtime.
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [5dedada]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/resolving.deno-resolver@1000.0.0
+  - @pnpm/node.resolver@1001.0.0
+  - @pnpm/resolving.bun-resolver@1000.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/local-resolver@1002.1.0
+  - @pnpm/error@1000.0.4
+  - @pnpm/npm-resolver@1004.1.3
+  - @pnpm/git-resolver@1001.1.2
+  - @pnpm/tarball-resolver@1002.1.2
+
+## 1002.1.2
+
+### Patch Changes
+
+- Updated dependencies [1ba2e15]
+- Updated dependencies [1a07b8f]
+  - @pnpm/fetching-types@1000.2.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/node.resolver@1000.1.0
+  - @pnpm/local-resolver@1002.0.2
+  - @pnpm/npm-resolver@1004.1.2
+  - @pnpm/tarball-resolver@1002.1.1
+  - @pnpm/git-resolver@1001.1.1
+  - @pnpm/error@1000.0.3
+
+## 1002.1.1
+
+### Patch Changes
+
+- @pnpm/local-resolver@1002.0.1
+- @pnpm/npm-resolver@1004.1.1
+
 ## 1002.1.0
 
 ### Minor Changes

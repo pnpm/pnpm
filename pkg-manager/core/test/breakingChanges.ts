@@ -6,7 +6,7 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
-import { testDefaults } from './utils'
+import { testDefaults } from './utils/index.js'
 
 test('fail on non-compatible node_modules', async () => {
   prepareEmpty()

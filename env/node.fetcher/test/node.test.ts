@@ -2,13 +2,16 @@ import AdmZip from 'adm-zip'
 import { Response } from 'node-fetch'
 import path from 'path'
 import { Readable } from 'stream'
-import { fetchNode, type FetchNodeOptions } from '@pnpm/node.fetcher'
+import { type FetchNodeOptionsToDir as FetchNodeOptions } from '@pnpm/node.fetcher'
 import { tempDir } from '@pnpm/prepare'
-import { isNonGlibcLinux } from 'detect-libc'
+import { jest } from '@jest/globals'
 
-jest.mock('detect-libc', () => ({
+jest.unstable_mockModule('detect-libc', () => ({
   isNonGlibcLinux: jest.fn(),
 }))
+
+const { fetchNode } = await import('@pnpm/node.fetcher')
+const { isNonGlibcLinux } = await import('detect-libc')
 
 const fetchMock = jest.fn(async (url: string) => {
   if (url.endsWith('.zip')) {
@@ -25,7 +28,7 @@ const fetchMock = jest.fn(async (url: string) => {
 })
 
 beforeEach(() => {
-  (isNonGlibcLinux as jest.Mock).mockReturnValue(Promise.resolve(false))
+  jest.mocked(isNonGlibcLinux).mockReturnValue(Promise.resolve(false))
   fetchMock.mockClear()
 })
 
@@ -59,8 +62,8 @@ test.skip('install Node using the default node mirror', async () => {
   }
 })
 
-test('install Node using a custom node mirror', async () => {
-  (isNonGlibcLinux as jest.Mock).mockReturnValue(Promise.resolve(true))
+test('install Node using a custom node mirror #2', async () => {
+  jest.mocked(isNonGlibcLinux).mockReturnValue(Promise.resolve(true))
   tempDir()
 
   const opts: FetchNodeOptions = {

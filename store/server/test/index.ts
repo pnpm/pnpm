@@ -8,8 +8,8 @@ import { connectStoreController, createServer } from '@pnpm/server'
 import { type Registries } from '@pnpm/types'
 import fetch from 'node-fetch'
 import { sync as rimraf } from '@zkochan/rimraf'
-import loadJsonFile from 'load-json-file'
-import tempy from 'tempy'
+import { loadJsonFileSync } from 'load-json-file'
+import { temporaryDirectory } from 'tempy'
 import isPortReachable from 'is-port-reachable'
 
 const registry = 'https://registry.npmjs.org/'
@@ -17,7 +17,7 @@ const registry = 'https://registry.npmjs.org/'
 const registries: Registries = { default: registry }
 
 async function createStoreController (storeDir?: string) {
-  const tmp = tempy.directory()
+  const tmp = temporaryDirectory()
   if (!storeDir) {
     storeDir = path.join(tmp, 'store')
   }
@@ -80,7 +80,7 @@ test('fetchPackage', async () => {
   const port = await getPort()
   const hostname = 'localhost'
   const remotePrefix = `http://${hostname}:${port}`
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const storeCtrlForServer = await createStoreController(storeDir)
   const server = createServer(storeCtrlForServer, {
     hostname,
@@ -160,7 +160,7 @@ test('server upload', async () => {
   const port = await getPort()
   const hostname = 'localhost'
   const remotePrefix = `http://${hostname}:${port}`
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const storeCtrlForServer = await createStoreController(storeDir)
   const server = createServer(storeCtrlForServer, {
     hostname,
@@ -178,12 +178,12 @@ test('server upload', async () => {
     files: {},
   }), 'utf8')
 
-  await storeCtrl.upload(path.join(__dirname, '__fixtures__/side-effect-fake-dir'), {
+  await storeCtrl.upload(path.join(import.meta.dirname, '__fixtures__/side-effect-fake-dir'), {
     sideEffectsCacheKey: fakeEngine,
     filesIndexFile,
   })
 
-  const cacheIntegrity = loadJsonFile.sync<any>(filesIndexFile) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const cacheIntegrity = loadJsonFileSync<any>(filesIndexFile) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(Object.keys(cacheIntegrity?.['sideEffects'][fakeEngine].added).sort()).toStrictEqual(['side-effect.js', 'side-effect.txt'])
 
   await server.close()
@@ -206,12 +206,12 @@ test('disable server upload', async () => {
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
 
   const fakeEngine = 'client-engine'
-  const storeDir = tempy.directory()
+  const storeDir = temporaryDirectory()
   const filesIndexFile = path.join(storeDir, 'test.example.com/fake-pkg/1.0.0.json')
 
   let thrown = false
   try {
-    await storeCtrl.upload(path.join(__dirname, '__fixtures__/side-effect-fake-dir'), {
+    await storeCtrl.upload(path.join(import.meta.dirname, '__fixtures__/side-effect-fake-dir'), {
       sideEffectsCacheKey: fakeEngine,
       filesIndexFile,
     })
@@ -238,13 +238,13 @@ test('stop server with remote call', async () => {
   })
   await server.waitForListen
 
-  expect(await isPortReachable(port)).toBeTruthy()
+  expect(await isPortReachable(port, { host: 'localhost' })).toBeTruthy()
 
   const response = await fetch(`${remotePrefix}/stop`, { method: 'POST' })
 
   expect(response.status).toBe(200)
 
-  expect(await isPortReachable(port)).toBeFalsy()
+  expect(await isPortReachable(port, { host: 'localhost' })).toBeFalsy()
 })
 
 test('disallow stop server with remote call', async () => {
@@ -259,12 +259,12 @@ test('disallow stop server with remote call', async () => {
   })
   await server.waitForListen
 
-  expect(await isPortReachable(port)).toBeTruthy()
+  expect(await isPortReachable(port, { host: 'localhost' })).toBeTruthy()
 
   const response = await fetch(`${remotePrefix}/stop`, { method: 'POST' })
   expect(response.status).toBe(403)
 
-  expect(await isPortReachable(port)).toBeTruthy()
+  expect(await isPortReachable(port, { host: 'localhost' })).toBeTruthy()
 
   await server.close()
 })
@@ -280,7 +280,7 @@ test('disallow store prune', async () => {
   })
   await server.waitForListen
 
-  expect(await isPortReachable(port)).toBeTruthy()
+  expect(await isPortReachable(port, { host: 'localhost' })).toBeTruthy()
 
   const response = await fetch(`${remotePrefix}/prune`, { method: 'POST' })
   expect(response.status).toBe(403)
@@ -300,7 +300,7 @@ test('server should only allow POST', async () => {
   })
   await server.waitForListen
 
-  expect(await isPortReachable(port)).toBeTruthy()
+  expect(await isPortReachable(port, { host: 'localhost' })).toBeTruthy()
 
   // Try various methods (not including POST)
   const methods = ['GET', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
@@ -329,7 +329,7 @@ test('server route not found', async () => {
   })
   await server.waitForListen
 
-  expect(await isPortReachable(port)).toBeTruthy()
+  expect(await isPortReachable(port, { host: 'localhost' })).toBeTruthy()
 
   // Ensure 404 error is received
   const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method: 'POST' })

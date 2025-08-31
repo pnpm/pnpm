@@ -2,7 +2,7 @@ import fs from 'fs'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
-import { execPnpm, execPnpmSync } from '../utils'
+import { execPnpm, execPnpmSync } from '../utils/index.js'
 
 const CONFIG = [
   '--config.verify-deps-before-run=install',

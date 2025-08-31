@@ -7,9 +7,9 @@ import { PnpmError } from '@pnpm/error'
 import { sortKeysByPriority } from '@pnpm/object.key-sorting'
 import { type ProjectManifest } from '@pnpm/types'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
-import { parseRawConfig } from './utils'
+import { parseRawConfig } from './utils.js'
 
 export const rcOptionsTypes = cliOptionsTypes
 

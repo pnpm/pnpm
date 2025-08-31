@@ -1,7 +1,5 @@
-import { resolveNodeVersion } from '@pnpm/node.resolver'
-import { getNodeMirror } from './getNodeMirror'
-import { getNodeDir, type NvmNodeCommandOptions } from './node'
-import { parseEnvSpecifier } from './parseEnvSpecifier'
+import { resolveNodeVersion, parseEnvSpecifier, getNodeMirror } from '@pnpm/node.resolver'
+import { getNodeDir, type NvmNodeCommandOptions } from './node.js'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { globalInfo } from '@pnpm/logger'
 

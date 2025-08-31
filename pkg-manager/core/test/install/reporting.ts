@@ -3,7 +3,8 @@ import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
 } from '@pnpm/core'
-import { testDefaults } from '../utils'
+import { jest } from '@jest/globals'
+import { testDefaults } from '../utils/index.js'
 
 // TODO: use a smaller package for testing deprecation
 test('reports warning when installing deprecated packages', async () => {

@@ -6,7 +6,7 @@ import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { createPeerDepGraphHash } from '@pnpm/dependency-path'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('auto install non-optional peer dependencies', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
@@ -428,6 +428,11 @@ test('installation on a workspace with many complex circular dependencies does n
     ignoreScripts: true,
     lockfileOnly: true,
     strictPeerDependencies: false,
+    registries: {
+      // A temporary workaround due to stylus removal from the npm registry.
+      // Related issue: https://github.com/stylus/stylus/issues/2938
+      default: 'https://registry.npmmirror.com',
+    },
     allProjects: [
       {
         buildIndex: 0,
@@ -607,7 +612,7 @@ test('do not override the direct dependency with an auto installed peer dependen
     },
   }))
   const lockfile = project.readLockfile()
-  expect(lockfile.importers['.'].dependencies?.rxjs.version).toStrictEqual('6.6.7')
+  expect(lockfile.importers['.'].dependencies?.rxjs.version).toBe('6.6.7')
 })
 
 test('auto install hoisted peer dependency', async () => {

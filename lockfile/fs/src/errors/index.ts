@@ -1,1 +1,1 @@
-export { LockfileBreakingChangeError } from './LockfileBreakingChangeError'
+export { LockfileBreakingChangeError } from './LockfileBreakingChangeError.js'

@@ -20,8 +20,8 @@ import {
   type ProjectRootDirRealPath,
 } from '@pnpm/types'
 import pathAbsolute from 'path-absolute'
-import clone from 'ramda/src/clone'
-import { readLockfiles } from './readLockfiles'
+import { clone } from 'ramda'
+import { readLockfiles } from './readLockfiles.js'
 
 /**
  * Note that some fields are affected by modules directory state. Such fields should be used for

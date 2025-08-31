@@ -1,6 +1,6 @@
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { type DepPath, type ProjectId } from '@pnpm/types'
-import { mergeLockfileChanges } from '../src'
+import { mergeLockfileChanges } from '../src/index.js'
 
 const simpleLockfile = {
   importers: {
@@ -272,7 +272,7 @@ test('prefers our lockfile resolutions when it has newer packages', () => {
   })
 })
 
-test('prefers our lockfile resolutions when it has newer packages', () => {
+test('prefers our lockfile resolutions when it has newer packages #2', () => {
   const mergedLockfile = mergeLockfileChanges(
     {
       ...simpleLockfile,

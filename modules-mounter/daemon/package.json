@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/mount-modules",
-  "version": "1001.0.26",
+  "version": "1001.0.29",
   "description": "Mounts a node_modules directory with FUSE",
   "keywords": [
     "pnpm",
@@ -15,6 +15,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -30,8 +31,8 @@
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "pretest": "node ../../pnpm/dist/pnpm.cjs install --dir=test/__fixtures__/simple",
-    "_test": "pnpm pretest && jest",
+    "pretest": "node ../../pnpm/dist/pnpm.mjs install --dir=test/__fixtures__/simple --config.enableGlobalVirtualStore=false",
+    "_test": "pnpm pretest && cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
@@ -54,6 +55,7 @@
     "fuse-native": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/constants": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/mount-modules": "workspace:*",
@@ -61,7 +63,7 @@
     "rimraf": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

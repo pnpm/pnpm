@@ -16,6 +16,9 @@
       "path": "../../fs/read-modules-dir"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/error"
     },
     {

@@ -1,5 +1,32 @@
 # @pnpm/workspace.state
 
+## 1002.0.2
+
+### Patch Changes
+
+- @pnpm/config@1004.2.1
+
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [6f7ac0f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/config@1004.2.0
+
+## 1002.0.0
+
+### Major Changes
+
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+  - @pnpm/config@1004.1.0
+
 ## 1001.1.22
 
 ### Patch Changes

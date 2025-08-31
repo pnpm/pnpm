@@ -1,19 +1,19 @@
 import fs from 'fs'
 import path from 'path'
 import symlinkDir from 'symlink-dir'
-import tempy from 'tempy'
+import { temporaryDirectory } from 'tempy'
 import { fixtures } from '@pnpm/test-fixtures'
 import {
   createCafs,
   checkPkgFilesIntegrity,
   getFilePathByModeInCafs,
-} from '../src'
+} from '../src/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 describe('cafs', () => {
   it('unpack', () => {
-    const dest = tempy.directory()
+    const dest = temporaryDirectory()
     const cafs = createCafs(dest)
     const { filesIndex } = cafs.addFilesFromTarball(
       fs.readFileSync(f.find('node-gyp-6.1.0.tgz'))
@@ -27,8 +27,8 @@ describe('cafs', () => {
   })
 
   it('replaces an already existing file, if the integrity of it was broken', () => {
-    const storeDir = tempy.directory()
-    const srcDir = path.join(__dirname, 'fixtures/one-file')
+    const storeDir = temporaryDirectory()
+    const srcDir = path.join(import.meta.dirname, 'fixtures/one-file')
     const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir)
 
     let addFilesResult = addFiles()
@@ -39,12 +39,12 @@ describe('cafs', () => {
 
     addFilesResult = addFiles()
     expect(fs.readFileSync(filePath, 'utf8')).toBe('foo\n')
-    expect(addFilesResult.manifest).toEqual(undefined)
+    expect(addFilesResult.manifest).toBeUndefined()
   })
 
   it('ignores broken symlinks when traversing subdirectories', () => {
-    const storeDir = tempy.directory()
-    const srcDir = path.join(__dirname, 'fixtures/broken-symlink')
+    const storeDir = temporaryDirectory()
+    const srcDir = path.join(import.meta.dirname, 'fixtures/broken-symlink')
     const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir)
 
     const { filesIndex } = addFiles()
@@ -52,8 +52,8 @@ describe('cafs', () => {
   })
 
   it('symlinks are resolved and added as regular files', async () => {
-    const storeDir = tempy.directory()
-    const srcDir = tempy.directory()
+    const storeDir = temporaryDirectory()
+    const srcDir = temporaryDirectory()
     const filePath = path.join(srcDir, 'index.js')
     const symlinkPath = path.join(srcDir, 'symlink.js')
     fs.writeFileSync(filePath, '// comment', 'utf8')
@@ -72,7 +72,7 @@ describe('cafs', () => {
 
 describe('checkPkgFilesIntegrity()', () => {
   it("doesn't fail if file was removed from the store", () => {
-    const storeDir = tempy.directory()
+    const storeDir = temporaryDirectory()
     expect(checkPkgFilesIntegrity(storeDir, {
       files: {
         foo: {
@@ -86,7 +86,7 @@ describe('checkPkgFilesIntegrity()', () => {
 })
 
 test('file names are normalized when unpacking a tarball', () => {
-  const dest = tempy.directory()
+  const dest = temporaryDirectory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
     fs.readFileSync(f.find('colorize-semver-diff.tgz'))
@@ -101,7 +101,7 @@ test('file names are normalized when unpacking a tarball', () => {
 })
 
 test('broken magic in tarball headers is handled gracefully', () => {
-  const dest = tempy.directory()
+  const dest = temporaryDirectory()
   const cafs = createCafs(dest)
   cafs.addFilesFromTarball(
     fs.readFileSync(f.find('jquery.dirtyforms-2.0.0.tgz'))
@@ -109,7 +109,7 @@ test('broken magic in tarball headers is handled gracefully', () => {
 })
 
 test('unpack an older version of tar that prefixes with spaces', () => {
-  const dest = tempy.directory()
+  const dest = temporaryDirectory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
     fs.readFileSync(f.find('parsers-3.0.0-rc.48.1.tgz'))
@@ -137,7 +137,7 @@ test('unpack an older version of tar that prefixes with spaces', () => {
 })
 
 test('unpack a tarball that contains hard links', () => {
-  const dest = tempy.directory()
+  const dest = temporaryDirectory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
     fs.readFileSync(f.find('vue.examples.todomvc.todo-store-0.0.1.tgz'))
@@ -147,7 +147,7 @@ test('unpack a tarball that contains hard links', () => {
 
 // Related issue: https://github.com/pnpm/pnpm/issues/7120
 test('unpack should not fail when the tarball format seems to be not USTAR or GNU TAR', () => {
-  const dest = tempy.directory()
+  const dest = temporaryDirectory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(
     fs.readFileSync(f.find('devextreme-17.1.6.tgz'))

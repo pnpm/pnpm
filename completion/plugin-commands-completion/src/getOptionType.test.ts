@@ -2,7 +2,7 @@ import {
   currentTypedWordType,
   getLastOption,
   getOptionCompletions,
-} from './getOptionType'
+} from './getOptionType.js'
 
 const TYPES = {
   color: ['red', 'blue', Array],
@@ -59,7 +59,7 @@ test('currentTypedWordType()', () => {
     point: 29,
     prev: '--resolution-strategy',
     words: 3,
-  })).toBe(null)
+  })).toBeNull()
   expect(currentTypedWordType({
     last: '',
     lastPartial: 'f',

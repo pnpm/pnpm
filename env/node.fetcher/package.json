@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/node.fetcher",
-  "version": "1000.0.19",
+  "version": "1001.0.1",
   "description": "Node.js artifacts fetcher",
   "keywords": [
     "pnpm",
@@ -15,6 +15,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -26,32 +27,32 @@
   ],
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/crypto.shasums-file": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/pick-fetcher": "workspace:*",
+    "@pnpm/fetching.binary-fetcher": "workspace:*",
+    "@pnpm/node.resolver": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
-    "adm-zip": "catalog:",
-    "detect-libc": "catalog:",
-    "rename-overwrite": "catalog:",
-    "tempy": "catalog:"
+    "detect-libc": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "catalog:",
+    "adm-zip": "catalog:",
     "node-fetch": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

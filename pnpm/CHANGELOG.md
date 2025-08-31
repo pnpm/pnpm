@@ -1,5 +1,95 @@
 # pnpm
 
+## 10.15.0
+
+### Minor Changes
+
+- Added the `cleanupUnusedCatalogs` configuration. When set to `true`, pnpm will remove unused catalog entries during installation [#9793](https://github.com/pnpm/pnpm/pull/9793).
+- Automatically load pnpmfiles from config dependencies that are named `@*/pnpm-plugin-*` [#9780](https://github.com/pnpm/pnpm/issues/9780).
+- `pnpm config get` now prints an INI string for an object value [#9797](https://github.com/pnpm/pnpm/issues/9797).
+- `pnpm config get` now accepts property paths (e.g. `pnpm config get catalog.react`, `pnpm config get .catalog.react`, `pnpm config get 'packageExtensions["@babel/parser"].peerDependencies["@babel/types"]'`), and `pnpm config set` now accepts dot-leading or subscripted keys (e.g. `pnpm config set .ignoreScripts true`).
+- `pnpm config get --json` now prints a JSON serialization of config value, and `pnpm config set --json` now parses the input value as JSON.
+
+### Patch Changes
+
+- **Semi-breaking.** When automatically installing missing peer dependencies, prefer versions that are already present in the direct dependencies of the root workspace package [#9835](https://github.com/pnpm/pnpm/pull/9835).
+- When executing the `pnpm create` command, must verify whether the node version is supported even if a cache already exists [#9775](https://github.com/pnpm/pnpm/pull/9775).
+- When making requests for the non-abbreviated packument, add `*/*` to the `Accept` header to avoid getting a 406 error on AWS CodeArtifact [#9862](https://github.com/pnpm/pnpm/issues/9862).
+- The standalone exe version of pnpm works with glibc 2.26 again [#9734](https://github.com/pnpm/pnpm/issues/9734).
+- Fix a regression in which `pnpm dlx pkg --help` doesn't pass `--help` to `pkg` [#9823](https://github.com/pnpm/pnpm/issues/9823).
+
+## 10.14.0
+
+### Minor Changes
+
+- **Added support for JavaScript runtime resolution**
+
+  Declare Node.js, Deno, or Bun in [`devEngines.runtime`](https://github.com/openjs-foundation/package-metadata-interoperability-collab-space/issues/15) (inside `package.json`) and let pnpm download and pin it automatically.
+
+  Usage example:
+
+  ```json
+  {
+    "devEngines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.4.0",
+        "onFail": "download" (we only support the "download" value for now)
+      }
+    }
+  }
+  ```
+
+  How it works:
+
+  1. `pnpm install` resolves your specified range to the latest matching runtime version.
+  1. The exact version (and checksum) is saved in the lockfile.
+  1. Scripts use the local runtime, ensuring consistency across environments.
+
+  Why this is better:
+
+  1. This new setting supports also Deno and Bun (vs. our Node-only settings `useNodeVersion` and `executionEnv.nodeVersion`)
+  1. Supports version ranges (not just a fixed version).
+  1. The resolved version is stored in the pnpm lockfile, along with an integrity checksum for future validation of the Node.js content's validity.
+  1. It can be used on any workspace project (like `executionEnv.nodeVersion`). So, different projects in a workspace can use different runtimes.
+  1. For now `devEngines.runtime` setting will install the runtime locally, which we will improve in future versions of pnpm by using a shared location on the computer.
+
+  Related PR: [#9755](https://github.com/pnpm/pnpm/pull/9755).
+
+- Add `--cpu`, `--libc`, and `--os` to `pnpm install`, `pnpm add`, and `pnpm dlx` to customize `supportedArchitectures` via the CLI [#7510](https://github.com/pnpm/pnpm/issues/7510).
+
+### Patch Changes
+
+- Fix a bug in which `pnpm add` downloads packages whose `libc` differ from `pnpm.supportedArchitectures.libc`.
+- The integrities of the downloaded Node.js artifacts are verified [#9750](https://github.com/pnpm/pnpm/pull/9750).
+- Allow `dlx` to parse CLI flags and options between the `dlx` command and the command to run or between the `dlx` command and `--` [#9719](https://github.com/pnpm/pnpm/issues/9719).
+- `pnpm install --prod` should removing hoisted dev dependencies [#9782](https://github.com/pnpm/pnpm/issues/9782).
+- Fix an edge case bug causing local tarballs to not re-link into the virtual store. This bug would happen when changing the contents of the tarball without renaming the file and running a filtered install.
+- Fix a bug causing `pnpm install` to incorrectly assume the lockfile is up to date after changing a local tarball that has peers dependencies.
+
+## 10.13.1
+
+### Patch Changes
+
+- Run user defined pnpmfiles after pnpmfiles of plugins.
+
+## 10.13.0
+
+### Minor Changes
+
+- Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+- pnpm will now automatically load the `pnpmfile.cjs` file from any [config dependency](https://pnpm.io/config-dependencies) named `@pnpm/plugin-*` or `pnpm-plugin-*` [#9729](https://github.com/pnpm/pnpm/pull/9729).
+
+  The order in which config dependencies are initialized should not matter — they are initialized in alphabetical order. If a specific order is needed, the paths to the `pnpmfile.cjs` files in the config dependencies can be explicitly listed using the `pnpmfile` setting in `pnpm-workspace.yaml`.
+
+### Patch Changes
+
+- When patching dependencies installed via `pkg.pr.new`, treat them as Git tarball URLs [#9694](https://github.com/pnpm/pnpm/pull/9694).
+- Prevent conflicts between local projects' config and the global config in `dangerouslyAllowAllBuilds`, `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, and `neverBuiltDependencies` [#9628](https://github.com/pnpm/pnpm/issues/9628).
+- Sort keys in `pnpm-workspace.yaml` with deep [#9701](https://github.com/pnpm/pnpm/pull/9701).
+- The `pnpm rebuild` command should not add pkgs included in `ignoredBuiltDependencies` to `ignoredBuilds` in `node_modules/.modules.yaml` [#9338](https://github.com/pnpm/pnpm/issues/9338).
+- Replaced `shell-quote` with `shlex` for quoting command arguments [#9381](https://github.com/pnpm/pnpm/issues/9381).
+
 ## 10.12.4
 
 ### Patch Changes

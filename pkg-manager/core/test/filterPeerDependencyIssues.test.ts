@@ -1,4 +1,4 @@
-import { filterPeerDependencyIssues } from '../src/install/reportPeerDependencyIssues'
+import { filterPeerDependencyIssues } from '../src/install/reportPeerDependencyIssues.js'
 
 test('filterPeerDependencyIssues() ignore missing', () => {
   expect(filterPeerDependencyIssues({

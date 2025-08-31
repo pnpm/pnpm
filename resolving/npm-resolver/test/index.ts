@@ -12,21 +12,21 @@ import {
 } from '@pnpm/npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type Registries, type ProjectRootDir } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
-import omit from 'ramda/src/omit'
-import tempy from 'tempy'
-import { delay, retryLoadJsonFile } from './utils'
+import { omit } from 'ramda'
+import { temporaryDirectory } from 'tempy'
+import { delay, retryLoadJsonFile } from './utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const isPositiveMeta = loadJsonFile.sync<any>(f.find('is-positive.json'))
-const isPositiveMetaWithDeprecated = loadJsonFile.sync<any>(f.find('is-positive-with-deprecated.json'))
-const isPositiveMetaFull = loadJsonFile.sync<any>(f.find('is-positive-full.json'))
-const isPositiveBrokenMeta = loadJsonFile.sync<any>(f.find('is-positive-broken.json'))
-const sindresorhusIsMeta = loadJsonFile.sync<any>(f.find('sindresorhus-is.json'))
-const jsonMeta = loadJsonFile.sync<any>(f.find('JSON.json'))
-const brokenIntegrity = loadJsonFile.sync<any>(f.find('broken-integrity.json'))
+const isPositiveMeta = loadJsonFileSync<any>(f.find('is-positive.json'))
+const isPositiveMetaWithDeprecated = loadJsonFileSync<any>(f.find('is-positive-with-deprecated.json'))
+const isPositiveMetaFull = loadJsonFileSync<any>(f.find('is-positive-full.json'))
+const isPositiveBrokenMeta = loadJsonFileSync<any>(f.find('is-positive-broken.json'))
+const sindresorhusIsMeta = loadJsonFileSync<any>(f.find('sindresorhus-is.json'))
+const jsonMeta = loadJsonFileSync<any>(f.find('JSON.json'))
+const brokenIntegrity = loadJsonFileSync<any>(f.find('broken-integrity.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const registries = {
@@ -52,7 +52,7 @@ test('resolveFromNpm()', async () => {
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -62,7 +62,7 @@ test('resolveFromNpm()', async () => {
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
   expect(resolveResult!.normalizedBareSpecifier).toBe('1.0.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
@@ -84,7 +84,7 @@ test('resolveFromNpm() does not save mutated meta to the cache', async () => {
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -104,7 +104,7 @@ test('resolveFromNpm() should save metadata to a unique file when the package na
     .get('/JSON')
     .reply(200, jsonMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -123,7 +123,7 @@ test('resolveFromNpm() should save metadata to a unique file when the package na
 })
 
 test('relative workspace protocol is skipped', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -132,7 +132,7 @@ test('relative workspace protocol is skipped', async () => {
     projectDir: '/home/istvan/src',
   })
 
-  expect(resolveResult).toBe(null)
+  expect(resolveResult).toBeNull()
 })
 
 test('dry run', async () => {
@@ -140,7 +140,7 @@ test('dry run', async () => {
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -150,7 +150,7 @@ test('dry run', async () => {
   })
 
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
@@ -171,7 +171,7 @@ test('resolve to latest when no bareSpecifier specified', async () => {
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive' }, {})
@@ -184,7 +184,7 @@ test('resolve to defaultTag when no bareSpecifier specified', async () => {
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive' }, {
@@ -199,7 +199,7 @@ test('resolve to biggest non-deprecated version that satisfies the range', async
     .reply(200, isPositiveMetaWithDeprecated)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '3' }, {
@@ -213,7 +213,7 @@ test('resolve to a deprecated version if there are no non-deprecated ones that s
     .reply(200, isPositiveMetaWithDeprecated)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '2' }, {})
@@ -226,7 +226,7 @@ test('can resolve aliased dependency', async () => {
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({ alias: 'positive', bareSpecifier: 'npm:is-positive@1.0.0' }, {})
@@ -239,7 +239,7 @@ test('can resolve aliased dependency w/o version specifier', async () => {
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({ alias: 'positive', bareSpecifier: 'npm:is-positive' }, {})
@@ -252,7 +252,7 @@ test('can resolve aliased dependency w/o version specifier to default tag', asyn
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({ alias: 'positive', bareSpecifier: 'npm:is-positive' }, {
@@ -269,7 +269,7 @@ test('can resolve aliased scoped dependency', async () => {
     .reply(200, sindresorhusIsMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is', bareSpecifier: 'npm:@sindresorhus/is@0.6.0' }, {})
@@ -282,7 +282,7 @@ test('can resolve aliased scoped dependency w/o version specifier', async () => 
     .reply(200, sindresorhusIsMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is', bareSpecifier: 'npm:@sindresorhus/is' }, {})
@@ -295,7 +295,7 @@ test('can resolve package with version prefixed with v', async () => {
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'v1.0.0' }, {})
@@ -308,7 +308,7 @@ test('can resolve package version loosely', async () => {
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '= 1.0.0' }, {})
@@ -324,7 +324,7 @@ test("resolves to latest if it's inside the wanted range. Even if there are newe
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -345,7 +345,7 @@ test("resolves to latest if it's inside the preferred range. Even if there are n
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -370,7 +370,7 @@ test("resolve using the wanted range, when it doesn't intersect with the preferr
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -394,7 +394,7 @@ test("use the preferred version if it's inside the wanted range", async () => {
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -419,7 +419,7 @@ test("ignore the preferred version if it's not inside the wanted range", async (
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -442,7 +442,7 @@ test('use the preferred range if it intersects with the wanted range', async () 
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -467,7 +467,7 @@ test('use the preferred range if it intersects with the wanted range (an array o
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -495,7 +495,7 @@ test("ignore the preferred range if it doesn't intersect with the wanted range",
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -521,7 +521,7 @@ test("use the preferred dist-tag if it's inside the wanted range", async () => {
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -547,7 +547,7 @@ test("ignore the preferred dist-tag if it's not inside the wanted range", async 
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -572,7 +572,7 @@ test("prefer a version that is both inside the wanted and preferred ranges. Even
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -592,7 +592,7 @@ test('prefer the version that is matched by more preferred selectors', async () 
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -613,7 +613,7 @@ test('prefer the version that has bigger weight in preferred selectors', async (
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -633,7 +633,7 @@ test('prefer the version that has bigger weight in preferred selectors', async (
 })
 
 test('offline resolution fails when package meta not found in the store', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     offline: true,
     cacheDir,
@@ -651,7 +651,7 @@ test('offline resolution succeeds when package meta is found in the store', asyn
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
 
   {
     const { resolveFromNpm } = createResolveFromNpm({
@@ -683,7 +683,7 @@ test('prefer offline resolution does not fail when package meta not found in the
 
   const { resolveFromNpm } = createResolveFromNpm({
     preferOffline: true,
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
 
@@ -699,7 +699,7 @@ test('when prefer offline is used, meta from store is used, where latest might b
       'dist-tags': { latest: '3.0.0' },
     })
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
 
   {
     const { resolveFromNpm } = createResolveFromNpm({
@@ -740,7 +740,7 @@ test('error is thrown when package is not found in the registry', async () => {
     .reply(404, {})
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   await expect(resolveFromNpm({ alias: notExistingPackage, bareSpecifier: '1.0.0' }, {})).rejects
@@ -764,7 +764,7 @@ test('error is thrown when registry not responding', async () => {
   const notExistingRegistry = 'http://not-existing.pnpm.io'
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     retry: { retries: 1 },
     registries: {
       default: notExistingRegistry,
@@ -782,7 +782,7 @@ test('extra info is shown if package has valid semver appended', async () => {
     .reply(404, {})
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   await expect(resolveFromNpm({ alias: notExistingPackage, bareSpecifier: '1.0.0' }, {})).rejects
@@ -807,7 +807,7 @@ test('error is thrown when there is no package found for the requested version',
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const wantedDependency = { alias: 'is-positive', bareSpecifier: '1000.0.0' }
@@ -827,7 +827,7 @@ test('error is thrown when package needs authorization', async () => {
     .reply(403)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   await expect(resolveFromNpm({ alias: 'needs-auth', bareSpecifier: '*' }, {})).rejects
@@ -852,7 +852,7 @@ test('error is thrown when there is no package found for the requested range', a
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const wantedDependency = { alias: 'is-positive', bareSpecifier: '^1000.0.0' }
@@ -872,7 +872,7 @@ test('error is thrown when there is no package found for the requested tag', asy
     .reply(200, isPositiveMeta)
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const wantedDependency = { alias: 'is-positive', bareSpecifier: 'unknown-tag' }
@@ -893,7 +893,7 @@ test('resolveFromNpm() loads full metadata even if non-full metadata is already 
     .get('/is-positive')
     .reply(200, isPositiveMetaFull)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
 
   {
     const { resolveFromNpm } = createResolveFromNpm({
@@ -921,7 +921,7 @@ test('resolve when tarball URL is requested from the registry', async () => {
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -935,7 +935,7 @@ test('resolve when tarball URL is requested from the registry', async () => {
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
@@ -958,7 +958,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -967,7 +967,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
@@ -990,7 +990,7 @@ test('resolve from local directory when it matches the latest version of the pac
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1012,7 +1012,7 @@ test('resolve from local directory when it matches the latest version of the pac
 
   expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:is-positive')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     directory: '/home/istvan/src/is-positive',
     type: 'directory',
@@ -1027,7 +1027,7 @@ test('resolve injected dependency from local directory when it matches the lates
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1052,7 +1052,7 @@ test('resolve injected dependency from local directory when it matches the lates
   // via the 'workspace' rather than 'local-filesystem'.
   expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('file:is-positive')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     directory: 'is-positive',
     type: 'directory',
@@ -1067,7 +1067,7 @@ test('do not resolve from local directory when alwaysTryWorkspacePackages is fal
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1090,7 +1090,7 @@ test('do not resolve from local directory when alwaysTryWorkspacePackages is fal
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
@@ -1101,7 +1101,7 @@ test('do not resolve from local directory when alwaysTryWorkspacePackages is fal
 })
 
 test('resolve from local directory when alwaysTryWorkspacePackages is false but workspace: is used', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1134,7 +1134,7 @@ test('resolve from local directory when alwaysTryWorkspacePackages is false but 
 })
 
 test('resolve from local directory when alwaysTryWorkspacePackages is false but workspace: is used with a different package name', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1175,7 +1175,7 @@ test('use version from the registry if it is newer than the local one', async ()
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -1198,7 +1198,7 @@ test('use version from the registry if it is newer than the local one', async ()
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9Qa5b+9n69IEuxk4FiNcavXqkixb9lD03BLtdTeu2bbORnLZQrw+pR/exiSg7SoODeu08yxS47mdZa9ddodNwQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
@@ -1217,7 +1217,7 @@ test('preferWorkspacePackages: use version from the workspace even if there is n
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -1257,7 +1257,7 @@ test('use local version if it is newer than the latest in the registry', async (
     })
 
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   const resolveResult = await resolveFromNpm({
@@ -1280,7 +1280,7 @@ test('use local version if it is newer than the latest in the registry', async (
 
   expect(resolveResult!.resolvedVia).toBe('workspace')
   expect(resolveResult!.id).toBe('link:is-positive')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     directory: '/home/istvan/src/is-positive',
     type: 'directory',
@@ -1295,7 +1295,7 @@ test('resolve from local directory when package is not found in the registry', a
     .get('/is-positive')
     .reply(404, {})
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1346,7 +1346,7 @@ test('resolve from local directory when package is not found in the registry and
     .get('/is-positive')
     .reply(404, {})
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1397,7 +1397,7 @@ test('resolve from local directory when package is not found in the registry and
     .get('/is-positive')
     .reply(404, {})
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1434,7 +1434,7 @@ test('resolve from local directory when package is not found in the registry and
     .get('/is-positive')
     .reply(404, {})
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1485,7 +1485,7 @@ test('resolve from local directory when the requested version is not found in th
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1518,7 +1518,7 @@ test('resolve from local directory when the requested version is not found in th
 })
 
 test('workspace protocol: resolve from local directory even when it does not match the latest version of the package', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1555,7 +1555,7 @@ test('workspace protocol: resolve from local package that has a pre-release vers
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1592,7 +1592,7 @@ test("workspace protocol: don't resolve from local package that has a pre-releas
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1621,7 +1621,7 @@ test("workspace protocol: don't resolve from local package that has a pre-releas
 })
 
 test('workspace protocol: resolution fails if there is no matching local package', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1644,7 +1644,7 @@ test('workspace protocol: resolution fails if there is no matching local package
 })
 
 test('workspace protocol: resolution fails if there is no matching local package version', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1677,7 +1677,7 @@ test('workspace protocol: resolution fails if there is no matching local package
 })
 
 test('workspace protocol: resolution fails if there are no local packages', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1698,7 +1698,7 @@ test('workspace protocol: resolution fails if there are no local packages', asyn
 
 test('throws error when package name has "/" but not starts with @scope', async () => {
   const { resolveFromNpm } = createResolveFromNpm({
-    cacheDir: tempy.directory(),
+    cacheDir: temporaryDirectory(),
     registries,
   })
   await expect(resolveFromNpm({ alias: 'regenerator/runtime' }, {})).rejects
@@ -1712,7 +1712,7 @@ test('resolveFromNpm() should always return the name of the package that is spec
     .get('/is-positive')
     .reply(200, isPositiveBrokenMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1721,7 +1721,7 @@ test('resolveFromNpm() should always return the name of the package that is spec
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9Qa5b+9n69IEuxk4FiNcavXqkixb9lD03BLtdTeu2bbORnLZQrw+pR/exiSg7SoODeu08yxS47mdZa9ddodNwQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
@@ -1750,7 +1750,7 @@ test('request to metadata is retried if the received JSON is broken', async () =
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     retry: { retries: 1 },
     registries,
@@ -1764,9 +1764,9 @@ test('request to metadata is retried if the received JSON is broken', async () =
 test('request to a package with unpublished versions', async () => {
   nock(registries.default)
     .get('/code-snippet')
-    .reply(200, loadJsonFile.sync(f.find('unpublished.json')))
+    .reply(200, loadJsonFileSync(f.find('unpublished.json')))
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1783,7 +1783,7 @@ test('request to a package with no versions', async () => {
     .get('/code-snippet')
     .reply(200, { name: 'code-snippet' })
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1796,12 +1796,12 @@ test('request to a package with no versions', async () => {
 })
 
 test('request to a package with no dist-tags', async () => {
-  const isPositiveMeta = omit(['dist-tags'], loadJsonFile.sync<any>(f.find('is-positive.json'))) // eslint-disable-line
+  const isPositiveMeta = omit(['dist-tags'], loadJsonFileSync<any>(f.find('is-positive.json'))) // eslint-disable-line
   nock(registries.default)
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1818,7 +1818,7 @@ test('resolveFromNpm() does not fail if the meta file contains no integrity info
     .get('/is-positive')
     .reply(200, brokenIntegrity)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1827,7 +1827,7 @@ test('resolveFromNpm() does not fail if the meta file contains no integrity info
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@2.0.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: undefined,
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-2.0.0.tgz',
@@ -1842,7 +1842,7 @@ test('resolveFromNpm() fails if the meta file contains invalid shasum', async ()
     .get('/is-positive')
     .reply(200, brokenIntegrity)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,
@@ -1857,7 +1857,7 @@ test('resolveFromNpm() should normalize the registry', async () => {
     .get('/is-positive')
     .reply(200, isPositiveMeta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries: {
@@ -1868,7 +1868,7 @@ test('resolveFromNpm() should normalize the registry', async () => {
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('is-positive@1.0.0')
-  expect(resolveResult!.latest!.split('.').length).toBe(3)
+  expect(resolveResult!.latest!.split('.')).toHaveLength(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
@@ -1896,7 +1896,7 @@ test('pick lowest version by * when there are only prerelease versions', async (
       },
     })
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     registries,

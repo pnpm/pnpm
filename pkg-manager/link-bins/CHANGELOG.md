@@ -1,5 +1,43 @@
 # @pnpm/link-bins
 
+## 1000.2.0
+
+### Minor Changes
+
+- d1edf73: Add support for installing deno runtime.
+- 86b33e9: Added support for installing Bun runtime.
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [adb097c]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/error@1000.0.4
+  - @pnpm/manifest-utils@1001.0.3
+
+## 1000.1.0
+
+### Minor Changes
+
+- 1a07b8f: Create a command shim for the Node.js binary.
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/package-bins@1000.0.9
+  - @pnpm/manifest-utils@1001.0.2
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/error@1000.0.3
+
 ## 1000.0.13
 
 ### Patch Changes

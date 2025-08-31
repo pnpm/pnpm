@@ -7,15 +7,15 @@ import gfs from '@pnpm/graceful-fs'
 import { type VersionSelectors } from '@pnpm/resolver-base'
 import { type PackageManifest } from '@pnpm/types'
 import getRegistryName from 'encode-registry'
-import loadJsonFile from 'load-json-file'
-import pLimit from 'p-limit'
+import { loadJsonFile } from 'load-json-file'
+import pLimit, { type LimitFunction } from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import semver from 'semver'
 import renameOverwrite from 'rename-overwrite'
-import { toRaw } from './toRaw'
-import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange } from './pickPackageFromMeta'
-import { type RegistryPackageSpec } from './parseBareSpecifier'
+import { toRaw } from './toRaw.js'
+import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange } from './pickPackageFromMeta.js'
+import { type RegistryPackageSpec } from './parseBareSpecifier.js'
 
 export interface PackageMeta {
   name: string
@@ -49,7 +49,7 @@ export interface PackageInRegistry extends PackageManifest {
 
 interface RefCountedLimiter {
   count: number
-  limit: pLimit.Limit
+  limit: LimitFunction
 }
 
 /**
@@ -66,7 +66,7 @@ const metafileOperationLimits = {} as {
  * once they are no longer needed. Callers of this function should ensure
  * that the limiter is no longer referenced once fn's Promise has resolved.
  */
-async function runLimited<T> (pkgMirror: string, fn: (limit: pLimit.Limit) => Promise<T>): Promise<T> {
+async function runLimited<T> (pkgMirror: string, fn: (limit: LimitFunction) => Promise<T>): Promise<T> {
   let entry!: RefCountedLimiter
   try {
     entry = metafileOperationLimits[pkgMirror] ??= { count: 0, limit: pLimit(1) }

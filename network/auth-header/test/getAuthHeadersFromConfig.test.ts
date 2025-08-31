@@ -1,16 +1,16 @@
 import path from 'path'
 import os from 'os'
-import { getAuthHeadersFromConfig } from '../src/getAuthHeadersFromConfig'
+import { getAuthHeadersFromConfig } from '../src/getAuthHeadersFromConfig.js'
 import { Buffer } from 'safe-buffer'
 
 const osTokenHelper = {
-  linux: path.join(__dirname, 'utils/test-exec.js'),
-  win32: path.join(__dirname, 'utils/test-exec.bat'),
+  linux: path.join(import.meta.dirname, 'utils/test-exec.js'),
+  win32: path.join(import.meta.dirname, 'utils/test-exec.bat'),
 }
 
 const osErrorTokenHelper = {
-  linux: path.join(__dirname, 'utils/test-exec-error.js'),
-  win32: path.join(__dirname, 'utils/test-exec-error.bat'),
+  linux: path.join(import.meta.dirname, 'utils/test-exec-error.js'),
+  win32: path.join(import.meta.dirname, 'utils/test-exec-error.bat'),
 }
 
 // Only exception is win32, all others behave like linux
@@ -86,7 +86,7 @@ describe('getAuthHeadersFromConfig()', () => {
       userSettings: {
         '//reg.com:tokenHelper': './utils/text-exec.js',
       },
-    })).toThrowError('must be an absolute path, without arguments')
+    })).toThrow('must be an absolute path, without arguments')
   })
   it('should throw an error if the token helper is not an absolute path with args', () => {
     expect(() => getAuthHeadersFromConfig({
@@ -94,7 +94,7 @@ describe('getAuthHeadersFromConfig()', () => {
       userSettings: {
         '//reg.com:tokenHelper': `${osTokenHelper[osFamily]} arg1`,
       },
-    })).toThrowError('must be an absolute path, without arguments')
+    })).toThrow('must be an absolute path, without arguments')
   })
   it('should throw an error if the token helper fails', () => {
     expect(() => getAuthHeadersFromConfig({
@@ -102,7 +102,7 @@ describe('getAuthHeadersFromConfig()', () => {
       userSettings: {
         '//reg.com:tokenHelper': osErrorTokenHelper[osFamily],
       },
-    })).toThrowError('Exit code')
+    })).toThrow('Exit code')
   })
   it('only read token helper from user config', () => {
     const allSettings = {

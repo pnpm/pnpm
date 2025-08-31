@@ -1,9 +1,9 @@
-import { getSaveType } from '../lib/getSaveType'
+import { getSaveType } from '../lib/getSaveType.js'
 
 test('getSaveType()', () => {
-  expect(getSaveType({ saveDev: true })).toEqual('devDependencies')
-  expect(getSaveType({ savePeer: true })).toEqual('devDependencies')
-  expect(getSaveType({ saveOptional: true })).toEqual('optionalDependencies')
-  expect(getSaveType({ saveProd: true })).toEqual('dependencies')
+  expect(getSaveType({ saveDev: true })).toBe('devDependencies')
+  expect(getSaveType({ savePeer: true })).toBe('devDependencies')
+  expect(getSaveType({ saveOptional: true })).toBe('optionalDependencies')
+  expect(getSaveType({ saveProd: true })).toBe('dependencies')
   expect(getSaveType({})).toBeUndefined()
 })

@@ -3,7 +3,7 @@ import { createMatcher } from '@pnpm/matcher'
 import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
 import { type PeerDependencyIssuesByProjects, type PeerDependencyRules, type BadPeerDependencyIssue } from '@pnpm/types'
 import semver from 'semver'
-import isEmpty from 'ramda/src/isEmpty'
+import { isEmpty } from 'ramda'
 import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
 
 export function reportPeerDependencyIssues (

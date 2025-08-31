@@ -4,13 +4,13 @@ import { type LockfileFile } from '@pnpm/lockfile.types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import {
   addDistTag,
   execPnpm,
   execPnpmSync,
-} from '../utils'
+} from '../utils/index.js'
 
 test('readPackage hook', async () => {
   const project = prepare()
@@ -639,7 +639,7 @@ test('preResolution hook', async () => {
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   await execPnpm(['add', 'is-positive@1.0.0'])
-  const ctx = loadJsonFile.sync<any>('args.json') // eslint-disable-line
+  const ctx = loadJsonFileSync<any>('args.json') // eslint-disable-line
 
   expect(ctx.currentLockfile).toBeDefined()
   expect(ctx.wantedLockfile).toBeDefined()

@@ -1,13 +1,15 @@
+import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
 import { add, remove } from '@pnpm/plugin-commands-installation'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import loadJsonFile from 'load-json-file'
-import tempy from 'tempy'
+import { type ProjectManifest } from '@pnpm/types'
+import { loadJsonFile } from 'load-json-file'
+import { temporaryDirectory } from 'tempy'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
-const tmp = tempy.directory()
+const tmp = temporaryDirectory()
 
 const DEFAULT_OPTIONS = {
   argv: {
@@ -42,6 +44,8 @@ const DEFAULT_OPTIONS = {
   virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
+const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
+
 test('installing with "workspace:" should work even if link-workspace-packages is off', async () => {
   const projects = preparePackages([
     {
@@ -62,9 +66,9 @@ test('installing with "workspace:" should work even if link-workspace-packages i
     workspaceDir: process.cwd(),
   }, ['project-2@workspace:*'])
 
-  const pkg = await import(path.resolve('project-1/package.json'))
+  const { default: pkg } = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:^2.0.0' })
 
   projects['project-1'].has('project-2')
 })
@@ -89,9 +93,9 @@ test('installing with "workspace:" should work even if link-workspace-packages i
     workspaceDir: process.cwd(),
   }, ['project-2@workspace:*'])
 
-  const pkg = await import(path.resolve('project-1/package.json'))
+  const { default: pkg } = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:*' })
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:*' })
 
   projects['project-1'].has('project-2')
 })
@@ -117,9 +121,9 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     workspaceDir: process.cwd(),
   }, ['project-2'])
 
-  const pkg = await import(path.resolve('project-1/package.json'))
+  const { default: pkg } = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:^2.0.0' })
 
   projects['project-1'].has('project-2')
 })
@@ -206,9 +210,9 @@ test('installing with "workspace=true" with linkWorkspacePackages on and saveWor
     workspaceDir: process.cwd(),
   }, ['project-2'])
 
-  const pkg = await import(path.resolve('project-1/package.json'))
+  const { default: pkg } = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
+  expect(pkg?.dependencies).toEqual({ 'project-2': 'workspace:^2.0.0' })
 
   projects['project-1'].has('project-2')
 })
@@ -315,7 +319,7 @@ test('pnpm add - should add prefix when set in .npmrc when a range is not specif
   }, ['is-positive'])
 
   {
-    const manifest = (await import(path.resolve('package.json')))
+    const { default: manifest } = (await import(path.resolve('package.json')))
 
     expect(
       manifest.dependencies['is-positive']
@@ -333,7 +337,7 @@ test('pnpm add automatically installs missing peer dependencies', async () => {
   }, ['@pnpm.e2e/abc@1.0.0'])
 
   const lockfile = project.readLockfile()
-  expect(Object.keys(lockfile.packages).length).toBe(5)
+  expect(Object.keys(lockfile.packages)).toHaveLength(5)
 })
 
 test('add: fail when global bin directory is not found', async () => {
@@ -394,4 +398,35 @@ test('add: fail trying to install @pnpm/exe', async () => {
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_GLOBAL_PNPM_INSTALL')
+})
+
+describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchitectures.libc', () => {
+  test.each([
+    ['glibc', '@pnpm.e2e+only-linux-x64-glibc@1.0.0', '@pnpm.e2e+only-linux-x64-musl@1.0.0'],
+    ['musl', '@pnpm.e2e+only-linux-x64-musl@1.0.0', '@pnpm.e2e+only-linux-x64-glibc@1.0.0'],
+  ])('%p → installs %p, does not install %p', async (libc, found, notFound) => {
+    const rootProjectManifest: ProjectManifest = {
+      pnpm: {
+        supportedArchitectures: {
+          os: ['linux'],
+          cpu: ['x64'],
+          libc: [libc],
+        },
+      },
+    }
+
+    prepare(rootProjectManifest)
+
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      rootProjectManifest,
+      dir: process.cwd(),
+      linkWorkspacePackages: true,
+    }, ['@pnpm.e2e/support-different-architectures'])
+
+    const pkgDirs = fs.readdirSync(path.resolve('node_modules', '.pnpm'))
+    expect(pkgDirs).toContain('@pnpm.e2e+support-different-architectures@1.0.0')
+    expect(pkgDirs).toContain(found)
+    expect(pkgDirs).not.toContain(notFound)
+  })
 })

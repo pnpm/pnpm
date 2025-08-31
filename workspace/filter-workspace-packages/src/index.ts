@@ -3,12 +3,10 @@ import { type ProjectRootDir, type SupportedArchitectures } from '@pnpm/types'
 import { findWorkspacePackages, type Project } from '@pnpm/workspace.find-packages'
 import { createPkgGraph, type Package, type PackageNode } from '@pnpm/workspace.pkgs-graph'
 import isSubdir from 'is-subdir'
-import difference from 'ramda/src/difference'
-import partition from 'ramda/src/partition'
-import pick from 'ramda/src/pick'
+import { difference, partition, pick } from 'ramda'
 import * as micromatch from 'micromatch'
-import { getChangedPackages } from './getChangedPackages'
-import { parsePackageSelector, type PackageSelector } from './parsePackageSelector'
+import { getChangedPackages } from './getChangedPackages.js'
+import { parsePackageSelector, type PackageSelector } from './parsePackageSelector.js'
 
 export { parsePackageSelector, type PackageSelector }
 
@@ -322,7 +320,7 @@ function matchPackagesByGlob<Pkg extends Package> (
 ): ProjectRootDir[] {
   const format = (str: string) => str.replace(/\/$/, '')
   const formattedFilter = pathStartsWith.replace(/\\/g, '/').replace(/\/$/, '')
-  return (Object.keys(graph) as ProjectRootDir[]).filter((parentDir) => micromatch.isMatch(parentDir, formattedFilter, { format }))
+  return (Object.keys(graph) as ProjectRootDir[]).filter((parentDir) => micromatch.default.isMatch(parentDir, formattedFilter, { format }))
 }
 
 function pickSubgraph (

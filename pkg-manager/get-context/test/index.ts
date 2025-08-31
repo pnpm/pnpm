@@ -2,7 +2,7 @@
 import { getContext, arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { type ProjectRootDir } from '@pnpm/types'
 import path from 'path'
-import { type GetContextOptions } from '../src'
+import { type GetContextOptions } from '../src/index.js'
 
 const DEFAULT_OPTIONS: GetContextOptions = {
   allProjects: [],
@@ -10,7 +10,7 @@ const DEFAULT_OPTIONS: GetContextOptions = {
   excludeLinksFromLockfile: false,
   extraBinPaths: [],
   force: false,
-  lockfileDir: path.join(__dirname, 'lockfile'),
+  lockfileDir: path.join(import.meta.dirname, 'lockfile'),
   nodeLinker: 'isolated',
   hoistPattern: ['*'],
   registries: { default: '' },
@@ -20,7 +20,7 @@ const DEFAULT_OPTIONS: GetContextOptions = {
     devDependencies: true,
     optionalDependencies: true,
   },
-  storeDir: path.join(__dirname, 'store'),
+  storeDir: path.join(import.meta.dirname, 'store'),
   virtualStoreDirMaxLength: 120,
   peersSuffixMaxLength: 1000,
 }

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "1000.3.8",
+  "version": "1000.3.12",
   "description": "Build packages in node_modules",
   "keywords": [
     "pnpm",
@@ -15,6 +15,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -29,7 +30,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix",
-    "_test": "jest"
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "dependencies": {
     "@pnpm/calc-dep-state": "workspace:*",
@@ -44,13 +45,13 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/worker": "workspace:*",
     "p-defer": "catalog:",
     "ramda": "catalog:",
     "run-groups": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": "catalog:"
+    "@pnpm/logger": "catalog:",
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@pnpm/build-modules": "workspace:*",
@@ -58,7 +59,7 @@
     "@types/ramda": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

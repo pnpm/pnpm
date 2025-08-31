@@ -10,9 +10,9 @@ import {
   execPnpm,
   execPnpmSync,
   execPnpxSync,
-} from './utils'
+} from './utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
 
 test('some commands pass through to npm', () => {
@@ -129,7 +129,7 @@ test('pnpx works', () => {
 
   const result = execPnpxSync(['@pnpm.e2e/hello-world-js-bin'], { env })
 
-  expect(result.stdout.toString()).toEqual('Hello world!\n')
+  expect(result.stdout.toString()).toBe('Hello world!\n')
   expect(result.status).toBe(0)
 })
 

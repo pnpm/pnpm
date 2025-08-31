@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.settings-checker",
-  "version": "1001.0.9",
+  "version": "1001.0.12",
   "description": "Utilities to check if lockfile settings are out-of-date",
   "keywords": [
     "pnpm",
@@ -16,6 +16,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -44,7 +45,7 @@
     "@types/ramda": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

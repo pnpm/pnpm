@@ -1,5 +1,31 @@
 # @pnpm/git-fetcher
 
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+  - @pnpm/fetcher-base@1001.0.0
+  - @pnpm/prepare-package@1000.0.20
+  - @pnpm/worker@1000.1.11
+
+## 1001.0.11
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/fetcher-base@1000.1.0
+  - @pnpm/prepare-package@1000.0.19
+  - @pnpm/worker@1000.1.10
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [589ac1f]
+  - @pnpm/worker@1000.1.9
+  - @pnpm/prepare-package@1000.0.18
+
 ## 1001.0.9
 
 ### Patch Changes

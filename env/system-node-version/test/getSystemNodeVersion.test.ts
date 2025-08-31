@@ -1,11 +1,13 @@
-import { getSystemNodeVersionNonCached } from '../lib'
-import * as execa from 'execa'
+import { jest } from '@jest/globals'
 
-jest.mock('execa', () => ({
+jest.unstable_mockModule('execa', () => ({
   sync: jest.fn(() => ({
     stdout: 'v10.0.0',
   })),
 }))
+
+const { getSystemNodeVersionNonCached } = await import('../lib/index.js')
+const execa = await import('execa')
 
 test('getSystemNodeVersion() executed from an executable pnpm CLI', () => {
   // @ts-expect-error
@@ -22,7 +24,7 @@ test('getSystemNodeVersion() from a non-executable pnpm CLI', () => {
 
 test('getSystemNodeVersion() returns undefined if execa.sync throws an error', () => {
   // Mock execa.sync to throw an error
-  (execa.sync as jest.Mock).mockImplementationOnce(() => {
+  jest.mocked(execa.sync).mockImplementationOnce(() => {
     throw new Error('not found: node')
   })
 

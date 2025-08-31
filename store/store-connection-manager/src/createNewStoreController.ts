@@ -34,6 +34,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'offline'
 | 'packageImportMethod'
 | 'preferOffline'
+| 'preserveAbsolutePaths'
 | 'registries'
 | 'registrySupportsTimeField'
 | 'resolutionMode'
@@ -92,6 +93,7 @@ export async function createNewStoreController (
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
     includeOnlyPackageFiles: !opts.deployAllFiles,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+    preserveAbsolutePaths: opts.preserveAbsolutePaths,
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {

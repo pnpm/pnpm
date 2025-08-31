@@ -1,24 +1,25 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import { tempDir } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import path from 'path'
 import pathName from 'path-name'
 import symlinkDir from 'symlink-dir'
 import { homedir } from 'os'
-import { getConfig } from '@pnpm/config'
 
 const globalBinDir = path.join(homedir(), '.local', 'pnpm')
 const isWindows = process.platform === 'win32'
 
 jest.mock('@pnpm/npm-conf/lib/conf', () => {
-  const originalModule = jest.requireActual('@pnpm/npm-conf/lib/conf')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const originalModule = jest.requireActual<any>('@pnpm/npm-conf/lib/conf')
   class MockedConf extends originalModule {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     constructor (base: any, types: any) {
       super(base, types)
       const globalPrefixDirName = isWindows ? 'global-bin-dir-windows' : 'global-bin-dir'
-      this.prefix = this.globalPrefix = path.join(__dirname, globalPrefixDirName)
-      this.localPrefix = __dirname
+      this.prefix = this.globalPrefix = path.join(import.meta.dirname, globalPrefixDirName)
+      this.localPrefix = import.meta.dirname
     }
 
     get (name: string) {
@@ -33,6 +34,8 @@ jest.mock('@pnpm/npm-conf/lib/conf', () => {
   }
   return MockedConf
 })
+
+const { getConfig } = await import('@pnpm/config')
 
 test('respects global-bin-dir in npmrc', async () => {
   const { config } = await getConfig({
@@ -54,7 +57,7 @@ test('respects global-bin-dir rather than dir', async () => {
   const { config } = await getConfig({
     cliOptions: {
       global: true,
-      dir: __dirname,
+      dir: import.meta.dirname,
     },
     env: {
       [pathName]: `${globalBinDir}${path.delimiter}${process.env[pathName]!}`,
@@ -72,7 +75,7 @@ test('an exception is thrown when the global dir is not in PATH', async () => {
     getConfig({
       cliOptions: {
         global: true,
-        dir: __dirname,
+        dir: import.meta.dirname,
       },
       env: {
         [pathName]: process.env[pathName],
@@ -95,7 +98,7 @@ test('the global directory may be a symlink to a directory that is in PATH', asy
     cliOptions: {
       global: true,
       'global-bin-dir': globalBinDirSymlink,
-      dir: __dirname,
+      dir: import.meta.dirname,
     },
     env: {
       [pathName]: `${globalBinDirTarget}${path.delimiter}${process.env[pathName]!}`,

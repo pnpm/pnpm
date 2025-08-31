@@ -1,4 +1,4 @@
-import { type LogBase, logger, streamParser } from '../src'
+import { type LogBase, logger, streamParser } from '@pnpm/logger'
 
 test('logger logs', async () => {
   const promise = new Promise<LogBase>(resolve => {

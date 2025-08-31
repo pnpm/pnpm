@@ -1,5 +1,108 @@
 # @pnpm/resolve-dependencies
 
+## 1008.0.1
+
+### Patch Changes
+
+- aa24e7f: When automatically installing missing peer dependencies, prefer versions that are already present in the direct dependencies of the root workspace package [#9835](https://github.com/pnpm/pnpm/pull/9835).
+
+## 1008.0.0
+
+### Major Changes
+
+- d1edf73: Removed node fetcher. The binary fetcher should be used for downloading node assets.
+- f91922c: Changed how the integrity of the node.js artifact is stored in the lockfile.
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [adb097c]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/lockfile.pruner@1001.0.13
+  - @pnpm/calc-dep-state@1002.0.4
+  - @pnpm/patching.config@1001.0.7
+  - @pnpm/error@1000.0.4
+  - @pnpm/npm-resolver@1004.1.3
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/lockfile.preferred-versions@1000.0.18
+  - @pnpm/catalogs.resolver@1000.0.5
+  - @pnpm/manifest-utils@1001.0.3
+
+## 1007.2.0
+
+### Minor Changes
+
+- 1a07b8f: Added support for resolving and downloading the Node.js runtime specified in the [devEngines](https://github.com/openjs-foundation/package-metadata-interoperability-collab-space/issues/15) field of `package.json`.
+
+  Usage example:
+
+  ```json
+  {
+    "devEngines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.4.0",
+        "onFail": "download"
+      }
+    }
+  }
+  ```
+
+  When running `pnpm install`, pnpm will resolve Node.js to the latest version that satisfies the specified range and install it as a dependency of the project. As a result, when running scripts, the locally installed Node.js version will be used.
+
+  Unlike the existing options, `useNodeVersion` and `executionEnv.nodeVersion`, this new field supports version ranges, which are locked to exact versions during installation. The resolved version is stored in the pnpm lockfile, along with an integrity checksum for future validation of the Node.js content's validity.
+
+  Related PR: [#9755](https://github.com/pnpm/pnpm/pull/9755).
+
+### Patch Changes
+
+- ece236d: Fixed getManifestFromResponse.
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/pick-fetcher@1000.1.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/lockfile.preferred-versions@1000.0.17
+  - @pnpm/lockfile.pruner@1001.0.12
+  - @pnpm/calc-dep-state@1002.0.3
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/manifest-utils@1001.0.2
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/npm-resolver@1004.1.2
+  - @pnpm/error@1000.0.3
+  - @pnpm/patching.config@1001.0.6
+  - @pnpm/catalogs.resolver@1000.0.4
+
+## 1007.1.3
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/npm-resolver@1004.1.1
+- @pnpm/lockfile.pruner@1001.0.11
+- @pnpm/lockfile.utils@1002.0.1
+- @pnpm/calc-dep-state@1002.0.2
+- @pnpm/patching.config@1001.0.5
+- @pnpm/lockfile.preferred-versions@1000.0.16
+
 ## 1007.1.2
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/testing.temp-store",
-  "version": "1000.0.8",
+  "version": "1000.0.13",
   "description": "A temporary store for testing purposes",
   "keywords": [
     "pnpm",
@@ -14,6 +14,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -40,7 +41,7 @@
     "@pnpm/testing.temp-store": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

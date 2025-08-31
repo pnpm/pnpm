@@ -2,9 +2,9 @@ import fs from 'fs'
 import { preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpmSync } from '../utils'
+import { execPnpmSync } from '../utils/index.js'
 
-const f = fixtures(__dirname)
+const f = fixtures(import.meta.dirname)
 
 describe('ignorePatchFailures=undefined (necessary for backward-compatibility)', () => {
   test('errors on exact version patch failures', async () => {

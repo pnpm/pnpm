@@ -2,8 +2,7 @@ import type * as logs from '@pnpm/core-loggers'
 import { type BaseManifest } from '@pnpm/types'
 import * as Rx from 'rxjs'
 import { filter, map, mapTo, reduce, scan, startWith, take } from 'rxjs/operators'
-import mergeRight from 'ramda/src/mergeRight'
-import difference from 'ramda/src/difference'
+import { mergeRight, difference } from 'ramda'
 
 export interface PackageDiff {
   added: boolean
@@ -89,7 +88,7 @@ export function getPkgsDiff (
         latest: log.latest,
         name: log.name,
         realName: log.realName,
-        version: log.version,
+        version: log.version ?? log.id,
       }
       return pkgsDiff
     }, {

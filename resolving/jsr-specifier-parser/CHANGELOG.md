@@ -1,5 +1,17 @@
 # @pnpm/resolving.jsr-specifier-parser
 
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/error@1000.0.4
+
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.3
+
 ## 1000.0.0
 
 ### Major Changes

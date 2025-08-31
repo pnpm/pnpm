@@ -1,4 +1,4 @@
-import { removePort } from '../src/helpers/removePort'
+import { removePort } from '../src/helpers/removePort.js'
 
 describe('removePort()', () => {
   it('does not mutate the url if no port is found', () => {

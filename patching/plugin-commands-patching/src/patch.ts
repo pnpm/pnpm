@@ -7,15 +7,15 @@ import { type LogBase } from '@pnpm/logger'
 import {
   type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
 import chalk from 'chalk'
 import terminalLink from 'terminal-link'
 import { PnpmError } from '@pnpm/error'
-import { writePackage } from './writePackage'
-import { getEditDirPath } from './getEditDirPath'
-import { type GetPatchedDependencyResult, getPatchedDependency } from './getPatchedDependency'
-import { writeEditDirState } from './stateFile'
+import { writePackage } from './writePackage.js'
+import { getEditDirPath } from './getEditDirPath.js'
+import { type GetPatchedDependencyResult, getPatchedDependency } from './getPatchedDependency.js'
+import { writeEditDirState } from './stateFile.js'
 import isWindows from 'is-windows'
 
 export function rcOptionsTypes (): Record<string, unknown> {

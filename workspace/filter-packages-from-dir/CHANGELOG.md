@@ -1,5 +1,49 @@
 # @pnpm/workspace.filter-packages-from-dir
 
+## 1000.0.33
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.33
+- @pnpm/filter-workspace-packages@1000.0.33
+
+## 1000.0.32
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.32
+- @pnpm/filter-workspace-packages@1000.0.32
+
+## 1000.0.31
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.31
+- @pnpm/workspace.read-manifest@1000.2.2
+- @pnpm/filter-workspace-packages@1000.0.31
+
+## 1000.0.30
+
+### Patch Changes
+
+- @pnpm/filter-workspace-packages@1000.0.30
+- @pnpm/workspace.find-packages@1000.0.30
+- @pnpm/workspace.read-manifest@1000.2.1
+
+## 1000.0.29
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.29
+- @pnpm/filter-workspace-packages@1000.0.29
+
+## 1000.0.28
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.28
+- @pnpm/filter-workspace-packages@1000.0.28
+
 ## 1000.0.27
 
 ### Patch Changes

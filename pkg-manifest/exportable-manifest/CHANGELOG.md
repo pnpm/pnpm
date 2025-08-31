@@ -1,5 +1,29 @@
 # @pnpm/exportable-manifest
 
+## 1000.1.3
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/error@1000.0.4
+  - @pnpm/catalogs.resolver@1000.0.5
+  - @pnpm/resolving.jsr-specifier-parser@1000.0.2
+
+## 1000.1.2
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/error@1000.0.3
+  - @pnpm/catalogs.resolver@1000.0.4
+  - @pnpm/resolving.jsr-specifier-parser@1000.0.1
+
 ## 1000.1.1
 
 ### Patch Changes

@@ -7,7 +7,7 @@ import {
   type SslConfig,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
-import { type OptionsFromRootManifest } from './getOptionsFromRootManifest'
+import { type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 
@@ -139,6 +139,7 @@ export interface Config extends OptionsFromRootManifest {
   childConcurrency?: number
   ignorePnpmfile?: boolean
   pnpmfile: string[] | string
+  tryLoadDefaultPnpmfile?: boolean
   hooks?: Hooks
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   hoistPattern?: string[]
@@ -151,6 +152,7 @@ export interface Config extends OptionsFromRootManifest {
   workspacePackagePatterns?: string[]
   catalogs?: Catalogs
   catalogMode?: 'strict' | 'prefer' | 'manual'
+  cleanupUnusedCatalogs?: boolean
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
@@ -224,6 +226,7 @@ export interface Config extends OptionsFromRootManifest {
   initType: 'commonjs' | 'module'
   dangerouslyAllowAllBuilds: boolean
   ci: boolean
+  preserveAbsolutePaths?: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

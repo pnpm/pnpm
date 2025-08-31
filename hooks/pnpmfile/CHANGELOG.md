@@ -1,5 +1,44 @@
 # @pnpm/pnpmfile
 
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/error@1000.0.4
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/hooks.types@1001.0.10
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/hooks.types@1001.0.9
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/error@1000.0.3
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1002.0.0
+
+### Major Changes
+
+- e225310: Always expects an array of pnpmfiles.
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+  - @pnpm/crypto.hash@1000.2.0
+
 ## 1001.2.3
 
 ### Patch Changes

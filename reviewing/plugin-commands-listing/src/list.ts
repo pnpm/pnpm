@@ -3,9 +3,9 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { type Config, types as allTypes } from '@pnpm/config'
 import { list, listForPackages } from '@pnpm/list'
 import { type IncludedDependencies } from '@pnpm/types'
-import pick from 'ramda/src/pick'
+import { pick } from 'ramda'
 import renderHelp from 'render-help'
-import { listRecursive } from './recursive'
+import { listRecursive } from './recursive.js'
 
 export const EXCLUDE_PEERS_HELP = {
   description: 'Exclude peer dependencies',

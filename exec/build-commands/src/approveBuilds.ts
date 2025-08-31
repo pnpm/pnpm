@@ -4,11 +4,11 @@ import { type StrictModules, writeModulesManifest } from '@pnpm/modules-yaml'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { type PnpmSettings } from '@pnpm/types'
 import renderHelp from 'render-help'
-import { prompt } from 'enquirer'
+import enquirer from 'enquirer'
 import chalk from 'chalk'
 import { rebuild, type RebuildCommandOpts } from '@pnpm/plugin-commands-rebuild'
 import { writeSettings } from '@pnpm/config.config-writer'
-import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds'
+import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
 export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'rootProjectManifest' | 'rootProjectManifestDir' | 'onlyBuiltDependencies' | 'ignoredBuiltDependencies'>
 
@@ -54,7 +54,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     globalInfo('There are no packages awaiting approval')
     return
   }
-  const { result } = await prompt({
+  const { result } = await enquirer.prompt({
     choices: sortUniqueStrings([...automaticallyIgnoredBuilds]),
     indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       return ` ${choice.enabled ? '●' : '○'}`
@@ -114,7 +114,7 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
     }
   }
   if (buildPackages.length) {
-    const confirmed = await prompt<{ build: boolean }>({
+    const confirmed = await enquirer.prompt<{ build: boolean }>({
       type: 'confirm',
       name: 'build',
       message: `The next packages will now be built: ${buildPackages.join(', ')}.

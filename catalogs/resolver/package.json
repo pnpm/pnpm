@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/catalogs.resolver",
-  "version": "1000.0.3",
+  "version": "1000.0.5",
   "description": "Dereferences catalog protocol specifiers into usable specifiers.",
   "keywords": [
     "pnpm",
@@ -14,6 +14,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -28,18 +29,19 @@
     "compile": "tsc --build && pnpm run lint --fix",
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile && pnpm run _test",
-    "_test": "jest"
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "dependencies": {
     "@pnpm/catalogs.protocol-parser": "workspace:^",
     "@pnpm/error": "workspace:^"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

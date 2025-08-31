@@ -1,7 +1,7 @@
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import { type PatchInfo } from '@pnpm/patching.types'
 import { type PkgIdWithPatchHash, type DepPath, type PackageManifest } from '@pnpm/types'
-import filter from 'ramda/src/filter'
+import { filter } from 'ramda'
 
 export interface DependenciesGraphNode<T extends string> {
   children: Record<string, T>

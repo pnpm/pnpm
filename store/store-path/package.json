@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store-path",
-  "version": "1000.0.2",
+  "version": "1000.0.4",
   "description": "Resolves the pnpm store path",
   "keywords": [
     "pnpm",
@@ -14,6 +14,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js"
@@ -25,7 +26,7 @@
   "scripts": {
     "prepublishOnly": "pnpm run compile",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "jest",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test": "pnpm run compile && pnpm run _test",
     "compile": "tsc --build && pnpm run lint --fix"
   },
@@ -40,6 +41,7 @@
     "touch": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/store-path": "workspace:*",
     "@types/is-windows": "catalog:",
     "@types/node": "catalog:",
@@ -49,7 +51,7 @@
     "rimraf": "catalog:"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

@@ -1,3 +1,3 @@
-export { calcPatchHashes } from './calcPatchHashes'
-export { createOverridesMapFromParsed } from './createOverridesMapFromParsed'
-export { type ChangedField, getOutdatedLockfileSetting } from './getOutdatedLockfileSetting'
+export { calcPatchHashes } from './calcPatchHashes.js'
+export { createOverridesMapFromParsed } from './createOverridesMapFromParsed.js'
+export { type ChangedField, getOutdatedLockfileSetting } from './getOutdatedLockfileSetting.js'

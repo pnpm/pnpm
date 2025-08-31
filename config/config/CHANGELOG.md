@@ -1,5 +1,51 @@
 # @pnpm/config
 
+## 1004.2.1
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/error@1000.0.4
+  - @pnpm/workspace.read-manifest@1000.2.2
+  - @pnpm/pnpmfile@1002.0.2
+  - @pnpm/catalogs.config@1000.0.4
+
+## 1004.2.0
+
+### Minor Changes
+
+- 6f7ac0f: Add `--cpu`, `--libc`, and `--os` to `pnpm install`, `pnpm add`, and `pnpm dlx` to customize `supportedArchitectures` via the CLI [#7510](https://github.com/pnpm/pnpm/issues/7510).
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/pnpmfile@1002.0.1
+  - @pnpm/workspace.read-manifest@1000.2.1
+  - @pnpm/error@1000.0.3
+  - @pnpm/catalogs.config@1000.0.3
+
+## 1004.1.0
+
+### Minor Changes
+
+- 623da6f: Prevent conflicts between local projects' config and the global config in `dangerously-allow-all-builds`, `only-built-dependencies`, `only-built-dependencies-file`, and `never-built-dependencies` [#9628](https://github.com/pnpm/pnpm/issues/9628).
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [e225310]
+- Updated dependencies [cf630a8]
+  - @pnpm/pnpmfile@1002.0.0
+
 ## 1004.0.0
 
 ### Major Changes

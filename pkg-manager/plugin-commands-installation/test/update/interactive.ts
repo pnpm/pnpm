@@ -1,17 +1,17 @@
 import path from 'path'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { type LockfileObject } from '@pnpm/lockfile.types'
-import { add, install, update } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
+import { jest } from '@jest/globals'
 import { sync as readYamlFile } from 'read-yaml-file'
 import chalk from 'chalk'
-import * as enquirer from 'enquirer'
 
-jest.mock('enquirer', () => ({ prompt: jest.fn() }))
+jest.unstable_mockModule('enquirer', () => ({ default: { prompt: jest.fn() } }))
+const { default: enquirer } = await import('enquirer')
+const { add, install, update } = await import('@pnpm/plugin-commands-installation')
 
-// eslint-disable-next-line
-const prompt = enquirer.prompt as any
+const prompt = jest.mocked(enquirer.prompt)
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -88,13 +88,13 @@ test('interactively update', async () => {
     updateDependencies: [
       {
         value: 'is-negative',
-        name: chalk`is-negative 1.0.0 ❯ 1.0.{greenBright.bold 1} https://pnpm.io/ `,
+        name: `is-negative 1.0.0 ❯ 1.0.${chalk.greenBright.bold('1')} https://pnpm.io/ `,
       },
     ],
   })
 
   prompt.mockClear()
-  // t.comment('update to compatible versions')
+  // Update to compatible versions
   await update.handler({
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
@@ -104,17 +104,18 @@ test('interactively update', async () => {
     storeDir,
   })
 
-  expect(prompt.mock.calls[0][0].choices).toStrictEqual([
+  // eslint-disable-next-line
+  expect((prompt.mock.calls[0][0] as any).choices).toStrictEqual([
     {
       choices: [
         headerChoice,
         {
-          message: chalk`is-negative                                                  1.0.0 ❯ 1.0.{greenBright.bold 1}                 `,
+          message: `is-negative                                                  1.0.0 ❯ 1.0.${chalk.greenBright.bold('1')}                 `,
           value: 'is-negative',
           name: 'is-negative',
         },
         {
-          message: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
+          message: `micromatch                                                   3.0.0 ❯ 3.${chalk.yellowBright.bold('1.10')}                `,
           value: 'micromatch',
           name: 'micromatch',
         },
@@ -144,7 +145,7 @@ test('interactively update', async () => {
     expect(lockfile.packages['is-positive@2.0.0']).toBeTruthy()
   }
 
-  // t.comment('update to latest versions')
+  // Update to latest versions
   prompt.mockClear()
   await update.handler({
     ...DEFAULT_OPTIONS,
@@ -156,22 +157,23 @@ test('interactively update', async () => {
     storeDir,
   })
 
-  expect(prompt.mock.calls[0][0].choices).toStrictEqual([
+  // eslint-disable-next-line
+  expect((prompt.mock.calls[0][0] as any).choices).toStrictEqual([
     {
       choices: [
         headerChoice,
         {
-          message: chalk`is-negative                                                  1.0.1 ❯ {redBright.bold 2.1.0}                 `,
+          message: `is-negative                                                  1.0.1 ❯ ${chalk.redBright.bold('2.1.0')}                 `,
           value: 'is-negative',
           name: 'is-negative',
         },
         {
-          message: chalk`is-positive                                                  2.0.0 ❯ {redBright.bold 3.1.0}                 `,
+          message: `is-positive                                                  2.0.0 ❯ ${chalk.redBright.bold('3.1.0')}                 `,
           value: 'is-positive',
           name: 'is-positive',
         },
         {
-          message: chalk`micromatch                                                   3.0.0 ❯ {redBright.bold 4.0.0}                 `,
+          message: `micromatch                                                   3.0.0 ❯ ${chalk.redBright.bold('4.0.0')}                 `,
           value: 'micromatch',
           name: 'micromatch',
         },
@@ -225,7 +227,7 @@ test('interactive update of dev dependencies only', async () => {
     updateDependencies: [
       {
         value: 'is-negative',
-        name: chalk`is-negative 1.0.0 ❯ 1.0.{greenBright.bold 1} https://pnpm.io/ `,
+        name: `is-negative 1.0.0 ❯ 1.0.${chalk.greenBright.bold('1')} https://pnpm.io/ `,
       },
     ],
   })
@@ -317,7 +319,8 @@ test('interactively update should ignore dependencies from the ignoreDependencie
     },
   })
 
-  expect(prompt.mock.calls[0][0].choices).toStrictEqual(
+  // eslint-disable-next-line
+  expect((prompt.mock.calls[0][0] as any).choices as any).toStrictEqual(
     [
       {
         choices: [
@@ -328,7 +331,7 @@ test('interactively update should ignore dependencies from the ignoreDependencie
             value: '',
           },
           {
-            message: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
+            message: `micromatch                                                   3.0.0 ❯ 3.${chalk.yellowBright.bold('1.10')}                `,
             value: 'micromatch',
             name: 'micromatch',
           },

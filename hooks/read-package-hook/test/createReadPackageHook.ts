@@ -1,8 +1,10 @@
-import { createReadPackageHook } from '../lib/createReadPackageHook'
+import { jest } from '@jest/globals'
+import { type ReadPackageHook } from '@pnpm/types'
+import { createReadPackageHook } from '../lib/createReadPackageHook.js'
 
 test('createReadPackageHook() is passing directory to all hooks', async () => {
-  const hook1 = jest.fn((manifest) => manifest)
-  const hook2 = jest.fn((manifest) => manifest)
+  const hook1 = jest.fn(((manifest) => manifest) as ReadPackageHook)
+  const hook2 = jest.fn(((manifest) => manifest) as ReadPackageHook)
   const readPackageHook = createReadPackageHook({
     ignoreCompatibilityDb: true,
     lockfileDir: '/foo',
@@ -16,13 +18,13 @@ test('createReadPackageHook() is passing directory to all hooks', async () => {
 })
 
 test('createReadPackageHook() runs the custom hook before the version overrider', async () => {
-  const hook = jest.fn((manifest) => ({
+  const hook = jest.fn(((manifest) => ({
     ...manifest,
     dependencies: {
       ...manifest.dependencies,
       react: '18',
     },
-  }))
+  })) as ReadPackageHook)
   const readPackageHook = createReadPackageHook({
     ignoreCompatibilityDb: true,
     lockfileDir: '/foo',

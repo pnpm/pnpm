@@ -20,8 +20,8 @@ import {
   type PrepareExecutionEnv,
 } from '@pnpm/types'
 import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
-import { pnpmPkgJson } from '../pnpmPkgJson'
-import { type ReporterFunction } from '../types'
+import { pnpmPkgJson } from '../pnpmPkgJson.js'
+import { type ReporterFunction } from '../types.js'
 import { type PreResolutionHookContext } from '@pnpm/hooks.types'
 
 export interface StrictInstallOptions {
@@ -29,6 +29,7 @@ export interface StrictInstallOptions {
   autoInstallPeersFromHighestMatch: boolean
   catalogs: Catalogs
   catalogMode: 'strict' | 'prefer' | 'manual'
+  cleanupUnusedCatalogs: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
   enableGlobalVirtualStore: boolean
@@ -244,6 +245,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
       !process.setgid ||
       process.getuid?.() !== 0,
     catalogMode: 'manual',
+    cleanupUnusedCatalogs: false,
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/hooks.types",
-  "version": "1001.0.8",
+  "version": "1001.0.10",
   "description": "Types for hooks",
   "keywords": [
     "pnpm",
@@ -13,6 +13,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -36,7 +37,7 @@
     "@pnpm/hooks.types": "workspace:*"
   },
   "engines": {
-    "node": ">=18.12"
+    "node": ">=20.19"
   },
   "jest": {
     "preset": "@pnpm/jest-config"
