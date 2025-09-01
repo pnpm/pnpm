@@ -5,12 +5,12 @@ import { requirePnpmfile } from '../src/requirePnpmfile.js'
 
 const defaultHookContext: HookContext = { log () {} }
 
-test('ignoring a pnpmfile that exports undefined', () => {
+test('ignoring a pnpmfile that exports undefined', async () => {
   const { pnpmfileModule: pnpmfile } = (await requirePnpmfile(path.join(import.meta.dirname, '__fixtures__/undefined.js'), import.meta.dirname))!
   expect(pnpmfile).toBeUndefined()
 })
 
-test('readPackage hook run fails when returns undefined', () => {
+test('readPackage hook run fails when returns undefined', async () => {
   const pnpmfilePath = path.join(import.meta.dirname, '__fixtures__/readPackageNoReturn.js')
   const { pnpmfileModule: pnpmfile } = (await requirePnpmfile(pnpmfilePath, import.meta.dirname))!
 
@@ -19,7 +19,7 @@ test('readPackage hook run fails when returns undefined', () => {
   ).rejects.toEqual(new BadReadPackageHookError(pnpmfilePath, 'readPackage hook did not return a package manifest object.'))
 })
 
-test('readPackage hook run fails when returned dependencies is not an object', () => {
+test('readPackage hook run fails when returned dependencies is not an object', async () => {
   const pnpmfilePath = path.join(import.meta.dirname, '__fixtures__/readPackageNoObject.js')
   const { pnpmfileModule: pnpmfile } = (await requirePnpmfile(pnpmfilePath, import.meta.dirname))!
   return expect(
@@ -27,7 +27,7 @@ test('readPackage hook run fails when returned dependencies is not an object', (
   ).rejects.toEqual(new BadReadPackageHookError(pnpmfilePath, 'readPackage hook returned package manifest object\'s property \'dependencies\' must be an object.'))
 })
 
-test('filterLog hook combines with the global hook', () => {
+test('filterLog hook combines with the global hook', async () => {
   const globalPnpmfile = path.join(import.meta.dirname, '__fixtures__/globalFilterLog.js')
   const pnpmfile = path.join(import.meta.dirname, '__fixtures__/filterLog.js')
   const { hooks } = await requireHooks(import.meta.dirname, { globalPnpmfile, pnpmfiles: [pnpmfile] })
@@ -47,13 +47,13 @@ test('filterLog hook combines with the global hook', () => {
   })).toBeFalsy()
 })
 
-test('ignoring the default pnpmfile if tryLoadDefaultPnpmfile is not set', () => {
-  const { hooks } = requireHooks(path.join(import.meta.dirname, '__fixtures__/default'), {})
+test('ignoring the default pnpmfile if tryLoadDefaultPnpmfile is not set', async () => {
+  const { hooks } = await requireHooks(path.join(import.meta.dirname, '__fixtures__/default'), {})
   expect(hooks.readPackage?.length).toBe(0)
 })
 
-test('loading the default pnpmfile if tryLoadDefaultPnpmfile is set to true', () => {
-  const { hooks } = requireHooks(path.join(import.meta.dirname, '__fixtures__/default'), { tryLoadDefaultPnpmfile: true })
+test('loading the default pnpmfile if tryLoadDefaultPnpmfile is set to true', async () => {
+  const { hooks } = await requireHooks(path.join(import.meta.dirname, '__fixtures__/default'), { tryLoadDefaultPnpmfile: true })
   expect(hooks.readPackage?.length).toBe(1)
 })
 
