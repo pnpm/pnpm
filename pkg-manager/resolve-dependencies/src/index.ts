@@ -1,5 +1,6 @@
 import path from 'path'
 import { type Catalogs } from '@pnpm/catalogs.types'
+import { resolveFromCatalog, matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
@@ -290,6 +291,29 @@ export async function resolveDependencies (
       updatedCatalogs ??= {}
       updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
       updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier ?? dep.catalogLookup.userSpecifiedBareSpecifier
+    }
+
+    // Also process peer dependencies with catalog protocol during updates
+    if (project.manifest.peerDependencies && project.updateToLatest) {
+      for (const [peerName, peerSpec] of Object.entries(project.manifest.peerDependencies)) {
+        const catalogLookup = matchCatalogResolveResult(resolveFromCatalog(opts.catalogs ?? {}, {
+          bareSpecifier: peerSpec,
+          alias: peerName,
+        }), {
+          found: (result) => result.resolution,
+          unused: () => undefined,
+          misconfiguration: () => undefined,
+        })
+        if (catalogLookup != null) {
+          const resolvedImporter = resolvedImporters[project.id]
+          const resolvedPeerDep = resolvedImporter.directDependencies.find(dep => dep.alias === peerName)
+
+          updatedCatalogs ??= {}
+          updatedCatalogs[catalogLookup.catalogName] ??= {}
+          // Use the resolved version if available, otherwise fall back to the original specifier
+          updatedCatalogs[catalogLookup.catalogName][peerName] = resolvedPeerDep?.normalizedBareSpecifier ?? resolvedPeerDep?.catalogLookup?.userSpecifiedBareSpecifier ?? catalogLookup.specifier
+        }
+      }
     }
   }
 
