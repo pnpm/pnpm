@@ -382,6 +382,9 @@ export async function getConfig (opts: {
       if (workspaceManifest) {
         const newSettings = Object.assign(getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest), configFromCliOpts)
         for (const [key, value] of Object.entries(newSettings)) {
+          // TODO: make this a separate package which would be shared by plugins-command-config
+          if (!/^[a-z][a-zA-Z0-9]*$/.test(key)) continue
+
           // @ts-expect-error
           pnpmConfig[key] = value
 
