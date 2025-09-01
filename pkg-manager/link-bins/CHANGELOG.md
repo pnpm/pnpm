@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 1000.2.1
+
+### Patch Changes
+
+- affdd5b: Replace `p-settle` with the builtin `Promise.allSettled`
+
 ## 1000.2.0
 
 ### Minor Changes

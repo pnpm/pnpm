@@ -1,5 +1,21 @@
 # @pnpm/core
 
+## 1010.0.2
+
+### Patch Changes
+
+- Updated dependencies [77d5b17]
+- Updated dependencies [3482fe1]
+- Updated dependencies [affdd5b]
+  - @pnpm/lockfile-to-pnp@1001.0.19
+  - @pnpm/resolve-dependencies@1008.0.2
+  - @pnpm/link-bins@1000.2.1
+  - @pnpm/headless@1004.2.3
+  - @pnpm/build-modules@1000.3.13
+  - @pnpm/lifecycle@1001.0.20
+  - @pnpm/hoist@1002.0.3
+  - @pnpm/package-requester@1006.0.0
+
 ## 1010.0.1
 
 ### Patch Changes
