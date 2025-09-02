@@ -211,14 +211,14 @@ describe('config get with a property path', () => {
   })
 
   describe('non-rc kebab-case keys', () => {
-    test.each(['package-extensions'])('«%s»', async (key) => {
+    test('«package-extensions»', async () => {
       const getResult = await config.handler({
         dir: process.cwd(),
         cliOptions: {},
         configDir: process.cwd(),
         global: true,
         rawConfig,
-      }, ['get', key])
+      }, ['get', 'package-extensions'])
 
       expect(getOutputString(getResult)).toBe('undefined')
     })
