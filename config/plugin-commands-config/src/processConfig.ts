@@ -1,4 +1,6 @@
 import camelcase from 'camelcase'
+import { sortDirectKeys } from '@pnpm/object.key-sorting'
+import { censorProtectedSettings } from './protectedSettings.js'
 
 const shouldChangeCase = (key: string): boolean => key[0] !== '@' && !key.startsWith('//')
 
@@ -11,10 +13,14 @@ function camelCaseConfig (rawConfig: Record<string, unknown>): Record<string, un
   return result
 }
 
-export interface NormalizeConfigKeyCasesOptions {
+export interface ProcessConfigOptions {
   json?: boolean
 }
 
-export function normalizeConfigKeyCases (rawConfig: Record<string, unknown>, opts?: NormalizeConfigKeyCasesOptions): Record<string, unknown> {
+function normalizeConfigKeyCases (rawConfig: Record<string, unknown>, opts?: ProcessConfigOptions): Record<string, unknown> {
   return opts?.json ? camelCaseConfig(rawConfig) : rawConfig
+}
+
+export function processConfig (rawConfig: Record<string, unknown>, opts?: ProcessConfigOptions): Record<string, unknown> {
+  return normalizeConfigKeyCases(censorProtectedSettings(sortDirectKeys(rawConfig)), opts)
 }

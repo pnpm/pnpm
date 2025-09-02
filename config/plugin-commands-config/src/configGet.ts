@@ -5,7 +5,7 @@ import { isCamelCase, isStrictlyKebabCase } from '@pnpm/naming-cases'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
 import { runNpm } from '@pnpm/run-npm'
 import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
-import { normalizeConfigKeyCases } from './configKeyCases.js'
+import { processConfig } from './processConfig.js'
 import { parseConfigPropertyPath } from './parseConfigPropertyPath.js'
 import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
@@ -41,7 +41,7 @@ function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPa
   const parsedPropertyPath = Array.from(parseConfigPropertyPath(propertyPath))
   if (parsedPropertyPath.length === 0) {
     return {
-      value: normalizeConfigKeyCases(rawConfig, opts),
+      value: processConfig(rawConfig, opts),
     }
   }
   return {
