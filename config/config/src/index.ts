@@ -5,8 +5,9 @@ import { isCI } from 'ci-info'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
+import { isCamelCase } from '@pnpm/naming-cases'
 import loadNpmConf from '@pnpm/npm-conf'
-import type npmTypes from '@pnpm/npm-conf/lib/types'
+import type npmTypes from '@pnpm/npm-conf/lib/types.js'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import { createMatcher } from '@pnpm/matcher'
@@ -36,6 +37,7 @@ import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 import { types } from './types.js'
 import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+import { isRcSetting } from './isRcSetting.js'
 import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
@@ -266,6 +268,11 @@ export async function getConfig (opts: {
     cliOptions,
     { 'user-agent': pnpmConfig.userAgent },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  for (const key in pnpmConfig.rawConfig) {
+    if (!isRcSetting(key, opts.rcOptionsTypes)) {
+      delete pnpmConfig.rawConfig[key]
+    }
+  }
   const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
   pnpmConfig.registries = {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
@@ -376,9 +383,16 @@ export async function getConfig (opts: {
       if (workspaceManifest) {
         const newSettings = Object.assign(getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest), configFromCliOpts)
         for (const [key, value] of Object.entries(newSettings)) {
+          if (!isCamelCase(key)) continue
+
           // @ts-expect-error
           pnpmConfig[key] = value
-          pnpmConfig.rawConfig[kebabCase(key)] = value
+
+          const kebabKey = kebabCase(key)
+          // Q: Why `types` instead of `rcOptionTypes`?
+          // A: `rcOptionTypes` includes options that would matter to the `npm` cli which wouldn't care about `pnpm-workspace.yaml`.
+          const targetKey = kebabKey in types ? kebabKey : key
+          pnpmConfig.rawConfig[targetKey] = value
         }
         pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
       }
