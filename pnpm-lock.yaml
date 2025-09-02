@@ -1638,6 +1638,9 @@ importers:
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../matcher
+      '@pnpm/naming-cases':
+        specifier: workspace:*
+        version: link:../../packages/naming-cases
       '@pnpm/npm-conf':
         specifier: 'catalog:'
         version: 3.0.0
@@ -1931,6 +1934,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/naming-cases':
+        specifier: workspace:*
+        version: link:../../packages/naming-cases
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../../object/key-sorting
@@ -4392,6 +4398,12 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.2.0
+
+  packages/naming-cases:
+    devDependencies:
+      '@pnpm/naming-cases':
+        specifier: workspace:*
+        version: 'link:'
 
   packages/parse-wanted-dependency:
     dependencies:

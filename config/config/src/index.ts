@@ -5,6 +5,7 @@ import { isCI } from 'ci-info'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
+import { isCamelCase } from '@pnpm/naming-cases'
 import loadNpmConf from '@pnpm/npm-conf'
 import type npmTypes from '@pnpm/npm-conf/lib/types.js'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
@@ -382,8 +383,7 @@ export async function getConfig (opts: {
       if (workspaceManifest) {
         const newSettings = Object.assign(getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest), configFromCliOpts)
         for (const [key, value] of Object.entries(newSettings)) {
-          // TODO: make this a separate package which would be shared by plugins-command-config
-          if (!/^[a-z][a-zA-Z0-9]*$/.test(key)) continue
+          if (!isCamelCase(key)) continue
 
           // @ts-expect-error
           pnpmConfig[key] = value
