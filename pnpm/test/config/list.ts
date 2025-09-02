@@ -41,6 +41,25 @@ test('pnpm config list ignores non kebab-case options from .npmrc', () => {
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['onlyBuiltDependencies'])
 })
 
+test('pnpm config list ignores unknown kebab-case options from .npmrc', () => {
+  prepare()
+  fs.writeFileSync('.npmrc', [
+    'this-option-is-not-defined-by-pnpm=some-value'
+  ].join('\n'))
+
+  {
+    const { stdout } = execPnpmSync(['config', 'list'], { expectSuccess: true })
+    expect(ini.decode(stdout.toString())).not.toHaveProperty(['this-option-is-not-defined-by-pnpm'])
+    expect(ini.decode(stdout.toString())).not.toHaveProperty(['thisOptionIsNotDefinedByPnpm'])
+  }
+
+  {
+    const { stdout } = execPnpmSync(['config', 'list', '--json'], { expectSuccess: true })
+    expect(ini.decode(stdout.toString())).not.toHaveProperty(['this-option-is-not-defined-by-pnpm'])
+    expect(ini.decode(stdout.toString())).not.toHaveProperty(['thisOptionIsNotDefinedByPnpm'])
+  }
+})
+
 test('pnpm config list reads both rc options and workspace-specific settings from pnpm-workspace.yaml', () => {
   const workspaceManifest = {
     dlxCacheMaxAge: 1234,
@@ -98,6 +117,29 @@ test('pnpm config list ignores non camelCase settings from pnpm-workspace.yaml',
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['onlyBuiltDependencies'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['package-extensions'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['packageExtensions'])
+})
+
+// This behavior is not really desired, it is but a side-effect of the config loader not validating pnpm-workspace.yaml.
+// Still, removing it can be considered a breaking change, so this test is here to track for that.
+test('pnpm config list still reads unknown camelCase keys from pnpm-workspace.yaml', () => {
+  const workspaceManifest = {
+    thisOptionIsNotDefinedByPnpm: 'some-value',
+  }
+
+  prepare()
+  writeYamlFile('pnpm-workspace.yaml', workspaceManifest)
+
+  {
+    const { stdout } = execPnpmSync(['config', 'list'], { expectSuccess: true })
+    expect(ini.decode(stdout.toString())).toMatchObject(workspaceManifest)
+    expect(ini.decode(stdout.toString())).not.toHaveProperty(['this-option-is-not-defined-by-pnpm'])
+  }
+
+  {
+    const { stdout } = execPnpmSync(['config', 'list', '--json'], { expectSuccess: true })
+    expect(JSON.parse(stdout.toString())).toMatchObject(workspaceManifest)
+    expect(JSON.parse(stdout.toString())).not.toHaveProperty(['this-option-is-not-defined-by-pnpm'])
+  }
 })
 
 test('pnpm config list --json shows all keys in camelCase', () => {
