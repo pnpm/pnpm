@@ -44,7 +44,7 @@ test('pnpm config list ignores non kebab-case options from .npmrc', () => {
 test('pnpm config list ignores unknown kebab-case options from .npmrc', () => {
   prepare()
   fs.writeFileSync('.npmrc', [
-    'this-option-is-not-defined-by-pnpm=some-value'
+    'this-option-is-not-defined-by-pnpm=some-value',
   ].join('\n'))
 
   {
