@@ -1,5 +1,6 @@
 ---
-"@pnpm/plugin-commands-publishing": major
+"@pnpm/plugin-commands-publishing": patch
+"pnpm": patch
 ---
 
-`pnpm publish` support `.tar.gz` file.
+`pnpm publish` should be able to publish a `.tar.gz` file [#9927](https://github.com/pnpm/pnpm/pull/9927).

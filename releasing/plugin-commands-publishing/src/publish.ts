@@ -206,7 +206,7 @@ Do you want to continue?`,
     }
   }
 
-  if (dirInParams?.endsWith('.tgz') ?? dirInParams?.endsWith('.tar.gz')) {
+  if (dirInParams != null && (dirInParams.endsWith('.tgz') || dirInParams?.endsWith('.tar.gz'))) {
     const { status } = runNpm(opts.npmPath, ['publish', dirInParams, ...args])
     return { exitCode: status ?? 0 }
   }
