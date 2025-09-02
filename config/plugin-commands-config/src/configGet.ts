@@ -1,10 +1,11 @@
 import kebabCase from 'lodash.kebabcase'
 import { encode } from 'ini'
 import { types } from '@pnpm/config'
-import { isCamelCase } from '@pnpm/naming-cases'
+import { isCamelCase, isStrictlyKebabCase } from '@pnpm/naming-cases'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
 import { runNpm } from '@pnpm/run-npm'
 import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
+import { normalizeConfigKeyCases } from './configKeyCases.js'
 import { parseConfigPropertyPath } from './parseConfigPropertyPath.js'
 import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
@@ -28,12 +29,23 @@ function getRcConfig (rawConfig: Record<string, unknown>, key: string): Found<un
     const value = rawConfig[rcKey]
     return { value }
   }
+  if (isStrictlyKebabCase(key)) {
+    return { value: undefined }
+  }
   return undefined
 }
 
-function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPath: string): Found<unknown> {
+type GetConfigByPropertyPathOptions = Pick<ConfigCommandOptions, 'json'>
+
+function getConfigByPropertyPath (rawConfig: Record<string, unknown>, propertyPath: string, opts?: GetConfigByPropertyPathOptions): Found<unknown> {
+  const parsedPropertyPath = Array.from(parseConfigPropertyPath(propertyPath))
+  if (parsedPropertyPath.length === 0) {
+    return {
+      value: normalizeConfigKeyCases(rawConfig, opts),
+    }
+  }
   return {
-    value: getObjectValueByPropertyPath(rawConfig, parseConfigPropertyPath(propertyPath)),
+    value: getObjectValueByPropertyPath(rawConfig, parsedPropertyPath),
   }
 }
 

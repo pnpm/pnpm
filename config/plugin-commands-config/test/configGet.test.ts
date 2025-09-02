@@ -122,8 +122,24 @@ describe('config get with a property path', () => {
   }
 
   describe('anything with --json', () => {
+    test('', async () => { // eslint-disable-line jest/valid-title
+      const getResult = await config.handler({
+        dir: process.cwd(),
+        cliOptions: {},
+        configDir: process.cwd(),
+        global: true,
+        json: true,
+        rawConfig,
+      }, ['get', ''])
+
+      expect(JSON.parse(getOutputString(getResult))).toStrictEqual({
+        dlxCacheMaxAge: rawConfig['dlx-cache-max-age'],
+        onlyBuiltDependencies: rawConfig['only-built-dependencies'],
+        packageExtensions: rawConfig.packageExtensions,
+      })
+    })
+
     test.each([
-      ['', rawConfig],
       ['dlx-cache-max-age', rawConfig['dlx-cache-max-age']],
       ['dlxCacheMaxAge', rawConfig['dlx-cache-max-age']],
       ['only-built-dependencies', rawConfig['only-built-dependencies']],
