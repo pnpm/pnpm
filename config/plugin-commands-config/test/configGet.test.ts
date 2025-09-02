@@ -122,7 +122,7 @@ describe('config get with a property path', () => {
   }
 
   describe('anything with --json', () => {
-    test('', async () => { // eslint-disable-line jest/valid-title
+    test('«»', async () => {
       const getResult = await config.handler({
         dir: process.cwd(),
         cliOptions: {},
@@ -153,7 +153,7 @@ describe('config get with a property path', () => {
       ['packageExtensions["jest-circus"]', rawConfig.packageExtensions['jest-circus']],
       ['packageExtensions["jest-circus"].dependencies', rawConfig.packageExtensions['jest-circus'].dependencies],
       ['packageExtensions["jest-circus"].dependencies.slash', rawConfig.packageExtensions['jest-circus'].dependencies.slash],
-    ] as Array<[string, unknown]>)('%s', async (propertyPath, expected) => {
+    ] as Array<[string, unknown]>)('«%s»', async (propertyPath, expected) => {
       const getResult = await config.handler({
         dir: process.cwd(),
         cliOptions: {},
@@ -175,7 +175,7 @@ describe('config get with a property path', () => {
       ['packageExtensions["@babel/parser"].peerDependencies', rawConfig.packageExtensions['@babel/parser'].peerDependencies],
       ['packageExtensions["jest-circus"]', rawConfig.packageExtensions['jest-circus']],
       ['packageExtensions["jest-circus"].dependencies', rawConfig.packageExtensions['jest-circus'].dependencies],
-    ] as Array<[string, unknown]>)('%s', async (propertyPath, expected) => {
+    ] as Array<[string, unknown]>)('«%s»', async (propertyPath, expected) => {
       const getResult = await config.handler({
         dir: process.cwd(),
         cliOptions: {},
@@ -197,7 +197,7 @@ describe('config get with a property path', () => {
       ['package-extensions', 'undefined'], // it cannot be defined by rc, it can't be kebab-case
       ['packageExtensions["@babel/parser"].peerDependencies["@babel/types"]', rawConfig.packageExtensions['@babel/parser'].peerDependencies['@babel/types']],
       ['packageExtensions["jest-circus"].dependencies.slash', rawConfig.packageExtensions['jest-circus'].dependencies.slash],
-    ] as Array<[string, string]>)('%s', async (propertyPath, expected) => {
+    ] as Array<[string, string]>)('«%s»', async (propertyPath, expected) => {
       const getResult = await config.handler({
         dir: process.cwd(),
         cliOptions: {},
@@ -211,7 +211,7 @@ describe('config get with a property path', () => {
   })
 
   describe('non-rc kebab-case keys', () => {
-    test.each(['package-extensions'])('%s', async (key) => {
+    test.each(['package-extensions'])('«%s»', async (key) => {
       const getResult = await config.handler({
         dir: process.cwd(),
         cliOptions: {},
