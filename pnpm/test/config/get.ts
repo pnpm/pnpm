@@ -208,3 +208,36 @@ test('pnpm config get accepts a property path', () => {
     expect(JSON.parse(stdout.toString())).toStrictEqual(workspaceManifest.packageExtensions['jest-circus'].dependencies.slash)
   }
 })
+
+test('pnpm config get "" gives exactly the same result as pnpm config list', () => {
+  prepare()
+  writeYamlFile('pnpm-workspace.yaml', {
+    dlxCacheMaxAge: 1234,
+    onlyBuiltDependencies: ['foo', 'bar'],
+    packages: ['baz', 'qux'],
+    packageExtensions: {
+      '@babel/parser': {
+        peerDependencies: {
+          '@babel/types': '*',
+        },
+      },
+      'jest-circus': {
+        dependencies: {
+          slash: '3',
+        },
+      },
+    },
+  })
+
+  {
+    const getResult = execPnpmSync(['config', 'get', ''], { expectSuccess: true })
+    const listResult = execPnpmSync(['config', 'list'], { expectSuccess: true })
+    expect(getResult.stdout.toString()).toBe(listResult.stdout.toString())
+  }
+
+  {
+    const getResult = execPnpmSync(['config', 'get', '--json', ''], { expectSuccess: true })
+    const listResult = execPnpmSync(['config', 'list', '--json'], { expectSuccess: true })
+    expect(getResult.stdout.toString()).toBe(listResult.stdout.toString())
+  }
+})
