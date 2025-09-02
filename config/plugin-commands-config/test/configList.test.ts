@@ -32,8 +32,8 @@ test('config list --json', async () => {
   }, ['list'])
 
   expect(output).toEqual(JSON.stringify({
-    'fetch-retries': '2',
-    'store-dir': '~/store',
+    fetchRetries: '2',
+    storeDir: '~/store',
   }, null, 2))
 })
 
@@ -78,8 +78,10 @@ test('config list --json censors protected settings', async () => {
   }, ['list'])
 
   expect(JSON.parse(getOutputString(output))).toStrictEqual({
-    ...rawConfig,
-    '//my-org.example.com:username': '(protected)',
+    storeDir: rawConfig['store-dir'],
+    fetchRetries: rawConfig['fetch-retries'],
     username: '(protected)',
+    '@my-org:registry': rawConfig['@my-org:registry'],
+    '//my-org.example.com:username': '(protected)',
   })
 })
