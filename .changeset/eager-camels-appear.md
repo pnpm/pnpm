@@ -3,4 +3,4 @@
 "pnpm": major
 ---
 
-`pnpm config list` now hides auth-related settings.
+`pnpm config list` and `pnpm config get ''` now hide auth-related settings.
