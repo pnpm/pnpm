@@ -217,8 +217,8 @@ export async function handler (
     removeOpts
   )
   await writeProjectManifest(mutationResult.updatedProject.manifest)
-  updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+  await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
     cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
-    allProjects: opts.allProjects
+    allProjects: opts.allProjects,
   })
 }
