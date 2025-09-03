@@ -33,7 +33,7 @@ export async function testResolver (
     resolution,
     package,
     latest,
-    normalizedPref,
+    normalizedBareSpecifier,
   }
 }
 ```

@@ -21,7 +21,7 @@ import {
 } from '@pnpm/types'
 import pathAbsolute from 'path-absolute'
 import clone from 'ramda/src/clone'
-import { readLockfiles } from './readLockfiles'
+import { readLockfiles } from './readLockfiles.js'
 
 /**
  * Note that some fields are affected by modules directory state. Such fields should be used for
@@ -82,12 +82,14 @@ interface HookOptions {
 
 export interface GetContextOptions {
   autoInstallPeers: boolean
+  ci?: boolean
   excludeLinksFromLockfile: boolean
   peersSuffixMaxLength: number
   allProjects: Array<ProjectOptions & HookOptions>
   confirmModulesPurge?: boolean
   force: boolean
   frozenLockfile?: boolean
+  enableGlobalVirtualStore?: boolean
   extraBinPaths: string[]
   extendNodePath?: boolean
   lockfileDir: string
@@ -137,13 +139,22 @@ export async function getContext (
   const extraBinPaths = [
     ...opts.extraBinPaths || [],
   ]
-  const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
+  const internalPnpmDir = path.join(importersContext.rootModulesDir, '.pnpm')
+  const hoistedModulesDir = path.join(
+    opts.enableGlobalVirtualStore ? internalPnpmDir : virtualStoreDir,
+    'node_modules'
+  )
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
   const ctx: PnpmContext = {
     extraBinPaths,
-    extraNodePaths: getExtraNodePaths({ extendNodePath: opts.extendNodePath, nodeLinker: opts.nodeLinker, hoistPattern: importersContext.currentHoistPattern ?? opts.hoistPattern, virtualStoreDir }),
+    extraNodePaths: getExtraNodePaths({
+      extendNodePath: opts.extendNodePath,
+      nodeLinker: opts.nodeLinker,
+      hoistPattern: importersContext.currentHoistPattern ?? opts.hoistPattern,
+      hoistedModulesDir,
+    }),
     hoistedDependencies: importersContext.hoistedDependencies,
     hoistedModulesDir,
     hoistPattern: opts.hoistPattern,
@@ -164,6 +175,7 @@ export async function getContext (
     workspacePackages: opts.workspacePackages ?? arrayOfWorkspacePackagesToMap(opts.allProjects),
     ...await readLockfiles({
       autoInstallPeers: opts.autoInstallPeers,
+      ci: opts.ci,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
       force: opts.force,
@@ -174,7 +186,7 @@ export async function getContext (
       useLockfile: opts.useLockfile,
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-      virtualStoreDir,
+      internalPnpmDir,
     }),
   }
   contextLogger.debug({
@@ -222,6 +234,8 @@ export async function getContextForSingleImporter (
   manifest: ProjectManifest,
   opts: {
     autoInstallPeers: boolean
+    ci?: boolean
+    enableGlobalVirtualStore?: boolean
     excludeLinksFromLockfile: boolean
     peersSuffixMaxLength: number
     force: boolean
@@ -282,13 +296,22 @@ export async function getContextForSingleImporter (
   const extraBinPaths = [
     ...opts.extraBinPaths || [],
   ]
-  const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
+  const internalPnpmDir = path.join(rootModulesDir, '.pnpm')
+  const hoistedModulesDir = path.join(
+    opts.enableGlobalVirtualStore ? internalPnpmDir : virtualStoreDir,
+    'node_modules'
+  )
   if (opts.hoistPattern?.length) {
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
   const ctx: PnpmSingleContext = {
     extraBinPaths,
-    extraNodePaths: getExtraNodePaths({ extendNodePath: opts.extendNodePath, nodeLinker: opts.nodeLinker, hoistPattern: currentHoistPattern ?? opts.hoistPattern, virtualStoreDir }),
+    extraNodePaths: getExtraNodePaths({
+      extendNodePath: opts.extendNodePath,
+      nodeLinker: opts.nodeLinker,
+      hoistPattern: currentHoistPattern ?? opts.hoistPattern,
+      hoistedModulesDir,
+    }),
     hoistedDependencies,
     hoistedModulesDir,
     hoistPattern: opts.hoistPattern,
@@ -311,6 +334,7 @@ export async function getContextForSingleImporter (
     virtualStoreDir,
     ...await readLockfiles({
       autoInstallPeers: opts.autoInstallPeers,
+      ci: opts.ci,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
       force: opts.force,
@@ -321,7 +345,7 @@ export async function getContextForSingleImporter (
       useLockfile: opts.useLockfile,
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-      virtualStoreDir,
+      internalPnpmDir,
     }),
   }
   packageManifestLogger.debug({
@@ -338,15 +362,15 @@ export async function getContextForSingleImporter (
 }
 
 function getExtraNodePaths (
-  { extendNodePath = true, hoistPattern, nodeLinker, virtualStoreDir }: {
+  { extendNodePath = true, hoistPattern, nodeLinker, hoistedModulesDir }: {
     extendNodePath?: boolean
     hoistPattern?: string[]
     nodeLinker: 'isolated' | 'hoisted' | 'pnp'
-    virtualStoreDir: string
+    hoistedModulesDir: string
   }
 ): string[] {
   if (extendNodePath && nodeLinker === 'isolated' && hoistPattern?.length) {
-    return [path.join(virtualStoreDir, 'node_modules')]
+    return [hoistedModulesDir]
   }
   return []
 }

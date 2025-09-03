@@ -1,5 +1,5 @@
 import { LAYOUT_VERSION } from '@pnpm/constants'
-import { checkCompatibility } from '../lib/install/checkCompatibility'
+import { checkCompatibility } from '../lib/install/checkCompatibility/index.js'
 
 test('fail if the store directory changed', () => {
   expect(() => {

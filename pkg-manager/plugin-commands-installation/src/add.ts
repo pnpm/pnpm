@@ -1,17 +1,27 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
+import { resolveConfigDeps } from '@pnpm/config.deps-installer'
 import { PnpmError } from '@pnpm/error'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
+import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { type InstallCommandOptions } from './install'
-import { installDeps } from './installDeps'
+import { getFetchFullMetadata } from './getFetchFullMetadata.js'
+import { type InstallCommandOptions } from './install.js'
+import { installDeps } from './installDeps.js'
+import { writeSettings } from '@pnpm/config.config-writer'
+
+export const shorthands: Record<string, string> = {
+  'save-catalog': '--save-catalog-name=default',
+}
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
+    'cpu',
     'child-concurrency',
+    'dangerously-allow-all-builds',
     'engine-strict',
     'fetch-retries',
     'fetch-retry-factor',
@@ -29,6 +39,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'ignore-pnpmfile',
     'ignore-scripts',
     'ignore-workspace-root-check',
+    'libc',
     'link-workspace-packages',
     'lockfile-dir',
     'lockfile-directory',
@@ -39,6 +50,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'node-linker',
     'noproxy',
     'npm-path',
+    'os',
     'package-import-method',
     'pnpmfile',
     'prefer-offline',
@@ -47,6 +59,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'public-hoist-pattern',
     'registry',
     'reporter',
+    'save-catalog-name',
     'save-dev',
     'save-exact',
     'save-optional',
@@ -75,9 +88,11 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
+    'allow-build': [String, Array],
     recursive: Boolean,
     save: Boolean,
     workspace: Boolean,
+    config: Boolean,
   }
 }
 
@@ -111,6 +126,14 @@ export function help (): string {
             name: '--save-peer',
           },
           {
+            description: 'Save package to the default catalog',
+            name: '--save-catalog',
+          },
+          {
+            description: 'Save package to the specified catalog',
+            name: '--save-catalog-name=<name>',
+          },
+          {
             description: 'Install exact version',
             name: '--[no-]save-exact',
             shortAlias: '-E',
@@ -135,6 +158,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: 'Only adds the new dependency if it is found in the workspace',
             name: '--workspace',
           },
+          {
+            description: 'Save the dependency to configurational dependencies',
+            name: '--config',
+          },
           OPTIONS.ignoreScripts,
           OPTIONS.offline,
           OPTIONS.preferOffline,
@@ -142,6 +169,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           OPTIONS.virtualStoreDir,
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
+          {
+            description: 'A list of package names that are allowed to run postinstall scripts during installation',
+            name: '--allow-build',
+          },
         ],
       },
       FILTERING,
@@ -162,12 +193,14 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 }
 
 export type AddCommandOptions = InstallCommandOptions & {
+  allowBuild?: string[]
   allowNew?: boolean
   ignoreWorkspaceRootCheck?: boolean
   save?: boolean
   update?: boolean
   useBetaCli?: boolean
   workspaceRoot?: boolean
+  config?: boolean
 }
 
 export async function handler (
@@ -180,11 +213,22 @@ export async function handler (
   if (!params || (params.length === 0)) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
   }
+  if (opts.config) {
+    const store = await createOrConnectStoreController(opts)
+    await resolveConfigDeps(params, {
+      ...opts,
+      store: store.ctrl,
+      rootDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    })
+    return
+  }
   if (
     !opts.recursive &&
     opts.workspaceDir === opts.dir &&
     !opts.ignoreWorkspaceRootCheck &&
-    !opts.workspaceRoot
+    !opts.workspaceRoot &&
+    opts.workspacePackagePatterns &&
+    opts.workspacePackagePatterns.length > 1
   ) {
     throw new PnpmError('ADDING_TO_ROOT',
       'Running this command will add the dependency to the workspace root, ' +
@@ -209,8 +253,36 @@ export async function handler (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
+  if (opts.allowBuild?.length) {
+    if (opts.argv.original.includes('--allow-build')) {
+      throw new PnpmError('ALLOW_BUILD_MISSING_PACKAGE', 'The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
+    }
+    if (opts.rootProjectManifest?.pnpm?.ignoredBuiltDependencies?.length) {
+      const overlapDependencies = opts.rootProjectManifest.pnpm.ignoredBuiltDependencies.filter((dep) => opts.allowBuild?.includes(dep))
+      if (overlapDependencies.length) {
+        throw new PnpmError('OVERRIDING_IGNORED_BUILT_DEPENDENCIES', `The following dependencies are ignored by the root project, but are allowed to be built by the current command: ${overlapDependencies.join(', ')}`, {
+          hint: 'If you are sure you want to allow those dependencies to run installation scripts, remove them from the pnpm.ignoredBuiltDependencies list.',
+        })
+      }
+    }
+    opts.onlyBuiltDependencies = Array.from(new Set([
+      ...(opts.onlyBuiltDependencies ?? []),
+      ...opts.allowBuild,
+    ])).sort((a, b) => a.localeCompare(b))
+    if (opts.rootProjectManifestDir) {
+      opts.rootProjectManifest = opts.rootProjectManifest ?? {}
+      await writeSettings({
+        ...opts,
+        workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+        updatedSettings: {
+          onlyBuiltDependencies: opts.onlyBuiltDependencies,
+        },
+      })
+    }
+  }
   return installDeps({
     ...opts,
+    fetchFullMetadata: getFetchFullMetadata(opts),
     include,
     includeDirect: include,
     prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),

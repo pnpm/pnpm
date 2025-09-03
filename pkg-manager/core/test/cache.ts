@@ -1,7 +1,7 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { addDistTag } from '@pnpm/registry-mock'
-import { testDefaults } from './utils'
+import { testDefaults } from './utils/index.js'
 
 test('should fail to update when requests are cached', async () => {
   const project = prepareEmpty()
@@ -10,7 +10,7 @@ test('should fail to update when requests are cached', async () => {
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], opts)
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], opts)
 
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 
@@ -26,7 +26,7 @@ test('should not cache when cache is not used', async () => {
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ save: true }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ save: true }))
 
   project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 

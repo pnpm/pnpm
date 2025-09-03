@@ -4,15 +4,17 @@ import { type Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { isCI } from 'ci-info'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { installDeps, type InstallDepsOptions } from './installDeps'
+import { getFetchFullMetadata } from './getFetchFullMetadata.js'
+import { installDeps, type InstallDepsOptions } from './installDeps.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
     'child-concurrency',
+    'cpu',
+    'dangerously-allow-all-builds',
     'dev',
     'engine-strict',
     'fetch-retries',
@@ -29,6 +31,9 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'https-proxy',
     'ignore-pnpmfile',
     'ignore-scripts',
+    'optimistic-repeat-install',
+    'os',
+    'libc',
     'link-workspace-packages',
     'lockfile-dir',
     'lockfile-directory',
@@ -113,6 +118,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: 'Only `devDependencies` are installed',
             name: '--dev',
             shortAlias: '-D',
+          },
+          {
+            description: 'Skip reinstall if the workspace state is up-to-date',
+            name: '--optimistic-repeat-install',
           },
           {
             description: '`optionalDependencies` are not installed',
@@ -254,6 +263,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'bin'
 | 'catalogs'
 | 'cliOptions'
+| 'configDependencies'
 | 'dedupeInjectedDeps'
 | 'dedupeDirectDeps'
 | 'dedupePeerDependents'
@@ -275,7 +285,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'lockfileOnly'
 | 'modulesDir'
 | 'nodeLinker'
-| 'pnpmfile'
+| 'patchedDependencies'
 | 'preferFrozenLockfile'
 | 'preferWorkspacePackages'
 | 'production'
@@ -289,6 +299,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'savePeer'
 | 'savePrefix'
 | 'saveProd'
+| 'saveCatalogName'
 | 'saveWorkspaceProtocol'
 | 'lockfileIncludeTarballUrl'
 | 'allProjectsGraph'
@@ -298,6 +309,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'sort'
 | 'sharedWorkspaceLockfile'
 | 'tag'
+| 'onlyBuiltDependencies'
 | 'optional'
 | 'virtualStoreDir'
 | 'workspaceConcurrency'
@@ -307,6 +319,9 @@ export type InstallCommandOptions = Pick<Config,
 | 'resolutionMode'
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
+| 'updateConfig'
+| 'overrides'
+| 'supportedArchitectures'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -315,6 +330,7 @@ export type InstallCommandOptions = Pick<Config,
   frozenLockfileIfExists?: boolean
   useBetaCli?: boolean
   pruneDirectDependencies?: boolean
+  pruneLockfileImporters?: boolean
   pruneStore?: boolean
   recursive?: boolean
   resolutionOnly?: boolean
@@ -322,7 +338,8 @@ export type InstallCommandOptions = Pick<Config,
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
   confirmModulesPurge?: boolean
-} & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'useLockfile'>>
+  pnpmfile: string[]
+} & Partial<Pick<Config, 'ci' | 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages' | 'useLockfile' | 'symlink'>>
 
 export async function handler (opts: InstallCommandOptions): Promise<void> {
   const include = {
@@ -330,20 +347,17 @@ export async function handler (opts: InstallCommandOptions): Promise<void> {
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  // npm registry's abbreviated metadata currently does not contain libc
-  // see <https://github.com/pnpm/pnpm/issues/7362#issuecomment-1971964689>
-  const fetchFullMetadata: true | undefined = opts.rootProjectManifest?.pnpm?.supportedArchitectures?.libc && true
   const installDepsOptions: InstallDepsOptions = {
     ...opts,
     frozenLockfileIfExists: opts.frozenLockfileIfExists ?? (
-      isCI && !opts.lockfileOnly &&
+      opts.ci && !opts.lockfileOnly &&
       typeof opts.rawLocalConfig['frozen-lockfile'] === 'undefined' &&
       typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined'
     ),
     include,
     includeDirect: include,
     prepareExecutionEnv: prepareExecutionEnv.bind(null, opts),
-    fetchFullMetadata,
+    fetchFullMetadata: getFetchFullMetadata(opts),
   }
   if (opts.resolutionOnly) {
     installDepsOptions.lockfileOnly = true

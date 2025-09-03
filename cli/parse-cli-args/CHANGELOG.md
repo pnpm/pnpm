@@ -1,5 +1,49 @@
 # @pnpm/parse-cli-args
 
+## 1000.1.2
+
+### Patch Changes
+
+- 778ba1e: Fix a regression in which `pnpm dlx pkg --help` doesn't pass `--help` to `pkg` [#9823](https://github.com/pnpm/pnpm/issues/9823).
+
+## 1000.1.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.4
+- @pnpm/find-workspace-dir@1000.1.2
+
+## 1000.1.0
+
+### Minor Changes
+
+- 6bcfa69: Allow `dlx` to parse CLI flags and options between the `dlx` command and the command to run or between the `dlx` command and `--` [#9719](https://github.com/pnpm/pnpm/issues/9719).
+
+### Patch Changes
+
+- @pnpm/error@1000.0.3
+- @pnpm/find-workspace-dir@1000.1.1
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [69f922a]
+  - @pnpm/find-workspace-dir@1000.1.0
+
+## 1000.0.3
+
+### Patch Changes
+
+- 48b4871: Allow scope registry CLI option without `--config.` prefix such as `--@scope:registry=https://scope.example.com/npm` [#9089](https://github.com/pnpm/pnpm/pull/9089).
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/error@1000.0.2
+- @pnpm/find-workspace-dir@1000.0.2
+
 ## 1000.0.1
 
 ### Patch Changes

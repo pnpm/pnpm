@@ -6,7 +6,7 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
-import { testDefaults } from './utils'
+import { testDefaults } from './utils/index.js'
 
 test('fail on non-compatible node_modules', async () => {
   prepareEmpty()
@@ -41,7 +41,7 @@ test("don't fail on non-compatible node_modules when forced in a workspace", asy
   const opts = testDefaults({ force: true })
 
   process.chdir('pkg')
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({ lockfileDir: path.resolve('..') }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({ lockfileDir: path.resolve('..') }))
   rimraf('node_modules')
 
   process.chdir('..')

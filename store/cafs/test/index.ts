@@ -7,7 +7,7 @@ import {
   createCafs,
   checkPkgFilesIntegrity,
   getFilePathByModeInCafs,
-} from '../src'
+} from '../src/index.js'
 
 const f = fixtures(__dirname)
 

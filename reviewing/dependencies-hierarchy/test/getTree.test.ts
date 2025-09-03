@@ -2,8 +2,8 @@ import { refToRelative } from '@pnpm/dependency-path'
 import { type PackageSnapshots } from '@pnpm/lockfile.fs'
 import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { type DepPath } from '@pnpm/types'
-import { getTree } from '../lib/getTree'
-import { type TreeNodeId } from '../lib/TreeNodeId'
+import { getTree } from '../lib/getTree.js'
+import { type TreeNodeId } from '../lib/TreeNodeId.js'
 
 /**
  * Maps an npm package name to its dependencies.
@@ -63,7 +63,7 @@ function refToRelativeOrThrow (reference: string, pkgName: string): DepPath {
  * workaround allowing test to do:
  *
  * ```ts
- * expect(node).toEqual(expect.objectContaining({ dependencies: undefined }))
+ * expect(node).toMatchObject({ dependencies: undefined })
  * ```
  */
 function normalizePackageNodeForTesting (nodes: readonly PackageNode[]): PackageNode[] {

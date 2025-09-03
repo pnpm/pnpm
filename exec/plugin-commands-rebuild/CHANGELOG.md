@@ -1,5 +1,608 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1002.0.24
+
+### Patch Changes
+
+- Updated dependencies [affdd5b]
+  - @pnpm/link-bins@1000.2.1
+  - @pnpm/lifecycle@1001.0.20
+  - @pnpm/store-connection-manager@1002.0.11
+  - @pnpm/cli-utils@1001.1.2
+  - @pnpm/workspace.find-packages@1000.0.34
+
+## 1002.0.23
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.1.1
+- @pnpm/store-connection-manager@1002.0.10
+- @pnpm/workspace.find-packages@1000.0.33
+
+## 1002.0.22
+
+### Patch Changes
+
+- 2b0d35f: `@pnpm/worker` should always be a peer dependency.
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+  - @pnpm/workspace.find-packages@1000.0.32
+  - @pnpm/store-connection-manager@1002.0.9
+
+## 1002.0.21
+
+### Patch Changes
+
+- 0b6264e: Update @pnpm/npm-package-arg.
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [adb097c]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/link-bins@1000.2.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/lockfile.walker@1001.0.13
+  - @pnpm/calc-dep-state@1002.0.4
+  - @pnpm/config@1004.2.1
+  - @pnpm/error@1000.0.4
+  - @pnpm/get-context@1001.1.4
+  - @pnpm/workspace.find-packages@1000.0.31
+  - @pnpm/lifecycle@1001.0.19
+  - @pnpm/cli-utils@1001.0.3
+  - @pnpm/store.cafs@1000.0.16
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/store-connection-manager@1002.0.8
+  - @pnpm/worker@1000.1.11
+
+## 1002.0.20
+
+### Patch Changes
+
+- 15ba5ab: Rebuild should not fail if it cannot find an index file in the store for the built package.
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/link-bins@1000.1.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/config@1004.2.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/normalize-registries@1000.1.2
+  - @pnpm/lifecycle@1001.0.18
+  - @pnpm/exec.pkg-requires-build@1000.0.9
+  - @pnpm/lockfile.walker@1001.0.12
+  - @pnpm/calc-dep-state@1002.0.3
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/get-context@1001.1.3
+  - @pnpm/modules-yaml@1000.3.4
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/store.cafs@1000.0.15
+  - @pnpm/worker@1000.1.10
+  - @pnpm/workspace.find-packages@1000.0.30
+  - @pnpm/sort-packages@1000.0.9
+  - @pnpm/store-connection-manager@1002.0.7
+  - @pnpm/error@1000.0.3
+
+## 1002.0.19
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+  - @pnpm/workspace.find-packages@1000.0.29
+
+## 1002.0.18
+
+### Patch Changes
+
+- ab155a5: The `pnpm rebuild` command should not add pkgs included in `ignoredBuiltDependencies` to `ignoredBuilds` in `node_modules/.modules.yaml` [#9338](https://github.com/pnpm/pnpm/issues/9338).
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+- Updated dependencies [589ac1f]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/lifecycle@1001.0.17
+  - @pnpm/worker@1000.1.9
+  - @pnpm/store-connection-manager@1002.0.6
+  - @pnpm/workspace.find-packages@1000.0.28
+  - @pnpm/dependency-path@1001.0.1
+  - @pnpm/lockfile.utils@1002.0.1
+  - @pnpm/lockfile.walker@1001.0.11
+  - @pnpm/calc-dep-state@1002.0.2
+  - @pnpm/get-context@1001.1.2
+
+## 1002.0.17
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/store-connection-manager@1002.0.5
+  - @pnpm/lockfile.walker@1001.0.10
+  - @pnpm/calc-dep-state@1002.0.1
+  - @pnpm/cli-utils@1000.1.7
+  - @pnpm/get-context@1001.1.1
+  - @pnpm/workspace.find-packages@1000.0.27
+
+## 1002.0.16
+
+### Patch Changes
+
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b3898db]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+- Updated dependencies [b0ead51]
+  - @pnpm/get-context@1001.1.0
+  - @pnpm/config@1004.0.0
+  - @pnpm/calc-dep-state@1002.0.0
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/store-controller-types@1003.0.3
+  - @pnpm/cli-utils@1000.1.6
+  - @pnpm/store-connection-manager@1002.0.4
+  - @pnpm/workspace.find-packages@1000.0.26
+  - @pnpm/lifecycle@1001.0.16
+  - @pnpm/store.cafs@1000.0.14
+  - @pnpm/worker@1000.1.8
+
+## 1002.0.15
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+- Updated dependencies [509948d]
+  - @pnpm/config@1003.1.1
+  - @pnpm/store-controller-types@1003.0.2
+  - @pnpm/cli-utils@1000.1.5
+  - @pnpm/store-connection-manager@1002.0.3
+  - @pnpm/lifecycle@1001.0.15
+  - @pnpm/store.cafs@1000.0.13
+  - @pnpm/workspace.find-packages@1000.0.25
+  - @pnpm/worker@1000.1.7
+
+## 1002.0.14
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- 36d1448: Set the default `workspaceConcurrency` to `Math.min(os.availableParallelism(), 4)` [#9493](https://github.com/pnpm/pnpm/pull/9493).
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+- Updated dependencies [c24c66e]
+  - @pnpm/config@1003.1.0
+  - @pnpm/store-connection-manager@1002.0.2
+  - @pnpm/get-context@1001.0.14
+  - @pnpm/workspace.find-packages@1000.0.24
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/link-bins@1000.0.13
+  - @pnpm/lifecycle@1001.0.14
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/worker@1000.1.6
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/calc-dep-state@1001.0.13
+  - @pnpm/normalize-registries@1000.1.1
+  - @pnpm/exec.pkg-requires-build@1000.0.8
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/lockfile.walker@1001.0.9
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/modules-yaml@1000.3.3
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/store.cafs@1000.0.12
+  - @pnpm/sort-packages@1000.0.8
+
+## 1002.0.13
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+- Updated dependencies [7c7f0d6]
+  - @pnpm/link-bins@1000.0.12
+  - @pnpm/common-cli-options-help@1000.0.1
+  - @pnpm/lifecycle@1001.0.13
+  - @pnpm/cli-utils@1000.1.3
+  - @pnpm/config@1003.0.1
+  - @pnpm/workspace.find-packages@1000.0.23
+  - @pnpm/store-connection-manager@1002.0.1
+
+## 1002.0.12
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/store-connection-manager@1002.0.0
+  - @pnpm/normalize-registries@1000.1.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/lifecycle@1001.0.12
+  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/get-context@1001.0.13
+  - @pnpm/link-bins@1000.0.11
+  - @pnpm/exec.pkg-requires-build@1000.0.7
+  - @pnpm/lockfile.types@1001.0.7
+  - @pnpm/lockfile.walker@1001.0.8
+  - @pnpm/calc-dep-state@1001.0.12
+  - @pnpm/dependency-path@1000.0.8
+  - @pnpm/modules-yaml@1000.3.2
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/worker@1000.1.5
+  - @pnpm/workspace.find-packages@1000.0.22
+  - @pnpm/sort-packages@1000.0.7
+
+## 1002.0.11
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.9
+- @pnpm/get-context@1001.0.12
+- @pnpm/store-controller-types@1002.0.1
+- @pnpm/cli-utils@1000.1.1
+- @pnpm/lifecycle@1001.0.11
+- @pnpm/store.cafs@1000.0.10
+- @pnpm/calc-dep-state@1001.0.11
+- @pnpm/store-connection-manager@1001.0.1
+- @pnpm/workspace.find-packages@1000.0.21
+- @pnpm/worker@1000.1.4
+- @pnpm/config@1002.7.2
+
+## 1002.0.10
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [750ae7d]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/store-connection-manager@1001.0.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/cli-utils@1000.1.0
+  - @pnpm/normalize-registries@1000.0.6
+  - @pnpm/lifecycle@1001.0.10
+  - @pnpm/exec.pkg-requires-build@1000.0.6
+  - @pnpm/lockfile.types@1001.0.6
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/lockfile.walker@1001.0.7
+  - @pnpm/calc-dep-state@1001.0.10
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/get-context@1001.0.11
+  - @pnpm/link-bins@1000.0.10
+  - @pnpm/modules-yaml@1000.3.1
+  - @pnpm/read-package-json@1000.0.7
+  - @pnpm/store.cafs@1000.0.9
+  - @pnpm/worker@1000.1.3
+  - @pnpm/workspace.find-packages@1000.0.20
+  - @pnpm/sort-packages@1000.0.6
+
+## 1002.0.9
+
+### Patch Changes
+
+- Updated dependencies [e57f1df]
+  - @pnpm/config@1002.7.0
+  - @pnpm/cli-utils@1000.0.19
+  - @pnpm/store-connection-manager@1000.0.19
+  - @pnpm/workspace.find-packages@1000.0.19
+
+## 1002.0.8
+
+### Patch Changes
+
+- a2903a0: The pnpm rebuild command should not incorrectly add package information to `ignoredBuilds`.
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [64f6b4f]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/modules-yaml@1000.3.0
+  - @pnpm/cli-utils@1000.0.18
+  - @pnpm/store-connection-manager@1000.0.18
+  - @pnpm/lockfile.types@1001.0.5
+  - @pnpm/normalize-registries@1000.0.5
+  - @pnpm/lifecycle@1001.0.9
+  - @pnpm/exec.pkg-requires-build@1000.0.5
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/lockfile.walker@1001.0.6
+  - @pnpm/calc-dep-state@1001.0.9
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/get-context@1001.0.10
+  - @pnpm/link-bins@1000.0.9
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/store.cafs@1000.0.8
+  - @pnpm/store-controller-types@1001.0.5
+  - @pnpm/worker@1000.1.2
+  - @pnpm/workspace.find-packages@1000.0.18
+  - @pnpm/sort-packages@1000.0.5
+
+## 1002.0.7
+
+### Patch Changes
+
+- Updated dependencies [d612dcf]
+- Updated dependencies [936430a]
+- Updated dependencies [d612dcf]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/config@1002.5.4
+  - @pnpm/get-context@1001.0.9
+  - @pnpm/cli-utils@1000.0.17
+  - @pnpm/store-connection-manager@1000.0.17
+  - @pnpm/lockfile.utils@1001.0.6
+  - @pnpm/store-controller-types@1001.0.4
+  - @pnpm/workspace.find-packages@1000.0.17
+  - @pnpm/lifecycle@1001.0.8
+  - @pnpm/store.cafs@1000.0.7
+  - @pnpm/calc-dep-state@1001.0.8
+  - @pnpm/worker@1000.1.1
+
+## 1002.0.6
+
+### Patch Changes
+
+- Updated dependencies [2e05789]
+  - @pnpm/worker@1000.1.0
+  - @pnpm/store-connection-manager@1000.0.16
+
+## 1002.0.5
+
+### Patch Changes
+
+- Updated dependencies [6e4459c]
+  - @pnpm/config@1002.5.3
+  - @pnpm/cli-utils@1000.0.16
+  - @pnpm/store-connection-manager@1000.0.15
+  - @pnpm/workspace.find-packages@1000.0.16
+
+## 1002.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.15
+- @pnpm/worker@1000.0.8
+- @pnpm/workspace.find-packages@1000.0.15
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/config@1002.5.2
+- @pnpm/lockfile.utils@1001.0.5
+- @pnpm/lockfile.walker@1001.0.5
+- @pnpm/calc-dep-state@1001.0.7
+- @pnpm/store-connection-manager@1000.0.14
+- @pnpm/get-context@1001.0.8
+
+## 1002.0.3
+
+### Patch Changes
+
+- Updated dependencies [c3aa4d8]
+  - @pnpm/config@1002.5.1
+  - @pnpm/cli-utils@1000.0.14
+  - @pnpm/store-connection-manager@1000.0.13
+  - @pnpm/workspace.find-packages@1000.0.14
+
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+- Updated dependencies [d965748]
+  - @pnpm/types@1000.2.1
+  - @pnpm/config@1002.5.0
+  - @pnpm/link-bins@1000.0.8
+  - @pnpm/workspace.find-packages@1000.0.13
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/cli-utils@1000.0.13
+  - @pnpm/normalize-registries@1000.0.4
+  - @pnpm/lifecycle@1001.0.7
+  - @pnpm/lockfile.types@1001.0.4
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/lockfile.walker@1001.0.4
+  - @pnpm/calc-dep-state@1001.0.6
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/get-context@1001.0.7
+  - @pnpm/modules-yaml@1000.1.4
+  - @pnpm/store.cafs@1000.0.6
+  - @pnpm/store-controller-types@1001.0.3
+  - @pnpm/worker@1000.0.7
+  - @pnpm/sort-packages@1000.0.4
+  - @pnpm/store-connection-manager@1000.0.12
+
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [1c2eb8c]
+  - @pnpm/config@1002.4.1
+  - @pnpm/cli-utils@1000.0.12
+  - @pnpm/store-connection-manager@1000.0.11
+  - @pnpm/workspace.find-packages@1000.0.12
+
+## 1002.0.0
+
+### Major Changes
+
+- 8fcc221: Don't rebuild packages that are not in the approved list.
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [8fcc221]
+  - @pnpm/config@1002.4.0
+  - @pnpm/types@1000.2.0
+  - @pnpm/cli-utils@1000.0.11
+  - @pnpm/store-connection-manager@1000.0.10
+  - @pnpm/normalize-registries@1000.0.3
+  - @pnpm/lifecycle@1001.0.6
+  - @pnpm/lockfile.types@1001.0.3
+  - @pnpm/lockfile.utils@1001.0.3
+  - @pnpm/lockfile.walker@1001.0.3
+  - @pnpm/calc-dep-state@1001.0.5
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/dependency-path@1000.0.3
+  - @pnpm/get-context@1001.0.6
+  - @pnpm/link-bins@1000.0.7
+  - @pnpm/modules-yaml@1000.1.3
+  - @pnpm/store.cafs@1000.0.5
+  - @pnpm/store-controller-types@1001.0.2
+  - @pnpm/worker@1000.0.6
+  - @pnpm/workspace.find-packages@1000.0.11
+  - @pnpm/sort-packages@1000.0.3
+
+## 1001.1.8
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+  - @pnpm/config@1002.3.1
+  - @pnpm/cli-utils@1000.0.10
+  - @pnpm/store-connection-manager@1000.0.9
+  - @pnpm/calc-dep-state@1001.0.4
+  - @pnpm/workspace.find-packages@1000.0.10
+  - @pnpm/get-context@1001.0.5
+
+## 1001.1.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.9
+- @pnpm/workspace.find-packages@1000.0.9
+
+## 1001.1.6
+
+### Patch Changes
+
+- Updated dependencies [f6006f2]
+  - @pnpm/config@1002.3.0
+  - @pnpm/cli-utils@1000.0.8
+  - @pnpm/store-connection-manager@1000.0.8
+  - @pnpm/calc-dep-state@1001.0.3
+  - @pnpm/workspace.find-packages@1000.0.8
+
+## 1001.1.5
+
+### Patch Changes
+
+- Updated dependencies [c0d1c01]
+  - @pnpm/lifecycle@1001.0.5
+  - @pnpm/cli-utils@1000.0.7
+  - @pnpm/config@1002.2.1
+  - @pnpm/link-bins@1000.0.6
+  - @pnpm/workspace.find-packages@1000.0.7
+  - @pnpm/store-connection-manager@1000.0.7
+
+## 1001.1.4
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/workspace.find-packages@1000.0.6
+  - @pnpm/types@1000.1.1
+  - @pnpm/config@1002.2.0
+  - @pnpm/calc-dep-state@1001.0.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/get-context@1001.0.4
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/normalize-registries@1000.0.2
+  - @pnpm/lifecycle@1001.0.4
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/lockfile.walker@1001.0.2
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/link-bins@1000.0.5
+  - @pnpm/modules-yaml@1000.1.2
+  - @pnpm/store.cafs@1000.0.4
+  - @pnpm/store-controller-types@1001.0.1
+  - @pnpm/worker@1000.0.5
+  - @pnpm/sort-packages@1000.0.2
+  - @pnpm/store-connection-manager@1000.0.6
+
+## 1001.1.3
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/cli-utils@1000.0.5
+  - @pnpm/config@1002.1.2
+  - @pnpm/link-bins@1000.0.4
+  - @pnpm/lifecycle@1001.0.3
+  - @pnpm/store.cafs@1000.0.3
+  - @pnpm/workspace.find-packages@1000.0.5
+  - @pnpm/store-connection-manager@1000.0.5
+  - @pnpm/worker@1000.0.4
+
+## 1001.1.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+- Updated dependencies [1f5169f]
+  - @pnpm/types@1000.1.0
+  - @pnpm/config@1002.1.1
+  - @pnpm/cli-utils@1000.0.4
+  - @pnpm/normalize-registries@1000.0.1
+  - @pnpm/lifecycle@1001.0.2
+  - @pnpm/lockfile.types@1001.0.1
+  - @pnpm/lockfile.utils@1001.0.1
+  - @pnpm/lockfile.walker@1001.0.1
+  - @pnpm/calc-dep-state@1001.0.1
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/dependency-path@1000.0.1
+  - @pnpm/get-context@1001.0.3
+  - @pnpm/link-bins@1000.0.3
+  - @pnpm/modules-yaml@1000.1.1
+  - @pnpm/store.cafs@1000.0.2
+  - @pnpm/store-controller-types@1000.1.1
+  - @pnpm/worker@1000.0.3
+  - @pnpm/workspace.find-packages@1000.0.4
+  - @pnpm/sort-packages@1000.0.1
+  - @pnpm/store-connection-manager@1000.0.4
+
 ## 1001.1.1
 
 ### Patch Changes

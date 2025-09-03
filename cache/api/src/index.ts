@@ -1,3 +1,3 @@
-export * from './cacheList'
-export * from './cacheDelete'
-export * from './cacheView'
+export * from './cacheList.js'
+export * from './cacheDelete.js'
+export * from './cacheView.js'

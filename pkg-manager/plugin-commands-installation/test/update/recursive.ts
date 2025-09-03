@@ -7,7 +7,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { addDistTag } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
-import { DEFAULT_OPTS } from '../utils'
+import { DEFAULT_OPTS } from '../utils/index.js'
 
 test('recursive update', async () => {
   const projects = preparePackages([
@@ -439,6 +439,7 @@ test('recursive update with aliased workspace dependency (#7975)', async () => {
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
+    saveWorkspaceProtocol: 'rolling',
   })
 
   projects['project-1'].has('pkg')

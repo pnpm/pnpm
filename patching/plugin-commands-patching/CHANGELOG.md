@@ -1,5 +1,580 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.10
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.5.1
+- @pnpm/store-connection-manager@1002.0.11
+- @pnpm/cli-utils@1001.1.2
+
+## 1000.3.9
+
+### Patch Changes
+
+- Updated dependencies [8747b4e]
+  - @pnpm/plugin-commands-installation@1004.5.0
+  - @pnpm/config.config-writer@1000.0.10
+  - @pnpm/cli-utils@1001.1.1
+  - @pnpm/store-connection-manager@1002.0.10
+
+## 1000.3.8
+
+### Patch Changes
+
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+  - @pnpm/plugin-commands-installation@1004.4.2
+  - @pnpm/store-connection-manager@1002.0.9
+
+## 1000.3.7
+
+### Patch Changes
+
+- 81b8a0e: When executing the `pnpm patch-remove` command, verify whether the passed parameter is a valid patch package name.
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [adb097c]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/plugin-commands-installation@1004.4.1
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/config@1004.2.1
+  - @pnpm/error@1000.0.4
+  - @pnpm/store-path@1000.0.4
+  - @pnpm/workspace.read-manifest@1000.2.2
+  - @pnpm/cli-utils@1001.0.3
+  - @pnpm/config.config-writer@1000.0.9
+  - @pnpm/store-connection-manager@1002.0.8
+  - @pnpm/patching.apply-patch@1000.0.6
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1000.3.6
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/plugin-commands-installation@1004.4.0
+  - @pnpm/config@1004.2.0
+  - @pnpm/pick-fetcher@1000.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/config.config-writer@1000.0.8
+  - @pnpm/lockfile.fs@1001.1.16
+  - @pnpm/modules-yaml@1000.3.4
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/workspace.read-manifest@1000.2.1
+  - @pnpm/store-connection-manager@1002.0.7
+  - @pnpm/error@1000.0.3
+  - @pnpm/store-path@1000.0.3
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/patching.apply-patch@1000.0.5
+
+## 1000.3.5
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+  - @pnpm/plugin-commands-installation@1004.3.1
+
+## 1000.3.4
+
+### Patch Changes
+
+- b656f8a: When patching dependencies installed via `pkg.pr.new`, treat them as git tarball URLs [#9694](https://github.com/pnpm/pnpm/pull/9694).
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/plugin-commands-installation@1004.3.0
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/store-connection-manager@1002.0.6
+  - @pnpm/config.config-writer@1000.0.7
+  - @pnpm/lockfile.fs@1001.1.15
+  - @pnpm/lockfile.utils@1002.0.1
+
+## 1000.3.3
+
+### Patch Changes
+
+- Updated dependencies [b511eac]
+  - @pnpm/plugin-commands-installation@1004.2.2
+
+## 1000.3.2
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.2.1
+
+## 1000.3.1
+
+### Patch Changes
+
+- Updated dependencies [983efdc]
+- Updated dependencies [540986f]
+  - @pnpm/plugin-commands-installation@1004.2.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/store-connection-manager@1002.0.5
+  - @pnpm/lockfile.fs@1001.1.14
+  - @pnpm/cli-utils@1000.1.7
+
+## 1000.3.0
+
+### Minor Changes
+
+- 046af72: A new `catalogMode` setting is available for controlling if and how dependencies are added to the default catalog. It can be configured to several modes:
+
+  - `strict`: Only allows dependency versions from the catalog. Adding a dependency outside the catalog's version range will cause an error.
+  - `prefer`: Prefers catalog versions, but will fall back to direct dependencies if no compatible version is found.
+  - `manual` (default): Does not automatically add dependencies to the catalog.
+
+### Patch Changes
+
+- d385b71: Sort versions printed by `pnpm patch` using semantic versioning rules.
+- b0ead51: Read the current lockfile from `node_modules/.pnpm/lock.yaml`, when the project uses a global virtual store.
+- Updated dependencies [6acf819]
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/pick-fetcher@1000.0.1
+  - @pnpm/plugin-commands-installation@1004.1.0
+  - @pnpm/config@1004.0.0
+  - @pnpm/workspace.read-manifest@1000.2.0
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/cli-utils@1000.1.6
+  - @pnpm/store-connection-manager@1002.0.4
+  - @pnpm/config.config-writer@1000.0.6
+  - @pnpm/lockfile.fs@1001.1.13
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/patching.apply-patch@1000.0.4
+
+## 1000.2.5
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/plugin-commands-installation@1004.0.3
+  - @pnpm/cli-utils@1000.1.5
+  - @pnpm/store-connection-manager@1002.0.3
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/patching.apply-patch@1000.0.4
+
+## 1000.2.4
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/plugin-commands-installation@1004.0.2
+  - @pnpm/store-connection-manager@1002.0.2
+  - @pnpm/patching.apply-patch@1000.0.4
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/config.config-writer@1000.0.5
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/modules-yaml@1000.3.3
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/read-project-manifest@1000.0.11
+  - @pnpm/workspace.read-manifest@1000.1.5
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1000.2.3
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.0.1
+- @pnpm/config.config-writer@1000.0.4
+- @pnpm/cli-utils@1000.1.3
+- @pnpm/config@1003.0.1
+- @pnpm/store-connection-manager@1002.0.1
+
+## 1000.2.2
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/plugin-commands-installation@1004.0.0
+  - @pnpm/parse-wanted-dependency@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/store-connection-manager@1002.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/config.config-writer@1000.0.3
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/modules-yaml@1000.3.2
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.10
+  - @pnpm/workspace.read-manifest@1000.1.4
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/patching.apply-patch@1000.0.3
+
+## 1000.2.1
+
+### Patch Changes
+
+- 17b7e9f: The patch file path saved by the pnpm `patch-commit` and `patch-remove` commands should be a relative path [#9403](https://github.com/pnpm/pnpm/pull/9403).
+- Updated dependencies [17b7e9f]
+- Updated dependencies [4d95e93]
+  - @pnpm/config.config-writer@1000.0.2
+  - @pnpm/plugin-commands-installation@1003.0.1
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/lockfile.utils@1001.0.9
+  - @pnpm/cli-utils@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.10
+  - @pnpm/store-connection-manager@1001.0.1
+  - @pnpm/config@1002.7.2
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/patching.apply-patch@1000.0.3
+
+## 1000.2.0
+
+### Minor Changes
+
+- 31b19ae: The pnpm `patch-remove` command failed to remove the corresponding patch file.
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [750ae7d]
+- Updated dependencies [8033854]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-connection-manager@1001.0.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/plugin-commands-installation@1003.0.0
+  - @pnpm/cli-utils@1000.1.0
+  - @pnpm/config.config-writer@1000.0.1
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/modules-yaml@1000.3.1
+  - @pnpm/read-package-json@1000.0.7
+  - @pnpm/read-project-manifest@1000.0.9
+  - @pnpm/workspace.read-manifest@1000.1.3
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/patching.apply-patch@1000.0.3
+
+## 1000.1.7
+
+### Patch Changes
+
+- Updated dependencies [e57f1df]
+  - @pnpm/config@1002.7.0
+  - @pnpm/cli-utils@1000.0.19
+  - @pnpm/plugin-commands-installation@1002.2.4
+  - @pnpm/store-connection-manager@1000.0.19
+
+## 1000.1.6
+
+### Patch Changes
+
+- e9e4c59: When executing the `patch-commit` command, if `patchedDependencies` does not exist in `package.json`, the configuration will be written to `pnpm-workspace.yaml`.
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5a9e34f]
+- Updated dependencies [64f6b4f]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/config.config-writer@1000.0.0
+  - @pnpm/modules-yaml@1000.3.0
+  - @pnpm/cli-utils@1000.0.18
+  - @pnpm/plugin-commands-installation@1002.2.3
+  - @pnpm/store-connection-manager@1000.0.18
+  - @pnpm/pick-registry-for-package@1000.0.5
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/read-project-manifest@1000.0.8
+  - @pnpm/workspace.read-manifest@1000.1.2
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/patching.apply-patch@1000.0.3
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1000.1.5
+
+### Patch Changes
+
+- Updated dependencies [d612dcf]
+- Updated dependencies [936430a]
+- Updated dependencies [d612dcf]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/config@1002.5.4
+  - @pnpm/plugin-commands-installation@1002.2.2
+  - @pnpm/cli-utils@1000.0.17
+  - @pnpm/store-connection-manager@1000.0.17
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/lockfile.utils@1001.0.6
+  - @pnpm/lockfile.fs@1001.1.7
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/patching.apply-patch@1000.0.3
+
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [e5b7bf4]
+  - @pnpm/plugin-commands-installation@1002.2.1
+  - @pnpm/store-connection-manager@1000.0.16
+
+## 1000.1.3
+
+### Patch Changes
+
+- 968b85b: When `terminalLink` is not supported, it should fallback to the default text.
+- Updated dependencies [b4efd0e]
+- Updated dependencies [6e4459c]
+- Updated dependencies [cda1c43]
+  - @pnpm/plugin-commands-installation@1002.2.0
+  - @pnpm/config@1002.5.3
+  - @pnpm/cli-utils@1000.0.16
+  - @pnpm/store-connection-manager@1000.0.15
+
+## 1000.1.2
+
+### Patch Changes
+
+- 0378a9a: `pnpm patch-commit` will now use the same filesystem as the store directory to compare and create patch files.
+  - @pnpm/cli-utils@1000.0.15
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/plugin-commands-installation@1002.1.2
+  - @pnpm/config@1002.5.2
+  - @pnpm/lockfile.fs@1001.1.6
+  - @pnpm/lockfile.utils@1001.0.5
+  - @pnpm/store-connection-manager@1000.0.14
+
+## 1000.1.1
+
+### Patch Changes
+
+- Updated dependencies [c3aa4d8]
+  - @pnpm/config@1002.5.1
+  - @pnpm/cli-utils@1000.0.14
+  - @pnpm/plugin-commands-installation@1002.1.1
+  - @pnpm/store-connection-manager@1000.0.13
+
+## 1000.1.0
+
+### Minor Changes
+
+- d965748: `pnpm-workspace.yaml` can now hold all the settings that `.npmrc` accepts. The settings should use camelCase [#9211](https://github.com/pnpm/pnpm/pull/9211).
+
+  `pnpm-workspace.yaml` example:
+
+  ```yaml
+  verifyDepsBeforeRun: install
+  optimisticRepeatInstall: true
+  publicHoistPattern:
+    - "*types*"
+    - "!@types/react"
+  ```
+
+### Patch Changes
+
+- b8b0c68: `fast-glob` replace with `tinyglobby` to reduce the size of the pnpm CLI dependencies [#9169](https://github.com/pnpm/pnpm/pull/9169).
+- Updated dependencies [6a59366]
+- Updated dependencies [a5e4965]
+- Updated dependencies [d9d7607]
+- Updated dependencies [d965748]
+- Updated dependencies [453a18a]
+- Updated dependencies [e4eeafd]
+  - @pnpm/plugin-commands-installation@1002.1.0
+  - @pnpm/types@1000.2.1
+  - @pnpm/config@1002.5.0
+  - @pnpm/patching.apply-patch@1000.0.3
+  - @pnpm/cli-utils@1000.0.13
+  - @pnpm/pick-registry-for-package@1000.0.4
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/modules-yaml@1000.1.4
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.7
+  - @pnpm/store-connection-manager@1000.0.12
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.14
+
+### Patch Changes
+
+- Updated dependencies [76973d8]
+- Updated dependencies [1c2eb8c]
+  - @pnpm/plugin-commands-installation@1002.0.1
+  - @pnpm/config@1002.4.1
+  - @pnpm/cli-utils@1000.0.12
+  - @pnpm/store-connection-manager@1000.0.11
+
+## 1000.0.13
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [5296961]
+- Updated dependencies [8fcc221]
+  - @pnpm/plugin-commands-installation@1002.0.0
+  - @pnpm/config@1002.4.0
+  - @pnpm/types@1000.2.0
+  - @pnpm/cli-utils@1000.0.11
+  - @pnpm/store-connection-manager@1000.0.10
+  - @pnpm/pick-registry-for-package@1000.0.3
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/lockfile.utils@1001.0.3
+  - @pnpm/modules-yaml@1000.1.3
+  - @pnpm/read-package-json@1000.0.4
+  - @pnpm/read-project-manifest@1000.0.6
+  - @pnpm/patching.apply-patch@1000.0.2
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.12
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+- Updated dependencies [546ab37]
+  - @pnpm/config@1002.3.1
+  - @pnpm/plugin-commands-installation@1001.5.1
+  - @pnpm/cli-utils@1000.0.10
+  - @pnpm/store-connection-manager@1000.0.9
+  - @pnpm/lockfile.fs@1001.1.3
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [91d46ee]
+  - @pnpm/plugin-commands-installation@1001.5.0
+  - @pnpm/cli-utils@1000.0.9
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [f6006f2]
+  - @pnpm/plugin-commands-installation@1001.4.0
+  - @pnpm/config@1002.3.0
+  - @pnpm/cli-utils@1000.0.8
+  - @pnpm/store-connection-manager@1000.0.8
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1001.3.2
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [1e229d7]
+  - @pnpm/read-project-manifest@1000.0.5
+  - @pnpm/cli-utils@1000.0.7
+  - @pnpm/config@1002.2.1
+  - @pnpm/plugin-commands-installation@1001.3.1
+  - @pnpm/store-connection-manager@1000.0.7
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/plugin-commands-installation@1001.3.0
+  - @pnpm/config@1002.2.0
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/pick-registry-for-package@1000.0.2
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/modules-yaml@1000.1.2
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/store-connection-manager@1000.0.6
+  - @pnpm/patching.apply-patch@1000.0.2
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/plugin-commands-installation@1001.2.1
+  - @pnpm/cli-utils@1000.0.5
+  - @pnpm/config@1002.1.2
+  - @pnpm/store-connection-manager@1000.0.5
+  - @pnpm/patching.apply-patch@1000.0.1
+
+## 1000.0.5
+
+### Patch Changes
+
+- 046388c: Exclude `.DS_Store` file at `patch-commit` [#8922](https://github.com/pnpm/pnpm/issues/8922).
+- 0f35416: Fix a bug in which `pnpm patch` is unable to bring back old patch without specifying `@version` suffix [#8919](https://github.com/pnpm/pnpm/issues/8919).
+- Updated dependencies [c7eefdd]
+- Updated dependencies [9591a18]
+- Updated dependencies [1f5169f]
+  - @pnpm/plugin-commands-installation@1001.2.0
+  - @pnpm/types@1000.1.0
+  - @pnpm/config@1002.1.1
+  - @pnpm/cli-utils@1000.0.4
+  - @pnpm/pick-registry-for-package@1000.0.1
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/lockfile.utils@1001.0.1
+  - @pnpm/modules-yaml@1000.1.1
+  - @pnpm/read-package-json@1000.0.2
+  - @pnpm/read-project-manifest@1000.0.2
+  - @pnpm/store-connection-manager@1000.0.4
+  - @pnpm/patching.apply-patch@1000.0.1
+  - @pnpm/pick-fetcher@1000.0.0
+
 ## 1000.0.4
 
 ### Patch Changes

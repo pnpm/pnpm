@@ -3,8 +3,9 @@ import semver from 'semver'
 import partition from 'ramda/src/partition'
 import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@pnpm/types'
 import { type PackageSelector, type VersionOverride as VersionOverrideBase } from '@pnpm/parse-overrides'
+import { isValidPeerRange } from '@pnpm/semver.peer-range'
 import normalizePath from 'normalize-path'
-import { isIntersectingRange } from './isIntersectingRange'
+import { isIntersectingRange } from './isIntersectingRange.js'
 
 export type VersionOverrideWithoutRawSelector = Omit<VersionOverrideBase, 'selector'>
 
@@ -22,7 +23,7 @@ export function createVersionsOverrider (
     const versionOverridesWithParent = versionOverrides.filter(({ parentPkg }) => {
       return (
         parentPkg.name === manifest.name &&
-        (!parentPkg.pref || semver.satisfies(manifest.version, parentPkg.pref))
+        (!parentPkg.bareSpecifier || semver.satisfies(manifest.version, parentPkg.bareSpecifier))
       )
     })
     overrideDepsOfPkg({ manifest, dir }, versionOverridesWithParent, genericVersionOverrides)
@@ -41,14 +42,14 @@ type LocalProtocol = 'link:' | 'file:'
 
 function createLocalTarget (override: VersionOverrideWithoutRawSelector, rootDir: string): LocalTarget | undefined {
   let protocol: LocalProtocol | undefined
-  if (override.newPref.startsWith('file:')) {
+  if (override.newBareSpecifier.startsWith('file:')) {
     protocol = 'file:'
-  } else if (override.newPref.startsWith('link:')) {
+  } else if (override.newBareSpecifier.startsWith('link:')) {
     protocol = 'link:'
   } else {
     return undefined
   }
-  const pkgPath = override.newPref.substring(protocol.length)
+  const pkgPath = override.newBareSpecifier.substring(protocol.length)
   const specifiedViaRelativePath = !path.isAbsolute(pkgPath)
   const absolutePath = specifiedViaRelativePath ? path.join(rootDir, pkgPath) : pkgPath
   return { absolutePath, specifiedViaRelativePath, protocol }
@@ -68,45 +69,60 @@ function overrideDepsOfPkg (
   genericVersionOverrides: VersionOverride[]
 ): void {
   const { dependencies, optionalDependencies, devDependencies, peerDependencies } = manifest
-  for (const deps of [dependencies, optionalDependencies, devDependencies, peerDependencies]) {
+  const _overrideDeps = overrideDeps.bind(null, { versionOverrides, genericVersionOverrides, dir })
+  for (const deps of [dependencies, optionalDependencies, devDependencies]) {
     if (deps) {
-      overrideDeps(versionOverrides, genericVersionOverrides, deps, dir)
+      _overrideDeps(deps, undefined)
     }
+  }
+  if (peerDependencies) {
+    if (!manifest.dependencies) manifest.dependencies = {}
+    _overrideDeps(manifest.dependencies, peerDependencies)
   }
 }
 
 function overrideDeps (
-  versionOverrides: VersionOverrideWithParent[],
-  genericVersionOverrides: VersionOverride[],
+  { versionOverrides, genericVersionOverrides, dir }: {
+    versionOverrides: VersionOverrideWithParent[]
+    genericVersionOverrides: VersionOverride[]
+    dir: string | undefined
+  },
   deps: Dependencies,
-  dir: string | undefined
+  peerDeps: Dependencies | undefined
 ): void {
-  for (const [name, pref] of Object.entries(deps)) {
+  for (const [name, bareSpecifier] of Object.entries(peerDeps ?? deps)) {
     const versionOverride =
     pickMostSpecificVersionOverride(
       versionOverrides.filter(
         ({ targetPkg }) =>
-          targetPkg.name === name && isIntersectingRange(targetPkg.pref, pref)
+          targetPkg.name === name && isIntersectingRange(targetPkg.bareSpecifier, bareSpecifier)
       )
     ) ??
     pickMostSpecificVersionOverride(
       genericVersionOverrides.filter(
         ({ targetPkg }) =>
-          targetPkg.name === name && isIntersectingRange(targetPkg.pref, pref)
+          targetPkg.name === name && isIntersectingRange(targetPkg.bareSpecifier, bareSpecifier)
       )
     )
     if (!versionOverride) continue
 
-    if (versionOverride.newPref === '-') {
-      delete deps[versionOverride.targetPkg.name]
+    if (versionOverride.newBareSpecifier === '-') {
+      if (peerDeps) {
+        delete peerDeps[versionOverride.targetPkg.name]
+      } else {
+        delete deps[versionOverride.targetPkg.name]
+      }
       continue
     }
 
-    if (versionOverride.localTarget) {
-      deps[versionOverride.targetPkg.name] = `${versionOverride.localTarget.protocol}${resolveLocalOverride(versionOverride.localTarget, dir)}`
-      continue
+    const newBareSpecifier = versionOverride.localTarget
+      ? `${versionOverride.localTarget.protocol}${resolveLocalOverride(versionOverride.localTarget, dir)}`
+      : versionOverride.newBareSpecifier
+    if (peerDeps == null || !isValidPeerRange(newBareSpecifier)) {
+      deps[versionOverride.targetPkg.name] = newBareSpecifier
+    } else if (isValidPeerRange(newBareSpecifier)) {
+      peerDeps[versionOverride.targetPkg.name] = newBareSpecifier
     }
-    deps[versionOverride.targetPkg.name] = versionOverride.newPref
   }
 }
 
@@ -117,5 +133,5 @@ function resolveLocalOverride ({ specifiedViaRelativePath, absolutePath }: Local
 }
 
 function pickMostSpecificVersionOverride (versionOverrides: VersionOverride[]): VersionOverride | undefined {
-  return versionOverrides.sort((a, b) => isIntersectingRange(b.targetPkg.pref ?? '', a.targetPkg.pref ?? '') ? -1 : 1)[0]
+  return versionOverrides.sort((a, b) => isIntersectingRange(b.targetPkg.bareSpecifier ?? '', a.targetPkg.bareSpecifier ?? '') ? -1 : 1)[0]
 }

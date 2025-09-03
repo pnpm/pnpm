@@ -4,8 +4,8 @@ import workerThreads from 'worker_threads'
 import util from 'util'
 import renameOverwrite from 'rename-overwrite'
 import type ssri from 'ssri'
-import { verifyFileIntegrity } from './checkPkgFilesIntegrity'
-import { writeFile } from './writeFile'
+import { verifyFileIntegrity } from './checkPkgFilesIntegrity.js'
+import { writeFile } from './writeFile.js'
 
 export function writeBufferToCafs (
   locker: Map<string, number>,

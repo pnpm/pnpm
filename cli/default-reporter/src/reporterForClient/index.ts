@@ -3,23 +3,23 @@ import type * as logs from '@pnpm/core-loggers'
 import { type LogLevel } from '@pnpm/logger'
 import type * as Rx from 'rxjs'
 import { throttleTime } from 'rxjs/operators'
-import { reportBigTarballProgress } from './reportBigTarballsProgress'
-import { reportContext } from './reportContext'
-import { reportExecutionTime } from './reportExecutionTime'
-import { reportDeprecations } from './reportDeprecations'
-import { reportHooks } from './reportHooks'
-import { reportInstallChecks } from './reportInstallChecks'
-import { reportLifecycleScripts } from './reportLifecycleScripts'
-import { reportMisc, LOG_LEVEL_NUMBER } from './reportMisc'
-import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
-import { reportProgress } from './reportProgress'
-import { reportRequestRetry } from './reportRequestRetry'
-import { reportScope } from './reportScope'
-import { reportSkippedOptionalDependencies } from './reportSkippedOptionalDependencies'
-import { reportStats } from './reportStats'
-import { reportSummary, type FilterPkgsDiff } from './reportSummary'
-import { reportUpdateCheck } from './reportUpdateCheck'
-import { type PeerDependencyRules } from '@pnpm/types'
+import { reportBigTarballProgress } from './reportBigTarballsProgress.js'
+import { reportContext } from './reportContext.js'
+import { reportExecutionTime } from './reportExecutionTime.js'
+import { reportDeprecations } from './reportDeprecations.js'
+import { reportHooks } from './reportHooks.js'
+import { reportInstallChecks } from './reportInstallChecks.js'
+import { reportInstallingConfigDeps } from './reportInstallingConfigDeps.js'
+import { reportLifecycleScripts } from './reportLifecycleScripts.js'
+import { reportMisc, LOG_LEVEL_NUMBER } from './reportMisc.js'
+import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
+import { reportProgress } from './reportProgress.js'
+import { reportRequestRetry } from './reportRequestRetry.js'
+import { reportScope } from './reportScope.js'
+import { reportSkippedOptionalDependencies } from './reportSkippedOptionalDependencies.js'
+import { reportStats } from './reportStats.js'
+import { reportSummary, type FilterPkgsDiff } from './reportSummary.js'
+import { reportUpdateCheck } from './reportUpdateCheck.js'
 
 const PRINT_EXECUTION_TIME_IN_COMMANDS = {
   install: true,
@@ -41,6 +41,7 @@ export function reporterForClient (
     lifecycle: Rx.Observable<logs.LifecycleLog>
     stats: Rx.Observable<logs.StatsLog>
     installCheck: Rx.Observable<logs.InstallCheckLog>
+    installingConfigDeps: Rx.Observable<logs.InstallingConfigDepsLog>
     registry: Rx.Observable<logs.RegistryLog>
     root: Rx.Observable<logs.RootLog>
     packageManifest: Rx.Observable<logs.PackageManifestLog>
@@ -60,7 +61,6 @@ export function reporterForClient (
     config?: Config
     env: NodeJS.ProcessEnv
     filterPkgsDiff?: FilterPkgsDiff
-    peerDependencyRules?: PeerDependencyRules
     process: NodeJS.Process
     isRecursive: boolean
     logLevel?: LogLevel
@@ -82,13 +82,6 @@ export function reporterForClient (
     : undefined
 
   const outputs: Array<Rx.Observable<Rx.Observable<{ msg: string }>>> = [
-    reportLifecycleScripts(log$, {
-      appendOnly: (opts.appendOnly === true || opts.streamLifecycleOutput) && !opts.hideLifecycleOutput,
-      aggregateOutput: opts.aggregateOutput,
-      hideLifecyclePrefix: opts.hideLifecyclePrefix,
-      cwd,
-      width,
-    }),
     reportMisc(
       log$,
       {
@@ -97,30 +90,17 @@ export function reporterForClient (
         cwd,
         logLevel: opts.logLevel,
         zoomOutCurrent: opts.isRecursive,
-        peerDependencyRules: opts.peerDependencyRules,
       }
     ),
-    reportInstallChecks(log$.installCheck, { cwd }),
-    reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
-    reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
-    reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),
-    reportUpdateCheck(log$.updateCheck, opts),
   ]
-
-  if (opts.cmd !== 'dlx') {
-    outputs.push(reportContext(log$, { cwd }))
-  }
-
-  if (opts.cmd in PRINT_EXECUTION_TIME_IN_COMMANDS) {
-    outputs.push(reportExecutionTime(log$.executionTime))
-  }
 
   // logLevelNumber: 0123 = error warn info debug
   const logLevelNumber = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
+  const showInfo = logLevelNumber >= LOG_LEVEL_NUMBER.info
 
   if (logLevelNumber >= LOG_LEVEL_NUMBER.warn) {
     outputs.push(
-      reportPeerDependencyIssues(log$, opts.peerDependencyRules),
+      reportPeerDependencyIssues(log$),
       reportDeprecations({
         deprecation: log$.deprecation,
         stage: log$.stage,
@@ -129,8 +109,27 @@ export function reporterForClient (
     )
   }
 
-  if (logLevelNumber >= LOG_LEVEL_NUMBER.info) {
+  if (showInfo) {
+    if (opts.cmd in PRINT_EXECUTION_TIME_IN_COMMANDS) {
+      outputs.push(reportExecutionTime(log$.executionTime))
+    }
+    if (opts.cmd !== 'dlx') {
+      outputs.push(reportContext(log$, { cwd }))
+    }
     outputs.push(
+      reportLifecycleScripts(log$, {
+        appendOnly: (opts.appendOnly === true || opts.streamLifecycleOutput) && !opts.hideLifecycleOutput,
+        aggregateOutput: opts.aggregateOutput,
+        hideLifecyclePrefix: opts.hideLifecyclePrefix,
+        cwd,
+        width,
+      }),
+      reportInstallChecks(log$.installCheck, { cwd }),
+      reportInstallingConfigDeps(log$.installingConfigDeps),
+      reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
+      reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
+      reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),
+      reportUpdateCheck(log$.updateCheck, opts),
       reportProgress(log$, {
         cwd,
         throttle,
@@ -145,20 +144,18 @@ export function reporterForClient (
         hideProgressPrefix: opts.hideProgressPrefix,
       })
     )
-  }
-
-  if (!opts.appendOnly) {
-    outputs.push(reportBigTarballProgress(log$))
-  }
-
-  if (!opts.isRecursive) {
-    outputs.push(reportSummary(log$, {
-      cmd: opts.cmd,
-      cwd,
-      env: opts.env,
-      filterPkgsDiff: opts.filterPkgsDiff,
-      pnpmConfig: opts.pnpmConfig,
-    }))
+    if (!opts.appendOnly) {
+      outputs.push(reportBigTarballProgress(log$))
+    }
+    if (!opts.isRecursive) {
+      outputs.push(reportSummary(log$, {
+        cmd: opts.cmd,
+        cwd,
+        env: opts.env,
+        filterPkgsDiff: opts.filterPkgsDiff,
+        pnpmConfig: opts.pnpmConfig,
+      }))
+    }
   }
 
   return outputs

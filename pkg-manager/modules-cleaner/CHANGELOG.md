@@ -1,5 +1,222 @@
 # @pnpm/modules-cleaner
 
+## 1001.0.19
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/lockfile.filtering@1001.0.17
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/remove-bins@1000.0.12
+
+## 1001.0.18
+
+### Patch Changes
+
+- 02d58a6: `pnpm install --prod` should removing hoisted dev dependencies [#9782](https://github.com/pnpm/pnpm/issues/9782).
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/lockfile.filtering@1001.0.16
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/remove-bins@1000.0.11
+
+## 1001.0.17
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/lockfile.filtering@1001.0.15
+- @pnpm/lockfile.utils@1002.0.1
+
+## 1001.0.16
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/lockfile.filtering@1001.0.14
+
+## 1001.0.15
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.12
+- @pnpm/store-controller-types@1003.0.3
+- @pnpm/lockfile.filtering@1001.0.13
+
+## 1001.0.14
+
+### Patch Changes
+
+- Updated dependencies [509948d]
+  - @pnpm/store-controller-types@1003.0.2
+
+## 1001.0.13
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [c24c66e]
+  - @pnpm/remove-bins@1000.0.10
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/lockfile.filtering@1001.0.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/remove-bins@1000.0.9
+  - @pnpm/lockfile.filtering@1001.0.11
+  - @pnpm/lockfile.types@1001.0.7
+  - @pnpm/dependency-path@1000.0.8
+
+## 1001.0.11
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.9
+- @pnpm/store-controller-types@1002.0.1
+- @pnpm/lockfile.filtering@1001.0.10
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/lockfile.filtering@1001.0.9
+  - @pnpm/lockfile.types@1001.0.6
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/remove-bins@1000.0.8
+
+## 1001.0.9
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/lockfile.types@1001.0.5
+  - @pnpm/lockfile.filtering@1001.0.8
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/remove-bins@1000.0.7
+  - @pnpm/store-controller-types@1001.0.5
+
+## 1001.0.8
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.6
+- @pnpm/store-controller-types@1001.0.4
+- @pnpm/lockfile.filtering@1001.0.7
+
+## 1001.0.7
+
+### Patch Changes
+
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/lockfile.filtering@1001.0.6
+- @pnpm/lockfile.utils@1001.0.5
+
+## 1001.0.6
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/remove-bins@1000.0.6
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/lockfile.filtering@1001.0.5
+  - @pnpm/lockfile.types@1001.0.4
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/store-controller-types@1001.0.3
+
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/lockfile.filtering@1001.0.4
+  - @pnpm/lockfile.types@1001.0.3
+  - @pnpm/lockfile.utils@1001.0.3
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/dependency-path@1000.0.3
+  - @pnpm/remove-bins@1000.0.5
+  - @pnpm/store-controller-types@1001.0.2
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.filtering@1001.0.3
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/remove-bins@1000.0.4
+  - @pnpm/store-controller-types@1001.0.1
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lockfile.filtering@1001.0.2
+  - @pnpm/lockfile.types@1001.0.1
+  - @pnpm/lockfile.utils@1001.0.1
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/dependency-path@1000.0.1
+  - @pnpm/remove-bins@1000.0.3
+  - @pnpm/store-controller-types@1000.1.1
+
 ## 1001.0.1
 
 ### Patch Changes

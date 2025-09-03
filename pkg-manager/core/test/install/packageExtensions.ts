@@ -5,7 +5,7 @@ import { hashObject as _hashObject } from '@pnpm/crypto.object-hasher'
 import { type ProjectRootDir, type PackageExtension, type ProjectManifest } from '@pnpm/types'
 import {
   testDefaults,
-} from '../utils'
+} from '../utils/index.js'
 
 function hashObject (obj: Record<string, unknown>): string {
   return `sha256-${_hashObject(obj)}`
@@ -21,7 +21,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
       },
     },
   }
-  const manifest = await addDependenciesToPackage(
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
     ['is-positive@1.0.0'],
     testDefaults({ packageExtensions })

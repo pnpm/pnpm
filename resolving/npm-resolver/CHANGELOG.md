@@ -1,5 +1,244 @@
 # @pnpm/npm-resolver
 
+## 1004.1.3
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/error@1000.0.4
+  - @pnpm/resolving.jsr-specifier-parser@1000.0.2
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1004.1.2
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1ba2e15]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/fetching-types@1000.2.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/pick-registry-for-package@1000.0.9
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/error@1000.0.3
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/resolving.jsr-specifier-parser@1000.0.1
+
+## 1004.1.1
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1004.1.0
+
+### Minor Changes
+
+- 2721291: Create different resolver result types which provide more information.
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1004.0.1
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/types@1000.6.0
+  - @pnpm/pick-registry-for-package@1000.0.8
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1004.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+- 5b73df1: Renamed `normalizedPref` to `specifiers`.
+
+### Minor Changes
+
+- 9c3dd03: **Added support for installing JSR packages.** You can now install JSR packages using the following syntax:
+
+  ```
+  pnpm add jsr:<pkg_name>
+  ```
+
+  or with a version range:
+
+  ```
+  pnpm add jsr:<pkg_name>@<range>
+  ```
+
+  For example, running:
+
+  ```
+  pnpm add jsr:@foo/bar
+  ```
+
+  will add the following entry to your `package.json`:
+
+  ```json
+  {
+    "dependencies": {
+      "@foo/bar": "jsr:^0.1.2"
+    }
+  }
+  ```
+
+  When publishing, this entry will be transformed into a format compatible with npm, older versions of Yarn, and previous pnpm versions:
+
+  ```json
+  {
+    "dependencies": {
+      "@foo/bar": "npm:@jsr/foo__bar@^0.1.2"
+    }
+  }
+  ```
+
+  Related issue: [#8941](https://github.com/pnpm/pnpm/issues/8941).
+
+  Note: The `@jsr` scope defaults to <https://npm.jsr.io/> if the `@jsr:registry` setting is not defined.
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/resolving.jsr-specifier-parser@1000.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/pick-registry-for-package@1000.0.7
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1003.0.0
+
+### Major Changes
+
+- 81f441c: `updateToLatest` replaced with `update` field.
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 72cff38: The resolving function now takes a `registries` object, so it finds the required registry itself instead of receiving it from package requester.
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/pick-registry-for-package@1000.0.6
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/resolver-base@1000.2.1
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 3d52365: The `@pnpm/npm-resolver` package can now return `workspace` in the `resolvedVia` field of its results. This will be the case if the resolved package was requested through the `workspace:` protocol or if the wanted dependency's name and specifier match a package in the workspace. Previously, the `resolvedVia` field was always set to `local-filesystem` for workspace packages.
+
+### Patch Changes
+
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.1.7
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.1.1
+
+## 1000.1.6
+
+### Patch Changes
+
+- 8371664: When a package version cannot be found in the package metadata, print the registry from which the package was fetched.
+
+## 1000.1.5
+
+### Patch Changes
+
+- Updated dependencies [daf47e9]
+- Updated dependencies [a5e4965]
+  - @pnpm/crypto.hash@1000.1.0
+  - @pnpm/types@1000.2.1
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/resolver-base@1000.1.4
+
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/resolver-base@1000.1.3
+  - @pnpm/crypto.hash@1000.0.0
+
+## 1000.1.3
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/crypto.hash@1000.0.0
+
+## 1000.1.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/resolver-base@1000.1.1
+  - @pnpm/crypto.hash@1000.0.0
+
 ## 1000.1.1
 
 ### Patch Changes

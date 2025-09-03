@@ -16,8 +16,8 @@ import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
-import * as pack from './pack'
-import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish'
+import * as pack from './pack.js'
+import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -199,14 +199,14 @@ Do you want to continue?`,
   if (index !== -1) {
     // If --publish-branch follows with another cli option, only remove this argument
     // otherwise remove the following argument as well
-    if (args[index + 1]?.startsWith('-')) {
+    if (args[index + 1]?.[0] === '-') {
       args.splice(index, 1)
     } else {
       args.splice(index, 2)
     }
   }
 
-  if (dirInParams?.endsWith('.tgz')) {
+  if (dirInParams != null && (dirInParams.endsWith('.tgz') || dirInParams?.endsWith('.tar.gz'))) {
     const { status } = runNpm(opts.npmPath, ['publish', dirInParams, ...args])
     return { exitCode: status ?? 0 }
   }

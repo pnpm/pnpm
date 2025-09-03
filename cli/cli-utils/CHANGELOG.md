@@ -1,5 +1,410 @@
 # @pnpm/cli-utils
 
+## 1001.1.2
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@1002.0.11
+- @pnpm/config.deps-installer@1000.0.11
+
+## 1001.1.1
+
+### Patch Changes
+
+- @pnpm/config.deps-installer@1000.0.11
+- @pnpm/store-connection-manager@1002.0.10
+
+## 1001.1.0
+
+### Minor Changes
+
+- 3ebc0ce: Automatically load pnpmfiles from config dependencies that are named "@_/pnpm-plugin-_" [#9780](https://github.com/pnpm/pnpm/issues/9780).
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@1002.0.9
+- @pnpm/config.deps-installer@1000.0.10
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/config@1004.2.1
+  - @pnpm/error@1000.0.4
+  - @pnpm/pnpmfile@1002.0.2
+  - @pnpm/store-connection-manager@1002.0.8
+  - @pnpm/config.deps-installer@1000.0.10
+  - @pnpm/default-reporter@1002.0.5
+  - @pnpm/package-is-installable@1000.0.12
+  - @pnpm/manifest-utils@1001.0.3
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/default-reporter@1002.0.4
+  - @pnpm/config@1004.2.0
+  - @pnpm/cli-meta@1000.0.9
+  - @pnpm/config.deps-installer@1000.0.9
+  - @pnpm/package-is-installable@1000.0.11
+  - @pnpm/pnpmfile@1002.0.1
+  - @pnpm/manifest-utils@1001.0.2
+  - @pnpm/store-connection-manager@1002.0.7
+  - @pnpm/error@1000.0.3
+
+## 1001.0.1
+
+### Patch Changes
+
+- 7ad0bc3: Run user defined pnpmfiles after pnpmfiles of plugins.
+
+## 1001.0.0
+
+### Major Changes
+
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Minor Changes
+
+- e225310: pnpm will now automatically load the `pnpmfile.cjs` file from any [config dependency](https://pnpm.io/config-dependencies) named `@pnpm/plugin-*` or `pnpm-plugin-*` [#9729](https://github.com/pnpm/pnpm/pull/9729).
+
+  The order in which config dependencies are initialized should not matter — they are initialized in alphabetical order. If a specific order is needed, the paths to the `pnpmfile.cjs` files in the config dependencies can be explicitly listed using the `pnpmfile` setting in `pnpm-workspace.yaml`.
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [e225310]
+- Updated dependencies [cf630a8]
+  - @pnpm/config@1004.1.0
+  - @pnpm/pnpmfile@1002.0.0
+  - @pnpm/default-reporter@1002.0.3
+  - @pnpm/store-connection-manager@1002.0.6
+  - @pnpm/config.deps-installer@1000.0.8
+
+## 1000.1.7
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@1002.0.5
+- @pnpm/config.deps-installer@1000.0.7
+
+## 1000.1.6
+
+### Patch Changes
+
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/config@1004.0.0
+  - @pnpm/config.deps-installer@1000.0.6
+  - @pnpm/default-reporter@1002.0.2
+  - @pnpm/store-connection-manager@1002.0.4
+  - @pnpm/pnpmfile@1001.2.3
+
+## 1000.1.5
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/default-reporter@1002.0.1
+  - @pnpm/store-connection-manager@1002.0.3
+  - @pnpm/pnpmfile@1001.2.2
+  - @pnpm/config.deps-installer@1000.0.5
+
+## 1000.1.4
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+- Updated dependencies [f0c3ed6]
+  - @pnpm/config@1003.1.0
+  - @pnpm/store-connection-manager@1002.0.2
+  - @pnpm/package-is-installable@1000.0.10
+  - @pnpm/config.deps-installer@1000.0.4
+  - @pnpm/default-reporter@1002.0.0
+  - @pnpm/pnpmfile@1001.2.1
+  - @pnpm/types@1000.6.0
+  - @pnpm/manifest-utils@1001.0.1
+  - @pnpm/cli-meta@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.11
+
+## 1000.1.3
+
+### Patch Changes
+
+- Updated dependencies [e5c58f0]
+  - @pnpm/pnpmfile@1001.2.0
+  - @pnpm/config@1003.0.1
+  - @pnpm/config.deps-installer@1000.0.3
+  - @pnpm/default-reporter@1001.4.3
+  - @pnpm/store-connection-manager@1002.0.1
+
+## 1000.1.2
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/manifest-utils@1001.0.0
+  - @pnpm/store-connection-manager@1002.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/default-reporter@1001.4.2
+  - @pnpm/config.deps-installer@1000.0.2
+  - @pnpm/pnpmfile@1001.1.2
+  - @pnpm/package-is-installable@1000.0.9
+  - @pnpm/cli-meta@1000.0.7
+  - @pnpm/read-project-manifest@1000.0.10
+
+## 1000.1.1
+
+### Patch Changes
+
+- Updated dependencies [43bd37f]
+  - @pnpm/default-reporter@1001.4.1
+  - @pnpm/config.deps-installer@1000.0.1
+  - @pnpm/pnpmfile@1001.1.1
+  - @pnpm/store-connection-manager@1001.0.1
+  - @pnpm/config@1002.7.2
+
+## 1000.1.0
+
+### Minor Changes
+
+- 1413c25: **Experimental.** A new hook is supported for updating configuration settings. The hook can be provided via `.pnpmfile.cjs`. For example:
+
+  ```js
+  module.exports = {
+    hooks: {
+      updateConfig: (config) => ({
+        ...config,
+        nodeLinker: "hoisted",
+      }),
+    },
+  };
+  ```
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [750ae7d]
+- Updated dependencies [1413c25]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-connection-manager@1001.0.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/default-reporter@1001.4.0
+  - @pnpm/config.deps-installer@1000.0.0
+  - @pnpm/pnpmfile@1001.1.0
+  - @pnpm/cli-meta@1000.0.6
+  - @pnpm/package-is-installable@1000.0.8
+  - @pnpm/manifest-utils@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.9
+
+## 1000.0.19
+
+### Patch Changes
+
+- Updated dependencies [e57f1df]
+  - @pnpm/config@1002.7.0
+  - @pnpm/default-reporter@1001.3.10
+
+## 1000.0.18
+
+### Patch Changes
+
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/default-reporter@1001.3.9
+  - @pnpm/cli-meta@1000.0.5
+  - @pnpm/package-is-installable@1000.0.7
+  - @pnpm/manifest-utils@1000.0.7
+  - @pnpm/read-project-manifest@1000.0.8
+
+## 1000.0.17
+
+### Patch Changes
+
+- Updated dependencies [936430a]
+  - @pnpm/config@1002.5.4
+  - @pnpm/default-reporter@1001.3.8
+
+## 1000.0.16
+
+### Patch Changes
+
+- Updated dependencies [6e4459c]
+  - @pnpm/config@1002.5.3
+  - @pnpm/default-reporter@1001.3.7
+
+## 1000.0.15
+
+### Patch Changes
+
+- Updated dependencies [f8c8e3f]
+  - @pnpm/default-reporter@1001.3.6
+  - @pnpm/config@1002.5.2
+
+## 1000.0.14
+
+### Patch Changes
+
+- Updated dependencies [6f56790]
+- Updated dependencies [c3aa4d8]
+  - @pnpm/default-reporter@1001.3.5
+  - @pnpm/config@1002.5.1
+
+## 1000.0.13
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+- Updated dependencies [d965748]
+  - @pnpm/types@1000.2.1
+  - @pnpm/config@1002.5.0
+  - @pnpm/cli-meta@1000.0.4
+  - @pnpm/default-reporter@1001.3.4
+  - @pnpm/package-is-installable@1000.0.6
+  - @pnpm/manifest-utils@1000.0.6
+  - @pnpm/read-project-manifest@1000.0.7
+
+## 1000.0.12
+
+### Patch Changes
+
+- Updated dependencies [1c2eb8c]
+  - @pnpm/config@1002.4.1
+  - @pnpm/default-reporter@1001.3.3
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [5df8de7]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [8fcc221]
+  - @pnpm/config@1002.4.0
+  - @pnpm/default-reporter@1001.3.2
+  - @pnpm/types@1000.2.0
+  - @pnpm/cli-meta@1000.0.3
+  - @pnpm/package-is-installable@1000.0.5
+  - @pnpm/manifest-utils@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.6
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+- Updated dependencies [aa29bde]
+  - @pnpm/config@1002.3.1
+  - @pnpm/default-reporter@1001.3.1
+
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [7b9a9af]
+- Updated dependencies [4aa6d45]
+- Updated dependencies [b60661a]
+  - @pnpm/default-reporter@1001.3.0
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [f6006f2]
+- Updated dependencies [3717340]
+  - @pnpm/config@1002.3.0
+  - @pnpm/default-reporter@1001.2.2
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [1e229d7]
+  - @pnpm/read-project-manifest@1000.0.5
+  - @pnpm/config@1002.2.1
+  - @pnpm/default-reporter@1001.2.1
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+- Updated dependencies [961dc5d]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [7a9473b]
+- Updated dependencies [c96eb2b]
+- Updated dependencies [acdf26d]
+  - @pnpm/types@1000.1.1
+  - @pnpm/default-reporter@1001.2.0
+  - @pnpm/config@1002.2.0
+  - @pnpm/error@1000.0.2
+  - @pnpm/cli-meta@1000.0.2
+  - @pnpm/package-is-installable@1000.0.4
+  - @pnpm/manifest-utils@1000.0.4
+  - @pnpm/read-project-manifest@1000.0.4
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/config@1002.1.2
+  - @pnpm/default-reporter@1001.1.3
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+- Updated dependencies [1f5169f]
+  - @pnpm/types@1000.1.0
+  - @pnpm/config@1002.1.1
+  - @pnpm/cli-meta@1000.0.1
+  - @pnpm/default-reporter@1001.1.2
+  - @pnpm/package-is-installable@1000.0.3
+  - @pnpm/manifest-utils@1000.0.3
+  - @pnpm/read-project-manifest@1000.0.2
+
 ## 1000.0.3
 
 ### Patch Changes

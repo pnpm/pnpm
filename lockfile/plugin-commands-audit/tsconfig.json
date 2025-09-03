@@ -21,6 +21,9 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../config/config-writer"
+    },
+    {
       "path": "../../network/auth-header"
     },
     {

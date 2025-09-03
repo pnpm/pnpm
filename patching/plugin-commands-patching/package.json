@@ -1,36 +1,77 @@
 {
   "name": "@pnpm/plugin-commands-patching",
-  "version": "1000.0.4",
+  "version": "1000.3.10",
   "description": "Commands for creating patches",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "scripts"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/patching/plugin-commands-patching",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/patching/plugin-commands-patching#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "commonjs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7773 jest",
+    "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/patching/plugin-commands-patching",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "scripts"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
+  "dependencies": {
+    "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/config.config-writer": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fs.packlist": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/modules-yaml": "workspace:*",
+    "@pnpm/parse-wanted-dependency": "workspace:*",
+    "@pnpm/patching.apply-patch": "workspace:*",
+    "@pnpm/pick-fetcher": "workspace:*",
+    "@pnpm/plugin-commands-installation": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/store-connection-manager": "workspace:*",
+    "@pnpm/store-path": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.read-manifest": "workspace:*",
+    "chalk": "catalog:",
+    "enquirer": "catalog:",
+    "escape-string-regexp": "catalog:",
+    "is-windows": "catalog:",
+    "make-empty-dir": "catalog:",
+    "normalize-path": "catalog:",
+    "ramda": "catalog:",
+    "realpath-missing": "catalog:",
+    "render-help": "catalog:",
+    "safe-execa": "catalog:",
+    "semver": "catalog:",
+    "terminal-link": "catalog:",
+    "tinyglobby": "catalog:"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/patching/plugin-commands-patching#readme",
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
     "@pnpm/plugin-commands-patching": "workspace:*",
     "@pnpm/prepare": "workspace:*",
@@ -41,49 +82,13 @@
     "@types/normalize-path": "catalog:",
     "@types/ramda": "catalog:",
     "@types/semver": "catalog:",
+    "tempy": "catalog:",
     "write-yaml-file": "catalog:"
   },
-  "dependencies": {
-    "@pnpm/cli-utils": "workspace:*",
-    "@pnpm/config": "workspace:*",
-    "@pnpm/constants": "workspace:*",
-    "@pnpm/error": "workspace:*",
-    "@pnpm/fs.packlist": "workspace:*",
-    "@pnpm/lockfile.fs": "workspace:*",
-    "@pnpm/lockfile.utils": "workspace:*",
-    "@pnpm/modules-yaml": "workspace:*",
-    "@pnpm/parse-wanted-dependency": "workspace:*",
-    "@pnpm/patching.apply-patch": "workspace:*",
-    "@pnpm/pick-fetcher": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
-    "@pnpm/plugin-commands-installation": "workspace:*",
-    "@pnpm/read-package-json": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/store-connection-manager": "workspace:*",
-    "@pnpm/types": "workspace:*",
-    "chalk": "catalog:",
-    "enquirer": "catalog:",
-    "escape-string-regexp": "catalog:",
-    "fast-glob": "catalog:",
-    "is-windows": "catalog:",
-    "make-empty-dir": "catalog:",
-    "normalize-path": "catalog:",
-    "ramda": "catalog:",
-    "realpath-missing": "catalog:",
-    "render-help": "catalog:",
-    "safe-execa": "catalog:",
-    "semver": "catalog:",
-    "tempy": "catalog:",
-    "terminal-link": "catalog:"
-  },
-  "peerDependencies": {
-    "@pnpm/logger": ">=5.1.0 <1001.0.0"
-  },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
-    "preset": "@pnpm/jest-config"
+    "preset": "@pnpm/jest-config/with-registry"
   }
 }

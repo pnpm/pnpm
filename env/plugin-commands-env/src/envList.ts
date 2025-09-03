@@ -1,13 +1,11 @@
 import { promises as fs, existsSync } from 'fs'
 import path from 'path'
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import { resolveNodeVersions } from '@pnpm/node.resolver'
+import { resolveNodeVersions, parseEnvSpecifier, getNodeMirror } from '@pnpm/node.resolver'
 import { PnpmError } from '@pnpm/error'
 import semver from 'semver'
-import { getNodeMirror } from './getNodeMirror'
-import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
-import { parseEnvSpecifier } from './parseEnvSpecifier'
-import { getNodeExecPathAndTargetDir, getNodeExecPathInNodeDir } from './utils'
+import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node.js'
+import { getNodeExecPathAndTargetDir, getNodeExecPathInNodeDir } from './utils.js'
 
 export async function envList (opts: NvmNodeCommandOptions, params: string[]): Promise<string> {
   if (opts.remote) {

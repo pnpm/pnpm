@@ -1,7 +1,7 @@
 import { type LockfileObject, type LockfileFile } from '@pnpm/lockfile.types'
 import { mergeLockfileChanges } from '@pnpm/lockfile.merger'
 import yaml from 'js-yaml'
-import { convertToLockfileObject } from './lockfileFormatConverters'
+import { convertToLockfileObject } from './lockfileFormatConverters.js'
 
 const MERGE_CONFLICT_PARENT = '|||||||'
 const MERGE_CONFLICT_END = '>>>>>>>'
@@ -22,7 +22,7 @@ interface MergeFileInfo {
 }
 
 function parseMergeFile (fileContent: string): MergeFileInfo {
-  const lines = fileContent.split(/[\n\r]+/g)
+  const lines = fileContent.split(/[\n\r]+/)
   let state: 'top' | 'ours' | 'theirs' | 'parent' = 'top'
   const ours = []
   const theirs = []

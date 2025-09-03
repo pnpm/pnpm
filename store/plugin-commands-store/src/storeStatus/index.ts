@@ -15,7 +15,7 @@ import pFilter from 'p-filter'
 import {
   extendStoreStatusOptions,
   type StoreStatusOptions,
-} from './extendStoreStatusOptions'
+} from './extendStoreStatusOptions.js'
 import { type TarballResolution } from '@pnpm/store-controller-types'
 
 export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<string[]> {

@@ -1,21 +1,13 @@
 import path from 'path'
-import { createClient } from '@pnpm/client'
 import { type HeadlessOptions } from '@pnpm/headless'
-import { createPackageStore } from '@pnpm/package-store'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectsContext } from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { getStorePath } from '@pnpm/store-path'
+import { createTempStore } from '@pnpm/testing.temp-store'
 import tempy from 'tempy'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
-
-const retryOpts = {
-  factor: 10,
-  retries: 2,
-  retryMaxtimeout: 60_000,
-  retryMintimeout: 10_000,
-}
 
 export async function testDefaults (
   opts?: any, // eslint-disable-line
@@ -25,7 +17,6 @@ export async function testDefaults (
 ): Promise<HeadlessOptions> {
   const tmp = tempy.directory()
   let storeDir = opts?.storeDir ?? path.join(tmp, 'store')
-  const cacheDir = path.join(tmp, 'cache')
   const lockfileDir = opts?.lockfileDir ?? process.cwd()
   const { include, pendingBuilds, projects } = await readProjectsContext(
     opts.projects
@@ -42,22 +33,14 @@ export async function testDefaults (
     storePath: storeDir,
     pnpmHomeDir: '',
   })
-  const authConfig = { registry }
-  const { resolve, fetchers, clearResolutionCache } = createClient({
-    authConfig,
-    rawConfig: {},
-    retry: retryOpts,
-    cacheDir,
-    ...resolveOpts,
-    ...fetchOpts,
-  })
-  const storeController = createPackageStore(
-    resolve,
-    fetchers,
+  const { storeController } = createTempStore(
     {
       storeDir,
-      clearResolutionCache,
-      ...storeOpts,
+      clientOptions: {
+        ...resolveOpts,
+        ...fetchOpts,
+      },
+      storeOptions: storeOpts,
     }
   )
   return {

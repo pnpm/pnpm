@@ -1,11 +1,12 @@
 import pick from 'ramda/src/pick'
-import { type WorkspaceState, type WorkspaceStateSettings, type ProjectsList } from './types'
+import { type WorkspaceState, type WorkspaceStateSettings, type ProjectsList } from './types.js'
 
 export interface CreateWorkspaceStateOptions {
   allProjects: ProjectsList
-  pnpmfileExists: boolean
+  pnpmfiles: string[]
   filteredInstall: boolean
   settings: WorkspaceStateSettings
+  configDependencies?: Record<string, string>
 }
 
 export const createWorkspaceState = (opts: CreateWorkspaceStateOptions): WorkspaceState => ({
@@ -17,7 +18,7 @@ export const createWorkspaceState = (opts: CreateWorkspaceStateOptions): Workspa
       version: project.manifest.version,
     },
   ])),
-  pnpmfileExists: opts.pnpmfileExists,
+  pnpmfiles: opts.pnpmfiles,
   settings: pick([
     'autoInstallPeers',
     'catalogs',
@@ -38,4 +39,5 @@ export const createWorkspaceState = (opts: CreateWorkspaceStateOptions): Workspa
     'workspacePackagePatterns',
   ], opts.settings),
   filteredInstall: opts.filteredInstall,
+  configDependencies: opts.configDependencies,
 })

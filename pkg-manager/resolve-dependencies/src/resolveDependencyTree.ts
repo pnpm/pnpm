@@ -1,12 +1,14 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
-import { type PatchFile } from '@pnpm/patching.types'
+import { globalWarn } from '@pnpm/logger'
+import { type PatchGroupRecord } from '@pnpm/patching.config'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
 import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
+  type PinnedVersion,
   type PkgResolutionId,
   type ProjectManifest,
   type ProjectId,
@@ -16,9 +18,9 @@ import {
 } from '@pnpm/types'
 import partition from 'ramda/src/partition'
 import zipObj from 'ramda/src/zipObj'
-import { type WantedDependency } from './getNonDevWantedDependencies'
-import { type NodeId, nextNodeId } from './nextNodeId'
-import { parentIdsContainSequence } from './parentIdsContainSequence'
+import { type WantedDependency } from './getNonDevWantedDependencies.js'
+import { type NodeId, nextNodeId } from './nextNodeId.js'
+import { parentIdsContainSequence } from './parentIdsContainSequence.js'
 import {
   type ChildrenByParentId,
   type DependenciesTree,
@@ -28,13 +30,14 @@ import {
   type ParentPkgAliases,
   type PendingNode,
   type PkgAddress,
+  type PkgAddressOrLink,
   resolveRootDependencies,
   type ResolvedPackage,
   type ResolvedPkgsById,
   type ResolutionContext,
-} from './resolveDependencies'
+} from './resolveDependencies.js'
 
-export type { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
+export type { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies.js'
 
 export interface ResolvedImporters {
   [id: string]: {
@@ -52,8 +55,8 @@ export interface ResolvedDirectDependency {
   pkgId: PkgResolutionId
   version: string
   name: string
-  normalizedPref?: string
   catalogLookup?: CatalogLookupMetadata
+  normalizedBareSpecifier?: string
 }
 
 /**
@@ -65,7 +68,7 @@ export interface CatalogLookupMetadata {
   readonly specifier: string
 
   /**
-   * The catalog protocol pref the user wrote in package.json files or as a
+   * The catalog protocol bareSpecifier the user wrote in package.json files or as a
    * parameter to pnpm add. Ex: pnpm add foo@catalog:
    *
    * This will usually be 'catalog:<name>', but can simply be 'catalog:' if
@@ -73,7 +76,7 @@ export interface CatalogLookupMetadata {
    * catalogName field, which would be 'default' regardless of whether users
    * originally requested 'catalog:' or 'catalog:default'.
    */
-  readonly userSpecifiedPref: string
+  readonly userSpecifiedBareSpecifier: string
 }
 
 export interface Importer<WantedDepExtraProps> {
@@ -92,13 +95,14 @@ export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
   wantedDependencies: Array<WantedDepExtraProps & WantedDependency & { updateDepth: number }>
+  pinnedVersion?: PinnedVersion
 }
 
 export interface ResolveDependenciesOptions {
   autoInstallPeers?: boolean
   autoInstallPeersFromHighestMatch?: boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
-  allowNonAppliedPatches: boolean
+  allowUnusedPatches: boolean
   catalogs?: Catalogs
   currentLockfile: LockfileObject
   dedupePeerDependents?: boolean
@@ -112,7 +116,7 @@ export interface ResolveDependenciesOptions {
   }
   nodeVersion?: string
   registries: Registries
-  patchedDependencies?: Record<string, PatchFile>
+  patchedDependencies?: PatchGroupRecord
   pnpmVersion: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
@@ -176,6 +180,7 @@ export async function resolveDependencyTree<T> (
     readPackageHook: opts.hooks.readPackage,
     registries: opts.registries,
     resolvedPkgsById: {} as ResolvedPkgsById,
+    resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     resolutionMode: opts.resolutionMode,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
@@ -226,10 +231,36 @@ export async function resolveDependencyTree<T> (
       preferredVersions: importer.preferredVersions ?? {},
       wantedDependencies: importer.wantedDependencies,
       options: resolveOpts,
+      pinnedVersion: importer.pinnedVersion,
     }
   })
   const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)
   const directDepsByImporterId = zipObj(importers.map(({ id }) => id), pkgAddressesByImporters)
+
+  for (const directDependencies of pkgAddressesByImporters) {
+    for (const directDep of directDependencies as PkgAddress[]) {
+      const { alias, normalizedBareSpecifier, version, saveCatalogName } = directDep
+      const existingCatalog = opts.catalogs?.default?.[alias]
+      if (existingCatalog != null) {
+        if (existingCatalog !== normalizedBareSpecifier) {
+          globalWarn(
+            `Skip adding ${alias} to the default catalog because it already exists as ${existingCatalog}. Please use \`pnpm update\` to update the catalogs.`
+          )
+        }
+      } else if (saveCatalogName != null && normalizedBareSpecifier != null && version != null) {
+        const userSpecifiedBareSpecifier = `catalog:${saveCatalogName === 'default' ? '' : saveCatalogName}`
+
+        // Attach metadata about how this new catalog dependency should be
+        // resolved so the pnpm-lock.yaml file's catalogs section can be updated
+        // to reflect this newly added entry.
+        directDep.catalogLookup = {
+          catalogName: saveCatalogName,
+          specifier: normalizedBareSpecifier,
+          userSpecifiedBareSpecifier,
+        }
+      }
+    }
+  }
 
   for (const pendingNode of ctx.pendingNodes) {
     ctx.dependenciesTree.set(pendingNode.nodeId, {
@@ -259,11 +290,11 @@ export async function resolveDependencyTree<T> (
             catalogLookup: dep.catalogLookup,
             dev: resolvedPackage.dev,
             name: resolvedPackage.name,
-            normalizedPref: dep.normalizedPref,
             optional: resolvedPackage.optional,
             pkgId: resolvedPackage.id,
             resolution: resolvedPackage.resolution,
             version: resolvedPackage.version,
+            normalizedBareSpecifier: dep.normalizedBareSpecifier,
           }
         }),
       directNodeIdsByAlias: new Map(directNonLinkedDeps.map(({ alias, nodeId }) => [alias, nodeId])),
@@ -335,15 +366,15 @@ function buildTree (
   * In order to make sure that the latest 1.0.1 version is installed, we need to remove the duplicate dependency.
   * fix https://github.com/pnpm/pnpm/issues/6966
   */
-function dedupeSameAliasDirectDeps (directDeps: Array<PkgAddress | LinkedDependency>, wantedDependencies: Array<WantedDependency & { isNew?: boolean }>): Array<PkgAddress | LinkedDependency> {
-  const deps = new Map<string, PkgAddress | LinkedDependency>()
+function dedupeSameAliasDirectDeps (directDeps: PkgAddressOrLink[], wantedDependencies: Array<WantedDependency & { isNew?: boolean }>): PkgAddressOrLink[] {
+  const deps = new Map<string, PkgAddressOrLink>()
   for (const directDep of directDeps) {
-    const { alias, normalizedPref } = directDep
+    const { alias, normalizedBareSpecifier } = directDep
     if (!deps.has(alias)) {
       deps.set(alias, directDep)
     } else {
       const wantedDep = wantedDependencies.find(dep =>
-        dep.alias ? dep.alias === alias : dep.pref === normalizedPref
+        dep.alias ? dep.alias === alias : dep.bareSpecifier === normalizedBareSpecifier
       )
       if (wantedDep?.isNew) {
         deps.set(alias, directDep)

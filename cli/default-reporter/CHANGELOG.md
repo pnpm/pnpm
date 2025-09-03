@@ -1,5 +1,283 @@
 # @pnpm/default-reporter
 
+## 1002.0.5
+
+### Patch Changes
+
+- @pnpm/config@1004.2.1
+- @pnpm/error@1000.0.4
+- @pnpm/render-peer-issues@1002.0.2
+
+## 1002.0.4
+
+### Patch Changes
+
+- 1a07b8f: Print the ID of the dependency in the installation summery, if no version if found.
+- Updated dependencies [1a07b8f]
+- Updated dependencies [6f7ac0f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/config@1004.2.0
+  - @pnpm/cli-meta@1000.0.9
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/render-peer-issues@1002.0.1
+  - @pnpm/error@1000.0.3
+
+## 1002.0.3
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+  - @pnpm/config@1004.1.0
+
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/config@1004.0.0
+
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+
+## 1002.0.0
+
+### Major Changes
+
+- f0c3ed6: Remove filtering of peer dependency issues.
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- c00360b: Update `@pnpm/util.lex-comparator` to v3.0.2.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+- Updated dependencies [f0c3ed6]
+  - @pnpm/config@1003.1.0
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/types@1000.6.0
+  - @pnpm/render-peer-issues@1002.0.0
+  - @pnpm/cli-meta@1000.0.8
+
+## 1001.4.3
+
+### Patch Changes
+
+- @pnpm/config@1003.0.1
+
+## 1001.4.2
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/render-peer-issues@1001.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-meta@1000.0.7
+
+## 1001.4.1
+
+### Patch Changes
+
+- 43bd37f: Removed bright white highlighting, which didn't look good on some light themes [#9389](https://github.com/pnpm/pnpm/pull/9389).
+  - @pnpm/config@1002.7.2
+
+## 1001.4.0
+
+### Minor Changes
+
+- 750ae7d: Now you can use the `pnpm add` command with the `--config` flag to install new configurational dependencies [#9377](https://github.com/pnpm/pnpm/pull/9377).
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/cli-meta@1000.0.6
+  - @pnpm/render-peer-issues@1000.0.8
+
+## 1001.3.10
+
+### Patch Changes
+
+- Updated dependencies [e57f1df]
+  - @pnpm/config@1002.7.0
+
+## 1001.3.9
+
+### Patch Changes
+
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/cli-meta@1000.0.5
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/render-peer-issues@1000.0.7
+
+## 1001.3.8
+
+### Patch Changes
+
+- Updated dependencies [936430a]
+  - @pnpm/config@1002.5.4
+
+## 1001.3.7
+
+### Patch Changes
+
+- Updated dependencies [6e4459c]
+  - @pnpm/config@1002.5.3
+
+## 1001.3.6
+
+### Patch Changes
+
+- f8c8e3f: Don't show info output when `--loglevel=error` is used.
+  - @pnpm/config@1002.5.2
+
+## 1001.3.5
+
+### Patch Changes
+
+- 6f56790: When `--loglevel` is set to `error`, don't show installation summary, execution time, and big tarball download progress.
+- Updated dependencies [c3aa4d8]
+  - @pnpm/config@1002.5.1
+
+## 1001.3.4
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+- Updated dependencies [d965748]
+  - @pnpm/types@1000.2.1
+  - @pnpm/config@1002.5.0
+  - @pnpm/cli-meta@1000.0.4
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/render-peer-issues@1000.0.6
+
+## 1001.3.3
+
+### Patch Changes
+
+- Updated dependencies [1c2eb8c]
+  - @pnpm/config@1002.4.1
+
+## 1001.3.2
+
+### Patch Changes
+
+- 5df8de7: Fix undefined being printed in install errors when a package does not have a version field.
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [8fcc221]
+  - @pnpm/config@1002.4.0
+  - @pnpm/types@1000.2.0
+  - @pnpm/cli-meta@1000.0.3
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/render-peer-issues@1000.0.5
+
+## 1001.3.1
+
+### Patch Changes
+
+- aa29bde: Print pnpm's version after the execution time at the end of the console output.
+- Updated dependencies [fee898f]
+  - @pnpm/config@1002.3.1
+
+## 1001.3.0
+
+### Minor Changes
+
+- 4aa6d45: `pnpm approve-builds --global` works now for allowing dependencies of globally installed packages to run postinstall scripts.
+
+### Patch Changes
+
+- 7b9a9af: Fix instruction for updating pnpm with corepack [#9101](https://github.com/pnpm/pnpm/pull/9101).
+- b60661a: When `strict-dep-builds` is set to `true`, the same warning and error messages should not be output simultaneously [#9078](https://github.com/pnpm/pnpm/pull/9078).
+
+## 1001.2.2
+
+### Patch Changes
+
+- 3717340: Print the warning about blocked installation scripts at the end of the installation output and make it more prominent.
+- Updated dependencies [f6006f2]
+- Updated dependencies [3717340]
+  - @pnpm/config@1002.3.0
+  - @pnpm/render-peer-issues@1000.0.4
+
+## 1001.2.1
+
+### Patch Changes
+
+- @pnpm/config@1002.2.1
+
+## 1001.2.0
+
+### Minor Changes
+
+- 961dc5d: Added a new command for approving dependencies for running scripts during installation: `pnpm approve-builds` [#8963](https://github.com/pnpm/pnpm/pull/8963).
+- 7a9473b: Added a new field "pnpm.ignoredBuiltDependencies" for explicitly listing packages that should not be built. When a package is in the list, pnpm will not print an info message about that package not being built [#8935](https://github.com/pnpm/pnpm/issues/8935).
+
+### Patch Changes
+
+- acdf26d: Replace `strip-ansi` with the built-in `util.stripVTControlCharacters` [#9009](https://github.com/pnpm/pnpm/pull/9009).
+- Updated dependencies [b562deb]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+- Updated dependencies [acdf26d]
+  - @pnpm/types@1000.1.1
+  - @pnpm/config@1002.2.0
+  - @pnpm/render-peer-issues@1000.0.3
+  - @pnpm/dedupe.issues-renderer@1000.0.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/cli-meta@1000.0.2
+  - @pnpm/core-loggers@1000.1.2
+
+## 1001.1.3
+
+### Patch Changes
+
+- @pnpm/config@1002.1.2
+
+## 1001.1.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+- Updated dependencies [1f5169f]
+  - @pnpm/types@1000.1.0
+  - @pnpm/config@1002.1.1
+  - @pnpm/cli-meta@1000.0.1
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/render-peer-issues@1000.0.2
+
 ## 1001.1.1
 
 ### Patch Changes

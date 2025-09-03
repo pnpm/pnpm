@@ -1,5 +1,982 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.5.1
+
+### Patch Changes
+
+- @pnpm/core@1010.0.2
+- @pnpm/plugin-commands-rebuild@1002.0.24
+- @pnpm/outdated@1001.0.28
+- @pnpm/package-store@1002.0.9
+- @pnpm/store-connection-manager@1002.0.11
+- @pnpm/plugin-commands-env@1000.0.35
+- @pnpm/cli-utils@1001.1.2
+- @pnpm/config.deps-installer@1000.0.11
+- @pnpm/workspace.find-packages@1000.0.34
+- @pnpm/deps.status@1003.0.6
+- @pnpm/filter-workspace-packages@1000.0.34
+
+## 1004.5.0
+
+### Minor Changes
+
+- 8747b4e: Added the `cleanupUnusedCatalogs` configuration. When set to `true`, pnpm will remove unused catalog entries during installation [#9793](https://github.com/pnpm/pnpm/pull/9793).
+
+### Patch Changes
+
+- Updated dependencies [9dbada8]
+- Updated dependencies [8747b4e]
+  - @pnpm/workspace.manifest-writer@1001.0.0
+  - @pnpm/config.config-writer@1000.0.10
+  - @pnpm/config.deps-installer@1000.0.11
+  - @pnpm/plugin-commands-env@1000.0.34
+  - @pnpm/cli-utils@1001.1.1
+  - @pnpm/outdated@1001.0.27
+  - @pnpm/package-store@1002.0.9
+  - @pnpm/store-connection-manager@1002.0.10
+  - @pnpm/plugin-commands-rebuild@1002.0.23
+  - @pnpm/workspace.find-packages@1000.0.33
+  - @pnpm/core@1010.0.1
+  - @pnpm/deps.status@1003.0.5
+  - @pnpm/filter-workspace-packages@1000.0.33
+
+## 1004.4.2
+
+### Patch Changes
+
+- Updated dependencies [3ebc0ce]
+- Updated dependencies [2b0d35f]
+  - @pnpm/cli-utils@1001.1.0
+  - @pnpm/plugin-commands-rebuild@1002.0.22
+  - @pnpm/deps.status@1003.0.4
+  - @pnpm/core@1010.0.1
+  - @pnpm/plugin-commands-env@1000.0.33
+  - @pnpm/workspace.find-packages@1000.0.32
+  - @pnpm/filter-workspace-packages@1000.0.32
+  - @pnpm/outdated@1001.0.26
+  - @pnpm/package-store@1002.0.9
+  - @pnpm/store-connection-manager@1002.0.9
+  - @pnpm/config.deps-installer@1000.0.10
+
+## 1004.4.1
+
+### Patch Changes
+
+- Updated dependencies [9908269]
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [98dd75a]
+- Updated dependencies [0b6264e]
+- Updated dependencies [d1edf73]
+- Updated dependencies [adb097c]
+- Updated dependencies [f91922c]
+  - @pnpm/core@1010.0.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/plugin-commands-rebuild@1002.0.21
+  - @pnpm/workspace.pkgs-graph@1000.0.18
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/outdated@1001.0.25
+  - @pnpm/config@1004.2.1
+  - @pnpm/deps.status@1003.0.3
+  - @pnpm/error@1000.0.4
+  - @pnpm/get-context@1001.1.4
+  - @pnpm/workspace.find-packages@1000.0.31
+  - @pnpm/workspace.manifest-writer@1000.2.3
+  - @pnpm/cli-utils@1001.0.3
+  - @pnpm/config.config-writer@1000.0.9
+  - @pnpm/plugin-commands-env@1000.0.32
+  - @pnpm/pnpmfile@1002.0.2
+  - @pnpm/package-store@1002.0.9
+  - @pnpm/dedupe.check@1001.0.10
+  - @pnpm/store-connection-manager@1002.0.8
+  - @pnpm/filter-workspace-packages@1000.0.31
+  - @pnpm/config.deps-installer@1000.0.10
+  - @pnpm/workspace.state@1002.0.2
+  - @pnpm/manifest-utils@1001.0.3
+  - @pnpm/find-workspace-dir@1000.1.2
+
+## 1004.4.0
+
+### Minor Changes
+
+- 6f7ac0f: Add `--cpu`, `--libc`, and `--os` to `pnpm install`, `pnpm add`, and `pnpm dlx` to customize `supportedArchitectures` via the CLI [#7510](https://github.com/pnpm/pnpm/issues/7510).
+
+### Patch Changes
+
+- 6f7ac0f: Fix a bug in which `pnpm add` downloads packages whose `libc` differ from `pnpm.supportedArchitectures.libc`.
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [15ba5ab]
+- Updated dependencies [1ba2e15]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/plugin-commands-rebuild@1002.0.20
+  - @pnpm/plugin-commands-env@1000.0.31
+  - @pnpm/config@1004.2.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/core@1009.1.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/config.config-writer@1000.0.8
+  - @pnpm/config.deps-installer@1000.0.9
+  - @pnpm/pick-registry-for-package@1000.0.9
+  - @pnpm/dedupe.check@1001.0.9
+  - @pnpm/deps.status@1003.0.2
+  - @pnpm/pnpmfile@1002.0.1
+  - @pnpm/get-context@1001.1.3
+  - @pnpm/manifest-utils@1001.0.2
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/write-project-manifest@1000.0.9
+  - @pnpm/outdated@1001.0.24
+  - @pnpm/package-store@1002.0.8
+  - @pnpm/filter-workspace-packages@1000.0.30
+  - @pnpm/workspace.find-packages@1000.0.30
+  - @pnpm/workspace.pkgs-graph@1000.0.17
+  - @pnpm/sort-packages@1000.0.9
+  - @pnpm/workspace.state@1002.0.1
+  - @pnpm/store-connection-manager@1002.0.7
+  - @pnpm/workspace.manifest-writer@1000.2.2
+  - @pnpm/error@1000.0.3
+  - @pnpm/find-workspace-dir@1000.1.1
+
+## 1004.3.1
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+  - @pnpm/plugin-commands-env@1000.0.30
+  - @pnpm/plugin-commands-rebuild@1002.0.19
+  - @pnpm/workspace.find-packages@1000.0.29
+  - @pnpm/deps.status@1003.0.1
+  - @pnpm/filter-workspace-packages@1000.0.29
+
+## 1004.3.0
+
+### Minor Changes
+
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [e225310]
+- Updated dependencies [cf630a8]
+- Updated dependencies [95a9b82]
+- Updated dependencies [ab155a5]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/pnpmfile@1002.0.0
+  - @pnpm/workspace.state@1002.0.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/deps.status@1003.0.0
+  - @pnpm/core@1009.0.0
+  - @pnpm/workspace.manifest-writer@1000.2.1
+  - @pnpm/plugin-commands-rebuild@1002.0.18
+  - @pnpm/plugin-commands-env@1000.0.29
+  - @pnpm/store-connection-manager@1002.0.6
+  - @pnpm/workspace.find-packages@1000.0.28
+  - @pnpm/config.config-writer@1000.0.7
+  - @pnpm/package-store@1002.0.7
+  - @pnpm/filter-workspace-packages@1000.0.28
+  - @pnpm/config.deps-installer@1000.0.8
+  - @pnpm/outdated@1001.0.23
+  - @pnpm/workspace.pkgs-graph@1000.0.16
+  - @pnpm/get-context@1001.1.2
+
+## 1004.2.2
+
+### Patch Changes
+
+- b511eac: Running `pnpm install` after `pnpm fetch` should hoist all dependencies that need to be hoisted.
+  Fixes a regression introduced in [v10.12.2] by [#9648]; resolves [#9689].
+
+  [v10.12.2]: https://github.com/pnpm/pnpm/releases/tag/v10.12.2Add commentMore actions
+  [#9648]: https://github.com/pnpm/pnpm/pull/9648
+  [#9689]: https://github.com/pnpm/pnpm/issues/9689
+
+  - @pnpm/core@1008.1.3
+
+## 1004.2.1
+
+### Patch Changes
+
+- Updated dependencies [cc6db88]
+  - @pnpm/core@1008.1.2
+
+## 1004.2.0
+
+### Minor Changes
+
+- 983efdc: Fix a bug in which `pnpm deploy` fails due to overridden dependencies having peer dependencies causing `ERR_PNPM_OUTDATED_LOCKFILE` [#9595](https://github.com/pnpm/pnpm/issues/9595).
+
+### Patch Changes
+
+- Updated dependencies [b982a0d]
+  - @pnpm/core@1008.1.1
+  - @pnpm/store-connection-manager@1002.0.5
+  - @pnpm/plugin-commands-rebuild@1002.0.17
+  - @pnpm/outdated@1001.0.22
+  - @pnpm/cli-utils@1000.1.7
+  - @pnpm/deps.status@1002.1.5
+  - @pnpm/get-context@1001.1.1
+  - @pnpm/package-store@1002.0.6
+  - @pnpm/plugin-commands-env@1000.0.28
+  - @pnpm/workspace.find-packages@1000.0.27
+  - @pnpm/config.deps-installer@1000.0.7
+  - @pnpm/filter-workspace-packages@1000.0.27
+
+## 1004.1.0
+
+### Minor Changes
+
+- b217bbb: Added a new setting called `ci` for explicitly telling pnpm if the current environment is a CI or not.
+- c8341cc: Added two new CLI options (`--save-catalog` and `--save-catalog-name=<name>`) to `pnpm add` to save new dependencies as catalog entries. `catalog:` or `catalog:<name>` will be added to `package.json` and the package specifier will be added to the `catalogs` or `catalog[<name>]` object in `pnpm-workspace.yaml` [#9425](https://github.com/pnpm/pnpm/issues/9425).
+- 046af72: A new `catalogMode` setting is available for controlling if and how dependencies are added to the default catalog. It can be configured to several modes:
+
+  - `strict`: Only allows dependency versions from the catalog. Adding a dependency outside the catalog's version range will cause an error.
+  - `prefer`: Prefers catalog versions, but will fall back to direct dependencies if no compatible version is found.
+  - `manual` (default): Does not automatically add dependencies to the catalog.
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/outdated@1001.0.21
+  - @pnpm/deps.status@1002.1.4
+  - @pnpm/get-context@1001.1.0
+  - @pnpm/core@1008.1.0
+  - @pnpm/config@1004.0.0
+  - @pnpm/workspace.manifest-writer@1000.2.0
+  - @pnpm/package-store@1002.0.5
+  - @pnpm/config.deps-installer@1000.0.6
+  - @pnpm/workspace.pkgs-graph@1000.0.15
+  - @pnpm/plugin-commands-rebuild@1002.0.16
+  - @pnpm/cli-utils@1000.1.6
+  - @pnpm/plugin-commands-env@1000.0.27
+  - @pnpm/store-connection-manager@1002.0.4
+  - @pnpm/workspace.state@1001.1.22
+  - @pnpm/workspace.find-packages@1000.0.26
+  - @pnpm/config.config-writer@1000.0.6
+  - @pnpm/pnpmfile@1001.2.3
+  - @pnpm/filter-workspace-packages@1000.0.26
+
+## 1004.0.3
+
+### Patch Changes
+
+- Updated dependencies [32dadef]
+- Updated dependencies [8d175c0]
+- Updated dependencies [509948d]
+  - @pnpm/core@1008.0.3
+  - @pnpm/config@1003.1.1
+  - @pnpm/cli-utils@1000.1.5
+  - @pnpm/deps.status@1002.1.3
+  - @pnpm/plugin-commands-env@1000.0.26
+  - @pnpm/plugin-commands-rebuild@1002.0.15
+  - @pnpm/store-connection-manager@1002.0.3
+  - @pnpm/workspace.state@1001.1.21
+  - @pnpm/package-store@1002.0.4
+  - @pnpm/pnpmfile@1001.2.2
+  - @pnpm/workspace.find-packages@1000.0.25
+  - @pnpm/config.deps-installer@1000.0.5
+  - @pnpm/outdated@1001.0.20
+  - @pnpm/filter-workspace-packages@1000.0.25
+
+## 1004.0.2
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- 36d1448: Set the default `workspaceConcurrency` to `Math.min(os.availableParallelism(), 4)` [#9493](https://github.com/pnpm/pnpm/pull/9493).
+- 9362b5f: Read `updateConfig` from `pnpm-workspace.yaml` [#9500](https://github.com/pnpm/pnpm/issues/9500).
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [f0c3ed6]
+- Updated dependencies [9362b5f]
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/store-connection-manager@1002.0.2
+  - @pnpm/plugin-commands-rebuild@1002.0.14
+  - @pnpm/plugin-commands-env@1000.0.25
+  - @pnpm/get-context@1001.0.14
+  - @pnpm/workspace.find-packages@1000.0.24
+  - @pnpm/config.deps-installer@1000.0.4
+  - @pnpm/package-store@1002.0.3
+  - @pnpm/outdated@1001.0.19
+  - @pnpm/core@1008.0.2
+  - @pnpm/workspace.state@1001.1.20
+  - @pnpm/pnpmfile@1001.2.1
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/deps.status@1002.1.2
+  - @pnpm/types@1000.6.0
+  - @pnpm/filter-workspace-packages@1000.0.24
+  - @pnpm/workspace.pkgs-graph@1000.0.14
+  - @pnpm/manifest-utils@1001.0.1
+  - @pnpm/config.config-writer@1000.0.5
+  - @pnpm/pick-registry-for-package@1000.0.8
+  - @pnpm/dedupe.check@1001.0.8
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/read-project-manifest@1000.0.11
+  - @pnpm/write-project-manifest@1000.0.8
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/sort-packages@1000.0.8
+
+## 1004.0.1
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+- Updated dependencies [e5c58f0]
+- Updated dependencies [7c7f0d6]
+  - @pnpm/plugin-commands-env@1000.0.24
+  - @pnpm/pnpmfile@1001.2.0
+  - @pnpm/common-cli-options-help@1000.0.1
+  - @pnpm/plugin-commands-rebuild@1002.0.13
+  - @pnpm/core@1008.0.1
+  - @pnpm/config.config-writer@1000.0.4
+  - @pnpm/cli-utils@1000.1.3
+  - @pnpm/config@1003.0.1
+  - @pnpm/deps.status@1002.1.1
+  - @pnpm/config.deps-installer@1000.0.3
+  - @pnpm/workspace.find-packages@1000.0.23
+  - @pnpm/store-connection-manager@1002.0.1
+  - @pnpm/workspace.state@1001.1.19
+  - @pnpm/filter-workspace-packages@1000.0.23
+  - @pnpm/outdated@1001.0.18
+  - @pnpm/package-store@1002.0.2
+
+## 1004.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+
+### Patch Changes
+
+- Updated dependencies [3cf337b]
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [5b73df1]
+- Updated dependencies [3cf337b]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/deps.status@1002.1.0
+  - @pnpm/config@1003.0.0
+  - @pnpm/parse-wanted-dependency@1001.0.0
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/core@1008.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/manifest-utils@1001.0.0
+  - @pnpm/store-connection-manager@1002.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/plugin-commands-env@1000.0.23
+  - @pnpm/plugin-commands-rebuild@1002.0.12
+  - @pnpm/workspace.state@1001.1.18
+  - @pnpm/config.deps-installer@1000.0.2
+  - @pnpm/package-store@1002.0.2
+  - @pnpm/pnpmfile@1001.1.2
+  - @pnpm/get-context@1001.0.13
+  - @pnpm/outdated@1001.0.17
+  - @pnpm/workspace.pkgs-graph@1000.0.13
+  - @pnpm/config.config-writer@1000.0.3
+  - @pnpm/pick-registry-for-package@1000.0.7
+  - @pnpm/dedupe.check@1001.0.7
+  - @pnpm/lockfile.types@1001.0.7
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.10
+  - @pnpm/write-project-manifest@1000.0.7
+  - @pnpm/filter-workspace-packages@1000.0.22
+  - @pnpm/workspace.find-packages@1000.0.22
+  - @pnpm/sort-packages@1000.0.7
+
+## 1003.0.1
+
+### Patch Changes
+
+- 4d95e93: If there is no pnpm related configuration in `package.json`, `onlyBuiltDependencies` will be written to `pnpm-workspace.yaml` file [#9404](https://github.com/pnpm/pnpm/pull/9404).
+- Updated dependencies [81f441c]
+- Updated dependencies [17b7e9f]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/config.config-writer@1000.0.2
+  - @pnpm/deps.status@1002.0.11
+  - @pnpm/core@1007.0.1
+  - @pnpm/get-context@1001.0.12
+  - @pnpm/outdated@1001.0.16
+  - @pnpm/package-store@1002.0.1
+  - @pnpm/config.deps-installer@1000.0.1
+  - @pnpm/workspace.pkgs-graph@1000.0.12
+  - @pnpm/cli-utils@1000.1.1
+  - @pnpm/pnpmfile@1001.1.1
+  - @pnpm/plugin-commands-rebuild@1002.0.11
+  - @pnpm/store-connection-manager@1001.0.1
+  - @pnpm/filter-workspace-packages@1000.0.21
+  - @pnpm/plugin-commands-env@1000.0.22
+  - @pnpm/workspace.find-packages@1000.0.21
+  - @pnpm/config@1002.7.2
+  - @pnpm/workspace.state@1001.1.17
+
+## 1003.0.0
+
+### Major Changes
+
+- 1413c25: **Experimental.** A new hook is supported for updating configuration settings. The hook can be provided via `.pnpmfile.cjs`. For example:
+
+  ```js
+  module.exports = {
+    hooks: {
+      updateConfig: (config) => ({
+        ...config,
+        nodeLinker: "hoisted",
+      }),
+    },
+  };
+  ```
+
+### Minor Changes
+
+- 750ae7d: Now you can use the `pnpm add` command with the `--config` flag to install new configurational dependencies [#9377](https://github.com/pnpm/pnpm/pull/9377).
+
+### Patch Changes
+
+- 8033854: `pnpm link` should update overrides in `pnpm-workspace.yaml`, not in `package.json` [#9365](https://github.com/pnpm/pnpm/pull/9365).
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [750ae7d]
+- Updated dependencies [1413c25]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/package-store@1002.0.0
+  - @pnpm/outdated@1001.0.15
+  - @pnpm/store-connection-manager@1001.0.0
+  - @pnpm/core@1007.0.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/config.deps-installer@1000.0.0
+  - @pnpm/pnpmfile@1001.1.0
+  - @pnpm/cli-utils@1000.1.0
+  - @pnpm/config.config-writer@1000.0.1
+  - @pnpm/pick-registry-for-package@1000.0.6
+  - @pnpm/dedupe.check@1001.0.6
+  - @pnpm/deps.status@1002.0.10
+  - @pnpm/plugin-commands-env@1000.0.21
+  - @pnpm/plugin-commands-rebuild@1002.0.10
+  - @pnpm/lockfile.types@1001.0.6
+  - @pnpm/get-context@1001.0.11
+  - @pnpm/manifest-utils@1000.0.8
+  - @pnpm/read-package-json@1000.0.7
+  - @pnpm/read-project-manifest@1000.0.9
+  - @pnpm/write-project-manifest@1000.0.6
+  - @pnpm/filter-workspace-packages@1000.0.20
+  - @pnpm/workspace.find-packages@1000.0.20
+  - @pnpm/workspace.pkgs-graph@1000.0.11
+  - @pnpm/sort-packages@1000.0.6
+  - @pnpm/workspace.state@1001.1.16
+
+## 1002.2.4
+
+### Patch Changes
+
+- Updated dependencies [e57f1df]
+- Updated dependencies [a54d3ad]
+  - @pnpm/config@1002.7.0
+  - @pnpm/package-store@1001.1.0
+  - @pnpm/core@1006.0.0
+  - @pnpm/cli-utils@1000.0.19
+  - @pnpm/deps.status@1002.0.9
+  - @pnpm/plugin-commands-env@1000.0.20
+  - @pnpm/plugin-commands-rebuild@1002.0.9
+  - @pnpm/store-connection-manager@1000.0.19
+  - @pnpm/workspace.state@1001.1.15
+  - @pnpm/workspace.find-packages@1000.0.19
+  - @pnpm/filter-workspace-packages@1000.0.19
+
+## 1002.2.3
+
+### Patch Changes
+
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [5f7be64]
+- Updated dependencies [a2903a0]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/core@1006.0.0
+  - @pnpm/plugin-commands-rebuild@1002.0.8
+  - @pnpm/types@1000.3.0
+  - @pnpm/cli-utils@1000.0.18
+  - @pnpm/deps.status@1002.0.8
+  - @pnpm/plugin-commands-env@1000.0.19
+  - @pnpm/store-connection-manager@1000.0.18
+  - @pnpm/workspace.state@1001.1.14
+  - @pnpm/lockfile.types@1001.0.5
+  - @pnpm/pick-registry-for-package@1000.0.5
+  - @pnpm/dedupe.check@1001.0.5
+  - @pnpm/pnpmfile@1001.0.9
+  - @pnpm/get-context@1001.0.10
+  - @pnpm/manifest-utils@1000.0.7
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/read-project-manifest@1000.0.8
+  - @pnpm/write-project-manifest@1000.0.5
+  - @pnpm/resolver-base@1000.2.1
+  - @pnpm/outdated@1001.0.14
+  - @pnpm/package-store@1001.0.2
+  - @pnpm/filter-workspace-packages@1000.0.18
+  - @pnpm/workspace.find-packages@1000.0.18
+  - @pnpm/workspace.pkgs-graph@1000.0.10
+  - @pnpm/sort-packages@1000.0.5
+
+## 1002.2.2
+
+### Patch Changes
+
+- Updated dependencies [36ff4bf]
+- Updated dependencies [936430a]
+- Updated dependencies [3d52365]
+  - @pnpm/core@1005.0.1
+  - @pnpm/config@1002.5.4
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/plugin-commands-rebuild@1002.0.7
+  - @pnpm/get-context@1001.0.9
+  - @pnpm/outdated@1001.0.13
+  - @pnpm/cli-utils@1000.0.17
+  - @pnpm/deps.status@1002.0.7
+  - @pnpm/plugin-commands-env@1000.0.18
+  - @pnpm/store-connection-manager@1000.0.17
+  - @pnpm/workspace.state@1001.1.13
+  - @pnpm/package-store@1001.0.1
+  - @pnpm/workspace.pkgs-graph@1000.0.9
+  - @pnpm/workspace.find-packages@1000.0.17
+  - @pnpm/pnpmfile@1001.0.8
+  - @pnpm/filter-workspace-packages@1000.0.17
+
+## 1002.2.1
+
+### Patch Changes
+
+- e5b7bf4: Fix `pnpm dlx` with `--allow-build` flag [#9263](https://github.com/pnpm/pnpm/issues/9263).
+- Updated dependencies [9904675]
+- Updated dependencies [aec8c50]
+  - @pnpm/workspace.state@1001.1.12
+  - @pnpm/plugin-commands-env@1000.0.17
+  - @pnpm/deps.status@1002.0.6
+  - @pnpm/plugin-commands-rebuild@1002.0.6
+  - @pnpm/core@1005.0.0
+  - @pnpm/package-store@1001.0.0
+  - @pnpm/store-connection-manager@1000.0.16
+  - @pnpm/outdated@1001.0.12
+
+## 1002.2.0
+
+### Minor Changes
+
+- cda1c43: The `install` function now accepts a `pruneLockfileImporters` option. This is used internally by pnpm to create a more accurate filtered lockfile.
+
+### Patch Changes
+
+- b4efd0e: Removed a branching code path that only executed when `dedupe-peer-dependents=false`. We believe this internal refactor will not result in behavior changes, but we expect it to make future pnpm versions behave more consistently for projects that override `dedupe-peer-dependents` to false. There should be less unique bugs from turning off `dedupe-peer-dependents`.
+
+  See details in [#9259](https://github.com/pnpm/pnpm/pull/9259).
+
+- Updated dependencies [6e4459c]
+  - @pnpm/config@1002.5.3
+  - @pnpm/cli-utils@1000.0.16
+  - @pnpm/deps.status@1002.0.5
+  - @pnpm/plugin-commands-env@1000.0.16
+  - @pnpm/plugin-commands-rebuild@1002.0.5
+  - @pnpm/store-connection-manager@1000.0.15
+  - @pnpm/workspace.state@1001.1.11
+  - @pnpm/workspace.find-packages@1000.0.16
+  - @pnpm/filter-workspace-packages@1000.0.16
+
+## 1002.1.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.15
+- @pnpm/plugin-commands-env@1000.0.15
+- @pnpm/plugin-commands-rebuild@1002.0.4
+- @pnpm/workspace.find-packages@1000.0.15
+- @pnpm/pnpmfile@1001.0.7
+- @pnpm/core@1004.0.3
+- @pnpm/package-store@1000.0.8
+- @pnpm/deps.status@1002.0.4
+- @pnpm/filter-workspace-packages@1000.0.15
+- @pnpm/config@1002.5.2
+- @pnpm/outdated@1001.0.11
+- @pnpm/workspace.pkgs-graph@1000.0.8
+- @pnpm/store-connection-manager@1000.0.14
+- @pnpm/workspace.state@1001.1.10
+- @pnpm/get-context@1001.0.8
+
+## 1002.1.1
+
+### Patch Changes
+
+- Updated dependencies [c3aa4d8]
+  - @pnpm/config@1002.5.1
+  - @pnpm/cli-utils@1000.0.14
+  - @pnpm/deps.status@1002.0.3
+  - @pnpm/plugin-commands-env@1000.0.14
+  - @pnpm/plugin-commands-rebuild@1002.0.3
+  - @pnpm/store-connection-manager@1000.0.13
+  - @pnpm/workspace.state@1001.1.9
+  - @pnpm/outdated@1001.0.10
+  - @pnpm/workspace.pkgs-graph@1000.0.7
+  - @pnpm/workspace.find-packages@1000.0.14
+  - @pnpm/core@1004.0.2
+  - @pnpm/filter-workspace-packages@1000.0.14
+  - @pnpm/package-store@1000.0.7
+
+## 1002.1.0
+
+### Minor Changes
+
+- d965748: `pnpm-workspace.yaml` can now hold all the settings that `.npmrc` accepts. The settings should use camelCase [#9211](https://github.com/pnpm/pnpm/pull/9211).
+
+  `pnpm-workspace.yaml` example:
+
+  ```yaml
+  verifyDepsBeforeRun: install
+  optimisticRepeatInstall: true
+  publicHoistPattern:
+    - "*types*"
+    - "!@types/react"
+  ```
+
+### Patch Changes
+
+- 6a59366: `pnpm self-update` should not read the pnpm settings from the `package.json` file in the current working directory.
+- d9d7607: `pnpm update -i` should list only packages that have newer versions [#9206](https://github.com/pnpm/pnpm/issues/9206).
+- e4eeafd: Fix a bug causing entries in the `catalogs` section of the `pnpm-lock.yaml` file to be removed when `dedupe-peer-dependents=false` on a filtered install. [#9112](https://github.com/pnpm/pnpm/issues/9112)
+- Updated dependencies [a5e4965]
+- Updated dependencies [d965748]
+- Updated dependencies [e4eeafd]
+  - @pnpm/types@1000.2.1
+  - @pnpm/config@1002.5.0
+  - @pnpm/core@1004.0.1
+  - @pnpm/workspace.find-packages@1000.0.13
+  - @pnpm/pnpmfile@1001.0.6
+  - @pnpm/deps.status@1002.0.2
+  - @pnpm/cli-utils@1000.0.13
+  - @pnpm/pick-registry-for-package@1000.0.4
+  - @pnpm/dedupe.check@1001.0.4
+  - @pnpm/plugin-commands-env@1000.0.13
+  - @pnpm/plugin-commands-rebuild@1002.0.2
+  - @pnpm/lockfile.types@1001.0.4
+  - @pnpm/get-context@1001.0.7
+  - @pnpm/manifest-utils@1000.0.6
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.7
+  - @pnpm/write-project-manifest@1000.0.4
+  - @pnpm/resolver-base@1000.1.4
+  - @pnpm/outdated@1001.0.9
+  - @pnpm/package-store@1000.0.7
+  - @pnpm/filter-workspace-packages@1000.0.13
+  - @pnpm/workspace.pkgs-graph@1000.0.6
+  - @pnpm/sort-packages@1000.0.4
+  - @pnpm/workspace.state@1001.1.8
+  - @pnpm/store-connection-manager@1000.0.12
+
+## 1002.0.1
+
+### Patch Changes
+
+- 76973d8: Normalize generated link paths in `package.json` [#9163](https://github.com/pnpm/pnpm/pull/9163)
+- Updated dependencies [69f922a]
+- Updated dependencies [1c2eb8c]
+  - @pnpm/find-workspace-dir@1000.1.0
+  - @pnpm/config@1002.4.1
+  - @pnpm/cli-utils@1000.0.12
+  - @pnpm/deps.status@1002.0.1
+  - @pnpm/plugin-commands-env@1000.0.12
+  - @pnpm/plugin-commands-rebuild@1002.0.1
+  - @pnpm/store-connection-manager@1000.0.11
+  - @pnpm/workspace.state@1001.1.7
+  - @pnpm/workspace.find-packages@1000.0.12
+  - @pnpm/filter-workspace-packages@1000.0.12
+
+## 1002.0.0
+
+### Major Changes
+
+- 8fcc221: Read `onlyBuiltDependencies` and `ignoredBuiltDependencies` from options.
+
+### Patch Changes
+
+- 5296961: `pnpm link <path>` should calculate relative path from the root of the workspace directory [#9132](https://github.com/pnpm/pnpm/pull/9132).
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [8fcc221]
+- Updated dependencies [41dada4]
+- Updated dependencies [8fcc221]
+- Updated dependencies [2d16f7a]
+  - @pnpm/config@1002.4.0
+  - @pnpm/plugin-commands-rebuild@1002.0.0
+  - @pnpm/core@1004.0.0
+  - @pnpm/types@1000.2.0
+  - @pnpm/deps.status@1002.0.0
+  - @pnpm/cli-utils@1000.0.11
+  - @pnpm/plugin-commands-env@1000.0.11
+  - @pnpm/store-connection-manager@1000.0.10
+  - @pnpm/workspace.state@1001.1.6
+  - @pnpm/pick-registry-for-package@1000.0.3
+  - @pnpm/dedupe.check@1001.0.3
+  - @pnpm/pnpmfile@1001.0.5
+  - @pnpm/lockfile.types@1001.0.3
+  - @pnpm/get-context@1001.0.6
+  - @pnpm/manifest-utils@1000.0.5
+  - @pnpm/read-package-json@1000.0.4
+  - @pnpm/read-project-manifest@1000.0.6
+  - @pnpm/write-project-manifest@1000.0.3
+  - @pnpm/resolver-base@1000.1.3
+  - @pnpm/outdated@1001.0.8
+  - @pnpm/package-store@1000.0.6
+  - @pnpm/filter-workspace-packages@1000.0.11
+  - @pnpm/workspace.find-packages@1000.0.11
+  - @pnpm/workspace.pkgs-graph@1000.0.5
+  - @pnpm/sort-packages@1000.0.3
+
+## 1001.5.1
+
+### Patch Changes
+
+- 546ab37: Throws an error when the value provided by the `--allow-build` option overlaps with the `pnpm.ignoredBuildDependencies` list [#9105](https://github.com/pnpm/pnpm/pull/9105).
+- Updated dependencies [fee898f]
+  - @pnpm/config@1002.3.1
+  - @pnpm/cli-utils@1000.0.10
+  - @pnpm/deps.status@1001.2.2
+  - @pnpm/plugin-commands-env@1000.0.10
+  - @pnpm/plugin-commands-rebuild@1001.1.8
+  - @pnpm/store-connection-manager@1000.0.9
+  - @pnpm/workspace.state@1001.1.5
+  - @pnpm/core@1003.0.2
+  - @pnpm/workspace.find-packages@1000.0.10
+  - @pnpm/get-context@1001.0.5
+  - @pnpm/outdated@1001.0.7
+  - @pnpm/filter-workspace-packages@1000.0.10
+
+## 1001.5.0
+
+### Minor Changes
+
+- 91d46ee: The `pnpm add` command now supports a new flag, `--allow-build`, which allows building the specified dependencies. For instance, if you want to install a package called `bundle` that has `esbuild` as a dependency and want to allow `esbuild` to run postinstall scripts, you can run:
+
+  ```
+  pnpm --allow-build=esbuild add bundle
+  ```
+
+  This will run `esbuild`'s postinstall script and also add it to the `pnpm.onlyBuiltDependencies` field of `package.json`. So, `esbuild` will always be allowed to run its scripts in the future.
+
+  Related PR: [#9086](https://github.com/pnpm/pnpm/pull/9086).
+
+### Patch Changes
+
+- @pnpm/core@1003.0.1
+- @pnpm/cli-utils@1000.0.9
+- @pnpm/plugin-commands-env@1000.0.9
+- @pnpm/plugin-commands-rebuild@1001.1.7
+- @pnpm/workspace.find-packages@1000.0.9
+- @pnpm/deps.status@1001.2.1
+- @pnpm/filter-workspace-packages@1000.0.9
+
+## 1001.4.0
+
+### Minor Changes
+
+- f6006f2: Added a new setting called `strict-dep-builds`. When enabled, the installation will exit with a non-zero exit code if any dependencies have unreviewed build scripts (aka postinstall scripts) [#9071](https://github.com/pnpm/pnpm/pull/9071).
+
+### Patch Changes
+
+- Updated dependencies [f6006f2]
+- Updated dependencies [265946b]
+- Updated dependencies [f6006f2]
+- Updated dependencies [3717340]
+  - @pnpm/core@1003.0.0
+  - @pnpm/deps.status@1001.2.0
+  - @pnpm/config@1002.3.0
+  - @pnpm/cli-utils@1000.0.8
+  - @pnpm/plugin-commands-env@1000.0.8
+  - @pnpm/plugin-commands-rebuild@1001.1.6
+  - @pnpm/store-connection-manager@1000.0.8
+  - @pnpm/workspace.state@1001.1.4
+  - @pnpm/workspace.find-packages@1000.0.8
+  - @pnpm/filter-workspace-packages@1000.0.8
+
+## 1001.3.2
+
+### Patch Changes
+
+- Updated dependencies [9843aed]
+  - @pnpm/core@1002.0.4
+
+## 1001.3.1
+
+### Patch Changes
+
+- Updated dependencies [1e229d7]
+- Updated dependencies [e8c2b17]
+  - @pnpm/read-project-manifest@1000.0.5
+  - @pnpm/core@1002.0.3
+  - @pnpm/plugin-commands-rebuild@1001.1.5
+  - @pnpm/cli-utils@1000.0.7
+  - @pnpm/config@1002.2.1
+  - @pnpm/outdated@1001.0.6
+  - @pnpm/plugin-commands-env@1000.0.7
+  - @pnpm/workspace.find-packages@1000.0.7
+  - @pnpm/deps.status@1001.1.3
+  - @pnpm/store-connection-manager@1000.0.7
+  - @pnpm/workspace.state@1001.1.3
+  - @pnpm/filter-workspace-packages@1000.0.7
+  - @pnpm/package-store@1000.0.5
+
+## 1001.3.0
+
+### Minor Changes
+
+- f3ffaed: Added a new setting called `optimistic-repeat-install`. When enabled, a fast check will be performed before proceeding to installation. This way a repeat install or an install on a project with everything up-to-date becomes a lot faster. But some edge cases might arise, so we keep it disabled by default for now [#8977](https://github.com/pnpm/pnpm/pull/8977).
+
+### Patch Changes
+
+- Updated dependencies [2b49ee7]
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+- Updated dependencies [5c8654f]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/core@1002.0.2
+  - @pnpm/constants@1001.1.0
+  - @pnpm/workspace.find-packages@1000.0.6
+  - @pnpm/types@1000.1.1
+  - @pnpm/deps.status@1001.1.2
+  - @pnpm/config@1002.2.0
+  - @pnpm/plugin-commands-rebuild@1001.1.4
+  - @pnpm/error@1000.0.2
+  - @pnpm/get-context@1001.0.4
+  - @pnpm/outdated@1001.0.5
+  - @pnpm/filter-workspace-packages@1000.0.6
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/pick-registry-for-package@1000.0.2
+  - @pnpm/dedupe.check@1001.0.2
+  - @pnpm/plugin-commands-env@1000.0.6
+  - @pnpm/pnpmfile@1001.0.4
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/manifest-utils@1000.0.4
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/write-project-manifest@1000.0.2
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/package-store@1000.0.5
+  - @pnpm/workspace.pkgs-graph@1000.0.4
+  - @pnpm/sort-packages@1000.0.2
+  - @pnpm/workspace.state@1001.1.2
+  - @pnpm/store-connection-manager@1000.0.6
+  - @pnpm/find-workspace-dir@1000.0.2
+
+## 1001.2.1
+
+### Patch Changes
+
+- e050221: `pnpm link` should keep the indentation in the `package.json` file that it updates.
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/core@1002.0.1
+  - @pnpm/cli-utils@1000.0.5
+  - @pnpm/config@1002.1.2
+  - @pnpm/package-store@1000.0.4
+  - @pnpm/plugin-commands-rebuild@1001.1.3
+  - @pnpm/pnpmfile@1001.0.3
+  - @pnpm/plugin-commands-env@1000.0.5
+  - @pnpm/workspace.find-packages@1000.0.5
+  - @pnpm/deps.status@1001.1.1
+  - @pnpm/store-connection-manager@1000.0.5
+  - @pnpm/workspace.state@1001.1.1
+  - @pnpm/filter-workspace-packages@1000.0.5
+  - @pnpm/outdated@1001.0.4
+
+## 1001.2.0
+
+### Minor Changes
+
+- 9591a18: Added support for a new type of dependencies called "configurational dependencies". These dependencies are installed before all the other types of dependencies (before "dependencies", "devDependencies", "optionalDependencies").
+
+  Configurational dependencies cannot have dependencies of their own or lifecycle scripts. They should be added using exact version and the integrity checksum. Example:
+
+  ```json
+  {
+    "pnpm": {
+      "configDependencies": {
+        "my-configs": "1.0.0+sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw=="
+      }
+    }
+  }
+  ```
+
+  Related RFC: [#8](https://github.com/pnpm/rfcs/pull/8).
+  Related PR: [#8915](https://github.com/pnpm/pnpm/pull/8915).
+
+### Patch Changes
+
+- c7eefdd: `pnpm update --filter <pattern> --latest <pkg>` should only change the specified package for the specified workspace, when `dedupe-peer-dependents` is set to `true` [#8877](https://github.com/pnpm/pnpm/issues/8877).
+- Updated dependencies [9591a18]
+- Updated dependencies [c7eefdd]
+- Updated dependencies [1f5169f]
+  - @pnpm/workspace.state@1001.1.0
+  - @pnpm/types@1000.1.0
+  - @pnpm/deps.status@1001.1.0
+  - @pnpm/core@1002.0.0
+  - @pnpm/config@1002.1.1
+  - @pnpm/cli-utils@1000.0.4
+  - @pnpm/pick-registry-for-package@1000.0.1
+  - @pnpm/dedupe.check@1001.0.1
+  - @pnpm/plugin-commands-env@1000.0.4
+  - @pnpm/plugin-commands-rebuild@1001.1.2
+  - @pnpm/pnpmfile@1001.0.2
+  - @pnpm/lockfile.types@1001.0.1
+  - @pnpm/get-context@1001.0.3
+  - @pnpm/manifest-utils@1000.0.3
+  - @pnpm/read-package-json@1000.0.2
+  - @pnpm/read-project-manifest@1000.0.2
+  - @pnpm/write-project-manifest@1000.0.1
+  - @pnpm/resolver-base@1000.1.1
+  - @pnpm/outdated@1001.0.3
+  - @pnpm/package-store@1000.0.3
+  - @pnpm/filter-workspace-packages@1000.0.4
+  - @pnpm/workspace.find-packages@1000.0.4
+  - @pnpm/workspace.pkgs-graph@1000.0.3
+  - @pnpm/sort-packages@1000.0.1
+  - @pnpm/store-connection-manager@1000.0.4
+
 ## 1001.1.0
 
 ### Minor Changes

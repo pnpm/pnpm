@@ -3,7 +3,7 @@ import fs from 'fs'
 import { prepare } from '@pnpm/prepare'
 import { getToolDirPath } from '@pnpm/tools.path'
 import { sync as writeJsonFile } from 'write-json-file'
-import { execPnpmSync } from './utils'
+import { execPnpmSync } from './utils/index.js'
 import isWindows from 'is-windows'
 
 test('switch to the pnpm version specified in the packageManager field of package.json', async () => {
@@ -44,6 +44,19 @@ test('do not switch to pnpm version that is specified not with a semver version'
   const { stdout } = execPnpmSync(['help'], { env })
 
   expect(stdout.toString()).toContain('Cannot switch to pnpm@kevva/is-positive')
+})
+
+test('do not switch to pnpm version that is specified starting with v', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFile('package.json', {
+    packageManager: 'pnpm@v9.15.5',
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+
+  expect(stdout.toString()).toContain('Cannot switch to pnpm@v9.15.5: you need to specify the version as "9.15.5"')
 })
 
 test('do not switch to pnpm version when a range is specified', async () => {

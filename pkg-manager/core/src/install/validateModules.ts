@@ -14,7 +14,7 @@ import {
 import rimraf from '@zkochan/rimraf'
 import enquirer from 'enquirer'
 import equals from 'ramda/src/equals'
-import { checkCompatibility } from './checkCompatibility'
+import { checkCompatibility } from './checkCompatibility/index.js'
 
 interface ImporterToPurge {
   modulesDir: string
@@ -182,7 +182,7 @@ async function removeContentsOfDir (dir: string, virtualStoreDir: string): Promi
   await Promise.all(items.map(async (item) => {
     // The non-pnpm related hidden files are kept
     if (
-      item.startsWith('.') &&
+      item[0] === '.' &&
       item !== '.bin' &&
       item !== '.modules.yaml' &&
       !dirsAreEqual(path.join(dir, item), virtualStoreDir)

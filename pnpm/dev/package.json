@@ -1,6 +1,6 @@
 {
   "name": "pd",
-  "version": "1.0.5",
+  "version": "1000.0.2",
   "bin": "pd.js",
   "private": true,
   "scripts": {
@@ -9,11 +9,15 @@
   },
   "dependencies": {
     "@pnpm/find-workspace-dir": "workspace:*",
-    "@pnpm/workspace.read-manifest": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
+    "@pnpm/workspace.read-manifest": "workspace:*",
     "esbuild": "catalog:"
   },
   "devDependencies": {
     "pd": "workspace:*"
-  }
+  },
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ]
 }

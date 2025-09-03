@@ -13,22 +13,22 @@ import comverToSemver from 'comver-to-semver'
 import yaml from 'js-yaml'
 import semver from 'semver'
 import stripBom from 'strip-bom'
-import { LockfileBreakingChangeError } from './errors'
-import { autofixMergeConflicts, isDiff } from './gitMergeFile'
-import { lockfileLogger as logger } from './logger'
-import { getWantedLockfileName } from './lockfileName'
-import { getGitBranchLockfileNames } from './gitBranchLockfile'
-import { convertToLockfileObject } from './lockfileFormatConverters'
+import { LockfileBreakingChangeError } from './errors/index.js'
+import { autofixMergeConflicts, isDiff } from './gitMergeFile.js'
+import { lockfileLogger as logger } from './logger.js'
+import { getWantedLockfileName } from './lockfileName.js'
+import { getGitBranchLockfileNames } from './gitBranchLockfile.js'
+import { convertToLockfileObject } from './lockfileFormatConverters.js'
 
 export async function readCurrentLockfile (
-  virtualStoreDir: string,
+  pnpmInternalDir: string,
   opts: {
     wantedVersions?: string[]
     ignoreIncompatible: boolean
   }
 ): Promise<LockfileObject | null> {
-  const lockfilePath = path.join(virtualStoreDir, 'lock.yaml')
-  return (await _read(lockfilePath, virtualStoreDir, opts)).lockfile
+  const lockfilePath = path.join(pnpmInternalDir, 'lock.yaml')
+  return (await _read(lockfilePath, pnpmInternalDir, opts)).lockfile
 }
 
 export async function readWantedLockfileAndAutofixConflicts (

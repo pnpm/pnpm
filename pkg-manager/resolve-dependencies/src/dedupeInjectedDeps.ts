@@ -1,15 +1,15 @@
 import path from 'path'
 import normalize from 'normalize-path'
 import { type PkgResolutionId, type DepPath } from '@pnpm/types'
-import { type ResolvedDirectDependency, type ResolvedImporters } from './resolveDependencyTree'
-import { type NodeId } from './nextNodeId'
-import { type LinkedDependency } from './resolveDependencies'
+import { type ResolvedDirectDependency, type ResolvedImporters } from './resolveDependencyTree.js'
+import { type NodeId } from './nextNodeId.js'
+import { type LinkedDependency } from './resolveDependencies.js'
 import {
   type GenericDependenciesGraphWithResolvedChildren,
   type DependenciesByProjectId,
   type PartialResolvedPackage,
   type ProjectToResolve,
-} from './resolvePeers'
+} from './resolvePeers.js'
 
 export interface DedupeInjectedDepsOptions<T extends PartialResolvedPackage> {
   depGraph: GenericDependenciesGraphWithResolvedChildren<T>
@@ -82,6 +82,7 @@ function applyDedupeMap<T extends PartialResolvedPackage> (
       const prev = opts.resolvedImporters[id].directDependencies[index]
       const linkedDep: LinkedDependency & ResolvedDirectDependency = {
         ...prev,
+        pkg: prev,
         isLinkedDependency: true,
         pkgId: `link:${normalize(path.relative(id, dedupedProjectId))}` as PkgResolutionId,
         resolution: {

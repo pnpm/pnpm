@@ -1,20 +1,20 @@
 import { promises as fs, type Stats } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { type ProjectManifest } from '@pnpm/types'
+import { globalWarn } from '@pnpm/logger'
+import { type ProjectManifest, type DevEngineDependency } from '@pnpm/types'
 import { extractComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import readYamlFile from 'read-yaml-file'
 import detectIndent from '@gwhitney/detect-indent'
 import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
-import cloneDeep from 'lodash.clonedeep'
 import {
   readJson5File,
   readJsonFile,
-} from './readFile'
+} from './readFile.js'
 
-type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Promise<void>
+export type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Promise<void>
 
 export async function safeReadProjectManifestOnly (projectDir: string): Promise<ProjectManifest | null> {
   try {
@@ -59,7 +59,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     const { data, text } = await readJsonFile(manifestPath)
     return {
       fileName: 'package.json',
-      manifest: data,
+      manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormatting(text),
         initialManifest: data,
@@ -74,7 +74,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     const { data, text } = await readJson5File(manifestPath)
     return {
       fileName: 'package.json5',
-      manifest: data,
+      manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormattingAndComments(text),
         initialManifest: data,
@@ -89,7 +89,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     const manifest = await readPackageYaml(manifestPath)
     return {
       fileName: 'package.yaml',
-      manifest,
+      manifest: convertManifestAfterRead(manifest),
       writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
     }
   } catch (err: any) { // eslint-disable-line
@@ -156,7 +156,7 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
   case 'package.json': {
     const { data, text } = await readJsonFile(manifestPath)
     return {
-      manifest: data,
+      manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormatting(text),
         initialManifest: data,
@@ -167,7 +167,7 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
   case 'package.json5': {
     const { data, text } = await readJson5File(manifestPath)
     return {
-      manifest: data,
+      manifest: convertManifestAfterRead(data),
       writeProjectManifest: createManifestWriter({
         ...detectFileFormattingAndComments(text),
         initialManifest: data,
@@ -178,7 +178,7 @@ export async function readExactProjectManifest (manifestPath: string): Promise<R
   case 'package.yaml': {
     const manifest = await readPackageYaml(manifestPath)
     return {
-      manifest,
+      manifest: convertManifestAfterRead(manifest),
       writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
     }
   }
@@ -208,7 +208,7 @@ function createManifestWriter (
 ): WriteProjectManifest {
   let initialManifest = normalize(opts.initialManifest)
   return async (updatedManifest: ProjectManifest, force?: boolean) => {
-    updatedManifest = normalize(updatedManifest)
+    updatedManifest = convertManifestBeforeWrite(normalize(updatedManifest))
     if (force === true || !equal(initialManifest, updatedManifest)) {
       await writeProjectManifest(opts.manifestPath, updatedManifest, {
         comments: opts.comments,
@@ -222,6 +222,62 @@ function createManifestWriter (
   }
 }
 
+function convertManifestAfterRead (manifest: ProjectManifest): ProjectManifest {
+  for (const runtimeName of ['node', 'deno', 'bun']) {
+    if (manifest.devEngines?.runtime && !manifest.devDependencies?.[runtimeName]) {
+      const runtimes = Array.isArray(manifest.devEngines.runtime) ? manifest.devEngines.runtime : [manifest.devEngines.runtime]
+      const runtime = runtimes.find((runtime) => runtime.name === runtimeName)
+      if (runtime && runtime.onFail === 'download') {
+        if ('webcontainer' in process.versions) {
+          globalWarn(`Installation of ${runtimeName} versions is not supported in WebContainer`)
+        } else {
+          manifest.devDependencies ??= {}
+          manifest.devDependencies[runtimeName] = `runtime:${runtime.version}`
+        }
+      }
+    }
+  }
+  return manifest
+}
+
+function convertManifestBeforeWrite (manifest: ProjectManifest): ProjectManifest {
+  for (const runtimeName of ['node', 'deno', 'bun']) {
+    const nodeDep = manifest.devDependencies?.[runtimeName]
+    if (typeof nodeDep === 'string' && nodeDep.startsWith('runtime:')) {
+      const version = nodeDep.replace(/^runtime:/, '')
+      manifest.devEngines ??= {}
+
+      const nodeRuntimeEntry: DevEngineDependency = {
+        name: runtimeName,
+        version,
+        onFail: 'download',
+      }
+
+      if (!manifest.devEngines.runtime) {
+        manifest.devEngines.runtime = nodeRuntimeEntry
+      } else if (Array.isArray(manifest.devEngines.runtime)) {
+        const existing = manifest.devEngines.runtime.find(({ name }) => name === runtimeName)
+        if (existing) {
+          Object.assign(existing, nodeRuntimeEntry)
+        } else {
+          manifest.devEngines.runtime.push(nodeRuntimeEntry)
+        }
+      } else if (manifest.devEngines.runtime.name === runtimeName) {
+        Object.assign(manifest.devEngines.runtime, nodeRuntimeEntry)
+      } else {
+        manifest.devEngines.runtime = [
+          manifest.devEngines.runtime,
+          nodeRuntimeEntry,
+        ]
+      }
+      if (manifest.devDependencies) {
+        delete manifest.devDependencies[runtimeName]
+      }
+    }
+  }
+  return manifest
+}
+
 const dependencyKeys = new Set([
   'dependencies',
   'devDependencies',
@@ -232,10 +288,10 @@ const dependencyKeys = new Set([
 function normalize (manifest: ProjectManifest): ProjectManifest {
   const result: Record<string, unknown> = {}
   for (const key in manifest) {
-    if (Object.prototype.hasOwnProperty.call(manifest, key)) {
+    if (Object.hasOwn(manifest, key)) {
       const value = manifest[key as keyof ProjectManifest]
       if (typeof value !== 'object' || !dependencyKeys.has(key)) {
-        result[key] = cloneDeep(value)
+        result[key] = structuredClone(value)
       } else {
         const keys = Object.keys(value)
         if (keys.length !== 0) {

@@ -1,5 +1,243 @@
 # @pnpm/find-workspace-packages
 
+## 1000.0.34
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.1.2
+
+## 1000.0.33
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.1.1
+
+## 1000.0.32
+
+### Patch Changes
+
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+
+## 1000.0.31
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/cli-utils@1001.0.3
+  - @pnpm/fs.find-packages@1000.0.13
+
+## 1000.0.30
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/fs.find-packages@1000.0.12
+
+## 1000.0.29
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+
+## 1000.0.28
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/cli-utils@1001.0.0
+
+## 1000.0.27
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.1.7
+
+## 1000.0.26
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.1.6
+
+## 1000.0.25
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.1.5
+
+## 1000.0.24
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- c00360b: Update `@pnpm/util.lex-comparator` to v3.0.2.
+- Updated dependencies [09cf46f]
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/fs.find-packages@1000.0.11
+  - @pnpm/types@1000.6.0
+
+## 1000.0.23
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.1.3
+
+## 1000.0.22
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/fs.find-packages@1000.0.10
+
+## 1000.0.21
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.1.1
+
+## 1000.0.20
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [c85aaf8]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/fs.find-packages@1000.0.9
+  - @pnpm/cli-utils@1000.1.0
+
+## 1000.0.19
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.19
+
+## 1000.0.18
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/cli-utils@1000.0.18
+  - @pnpm/fs.find-packages@1000.0.8
+
+## 1000.0.17
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.17
+
+## 1000.0.16
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.16
+
+## 1000.0.15
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.15
+
+## 1000.0.14
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.14
+
+## 1000.0.13
+
+### Patch Changes
+
+- Updated dependencies [b8b0c68]
+- Updated dependencies [a5e4965]
+  - @pnpm/fs.find-packages@1000.0.7
+  - @pnpm/types@1000.2.1
+  - @pnpm/cli-utils@1000.0.13
+
+## 1000.0.12
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.12
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/cli-utils@1000.0.11
+  - @pnpm/fs.find-packages@1000.0.6
+
+## 1000.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.10
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.9
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.8
+
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.7
+- @pnpm/fs.find-packages@1000.0.5
+
+## 1000.0.6
+
+### Patch Changes
+
+- 9a44e6c: `pnpm deploy` should inherit the `pnpm` object from the root `package.json` [#8991](https://github.com/pnpm/pnpm/pull/8991).
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/fs.find-packages@1000.0.4
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.5
+- @pnpm/fs.find-packages@1000.0.3
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/cli-utils@1000.0.4
+  - @pnpm/fs.find-packages@1000.0.2
+
 ## 1000.0.3
 
 ### Patch Changes

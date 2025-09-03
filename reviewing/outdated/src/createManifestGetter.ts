@@ -3,14 +3,12 @@ import {
   createResolver,
   type ResolveFunction,
 } from '@pnpm/client'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { type DependencyManifest, type Registries } from '@pnpm/types'
+import { type DependencyManifest } from '@pnpm/types'
 
 interface GetManifestOpts {
   dir: string
   lockfileDir: string
   rawConfig: object
-  registries: Registries
 }
 
 export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig'>
@@ -19,7 +17,7 @@ export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig'>
 
 export function createManifestGetter (
   opts: ManifestGetterOptions
-): (packageName: string, pref: string) => Promise<DependencyManifest | null> {
+): (packageName: string, bareSpecifier: string) => Promise<DependencyManifest | null> {
   const { resolve } = createResolver({ ...opts, authConfig: opts.rawConfig })
   return getManifest.bind(null, resolve, opts)
 }
@@ -28,13 +26,12 @@ export async function getManifest (
   resolve: ResolveFunction,
   opts: GetManifestOpts,
   packageName: string,
-  pref: string
+  bareSpecifier: string
 ): Promise<DependencyManifest | null> {
-  const resolution = await resolve({ alias: packageName, pref }, {
+  const resolution = await resolve({ alias: packageName, bareSpecifier }, {
     lockfileDir: opts.lockfileDir,
     preferredVersions: {},
     projectDir: opts.dir,
-    registry: pickRegistryForPackage(opts.registries, packageName, pref),
   })
   return resolution?.manifest ?? null
 }

@@ -28,9 +28,9 @@ import {
   type TarballExtractMessage,
   type HardLinkDirMessage,
   type InitStoreMessage,
-} from './types'
+} from './types.js'
 
-const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
+const INTEGRITY_REGEX: RegExp = /^([^-]+)-([a-z0-9+/=]+)$/i
 
 parentPort!.on('message', handleMessage)
 

@@ -2,7 +2,7 @@ import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag, getIntegrity } from '@pnpm/registry-mock'
 import { addDependenciesToPackage } from '@pnpm/core'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('installing aliased dependency', async () => {
   const project = prepareEmpty()
@@ -121,7 +121,7 @@ test('a dependency has an aliased subdependency', async () => {
 
 test('installing the same package via an alias and directly', async () => {
   const project = prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['negative@npm:is-negative@^1.0.1', 'is-negative@^1.0.1'], testDefaults({ fastUnpack: false }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['negative@npm:is-negative@^1.0.1', 'is-negative@^1.0.1'], testDefaults({ fastUnpack: false }))
 
   expect(manifest.dependencies).toStrictEqual({ negative: 'npm:is-negative@^1.0.1', 'is-negative': '^1.0.1' })
 

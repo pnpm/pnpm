@@ -1,5 +1,11 @@
 # @pnpm/fetching-types
 
+## 1000.2.0
+
+### Minor Changes
+
+- 1ba2e15: Export type Response.
+
 ## 1000.1.0
 
 ### Minor Changes

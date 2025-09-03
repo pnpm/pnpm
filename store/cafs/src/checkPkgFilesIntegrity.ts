@@ -5,8 +5,8 @@ import gfs from '@pnpm/graceful-fs'
 import { type DependencyManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import ssri from 'ssri'
-import { getFilePathByModeInCafs } from './getFilePathInCafs'
-import { parseJsonBufferSync } from './parseJson'
+import { getFilePathByModeInCafs } from './getFilePathInCafs.js'
+import { parseJsonBufferSync } from './parseJson.js'
 
 // We track how many files were checked during installation.
 // It should be rare that a files content should be checked.

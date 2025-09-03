@@ -16,16 +16,25 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../cli/cli-meta"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {
       "path": "../../config/config"
     },
     {
+      "path": "../../object/key-sorting"
+    },
+    {
       "path": "../../pkg-manifest/write-project-manifest"
     },
     {
       "path": "../error"
+    },
+    {
+      "path": "../types"
     }
   ]
 }

@@ -4,7 +4,7 @@ import { type PkgResolutionId } from '@pnpm/types'
 
 export interface NameVer {
   name: string
-  peersSuffix: string | undefined
+  peerDepGraphHash: string | undefined
   version: string
   nonSemverVersion?: PkgResolutionId
 }
@@ -16,8 +16,8 @@ export function nameVerFromPkgSnapshot (
   const pkgInfo = dp.parse(depPath)
   return {
     name: pkgInfo.name as string,
-    peersSuffix: pkgInfo.peersSuffix,
-    version: pkgSnapshot.version ?? pkgInfo.version as string,
+    peerDepGraphHash: pkgInfo.peerDepGraphHash,
+    version: pkgSnapshot.version ?? pkgInfo.version as string ?? undefined,
     nonSemverVersion: pkgInfo.nonSemverVersion,
   }
 }

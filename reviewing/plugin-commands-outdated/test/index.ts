@@ -7,7 +7,7 @@ import { outdated } from '@pnpm/plugin-commands-outdated'
 import { prepare, tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import stripAnsi from 'strip-ansi'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 
 const f = fixtures(__dirname)
 const hasOutdatedDepsFixture = f.find('has-outdated-deps')
@@ -377,6 +377,11 @@ test('ignore packages in package.json > pnpm.updateConfig.ignoreDependencies in 
   const { output, exitCode } = await outdated.handler({
     ...OUTDATED_OPTIONS,
     dir: withPnpmUpdateIgnore,
+    updateConfig: {
+      ignoreDependencies: [
+        'is-positive',
+      ],
+    },
   })
 
   expect(exitCode).toBe(1)

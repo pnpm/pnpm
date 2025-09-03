@@ -1,5 +1,183 @@
 # @pnpm/tarball-fetcher
 
+## 1001.0.13
+
+### Patch Changes
+
+- @pnpm/prepare-package@1000.0.21
+
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+  - @pnpm/fetcher-base@1001.0.0
+  - @pnpm/error@1000.0.4
+  - @pnpm/prepare-package@1000.0.20
+  - @pnpm/worker@1000.1.11
+
+## 1001.0.11
+
+### Patch Changes
+
+- Updated dependencies [1ba2e15]
+- Updated dependencies [1a07b8f]
+  - @pnpm/fetching-types@1000.2.0
+  - @pnpm/fetcher-base@1000.1.0
+  - @pnpm/prepare-package@1000.0.19
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/worker@1000.1.10
+  - @pnpm/error@1000.0.3
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [589ac1f]
+  - @pnpm/worker@1000.1.9
+  - @pnpm/prepare-package@1000.0.18
+
+## 1001.0.9
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.12
+- @pnpm/prepare-package@1000.0.17
+- @pnpm/worker@1000.1.8
+
+## 1001.0.8
+
+### Patch Changes
+
+- @pnpm/prepare-package@1000.0.16
+- @pnpm/worker@1000.1.7
+
+## 1001.0.7
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/worker@1000.1.6
+  - @pnpm/prepare-package@1000.0.15
+  - @pnpm/fetcher-base@1000.0.11
+
+## 1001.0.6
+
+### Patch Changes
+
+- @pnpm/prepare-package@1000.0.14
+
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/fetcher-base@1000.0.10
+  - @pnpm/prepare-package@1000.0.13
+  - @pnpm/worker@1000.1.5
+
+## 1001.0.4
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.9
+- @pnpm/worker@1000.1.4
+- @pnpm/prepare-package@1000.0.12
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/prepare-package@1000.0.11
+  - @pnpm/fetcher-base@1000.0.8
+  - @pnpm/worker@1000.1.3
+
+## 1001.0.2
+
+### Patch Changes
+
+- @pnpm/prepare-package@1000.0.10
+- @pnpm/fetcher-base@1000.0.7
+- @pnpm/core-loggers@1000.1.5
+- @pnpm/worker@1000.1.2
+
+## 1001.0.1
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.6
+- @pnpm/prepare-package@1000.0.9
+- @pnpm/worker@1000.1.1
+
+## 1001.0.0
+
+### Patch Changes
+
+- Updated dependencies [2e05789]
+  - @pnpm/worker@1000.1.0
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.8
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/prepare-package@1000.0.8
+- @pnpm/fetcher-base@1000.0.5
+- @pnpm/core-loggers@1000.1.4
+- @pnpm/worker@1000.0.7
+
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/prepare-package@1000.0.7
+- @pnpm/fetcher-base@1000.0.4
+- @pnpm/core-loggers@1000.1.3
+- @pnpm/worker@1000.0.6
+
+## 1000.0.6
+
+### Patch Changes
+
+- @pnpm/prepare-package@1000.0.6
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/error@1000.0.2
+- @pnpm/prepare-package@1000.0.5
+- @pnpm/fetcher-base@1000.0.3
+- @pnpm/core-loggers@1000.1.2
+- @pnpm/worker@1000.0.5
+
+## 1000.0.4
+
+### Patch Changes
+
+- @pnpm/prepare-package@1000.0.4
+- @pnpm/worker@1000.0.4
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/prepare-package@1000.0.3
+- @pnpm/fetcher-base@1000.0.2
+- @pnpm/core-loggers@1000.1.1
+- @pnpm/worker@1000.0.3
+
 ## 1000.0.2
 
 ### Patch Changes

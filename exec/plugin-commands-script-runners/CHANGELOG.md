@@ -1,5 +1,627 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.0.4
+
+### Patch Changes
+
+- @pnpm/lifecycle@1001.0.20
+- @pnpm/plugin-commands-installation@1004.5.1
+- @pnpm/client@1001.0.3
+- @pnpm/plugin-commands-env@1000.0.35
+- @pnpm/cli-utils@1001.1.2
+- @pnpm/deps.status@1003.0.6
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [8747b4e]
+  - @pnpm/plugin-commands-installation@1004.5.0
+  - @pnpm/plugin-commands-env@1000.0.34
+  - @pnpm/client@1001.0.2
+  - @pnpm/cli-utils@1001.1.1
+  - @pnpm/deps.status@1003.0.5
+
+## 1001.0.2
+
+### Patch Changes
+
+- 9df09dd: When executing the `pnpm create` command, must verify whether the node version is supported even if a cache already exists.
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+  - @pnpm/deps.status@1003.0.4
+  - @pnpm/plugin-commands-env@1000.0.33
+  - @pnpm/plugin-commands-installation@1004.4.2
+  - @pnpm/client@1001.0.1
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [adb097c]
+- Updated dependencies [f91922c]
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/client@1001.0.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/plugin-commands-installation@1004.4.1
+  - @pnpm/config@1004.2.1
+  - @pnpm/deps.status@1003.0.3
+  - @pnpm/error@1000.0.4
+  - @pnpm/store-path@1000.0.4
+  - @pnpm/lifecycle@1001.0.19
+  - @pnpm/cli-utils@1001.0.3
+  - @pnpm/plugin-commands-env@1000.0.32
+  - @pnpm/workspace.injected-deps-syncer@1000.0.11
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1001.0.0
+
+### Major Changes
+
+- 6f7ac0f: Add `--cpu`, `--libc`, and `--os` to `pnpm install`, `pnpm add`, and `pnpm dlx` to customize `supportedArchitectures` via the CLI [#7510](https://github.com/pnpm/pnpm/issues/7510).
+
+### Patch Changes
+
+- b7d9301: Fix waiting for closed child process.
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1ba2e15]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/plugin-commands-installation@1004.4.0
+  - @pnpm/plugin-commands-env@1000.0.31
+  - @pnpm/config@1004.2.0
+  - @pnpm/client@1000.1.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/deps.status@1003.0.2
+  - @pnpm/lifecycle@1001.0.18
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/package-bins@1000.0.9
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/sort-packages@1000.0.9
+  - @pnpm/error@1000.0.3
+  - @pnpm/store-path@1000.0.3
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/workspace.injected-deps-syncer@1000.0.10
+
+## 1000.2.21
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+  - @pnpm/plugin-commands-env@1000.0.30
+  - @pnpm/plugin-commands-installation@1004.3.1
+  - @pnpm/deps.status@1003.0.1
+
+## 1000.2.20
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+- Updated dependencies [589ac1f]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/deps.status@1003.0.0
+  - @pnpm/plugin-commands-installation@1004.3.0
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/lifecycle@1001.0.17
+  - @pnpm/plugin-commands-env@1000.0.29
+  - @pnpm/client@1000.0.21
+
+## 1000.2.19
+
+### Patch Changes
+
+- Updated dependencies [b511eac]
+  - @pnpm/plugin-commands-installation@1004.2.2
+
+## 1000.2.18
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.2.1
+
+## 1000.2.17
+
+### Patch Changes
+
+- 61e7b03: Fix the `--help` and `-h` flags not working as expected for the `pnpm create` command.
+- Updated dependencies [983efdc]
+  - @pnpm/plugin-commands-installation@1004.2.0
+  - @pnpm/cli-utils@1000.1.7
+  - @pnpm/deps.status@1002.1.5
+  - @pnpm/plugin-commands-env@1000.0.28
+
+## 1000.2.16
+
+### Patch Changes
+
+- Updated dependencies [b0ead51]
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/deps.status@1002.1.4
+  - @pnpm/plugin-commands-installation@1004.1.0
+  - @pnpm/config@1004.0.0
+  - @pnpm/client@1000.0.20
+  - @pnpm/cli-utils@1000.1.6
+  - @pnpm/plugin-commands-env@1000.0.27
+  - @pnpm/lifecycle@1001.0.16
+  - @pnpm/workspace.injected-deps-syncer@1000.0.9
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.2.15
+
+### Patch Changes
+
+- 55424eb: `pnpm -r --silent run` should not print out section [#9563](https://github.com/pnpm/pnpm/issues/9563).
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/plugin-commands-installation@1004.0.3
+  - @pnpm/cli-utils@1000.1.5
+  - @pnpm/deps.status@1002.1.3
+  - @pnpm/plugin-commands-env@1000.0.26
+  - @pnpm/lifecycle@1001.0.15
+  - @pnpm/client@1000.0.19
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/workspace.injected-deps-syncer@1000.0.8
+
+## 1000.2.14
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- 36d1448: Set the default `workspaceConcurrency` to `Math.min(os.availableParallelism(), 4)` [#9493](https://github.com/pnpm/pnpm/pull/9493).
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/plugin-commands-installation@1004.0.2
+  - @pnpm/workspace.injected-deps-syncer@1000.0.8
+  - @pnpm/plugin-commands-env@1000.0.25
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/lifecycle@1001.0.14
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/deps.status@1002.1.2
+  - @pnpm/types@1000.6.0
+  - @pnpm/client@1000.0.18
+  - @pnpm/package-bins@1000.0.8
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/read-project-manifest@1000.0.11
+  - @pnpm/sort-packages@1000.0.8
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.2.13
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+- Updated dependencies [7c7f0d6]
+  - @pnpm/plugin-commands-env@1000.0.24
+  - @pnpm/common-cli-options-help@1000.0.1
+  - @pnpm/plugin-commands-installation@1004.0.1
+  - @pnpm/lifecycle@1001.0.13
+  - @pnpm/cli-utils@1000.1.3
+  - @pnpm/config@1003.0.1
+  - @pnpm/deps.status@1002.1.1
+  - @pnpm/client@1000.0.17
+
+## 1000.2.12
+
+### Patch Changes
+
+- Updated dependencies [3cf337b]
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [3cf337b]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/deps.status@1002.1.0
+  - @pnpm/config@1003.0.0
+  - @pnpm/plugin-commands-installation@1004.0.0
+  - @pnpm/parse-wanted-dependency@1001.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/plugin-commands-env@1000.0.23
+  - @pnpm/lifecycle@1001.0.12
+  - @pnpm/client@1000.0.16
+  - @pnpm/package-bins@1000.0.7
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.10
+  - @pnpm/sort-packages@1000.0.7
+  - @pnpm/workspace.injected-deps-syncer@1000.0.7
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.2.11
+
+### Patch Changes
+
+- Updated dependencies [4d95e93]
+  - @pnpm/plugin-commands-installation@1003.0.1
+  - @pnpm/deps.status@1002.0.11
+  - @pnpm/client@1000.0.15
+  - @pnpm/cli-utils@1000.1.1
+  - @pnpm/lifecycle@1001.0.11
+  - @pnpm/workspace.injected-deps-syncer@1000.0.6
+  - @pnpm/plugin-commands-env@1000.0.22
+  - @pnpm/config@1002.7.2
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.2.10
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [750ae7d]
+- Updated dependencies [8033854]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/plugin-commands-installation@1003.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/cli-utils@1000.1.0
+  - @pnpm/deps.status@1002.0.10
+  - @pnpm/plugin-commands-env@1000.0.21
+  - @pnpm/lifecycle@1001.0.10
+  - @pnpm/client@1000.0.14
+  - @pnpm/package-bins@1000.0.6
+  - @pnpm/read-package-json@1000.0.7
+  - @pnpm/read-project-manifest@1000.0.9
+  - @pnpm/sort-packages@1000.0.6
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/workspace.injected-deps-syncer@1000.0.5
+
+## 1000.2.9
+
+### Patch Changes
+
+- Updated dependencies [e57f1df]
+  - @pnpm/config@1002.7.0
+  - @pnpm/cli-utils@1000.0.19
+  - @pnpm/deps.status@1002.0.9
+  - @pnpm/plugin-commands-env@1000.0.20
+  - @pnpm/plugin-commands-installation@1002.2.4
+
+## 1000.2.8
+
+### Patch Changes
+
+- 5f7be64: Rename `pnpm.allowNonAppliedPatches` to `pnpm.allowUnusedPatches`. The old name is still supported but it would print a deprecation warning message.
+- 5f7be64: Add `pnpm.ignorePatchFailures` to manage whether pnpm would ignore patch application failures.
+
+  If `ignorePatchFailures` is not set, pnpm would throw an error when patches with exact versions or version ranges fail to apply, and it would ignore failures from name-only patches.
+
+  If `ignorePatchFailures` is explicitly set to `false`, pnpm would throw an error when any type of patch fails to apply.
+
+  If `ignorePatchFailures` is explicitly set to `true`, pnpm would print a warning when any type of patch fails to apply.
+
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/cli-utils@1000.0.18
+  - @pnpm/deps.status@1002.0.8
+  - @pnpm/plugin-commands-env@1000.0.19
+  - @pnpm/plugin-commands-installation@1002.2.3
+  - @pnpm/pick-registry-for-package@1000.0.5
+  - @pnpm/lifecycle@1001.0.9
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/client@1000.0.13
+  - @pnpm/package-bins@1000.0.5
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/read-project-manifest@1000.0.8
+  - @pnpm/sort-packages@1000.0.5
+  - @pnpm/workspace.injected-deps-syncer@1000.0.4
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.2.7
+
+### Patch Changes
+
+- Updated dependencies [936430a]
+  - @pnpm/config@1002.5.4
+  - @pnpm/plugin-commands-installation@1002.2.2
+  - @pnpm/workspace.injected-deps-syncer@1000.0.3
+  - @pnpm/cli-utils@1000.0.17
+  - @pnpm/deps.status@1002.0.7
+  - @pnpm/plugin-commands-env@1000.0.18
+  - @pnpm/client@1000.0.12
+  - @pnpm/lifecycle@1001.0.8
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.2.6
+
+### Patch Changes
+
+- e5b7bf4: Fix `pnpm dlx` with `--allow-build` flag [#9263](https://github.com/pnpm/pnpm/issues/9263).
+- Updated dependencies [9904675]
+- Updated dependencies [e5b7bf4]
+- Updated dependencies [aec8c50]
+  - @pnpm/workspace.injected-deps-syncer@1000.0.2
+  - @pnpm/plugin-commands-installation@1002.2.1
+  - @pnpm/plugin-commands-env@1000.0.17
+  - @pnpm/deps.status@1002.0.6
+  - @pnpm/client@1000.0.11
+
+## 1000.2.5
+
+### Patch Changes
+
+- 57f989e: Add the missing `node-options` config to `recursive run` [#9180](https://github.com/pnpm/pnpm/issues/9180).
+- Updated dependencies [b4efd0e]
+- Updated dependencies [6e4459c]
+- Updated dependencies [cda1c43]
+  - @pnpm/plugin-commands-installation@1002.2.0
+  - @pnpm/config@1002.5.3
+  - @pnpm/cli-utils@1000.0.16
+  - @pnpm/deps.status@1002.0.5
+  - @pnpm/plugin-commands-env@1000.0.16
+
+## 1000.2.4
+
+### Patch Changes
+
+- Updated dependencies [0b0bcfa]
+  - @pnpm/exec.pnpm-cli-runner@1000.0.1
+  - @pnpm/cli-utils@1000.0.15
+  - @pnpm/crypto.hash@1000.1.1
+  - @pnpm/plugin-commands-env@1000.0.15
+  - @pnpm/plugin-commands-installation@1002.1.2
+  - @pnpm/deps.status@1002.0.4
+  - @pnpm/config@1002.5.2
+  - @pnpm/client@1000.0.10
+
+## 1000.2.3
+
+### Patch Changes
+
+- Updated dependencies [c3aa4d8]
+  - @pnpm/config@1002.5.1
+  - @pnpm/cli-utils@1000.0.14
+  - @pnpm/deps.status@1002.0.3
+  - @pnpm/plugin-commands-env@1000.0.14
+  - @pnpm/plugin-commands-installation@1002.1.1
+  - @pnpm/client@1000.0.9
+
+## 1000.2.2
+
+### Patch Changes
+
+- 6a59366: Pass onlyBuiltDependencies as a direct option to add.handler.
+- Updated dependencies [b8b0c68]
+- Updated dependencies [daf47e9]
+- Updated dependencies [6a59366]
+- Updated dependencies [a5e4965]
+- Updated dependencies [d9d7607]
+- Updated dependencies [d965748]
+- Updated dependencies [e4eeafd]
+  - @pnpm/package-bins@1000.0.4
+  - @pnpm/crypto.hash@1000.1.0
+  - @pnpm/plugin-commands-installation@1002.1.0
+  - @pnpm/types@1000.2.1
+  - @pnpm/config@1002.5.0
+  - @pnpm/deps.status@1002.0.2
+  - @pnpm/cli-utils@1000.0.13
+  - @pnpm/pick-registry-for-package@1000.0.4
+  - @pnpm/plugin-commands-env@1000.0.13
+  - @pnpm/lifecycle@1001.0.7
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/client@1000.0.8
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.7
+  - @pnpm/sort-packages@1000.0.4
+  - @pnpm/workspace.injected-deps-syncer@1000.0.1
+
+## 1000.2.1
+
+### Patch Changes
+
+- 0b31bf0: `pnpm dlx` should ignore settings from the `package.json` file in the current working directory [#9178](https://github.com/pnpm/pnpm/issues/9178).
+- Updated dependencies [76973d8]
+- Updated dependencies [1c2eb8c]
+  - @pnpm/plugin-commands-installation@1002.0.1
+  - @pnpm/config@1002.4.1
+  - @pnpm/cli-utils@1000.0.12
+  - @pnpm/deps.status@1002.0.1
+  - @pnpm/plugin-commands-env@1000.0.12
+
+## 1000.2.0
+
+### Minor Changes
+
+- e32b1a2: Added support for automatically syncing files of injected workspace packages after `pnpm run` [#9081](https://github.com/pnpm/pnpm/issues/9081). Use the `sync-injected-deps-after-scripts` setting to specify which scripts build the workspace package. This tells pnpm when syncing is needed. The setting should be defined in a `.npmrc` file at the root of the workspace. Example:
+
+  ```ini
+  sync-injected-deps-after-scripts[]=compile
+  ```
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [5296961]
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+  - @pnpm/plugin-commands-installation@1002.0.0
+  - @pnpm/config@1002.4.0
+  - @pnpm/workspace.injected-deps-syncer@1000.0.0
+  - @pnpm/types@1000.2.0
+  - @pnpm/deps.status@1002.0.0
+  - @pnpm/cli-utils@1000.0.11
+  - @pnpm/plugin-commands-env@1000.0.11
+  - @pnpm/pick-registry-for-package@1000.0.3
+  - @pnpm/lifecycle@1001.0.6
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/client@1000.0.7
+  - @pnpm/package-bins@1000.0.3
+  - @pnpm/read-package-json@1000.0.4
+  - @pnpm/read-project-manifest@1000.0.6
+  - @pnpm/sort-packages@1000.0.3
+  - @pnpm/crypto.hash@1000.0.0
+
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+- Updated dependencies [546ab37]
+  - @pnpm/config@1002.3.1
+  - @pnpm/plugin-commands-installation@1001.5.1
+  - @pnpm/cli-utils@1000.0.10
+  - @pnpm/deps.status@1001.2.2
+  - @pnpm/plugin-commands-env@1000.0.10
+
+## 1000.1.3
+
+### Patch Changes
+
+- Updated dependencies [91d46ee]
+  - @pnpm/plugin-commands-installation@1001.5.0
+  - @pnpm/cli-utils@1000.0.9
+  - @pnpm/plugin-commands-env@1000.0.9
+  - @pnpm/deps.status@1001.2.1
+
+## 1000.1.2
+
+### Patch Changes
+
+- 265946b: Fix a false negative of `verify-deps-before-run` after `pnpm install --production|--no-optional` [#9019](https://github.com/pnpm/pnpm/issues/9019).
+- Updated dependencies [c52f55a]
+- Updated dependencies [265946b]
+- Updated dependencies [f6006f2]
+  - @pnpm/exec.pnpm-cli-runner@1000.0.0
+  - @pnpm/deps.status@1001.2.0
+  - @pnpm/plugin-commands-installation@1001.4.0
+  - @pnpm/config@1002.3.0
+  - @pnpm/cli-utils@1000.0.8
+  - @pnpm/plugin-commands-env@1000.0.8
+
+## 1000.1.1
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1001.3.2
+
+## 1000.1.0
+
+### Minor Changes
+
+- b5ba535: Packages executed via `pnpm dlx` and `pnpm create` are allowed to be built (run postinstall scripts) by default.
+
+  If the packages executed by `dlx` or `create` have dependencies that have to be built, they should be listed via the `--allow-build` flag. For instance, if you want to run a package called `bundle` that has `esbuild` in dependencies and want to allow `esbuild` to run postinstall scripts, run:
+
+  ```
+  pnpm --allow-build=esbuild dlx bundle
+  ```
+
+  Related PR: [#9026](https://github.com/pnpm/pnpm/pull/9026).
+
+### Patch Changes
+
+- Updated dependencies [c0d1c01]
+- Updated dependencies [1e229d7]
+  - @pnpm/lifecycle@1001.0.5
+  - @pnpm/read-project-manifest@1000.0.5
+  - @pnpm/cli-utils@1000.0.7
+  - @pnpm/config@1002.2.1
+  - @pnpm/plugin-commands-installation@1001.3.1
+  - @pnpm/plugin-commands-env@1000.0.7
+  - @pnpm/deps.status@1001.1.3
+  - @pnpm/client@1000.0.6
+
+## 1000.0.7
+
+### Patch Changes
+
+- c96eb2b: Fix infinite loop caused by lifecycle scripts using `pnpm` to execute other scripts during `pnpm install` with `verify-deps-before-run=install` [#8954](https://github.com/pnpm/pnpm/issues/8954).
+- Updated dependencies [b562deb]
+- Updated dependencies [5c8654f]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/types@1000.1.1
+  - @pnpm/deps.status@1001.1.2
+  - @pnpm/plugin-commands-installation@1001.3.0
+  - @pnpm/config@1002.2.0
+  - @pnpm/error@1000.0.2
+  - @pnpm/store-path@1000.0.2
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/pick-registry-for-package@1000.0.2
+  - @pnpm/plugin-commands-env@1000.0.6
+  - @pnpm/lifecycle@1001.0.4
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/client@1000.0.5
+  - @pnpm/package-bins@1000.0.2
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/sort-packages@1000.0.2
+  - @pnpm/crypto.hash@1000.0.0
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/plugin-commands-installation@1001.2.1
+  - @pnpm/cli-utils@1000.0.5
+  - @pnpm/config@1002.1.2
+  - @pnpm/lifecycle@1001.0.3
+  - @pnpm/plugin-commands-env@1000.0.5
+  - @pnpm/deps.status@1001.1.1
+  - @pnpm/client@1000.0.4
+  - @pnpm/crypto.hash@1000.0.0
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [c7eefdd]
+- Updated dependencies [9591a18]
+- Updated dependencies [1f5169f]
+  - @pnpm/plugin-commands-installation@1001.2.0
+  - @pnpm/types@1000.1.0
+  - @pnpm/deps.status@1001.1.0
+  - @pnpm/config@1002.1.1
+  - @pnpm/cli-utils@1000.0.4
+  - @pnpm/pick-registry-for-package@1000.0.1
+  - @pnpm/plugin-commands-env@1000.0.4
+  - @pnpm/lifecycle@1001.0.2
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/client@1000.0.3
+  - @pnpm/package-bins@1000.0.1
+  - @pnpm/read-package-json@1000.0.2
+  - @pnpm/read-project-manifest@1000.0.2
+  - @pnpm/sort-packages@1000.0.1
+  - @pnpm/crypto.hash@1000.0.0
+
 ## 1000.0.4
 
 ### Patch Changes

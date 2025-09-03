@@ -1,11 +1,24 @@
 {
   "name": "@pnpm/workspace.state",
-  "version": "1001.0.2",
+  "version": "1002.0.2",
   "description": "Track the list of actual paths of workspace packages in a cache",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "mtime"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/state",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/state#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "commonjs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "engines": {
-    "node": ">=18.12"
+  "exports": {
+    ".": "./lib/index.js"
   },
   "files": [
     "lib",
@@ -18,32 +31,23 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/state",
-  "keywords": [
-    "pnpm10",
-    "pnpm",
-    "mtime"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/state#readme",
-  "funding": "https://opencollective.com/pnpm",
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config": "workspace:*",
-    "@pnpm/logger": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "catalog:"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
+    "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/workspace.state": "workspace:*",
     "@types/ramda": "catalog:"
   },
-  "exports": {
-    ".": "./lib/index.js"
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
     "preset": "@pnpm/jest-config"

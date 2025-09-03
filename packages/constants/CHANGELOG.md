@@ -1,5 +1,24 @@
 # @pnpm/constants
 
+## 1001.3.0
+
+### Minor Changes
+
+- d1edf73: Add support for installing deno runtime.
+- 86b33e9: Added support for installing Bun runtime.
+
+## 1001.2.0
+
+### Minor Changes
+
+- 1a07b8f: Add getNodeBinLocationForCurrentOS.
+
+## 1001.1.0
+
+### Minor Changes
+
+- 9a44e6c: `pnpm deploy` should inherit the `pnpm` object from the root `package.json` [#8991](https://github.com/pnpm/pnpm/pull/8991).
+
 ## 1001.0.0
 
 ### Major Changes

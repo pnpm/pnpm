@@ -1,68 +1,45 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "1001.1.0",
+  "version": "1004.5.1",
   "description": "Commands for installation",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/plugin-commands-installation",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/plugin-commands-installation#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "commonjs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7776 jest",
+    "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/plugin-commands-installation",
-  "keywords": [
-    "pnpm10",
-    "pnpm"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/plugin-commands-installation#readme",
-  "devDependencies": {
-    "@pnpm/assert-project": "workspace:*",
-    "@pnpm/logger": "workspace:*",
-    "@pnpm/modules-yaml": "workspace:*",
-    "@pnpm/plugin-commands-installation": "workspace:*",
-    "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "catalog:",
-    "@pnpm/test-fixtures": "workspace:*",
-    "@pnpm/test-ipc-server": "workspace:*",
-    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
-    "@types/proxyquire": "catalog:",
-    "@types/ramda": "catalog:",
-    "@types/sinon": "catalog:",
-    "@types/which": "catalog:",
-    "@types/yarnpkg__lockfile": "catalog:",
-    "@types/zkochan__table": "catalog:",
-    "delay": "catalog:",
-    "jest-diff": "catalog:",
-    "path-name": "catalog:",
-    "proxyquire": "catalog:",
-    "read-yaml-file": "catalog:",
-    "sinon": "catalog:",
-    "symlink-dir": "catalog:",
-    "tempy": "catalog:",
-    "write-json-file": "catalog:",
-    "write-pkg": "catalog:",
-    "write-yaml-file": "catalog:"
-  },
   "dependencies": {
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/colorize-semver-diff": "catalog:",
     "@pnpm/command": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/config": "workspace:*",
+    "@pnpm/config.config-writer": "workspace:*",
+    "@pnpm/config.deps-installer": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core": "workspace:*",
     "@pnpm/dedupe.check": "workspace:*",
@@ -78,9 +55,12 @@
     "@pnpm/outdated": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
+    "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/pnpmfile": "workspace:*",
+    "@pnpm/read-modules-dir": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/semver-diff": "catalog:",
@@ -88,6 +68,7 @@
     "@pnpm/store-connection-manager": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
+    "@pnpm/workspace.manifest-writer": "workspace:*",
     "@pnpm/workspace.pkgs-graph": "workspace:*",
     "@pnpm/workspace.state": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
@@ -97,11 +78,12 @@
     "@zkochan/rimraf": "catalog:",
     "@zkochan/table": "catalog:",
     "chalk": "catalog:",
-    "ci-info": "catalog:",
     "enquirer": "catalog:",
+    "get-npm-tarball-url": "catalog:",
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
     "mem": "catalog:",
+    "normalize-path": "catalog:",
     "p-filter": "catalog:",
     "p-limit": "catalog:",
     "ramda": "catalog:",
@@ -110,13 +92,43 @@
     "which": "catalog:"
   },
   "peerDependencies": {
-    "@pnpm/logger": ">=5.1.0 <1001.0.0"
+    "@pnpm/logger": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/assert-project": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/modules-yaml": "workspace:*",
+    "@pnpm/plugin-commands-installation": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "catalog:",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
+    "@pnpm/workspace.filter-packages-from-dir": "workspace:*",
+    "@types/normalize-path": "catalog:",
+    "@types/proxyquire": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/sinon": "catalog:",
+    "@types/which": "catalog:",
+    "@types/yarnpkg__lockfile": "catalog:",
+    "@types/zkochan__table": "catalog:",
+    "ci-info": "catalog:",
+    "delay": "catalog:",
+    "jest-diff": "catalog:",
+    "path-name": "catalog:",
+    "proxyquire": "catalog:",
+    "read-yaml-file": "catalog:",
+    "sinon": "catalog:",
+    "symlink-dir": "catalog:",
+    "tempy": "catalog:",
+    "write-json-file": "catalog:",
+    "write-pkg": "catalog:",
+    "write-yaml-file": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
   },
   "jest": {
-    "preset": "@pnpm/jest-config"
+    "preset": "@pnpm/jest-config/with-registry"
   }
 }

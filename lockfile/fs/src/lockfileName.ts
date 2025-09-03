@@ -21,5 +21,5 @@ export async function getWantedLockfileName (opts: GetWantedLockfileNameOptions 
  * 2. Filesystem may be case-insensitive, so we need to convert branch name to lowercase
  */
 function stringifyBranchName (branchName: string = ''): string {
-  return branchName.replace(/[^a-zA-Z0-9-_.]/g, '!').toLowerCase()
+  return branchName.replace(/[^\w.-]/g, '!').toLowerCase()
 }

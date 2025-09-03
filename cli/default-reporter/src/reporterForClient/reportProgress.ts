@@ -1,8 +1,8 @@
 import { type ProgressLog, type StageLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { filter, map, mapTo, takeWhile, startWith, take } from 'rxjs/operators'
-import { hlValue } from './outputConstants'
-import { zoomOut } from './utils/zooming'
+import { hlValue } from './outputConstants.js'
+import { zoomOut } from './utils/zooming.js'
 
 interface ProgressStats {
   fetched: number

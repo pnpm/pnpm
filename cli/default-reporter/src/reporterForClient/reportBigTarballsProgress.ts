@@ -3,9 +3,8 @@ import type * as Rx from 'rxjs'
 import { filter, map, startWith } from 'rxjs/operators'
 import prettyBytes from 'pretty-bytes'
 import {
-  hlPkgId,
   hlValue,
-} from './outputConstants'
+} from './outputConstants.js'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 const PRETTY_OPTS = {
@@ -36,7 +35,7 @@ export function reportBigTarballProgress (
           const downloaded = prettyBytes(downloadedRaw, PRETTY_OPTS)
           return {
             fixed: !done,
-            msg: `Downloading ${hlPkgId(startedLog['packageId'])}: ${hlValue(downloaded)}/${hlValue(size)}${done ? ', done' : ''}`,
+            msg: `Downloading ${startedLog['packageId']}: ${hlValue(downloaded)}/${hlValue(size)}${done ? ', done' : ''}`,
           }
         })
       )

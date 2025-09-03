@@ -1,1 +1,1 @@
-export { createTestIpcServer, TestIpcServer } from './TestIpcServer'
+export { createTestIpcServer, TestIpcServer } from './TestIpcServer.js'

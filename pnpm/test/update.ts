@@ -6,7 +6,7 @@ import { sync as writeYamlFile } from 'write-yaml-file'
 import {
   addDistTag,
   execPnpm,
-} from './utils'
+} from './utils/index.js'
 
 test('update <dep>', async () => {
   const project = prepare()

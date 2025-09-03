@@ -59,6 +59,20 @@ test('ignore packages by patterns', async () => {
   expect([pkgs[0].manifest.name, pkgs[1].manifest.name].sort(compare)).toStrictEqual(['component-1', 'component-2'])
 })
 
+test('ignore packages by patterns with starts with !/', async () => {
+  const root = path.join(fixtures, 'many-pkgs')
+  const pkgs = await findPackages(root, { patterns: ['**', '!/libs/**'] })
+
+  expect(pkgs).toHaveLength(3)
+  expect(pkgs[0].rootDir).toBeDefined()
+  expect(pkgs[0].manifest).toBeDefined()
+  expect(pkgs[1].rootDir).toBeDefined()
+  expect(pkgs[1].manifest).toBeDefined()
+  expect(pkgs[2].rootDir).toBeDefined()
+  expect(pkgs[2].manifest).toBeDefined()
+  expect([pkgs[0].manifest.name, pkgs[1].manifest.name, pkgs[2].manifest.name].sort(compare)).toStrictEqual(['component-1', 'component-2', 'foo'])
+})
+
 test('json and yaml manifests are also found', async () => {
   const root = path.join(fixtures, 'many-pkgs-with-different-manifest-types')
   const pkgs = await findPackages(root)

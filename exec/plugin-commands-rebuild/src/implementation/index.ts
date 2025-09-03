@@ -28,7 +28,9 @@ import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { type DepPath, type ProjectManifest, type ProjectId, type ProjectRootDir } from '@pnpm/types'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
+import { pkgRequiresBuild } from '@pnpm/exec.pkg-requires-build'
 import * as dp from '@pnpm/dependency-path'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { hardLinkDir } from '@pnpm/worker'
 import loadJsonFile from 'load-json-file'
 import runGroups from 'run-groups'
@@ -40,7 +42,7 @@ import {
   extendRebuildOptions,
   type RebuildOptions,
   type StrictRebuildOptions,
-} from './extendRebuildOptions'
+} from './extendRebuildOptions.js'
 
 export type { RebuildOptions }
 
@@ -123,13 +125,30 @@ export async function rebuildSelectedPkgs (
     ]
   }
 
-  await _rebuild(
+  const { ignoredPkgs } = await _rebuild(
     {
       pkgsToRebuild: new Set(pkgs),
       ...ctx,
     },
     opts
   )
+  await writeModulesManifest(ctx.rootModulesDir, {
+    prunedAt: new Date().toUTCString(),
+    ...ctx.modulesFile,
+    hoistedDependencies: ctx.hoistedDependencies,
+    hoistPattern: ctx.hoistPattern,
+    included: ctx.include,
+    ignoredBuilds: ignoredPkgs,
+    layoutVersion: LAYOUT_VERSION,
+    packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
+    pendingBuilds: ctx.pendingBuilds,
+    publicHoistPattern: ctx.publicHoistPattern,
+    registries: ctx.registries,
+    skipped: Array.from(ctx.skipped),
+    storeDir: ctx.storeDir,
+    virtualStoreDir: ctx.virtualStoreDir,
+    virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
+  })
 }
 
 export async function rebuildProjects (
@@ -291,7 +310,9 @@ async function _rebuild (
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => true)
   const allowBuild = (pkgName: string) => {
     if (_allowBuild(pkgName)) return true
-    ignoredPkgs.push(pkgName)
+    if (!opts.ignoredBuiltDependencies?.includes(pkgName)) {
+      ignoredPkgs.push(pkgName)
+    }
     return false
   }
   const builtDepPaths = new Set<string>()
@@ -324,17 +345,29 @@ async function _rebuild (
         const pkgId = `${pkgInfo.name}@${pkgInfo.version}`
         if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
           const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, resolution.integrity!.toString(), pkgId)
-          const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
-          sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
-            isBuilt: true,
-          })
-          if (pkgFilesIndex.sideEffects?.[sideEffectsCacheKey]) {
-            pkgsThatWereRebuilt.add(depPath)
-            return
+          let pkgFilesIndex: PackageFilesIndex | undefined
+          try {
+            pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+          } catch {}
+          if (pkgFilesIndex) {
+            sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
+              includeDepGraphHash: true,
+            })
+            if (pkgFilesIndex.sideEffects?.[sideEffectsCacheKey]) {
+              pkgsThatWereRebuilt.add(depPath)
+              return
+            }
           }
         }
+        let requiresBuild = true
+        const pgkManifest = await safeReadPackageJsonFromDir(pkgRoot)
+        if (pgkManifest != null) {
+          // This won't return the correct result for packages with binding.gyp as we don't pass the filesIndex to the function.
+          // However, currently rebuild doesn't work for such packages at all, which should be fixed.
+          requiresBuild = pkgRequiresBuild(pgkManifest, {})
+        }
 
-        const hasSideEffects = allowBuild(pkgInfo.name) && await runPostinstallHooks({
+        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name) && await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,
@@ -352,7 +385,7 @@ async function _rebuild (
           try {
             if (!sideEffectsCacheKey) {
               sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
-                isBuilt: true,
+                includeDepGraphHash: true,
               })
             }
             await opts.storeController.upload(pkgRoot, {

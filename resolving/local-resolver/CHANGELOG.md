@@ -1,5 +1,182 @@
 # @pnpm/local-resolver
 
+## 1002.1.0
+
+### Minor Changes
+
+- 5dedada: Added `preserveAbsolutePaths` option to `resolveFromLocal`. When using `file:/path/to/package`, the absolute path will be preserved instead of being turned into a relative path.
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/error@1000.0.4
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/error@1000.0.3
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1002.0.0
+
+### Major Changes
+
+- 2721291: Create different resolver result types which provide more information.
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.0.1
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+  - @pnpm/read-project-manifest@1000.0.11
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+- 5b73df1: Renamed `normalizedPref` to `specifiers`.
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/read-project-manifest@1000.0.10
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.0.12
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+  - @pnpm/types@1000.4.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/read-project-manifest@1000.0.9
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/read-project-manifest@1000.0.8
+  - @pnpm/resolver-base@1000.2.1
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.1.1
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [daf47e9]
+- Updated dependencies [a5e4965]
+  - @pnpm/crypto.hash@1000.1.0
+  - @pnpm/types@1000.2.1
+  - @pnpm/read-project-manifest@1000.0.7
+  - @pnpm/resolver-base@1000.1.4
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/read-project-manifest@1000.0.6
+  - @pnpm/resolver-base@1000.1.3
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [1e229d7]
+  - @pnpm/read-project-manifest@1000.0.5
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/resolver-base@1000.1.2
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/read-project-manifest@1000.0.2
+  - @pnpm/resolver-base@1000.1.1
+
 ## 1000.0.1
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/crypto.object-hasher
 
+## 1000.1.0
+
+### Minor Changes
+
+- b0ead51: `hashObjectWithoutSorting` can accept options.
+
+## 1000.0.1
+
+### Patch Changes
+
+- 3717340: Print the warning about blocked installation scripts at the end of the installation output and make it more prominent.
+
 ## 3.0.0
 
 ### Major Changes

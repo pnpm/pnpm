@@ -6,7 +6,8 @@ import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { addUser, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
-import { execPnpm, execPnpmSync } from './utils'
+import { type BaseManifest } from '@pnpm/types'
+import { execPnpm, execPnpmSync } from './utils/index.js'
 
 let registries: Record<string, string>
 
@@ -16,10 +17,12 @@ beforeAll(async () => {
   registries.default = `http://localhost:${REGISTRY_MOCK_PORT}/`
 })
 
-const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, registries)
+const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registries })
 
-test('silent dlx prints the output of the child process only', async () => {
-  prepare({})
+const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
+
+test('dlx parses options between "dlx" and the command name', async () => {
+  prepareEmpty()
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
   fs.mkdirSync(global)
@@ -30,7 +33,24 @@ test('silent dlx prints the output of the child process only', async () => {
     XDG_DATA_HOME: global,
   }
 
-  const result = execPnpmSync(['--silent', 'dlx', 'shx', 'echo', 'hi'], { env })
+  const result = execPnpmSync(['dlx', '--package', 'shx@0.3.4', '--silent', 'shx', 'echo', 'hi'], { env, expectSuccess: true })
+
+  expect(result.stdout.toString().trim()).toBe('hi')
+})
+
+test('silent dlx prints the output of the child process only', async () => {
+  prepareEmpty()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = {
+    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
+
+  const result = execPnpmSync(['--silent', 'dlx', 'shx@0.3.4', 'echo', 'hi'], { env, expectSuccess: true })
 
   expect(result.stdout.toString().trim()).toBe('hi')
 })
@@ -53,20 +73,21 @@ test('dlx ignores configuration in current project package.json', async () => {
     XDG_DATA_HOME: global,
   }
 
-  const result = execPnpmSync(['dlx', 'shx@0.3.4', 'echo', 'hi'], { env })
-  // It didn't try to use the patch that doesn't exist, so it did not fail
-  expect(result.status).toBe(0)
+  execPnpmSync(['dlx', 'shx@0.3.4', 'echo', 'hi'], {
+    env,
+    expectSuccess: true, // It didn't try to use the patch that doesn't exist, so it did not fail
+  })
 })
 
 test('dlx should work with npm_config_save_dev env variable', async () => {
   prepareEmpty()
-  const result = execPnpmSync(['dlx', '@foo/touch-file-one-bin@latest'], {
+  execPnpmSync(['dlx', '@foo/touch-file-one-bin@latest'], {
     env: {
       npm_config_save_dev: 'true',
     },
     stdio: 'inherit',
+    expectSuccess: true,
   })
-  expect(result.status).toBe(0)
 })
 
 test('parallel dlx calls of the same package', async () => {
@@ -78,7 +99,7 @@ test('parallel dlx calls of the same package', async () => {
       `--config.store-dir=${path.resolve('store')}`,
       `--config.cache-dir=${path.resolve('cache')}`,
       '--config.dlx-cache-max-age=Infinity',
-      'dlx', 'shx', 'touch', name])
+      'dlx', 'shx@0.3.4', 'touch', name])
   ))
 
   expect(['foo', 'bar', 'baz'].filter(name => fs.existsSync(name))).toStrictEqual(['foo', 'bar', 'baz'])
@@ -97,7 +118,7 @@ test('parallel dlx calls of the same package', async () => {
 
   // parallel dlx calls with cache
   await Promise.all(['abc', 'def', 'ghi'].map(
-    name => execPnpm(['dlx', 'shx', 'mkdir', name])
+    name => execPnpm(['dlx', 'shx@0.3.4', 'mkdir', name])
   ))
 
   expect(['abc', 'def', 'ghi'].filter(name => fs.existsSync(name))).toStrictEqual(['abc', 'def', 'ghi'])
@@ -119,7 +140,7 @@ test('parallel dlx calls of the same package', async () => {
       `--config.store-dir=${path.resolve('store')}`,
       `--config.cache-dir=${path.resolve('cache')}`,
       '--config.dlx-cache-max-age=0',
-      'dlx', 'shx', 'mkdir', '-p', dirPath])
+      'dlx', 'shx@0.3.4', 'mkdir', '-p', dirPath])
   ))
 
   expect(['a/b/c', 'd/e/f', 'g/h/i'].filter(name => fs.existsSync(name))).toStrictEqual(['a/b/c', 'd/e/f', 'g/h/i'])
@@ -201,14 +222,14 @@ test('dlx creates cache and store prune cleans cache', async () => {
 })
 
 test('dlx should ignore non-auth info from .npmrc in the current directory', async () => {
-  prepare({})
+  prepareEmpty()
   fs.writeFileSync('.npmrc', 'hoist-pattern=', 'utf8')
 
   const cacheDir = path.resolve('cache')
   await execPnpm([
     `--config.store-dir=${path.resolve('store')}`,
     `--config.cache-dir=${cacheDir}`,
-    'dlx', 'shx', 'echo', 'hi'])
+    'dlx', 'shx@0.3.4', 'echo', 'hi'])
 
   const modulesManifest = await readModulesManifest(path.join(cacheDir, 'dlx', createCacheKey('shx@0.3.4'), 'pkg/node_modules'))
   expect(modulesManifest?.hoistPattern).toStrictEqual(['*'])
@@ -237,10 +258,10 @@ test('dlx read registry from .npmrc in the current directory', async () => {
   ], {
     env: {},
     stdio: [null, 'pipe', 'inherit'],
+    expectSuccess: true,
   })
 
   expect(execResult.stdout.toString().trim()).toBe('hello from @pnpm.e2e/needs-auth')
-  expect(execResult.status).toBe(0)
 })
 
 test('dlx uses the node version specified by --use-node-version', async () => {
@@ -259,12 +280,8 @@ test('dlx uses the node version specified by --use-node-version', async () => {
       PNPM_HOME: pnpmHome,
     },
     stdio: [null, 'pipe', 'inherit'],
+    expectSuccess: true,
   })
-
-  if (execResult.status !== 0) {
-    console.error(execResult.stderr.toString())
-    throw new Error(`Process exits with code ${execResult.status}`)
-  }
 
   let nodeInfo
   try {
@@ -283,6 +300,98 @@ test('dlx uses the node version specified by --use-node-version', async () => {
       ? path.join(pnpmHome, 'nodejs', '20.0.0', 'node.exe')
       : path.join(pnpmHome, 'nodejs', '20.0.0', 'bin', 'node'),
   })
+})
 
-  expect(execResult.status).toBe(0)
+describeOnLinuxOnly('dlx with supportedArchitectures CLI options', () => {
+  type CPU = 'arm64' | 'x64'
+  type LibC = 'glibc' | 'musl'
+  type OS = 'darwin' | 'linux' | 'win32'
+  type CLIOption = `--cpu=${CPU}` | `--libc=${LibC}` | `--os=${OS}`
+  type Installed = string[]
+  type NotInstalled = string[]
+  type Case = [CLIOption[], Installed, NotInstalled]
+
+  test.each([
+    [['--cpu=arm64', '--os=win32'], ['@pnpm.e2e/only-win32-arm64'], [
+      '@pnpm.e2e/only-darwin-arm64',
+      '@pnpm.e2e/only-darwin-x64',
+      '@pnpm.e2e/only-linux-arm64-glibc',
+      '@pnpm.e2e/only-linux-arm64-musl',
+      '@pnpm.e2e/only-linux-x64-glibc',
+      '@pnpm.e2e/only-linux-x64-musl',
+      '@pnpm.e2e/only-win32-x64',
+    ]],
+
+    [['--cpu=arm64', '--os=darwin'], ['@pnpm.e2e/only-darwin-arm64'], [
+      '@pnpm.e2e/only-darwin-x64',
+      '@pnpm.e2e/only-linux-arm64-glibc',
+      '@pnpm.e2e/only-linux-arm64-musl',
+      '@pnpm.e2e/only-linux-x64-glibc',
+      '@pnpm.e2e/only-linux-x64-musl',
+      '@pnpm.e2e/only-win32-arm64',
+      '@pnpm.e2e/only-win32-x64',
+    ]],
+
+    [['--cpu=x64', '--os=linux', '--libc=musl'], [
+      '@pnpm.e2e/only-linux-x64-musl',
+    ], [
+      '@pnpm.e2e/only-darwin-arm64',
+      '@pnpm.e2e/only-darwin-x64',
+      '@pnpm.e2e/only-linux-arm64-glibc',
+      '@pnpm.e2e/only-linux-arm64-musl',
+      '@pnpm.e2e/only-linux-x64-glibc',
+      '@pnpm.e2e/only-win32-arm64',
+      '@pnpm.e2e/only-win32-x64',
+    ]],
+
+    [[
+      '--cpu=arm64',
+      '--cpu=x64',
+      '--os=darwin',
+      '--os=linux',
+      '--os=win32',
+    ], [
+      '@pnpm.e2e/only-darwin-arm64',
+      '@pnpm.e2e/only-darwin-x64',
+      '@pnpm.e2e/only-linux-arm64-glibc',
+      '@pnpm.e2e/only-linux-arm64-musl',
+      '@pnpm.e2e/only-linux-x64-glibc',
+      '@pnpm.e2e/only-linux-x64-musl',
+      '@pnpm.e2e/only-win32-arm64',
+      '@pnpm.e2e/only-win32-x64',
+    ], []],
+  ] as Case[])('%p', async (cliOpts, installed, notInstalled) => {
+    prepareEmpty()
+
+    const execResult = execPnpmSync([
+      `--config.store-dir=${path.resolve('store')}`,
+      `--config.cache-dir=${path.resolve('cache')}`,
+      '--package=@pnpm.e2e/support-different-architectures',
+      ...cliOpts,
+      'dlx',
+      'get-optional-dependencies',
+    ], {
+      stdio: [null, 'pipe', 'inherit'],
+      expectSuccess: true,
+    })
+
+    interface OptionalDepsInfo {
+      installed: Record<string, BaseManifest>
+      notInstalled: string[]
+    }
+
+    let optionalDepsInfo: OptionalDepsInfo
+    try {
+      optionalDepsInfo = JSON.parse(execResult.stdout.toString())
+    } catch (err) {
+      console.error(execResult.stdout.toString())
+      console.error(execResult.stderr.toString())
+      throw err
+    }
+
+    expect(optionalDepsInfo).toStrictEqual({
+      installed: Object.fromEntries(installed.map(name => [name, expect.objectContaining({ name })])),
+      notInstalled,
+    } as OptionalDepsInfo)
+  })
 })

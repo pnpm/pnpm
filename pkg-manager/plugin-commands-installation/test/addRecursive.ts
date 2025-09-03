@@ -5,7 +5,7 @@ import { add } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { type ProjectId } from '@pnpm/types'
 import { sync as readYamlFile } from 'read-yaml-file'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles', async () => {
   const projects = preparePackages([

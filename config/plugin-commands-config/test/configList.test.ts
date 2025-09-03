@@ -1,10 +1,6 @@
+import * as ini from 'ini'
 import { config } from '@pnpm/plugin-commands-config'
-
-const CRLF = '\r\n'
-
-function normalizeNewlines (str: string) {
-  return str.replace(new RegExp(CRLF, 'g'), '\n')
-}
+import { getOutputString } from './utils/index.js'
 
 test('config list', async () => {
   const output = await config.handler({
@@ -17,9 +13,10 @@ test('config list', async () => {
     },
   }, ['list'])
 
-  expect(normalizeNewlines(output!)).toEqual(`fetch-retries=2
-store-dir=~/store
-`)
+  expect(ini.decode(getOutputString(output))).toEqual({
+    'fetch-retries': '2',
+    'store-dir': '~/store',
+  })
 })
 
 test('config list --json', async () => {

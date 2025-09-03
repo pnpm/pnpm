@@ -17,6 +17,7 @@ import {
   type SupportedArchitectures,
   type DependencyManifest,
   type PackageManifest,
+  type PinnedVersion,
 } from '@pnpm/types'
 
 export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync }
@@ -27,6 +28,7 @@ DependencyManifest,
 | 'bin'
 | 'bundledDependencies'
 | 'bundleDependencies'
+| 'cpu'
 | 'dependencies'
 | 'directories'
 | 'engines'
@@ -90,11 +92,8 @@ export interface FetchPackageToStoreOptions {
     id: string
     resolution: Resolution
   }
-  /**
-   * Expected package is the package name and version that are found in the lockfile.
-   */
-  expectedPkg?: PkgNameVersion
   onFetchError?: OnFetchError
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export type OnFetchError = (error: Error) => Error
@@ -108,7 +107,9 @@ export interface RequestPackageOptions {
   alwaysTryWorkspacePackages?: boolean
   currentPkg?: {
     id?: PkgResolutionId
+    name?: string
     resolution?: Resolution
+    version?: string
   }
   /**
    * Expected package is the package name and version that are found in the lockfile.
@@ -123,16 +124,16 @@ export interface RequestPackageOptions {
   lockfileDir: string
   preferredVersions: PreferredVersions
   preferWorkspacePackages?: boolean
-  registry: string
   sideEffectsCache?: boolean
   skipFetch?: boolean
-  update?: boolean
+  update?: false | 'compatible' | 'latest'
   workspacePackages?: WorkspacePackages
   forceResolve?: boolean
   supportedArchitectures?: SupportedArchitectures
   onFetchError?: OnFetchError
-  updateToLatest?: boolean
   injectWorkspacePackages?: boolean
+  calcSpecifier?: boolean
+  pinnedVersion?: PinnedVersion
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
@@ -146,7 +147,7 @@ export interface PackageResponse {
     resolution: Resolution
     manifest?: PackageManifest
     id: PkgResolutionId
-    normalizedPref?: string
+    normalizedBareSpecifier?: string
     updated: boolean
     publishedAt?: string
     resolvedVia?: string
@@ -154,6 +155,7 @@ export interface PackageResponse {
     // If latest does not equal the version of the
     // resolved package, it is out-of-date.
     latest?: string
+    alias?: string
   } & (
     {
       isLocal: true

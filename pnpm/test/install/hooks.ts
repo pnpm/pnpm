@@ -10,7 +10,7 @@ import {
   addDistTag,
   execPnpm,
   execPnpmSync,
-} from '../utils'
+} from '../utils/index.js'
 
 test('readPackage hook', async () => {
   const project = prepare()
@@ -302,7 +302,7 @@ test('fails when .pnpmfile.cjs requires a non-existed module', async () => {
 
   fs.writeFileSync('.pnpmfile.cjs', 'module.exports = require("./this-does-node-exist")', 'utf8')
 
-  const proc = execPnpmSync(['install', '@pnpm.e2e/pkg-with-1-dep'])
+  const proc = execPnpmSync(['add', '@pnpm.e2e/pkg-with-1-dep'])
 
   expect(proc.stderr.toString()).toContain('Error during pnpmfile execution')
   expect(proc.status).toBe(1)
@@ -589,8 +589,10 @@ test('readPackage hook is used during removal inside a workspace', async () => {
     },
   ])
 
-  fs.writeFileSync('.npmrc', 'auto-install-peers=false', 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['project-1'],
+    autoInstallPeers: false,
+  })
   fs.writeFileSync('.pnpmfile.cjs', `
     'use strict'
     module.exports = {
@@ -646,8 +648,47 @@ test('preResolution hook', async () => {
   expect(ctx.existsCurrentLockfile).toBe(false)
   expect(ctx.existsNonEmptyWantedLockfile).toBe(false)
 
-  expect(ctx.registries).toEqual({
+  expect(ctx.registries).toMatchObject({
     default: `http://localhost:${REGISTRY_MOCK_PORT}/`,
     '@foo': 'https://foo.com/',
   })
+})
+
+test('pass readPackage with shared lockfile', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['*'] })
+  fs.writeFileSync('.pnpmfile.cjs', `
+module.exports = {
+  hooks: {
+    readPackage: (pkg) => ({
+      ...pkg,
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    }),
+  },
+}
+`, 'utf8')
+
+  await execPnpm(['install'])
+
+  projects['project-1'].has('is-positive')
+  projects['project-1'].hasNot('is-negative')
+  projects['project-2'].has('is-positive')
+  projects['project-2'].hasNot('is-negative')
 })

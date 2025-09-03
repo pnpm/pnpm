@@ -77,7 +77,10 @@ test('satisfiesPackageManifest()', () => {
     }
   )).toStrictEqual({
     satisfies: false,
-    detailedReason: 'specifiers in the lockfile ({"foo":"^1.0.0"}) don\'t match specs in package.json ({"foo":"^1.1.0"})',
+    detailedReason: `specifiers in the lockfile don't match specifiers in package.json:
+* 1 dependencies are mismatched:
+  - foo (lockfile: ^1.0.0, manifest: ^1.1.0)
+`,
   })
   expect(satisfiesPackageManifest(
     {},
@@ -91,7 +94,9 @@ test('satisfiesPackageManifest()', () => {
     }
   )).toStrictEqual({
     satisfies: false,
-    detailedReason: 'specifiers in the lockfile ({"foo":"^1.0.0"}) don\'t match specs in package.json ({"foo":"^1.0.0","bar":"2.0.0"})',
+    detailedReason: `specifiers in the lockfile don't match specifiers in package.json:
+* 1 dependencies were added: bar@2.0.0
+`,
   })
 
   expect(satisfiesPackageManifest(
@@ -154,7 +159,9 @@ test('satisfiesPackageManifest()', () => {
     }
     expect(satisfiesPackageManifest({}, importer, pkg)).toStrictEqual({
       satisfies: false,
-      detailedReason: 'specifiers in the lockfile ({"bar":"2.0.0","qar":"^1.0.0"}) don\'t match specs in package.json ({"bar":"2.0.0"})',
+      detailedReason: `specifiers in the lockfile don't match specifiers in package.json:
+* 1 dependencies were removed: qar@^1.0.0
+`,
     })
   }
 
@@ -371,4 +378,20 @@ test('satisfiesPackageManifest()', () => {
       },
     }
   )).toStrictEqual({ satisfies: true })
+
+  expect(satisfiesPackageManifest({}, {
+    dependencies: {
+      '@apollo/client': '3.13.8(@types/react@18.3.23)(graphql@15.8.0)(react-dom@17.0.2(react@17.0.2))(react@17.0.2)(subscriptions-transport-ws@0.11.0(graphql@15.8.0))',
+    },
+    specifiers: {
+      '@apollo/client': '3.3.7',
+    },
+  }, {
+    dependencies: {
+      '@apollo/client': '3.3.7',
+    },
+  })).toStrictEqual({
+    satisfies: false,
+    detailedReason: 'The importer resolution is broken at dependency "@apollo/client": version "3.13.8" doesn\'t satisfy range "3.3.7"',
+  })
 })

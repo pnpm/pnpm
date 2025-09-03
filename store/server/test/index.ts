@@ -5,6 +5,7 @@ import getPort from 'get-port'
 import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
 import { connectStoreController, createServer } from '@pnpm/server'
+import { type Registries } from '@pnpm/types'
 import fetch from 'node-fetch'
 import { sync as rimraf } from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
@@ -12,6 +13,8 @@ import tempy from 'tempy'
 import isPortReachable from 'is-port-reachable'
 
 const registry = 'https://registry.npmjs.org/'
+
+const registries: Registries = { default: registry }
 
 async function createStoreController (storeDir?: string) {
   const tmp = tempy.directory()
@@ -24,6 +27,7 @@ async function createStoreController (storeDir?: string) {
     authConfig,
     cacheDir,
     rawConfig: {},
+    registries,
   })
   return createPackageStore(resolve, fetchers, {
     networkConcurrency: 1,
@@ -44,16 +48,16 @@ test('server', async () => {
     hostname,
     port,
   })
+  await server.waitForListen
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
   const projectDir = process.cwd()
   const response = await storeCtrl.requestPackage(
-    { alias: 'is-positive', pref: '1.0.0' },
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
     {
       downloadPriority: 0,
       lockfileDir: projectDir,
       preferredVersions: {},
       projectDir,
-      registry,
       sideEffectsCache: false,
     }
   )
@@ -82,6 +86,7 @@ test('fetchPackage', async () => {
     hostname,
     port,
   })
+  await server.waitForListen
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
   // This should be fixed
@@ -120,18 +125,18 @@ test('server errors should arrive to the client', async () => {
     hostname,
     port,
   })
+  await server.waitForListen
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
   let caught = false
   try {
     const projectDir = process.cwd()
     await storeCtrl.requestPackage(
-      { alias: 'not-an-existing-package', pref: '1.0.0' },
+      { alias: 'not-an-existing-package', bareSpecifier: '1.0.0' },
       {
         downloadPriority: 0,
         lockfileDir: projectDir,
         preferredVersions: {},
         projectDir,
-        registry,
         sideEffectsCache: false,
       }
     )
@@ -161,6 +166,7 @@ test('server upload', async () => {
     hostname,
     port,
   })
+  await server.waitForListen
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
 
   const fakeEngine = 'client-engine'
@@ -196,6 +202,7 @@ test('disable server upload', async () => {
     ignoreUploadRequests: true,
     port,
   })
+  await server.waitForListen
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
 
   const fakeEngine = 'client-engine'
@@ -224,11 +231,12 @@ test('stop server with remote call', async () => {
   const hostname = 'localhost'
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
-  createServer(storeCtrlForServer, {
+  const server = createServer(storeCtrlForServer, {
     hostname,
     ignoreStopRequests: false,
     port,
   })
+  await server.waitForListen
 
   expect(await isPortReachable(port)).toBeTruthy()
 
@@ -249,6 +257,7 @@ test('disallow stop server with remote call', async () => {
     ignoreStopRequests: true,
     port,
   })
+  await server.waitForListen
 
   expect(await isPortReachable(port)).toBeTruthy()
 
@@ -269,6 +278,7 @@ test('disallow store prune', async () => {
     hostname,
     port,
   })
+  await server.waitForListen
 
   expect(await isPortReachable(port)).toBeTruthy()
 
@@ -288,6 +298,7 @@ test('server should only allow POST', async () => {
     hostname,
     port,
   })
+  await server.waitForListen
 
   expect(await isPortReachable(port)).toBeTruthy()
 
@@ -316,6 +327,7 @@ test('server route not found', async () => {
     hostname,
     port,
   })
+  await server.waitForListen
 
   expect(await isPortReachable(port)).toBeTruthy()
 

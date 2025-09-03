@@ -17,7 +17,7 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as writeJsonFile } from 'write-json-file'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(__dirname)
 
@@ -126,7 +126,7 @@ test('local file using absolute path is correctly installed on repeat install', 
   f.copy('local-pkg', absolutePath)
 
   // is-odd is only added because otherwise no lockfile is created
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     [`link:${absolutePath}`, 'is-odd@1.0.0'],
     testDefaults({ excludeLinksFromLockfile: true })
   )
@@ -151,7 +151,7 @@ test('hoisted install should not fail with excludeLinksFromLockfile true', async
   f.copy('local-pkg', absolutePath)
 
   // is-odd is only added because otherwise no lockfile is created
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     [`link:${absolutePath}`, 'is-odd@1.0.0'],
     testDefaults({ excludeLinksFromLockfile: true, nodeLinker: 'hoisted' })
   )

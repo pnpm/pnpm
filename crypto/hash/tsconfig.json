@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../fs/graceful-fs"
+    },
+    {
       "path": "../polyfill"
     }
   ]

@@ -28,9 +28,6 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../config/pick-registry-for-package"
-    },
-    {
       "path": "../../crypto/hash"
     },
     {
@@ -41,6 +38,9 @@
     },
     {
       "path": "../../env/plugin-commands-env"
+    },
+    {
+      "path": "../../env/system-node-version"
     },
     {
       "path": "../../packages/core-loggers"
@@ -82,10 +82,16 @@
       "path": "../../workspace/filter-workspace-packages"
     },
     {
+      "path": "../../workspace/injected-deps-syncer"
+    },
+    {
       "path": "../../workspace/sort-packages"
     },
     {
       "path": "../lifecycle"
+    },
+    {
+      "path": "../pnpm-cli-runner"
     }
   ]
 }

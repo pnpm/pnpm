@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-store",
   "description": "Utils for testing pnpm store",
-  "version": "2.0.1",
+  "version": "1000.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -14,7 +14,10 @@
     "test": "test"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-store#readme",
-  "keywords": [],
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=10"

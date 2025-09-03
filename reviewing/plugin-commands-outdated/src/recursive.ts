@@ -23,8 +23,8 @@ import {
   renderLatest,
   renderPackageName,
   toOutdatedWithVersionDiff,
-} from './outdated'
-import { DEFAULT_COMPARATORS, type OutdatedWithVersionDiff } from './utils'
+} from './outdated.js'
+import { DEFAULT_COMPARATORS, type OutdatedWithVersionDiff } from './utils.js'
 
 const DEP_PRIORITY: Record<DependenciesField, number> = {
   dependencies: 1,
@@ -53,11 +53,10 @@ export async function outdatedRecursive (
   opts: OutdatedCommandOptions & { include: IncludedDependencies }
 ): Promise<{ output: string, exitCode: number }> {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
-  const rootManifest = pkgs.find(({ rootDir }) => rootDir === opts.lockfileDir)
   const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, params, {
     ...opts,
     fullMetadata: opts.long,
-    ignoreDependencies: rootManifest?.manifest?.pnpm?.updateConfig?.ignoreDependencies,
+    ignoreDependencies: opts.updateConfig?.ignoreDependencies,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

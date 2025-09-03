@@ -1,5 +1,131 @@
 # @pnpm/read-project-manifest
 
+## 1001.1.0
+
+### Minor Changes
+
+- d1edf73: Add support for installing deno runtime.
+- 86b33e9: Added support for installing Bun runtime.
+
+### Patch Changes
+
+- @pnpm/error@1000.0.4
+
+## 1001.0.0
+
+### Major Changes
+
+- 1a07b8f: Added @pnpm/logger to peer deps.
+
+### Minor Changes
+
+- 1a07b8f: Added support for resolving and downloading the Node.js runtime specified in the [devEngines](https://github.com/openjs-foundation/package-metadata-interoperability-collab-space/issues/15) field of `package.json`.
+
+  Usage example:
+
+  ```json
+  {
+    "devEngines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.4.0",
+        "onFail": "download"
+      }
+    }
+  }
+  ```
+
+  When running `pnpm install`, pnpm will resolve Node.js to the latest version that satisfies the specified range and install it as a dependency of the project. As a result, when running scripts, the locally installed Node.js version will be used.
+
+  Unlike the existing options, `useNodeVersion` and `executionEnv.nodeVersion`, this new field supports version ranges, which are locked to exact versions during installation. The resolved version is stored in the pnpm lockfile, along with an integrity checksum for future validation of the Node.js content's validity.
+
+  Related PR: [#9755](https://github.com/pnpm/pnpm/pull/9755).
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/write-project-manifest@1000.0.9
+  - @pnpm/error@1000.0.3
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+  - @pnpm/write-project-manifest@1000.0.8
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [5b73df1]
+  - @pnpm/types@1000.5.0
+  - @pnpm/write-project-manifest@1000.0.7
+
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/write-project-manifest@1000.0.6
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/write-project-manifest@1000.0.5
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/write-project-manifest@1000.0.4
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/write-project-manifest@1000.0.3
+
+## 1000.0.5
+
+### Patch Changes
+
+- 1e229d7: Replaced `lodash.clonedeep` with the built-in `structuredClone`.
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/write-project-manifest@1000.0.2
+
+## 1000.0.3
+
+### Patch Changes
+
+- e050221: Export `WriteProjectManifest`.
+
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/write-project-manifest@1000.0.1
+
 ## 1000.0.1
 
 ### Patch Changes

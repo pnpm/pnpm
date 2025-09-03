@@ -4,7 +4,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm, execPnpmSync } from '../utils'
+import { execPnpm, execPnpmSync } from '../utils/index.js'
 
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
 
@@ -91,8 +91,8 @@ test('single package workspace', async () => {
     expect(stdout.toString()).toContain('hello from exec')
   }
 
-  // should set env.pnpm_run_skip_deps_check for the script
-  await execPnpm([...CONFIG, 'exec', 'node', '--eval', 'assert.strictEqual(process.env.pnpm_run_skip_deps_check, "true")'])
+  // should set env.pnpm_config_verify_deps_before_run to false for the script (to skip check for nested script)
+  await execPnpm([...CONFIG, 'exec', 'node', '--eval', 'assert.strictEqual(process.env.pnpm_config_verify_deps_before_run, "false")'])
 })
 
 test('multi-project workspace', async () => {
@@ -165,16 +165,16 @@ test('multi-project workspace', async () => {
   // pnpm install should create a packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual(expect.objectContaining({
+    expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       projects: {
         [path.resolve('.')]: { name: 'root', version: '0.0.0' },
         [path.resolve('foo')]: { name: 'foo', version: '0.0.0' },
         [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
       },
-    }))
+    })
   }
 
   // should be able to execute a command in root after dependencies have been installed
@@ -320,9 +320,9 @@ test('multi-project workspace', async () => {
   // pnpm install should update the packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual(expect.objectContaining({
+    expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       projects: {
         [path.resolve('.')]: { name: 'root', version: '0.0.0' },
@@ -330,7 +330,7 @@ test('multi-project workspace', async () => {
         [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
         [path.resolve('baz')]: { name: 'baz' },
       },
-    }))
+    })
   }
 
   // should be able to execute a command after projects list have been updated
@@ -339,6 +339,6 @@ test('multi-project workspace', async () => {
     expect(stdout.toString()).toContain(`hello from exec: ${process.cwd()}`)
   }
 
-  // should set env.pnpm_run_skip_deps_check for all the scripts
-  await execPnpm([...CONFIG, 'exec', 'node', '--eval', 'assert.strictEqual(process.env.pnpm_run_skip_deps_check, "true")'])
+  // should set env.pnpm_config_verify_deps_before_run to false for all the scripts (to skip check for nested script)
+  await execPnpm([...CONFIG, 'exec', 'node', '--eval', 'assert.strictEqual(process.env.pnpm_config_verify_deps_before_run, "false")'])
 })

@@ -2,6 +2,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import js from '@eslint/js'
 import { FlatCompat } from '@eslint/eslintrc'
+import noDupeConditions from './no-dupe-conditions.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -27,7 +28,19 @@ export default [...compat.extends('standard-with-typescript'), {
     },
   },
 
+  plugins: {
+    "conditions": {
+      rules: {
+        'no-dupe-conditions': noDupeConditions,
+      }
+    }
+  },
+
   rules: {
+    "import/extensions": ["error", "always", {
+      "ignorePackages": true
+    }],
+
     'import/no-extraneous-dependencies': ['error', {
       devDependencies: ['**/pnpm/src/**', '**/test/**', '**/src/**/*.test.ts'],
     }],
@@ -102,5 +115,6 @@ export default [...compat.extends('standard-with-typescript'), {
     'no-var': 'error',
     'no-lone-blocks': 'off',
     'space-before-function-paren': ['error', 'always'],
+    'conditions/no-dupe-conditions': 'error',
   },
 }]

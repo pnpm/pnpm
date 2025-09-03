@@ -1,12 +1,14 @@
 import fs from 'fs'
 import path from 'path'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { type PackageManifest } from '@pnpm/types'
+import { type PackageManifest, type ProjectManifest } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
 import PATH from 'path-name'
 import loadJsonFile from 'load-json-file'
 import writeYamlFile from 'write-yaml-file'
-import { execPnpm, execPnpmSync } from '../utils'
+import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
+import { getIntegrity } from '@pnpm/registry-mock'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 const pkgRoot = path.join(__dirname, '..', '..')
 const pnpmPkg = loadJsonFile.sync<PackageManifest>(path.join(pkgRoot, 'package.json'))
@@ -146,10 +148,13 @@ test('node-gyp is in the PATH', async () => {
 test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFile', async () => {
   prepare({
     pnpm: {
-      onlyBuiltDependenciesFile: 'node_modules/@pnpm.e2e/build-allow-list/list.json',
+      configDependencies: {
+        '@pnpm.e2e/build-allow-list': `1.0.0+${getIntegrity('@pnpm.e2e/build-allow-list', '1.0.0')}`,
+      },
+      onlyBuiltDependenciesFile: 'node_modules/.pnpm-config/@pnpm.e2e/build-allow-list/list.json',
     },
   })
-  execPnpmSync(['add', '@pnpm.e2e/build-allow-list', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
+  execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
@@ -168,6 +173,49 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependenciesFil
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
   expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+})
+
+test('selectively allow scripts in some dependencies by --allow-build flag', async () => {
+  const project = prepare({})
+  execPnpmSync(['add', '--allow-build=@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+
+  const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
+  expect(manifest.pnpm?.onlyBuiltDependencies).toStrictEqual(undefined)
+  const modulesManifest = await readWorkspaceManifest(project.dir())
+  expect(modulesManifest?.onlyBuiltDependencies).toStrictEqual(['@pnpm.e2e/install-script-example'])
+})
+
+test('--allow-build flag should specify the package', async () => {
+  const project = prepare({})
+  const result = execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '--allow-build'])
+
+  expect(result.status).toBe(1)
+  expect(result.stdout.toString()).toContain('The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
+
+  const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
+  expect(manifest.pnpm?.onlyBuiltDependencies).toStrictEqual(undefined)
+  const modulesManifest = await readWorkspaceManifest(project.dir())
+  expect(modulesManifest?.onlyBuiltDependencies).toStrictEqual(undefined)
+})
+
+test('selectively allow scripts in some dependencies by --allow-build flag overlap ignoredBuiltDependencies', async () => {
+  prepare({
+    pnpm: {
+      ignoredBuiltDependencies: ['@pnpm.e2e/install-script-example'],
+    },
+  })
+  const result = execPnpmSync(['add', '--allow-build=@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
+
+  expect(result.status).toBe(1)
+  expect(result.stdout.toString()).toContain('The following dependencies are ignored by the root project, but are allowed to be built by the current command: @pnpm.e2e/install-script-example')
 })
 
 test('use node versions specified by pnpm.executionEnv.nodeVersion in workspace packages', async () => {
@@ -258,4 +306,59 @@ test('ignores pnpm.executionEnv specified by dependencies', async () => {
     execPath: process.execPath,
     versions: process.versions,
   })
+})
+
+test('preinstall script does not trigger verify-deps-before-run (#8954)', async () => {
+  const pnpm = `${process.execPath} ${pnpmBinLocation}` // this would fail if either paths happen to contain spaces
+
+  prepare({
+    name: 'preinstall-script-does-not-trigger-verify-deps-before-run',
+    version: '1.0.0',
+    private: true,
+    scripts: {
+      sayHello: 'echo hello world',
+      preinstall: `${pnpm} run sayHello`,
+    },
+    dependencies: {
+      cowsay: '1.5.0', // to make the default state outdated, any dependency will do
+    },
+  })
+
+  const output = execPnpmSync(['--config.verify-deps-before-run=error', 'install'], { expectSuccess: true })
+  expect(output.status).toBe(0)
+  expect(output.stdout.toString()).toContain('hello world')
+})
+
+test('throw an error when strict-dep-builds is true and there are ignored scripts', async () => {
+  const project = prepare({})
+  const result = execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '--config.strict-dep-builds=true'])
+
+  expect(result.status).toBe(1)
+  expect(result.stdout.toString()).toContain('Ignored build scripts:')
+
+  project.has('@pnpm.e2e/pre-and-postinstall-scripts-example')
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
+
+  const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
+  expect(manifest.dependencies).toStrictEqual({
+    '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+  })
+})
+
+test('the list of ignored builds is preserved after a repeat install', async () => {
+  const project = prepare({})
+  execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', 'esbuild@0.25.0', '--config.optimistic-repeat-install=false'])
+
+  const result = execPnpmSync(['install'])
+  // The warning is printed on repeat install too
+  expect(result.stdout.toString()).toContain('Ignored build scripts:')
+
+  const modulesManifest = project.readModulesManifest()
+  expect(modulesManifest?.ignoredBuilds?.sort()).toStrictEqual([
+    '@pnpm.e2e/pre-and-postinstall-scripts-example',
+    'esbuild',
+  ])
 })

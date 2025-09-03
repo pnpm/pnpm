@@ -1,4 +1,4 @@
-import * as env from './env'
-import { prepareExecutionEnv } from './node'
+import * as env from './env.js'
+import { prepareExecutionEnv } from './node.js'
 
 export { env, prepareExecutionEnv }

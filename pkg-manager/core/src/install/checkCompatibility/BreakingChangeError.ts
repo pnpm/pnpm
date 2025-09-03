@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
-import { type ErrorRelatedSources } from './ErrorRelatedSources'
+import { type ErrorRelatedSources } from './ErrorRelatedSources.js'
 
-export type BreakingChangeErrorOptions = ErrorRelatedSources & {
+export interface BreakingChangeErrorOptions extends ErrorRelatedSources {
   code: string
   message: string
 }

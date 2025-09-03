@@ -1,5 +1,125 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 1000.1.11
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1004.0.1
+
+## 1000.1.10
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/core-loggers@1001.0.2
+
+## 1000.1.9
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1003.0.3
+
+## 1000.1.8
+
+### Patch Changes
+
+- Updated dependencies [509948d]
+  - @pnpm/store-controller-types@1003.0.2
+
+## 1000.1.7
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [c24c66e]
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/store-controller-types@1003.0.1
+
+## 1000.1.6
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+
+## 1000.1.5
+
+### Patch Changes
+
+- 032fff8: Update reflink to support macOS
+  - @pnpm/store-controller-types@1002.0.1
+
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/core-loggers@1000.2.0
+
+## 1000.1.3
+
+### Patch Changes
+
+- @pnpm/core-loggers@1000.1.5
+- @pnpm/store-controller-types@1001.0.5
+
+## 1000.1.2
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1001.0.4
+
+## 1000.1.1
+
+### Patch Changes
+
+- @pnpm/core-loggers@1000.1.4
+- @pnpm/store-controller-types@1001.0.3
+
+## 1000.1.0
+
+### Minor Changes
+
+- e32b1a2: Added support for automatically syncing files of injected workspace packages after `pnpm run` [#9081](https://github.com/pnpm/pnpm/issues/9081). Use the `sync-injected-deps-after-scripts` setting to specify which scripts build the workspace package. This tells pnpm when syncing is needed. The setting should be defined in a `.npmrc` file at the root of the workspace. Example:
+
+  ```ini
+  sync-injected-deps-after-scripts[]=compile
+  ```
+
+### Patch Changes
+
+- @pnpm/core-loggers@1000.1.3
+- @pnpm/store-controller-types@1001.0.2
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/core-loggers@1000.1.2
+- @pnpm/store-controller-types@1001.0.1
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/core-loggers@1000.1.1
+- @pnpm/store-controller-types@1000.1.1
+
 ## 1000.0.2
 
 ### Patch Changes

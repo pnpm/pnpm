@@ -4,8 +4,8 @@ import { audit } from '@pnpm/plugin-commands-audit'
 import { install } from '@pnpm/plugin-commands-installation'
 import { AuditEndpointNotExistsError } from '@pnpm/audit'
 import nock from 'nock'
-import stripAnsi from 'strip-ansi'
-import * as responses from './utils/responses'
+import { stripVTControlCharacters as stripAnsi } from 'util'
+import * as responses from './utils/responses/index.js'
 
 const f = fixtures(path.join(__dirname, 'fixtures'))
 const registries = {
@@ -45,7 +45,7 @@ export const DEFAULT_OPTS = {
   networkConcurrency: 16,
   offline: false,
   pending: false,
-  pnpmfile: './.pnpmfile.cjs',
+  pnpmfile: ['./.pnpmfile.cjs'],
   pnpmHomeDir: '',
   preferWorkspacePackages: true,
   proxy: undefined,
@@ -67,11 +67,12 @@ export const DEFAULT_OPTS = {
 }
 
 describe('plugin-commands-audit', () => {
+  const hasVulnerabilitiesDir = f.find('has-vulnerabilities')
   beforeAll(async () => {
     await install.handler({
       ...DEFAULT_OPTS,
       frozenLockfile: true,
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
     })
   })
   test('audit', async () => {
@@ -80,7 +81,8 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       userConfig: {},
       rawConfig,
       registries,
@@ -96,7 +98,8 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.DEV_VULN_ONLY_RESP)
 
     const { output, exitCode } = await audit.handler({
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       dev: true,
       production: false,
       userConfig: {},
@@ -116,7 +119,8 @@ describe('plugin-commands-audit', () => {
 
     const { output, exitCode } = await audit.handler({
       auditLevel: 'moderate',
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       userConfig: {},
       rawConfig,
       registries,
@@ -133,7 +137,8 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.NO_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      dir: f.find('has-outdated-deps'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       userConfig: {},
       rawConfig,
       registries,
@@ -150,7 +155,8 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.ALL_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       json: true,
       userConfig: {},
       rawConfig,
@@ -170,7 +176,8 @@ describe('plugin-commands-audit', () => {
 
     const { output, exitCode } = await audit.handler({
       auditLevel: 'high',
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       userConfig: {},
       rawConfig,
       dev: true,
@@ -188,7 +195,8 @@ describe('plugin-commands-audit', () => {
       .post('/-/npm/v1/security/audits')
       .reply(500, { message: 'Something bad happened' })
     const { output, exitCode } = await audit.handler({
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       dev: true,
       fetchRetries: 0,
       ignoreRegistryErrors: true,
@@ -211,7 +219,8 @@ describe('plugin-commands-audit', () => {
       .reply(200, responses.NO_VULN_RESP)
 
     const { output, exitCode } = await audit.handler({
-      dir: f.find('has-outdated-deps'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       userConfig: {},
       rawConfig: {
         registry: registries.default,
@@ -231,7 +240,8 @@ describe('plugin-commands-audit', () => {
       .reply(404, {})
 
     await expect(audit.handler({
-      dir: f.find('has-vulnerabilities'),
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
       dev: true,
       fetchRetries: 0,
       ignoreRegistryErrors: false,
@@ -253,20 +263,18 @@ describe('plugin-commands-audit', () => {
     const { exitCode, output } = await audit.handler({
       auditLevel: 'moderate',
       dir: tmp,
+      rootProjectManifestDir: tmp,
       userConfig: {},
       rawConfig,
       registries,
-      rootProjectManifest: {
-        pnpm: {
-          auditConfig: {
-            ignoreCves: [
-              'CVE-2019-10742',
-              'CVE-2020-28168',
-              'CVE-2021-3749',
-              'CVE-2020-7598',
-            ],
-          },
-        },
+      rootProjectManifest: {},
+      auditConfig: {
+        ignoreCves: [
+          'CVE-2019-10742',
+          'CVE-2020-28168',
+          'CVE-2021-3749',
+          'CVE-2020-7598',
+        ],
       },
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
@@ -285,20 +293,18 @@ describe('plugin-commands-audit', () => {
     const { exitCode, output } = await audit.handler({
       auditLevel: 'moderate',
       dir: tmp,
+      rootProjectManifestDir: tmp,
       userConfig: {},
       rawConfig,
       registries,
-      rootProjectManifest: {
-        pnpm: {
-          auditConfig: {
-            ignoreGhsas: [
-              'GHSA-42xw-2xvc-qx8m',
-              'GHSA-4w2v-q235-vp99',
-              'GHSA-cph5-m8f7-6c5x',
-              'GHSA-vh95-rmgr-6w4m',
-            ],
-          },
-        },
+      rootProjectManifest: {},
+      auditConfig: {
+        ignoreGhsas: [
+          'GHSA-42xw-2xvc-qx8m',
+          'GHSA-4w2v-q235-vp99',
+          'GHSA-cph5-m8f7-6c5x',
+          'GHSA-vh95-rmgr-6w4m',
+        ],
       },
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })
@@ -317,21 +323,19 @@ describe('plugin-commands-audit', () => {
     const { exitCode, output } = await audit.handler({
       auditLevel: 'moderate',
       dir: tmp,
+      rootProjectManifestDir: tmp,
       json: true,
       userConfig: {},
       rawConfig,
       registries,
-      rootProjectManifest: {
-        pnpm: {
-          auditConfig: {
-            ignoreCves: [
-              'CVE-2019-10742',
-              'CVE-2020-28168',
-              'CVE-2021-3749',
-              'CVE-2020-7598',
-            ],
-          },
-        },
+      rootProjectManifest: {},
+      auditConfig: {
+        ignoreCves: [
+          'CVE-2019-10742',
+          'CVE-2020-28168',
+          'CVE-2021-3749',
+          'CVE-2020-7598',
+        ],
       },
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
     })

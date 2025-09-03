@@ -4,7 +4,7 @@ import { add } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import tempy from 'tempy'
-import { getNodeExecPath } from '../lib/nodeExecPath'
+import { getNodeExecPath } from '../lib/nodeExecPath.js'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const tmp = tempy.directory()
@@ -26,7 +26,7 @@ const DEFAULT_OPTIONS = {
     optionalDependencies: true,
   },
   lock: true,
-  pnpmfile: '.pnpmfile.cjs',
+  pnpmfile: ['.pnpmfile.cjs'],
   preferWorkspacePackages: true,
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },

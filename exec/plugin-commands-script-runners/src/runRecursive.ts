@@ -2,7 +2,7 @@ import assert from 'assert'
 import path from 'path'
 import util from 'util'
 import { throwOnCommandFail } from '@pnpm/cli-utils'
-import { type Config } from '@pnpm/config'
+import { type Config, getWorkspaceConcurrency } from '@pnpm/config'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -14,10 +14,10 @@ import { groupStart } from '@pnpm/log.group'
 import { sortPackages } from '@pnpm/sort-packages'
 import pLimit from 'p-limit'
 import realpathMissing from 'realpath-missing'
-import { existsInDir } from './existsInDir'
-import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec'
-import { runScript } from './run'
-import { tryBuildRegExpFromCommand } from './regexpCommand'
+import { existsInDir } from './existsInDir.js'
+import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec.js'
+import { type RunScriptOptions, runScript } from './run.js'
+import { tryBuildRegExpFromCommand } from './regexpCommand.js'
 import { type PackageScripts, type ProjectRootDir } from '@pnpm/types'
 
 export type RecursiveRunOpts = Pick<Config,
@@ -31,6 +31,8 @@ export type RecursiveRunOpts = Pick<Config,
 | 'scriptShell'
 | 'shellEmulator'
 | 'stream'
+| 'syncInjectedDepsAfterScripts'
+| 'workspaceDir'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir' | 'dir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
@@ -62,7 +64,7 @@ export async function runRecursive (
     })
   }
 
-  const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
+  const limitRun = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   const stdio =
     !opts.stream &&
     (opts.workspaceConcurrency === 1 ||
@@ -137,8 +139,13 @@ export async function runRecursive (
             }
           }
 
-          const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
-          const groupEnd = (opts.workspaceConcurrency ?? 4) > 1
+          const runScriptOptions: RunScriptOptions = {
+            enablePrePostScripts: opts.enablePrePostScripts ?? false,
+            syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
+            workspaceDir: opts.workspaceDir,
+          }
+          const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
+          const groupEnd = Boolean(lifecycleOpts.silent) || getWorkspaceConcurrency(opts.workspaceConcurrency) > 1
             ? undefined
             : groupStart(formatSectionName({
               name: pkg.package.manifest.name,

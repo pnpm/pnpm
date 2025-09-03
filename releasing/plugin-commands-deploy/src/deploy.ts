@@ -9,15 +9,13 @@ import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 import { install } from '@pnpm/plugin-commands-installation'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { PnpmError } from '@pnpm/error'
-import { readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
+import { getLockfileImporterId, readWantedLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
-import { deployHook } from './deployHook'
+import { deployHook } from './deployHook.js'
 import { logger, globalWarn } from '@pnpm/logger'
-import { type Project, type ProjectId } from '@pnpm/types'
-import normalizePath from 'normalize-path'
-import { createDeployFiles } from './createDeployFiles'
-import { deployCatalogHook } from './deployCatalogHook'
+import { type Project } from '@pnpm/types'
+import { createDeployFiles } from './createDeployFiles.js'
 
 const FORCE_LEGACY_DEPLOY = 'force-legacy-deploy' satisfies keyof typeof configTypes
 
@@ -84,10 +82,11 @@ export type DeployOptions =
 
 export async function handler (opts: DeployOptions, params: string[]): Promise<void> {
   if (!opts.workspaceDir) {
-    throw new PnpmError('CANNOT_DEPLOY', 'A deploy is only possible from inside a workspace')
-  }
-  if (!opts.injectWorkspacePackages) {
-    throw new PnpmError('DEPLOY_NONINJECTED_WORKSPACE', 'We only support deploy from workspaces that use the inject-workspace-packages=true setting')
+    let hint: string | undefined
+    if (opts.rootProjectManifest?.scripts?.['deploy'] != null) {
+      hint = 'Maybe you wanted to invoke "pnpm run deploy"'
+    }
+    throw new PnpmError('CANNOT_DEPLOY', 'A deploy is only possible from inside a workspace', { hint })
   }
   const selectedProjects = Object.values(opts.selectedProjectsGraph ?? {})
   if (selectedProjects.length === 0) {
@@ -139,13 +138,42 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     // doesn't work with filters right now.
     // Related issue: https://github.com/pnpm/pnpm/issues/6858
     dedupePeerDependents: false,
+    // If enabled, dedupe-injected-deps will symlink workspace packages in the
+    // deployed dir to their original (non-deployed) directory in an attempt to
+    // dedupe workspace packages that don't need to be injected. The deployed
+    // dir shouldn't have symlinks to the original workspace. Disable
+    // dedupe-injected-deps to always inject workspace packages since copying is
+    // desirable.
+    dedupeInjectedDeps: false,
+    // Compute the wanted lockfile correctly by setting pruneLockfileImporters.
+    // Since pnpm deploy only installs dependencies for a single selected
+    // project, other projects in the "importers" lockfile section will be
+    // empty when node-linker=hoisted.
+    //
+    // For example, when deploying project-1, project-2 may not be populated,
+    // even if it has dependencies.
+    //
+    //   importers:
+    //     project-1:
+    //       dependencies:
+    //         foo:
+    //           specifier: ^1.0.0
+    //           version: ^1.0.0
+    //     project-2: {}
+    //
+    // Avoid including these empty importers in the in-memory wanted lockfile.
+    // This is important when node-linker=hoisted to prevent project-2 from
+    // being included in the hoisted install. If project-2 is errantly hoisted
+    // to the root node_modules dir, downstream logic will fail to inject it to
+    // the deploy directory. It's also just weird to include empty importers
+    // that don't matter to the filtered lockfile generated for pnpm deploy.
+    pruneLockfileImporters: true,
     depth: Infinity,
     hooks: {
       ...opts.hooks,
       readPackage: [
         ...(opts.hooks?.readPackage ?? []),
         deployHook,
-        deployCatalogHook.bind(null, opts.catalogs ?? {}),
       ],
     },
     frozenLockfile: false,
@@ -178,9 +206,15 @@ async function deployFromSharedLockfile (
   },
   deployDir: string
 ): Promise<string | undefined> {
+  if (!opts.injectWorkspacePackages) {
+    throw new PnpmError('DEPLOY_NONINJECTED_WORKSPACE', 'By default, starting from pnpm v10, we only deploy from workspaces that have "inject-workspace-packages=true" set', {
+      hint: 'If you want to deploy without using injected dependencies, run "pnpm deploy" with the "--legacy" flag or set "force-legacy-deploy" to true',
+    })
+  }
   const {
     allProjects,
     lockfileDir,
+    rootProjectManifest,
     rootProjectManifestDir,
     workspaceDir,
   } = opts
@@ -195,14 +229,15 @@ async function deployFromSharedLockfile (
     return 'Shared lockfile not found. Falling back to installing without a lockfile.'
   }
 
-  const projectId = normalizePath(path.relative(workspaceDir, selectedProject.rootDir)) as ProjectId
+  const projectId = getLockfileImporterId(lockfileDir, selectedProject.rootDir)
 
   const deployFiles = createDeployFiles({
     allProjects,
     deployDir,
     lockfile,
     lockfileDir,
-    manifest: selectedProject.manifest,
+    rootProjectManifest,
+    selectedProjectManifest: selectedProject.manifest,
     projectId,
     rootProjectManifestDir,
   })
@@ -230,12 +265,12 @@ async function deployFromSharedLockfile (
       modulesDir: undefined,
       confirmModulesPurge: false,
       frozenLockfile: true,
+      overrides: undefined, // the effects of the overrides should already be part of the package snapshots
       hooks: {
         ...opts.hooks,
         readPackage: [
           ...(opts.hooks?.readPackage ?? []),
           deployHook,
-          deployCatalogHook.bind(null, opts.catalogs ?? {}),
         ],
         calculatePnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
       },
@@ -245,8 +280,10 @@ async function deployFromSharedLockfile (
       },
     })
   } catch (error) {
-    globalWarn('Deployment with a shared lockfile has failed. If this is a bug, please report it at <https://github.com/pnpm/pnpm/issues>.')
-    globalWarn(`As a workaround, you may add ${FORCE_LEGACY_DEPLOY}=true to .npmrc.`)
+    globalWarn(`Deployment with a shared lockfile has failed. If this is a bug, please report it at <https://github.com/pnpm/pnpm/issues>.
+As a workaround, add the following to pnpm-workspace.yaml:
+
+  forceLegacyDeploy: true`)
     throw error
   }
 

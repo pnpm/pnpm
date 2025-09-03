@@ -1,5 +1,322 @@
 # @pnpm/outdated
 
+## 1001.0.28
+
+### Patch Changes
+
+- @pnpm/client@1001.0.3
+
+## 1001.0.27
+
+### Patch Changes
+
+- @pnpm/client@1001.0.2
+- @pnpm/npm-resolver@1004.1.3
+
+## 1001.0.26
+
+### Patch Changes
+
+- @pnpm/client@1001.0.1
+
+## 1001.0.25
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/client@1001.0.0
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/error@1000.0.4
+  - @pnpm/npm-resolver@1004.1.3
+  - @pnpm/catalogs.resolver@1000.0.5
+  - @pnpm/parse-overrides@1001.0.2
+  - @pnpm/hooks.read-package-hook@1000.0.12
+  - @pnpm/manifest-utils@1001.0.3
+
+## 1001.0.24
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/client@1000.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/pick-registry-for-package@1000.0.9
+  - @pnpm/hooks.read-package-hook@1000.0.11
+  - @pnpm/lockfile.fs@1001.1.16
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/manifest-utils@1001.0.2
+  - @pnpm/npm-resolver@1004.1.2
+  - @pnpm/error@1000.0.3
+  - @pnpm/catalogs.resolver@1000.0.4
+  - @pnpm/parse-overrides@1001.0.1
+
+## 1001.0.23
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/npm-resolver@1004.1.1
+- @pnpm/lockfile.fs@1001.1.15
+- @pnpm/lockfile.utils@1002.0.1
+- @pnpm/client@1000.0.21
+
+## 1001.0.22
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/lockfile.fs@1001.1.14
+
+## 1001.0.21
+
+### Patch Changes
+
+- b0ead51: Read the current lockfile from `node_modules/.pnpm/lock.yaml`, when the project uses a global virtual store.
+- Updated dependencies [2721291]
+  - @pnpm/npm-resolver@1004.1.0
+  - @pnpm/client@1000.0.20
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/lockfile.fs@1001.1.13
+
+## 1001.0.20
+
+### Patch Changes
+
+- @pnpm/client@1000.0.19
+
+## 1001.0.19
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/npm-resolver@1004.0.1
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/client@1000.0.18
+  - @pnpm/manifest-utils@1001.0.1
+  - @pnpm/pick-registry-for-package@1000.0.8
+  - @pnpm/hooks.read-package-hook@1000.0.10
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/modules-yaml@1000.3.3
+
+## 1001.0.18
+
+### Patch Changes
+
+- @pnpm/client@1000.0.17
+
+## 1001.0.17
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/parse-overrides@1001.0.0
+  - @pnpm/npm-resolver@1004.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/manifest-utils@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/hooks.read-package-hook@1000.0.9
+  - @pnpm/client@1000.0.16
+  - @pnpm/catalogs.resolver@1000.0.3
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/pick-registry-for-package@1000.0.7
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/dependency-path@1000.0.8
+  - @pnpm/modules-yaml@1000.3.2
+
+## 1001.0.16
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/npm-resolver@1003.0.0
+  - @pnpm/lockfile.utils@1001.0.9
+  - @pnpm/client@1000.0.15
+  - @pnpm/lockfile.fs@1001.1.10
+
+## 1001.0.15
+
+### Patch Changes
+
+- 72cff38: The resolving function now takes a `registries` object, so it finds the required registry itself instead of receiving it from package requester.
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+  - @pnpm/types@1000.4.0
+  - @pnpm/npm-resolver@1002.0.0
+  - @pnpm/pick-registry-for-package@1000.0.6
+  - @pnpm/hooks.read-package-hook@1000.0.8
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/client@1000.0.14
+  - @pnpm/modules-yaml@1000.3.1
+  - @pnpm/manifest-utils@1000.0.8
+
+## 1001.0.14
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [64f6b4f]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/modules-yaml@1000.3.0
+  - @pnpm/pick-registry-for-package@1000.0.5
+  - @pnpm/hooks.read-package-hook@1000.0.7
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/client@1000.0.13
+  - @pnpm/manifest-utils@1000.0.7
+  - @pnpm/npm-resolver@1001.0.1
+
+## 1001.0.13
+
+### Patch Changes
+
+- Updated dependencies [d612dcf]
+- Updated dependencies [d612dcf]
+- Updated dependencies [3d52365]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/npm-resolver@1001.0.0
+  - @pnpm/lockfile.utils@1001.0.6
+  - @pnpm/client@1000.0.12
+  - @pnpm/lockfile.fs@1001.1.7
+
+## 1001.0.12
+
+### Patch Changes
+
+- @pnpm/client@1000.0.11
+
+## 1001.0.11
+
+### Patch Changes
+
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/npm-resolver@1000.1.7
+- @pnpm/lockfile.fs@1001.1.6
+- @pnpm/lockfile.utils@1001.0.5
+- @pnpm/client@1000.0.10
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [8371664]
+  - @pnpm/npm-resolver@1000.1.6
+  - @pnpm/client@1000.0.9
+
+## 1001.0.9
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/npm-resolver@1000.1.5
+  - @pnpm/pick-registry-for-package@1000.0.4
+  - @pnpm/hooks.read-package-hook@1000.0.6
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/client@1000.0.8
+  - @pnpm/modules-yaml@1000.1.4
+  - @pnpm/manifest-utils@1000.0.6
+
+## 1001.0.8
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/pick-registry-for-package@1000.0.3
+  - @pnpm/hooks.read-package-hook@1000.0.5
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/lockfile.utils@1001.0.3
+  - @pnpm/dependency-path@1000.0.3
+  - @pnpm/client@1000.0.7
+  - @pnpm/modules-yaml@1000.1.3
+  - @pnpm/manifest-utils@1000.0.5
+  - @pnpm/npm-resolver@1000.1.4
+
+## 1001.0.7
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.3
+
+## 1001.0.6
+
+### Patch Changes
+
+- Updated dependencies [e8c2b17]
+  - @pnpm/hooks.read-package-hook@1000.0.4
+  - @pnpm/client@1000.0.6
+
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/npm-resolver@1000.1.3
+  - @pnpm/pick-registry-for-package@1000.0.2
+  - @pnpm/hooks.read-package-hook@1000.0.3
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/client@1000.0.5
+  - @pnpm/modules-yaml@1000.1.2
+  - @pnpm/manifest-utils@1000.0.4
+  - @pnpm/catalogs.resolver@1000.0.2
+  - @pnpm/parse-overrides@1000.0.2
+
+## 1001.0.4
+
+### Patch Changes
+
+- @pnpm/client@1000.0.4
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/pick-registry-for-package@1000.0.1
+  - @pnpm/hooks.read-package-hook@1000.0.2
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/lockfile.utils@1001.0.1
+  - @pnpm/dependency-path@1000.0.1
+  - @pnpm/client@1000.0.3
+  - @pnpm/modules-yaml@1000.1.1
+  - @pnpm/manifest-utils@1000.0.3
+  - @pnpm/npm-resolver@1000.1.2
+
 ## 1001.0.2
 
 ### Patch Changes

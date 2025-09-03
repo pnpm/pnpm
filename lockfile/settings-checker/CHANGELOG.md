@@ -1,5 +1,97 @@
 # @pnpm/lockfile.settings-checker
 
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/parse-overrides@1001.0.2
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1001.0.11
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/parse-overrides@1001.0.1
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1001.0.9
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1001.0.8
+- @pnpm/crypto.hash@1000.1.1
+
+## 1001.0.8
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+  - @pnpm/parse-overrides@1001.0.0
+  - @pnpm/lockfile.types@1001.0.7
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.0.7
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1001.0.6
+- @pnpm/crypto.hash@1000.1.1
+
+## 1001.0.6
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1001.0.5
+- @pnpm/crypto.hash@1000.1.1
+
+## 1001.0.5
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.1.1
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [daf47e9]
+  - @pnpm/crypto.hash@1000.1.0
+  - @pnpm/lockfile.types@1001.0.4
+
+## 1001.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1001.0.3
+- @pnpm/crypto.hash@1000.0.0
+
+## 1001.0.2
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1001.0.2
+- @pnpm/parse-overrides@1000.0.2
+- @pnpm/crypto.hash@1000.0.0
+
+## 1001.0.1
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1001.0.1
+- @pnpm/crypto.hash@1000.0.0
+
 ## 1001.0.0
 
 ### Major Changes

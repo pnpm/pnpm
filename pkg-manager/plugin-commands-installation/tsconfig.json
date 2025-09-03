@@ -22,6 +22,9 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -34,7 +37,16 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../config/config-writer"
+    },
+    {
+      "path": "../../config/deps-installer"
+    },
+    {
       "path": "../../config/matcher"
+    },
+    {
+      "path": "../../config/pick-registry-for-package"
     },
     {
       "path": "../../dedupe/check"
@@ -50,6 +62,9 @@
     },
     {
       "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../fs/read-modules-dir"
     },
     {
       "path": "../../hooks/pnpmfile"
@@ -74,6 +89,9 @@
     },
     {
       "path": "../../pkg-manifest/manifest-utils"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"
@@ -104,6 +122,9 @@
     },
     {
       "path": "../../workspace/find-workspace-dir"
+    },
+    {
+      "path": "../../workspace/manifest-writer"
     },
     {
       "path": "../../workspace/pkgs-graph"

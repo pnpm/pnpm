@@ -14,7 +14,7 @@ import {
 } from '@pnpm/store.cafs'
 import loadJsonFile from 'load-json-file'
 import { PnpmError } from '@pnpm/error'
-import { type LicensePackage } from './licenses'
+import { type LicensePackage } from './licenses.js'
 import { type DirectoryResolution, type PackageSnapshot, pkgSnapshotToResolution, type Resolution } from '@pnpm/lockfile.utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 
@@ -185,7 +185,8 @@ async function parseLicense (
       const licenseContent = licenseContents?.toString('utf-8')
       let name = 'Unknown'
       if (licenseContent) {
-        const match = licenseContent.match(new RegExp(`\\b(${LICENSE_NAMES.join('|')})\\b`, 'igm'))
+        // eslint-disable-next-line regexp/no-unused-capturing-group
+        const match = licenseContent.match(new RegExp(`\\b(${LICENSE_NAMES.join('|')})\\b`, 'gi'))
         if (match) {
           name = [...new Set(match)].join(' OR ')
         }
@@ -258,7 +259,7 @@ export async function readPackageIndexFile (
     pkgIndexFilePath = getIndexFilePathInCafs(
       opts.storeDir,
       packageResolution.integrity as string,
-      `${parsedId.name}@${parsedId.version}`
+      parsedId.nonSemverVersion ?? `${parsedId.name}@${parsedId.version}`
     )
   } else if (!packageResolution.type && packageResolution.tarball) {
     const packageDirInStore = depPathToFilename(parse(id).nonSemverVersion ?? id, opts.virtualStoreDirMaxLength)

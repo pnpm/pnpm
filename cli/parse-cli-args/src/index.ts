@@ -4,6 +4,7 @@ import nopt from '@pnpm/nopt'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
+const SPECIALLY_ESCAPED_CMDS = new Set(['run', 'dlx'])
 
 export interface ParsedCliArgs {
   argv: {
@@ -60,7 +61,7 @@ export async function parseCliArgs (
     commandName = opts.fallbackCommand!
     inputArgv.unshift(opts.fallbackCommand!)
   // The run command has special casing for --help and is handled further below.
-  } else if (cmd !== 'run') {
+  } else if (!SPECIALLY_ESCAPED_CMDS.has(cmd!)) {
     if (noptExploratoryResults['help']) {
       return {
         ...getParsedArgsForHelp(),
@@ -108,8 +109,8 @@ export async function parseCliArgs (
     return 'add'
   }
 
-  function getEscapeArgsWithSpecialCaseForRun (): string[] | undefined {
-    if (cmd !== 'run') {
+  function getEscapeArgsWithSpecialCases (): string[] | undefined {
+    if (!SPECIALLY_ESCAPED_CMDS.has(cmd!)) {
       return opts.escapeArgs
     }
 
@@ -139,13 +140,13 @@ export async function parseCliArgs (
     },
     inputArgv,
     0,
-    { escapeArgs: getEscapeArgsWithSpecialCaseForRun() }
+    { escapeArgs: getEscapeArgsWithSpecialCases() }
   )
   const workspaceDir = await getWorkspaceDir(options)
 
   // For the run command, it's not clear whether --help should be passed to the
   // underlying script or invoke pnpm's help text until an additional nopt call.
-  if (cmd === 'run' && options['help']) {
+  if (SPECIALLY_ESCAPED_CMDS.has(cmd!) && options['help']) {
     return {
       ...getParsedArgsForHelp(),
       workspaceDir,
@@ -225,11 +226,15 @@ function getUnknownOptions (usedOptions: string[], knownOptions: Set<string>): M
   const unknownOptions = new Map<string, string[]>()
   const closestMatches = getClosestOptionMatches.bind(null, Array.from(knownOptions))
   for (const usedOption of usedOptions) {
-    if (knownOptions.has(usedOption) || usedOption.startsWith('//')) continue
+    if (knownOptions.has(usedOption) || usedOption.startsWith('//') || isScopeRegistryOption(usedOption)) continue
 
     unknownOptions.set(usedOption, closestMatches(usedOption))
   }
   return unknownOptions
+}
+
+function isScopeRegistryOption (optionName: string): boolean {
+  return /^@[a-z0-9][\w.-]*:registry$/.test(optionName)
 }
 
 function getClosestOptionMatches (knownOptions: string[], option: string): string[] {

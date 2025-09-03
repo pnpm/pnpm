@@ -6,7 +6,9 @@ import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import { type FilesMap, type ImportOptions, type ImportIndexedPackage } from '@pnpm/store-controller-types'
-import { importIndexedDir, type ImportFile } from './importIndexedDir'
+import { importIndexedDir, type ImportFile } from './importIndexedDir.js'
+
+export { type FilesMap, type ImportOptions, type ImportIndexedPackage }
 
 export type PackageImportMethod = 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
 
@@ -131,7 +133,7 @@ function createCloneFunction (): CloneFunction {
   // Hence, we use a third party solution.
   if (process.platform === 'darwin' || process.platform === 'win32') {
     // eslint-disable-next-line
-    const { reflinkFileSync } = require('@reflink/reflink')
+    const { reflinkFileSync } = require('@reflink/reflink') as typeof import('@reflink/reflink')
     return (fr, to) => {
       try {
         reflinkFileSync(fr, to)

@@ -2,7 +2,7 @@ import path from 'path'
 import { logger } from '@pnpm/logger'
 import { preparePackages } from '@pnpm/prepare'
 import { type ProjectRootDir } from '@pnpm/types'
-import { loadWorkspaceState, updateWorkspaceState } from '../src/index'
+import { loadWorkspaceState, updateWorkspaceState } from '../src/index.js'
 
 const originalLoggerDebug = logger.debug
 afterEach(() => {
@@ -21,7 +21,7 @@ test('updateWorkspaceState()', async () => {
 
   logger.debug = jest.fn(originalLoggerDebug)
   await updateWorkspaceState({
-    pnpmfileExists: true,
+    pnpmfiles: [],
     workspaceDir,
     allProjects: [],
     filteredInstall: false,
@@ -34,7 +34,7 @@ test('updateWorkspaceState()', async () => {
       injectWorkspacePackages: false,
     },
   })
-  expect((logger.debug as jest.Mock).mock.calls).toStrictEqual([[{ msg: 'updating workspace state' }]])
+  expect(jest.mocked(logger.debug).mock.calls).toStrictEqual([[{ msg: 'updating workspace state' }]])
   expect(loadWorkspaceState(workspaceDir)).toStrictEqual(expect.objectContaining({
     lastValidatedTimestamp: expect.any(Number),
     projects: {},
@@ -42,7 +42,7 @@ test('updateWorkspaceState()', async () => {
 
   logger.debug = jest.fn(originalLoggerDebug)
   await updateWorkspaceState({
-    pnpmfileExists: false,
+    pnpmfiles: [],
     workspaceDir,
     settings: {
       autoInstallPeers: true,
@@ -65,7 +65,7 @@ test('updateWorkspaceState()', async () => {
     ],
     filteredInstall: false,
   })
-  expect((logger.debug as jest.Mock).mock.calls).toStrictEqual([[{ msg: 'updating workspace state' }]])
+  expect(jest.mocked(logger.debug).mock.calls).toStrictEqual([[{ msg: 'updating workspace state' }]])
   expect(loadWorkspaceState(workspaceDir)).toStrictEqual(expect.objectContaining({
     settings: expect.objectContaining({
       catalogs: {

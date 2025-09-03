@@ -4,6 +4,7 @@ import { type LockfileObject } from '@pnpm/lockfile.types'
 import { add, install, update } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
+import { jest } from '@jest/globals'
 import { sync as readYamlFile } from 'read-yaml-file'
 import chalk from 'chalk'
 import * as enquirer from 'enquirer'
@@ -31,7 +32,7 @@ const DEFAULT_OPTIONS = {
     optionalDependencies: true,
   },
   lock: true,
-  pnpmfile: '.pnpmfile.cjs',
+  pnpmfile: ['.pnpmfile.cjs'],
   pnpmHomeDir: '',
   preferWorkspacePackages: true,
   rawConfig: { registry: REGISTRY_URL },
@@ -284,11 +285,6 @@ test('interactively update should ignore dependencies from the ignoreDependencie
       // has many versions that satisfy ^3.0.0
       micromatch: '^3.0.0',
     },
-    pnpm: {
-      updateConfig: {
-        ignoreDependencies: ['is-negative'],
-      },
-    },
   })
 
   const storeDir = path.resolve('pnpm-store')
@@ -317,6 +313,9 @@ test('interactively update should ignore dependencies from the ignoreDependencie
     interactive: true,
     linkWorkspacePackages: true,
     storeDir,
+    updateConfig: {
+      ignoreDependencies: ['is-negative'],
+    },
   })
 
   expect(prompt.mock.calls[0][0].choices).toStrictEqual(

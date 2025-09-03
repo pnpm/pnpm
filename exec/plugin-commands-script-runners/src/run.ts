@@ -8,7 +8,7 @@ import {
 import { type CompletionFunc } from '@pnpm/command'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types as allTypes } from '@pnpm/config'
+import { type Config, types as allTypes, getWorkspaceConcurrency } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import {
@@ -16,16 +16,16 @@ import {
   makeNodeRequireOption,
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
+import { syncInjectedDeps } from '@pnpm/workspace.injected-deps-syncer'
 import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
-import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand } from './runRecursive'
-import { existsInDir } from './existsInDir'
-import { handler as exec } from './exec'
-import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
-import { DISABLE_DEPS_CHECK_ENV, shouldRunCheck } from './shouldRunCheck'
-import { runDepsStatusCheck } from './runDepsStatusCheck'
+import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand } from './runRecursive.js'
+import { existsInDir } from './existsInDir.js'
+import { handler as exec } from './exec.js'
+import { buildCommandNotFoundHint } from './buildCommandNotFoundHint.js'
+import { runDepsStatusCheck } from './runDepsStatusCheck.js'
 
 export const IF_PRESENT_OPTION: Record<string, unknown> = {
   'if-present': Boolean,
@@ -165,6 +165,7 @@ export type RunOpts =
   | 'dir'
   | 'enablePrePostScripts'
   | 'engineStrict'
+  | 'executionEnv'
   | 'extraBinPaths'
   | 'extraEnv'
   | 'nodeOptions'
@@ -173,6 +174,7 @@ export type RunOpts =
   | 'scriptShell'
   | 'scriptsPrependNodePath'
   | 'shellEmulator'
+  | 'syncInjectedDepsAfterScripts'
   | 'userAgent'
   >
   & (
@@ -197,20 +199,19 @@ export async function handler (
   }
   const [scriptName, ...passedThruArgs] = params
 
-  // verifyDepsBeforeRun is outside of shouldRunCheck because TypeScript's tagged union
-  // only works when the tag is directly placed in the condition.
-  if (opts.verifyDepsBeforeRun && shouldRunCheck(process.env, scriptName)) {
+  if (opts.verifyDepsBeforeRun) {
     await runDepsStatusCheck(opts)
+  }
+
+  if (opts.nodeOptions) {
+    opts.extraEnv = {
+      ...opts.extraEnv,
+      NODE_OPTIONS: opts.nodeOptions,
+    }
   }
 
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
-      if (opts.verifyDepsBeforeRun) {
-        opts.extraEnv = {
-          ...opts.extraEnv,
-          ...DISABLE_DEPS_CHECK_ENV,
-        }
-      }
       return runRecursive(params, opts) as Promise<undefined>
     }
     dir = Object.keys(opts.selectedProjectsGraph)[0]
@@ -232,7 +233,7 @@ export async function handler (
     if (opts.fallbackCommandUsed) {
       if (opts.argv == null) throw new Error('Could not fallback because opts.argv.original was not passed to the script runner')
       const params = opts.argv.original.slice(1)
-      while (params.length > 0 && params[0].startsWith('-') && params[0] !== '--') {
+      while (params.length > 0 && params[0][0] === '-' && params[0] !== '--') {
         params.shift()
       }
       if (params.length > 0 && params[0] === '--') {
@@ -263,18 +264,12 @@ so you may run "pnpm -w run ${scriptName}"`,
       hint: buildCommandNotFoundHint(scriptName, manifest.scripts),
     })
   }
-  const concurrency = opts.workspaceConcurrency ?? 4
-
-  const extraEnv = {
-    ...opts.extraEnv,
-    ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
-    ...opts.verifyDepsBeforeRun ? DISABLE_DEPS_CHECK_ENV : undefined,
-  }
+  const concurrency = getWorkspaceConcurrency(opts.workspaceConcurrency)
 
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
     extraBinPaths: opts.extraBinPaths,
-    extraEnv,
+    extraEnv: opts.extraEnv,
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
@@ -285,9 +280,8 @@ so you may run "pnpm -w run ${scriptName}"`,
     stdio: (specifiedScripts.length > 1 && concurrency > 1) ? 'pipe' : 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   }
-  const executionEnv = manifest.pnpm?.executionEnv
-  if (executionEnv != null) {
-    lifecycleOpts.extraBinPaths = (await prepareExecutionEnv(opts, { executionEnv })).extraBinPaths
+  if (opts.executionEnv != null) {
+    lifecycleOpts.extraBinPaths = (await prepareExecutionEnv(opts, { executionEnv: opts.executionEnv })).extraBinPaths
   }
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const pnpPath = (opts.workspaceDir && existsPnp(opts.workspaceDir)) ?? existsPnp(dir)
@@ -300,7 +294,12 @@ so you may run "pnpm -w run ${scriptName}"`,
   try {
     const limitRun = pLimit(concurrency)
 
-    const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
+    const runScriptOptions: RunScriptOptions = {
+      enablePrePostScripts: opts.enablePrePostScripts ?? false,
+      syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
+      workspaceDir: opts.workspaceDir,
+    }
+    const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions, passedThruArgs })
 
     await Promise.all(specifiedScripts.map(script => limitRun(() => _runScript(script))))
   } catch (err: unknown) {
@@ -387,6 +386,8 @@ ${renderCommands(rootScripts)}`
 
 export interface RunScriptOptions {
   enablePrePostScripts: boolean
+  syncInjectedDepsAfterScripts: string[] | undefined
+  workspaceDir: string | undefined
 }
 
 export async function runScript (opts: {
@@ -409,6 +410,13 @@ export async function runScript (opts: {
     !opts.manifest.scripts[scriptName].includes(`post${scriptName}`)
   ) {
     await runLifecycleHook(`post${scriptName}`, opts.manifest, opts.lifecycleOpts)
+  }
+  if (opts.runScriptOptions.syncInjectedDepsAfterScripts?.includes(scriptName)) {
+    await syncInjectedDeps({
+      pkgName: opts.manifest.name,
+      pkgRootDir: opts.lifecycleOpts.pkgRoot,
+      workspaceDir: opts.runScriptOptions.workspaceDir,
+    })
   }
 }
 

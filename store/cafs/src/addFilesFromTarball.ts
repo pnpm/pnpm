@@ -6,8 +6,8 @@ import {
 import { type DependencyManifest } from '@pnpm/types'
 import isGzip from 'is-gzip'
 import { gunzipSync } from 'zlib'
-import { parseJsonBufferSync } from './parseJson'
-import { parseTarball } from './parseTarball'
+import { parseJsonBufferSync } from './parseJson.js'
+import { parseTarball } from './parseTarball.js'
 
 export function addFilesFromTarball (
   addBufferToCafs: (buffer: Buffer, mode: number) => FileWriteResult,
@@ -24,7 +24,7 @@ export function addFilesFromTarball (
   for (const [relativePath, { mode, offset, size }] of files) {
     if (ignore(relativePath)) continue
 
-    const fileBuffer = tarContent.slice(offset, offset + size)
+    const fileBuffer = tarContent.subarray(offset, offset + size)
     if (readManifest && relativePath === 'package.json') {
       manifestBuffer = fileBuffer
     }

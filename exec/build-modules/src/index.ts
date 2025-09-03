@@ -2,6 +2,7 @@ import assert from 'assert'
 import path from 'path'
 import util from 'util'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
+import { getWorkspaceConcurrency } from '@pnpm/config'
 import { skippedOptionalDependencyLogger, ignoredScriptsLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
@@ -14,7 +15,7 @@ import { type DependencyManifest } from '@pnpm/types'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import pickBy from 'ramda/src/pickBy'
 import runGroups from 'run-groups'
-import { buildSequence, type DependenciesGraph, type DependenciesGraphNode } from './buildSequence'
+import { buildSequence, type DependenciesGraph, type DependenciesGraphNode } from './buildSequence.js'
 
 export type { DepsStateCache }
 
@@ -23,6 +24,8 @@ export async function buildModules<T extends string> (
   rootDepPaths: T[],
   opts: {
     allowBuild?: (pkgName: string) => boolean
+    ignorePatchFailures?: boolean
+    ignoredBuiltDependencies?: string[]
     childConcurrency?: number
     depsToBuild?: Set<string>
     depsStateCache: DepsStateCache
@@ -44,7 +47,8 @@ export async function buildModules<T extends string> (
     rootModulesDir: string
     hoistedLocations?: Record<string, string[]>
   }
-): Promise<{ ignoredBuilds: string[] }> {
+): Promise<{ ignoredBuilds?: string[] }> {
+  if (!rootDepPaths.length) return {}
   const warn = (message: string) => {
     logger.warn({ message, prefix: opts.lockfileDir })
   }
@@ -56,14 +60,9 @@ export async function buildModules<T extends string> (
     warn,
   }
   const chunks = buildSequence<T>(depGraph, rootDepPaths)
+  if (!chunks.length) return {}
   const ignoredPkgs = new Set<string>()
-  const allowBuild = opts.allowBuild
-    ? (pkgName: string) => {
-      if (opts.allowBuild!(pkgName)) return true
-      ignoredPkgs.add(pkgName)
-      return false
-    }
-    : () => true
+  const allowBuild = opts.allowBuild ?? (() => true)
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
@@ -74,15 +73,29 @@ export async function buildModules<T extends string> (
     }
 
     return chunk.map((depPath) =>
-      async () => {
+      () => {
+        let ignoreScripts = Boolean(buildDepOpts.ignoreScripts)
+        if (!ignoreScripts) {
+          if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].name)) {
+            ignoredPkgs.add(depGraph[depPath].name)
+            ignoreScripts = true
+          }
+        }
         return buildDependency(depPath, depGraph, {
           ...buildDepOpts,
-          ignoreScripts: Boolean(buildDepOpts.ignoreScripts) || !allowBuild(depGraph[depPath].name),
+          ignoreScripts,
         })
       }
     )
   })
-  await runGroups(opts.childConcurrency ?? 4, groups)
+  await runGroups(getWorkspaceConcurrency(opts.childConcurrency), groups)
+  if (opts.ignoredBuiltDependencies?.length) {
+    for (const ignoredBuild of opts.ignoredBuiltDependencies) {
+      // We already ignore the build of this dependency.
+      // No need to report it.
+      ignoredPkgs.delete(ignoredBuild)
+    }
+  }
   const packageNames = Array.from(ignoredPkgs)
   ignoredScriptsLogger.debug({ packageNames })
   return { ignoredBuilds: packageNames }
@@ -92,6 +105,7 @@ async function buildDependency<T extends string> (
   depPath: T,
   depGraph: DependenciesGraph<T>,
   opts: {
+    ignorePatchFailures?: boolean
     extraBinPaths?: string[]
     extraNodePaths?: string[]
     extraEnv?: Record<string, string>
@@ -127,7 +141,10 @@ async function buildDependency<T extends string> (
     let isPatched = false
     if (depNode.patch) {
       const { file, strict } = depNode.patch
-      isPatched = applyPatchToDir({ allowFailure: !strict, patchedDir: depNode.dir, patchFilePath: file.path })
+      // `strict` is a legacy property which was kept to preserve backward compatibility.
+      // Once a major version of pnpm is released, `strict` should be removed completely.
+      const allowFailure: boolean = opts.ignorePatchFailures ?? !strict
+      isPatched = applyPatchToDir({ allowFailure, patchedDir: depNode.dir, patchFilePath: file.path })
     }
     const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
       depPath,
@@ -147,7 +164,7 @@ async function buildDependency<T extends string> (
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
           patchFileHash: depNode.patch?.file.hash,
-          isBuilt: hasSideEffects,
+          includeDepGraphHash: hasSideEffects,
         })
         await opts.storeController.upload(depNode.dir, {
           sideEffectsCacheKey,

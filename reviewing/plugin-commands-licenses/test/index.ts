@@ -6,8 +6,8 @@ import { licenses } from '@pnpm/plugin-commands-licenses'
 import { install } from '@pnpm/plugin-commands-installation'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import stripAnsi from 'strip-ansi'
-import { DEFAULT_OPTS } from './utils'
+import { stripVTControlCharacters as stripAnsi } from 'util'
+import { DEFAULT_OPTS } from './utils/index.js'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 
 const f = fixtures(__dirname)
@@ -117,6 +117,8 @@ test('pnpm licenses: output as json', async () => {
     'homepage',
     'description',
   ])
+  const _path = path.join('node_modules', '.pnpm')
+  expect(packagesWithMIT[0].paths[0].includes(_path)).toBeTruthy()
 })
 
 test('pnpm licenses: path should be correct for workspaces', async () => {
@@ -275,12 +277,16 @@ test('pnpm licenses should work with file protocol dependency', async () => {
 test('pnpm licenses should work with git protocol dep that have patches', async () => {
   const workspaceDir = tempDir()
   f.copy('with-git-protocol-patched-deps', workspaceDir)
+  const patchedDependencies = {
+    'is-positive@3.1.0': 'patches/is-positive@3.1.0.patch',
+  }
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
     frozenLockfile: true,
+    patchedDependencies,
     pnpmHomeDir: '',
     storeDir,
   })

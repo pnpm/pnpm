@@ -12,7 +12,7 @@ import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import execa from 'execa'
 import isWindows from 'is-windows'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
+import { DEFAULT_OPTS, REGISTRY_URL } from './utils/index.js'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
@@ -550,9 +550,9 @@ onlyOnWindows('pnpm shows error if script-shell is .cmd', async () => {
     }, ['build'])
   }
 
-  await expect(runScript).rejects.toEqual(expect.objectContaining({
+  await expect(runScript).rejects.toMatchObject({
     code: 'ERR_PNPM_INVALID_SCRIPT_SHELL_WINDOWS',
-  }))
+  })
 })
 
 test('pnpm run with RegExp script selector should work', async () => {
@@ -712,10 +712,10 @@ test('pnpm run with slightly incorrect command suggests correct one', async () =
     pnpmHomeDir: '',
     rawConfig: {},
     workspaceConcurrency: 1,
-  }, ['buil'])).rejects.toEqual(expect.objectContaining({
+  }, ['buil'])).rejects.toMatchObject({
     code: 'ERR_PNPM_NO_SCRIPT',
     hint: 'Command "buil" not found. Did you mean "pnpm run build"?',
-  }))
+  })
 })
 
 test('pnpm run with custom node-options', async () => {
@@ -762,11 +762,6 @@ test('pnpm run with node version', async () => {
     scripts: {
       'assert-node-version': 'node -e "assert.equal(process.version, \'v20.0.0\')"',
     },
-    pnpm: {
-      executionEnv: {
-        nodeVersion: '20.0.0',
-      },
-    },
   })
 
   await run.handler({
@@ -778,5 +773,8 @@ test('pnpm run with node version', async () => {
     pnpmHomeDir: process.cwd(),
     rawConfig: {},
     workspaceConcurrency: 1,
+    executionEnv: {
+      nodeVersion: '20.0.0',
+    },
   }, ['assert-node-version'])
 })

@@ -5,15 +5,14 @@ import {
   readWantedLockfile,
 } from '@pnpm/lockfile.fs'
 import { createMatcher } from '@pnpm/matcher'
-import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
   type IncludedDependencies,
   type ProjectManifest,
   type ProjectRootDir,
 } from '@pnpm/types'
 import unnest from 'ramda/src/unnest'
-import { createManifestGetter, type ManifestGetterOptions } from './createManifestGetter'
-import { outdated, type OutdatedPackage } from './outdated'
+import { createManifestGetter, type ManifestGetterOptions } from './createManifestGetter.js'
+import { outdated, type OutdatedPackage } from './outdated.js'
 
 export async function outdatedDepsOfProjects (
   pkgs: Array<{ rootDir: ProjectRootDir, manifest: ProjectManifest }>,
@@ -33,9 +32,8 @@ export async function outdatedDepsOfProjects (
     ))
   }
   const lockfileDir = opts.lockfileDir ?? opts.dir
-  const modules = await readModulesManifest(path.join(lockfileDir, 'node_modules'))
-  const virtualStoreDir = modules?.virtualStoreDir ?? path.join(lockfileDir, 'node_modules/.pnpm')
-  const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
+  const internalPnpmDir = path.join(path.join(lockfileDir, 'node_modules/.pnpm'))
+  const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }) ?? currentLockfile
   const getLatestManifest = createManifestGetter({
     ...opts,

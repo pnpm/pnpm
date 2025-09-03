@@ -1,5 +1,95 @@
 # @pnpm/assert-store
 
+## 2.0.16
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.16
+
+## 2.0.15
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.15
+
+## 2.0.14
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.14
+
+## 2.0.13
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.13
+
+## 2.0.12
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.12
+
+## 2.0.11
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.11
+
+## 2.0.10
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.10
+
+## 2.0.9
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.9
+
+## 2.0.8
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.8
+
+## 2.0.7
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.7
+
+## 2.0.6
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.6
+
+## 2.0.5
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.5
+
+## 2.0.4
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.4
+
+## 2.0.3
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.3
+
+## 2.0.2
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.2
+
 ## 2.0.1
 
 ### Patch Changes

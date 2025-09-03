@@ -20,13 +20,13 @@ import chalk from 'chalk'
 import pick from 'ramda/src/pick'
 import sortWith from 'ramda/src/sortWith'
 import renderHelp from 'render-help'
-import stripAnsi from 'strip-ansi'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 import {
   DEFAULT_COMPARATORS,
   NAME_COMPARATOR,
   type OutdatedWithVersionDiff,
-} from './utils'
-import { outdatedRecursive } from './recursive'
+} from './utils.js'
+import { outdatedRecursive } from './recursive.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {
@@ -167,6 +167,7 @@ export type OutdatedCommandOptions = {
 | 'strictSsl'
 | 'tag'
 | 'userAgent'
+| 'updateConfig'
 > & Partial<Pick<Config, 'userConfig'>>
 
 export async function handler (
@@ -192,7 +193,7 @@ export async function handler (
   const [outdatedPackages] = await outdatedDepsOfProjects(packages, params, {
     ...opts,
     fullMetadata: opts.long,
-    ignoreDependencies: manifest?.pnpm?.updateConfig?.ignoreDependencies,
+    ignoreDependencies: opts.updateConfig?.ignoreDependencies,
     include,
     retry: {
       factor: opts.fetchRetryFactor,

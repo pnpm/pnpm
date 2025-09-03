@@ -1,5 +1,81 @@
 # @pnpm/types
 
+## 1000.7.0
+
+### Minor Changes
+
+- 1a07b8f: Added "devEngines" to the manifest fields.
+
+## 1000.6.0
+
+### Minor Changes
+
+- 5ec7255: Export AuditConfig.
+
+## 1000.5.0
+
+### Minor Changes
+
+- 5b73df1: Added `PinnedVersion`.
+
+## 1000.4.0
+
+### Minor Changes
+
+- 750ae7d: Export `ConfigDependencies` type.
+
+## 1000.3.0
+
+### Minor Changes
+
+- 5f7be64: Rename `pnpm.allowNonAppliedPatches` to `pnpm.allowUnusedPatches`. The old name is still supported but it would print a deprecation warning message.
+- 5f7be64: Add `pnpm.ignorePatchFailures` to manage whether pnpm would ignore patch application failures.
+
+  If `ignorePatchFailures` is not set, pnpm would throw an error when patches with exact versions or version ranges fail to apply, and it would ignore failures from name-only patches.
+
+  If `ignorePatchFailures` is explicitly set to `false`, pnpm would throw an error when any type of patch fails to apply.
+
+  If `ignorePatchFailures` is explicitly set to `true`, pnpm would print a warning when any type of patch fails to apply.
+
+## 1000.2.1
+
+### Patch Changes
+
+- a5e4965: Fix `pnpm deploy` creating a `package.json` without the `imports` and `license` field [#9193](https://github.com/pnpm/pnpm/issues/9193).
+
+## 1000.2.0
+
+### Minor Changes
+
+- 8fcc221: Export PnpmSettings.
+
+## 1000.1.1
+
+### Patch Changes
+
+- b562deb: Fix `pnpm deploy` creating a package.json without the `"type"` key [#8962](https://github.com/pnpm/pnpm/issues/8962).
+
+## 1000.1.0
+
+### Minor Changes
+
+- 9591a18: Added support for a new type of dependencies called "configurational dependencies". These dependencies are installed before all the other types of dependencies (before "dependencies", "devDependencies", "optionalDependencies").
+
+  Configurational dependencies cannot have dependencies of their own or lifecycle scripts. They should be added using exact version and the integrity checksum. Example:
+
+  ```json
+  {
+    "pnpm": {
+      "configDependencies": {
+        "my-configs": "1.0.0+sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw=="
+      }
+    }
+  }
+  ```
+
+  Related RFC: [#8](https://github.com/pnpm/rfcs/pull/8).
+  Related PR: [#8915](https://github.com/pnpm/pnpm/pull/8915).
+
 ## 12.2.0
 
 ### Minor Changes

@@ -9,30 +9,32 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import { addFilesFromDir, importPackage, initStoreDir } from '@pnpm/worker'
-import { prune } from './prune'
+import { prune } from './prune.js'
 
 export { type CafsLocker }
+
+export interface CreatePackageStoreOptions {
+  cafsLocker?: CafsLocker
+  engineStrict?: boolean
+  force?: boolean
+  nodeVersion?: string
+  importPackage?: ImportIndexedPackageAsync
+  pnpmVersion?: string
+  ignoreFile?: (filename: string) => boolean
+  cacheDir: string
+  storeDir: string
+  networkConcurrency?: number
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+  verifyStoreIntegrity: boolean
+  virtualStoreDirMaxLength: number
+  strictStorePkgContentCheck?: boolean
+  clearResolutionCache: () => void
+}
 
 export function createPackageStore (
   resolve: ResolveFunction,
   fetchers: Fetchers,
-  initOpts: {
-    cafsLocker?: CafsLocker
-    engineStrict?: boolean
-    force?: boolean
-    nodeVersion?: string
-    importPackage?: ImportIndexedPackageAsync
-    pnpmVersion?: string
-    ignoreFile?: (filename: string) => boolean
-    cacheDir: string
-    storeDir: string
-    networkConcurrency?: number
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-    verifyStoreIntegrity: boolean
-    virtualStoreDirMaxLength: number
-    strictStorePkgContentCheck?: boolean
-    clearResolutionCache: () => void
-  }
+  initOpts: CreatePackageStoreOptions
 ): StoreController {
   const storeDir = initOpts.storeDir
   if (!fs.existsSync(path.join(storeDir, 'files'))) {

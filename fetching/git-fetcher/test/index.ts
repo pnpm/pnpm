@@ -3,11 +3,12 @@ import path from 'path'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { createGitFetcher } from '@pnpm/git-fetcher'
 import { globalWarn } from '@pnpm/logger'
+import { jest } from '@jest/globals'
 import tempy from 'tempy'
 import execa from 'execa'
 
 jest.mock('execa', () => {
-  const originalModule = jest.requireActual('execa')
+  const originalModule = jest.requireActual<any>('execa') // eslint-disable-line
   return {
     __esModule: true,
     ...originalModule,
@@ -16,7 +17,7 @@ jest.mock('execa', () => {
 })
 
 jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual('@pnpm/logger')
+  const originalModule = jest.requireActual<object>('@pnpm/logger')
   return {
     ...originalModule,
     globalWarn: jest.fn(),
@@ -24,8 +25,8 @@ jest.mock('@pnpm/logger', () => {
 })
 
 beforeEach(() => {
-  ;(execa as jest.Mock).mockClear()
-  ;(globalWarn as jest.Mock).mockClear()
+  jest.mocked(execa).mockClear()
+  jest.mocked(globalWarn).mockClear()
 })
 
 test('fetch', async () => {
@@ -170,7 +171,7 @@ test('still able to shallow fetch for allowed hosts', async () => {
     readManifest: true,
     filesIndexFile: path.join(storeDir, 'index.json'),
   })
-  const calls = (execa as jest.Mock).mock.calls
+  const calls = jest.mocked(execa).mock.calls
   const expectedCalls = [
     ['git', [...prefixGitArgs(), 'init']],
     ['git', [...prefixGitArgs(), 'remote', 'add', 'origin', resolution.repo]],

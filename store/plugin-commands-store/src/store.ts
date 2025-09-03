@@ -6,9 +6,9 @@ import { createOrConnectStoreController, type CreateStoreControllerOptions } fro
 import { getStorePath } from '@pnpm/store-path'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { storeAdd } from './storeAdd'
-import { storePrune } from './storePrune'
-import { storeStatus } from './storeStatus'
+import { storeAdd } from './storeAdd.js'
+import { storePrune } from './storePrune.js'
+import { storeStatus } from './storeStatus/index.js'
 
 export const skipPackageManagerCheck = true
 
@@ -104,7 +104,6 @@ export async function handler (opts: StoreCommandOptions, params: string[]): Pro
     store = await createOrConnectStoreController(opts)
     return storeAdd(params.slice(1), {
       prefix: opts.dir,
-      registries: opts.registries,
       reporter: opts.reporter,
       storeController: store.ctrl,
       tag: opts.tag,

@@ -7,20 +7,22 @@ import {
   type SummaryLog,
 } from '@pnpm/core-loggers'
 import { type Config } from '@pnpm/config'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
+import boxen from 'boxen'
 import chalk from 'chalk'
 import semver from 'semver'
-import { EOL } from '../constants'
+import { EOL } from '../constants.js'
 import {
   getPkgsDiff,
   type PackageDiff,
   propertyByDependencyType,
-} from './pkgsDiff'
+} from './pkgsDiff.js'
 import {
   ADDED_CHAR,
   REMOVED_CHAR,
-} from './outputConstants'
+} from './outputConstants.js'
 
 type DepType = 'prod' | 'optional' | 'peer' | 'dev' | 'nodeModulesOnly'
 
@@ -85,11 +87,16 @@ export function reportSummary (
             msg += EOL
           }
         }
-        if (ignoredScripts.packageNames && ignoredScripts.packageNames.length > 0) {
+        if (ignoredScripts.packageNames && ignoredScripts.packageNames.length > 0 && !opts.pnpmConfig?.strictDepBuilds) {
           msg += EOL
-          msg += `The following dependencies have build scripts that were ignored: ${Array.from(ignoredScripts.packageNames).sort().join(', ')}`
-          msg += EOL
-          msg += 'To allow the execution of build scripts for these packages, add their names to "pnpm.onlyBuiltDependencies" in your "package.json", then run "pnpm rebuild"'
+          msg += boxen(`Ignored build scripts: ${Array.from(ignoredScripts.packageNames).sort(lexCompare).join(', ')}.
+Run "pnpm approve-builds${opts.pnpmConfig?.cliOptions?.global ? ' -g' : ''}" to pick which dependencies should be allowed to run scripts.`, {
+            title: 'Warning',
+            padding: 1,
+            margin: 0,
+            borderStyle: 'round',
+            borderColor: 'yellow',
+          })
           msg += EOL
         }
         return Rx.of({ msg })

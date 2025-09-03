@@ -1,12 +1,13 @@
 import { doctor } from '@pnpm/plugin-commands-doctor'
 import { logger } from '@pnpm/logger'
+import { jest } from '@jest/globals'
 
 beforeEach(() => {
   jest.spyOn(logger, 'warn')
 })
 
 afterEach(() => {
-  (logger.warn as jest.Mock).mockRestore()
+  jest.mocked(logger.warn).mockRestore()
 })
 
 test('doctor', async () => {

@@ -1,11 +1,12 @@
 import execa from 'execa'
 import { exec } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
-import { DEFAULT_OPTS } from './utils'
+import { jest } from '@jest/globals'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 jest.mock('execa')
 
-beforeEach((execa as jest.Mock).mockClear)
+beforeEach(() => jest.mocked(execa).mockClear())
 
 test('exec should set npm_config_user_agent', async () => {
   prepareEmpty()

@@ -1,3 +1,4 @@
+import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
@@ -13,21 +14,25 @@ import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type PackageExtension,
+  type PeerDependencyRules,
   type ReadPackageHook,
   type Registries,
   type PrepareExecutionEnv,
 } from '@pnpm/types'
 import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
-import { pnpmPkgJson } from '../pnpmPkgJson'
-import { type ReporterFunction } from '../types'
+import { pnpmPkgJson } from '../pnpmPkgJson.js'
+import { type ReporterFunction } from '../types.js'
 import { type PreResolutionHookContext } from '@pnpm/hooks.types'
 
 export interface StrictInstallOptions {
   autoInstallPeers: boolean
   autoInstallPeersFromHighestMatch: boolean
   catalogs: Catalogs
+  catalogMode: 'strict' | 'prefer' | 'manual'
+  cleanupUnusedCatalogs: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
+  enableGlobalVirtualStore: boolean
   enablePnp: boolean
   extraBinPaths: string[]
   extraEnv: Record<string, string>
@@ -51,6 +56,7 @@ export interface StrictInstallOptions {
   lockfileIncludeTarballUrl: boolean
   preferWorkspacePackages: boolean
   preserveWorkspaceProtocol: boolean
+  saveCatalogName?: string
   scriptsPrependNodePath: boolean | 'warn-only'
   scriptShell?: string
   shellEmulator: boolean
@@ -65,6 +71,7 @@ export interface StrictInstallOptions {
   rawConfig: Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
   verifyStoreIntegrity: boolean
   engineStrict: boolean
+  ignoredBuiltDependencies?: string[]
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   onlyBuiltDependenciesFile?: string
@@ -73,7 +80,7 @@ export interface StrictInstallOptions {
   nodeVersion?: string
   packageExtensions: Record<string, PackageExtension>
   ignoredOptionalDependencies: string[]
-  pnpmfile: string
+  pnpmfile: string[] | string
   ignorePnpmfile: boolean
   packageManager: {
     name: string
@@ -82,7 +89,7 @@ export interface StrictInstallOptions {
   pruneLockfileImporters: boolean
   hooks: {
     readPackage?: ReadPackageHook[]
-    preResolution?: (ctx: PreResolutionHookContext) => Promise<void>
+    preResolution?: Array<(ctx: PreResolutionHookContext) => Promise<void>>
     afterAllResolved?: Array<(lockfile: LockfileObject) => LockfileObject | Promise<LockfileObject>>
     calculatePnpmfileChecksum?: () => Promise<string | undefined>
   }
@@ -91,7 +98,7 @@ export interface StrictInstallOptions {
   strictPeerDependencies: boolean
   include: IncludedDependencies
   includeDirect: IncludedDependencies
-  ignoreCurrentPrefs: boolean
+  ignoreCurrentSpecifiers: boolean
   ignoreScripts: boolean
   childConcurrency: number
   userAgent: string
@@ -110,8 +117,10 @@ export interface StrictInstallOptions {
   symlink: boolean
   enableModulesDir: boolean
   modulesCacheMaxAge: number
+  peerDependencyRules: PeerDependencyRules
   allowedDeprecatedVersions: AllowedDeprecatedVersions
-  allowNonAppliedPatches: boolean
+  ignorePatchFailures?: boolean
+  allowUnusedPatches: boolean
   preferSymlinkedExecutables: boolean
   resolutionMode: 'highest' | 'time-based' | 'lowest-direct'
   resolvePeersFromWorkspaceRoot: boolean
@@ -155,6 +164,7 @@ export interface StrictInstallOptions {
   prepareExecutionEnv?: PrepareExecutionEnv
   returnListOfDepsRequiringBuild?: boolean
   injectWorkspacePackages?: boolean
+  ci?: boolean
 }
 
 export type InstallOptions =
@@ -168,13 +178,16 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
   }
   return {
     allowedDeprecatedVersions: {},
-    allowNonAppliedPatches: false,
+    allowUnusedPatches: false,
+    ignorePatchFailures: undefined,
     autoInstallPeers: true,
     autoInstallPeersFromHighestMatch: false,
+    catalogs: {},
     childConcurrency: 5,
     confirmModulesPurge: !opts.force,
     depth: 0,
     dedupeInjectedDeps: true,
+    enableGlobalVirtualStore: false,
     enablePnp: false,
     engineStrict: false,
     force: false,
@@ -183,7 +196,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
     hoistPattern: undefined,
     publicHoistPattern: undefined,
     hooks: {},
-    ignoreCurrentPrefs: false,
+    ignoreCurrentSpecifiers: false,
     ignoreDepScripts: false,
     ignoreScripts: false,
     include: {
@@ -231,6 +244,8 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
       process.platform === 'cygwin' ||
       !process.setgid ||
       process.getuid?.() !== 0,
+    catalogMode: 'manual',
+    cleanupUnusedCatalogs: false,
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,
@@ -252,7 +267,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
   } as StrictInstallOptions
 }
 
-export type ProcessedInstallOptions = StrictInstallOptions & {
+export interface ProcessedInstallOptions extends StrictInstallOptions {
   readPackageHook?: ReadPackageHook
   parsedOverrides: VersionOverride[]
 }
@@ -266,6 +281,9 @@ export function extendOptions (
         delete opts[key as keyof InstallOptions]
       }
     }
+  }
+  if (opts.neverBuiltDependencies == null && opts.onlyBuiltDependencies == null && opts.onlyBuiltDependenciesFile == null) {
+    opts.onlyBuiltDependencies = []
   }
   if (opts.onlyBuiltDependencies && opts.neverBuiltDependencies) {
     throw new PnpmError('CONFIG_CONFLICT_BUILT_DEPENDENCIES', 'Cannot have both neverBuiltDependencies and onlyBuiltDependencies')
@@ -297,5 +315,8 @@ export function extendOptions (
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   extendedOpts.rawConfig['registry'] = extendedOpts.registries.default
+  if (extendedOpts.enableGlobalVirtualStore && extendedOpts.virtualStoreDir == null) {
+    extendedOpts.virtualStoreDir = path.join(extendedOpts.storeDir, 'links')
+  }
   return extendedOpts
 }

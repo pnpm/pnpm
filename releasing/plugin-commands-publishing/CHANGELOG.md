@@ -1,5 +1,456 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.2.10
+
+### Patch Changes
+
+- @pnpm/lifecycle@1001.0.20
+- @pnpm/client@1001.0.3
+- @pnpm/plugin-commands-env@1000.0.35
+- @pnpm/cli-utils@1001.1.2
+
+## 1000.2.9
+
+### Patch Changes
+
+- @pnpm/plugin-commands-env@1000.0.34
+- @pnpm/client@1001.0.2
+- @pnpm/cli-utils@1001.1.1
+
+## 1000.2.8
+
+### Patch Changes
+
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+  - @pnpm/plugin-commands-env@1000.0.33
+  - @pnpm/client@1001.0.1
+
+## 1000.2.7
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/client@1001.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/config@1004.2.1
+  - @pnpm/error@1000.0.4
+  - @pnpm/lifecycle@1001.0.19
+  - @pnpm/cli-utils@1001.0.3
+  - @pnpm/exportable-manifest@1000.1.3
+  - @pnpm/plugin-commands-env@1000.0.32
+  - @pnpm/network.auth-header@1000.0.5
+
+## 1000.2.6
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1ba2e15]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/plugin-commands-env@1000.0.31
+  - @pnpm/config@1004.2.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/client@1000.1.0
+  - @pnpm/cli-utils@1001.0.2
+  - @pnpm/pick-registry-for-package@1000.0.9
+  - @pnpm/lifecycle@1001.0.18
+  - @pnpm/package-bins@1000.0.9
+  - @pnpm/exportable-manifest@1000.1.2
+  - @pnpm/sort-packages@1000.0.9
+  - @pnpm/error@1000.0.3
+  - @pnpm/network.auth-header@1000.0.4
+
+## 1000.2.5
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+  - @pnpm/plugin-commands-env@1000.0.30
+
+## 1000.2.4
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+- Updated dependencies [589ac1f]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+  - @pnpm/lifecycle@1001.0.17
+  - @pnpm/plugin-commands-env@1000.0.29
+  - @pnpm/client@1000.0.21
+
+## 1000.2.3
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.1.7
+- @pnpm/plugin-commands-env@1000.0.28
+
+## 1000.2.2
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/config@1004.0.0
+  - @pnpm/client@1000.0.20
+  - @pnpm/cli-utils@1000.1.6
+  - @pnpm/plugin-commands-env@1000.0.27
+  - @pnpm/lifecycle@1001.0.16
+  - @pnpm/exportable-manifest@1000.1.1
+
+## 1000.2.1
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/cli-utils@1000.1.5
+  - @pnpm/plugin-commands-env@1000.0.26
+  - @pnpm/lifecycle@1001.0.15
+  - @pnpm/client@1000.0.19
+  - @pnpm/exportable-manifest@1000.1.1
+
+## 1000.2.0
+
+### Minor Changes
+
+- fdb1d98: Added support for recursively running pack in every project of a workspace [#4351](https://github.com/pnpm/pnpm/issues/4351).
+
+  Now you can run `pnpm -r pack` to pack all packages in the workspace.
+
+### Patch Changes
+
+- fdb1d98: Parallelly run recursive pack and publish
+- fdb1d98: Get `pack-destination` configuration from settings.
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- 36d1448: Set the default `workspaceConcurrency` to `Math.min(os.availableParallelism(), 4)` [#9493](https://github.com/pnpm/pnpm/pull/9493).
+- 36d1448: Add `workspace-concurrency` cli option for pack and publish
+- Updated dependencies [b282bd1]
+- Updated dependencies [51bd373]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/network.auth-header@1000.0.3
+  - @pnpm/plugin-commands-env@1000.0.25
+  - @pnpm/lifecycle@1001.0.14
+  - @pnpm/cli-utils@1000.1.4
+  - @pnpm/types@1000.6.0
+  - @pnpm/client@1000.0.18
+  - @pnpm/pick-registry-for-package@1000.0.8
+  - @pnpm/package-bins@1000.0.8
+  - @pnpm/exportable-manifest@1000.1.1
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/sort-packages@1000.0.8
+
+## 1000.1.22
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+- Updated dependencies [7c7f0d6]
+  - @pnpm/plugin-commands-env@1000.0.24
+  - @pnpm/common-cli-options-help@1000.0.1
+  - @pnpm/lifecycle@1001.0.13
+  - @pnpm/cli-utils@1000.1.3
+  - @pnpm/config@1003.0.1
+  - @pnpm/client@1000.0.17
+
+## 1000.1.21
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/exportable-manifest@1000.1.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/cli-utils@1000.1.2
+  - @pnpm/plugin-commands-env@1000.0.23
+  - @pnpm/lifecycle@1001.0.12
+  - @pnpm/client@1000.0.16
+  - @pnpm/pick-registry-for-package@1000.0.7
+  - @pnpm/package-bins@1000.0.7
+  - @pnpm/sort-packages@1000.0.7
+
+## 1000.1.20
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/client@1000.0.15
+  - @pnpm/cli-utils@1000.1.1
+  - @pnpm/lifecycle@1001.0.11
+  - @pnpm/plugin-commands-env@1000.0.22
+  - @pnpm/config@1002.7.2
+  - @pnpm/exportable-manifest@1000.0.10
+
+## 1000.1.19
+
+### Patch Changes
+
+- 72cff38: The resolving function now takes a `registries` object, so it finds the required registry itself instead of receiving it from package requester.
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/cli-utils@1000.1.0
+  - @pnpm/pick-registry-for-package@1000.0.6
+  - @pnpm/plugin-commands-env@1000.0.21
+  - @pnpm/lifecycle@1001.0.10
+  - @pnpm/client@1000.0.14
+  - @pnpm/package-bins@1000.0.6
+  - @pnpm/exportable-manifest@1000.0.10
+  - @pnpm/sort-packages@1000.0.6
+
+## 1000.1.18
+
+### Patch Changes
+
+- Updated dependencies [e57f1df]
+  - @pnpm/config@1002.7.0
+  - @pnpm/cli-utils@1000.0.19
+  - @pnpm/plugin-commands-env@1000.0.20
+
+## 1000.1.17
+
+### Patch Changes
+
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/cli-utils@1000.0.18
+  - @pnpm/plugin-commands-env@1000.0.19
+  - @pnpm/pick-registry-for-package@1000.0.5
+  - @pnpm/lifecycle@1001.0.9
+  - @pnpm/client@1000.0.13
+  - @pnpm/package-bins@1000.0.5
+  - @pnpm/exportable-manifest@1000.0.9
+  - @pnpm/resolver-base@1000.2.1
+  - @pnpm/sort-packages@1000.0.5
+
+## 1000.1.16
+
+### Patch Changes
+
+- Updated dependencies [936430a]
+- Updated dependencies [3d52365]
+  - @pnpm/config@1002.5.4
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/cli-utils@1000.0.17
+  - @pnpm/plugin-commands-env@1000.0.18
+  - @pnpm/client@1000.0.12
+  - @pnpm/lifecycle@1001.0.8
+  - @pnpm/exportable-manifest@1000.0.8
+
+## 1000.1.15
+
+### Patch Changes
+
+- Updated dependencies [aec8c50]
+  - @pnpm/plugin-commands-env@1000.0.17
+  - @pnpm/client@1000.0.11
+
+## 1000.1.14
+
+### Patch Changes
+
+- Updated dependencies [6e4459c]
+  - @pnpm/config@1002.5.3
+  - @pnpm/cli-utils@1000.0.16
+  - @pnpm/plugin-commands-env@1000.0.16
+
+## 1000.1.13
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.15
+- @pnpm/plugin-commands-env@1000.0.15
+- @pnpm/config@1002.5.2
+- @pnpm/client@1000.0.10
+
+## 1000.1.12
+
+### Patch Changes
+
+- Updated dependencies [c3aa4d8]
+  - @pnpm/config@1002.5.1
+  - @pnpm/cli-utils@1000.0.14
+  - @pnpm/plugin-commands-env@1000.0.14
+  - @pnpm/client@1000.0.9
+
+## 1000.1.11
+
+### Patch Changes
+
+- b8b0c68: `fast-glob` replace with `tinyglobby` to reduce the size of the pnpm CLI dependencies [#9169](https://github.com/pnpm/pnpm/pull/9169).
+- Updated dependencies [b8b0c68]
+- Updated dependencies [a5e4965]
+- Updated dependencies [d965748]
+  - @pnpm/package-bins@1000.0.4
+  - @pnpm/types@1000.2.1
+  - @pnpm/config@1002.5.0
+  - @pnpm/cli-utils@1000.0.13
+  - @pnpm/pick-registry-for-package@1000.0.4
+  - @pnpm/plugin-commands-env@1000.0.13
+  - @pnpm/lifecycle@1001.0.7
+  - @pnpm/client@1000.0.8
+  - @pnpm/exportable-manifest@1000.0.8
+  - @pnpm/resolver-base@1000.1.4
+  - @pnpm/sort-packages@1000.0.4
+
+## 1000.1.10
+
+### Patch Changes
+
+- Updated dependencies [1c2eb8c]
+  - @pnpm/config@1002.4.1
+  - @pnpm/cli-utils@1000.0.12
+  - @pnpm/plugin-commands-env@1000.0.12
+
+## 1000.1.9
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [8fcc221]
+  - @pnpm/config@1002.4.0
+  - @pnpm/types@1000.2.0
+  - @pnpm/cli-utils@1000.0.11
+  - @pnpm/plugin-commands-env@1000.0.11
+  - @pnpm/pick-registry-for-package@1000.0.3
+  - @pnpm/lifecycle@1001.0.6
+  - @pnpm/client@1000.0.7
+  - @pnpm/package-bins@1000.0.3
+  - @pnpm/exportable-manifest@1000.0.7
+  - @pnpm/resolver-base@1000.1.3
+  - @pnpm/sort-packages@1000.0.3
+
+## 1000.1.8
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+  - @pnpm/config@1002.3.1
+  - @pnpm/cli-utils@1000.0.10
+  - @pnpm/plugin-commands-env@1000.0.10
+
+## 1000.1.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.9
+- @pnpm/plugin-commands-env@1000.0.9
+
+## 1000.1.6
+
+### Patch Changes
+
+- Updated dependencies [f6006f2]
+  - @pnpm/config@1002.3.0
+  - @pnpm/cli-utils@1000.0.8
+  - @pnpm/plugin-commands-env@1000.0.8
+
+## 1000.1.5
+
+### Patch Changes
+
+- Updated dependencies [c0d1c01]
+  - @pnpm/lifecycle@1001.0.5
+  - @pnpm/cli-utils@1000.0.7
+  - @pnpm/config@1002.2.1
+  - @pnpm/exportable-manifest@1000.0.6
+  - @pnpm/plugin-commands-env@1000.0.7
+  - @pnpm/client@1000.0.6
+
+## 1000.1.4
+
+### Patch Changes
+
+- b65303d: Verify that the package name is valid when executing the publish command.
+- Updated dependencies [b562deb]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/types@1000.1.1
+  - @pnpm/config@1002.2.0
+  - @pnpm/error@1000.0.2
+  - @pnpm/cli-utils@1000.0.6
+  - @pnpm/pick-registry-for-package@1000.0.2
+  - @pnpm/plugin-commands-env@1000.0.6
+  - @pnpm/lifecycle@1001.0.4
+  - @pnpm/client@1000.0.5
+  - @pnpm/package-bins@1000.0.2
+  - @pnpm/exportable-manifest@1000.0.5
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/sort-packages@1000.0.2
+  - @pnpm/network.auth-header@1000.0.2
+
+## 1000.1.3
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.5
+- @pnpm/config@1002.1.2
+- @pnpm/exportable-manifest@1000.0.4
+- @pnpm/lifecycle@1001.0.3
+- @pnpm/plugin-commands-env@1000.0.5
+- @pnpm/client@1000.0.4
+
+## 1000.1.2
+
+### Patch Changes
+
+- b28a533: Fixed the Regex used to find the package manifest during packing [#8938](https://github.com/pnpm/pnpm/pull/8938).
+- Updated dependencies [9591a18]
+- Updated dependencies [1f5169f]
+  - @pnpm/types@1000.1.0
+  - @pnpm/config@1002.1.1
+  - @pnpm/cli-utils@1000.0.4
+  - @pnpm/pick-registry-for-package@1000.0.1
+  - @pnpm/plugin-commands-env@1000.0.4
+  - @pnpm/lifecycle@1001.0.2
+  - @pnpm/client@1000.0.3
+  - @pnpm/package-bins@1000.0.1
+  - @pnpm/exportable-manifest@1000.0.3
+  - @pnpm/resolver-base@1000.1.1
+  - @pnpm/sort-packages@1000.0.1
+
 ## 1000.1.1
 
 ### Patch Changes

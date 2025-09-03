@@ -16,6 +16,9 @@
       "path": "../../fs/find-packages"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/logger"
     },
     {

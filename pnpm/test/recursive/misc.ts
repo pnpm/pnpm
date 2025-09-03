@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { STORE_VERSION } from '@pnpm/constants'
-import { prepare, preparePackages } from '@pnpm/prepare'
+import { preparePackages } from '@pnpm/prepare'
 import { type LockfileFile } from '@pnpm/lockfile.types'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { isCI } from 'ci-info'
@@ -12,7 +12,7 @@ import {
   execPnpmSync,
   retryLoadJsonFile,
   spawnPnpm,
-} from '../utils'
+} from '../utils/index.js'
 
 const skipOnWindows = isWindows() ? test.skip : test
 
@@ -77,8 +77,11 @@ test('workspace .npmrc is always read', async () => {
   ])
 
   const storeDir = path.resolve('../store')
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
-  fs.writeFileSync('.npmrc', 'shamefully-flatten = true\nshared-workspace-lockfile=false', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['workspace/*'],
+    shamefullyFlatten: true,
+    sharedWorkspaceLockfile: false,
+  })
   fs.writeFileSync('workspace/project-2/.npmrc', 'hoist=false', 'utf8')
 
   process.chdir('workspace/project-1')
@@ -359,9 +362,22 @@ test('non-recursive install ignores filter from config', async () => {
 })
 
 test('adding new dependency in the root should fail if neither --workspace-root nor --ignore-workspace-root-check are used', async () => {
-  const project = prepare()
+  const project = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+      },
+    },
+    {
+      name: 'project',
+    },
+  ])['root']
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - '.'
+  - 'project'
+`, 'utf8')
 
   {
     const { status, stdout } = execPnpmSync(['add', 'is-positive'])
@@ -455,9 +471,11 @@ test('set recursive-install to false in .npmrc would disable recursive install i
   ])
 
   process.chdir('workspace')
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
-  fs.writeFileSync('.npmrc', `recursive-install = false
-dedupe-peer-dependents = false`, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**'],
+    recursiveInstall: false,
+    dedupePeerDependents: false,
+  })
 
   process.chdir('project-1')
   await execPnpm(['install'])
@@ -493,8 +511,10 @@ test('set recursive-install to false would install as --filter {.}...', async ()
   ])
 
   process.chdir('workspace')
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
-  fs.writeFileSync('.npmrc', 'recursive-install = false', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**'],
+    recursiveInstall: false,
+  })
 
   process.chdir('project-1')
   await execPnpm(['install'])

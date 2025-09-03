@@ -21,11 +21,14 @@ import { globalWarn, logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { readPackageJson } from '@pnpm/read-package-json'
 import {
+  type PlatformAssetResolution,
   type DirectoryResolution,
+  type PreferredVersions,
   type Resolution,
   type ResolveFunction,
   type ResolveResult,
   type TarballResolution,
+  type AtomicResolution,
 } from '@pnpm/resolver-base'
 import {
   type BundledManifest,
@@ -39,17 +42,25 @@ import {
   type RequestPackageOptions,
   type WantedDependency,
 } from '@pnpm/store-controller-types'
-import { type DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest, type SupportedArchitectures } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
+import { familySync } from 'detect-libc'
 import PQueue from 'p-queue'
 import pDefer from 'p-defer'
 import pShare from 'promise-share'
 import pick from 'ramda/src/pick'
 import semver from 'semver'
 import ssri from 'ssri'
-import { equalOrSemverEqual } from './equalOrSemverEqual'
+import { equalOrSemverEqual } from './equalOrSemverEqual.js'
 
+let currentLibc: 'glibc' | 'musl' | undefined | null
+function getLibcFamilySync () {
+  if (currentLibc === undefined) {
+    currentLibc = familySync() as unknown as typeof currentLibc
+  }
+  return currentLibc
+}
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
 
@@ -57,6 +68,7 @@ const pickBundledManifest = pick([
   'bin',
   'bundledDependencies',
   'bundleDependencies',
+  'cpu',
   'dependencies',
   'directories',
   'engines',
@@ -161,7 +173,8 @@ async function resolveAndFetch (
 ): Promise<PackageResponse> {
   let latest: string | undefined
   let manifest: DependencyManifest | undefined
-  let normalizedPref: string | undefined
+  let normalizedBareSpecifier: string | undefined
+  let alias: string | undefined
   let resolution = options.currentPkg?.resolution as Resolution
   let pkgId = options.currentPkg?.id
   const skipResolution = resolution && !options.update
@@ -176,19 +189,37 @@ async function resolveAndFetch (
   //
   // The resolution step is never skipped for local dependencies.
   if (!skipResolution || options.skipFetch === true || Boolean(pkgId?.startsWith('file:')) || wantedDependency.optional === true) {
+    // When skipResolution is set but a resolution is still performed due to
+    // options.skipFetch, it's necessary to make sure the resolution doesn't
+    // accidentally return a newer version of the package. When skipFetch is
+    // set, the resolved package shouldn't be different. This is done by
+    // overriding the preferredVersions object to only contain the current
+    // package's version.
+    //
+    // A naive approach would be to change the bare specifier to be the exact
+    // version of the current pkg if the bare specifier is a range, but this
+    // would cause the version returned for calcSpecifier to be different.
+    const preferredVersions: PreferredVersions = (skipResolution && options.currentPkg?.name != null && options.currentPkg?.version != null)
+      ? {
+        ...options.preferredVersions,
+        [options.currentPkg.name]: { [options.currentPkg.version]: 'version' },
+      }
+      : options.preferredVersions
+
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
       publishedBy: options.publishedBy,
       pickLowestVersion: options.pickLowestVersion,
       lockfileDir: options.lockfileDir,
-      preferredVersions: options.preferredVersions,
+      preferredVersions,
       preferWorkspacePackages: options.preferWorkspacePackages,
       projectDir: options.projectDir,
-      registry: options.registry,
       workspacePackages: options.workspacePackages,
-      updateToLatest: options.updateToLatest,
+      update: options.update,
       injectWorkspacePackages: options.injectWorkspacePackages,
+      calcSpecifier: options.calcSpecifier,
+      pinnedVersion: options.pinnedVersion,
     }), { priority: options.downloadPriority })
 
     manifest = resolveResult.manifest
@@ -207,24 +238,26 @@ async function resolveAndFetch (
     updated = pkgId !== resolveResult.id || !resolution || forceFetch
     resolution = resolveResult.resolution
     pkgId = resolveResult.id
-    normalizedPref = resolveResult.normalizedPref
+    normalizedBareSpecifier = resolveResult.normalizedBareSpecifier
+    alias = resolveResult.alias
   }
 
   const id = pkgId!
 
-  if (resolution.type === 'directory' && !id.startsWith('file:')) {
+  if ('type' in resolution && resolution.type === 'directory' && !id.startsWith('file:')) {
     if (manifest == null) {
-      throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''}`)
+      throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.bareSpecifier ?? ''}`)
     }
     return {
       body: {
         id,
         isLocal: true,
         manifest,
-        normalizedPref,
         resolution: resolution as DirectoryResolution,
         resolvedVia,
         updated,
+        normalizedBareSpecifier,
+        alias,
       },
     }
   }
@@ -253,11 +286,12 @@ async function resolveAndFetch (
         isInstallable: isInstallable ?? undefined,
         latest,
         manifest,
-        normalizedPref,
+        normalizedBareSpecifier,
         resolution,
         resolvedVia,
         updated,
         publishedAt,
+        alias,
       },
     }
   }
@@ -269,14 +303,15 @@ async function resolveAndFetch (
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
     pkg: {
-      ...pkg,
+      ...(options.expectedPkg?.name != null
+        ? (updated ? { name: options.expectedPkg.name, version: pkg.version } : options.expectedPkg)
+        : pkg
+      ),
       id,
       resolution,
     },
-    expectedPkg: options.expectedPkg?.name != null
-      ? (updated ? { name: options.expectedPkg.name, version: pkg.version } : options.expectedPkg)
-      : pkg,
     onFetchError: options.onFetchError,
+    supportedArchitectures: options.supportedArchitectures,
   })
 
   if (!manifest) {
@@ -289,11 +324,12 @@ async function resolveAndFetch (
       isInstallable: isInstallable ?? undefined,
       latest,
       manifest,
-      normalizedPref,
+      normalizedBareSpecifier,
       resolution,
       resolvedVia,
       updated,
       publishedAt,
+      alias,
     },
     fetching: fetchResult.fetching,
     filesIndexFile: fetchResult.filesIndexFile,
@@ -306,20 +342,69 @@ interface FetchLock {
   fetchRawManifest?: boolean
 }
 
+interface GetFilesIndexFilePathResult {
+  target: string
+  filesIndexFile: string
+  resolution: AtomicResolution
+}
+
 function getFilesIndexFilePath (
   ctx: {
     getIndexFilePathInCafs: (integrity: string, pkgId: string) => string
     storeDir: string
     virtualStoreDirMaxLength: number
   },
-  opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>
-) {
+  opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts' | 'supportedArchitectures'>
+): GetFilesIndexFilePathResult {
   const targetRelative = depPathToFilename(opts.pkg.id, ctx.virtualStoreDirMaxLength)
   const target = path.join(ctx.storeDir, targetRelative)
-  const filesIndexFile = (opts.pkg.resolution as TarballResolution).integrity
-    ? ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id)
-    : path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
-  return { filesIndexFile, target }
+  if ((opts.pkg.resolution as TarballResolution).integrity) {
+    return {
+      target,
+      filesIndexFile: ctx.getIndexFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, opts.pkg.id),
+      resolution: opts.pkg.resolution as AtomicResolution,
+    }
+  }
+  let resolution!: AtomicResolution
+  if (opts.pkg.resolution.type === 'variations') {
+    resolution = findResolution(opts.pkg.resolution.variants, opts.supportedArchitectures)
+    if ((resolution as TarballResolution).integrity) {
+      return {
+        target,
+        filesIndexFile: ctx.getIndexFilePathInCafs((resolution as TarballResolution).integrity!, opts.pkg.id),
+        resolution,
+      }
+    }
+  } else {
+    resolution = opts.pkg.resolution
+  }
+  const filesIndexFile = path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
+  return { filesIndexFile, target, resolution }
+}
+
+function findResolution (resolutionVariants: PlatformAssetResolution[], supportedArchitectures?: SupportedArchitectures): AtomicResolution {
+  const platform = getOneIfNonCurrent(supportedArchitectures?.os) ?? process.platform
+  const cpu = getOneIfNonCurrent(supportedArchitectures?.cpu) ?? process.arch
+  const libc = getOneIfNonCurrent(supportedArchitectures?.libc) ?? getLibcFamilySync()
+  const resolutionVariant = resolutionVariants
+    .find((resolutionVariant) => resolutionVariant.targets.some(
+      (target) =>
+        target.os === platform &&
+        target.cpu === cpu &&
+        (target.libc == null || target.libc === libc)
+    ))
+  if (!resolutionVariant) {
+    const resolutionTargets = resolutionVariants.map((variant) => variant.targets)
+    throw new PnpmError('NO_RESOLUTION_MATCHED', `Cannot find a resolution variant for the current platform in these resolutions: ${JSON.stringify(resolutionTargets)}`)
+  }
+  return resolutionVariant.resolution
+}
+
+function getOneIfNonCurrent (requirements: string[] | undefined): string | undefined {
+  if (requirements?.length && requirements[0] !== 'current') {
+    return requirements[0]
+  }
+  return undefined
 }
 
 function fetchToStore (
@@ -330,7 +415,7 @@ function fetchToStore (
     ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest, requiresBuild: boolean }>
     fetch: (
       packageId: string,
-      resolution: Resolution,
+      resolution: AtomicResolution,
       opts: FetchOptions
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
@@ -356,9 +441,9 @@ function fetchToStore (
 
   if (!ctx.fetchingLocker.has(opts.pkg.id)) {
     const fetching = pDefer<PkgRequestFetchResult>()
-    const { filesIndexFile, target } = getFilesIndexFilePath(ctx, opts)
+    const { filesIndexFile, target, resolution } = getFilesIndexFilePath(ctx, opts)
 
-    doFetchToStore(filesIndexFile, fetching, target) // eslint-disable-line
+    doFetchToStore(filesIndexFile, fetching, target, resolution) // eslint-disable-line
 
     ctx.fetchingLocker.set(opts.pkg.id, {
       fetching: removeKeyOnFail(fetching.promise),
@@ -454,11 +539,12 @@ function fetchToStore (
   async function doFetchToStore (
     filesIndexFile: string,
     fetching: pDefer.DeferredPromise<PkgRequestFetchResult>,
-    target: string
+    target: string,
+    resolution: AtomicResolution
   ) {
     try {
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
-      const isLocalPkg = opts.pkg.resolution.type === 'directory'
+      const isLocalPkg = resolution.type === 'directory'
 
       if (
         !opts.force &&
@@ -473,22 +559,22 @@ function fetchToStore (
           if (
             (
               pkgFilesIndex.name != null &&
-              opts.expectedPkg?.name != null &&
-              pkgFilesIndex.name.toLowerCase() !== opts.expectedPkg.name.toLowerCase()
+              opts.pkg?.name != null &&
+              pkgFilesIndex.name.toLowerCase() !== opts.pkg.name.toLowerCase()
             ) ||
             (
               pkgFilesIndex.version != null &&
-              opts.expectedPkg?.version != null &&
+              opts.pkg?.version != null &&
               // We used to not normalize the package versions before writing them to the lockfile and store.
               // So it may happen that the version will be in different formats.
               // For instance, v1.0.0 and 1.0.0
               // Hence, we need to use semver.eq() to compare them.
-              !equalOrSemverEqual(pkgFilesIndex.version, opts.expectedPkg.version)
+              !equalOrSemverEqual(pkgFilesIndex.version, opts.pkg.version)
             )
           ) {
             const msg = `Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store.`
             const hint = `This means that either the lockfile is broken or the package metadata (name and version) inside the package's package.json file doesn't match the metadata in the registry. \
-Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
+Expected package: ${opts.pkg.name}@${opts.pkg.version}. \
 Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`
             if (ctx.strictStorePkgContentCheck ?? true) {
               throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', msg, {
@@ -529,7 +615,7 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
 
       const fetchedPackage = await ctx.requestsQueue.add(async () => ctx.fetch(
         opts.pkg.id,
-        opts.pkg.resolution,
+        resolution,
         {
           filesIndexFile,
           lockfileDir: opts.lockfileDir,
@@ -610,7 +696,7 @@ async function fetcher (
   fetcherByHostingType: Fetchers,
   cafs: Cafs,
   packageId: string,
-  resolution: Resolution,
+  resolution: AtomicResolution,
   opts: FetchOptions
 ): Promise<FetchResult> {
   const fetch = pickFetcher(fetcherByHostingType, resolution)

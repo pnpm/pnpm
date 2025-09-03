@@ -1,6 +1,6 @@
 {
   "name": "@pnpm-private/updater",
-  "version": "3.0.1",
+  "version": "1000.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,8 +9,9 @@
   },
   "dependencies": {
     "@pnpm/lockfile.fs": "workspace:*",
-    "@pnpm/meta-updater": "catalog:",
     "@pnpm/logger": "workspace:*",
+    "@pnpm/meta-updater": "catalog:",
+    "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.read-manifest": "workspace:*",
@@ -22,5 +23,9 @@
   },
   "devDependencies": {
     "@pnpm-private/updater": "workspace:*"
-  }
+  },
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ]
 }

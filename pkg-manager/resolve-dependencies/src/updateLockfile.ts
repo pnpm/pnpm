@@ -5,15 +5,15 @@ import {
   type PackageSnapshot,
   pruneSharedLockfile,
 } from '@pnpm/lockfile.pruner'
-import { type DirectoryResolution, type Resolution } from '@pnpm/resolver-base'
+import { type Resolution } from '@pnpm/resolver-base'
 import { type DepPath, type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { type KeyValuePair } from 'ramda'
 import partition from 'ramda/src/partition'
-import { depPathToRef } from './depPathToRef'
-import { type ResolvedPackage } from './resolveDependencies'
-import { type DependenciesGraph } from '.'
+import { depPathToRef } from './depPathToRef.js'
+import { type ResolvedPackage } from './resolveDependencies.js'
+import { type DependenciesGraph } from './index.js'
 
 export function updateLockfile (
   { dependenciesGraph, lockfile, prefix, registries, lockfileIncludeTarballUrl }: {
@@ -80,7 +80,13 @@ function toLockfileDependency (
   if (opts.depPath.includes(':')) {
     // There is no guarantee that a non-npmjs.org-hosted package is going to have a version field.
     // Also, for local directory dependencies, the version is not needed.
-    if (pkg.version && (lockfileResolution as DirectoryResolution).type !== 'directory') {
+    if (
+      pkg.version &&
+      (
+        !('type' in lockfileResolution) ||
+        lockfileResolution.type !== 'directory'
+      )
+    ) {
       result['version'] = pkg.version
     }
   }
@@ -165,7 +171,6 @@ function updateResolvedDeps (
           depPathToRef(depPath, {
             alias,
             realName: depNode.name,
-            resolution: depNode.resolution,
           }),
         ]
       })

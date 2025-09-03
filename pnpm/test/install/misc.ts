@@ -19,7 +19,7 @@ import crossSpawn from 'cross-spawn'
 import {
   execPnpm,
   execPnpmSync,
-} from '../utils'
+} from '../utils/index.js'
 
 const skipOnWindows = isWindows() ? test.skip : test
 const f = fixtures(__dirname)
@@ -163,9 +163,9 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
   const storeDir = project.getStorePath()
   if (await dirIsCaseSensitive(storeDir)) {
-    expect([...files]).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
+    expect([...files].sort()).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   } else {
-    expect([...files]).toStrictEqual(['Foo.js', 'package.json'])
+    expect([...files].map((f) => f.toLowerCase()).sort()).toStrictEqual(['foo.js', 'package.json'])
   }
 })
 
@@ -240,7 +240,8 @@ test('`pnpm -r add` should fail if no package name was provided', () => {
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - project`, 'utf8')
 
   const { status, stdout } = execPnpmSync(['-r', 'add'])
 
@@ -303,7 +304,8 @@ test('recursive install should fail if the used pnpm version does not satisfy th
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "*"`, 'utf8')
 
   process.chdir('project-1')
 
@@ -336,7 +338,8 @@ test('engine-strict=true: recursive install should fail if the used Node version
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "*"`, 'utf8')
 
   process.chdir('project-1')
 
@@ -369,7 +372,8 @@ test('engine-strict=false: recursive install should not fail if the used Node ve
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "*"`, 'utf8')
 
   process.chdir('project-1')
 
@@ -387,7 +391,7 @@ test('using a custom virtual-store-dir location', async () => {
   await execPnpm(['install', '--virtual-store-dir=.pnpm'])
 
   expect(fs.existsSync('.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json')).toBeTruthy()
-  expect(fs.existsSync('.pnpm/lock.yaml')).toBeTruthy()
+  expect(fs.existsSync('node_modules/.pnpm/lock.yaml')).toBeTruthy()
   expect(fs.existsSync('.pnpm/node_modules/once/package.json')).toBeTruthy()
 
   rimraf('node_modules')
@@ -396,7 +400,7 @@ test('using a custom virtual-store-dir location', async () => {
   await execPnpm(['install', '--virtual-store-dir=.pnpm', '--frozen-lockfile'])
 
   expect(fs.existsSync('.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json')).toBeTruthy()
-  expect(fs.existsSync('.pnpm/lock.yaml')).toBeTruthy()
+  expect(fs.existsSync('node_modules/.pnpm/lock.yaml')).toBeTruthy()
   expect(fs.existsSync('.pnpm/node_modules/once/package.json')).toBeTruthy()
 })
 

@@ -2,11 +2,12 @@ import path from 'path'
 import execa from 'execa'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
-import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
+import { jest } from '@jest/globals'
+import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
 
 jest.mock('execa')
 
-beforeEach((execa as jest.Mock).mockClear)
+beforeEach(() => jest.mocked(execa).mockClear())
 
 test('dlx should work with scoped packages', async () => {
   prepareEmpty()

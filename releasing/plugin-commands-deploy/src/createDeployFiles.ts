@@ -2,6 +2,8 @@ import path from 'path'
 import url from 'url'
 import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
+import { USEFUL_NON_ROOT_PNPM_FIELDS } from '@pnpm/constants'
+import * as dp from '@pnpm/dependency-path'
 import {
   type DirectoryResolution,
   type LockfileObject,
@@ -21,34 +23,20 @@ import {
 
 const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependencies'] as const satisfies DependenciesField[]
 
-const INHERITED_MANIFEST_KEYS = [
-  'name',
-  'description',
-  'version',
-  'private',
-  'author',
-  'bin',
-  'scripts',
-  'packageManager',
-  'dependenciesMeta',
-  'peerDependenciesMeta',
-] as const satisfies Array<keyof ProjectManifest>
-
-export type DeployManifest = Pick<ProjectManifest, typeof INHERITED_MANIFEST_KEYS[number] | DependenciesField | 'pnpm'>
-
 export interface CreateDeployFilesOptions {
   allProjects: Array<Pick<Project, 'manifest' | 'rootDirRealPath'>>
   deployDir: string
   lockfile: LockfileObject
   lockfileDir: string
-  manifest: DeployManifest
+  rootProjectManifest?: Pick<ProjectManifest, 'pnpm'>
+  selectedProjectManifest: ProjectManifest
   projectId: ProjectId
   rootProjectManifestDir: string
 }
 
 export interface DeployFiles {
   lockfile: LockfileObject
-  manifest: DeployManifest
+  manifest: ProjectManifest
 }
 
 export function createDeployFiles ({
@@ -56,7 +44,8 @@ export function createDeployFiles ({
   deployDir,
   lockfile,
   lockfileDir,
-  manifest,
+  rootProjectManifest,
+  selectedProjectManifest,
   projectId,
   rootProjectManifestDir,
 }: CreateDeployFilesOptions): DeployFiles {
@@ -111,14 +100,14 @@ export function createDeployFiles ({
     const targetSpecifiers = targetSnapshot.specifiers
     const inputDependencies = inputSnapshot[field] ?? {}
     for (const name in inputDependencies) {
-      const spec = inputDependencies[name]
-      const resolveResult = resolveLinkOrFile(spec, {
+      const version = inputDependencies[name]
+      const resolveResult = resolveLinkOrFile(version, {
         lockfileDir,
         projectRootDirRealPath: path.resolve(lockfileDir, projectId),
       })
 
       if (!resolveResult) {
-        targetSpecifiers[name] = targetDependencies[name] = spec
+        targetSpecifiers[name] = targetDependencies[name] = version
         continue
       }
 
@@ -130,8 +119,8 @@ export function createDeployFiles ({
   const result: DeployFiles = {
     lockfile: {
       ...lockfile,
-      overrides: undefined, // the effects of package overrides should already be part of the package snapshots
       patchedDependencies: undefined,
+      overrides: undefined, // the effects of the overrides should already be part of the package snapshots
       packageExtensionsChecksum: undefined, // the effects of the package extensions should already be part of the package snapshots
       pnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
       importers: {
@@ -140,13 +129,14 @@ export function createDeployFiles ({
       packages: targetPackageSnapshots,
     },
     manifest: {
-      ...pick(INHERITED_MANIFEST_KEYS, manifest),
+      ...selectedProjectManifest,
       dependencies: targetSnapshot.dependencies,
       devDependencies: targetSnapshot.devDependencies,
       optionalDependencies: targetSnapshot.optionalDependencies,
       pnpm: {
-        ...manifest.pnpm,
-        overrides: undefined, // the effects of package overrides should already be part of the package snapshots
+        ...rootProjectManifest?.pnpm,
+        ...pick(USEFUL_NON_ROOT_PNPM_FIELDS, selectedProjectManifest.pnpm ?? {}),
+        overrides: undefined, // the effects of the overrides should already be part of the package snapshots
         patchedDependencies: undefined,
         packageExtensions: undefined, // the effects of the package extensions should already be part of the package snapshots
       },
@@ -198,7 +188,7 @@ function convertPackageSnapshot (inputSnapshot: PackageSnapshot, opts: ConvertOp
     const resolvedPath = path.resolve(opts.lockfileDir, inputResolution.directory)
     const directory = normalizePath(path.relative(opts.deployDir, resolvedPath))
     outputResolution = { ...inputResolution, directory }
-  } else if (inputResolution.type === 'git') {
+  } else if (inputResolution.type === 'git' || inputResolution.type === 'variations') {
     outputResolution = inputResolution
   } else {
     const resolution: never = inputResolution // `never` is the type guard to force fixing this code when adding new type of resolution
@@ -235,10 +225,10 @@ function convertResolvedDependencies (
   const output: ResolvedDependencies = {}
 
   for (const key in input) {
-    const spec = input[key]
-    const resolveResult = resolveLinkOrFile(spec, opts)
+    const version = input[key]
+    const resolveResult = resolveLinkOrFile(version, opts)
     if (!resolveResult) {
-      output[key] = spec
+      output[key] = version
       continue
     }
 
@@ -256,45 +246,39 @@ function convertResolvedDependencies (
 interface ResolveLinkOrFileResult {
   scheme: 'link:' | 'file:'
   resolvedPath: string
-  suffix?: `(${string})`
+  suffix?: string
 }
 
-function resolveLinkOrFile (spec: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveLinkOrFileResult | undefined {
-  // try parsing `spec` as `spec(peers)`
-  const hasPeers = /^(?<spec>[^()]+)(?<peers>\(.+\))$/.exec(spec)
-  if (hasPeers) {
-    const result = resolveLinkOrFile(hasPeers.groups!.spec, opts)
-    if (!result) return undefined
-    if (result.suffix) {
-      throw new Error(`Something goes wrong, suffix is not undefined: ${result.suffix}`)
-    }
-    result.suffix = hasPeers.groups!.peers as `(${string})`
-    return result
-  }
-
-  // try parsing `spec` as either @scope/name@pref or name@pref
-  const renamed = /^@(?<scope>[^@]+)\/(?<name>[^@]+)@(?<pref>.+)$/.exec(spec) ?? /^(?<name>[^@]+)@(?<pref>.+)$/.exec(spec)
-  if (renamed) return resolveLinkOrFile(renamed.groups!.pref, opts)
-
+function resolveLinkOrFile (pkgVer: string, opts: Pick<ConvertOptions, 'lockfileDir' | 'projectRootDirRealPath'>): ResolveLinkOrFileResult | undefined {
   const { lockfileDir, projectRootDirRealPath } = opts
 
-  if (spec.startsWith('link:')) {
-    const targetPath = spec.slice('link:'.length)
-    return {
-      scheme: 'link:',
-      resolvedPath: path.resolve(projectRootDirRealPath, targetPath),
-    }
+  function resolveScheme (scheme: ResolveLinkOrFileResult['scheme'], base: string): ResolveLinkOrFileResult | undefined {
+    if (!pkgVer.startsWith(scheme)) return undefined
+    const { id, peerDepGraphHash: suffix } = dp.parseDepPath(pkgVer.slice(scheme.length))
+    const resolvedPath = path.resolve(base, id)
+    return { scheme, resolvedPath, suffix }
   }
 
-  if (spec.startsWith('file:')) {
-    const targetPath = spec.slice('file:'.length)
-    return {
-      scheme: 'file:',
-      resolvedPath: path.resolve(lockfileDir, targetPath),
-    }
+  const resolveSchemeResult = resolveScheme('file:', lockfileDir) ?? resolveScheme('link:', projectRootDirRealPath)
+  if (resolveSchemeResult) return resolveSchemeResult
+
+  const { nonSemverVersion, patchHash, peerDepGraphHash, version } = dp.parse(pkgVer)
+  if (!nonSemverVersion) return undefined
+
+  if (version) {
+    throw new Error(`Something goes wrong, version should be undefined but isn't: ${version}`)
   }
 
-  return undefined
+  const parseResult = resolveLinkOrFile(nonSemverVersion, opts)
+  if (!parseResult) return undefined
+
+  if (parseResult.suffix) {
+    throw new Error(`Something goes wrong, suffix should be undefined but isn't: ${parseResult.suffix}`)
+  }
+
+  parseResult.suffix = `${patchHash ?? ''}${peerDepGraphHash ?? ''}`
+
+  return parseResult
 }
 
 function createFileUrlDepPath (

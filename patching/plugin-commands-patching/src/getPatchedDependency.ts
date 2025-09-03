@@ -4,7 +4,6 @@ import { prompt } from 'enquirer'
 import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { PnpmError } from '@pnpm/error'
-import { readModulesManifest } from '@pnpm/modules-yaml'
 import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
 import realpathMissing from 'realpath-missing'
 import semver from 'semver'
@@ -55,22 +54,38 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
     return {
       ...dep,
       applyToAll,
-      pref: version,
+      bareSpecifier: version,
     }
   } else {
     const preferred = preferredVersions[0]
+    if (preferred.gitTarballUrl) {
+      return {
+        ...opts,
+        applyToAll: false,
+        bareSpecifier: preferred.gitTarballUrl,
+      }
+    }
     return {
       ...dep,
-      applyToAll: !dep.pref,
-      pref: preferred.gitTarballUrl ?? preferred.version,
+      applyToAll: !dep.bareSpecifier,
+      bareSpecifier: preferred.version,
     }
   }
+}
+
+// https://github.com/stackblitz-labs/pkg.pr.new
+// With pkg.pr.new, each of your commits and pull requests will trigger an instant preview release without publishing anything to NPM.
+// This enables users to access features and bug-fixes without the need to wait for release cycles using npm or pull request merges.
+// When a package is installed via pkg.pr.new and has never been published to npm,
+// the version or name obtained is incorrect, and an error will occur when patching. We can treat it as a tarball url.
+export function isPkgPrNewUrl (url: string): boolean {
+  return url.startsWith('https://pkg.pr.new/')
 }
 
 export interface LockfileVersion {
   gitTarballUrl?: string
   name: string
-  peersSuffix?: string
+  peerDepGraphHash?: string
   version: string
 }
 
@@ -81,10 +96,9 @@ export interface LockfileVersionsList {
 
 export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult, opts: GetPatchedDependencyOptions): Promise<LockfileVersionsList> {
   const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
-  const modules = await readModulesManifest(modulesDir)
-  const lockfile = (modules?.virtualStoreDir && await readCurrentLockfile(modules.virtualStoreDir, {
+  const lockfile = await readCurrentLockfile(path.join(modulesDir, '.pnpm'), {
     ignoreIncompatible: true,
-  })) ?? null
+  }) ?? null
 
   if (!lockfile) {
     throw new PnpmError(
@@ -96,20 +110,21 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
     )
   }
 
-  const pkgName = dep.alias && dep.pref ? dep.alias : (dep.pref ?? dep.alias)
+  const pkgName = dep.alias && dep.bareSpecifier ? dep.alias : (dep.bareSpecifier ?? dep.alias)
 
   const versions = Object.entries(lockfile.packages ?? {})
     .map(([depPath, pkgSnapshot]) => {
       const tarball = (pkgSnapshot.resolution as TarballResolution)?.tarball ?? ''
       return {
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
-        gitTarballUrl: isGitHostedPkgUrl(tarball) ? tarball : undefined,
+        gitTarballUrl: (isGitHostedPkgUrl(tarball) || isPkgPrNewUrl(tarball)) ? tarball : undefined,
       }
     })
     .filter(({ name }) => name === pkgName)
+    .sort((v1, v2) => semver.compare(v1.version, v2.version))
 
   return {
     versions,
-    preferredVersions: versions.filter(({ version }) => dep.alias && dep.pref ? semver.satisfies(version, dep.pref) : true),
+    preferredVersions: versions.filter(({ version }) => dep.alias && dep.bareSpecifier ? semver.satisfies(version, dep.bareSpecifier) : true),
   }
 }

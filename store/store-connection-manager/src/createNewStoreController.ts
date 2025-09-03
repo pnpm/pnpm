@@ -34,9 +34,11 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'offline'
 | 'packageImportMethod'
 | 'preferOffline'
-| 'registry'
+| 'preserveAbsolutePaths'
+| 'registries'
 | 'registrySupportsTimeField'
 | 'resolutionMode'
+| 'saveWorkspaceProtocol'
 | 'strictSsl'
 | 'unsafePerm'
 | 'userAgent'
@@ -72,6 +74,7 @@ export async function createNewStoreController (
     preferOffline: opts.preferOffline,
     rawConfig: opts.rawConfig,
     sslConfigs: opts.sslConfigs,
+    registries: opts.registries,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,
@@ -89,6 +92,8 @@ export async function createNewStoreController (
     gitShallowHosts: opts.gitShallowHosts,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
     includeOnlyPackageFiles: !opts.deployAllFiles,
+    saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+    preserveAbsolutePaths: opts.preserveAbsolutePaths,
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {

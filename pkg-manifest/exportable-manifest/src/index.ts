@@ -2,11 +2,12 @@ import path from 'path'
 import { type CatalogResolver, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { PnpmError } from '@pnpm/error'
+import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import omit from 'ramda/src/omit'
 import pMapValues from 'p-map-values'
-import { overridePublishConfig } from './overridePublishConfig'
+import { overridePublishConfig } from './overridePublishConfig.js'
 
 const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',
@@ -36,7 +37,7 @@ export async function createExportableManifest (
   const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs)
   const replaceCatalogProtocol = resolveCatalogProtocol.bind(null, catalogResolver)
 
-  const convertDependencyForPublish = combineConverters(replaceWorkspaceProtocol, replaceCatalogProtocol)
+  const convertDependencyForPublish = combineConverters(replaceWorkspaceProtocol, replaceCatalogProtocol, replaceJsrProtocol)
   await Promise.all((['dependencies', 'devDependencies', 'optionalDependencies'] as const).map(async (depsField) => {
     const deps = await makePublishDependencies(dir, originalManifest[depsField], {
       modulesDir: opts?.modulesDir,
@@ -49,7 +50,7 @@ export async function createExportableManifest (
 
   const peerDependencies = originalManifest.peerDependencies
   if (peerDependencies) {
-    const convertPeersForPublish = combineConverters(replaceWorkspaceProtocolPeerDependency, replaceCatalogProtocol)
+    const convertPeersForPublish = combineConverters(replaceWorkspaceProtocolPeerDependency, replaceCatalogProtocol, replaceJsrProtocol)
     publishManifest.peerDependencies = await makePublishDependencies(dir, peerDependencies, {
       modulesDir: opts?.modulesDir,
       convertDependencyForPublish: convertPeersForPublish,
@@ -74,12 +75,12 @@ export type PublishDependencyConverter = (
 
 function combineConverters (...converters: readonly PublishDependencyConverter[]): PublishDependencyConverter {
   return async (depName, depSpec, dir, modulesDir) => {
-    let pref = depSpec
+    let bareSpecifier = depSpec
     for (const converter of converters) {
       // eslint-disable-next-line no-await-in-loop
-      pref = await converter(depName, pref, dir, modulesDir)
+      bareSpecifier = await converter(depName, bareSpecifier, dir, modulesDir)
     }
-    return pref
+    return bareSpecifier
   }
 }
 
@@ -113,12 +114,12 @@ async function readAndCheckManifest (depName: string, dependencyDir: string): Pr
   return manifest
 }
 
-function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string, pref: string): string {
-  const result = catalogResolver({ alias, pref })
+function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string, bareSpecifier: string): string {
+  const result = catalogResolver({ alias, bareSpecifier })
 
   switch (result.type) {
   case 'found': return result.resolution.specifier
-  case 'unused': return pref
+  case 'unused': return bareSpecifier
   case 'misconfiguration': throw result.error
   }
 }
@@ -159,7 +160,7 @@ async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec:
   }
 
   // Dependencies with bare "*", "^", "~",">=",">","<=", "<", version
-  const workspaceSemverRegex = /workspace:([\^~*]|>=|>|<=|<)?((\d+|[xX]|\*)(\.(\d+|[xX]|\*)){0,2})?/
+  const workspaceSemverRegex = /workspace:([\^~*]|>=|>|<=|<)?((\d+|[xX*])(\.(\d+|[xX*])){0,2})?/
   const versionAliasSpecParts = workspaceSemverRegex.exec(depSpec)
 
   if (versionAliasSpecParts != null) {
@@ -177,4 +178,20 @@ async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec:
   }
 
   return depSpec.replace('workspace:', '')
+}
+
+async function replaceJsrProtocol (depName: string, depSpec: string): Promise<string> {
+  const spec = parseJsrSpecifier(depSpec, depName)
+  if (spec == null) {
+    return depSpec
+  }
+  return createNpmAliasedSpecifier(spec.npmPkgName, spec.versionSelector)
+}
+
+function createNpmAliasedSpecifier (npmPkgName: string, versionSelector?: string): string {
+  const npmPkgSpecifier = `npm:${npmPkgName}`
+  if (!versionSelector) {
+    return npmPkgSpecifier
+  }
+  return `${npmPkgSpecifier}@${versionSelector}`
 }

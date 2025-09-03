@@ -1,12 +1,12 @@
 import fs from 'fs'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('setting a custom virtual store directory max length', async () => {
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['@babel/helper-member-expression-to-functions@7.23.0'], testDefaults({
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@babel/helper-member-expression-to-functions@7.23.0'], testDefaults({
     virtualStoreDirMaxLength: 50,
   }))
 

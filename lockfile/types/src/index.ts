@@ -1,9 +1,10 @@
 import { type PatchFile } from '@pnpm/patching.types'
 import { type DependenciesMeta, type DepPath, type ProjectId } from '@pnpm/types'
+import { type PlatformAssetTarget } from '@pnpm/resolver-base'
 
 export type { PatchFile, ProjectId }
 
-export * from './lockfileFileTypes'
+export * from './lockfileFileTypes.js'
 
 export interface LockfileSettings {
   autoInstallPeers?: boolean
@@ -109,12 +110,31 @@ export interface GitRepositoryResolution {
   path?: string
 }
 
+export interface BinaryResolution {
+  type: 'binary'
+  url: string
+  integrity: string
+  bin: string
+  archive: 'zip' | 'tarball'
+}
+
+export interface PlatformAssetResolution {
+  resolution: Resolution
+  targets: PlatformAssetTarget[]
+}
+
 export type Resolution =
   TarballResolution |
   GitRepositoryResolution |
-  DirectoryResolution
+  DirectoryResolution |
+  BinaryResolution
 
-export type LockfileResolution = Resolution | {
+export interface VariationsResolution {
+  type: 'variations'
+  variants: PlatformAssetResolution[]
+}
+
+export type LockfileResolution = Resolution | VariationsResolution | {
   integrity: string
 }
 

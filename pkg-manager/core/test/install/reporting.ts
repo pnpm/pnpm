@@ -3,14 +3,14 @@ import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
 } from '@pnpm/core'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 // TODO: use a smaller package for testing deprecation
 test('reports warning when installing deprecated packages', async () => {
   const project = prepareEmpty()
   const reporter = jest.fn()
 
-  const manifest = await addDependenciesToPackage({}, ['express@0.14.1'], testDefaults({ fastUnpack: false, reporter }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['express@0.14.1'], testDefaults({ fastUnpack: false, reporter }))
 
   expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
     deprecated: 'express 0.x series is deprecated',

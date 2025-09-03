@@ -1,6 +1,6 @@
 import path from 'path'
 import normalize from 'normalize-path'
-import { PREFIX_MAX_LENGTH } from '../outputConstants'
+import { PREFIX_MAX_LENGTH } from '../outputConstants.js'
 
 export function formatPrefix (cwd: string, prefix: string): string {
   prefix = formatPrefixNoTrim(cwd, prefix)

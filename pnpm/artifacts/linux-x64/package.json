@@ -1,7 +1,23 @@
 {
   "name": "@pnpm/linux-x64",
-  "version": "10.0.0-rc.2",
+  "version": "10.15.1",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
   "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/linux-x64",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/linux-x64#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "scripts": {
+    "prepublishOnly": "test -f pnpm || (echo 'Error: pnpm is missing' && exit 1)"
+  },
+  "devDependencies": {
+    "@pnpm/linux-x64": "workspace:*"
+  },
   "publishConfig": {
     "bin": {
       "pnpm": "pnpm"
@@ -12,17 +28,5 @@
     "cpu": [
       "x64"
     ]
-  },
-  "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/linux-x64",
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/linux-x64#readme",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "keywords": [
-    "pnpm10"
-  ],
-  "devDependencies": {
-    "@pnpm/linux-x64": "workspace:*"
   }
 }

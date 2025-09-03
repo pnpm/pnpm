@@ -3,7 +3,7 @@ packages:
   - __typecheck__
   - __typings__
   - __utils__/*
-  - "!__utils__/build-artifacts"
+  - '!__utils__/build-artifacts'
   - cache/*
   - catalogs/*
   - cli/*
@@ -20,106 +20,132 @@ packages:
   - lockfile/*
   - network/*
   - modules-mounter/*
+  - object/*
   - packages/*
   - pkg-manager/*
   - pkg-manifest/*
   - patching/*
   - pnpm
   - pnpm/dev
+  - testing/*
   - tools/*
   - worker
   - pnpm/artifacts/*
   - releasing/*
   - resolving/*
   - reviewing/*
+  - semver/*
   - store/*
   - text/*
   - workspace/*
-  - "!**/example/**"
-  - "!**/test/**"
-  - "!resolving/local-resolver/example-package/**"
+  - '!**/example/**'
+  - '!**/test/**'
+  - '!resolving/local-resolver/example-package/**'
+
+auditConfig:
+  ignoreGhsas:
+    - GHSA-76c9-3jph-rj3q
+
 catalog:
-  "@gwhitney/detect-indent": 7.0.1
-  "@pnpm/builder.policy": 3.0.0
-  "@pnpm/byline": ^1.0.0
-  "@pnpm/colorize-semver-diff": ^1.0.1
-  "@pnpm/config.env-replace": 3.0.0
-  "@pnpm/exec": ^2.0.0
-  "@pnpm/fs.packlist": 2.0.0
-  "@pnpm/log.group": 3.0.0
-  "@pnpm/meta-updater": 2.0.3
-  "@pnpm/network.agent": ^2.0.0
-  "@pnpm/nopt": ^0.2.1
-  "@pnpm/npm-conf": 2.3.1
-  "@pnpm/npm-lifecycle": ^1000.0.1
-  "@pnpm/npm-package-arg": ^1.0.0
-  "@pnpm/os.env.path-extender": ^2.0.0
-  "@pnpm/patch-package": 0.0.0
-  "@pnpm/registry-mock": 3.46.0
-  "@pnpm/semver-diff": ^1.1.0
-  "@pnpm/tabtab": ^0.5.4
-  "@pnpm/util.lex-comparator": 3.0.0
-  "@reflink/reflink": 0.1.18
-  "@rushstack/worker-pool": 0.4.9
-  "@types/adm-zip": ^0.5.5
-  "@types/archy": 0.0.33
-  "@types/cross-spawn": ^6.0.6
-  "@types/fs-extra": ^9.0.13
-  "@types/graceful-fs": ^4.1.9
-  "@types/hosted-git-info": ^3.0.5
-  "@types/ini": 1.3.31
-  "@types/is-gzip": 2.0.0
-  "@types/is-windows": ^1.0.2
-  "@types/js-yaml": ^4.0.9
-  "@types/lodash.clonedeep": ^4.5.9
-  "@types/lodash.throttle": 4.1.7
-  "@types/micromatch": ^4.0.7
-  "@types/node": ^18.19.34
-  "@types/normalize-package-data": ^2.4.4
-  "@types/normalize-path": ^3.0.2
-  "@types/object-hash": 3.0.6
-  "@types/parse-json": ^4.0.2
-  "@types/pnpm__byline": npm:@types/byline@^4.2.36
-  "@types/proxyquire": ^1.3.31
-  "@types/ramda": 0.29.12
-  "@types/retry": ^0.12.5
-  "@types/rimraf": ^3.0.2
-  "@types/semver": 7.5.3
-  "@types/signal-exit": ^3.0.4
-  "@types/sinon": ^10.0.20
-  "@types/shell-quote": ^1.7.5
-  "@types/ssri": ^7.1.5
-  "@types/tar": ^6.1.13
-  "@types/tar-stream": ^2.2.3
-  "@types/touch": ^3.1.5
-  "@types/uuid": ^8.3.4
-  "@types/validate-npm-package-name": ^4.0.2
-  "@types/which": ^2.0.2
-  "@types/write-file-atomic": ^4.0.3
-  "@types/yarnpkg__lockfile": ^1.1.9
-  "@types/zkochan__table": npm:@types/table@6.0.0
-  "@yarnpkg/core": 4.0.5
-  "@yarnpkg/extensions": 2.0.3
-  "@yarnpkg/lockfile": ^1.1.0
-  "@yarnpkg/nm": 4.0.5
-  "@yarnpkg/parsers": 3.0.0
-  "@yarnpkg/pnp": ^4.0.6
-  "@zkochan/cmd-shim": ^6.0.0
-  "@zkochan/diable": ^1.0.2
-  "@zkochan/retry": ^0.2.0
-  "@zkochan/rimraf": ^3.0.2
-  "@zkochan/table": ^2.0.1
-  "dint": ^5.1.0
-  "js-yaml": npm:@zkochan/js-yaml@0.0.7
-  adm-zip: ^0.5.14
-  ansi-diff: ^1.1.1
+  '@babel/core': ^7.26.10
+  '@babel/preset-typescript': ^7.26.0
+  '@babel/types': ^7.26.10
+  '@changesets/cli': ^2.29.5
+  '@commitlint/cli': ^17.8.1
+  '@commitlint/config-conventional': ^17.8.1
+  '@commitlint/prompt-cli': ^17.8.1
+  '@eslint/eslintrc': 3.1.0
+  '@eslint/js': 9.9.1
+  '@gwhitney/detect-indent': 7.0.1
+  '@jest/globals': 29.7.0
+  '@pnpm/builder.policy': 3.0.1
+  '@pnpm/byline': ^1.0.0
+  '@pnpm/colorize-semver-diff': ^1.0.1
+  '@pnpm/config.env-replace': ^3.0.2
+  '@pnpm/config.nerf-dart': ^1.0.0
+  '@pnpm/exec': ^2.0.0
+  '@pnpm/fs.packlist': 2.0.0
+  '@pnpm/log.group': 3.0.1
+  '@pnpm/logger': '>=1001.0.0 <1002.0.0'
+  '@pnpm/meta-updater': 2.0.6
+  '@pnpm/network.agent': ^2.0.3
+  '@pnpm/nopt': ^0.2.1
+  '@pnpm/npm-conf': 3.0.0
+  '@pnpm/npm-lifecycle': ^1000.0.4
+  '@pnpm/npm-package-arg': ^2.0.0
+  '@pnpm/os.env.path-extender': ^2.0.3
+  '@pnpm/patch-package': 0.0.1
+  '@pnpm/registry-mock': 5.0.0
+  '@pnpm/semver-diff': ^1.1.0
+  '@pnpm/tabtab': ^0.5.4
+  '@pnpm/tgz-fixtures': 0.0.0
+  '@pnpm/util.lex-comparator': ^3.0.2
+  '@pnpm/workspace.find-packages': ^1000.0.15
+  '@pnpm/workspace.read-manifest': ^1000.1.1
+  '@reflink/reflink': 0.1.19
+  '@rushstack/worker-pool': 0.4.9
+  '@types/adm-zip': ^0.5.7
+  '@types/archy': 0.0.33
+  '@types/cross-spawn': ^6.0.6
+  '@types/fs-extra': ^9.0.13
+  '@types/graceful-fs': ^4.1.9
+  '@types/hosted-git-info': ^3.0.5
+  '@types/ini': 1.3.31
+  '@types/is-gzip': 2.0.0
+  '@types/is-windows': ^1.0.2
+  '@types/isexe': 2.0.2
+  '@types/jest': ^29.5.14
+  '@types/js-yaml': ^4.0.9
+  '@types/lodash.kebabcase': 4.1.9
+  '@types/lodash.throttle': 4.1.7
+  '@types/micromatch': ^4.0.9
+  '@types/node': ^18.19.34
+  '@types/normalize-package-data': ^2.4.4
+  '@types/normalize-path': ^3.0.2
+  '@types/object-hash': 3.0.6
+  '@types/parse-json': ^4.0.2
+  '@types/pnpm__byline': npm:@types/byline@^4.2.36
+  '@types/proxyquire': ^1.3.31
+  '@types/ramda': 0.29.12
+  '@types/retry': ^0.12.5
+  '@types/rimraf': ^3.0.2
+  '@types/semver': 7.5.3
+  '@types/signal-exit': ^3.0.4
+  '@types/sinon': ^10.0.20
+  '@types/ssri': ^7.1.5
+  '@types/tar': ^6.1.13
+  '@types/tar-stream': ^2.2.3
+  '@types/touch': ^3.1.5
+  '@types/uuid': ^8.3.4
+  '@types/validate-npm-package-name': ^4.0.2
+  '@types/which': ^2.0.2
+  '@types/write-file-atomic': ^4.0.3
+  '@types/yarnpkg__lockfile': ^1.1.9
+  '@types/yazl': ^3.3.0
+  '@types/zkochan__table': npm:@types/table@6.0.0
+  '@typescript-eslint/eslint-plugin': 6.18.1
+  '@typescript-eslint/parser': 6.18.1
+  '@yarnpkg/core': 4.2.0
+  '@yarnpkg/extensions': 2.0.3
+  '@yarnpkg/lockfile': ^1.1.0
+  '@yarnpkg/nm': 4.0.5
+  '@yarnpkg/parsers': 3.0.0
+  '@yarnpkg/pnp': ^4.0.8
+  '@zkochan/cmd-shim': ^7.0.0
+  '@zkochan/diable': ^1.0.2
+  '@zkochan/retry': ^0.2.0
+  '@zkochan/rimraf': ^3.0.2
+  '@zkochan/table': ^2.0.1
+  adm-zip: ^0.5.16
+  ansi-diff: ^1.2.0
   archy: ^1.0.0
   better-path-resolve: 1.0.0
   bin-links: ^4.0.4
-  bole: ^5.0.14
-  boxen: ^5.1.2
-  camelcase-keys: ^6.2.2
+  bole: ^5.0.17
+  boxen: npm:@zkochan/boxen@5.1.2
+  c8: ^7.14.0
   camelcase: ^6.3.0
+  camelcase-keys: ^6.2.2
   can-link: ^2.0.0
   can-write-to-dir: ^1.1.1
   chalk: ^4.1.2
@@ -129,23 +155,33 @@ catalog:
   cmd-extension: ^1.0.2
   comver-to-semver: ^1.0.0
   concurrently: 8.2.1
-  cross-spawn: ^7.0.5
+  cross-env: ^7.0.3
+  cross-spawn: ^7.0.6
+  cspell: 8.17.5
   deep-require-cwd: 1.0.0
   delay: ^5.0.0
   detect-libc: ^2.0.3
   didyoumean2: ^6.0.1
+  dint: ^5.1.0
   dir-is-case-sensitive: ^2.0.0
   encode-registry: ^3.0.1
   enquirer: ^2.4.1
-  esbuild: ^0.19.12
+  esbuild: ^0.25.0
   escape-string-regexp: ^4.0.0
+  eslint: ^8.57.1
+  eslint-config-standard-with-typescript: ^39.1.1
+  eslint-plugin-import: ^2.31.0
+  eslint-plugin-n: ^16.6.2
+  eslint-plugin-node: ^11.1.0
+  eslint-plugin-promise: ^6.6.0
+  eslint-plugin-regexp: 2.7.0
   execa: npm:safe-execa@0.1.2
   exists-link: 2.0.0
   fast-deep-equal: ^3.1.3
   fast-glob: ^3.3.2
   filenamify: ^4.3.0
   find-up: ^5.0.0
-  fs-extra: ^11.2.0
+  fs-extra: ^11.3.0
   fuse-native: ^2.2.6
   get-npm-tarball-url: ^2.1.0
   get-port: ^5.1.1
@@ -155,6 +191,7 @@ catalog:
   graph-cycles: 1.2.1
   hosted-git-info: npm:@pnpm/hosted-git-info@1.0.0
   https-proxy-server-express: 0.1.2
+  husky: ^9.1.7
   hyperdrive-schemas: ^2.0.0
   ini: 4.1.1
   is-gzip: 2.0.0
@@ -163,28 +200,30 @@ catalog:
   is-subdir: ^1.2.0
   is-windows: ^1.0.2
   isexe: 2.0.0
+  jest: ^29.7.0
   jest-diff: ^29.7.0
+  js-yaml: npm:@zkochan/js-yaml@0.0.9
   json5: ^2.2.3
+  keyv: 4.5.4
+  lcov-result-merger: ^3.3.0
   load-json-file: ^6.2.0
-  lodash.clonedeep: ^4.5.0
+  lodash.kebabcase: ^4.1.1
   lodash.throttle: 4.1.1
   loud-rejection: ^2.2.0
-  lru-cache: ^10.2.2
+  lru-cache: ^10.4.3
   make-empty-dir: ^3.0.2
+  mdast-util-to-string: ^2.0.0
   mem: ^8.1.1
-  micromatch: ^4.0.7
+  micromatch: ^4.0.8
   ndjson: ^2.0.0
-  nerf-dart: 1.0.0
   nock: 13.3.4
   node-fetch: npm:@pnpm/node-fetch@1.0.0
-  node-gyp: ^11.0.0
   normalize-newline: 3.0.0
-  normalize-package-data: ^5.0.0
+  normalize-package-data: ^7.0.1
   normalize-path: ^3.0.0
   normalize-registry-url: 2.0.0
   npm-packlist: 5.1.3
   object-hash: 3.0.0
-  p-any: 3.0.0
   p-defer: ^3.0.0
   p-every: ^2.0.0
   p-filter: ^2.1.0
@@ -192,7 +231,6 @@ catalog:
   p-map-values: ^1.0.0
   p-memoize: 4.0.1
   p-queue: ^6.6.2
-  p-settle: ^4.1.1
   parse-json: ^5.2.0
   parse-npm-tarball-url: ^3.0.0
   path-absolute: ^1.0.1
@@ -201,21 +239,23 @@ catalog:
   path-temp: ^2.1.0
   pidtree: ^0.6.0
   pkg: npm:@yao-pkg/pkg@5.12.0
-  preferred-pm: ^3.1.3
+  preferred-pm: ^3.1.4
   pretty-bytes: ^5.6.0
   pretty-ms: ^7.0.1
   process-exists: ^4.1.0
   promise-share: ^1.0.0
   proxyquire: ^2.1.3
   ps-list: ^7.2.0
+  publish-packed: ^4.1.2
   ramda: npm:@pnpm/ramda@0.28.1
   read-ini-file: 4.0.0
   read-yaml-file: ^2.1.0
   realpath-missing: ^1.1.0
-  rename-overwrite: ^6.0.0
+  remark-parse: ^9.0.0
+  remark-stringify: ^9.0.1
+  rename-overwrite: ^6.0.2
   render-help: ^1.0.3
   resolve-link-target: ^2.0.0
-  rfc4648: ^1.5.3
   rimraf: ^3.0.2
   root-link-target: ^3.1.0
   run-groups: ^3.0.1
@@ -224,10 +264,11 @@ catalog:
   safe-execa: ^0.1.4
   safe-promise-defer: ^1.0.1
   sanitize-filename: ^1.6.3
+  semver: ^7.7.1
   semver-range-intersect: ^0.3.1
   semver-utils: ^1.1.4
-  semver: ^7.6.2
-  shell-quote: ^1.8.2
+  shlex: ^2.1.2
+  shx: ^0.3.4
   signal-exit: ^3.0.7
   sinon: ^16.1.3
   sort-keys: ^4.2.0
@@ -235,24 +276,158 @@ catalog:
   ssri: 10.0.5
   stacktracey: ^2.1.8
   string-length: ^4.0.2
-  strip-ansi: ^6.0.1
   strip-bom: ^4.0.0
   strip-comments-strings: 1.2.0
-  symlink-dir: ^6.0.4
-  tar-stream: ^2.2.0
+  symlink-dir: ^6.0.5
   tar: ^6.2.1
+  tar-stream: ^2.2.0
   tempy: ^1.0.1
   terminal-link: ^2.1.1
+  tinyglobby: ^0.2.14
   touch: 3.1.0
   tree-kill: ^1.2.2
+  ts-jest: 29.2.3
+  ts-jest-resolver: 2.0.1
+  ts-node: ^10.9.2
+  typescript: 5.5.4
+  unified: ^9.2.2
   uuid: ^9.0.1
-  v8-compile-cache: 2.4.0
   validate-npm-package-name: 5.0.0
+  verdaccio: 5.20.1
   version-selector-type: ^3.0.0
   which: npm:@pnpm/which@^3.0.1
   write-file-atomic: ^5.0.1
   write-ini-file: 4.0.1
   write-json-file: ^4.3.0
+  write-json5-file: ^3.1.0
   write-pkg: 4.0.0
   write-yaml-file: ^5.0.0
   yaml-tag: 1.1.0
+  yazl: ^3.3.1
+
+catalogMode: strict
+
+cleanupUnusedCatalogs: true
+
+enableGlobalVirtualStore: true
+
+enablePrePostScripts: false
+
+engineStrict: true
+
+gitChecks: false
+
+hoistPattern:
+  - jest-runner
+
+ignoredBuiltDependencies:
+  - core-js
+
+managePackageManagerVersions: true
+
+nodeVersion: 18.18.0
+
+onlyBuiltDependencies:
+  - esbuild
+  - fuse-native
+  - ghooks
+
+optimisticRepeatInstall: true
+
+overrides:
+  '@yarnpkg/fslib@2': '3'
+  body-parser@<1.20.3: ^1.20.3
+  clipanion: 3.2.0-rc.6
+  cookie@<0.7.0: '>=0.7.0'
+  cross-spawn@<7.0.5: '>=7.0.5'
+  debug@<3.1.0: '>=3.1.0'
+  express@<4.20.0: ^4.20.0
+  follow-redirects@<=1.15.5: '>=1.15.6'
+  glob-parent@<5.1.2: '>=5.1.2'
+  hosted-git-info@1: 'catalog:'
+  http-proxy-middleware@<2.0.7: ^2.0.7
+  istanbul-reports: npm:@zkochan/istanbul-reports
+  js-yaml@^4.0.0: 'catalog:'
+  json5@<2.2.2: 'catalog:'
+  jsonwebtoken@<=8.5.1: '>=9.0.0'
+  nopt@5: npm:@pnpm/nopt@^0.2.1
+  on-headers@<1.1.0: '>=1.1.0'
+  path-to-regexp@<0.1.12: ^0.1.12
+  path-to-regexp@>=4.0.0 <6.3.0: '>=6.3.0'
+  path-to-regexp@>=7.0.0 <8.0.0: '>=8.0.0'
+  request: npm:postman-request@2.88.1-postman.40
+  semver@<7.5.2: 'catalog:'
+  send@<0.19.0: ^0.19.0
+  serve-static@<1.16.0: ^1.16.0
+  socks@2: ^2.8.1
+  tmp@<=0.2.3: '>=0.2.4'
+  tough-cookie@<4.1.3: '>=4.1.3'
+  yaml@<2.2.2: '>=2.2.2'
+
+packageExtensions:
+  '@babel/parser':
+    peerDependencies:
+      '@babel/types': '*'
+  jest-circus:
+    dependencies:
+      slash: '3'
+  remark-parse:
+    peerDependencies:
+      unified: '*'
+  remark-stringify:
+    peerDependencies:
+      unified: '*'
+
+patchedDependencies:
+  '@yao-pkg/pkg': __patches__/pkg.patch
+  graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
+  mdast-util-to-string@2.0.0: __patches__/mdast-util-to-string@2.0.0.patch
+  normalize-package-data@7.0.1: __patches__/normalize-package-data@7.0.1.patch
+
+patchesDir: __patches__
+
+publishBranch: main
+
+resolutionMode: lowest-direct
+
+savePrefix: ''
+
+sharedWorkspaceLockfile: true
+
+updateConfig:
+  ignoreDependencies:
+    - boxen
+    - camelcase
+    - camelcase-keys
+    - chalk
+    - detect-indent
+    - escape-string-regexp
+    - filenamify
+    - find-up
+    - get-port
+    - is-port-reachable
+    - load-json-file
+    - mem
+    - npm-packlist
+    - node-fetch
+    - normalize-newline
+    - p-defer
+    - p-filter
+    - p-limit
+    - p-memoize
+    - p-queue
+    - parse-json
+    - path-exists
+    - pretty-bytes
+    - pretty-ms
+    - process-exists
+    - ps-list
+    - sort-keys
+    - string-length
+    - strip-bom
+    - tempy
+    - unique-string
+    - write-json-file
+    - write-pkg
+
+verifyDepsBeforeRun: install

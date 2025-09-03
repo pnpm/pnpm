@@ -1,16 +1,17 @@
 import { getConfig } from '@pnpm/config'
 import { updateCheckLogger } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
-import { checkForUpdates } from './checkForUpdates'
+import { checkForUpdates } from './checkForUpdates.js'
 
 jest.mock('@pnpm/core-loggers', () => ({
   updateCheckLogger: { debug: jest.fn() },
 }))
 
 beforeEach(() => {
-  (updateCheckLogger.debug as jest.Mock).mockReset()
+  jest.mocked(updateCheckLogger.debug).mockReset()
 })
 
 test('check for updates when no pnpm state file is present', async () => {

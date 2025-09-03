@@ -1,7 +1,6 @@
-import type { CookedHooks } from './requireHooks'
+import type { CookedHooks } from './requireHooks.js'
 
-export { getPnpmfilePath } from './getPnpmfilePath'
-export { requireHooks } from './requireHooks'
-export { requirePnpmfile, BadReadPackageHookError } from './requirePnpmfile'
-export type { HookContext } from './Hooks'
+export { requireHooks } from './requireHooks.js'
+export { BadReadPackageHookError } from './requirePnpmfile.js'
+export type { HookContext } from './Hooks.js'
 export type Hooks = CookedHooks

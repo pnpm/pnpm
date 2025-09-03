@@ -3,7 +3,7 @@ import { type ProjectRootDir } from '@pnpm/types'
 import {
   createWorkspaceSpecs,
   updateToWorkspacePackagesFromManifest,
-} from '../lib/updateWorkspaceDependencies'
+} from '../lib/updateWorkspaceDependencies.js'
 
 const INCLUDE_ALL = {
   dependencies: true,
@@ -73,7 +73,7 @@ test('updateToWorkspacePackagesFromManifest()', () => {
 })
 
 test('createWorkspaceSpecs', () => {
-  expect(createWorkspaceSpecs(['bar', 'foo@2', 'qar@workspace:3'], WORKSPACE_PACKAGES)).toStrictEqual(['bar@workspace:>=0.0.0', 'foo@workspace:2', 'qar@workspace:3'])
+  expect(createWorkspaceSpecs(['bar', 'foo@2', 'qar@workspace:3'], WORKSPACE_PACKAGES)).toStrictEqual(['bar@workspace:*', 'foo@workspace:2', 'qar@workspace:3'])
   let err!: PnpmError
   try {
     createWorkspaceSpecs(['express'], WORKSPACE_PACKAGES)

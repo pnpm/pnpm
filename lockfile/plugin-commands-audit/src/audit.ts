@@ -12,7 +12,8 @@ import difference from 'ramda/src/difference'
 import pick from 'ramda/src/pick'
 import pickBy from 'ramda/src/pickBy'
 import renderHelp from 'render-help'
-import { fix } from './fix'
+import { fix } from './fix.js'
+import { ignore } from './ignore.js'
 
 // eslint-disable
 const AUDIT_LEVEL_NUMBER = {
@@ -57,6 +58,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
     'audit-level': ['low', 'moderate', 'high', 'critical'],
     fix: Boolean,
     'ignore-registry-errors': Boolean,
+    ignore: [String, Array],
+    'ignore-unfixable': Boolean,
   }
 }
 
@@ -105,6 +108,14 @@ export function help (): string {
             description: 'Use exit code 0 if the registry responds with an error. Useful when audit checks are used in CI. A build should fail because the registry has issues.',
             name: '--ignore-registry-errors',
           },
+          {
+            description: 'Ignore a vulnerability by CVE',
+            name: '--ignore <vulnerability>',
+          },
+          {
+            description: 'Ignore all CVEs with no resolution',
+            name: '--ignore-unfixable',
+          },
         ],
       },
     ],
@@ -113,37 +124,43 @@ export function help (): string {
   })
 }
 
-export async function handler (
-  opts: Pick<UniversalOptions, 'dir'> & {
-    auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
-    fix?: boolean
-    ignoreRegistryErrors?: boolean
-    json?: boolean
-    lockfileDir?: string
-    registries: Registries
-  } & Pick<Config, 'ca'
-  | 'cert'
-  | 'httpProxy'
-  | 'httpsProxy'
-  | 'key'
-  | 'localAddress'
-  | 'maxSockets'
-  | 'noProxy'
-  | 'strictSsl'
-  | 'fetchRetries'
-  | 'fetchRetryMaxtimeout'
-  | 'fetchRetryMintimeout'
-  | 'fetchRetryFactor'
-  | 'fetchTimeout'
-  | 'production'
-  | 'dev'
-  | 'optional'
-  | 'userConfig'
-  | 'rawConfig'
-  | 'rootProjectManifest'
-  | 'virtualStoreDirMaxLength'
-  >
-): Promise<{ exitCode: number, output: string }> {
+export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
+  auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
+  fix?: boolean
+  ignoreRegistryErrors?: boolean
+  json?: boolean
+  lockfileDir?: string
+  registries: Registries
+  ignore?: string[]
+  ignoreUnfixable?: boolean
+} & Pick<Config, 'auditConfig'
+| 'ca'
+| 'cert'
+| 'httpProxy'
+| 'httpsProxy'
+| 'key'
+| 'localAddress'
+| 'maxSockets'
+| 'noProxy'
+| 'strictSsl'
+| 'fetchRetries'
+| 'fetchRetryMaxtimeout'
+| 'fetchRetryMintimeout'
+| 'fetchRetryFactor'
+| 'fetchTimeout'
+| 'production'
+| 'dev'
+| 'overrides'
+| 'optional'
+| 'userConfig'
+| 'rawConfig'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
+| 'virtualStoreDirMaxLength'
+| 'workspaceDir'
+>
+
+export async function handler (opts: AuditOptions): Promise<{ exitCode: number, output: string }> {
   const lockfileDir = opts.lockfileDir ?? opts.dir
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
   if (lockfile == null) {
@@ -193,7 +210,7 @@ export async function handler (
     throw err
   }
   if (opts.fix) {
-    const newOverrides = await fix(opts.dir, auditReport)
+    const newOverrides = await fix(auditReport, opts)
     if (Object.values(newOverrides).length === 0) {
       return {
         exitCode: 0,
@@ -209,6 +226,29 @@ The added overrides:
 ${JSON.stringify(newOverrides, null, 2)}`,
     }
   }
+  if (opts.ignore !== undefined || opts.ignoreUnfixable) {
+    const newIgnores = await ignore({
+      auditConfig: opts.auditConfig,
+      auditReport,
+      ignore: opts.ignore,
+      ignoreUnfixable: opts.ignoreUnfixable === true,
+      dir: opts.dir,
+      rootProjectManifest: opts.rootProjectManifest,
+      rootProjectManifestDir: opts.rootProjectManifestDir,
+      workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    })
+    if (newIgnores.length === 0) {
+      return {
+        exitCode: 0,
+        output: 'No new vulnerabilities were ignored',
+      }
+    }
+    return {
+      exitCode: 0,
+      output: `${newIgnores.length} new vulnerabilities were ignored:
+${newIgnores.join('\n')}`,
+    }
+  }
   const vulnerabilities = auditReport.metadata.vulnerabilities
   const ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts = {
     low: 0,
@@ -218,7 +258,7 @@ ${JSON.stringify(newOverrides, null, 2)}`,
   }
   const totalVulnerabilityCount = Object.values(vulnerabilities)
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
-  const ignoreGhsas = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreGhsas
+  const ignoreGhsas = opts.auditConfig?.ignoreGhsas
   if (ignoreGhsas) {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     auditReport.advisories = pickBy(({ github_advisory_id, severity }) => {
@@ -229,7 +269,7 @@ ${JSON.stringify(newOverrides, null, 2)}`,
       return false
     }, auditReport.advisories)
   }
-  const ignoreCves = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreCves
+  const ignoreCves = opts.auditConfig?.ignoreCves
   if (ignoreCves) {
     auditReport.advisories = pickBy(({ cves, severity }) => {
       if (cves.length === 0 || difference(cves, ignoreCves).length > 0) {

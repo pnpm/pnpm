@@ -6,7 +6,7 @@ import {
   addDependenciesToPackage,
   type PackageManifest,
 } from '@pnpm/core'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('readPackage, afterAllResolved hooks', async () => {
   const project = prepareEmpty()

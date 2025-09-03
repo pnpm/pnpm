@@ -3,8 +3,8 @@ import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { install } from '@pnpm/plugin-commands-installation'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { preparePackages } from '@pnpm/prepare'
-import stripAnsi from 'strip-ansi'
-import { DEFAULT_OPTS, DEFAULT_OUTDATED_OPTS } from './utils'
+import { stripVTControlCharacters as stripAnsi } from 'util'
+import { DEFAULT_OPTS, DEFAULT_OUTDATED_OPTS } from './utils/index.js'
 
 test('pnpm recursive outdated', async () => {
   preparePackages([

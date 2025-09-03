@@ -13,6 +13,9 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
       "path": "../../crypto/hash"
     },
     {
@@ -44,6 +47,9 @@
     },
     {
       "path": "../../workspace/spec-parser"
+    },
+    {
+      "path": "../jsr-specifier-parser"
     },
     {
       "path": "../resolver-base"

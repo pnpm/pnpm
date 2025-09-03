@@ -1,4 +1,9 @@
-import { type ProjectRootDir, type DependencyManifest, type PkgResolutionId } from '@pnpm/types'
+import {
+  type ProjectRootDir,
+  type DependencyManifest,
+  type PkgResolutionId,
+  type PinnedVersion,
+} from '@pnpm/types'
 
 export { type PkgResolutionId }
 
@@ -10,6 +15,15 @@ export interface TarballResolution {
   tarball: string
   integrity?: string
   path?: string
+}
+
+export interface BinaryResolution {
+  type: 'binary'
+  archive: 'tarball' | 'zip'
+  url: string
+  integrity: string
+  bin: string
+  prefix?: string
 }
 
 /**
@@ -27,20 +41,39 @@ export interface GitResolution {
   type: 'git'
 }
 
-export type Resolution =
-  TarballResolution |
-  DirectoryResolution |
-  GitResolution |
-  ({ type: string } & object)
+export interface PlatformAssetTarget {
+  os: string
+  cpu: string
+  libc?: 'musl'
+}
+
+export interface PlatformAssetResolution {
+  resolution: AtomicResolution
+  targets: PlatformAssetTarget[]
+}
+
+export type AtomicResolution =
+  | TarballResolution
+  | DirectoryResolution
+  | GitResolution
+  | BinaryResolution
+
+export interface VariationsResolution {
+  type: 'variations'
+  variants: PlatformAssetResolution[]
+}
+
+export type Resolution = AtomicResolution | VariationsResolution
 
 export interface ResolveResult {
   id: PkgResolutionId
   latest?: string
   publishedAt?: string
   manifest?: DependencyManifest
-  normalizedPref?: string // is null for npm-hosted dependencies
   resolution: Resolution
-  resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'url' | string
+  resolvedVia: string
+  normalizedBareSpecifier?: string
+  alias?: string
 }
 
 export interface WorkspacePackage {
@@ -80,20 +113,22 @@ export interface ResolveOptions {
   lockfileDir: string
   preferredVersions: PreferredVersions
   preferWorkspacePackages?: boolean
-  registry: string
   workspacePackages?: WorkspacePackages
-  updateToLatest?: boolean
+  update?: false | 'compatible' | 'latest'
   injectWorkspacePackages?: boolean
+  calcSpecifier?: boolean
+  pinnedVersion?: PinnedVersion
 }
 
 export type WantedDependency = {
   injected?: boolean
+  prevSpecifier?: string
 } & ({
   alias?: string
-  pref: string
+  bareSpecifier: string
 } | {
   alias: string
-  pref?: string
+  bareSpecifier?: string
 })
 
 export type ResolveFunction = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<ResolveResult>

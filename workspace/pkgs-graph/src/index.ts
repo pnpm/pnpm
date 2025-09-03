@@ -1,7 +1,7 @@
 import path from 'path'
 import npa from '@pnpm/npm-package-arg'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
-import { parsePref, workspacePrefToNpm } from '@pnpm/npm-resolver'
+import { parseBareSpecifier, workspacePrefToNpm } from '@pnpm/npm-resolver'
 import { type ProjectRootDir, type BaseManifest } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
 
@@ -47,7 +47,7 @@ export function createPkgGraph<Pkg extends Package> (pkgs: Pkg[], opts?: {
         const isWorkspaceSpec = rawSpec.startsWith('workspace:')
         try {
           if (isWorkspaceSpec) {
-            const { fetchSpec, name } = parsePref(workspacePrefToNpm(rawSpec), depName, 'latest', '')!
+            const { fetchSpec, name } = parseBareSpecifier(workspacePrefToNpm(rawSpec), depName, 'latest', '')!
             rawSpec = fetchSpec
             depName = name
           }

@@ -18,13 +18,14 @@ import pick from 'ramda/src/pick'
 import pluck from 'ramda/src/pluck'
 import unnest from 'ramda/src/unnest'
 import renderHelp from 'render-help'
-import { type InstallCommandOptions } from '../install'
-import { installDeps } from '../installDeps'
-import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices'
-import { parseUpdateParam } from '../recursive'
+import { type InstallCommandOptions } from '../install.js'
+import { installDeps } from '../installDeps.js'
+import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices.js'
+import { parseUpdateParam } from '../recursive.js'
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'cache-dir',
+    'dangerously-allow-all-builds',
     'depth',
     'dev',
     'engine-strict',
@@ -193,12 +194,10 @@ async function interactiveUpdate (
         manifest: await readProjectManifestOnly(opts.dir, opts),
       },
     ]
-  const rootDir = opts.workspaceDir ?? opts.dir
-  const rootProject = projects.find((project) => project.rootDir === rootDir)
   const outdatedPkgsOfProjects = await outdatedDepsOfProjects(projects, input, {
     ...opts,
     compatible: opts.latest !== true,
-    ignoreDependencies: rootProject?.manifest?.pnpm?.updateConfig?.ignoreDependencies,
+    ignoreDependencies: opts.updateConfig?.ignoreDependencies,
     include,
     retry: {
       factor: opts.fetchRetryFactor,
@@ -298,7 +297,7 @@ async function update (
     ...opts,
     allowNew: false,
     depth,
-    ignoreCurrentPrefs: false,
+    ignoreCurrentSpecifiers: false,
     includeDirect,
     include,
     update: true,

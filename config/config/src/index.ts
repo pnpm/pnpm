@@ -1,41 +1,50 @@
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+import { isCI } from 'ci-info'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import loadNpmConf from '@pnpm/npm-conf'
 import type npmTypes from '@pnpm/npm-conf/lib/types'
-import { requireHooks } from '@pnpm/pnpmfile'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import { createMatcher } from '@pnpm/matcher'
 import betterPathResolve from 'better-path-resolve'
 import camelcase from 'camelcase'
 import isWindows from 'is-windows'
+import kebabCase from 'lodash.kebabcase'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
-import { inheritAuthConfig } from './auth'
-import { checkGlobalBinDir } from './checkGlobalBinDir'
-import { getNetworkConfigs } from './getNetworkConfigs'
-import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
+import { inheritAuthConfig } from './auth.js'
+import { checkGlobalBinDir } from './checkGlobalBinDir.js'
+import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
+import { getNetworkConfigs } from './getNetworkConfigs.js'
+import { transformPathKeys } from './transformPath.js'
+import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs.js'
 import {
   type Config,
   type ConfigWithDeprecatedSettings,
   type UniversalOptions,
   type VerifyDepsBeforeRun,
   type WantedPackageManager,
-} from './Config'
-import { getWorkspaceConcurrency } from './concurrency'
+} from './Config.js'
+import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
-import { types } from './types'
+import { types } from './types.js'
+import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+import {
+  type CliOptions as SupportedArchitecturesCliOptions,
+  overrideSupportedArchitecturesWithCLI,
+} from './overrideSupportedArchitecturesWithCLI.js'
 export { types }
 
-export { getOptionsFromRootManifest, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
-export * from './readLocalConfig'
+export { getOptionsFromRootManifest, getOptionsFromPnpmSettings, type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
+export * from './readLocalConfig.js'
+export { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
 
 export type { Config, UniversalOptions, WantedPackageManager, VerifyDepsBeforeRun }
 
@@ -49,7 +58,7 @@ type KebabCaseConfig = {
 
 const npmDefaults = loadNpmConf.defaults
 
-export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }
+export type CliOptions = Record<string, unknown> & SupportedArchitecturesCliOptions & { dir?: string, json?: boolean }
 
 export async function getConfig (opts: {
   globalDirShouldAllowWrite?: boolean
@@ -63,11 +72,13 @@ export async function getConfig (opts: {
   checkUnknownSetting?: boolean
   env?: Record<string, string | undefined>
   ignoreNonAuthSettingsFromLocal?: boolean
+  ignoreLocalSettings?: boolean
 }): Promise<{ config: Config, warnings: string[] }> {
   if (opts.ignoreNonAuthSettingsFromLocal) {
     const { ignoreNonAuthSettingsFromLocal: _, ...authOpts } = opts
     const globalCfgOpts: typeof authOpts = {
       ...authOpts,
+      ignoreLocalSettings: true,
       cliOptions: {
         ...authOpts.cliOptions,
         dir: os.homedir(),
@@ -113,10 +124,13 @@ export async function getConfig (opts: {
     cliOptions['prefix'] = cliOptions.dir // the npm config system still expects `prefix`
   }
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
-  const defaultOptions: Partial<KebabCaseConfig> | typeof npmTypes.types = {
+  const defaultOptions: Partial<KebabCaseConfig> = {
     'auto-install-peers': true,
     bail: true,
+    'catalog-mode': 'manual',
+    ci: isCI,
     color: 'auto',
+    'dangerously-allow-all-builds': false,
     'deploy-all-files': false,
     'dedupe-peer-dependents': true,
     'dedupe-direct-deps': false,
@@ -148,6 +162,9 @@ export async function getConfig (opts: {
     'hoist-workspace-packages': true,
     'ignore-workspace-cycles': false,
     'ignore-workspace-root-check': false,
+    'optimistic-repeat-install': false,
+    'init-package-manager': true,
+    'init-type': 'commonjs',
     'inject-workspace-packages': false,
     'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
@@ -166,8 +183,10 @@ export async function getConfig (opts: {
     'resolution-mode': 'highest',
     'resolve-peers-from-workspace-root': true,
     'save-peer': false,
+    'save-catalog-name': undefined,
     'save-workspace-protocol': 'rolling',
     'scripts-prepend-node-path': false,
+    'strict-dep-builds': false,
     'side-effects-cache': true,
     symlink: true,
     'shared-workspace-lockfile': true,
@@ -181,8 +200,7 @@ export async function getConfig (opts: {
     userconfig: npmDefaults.userconfig,
     'verify-deps-before-run': false,
     'verify-store-integrity': true,
-    'virtual-store-dir': 'node_modules/.pnpm',
-    'workspace-concurrency': 4,
+    'workspace-concurrency': getDefaultWorkspaceConcurrency(),
     'workspace-prefix': opts.workspaceDir,
     'embed-readme': false,
     'registry-supports-time-field': false,
@@ -197,6 +215,10 @@ export async function getConfig (opts: {
     const warn = npmConfig.addFile(path.join(configDir as string, 'rc'), 'pnpm-global')
     if (warn) warnings.push(warn)
   }
+  npmConfig.add({
+    registry: 'https://registry.npmjs.org/',
+    '@jsr:registry': 'https://npm.jsr.io/',
+  }, 'pnpm-builtin')
   {
     const warn = npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
     if (warn) warnings.push(warn)
@@ -208,10 +230,17 @@ export async function getConfig (opts: {
 
   const rcOptions = Object.keys(rcOptionsTypes)
 
-  const pnpmConfig: ConfigWithDeprecatedSettings = Object.fromEntries([
-    ...rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)]) as any, // eslint-disable-line
-    ...Object.entries(cliOptions).filter(([name, value]) => typeof value !== 'undefined').map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value]),
-  ]) as unknown as ConfigWithDeprecatedSettings
+  const configFromCliOpts = Object.fromEntries(Object.entries(cliOptions)
+    .filter(([_, value]) => typeof value !== 'undefined')
+    .map(([name, value]) => [camelcase(name, { locale: 'en-US' }), value])
+  )
+
+  const pnpmConfig: ConfigWithDeprecatedSettings = Object.fromEntries(
+    rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)])
+  ) as ConfigWithDeprecatedSettings
+  const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
+
+  Object.assign(pnpmConfig, configFromCliOpts)
   // Resolving the current working directory to its actual location is crucial.
   // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
   const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
@@ -232,7 +261,7 @@ export async function getConfig (opts: {
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   pnpmConfig.rawConfig = Object.assign.apply(Object, [
-    { registry: 'https://registry.npmjs.org/' },
+    {},
     ...[...npmConfig.list].reverse(),
     cliOptions,
     { 'user-agent': pnpmConfig.userAgent },
@@ -271,8 +300,8 @@ export async function getConfig (opts: {
     globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
   }
   pnpmConfig.globalPkgDir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
-
   if (cliOptions['global']) {
+    delete pnpmConfig.workspaceDir
     pnpmConfig.dir = pnpmConfig.globalPkgDir
     pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
     if (pnpmConfig.bin) {
@@ -281,7 +310,7 @@ export async function getConfig (opts: {
     }
     pnpmConfig.save = true
     pnpmConfig.allowNew = true
-    pnpmConfig.ignoreCurrentPrefs = true
+    pnpmConfig.ignoreCurrentSpecifiers = true
     pnpmConfig.saveProd = true
     pnpmConfig.saveDev = false
     pnpmConfig.saveOptional = false
@@ -319,7 +348,52 @@ export async function getConfig (opts: {
     pnpmConfig.virtualStoreDir = '.pnpm'
   } else {
     pnpmConfig.dir = cwd
-    pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
+    if (!pnpmConfig.bin) {
+      pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
+    }
+  }
+  pnpmConfig.packageManager = packageManager
+
+  if (!opts.ignoreLocalSettings) {
+    pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
+    pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
+    if (pnpmConfig.rootProjectManifest != null) {
+      if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
+        warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
+      }
+      if (pnpmConfig.rootProjectManifest.packageManager) {
+        pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
+      }
+      if (pnpmConfig.rootProjectManifest) {
+        Object.assign(pnpmConfig, getOptionsFromRootManifest(pnpmConfig.rootProjectManifestDir, pnpmConfig.rootProjectManifest))
+      }
+    }
+
+    if (pnpmConfig.workspaceDir != null) {
+      const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
+
+      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
+      if (workspaceManifest) {
+        const newSettings = Object.assign(getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest), configFromCliOpts)
+        for (const [key, value] of Object.entries(newSettings)) {
+          // @ts-expect-error
+          pnpmConfig[key] = value
+          pnpmConfig.rawConfig[kebabCase(key)] = value
+        }
+        pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+      }
+    }
+  }
+
+  overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
+
+  if (opts.cliOptions['global']) {
+    extractAndRemoveDependencyBuildOptions(pnpmConfig)
+    Object.assign(pnpmConfig, globalDepsBuildConfig)
+  } else {
+    if (!hasDependencyBuildOptions(pnpmConfig)) {
+      Object.assign(pnpmConfig, globalDepsBuildConfig)
+    }
   }
   if (opts.cliOptions['save-peer']) {
     if (opts.cliOptions['save-prod']) {
@@ -330,24 +404,6 @@ export async function getConfig (opts: {
         'A package cannot be a peer dependency and an optional dependency at the same time')
     }
   }
-  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
-    pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
-  }
-
-  pnpmConfig.packageManager = packageManager
-
-  if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {
-    pnpmConfig.production = true
-    pnpmConfig.dev = false
-  } else if (pnpmConfig.only === 'dev' || pnpmConfig.only === 'development' || pnpmConfig.dev) {
-    pnpmConfig.production = false
-    pnpmConfig.dev = true
-    pnpmConfig.optional = false
-  } else {
-    pnpmConfig.production = true
-    pnpmConfig.dev = true
-  }
-
   if (typeof pnpmConfig.filter === 'string') {
     pnpmConfig.filter = (pnpmConfig.filter as string).split(' ')
   }
@@ -356,12 +412,16 @@ export async function getConfig (opts: {
     pnpmConfig.filterProd = (pnpmConfig.filterProd as string).split(' ')
   }
 
-  if (!pnpmConfig.ignoreScripts && pnpmConfig.workspaceDir) {
+  if (pnpmConfig.workspaceDir) {
     pnpmConfig.extraBinPaths = [path.join(pnpmConfig.workspaceDir, 'node_modules', '.bin')]
   } else {
     pnpmConfig.extraBinPaths = []
   }
 
+  pnpmConfig.extraEnv = {
+    npm_config_verify_deps_before_run: 'false', // This should be removed in pnpm v11
+    pnpm_config_verify_deps_before_run: 'false',
+  }
   if (pnpmConfig.preferSymlinkedExecutables && !isWindows()) {
     const cwd = pnpmConfig.lockfileDir ?? pnpmConfig.dir
 
@@ -371,9 +431,7 @@ export async function getConfig (opts: {
         ? path.join(pnpmConfig.modulesDir, '.pnpm')
         : 'node_modules/.pnpm'
 
-    pnpmConfig.extraEnv = {
-      NODE_PATH: pathAbsolute(path.join(virtualStoreDir, 'node_modules'), cwd),
-    }
+    pnpmConfig.extraEnv['NODE_PATH'] = pathAbsolute(path.join(virtualStoreDir, 'node_modules'), cwd)
   }
 
   if (pnpmConfig.shamefullyFlatten) {
@@ -470,30 +528,39 @@ export async function getConfig (opts: {
     }
   }
 
+  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
+    pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
+  }
+
   pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
 
-  if (!pnpmConfig.ignorePnpmfile) {
-    pnpmConfig.hooks = requireHooks(pnpmConfig.lockfileDir ?? pnpmConfig.dir, pnpmConfig)
-  }
-  pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
-  pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
-  if (pnpmConfig.rootProjectManifest != null) {
-    if (pnpmConfig.rootProjectManifest.workspaces?.length && !pnpmConfig.workspaceDir) {
-      warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
-    }
-    if (pnpmConfig.rootProjectManifest.packageManager) {
-      pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
-    }
-  }
-
-  if (pnpmConfig.workspaceDir != null) {
-    const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
-
-    pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages
-    pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
-  }
-
   pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig
+
+  if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {
+    pnpmConfig.production = true
+    pnpmConfig.dev = false
+  } else if (pnpmConfig.only === 'dev' || pnpmConfig.only === 'development' || pnpmConfig.dev) {
+    pnpmConfig.production = false
+    pnpmConfig.dev = true
+    pnpmConfig.optional = false
+  } else {
+    pnpmConfig.production = true
+    pnpmConfig.dev = true
+  }
+
+  if (pnpmConfig.dangerouslyAllowAllBuilds) {
+    if (pnpmConfig.neverBuiltDependencies && pnpmConfig.neverBuiltDependencies.length > 0) {
+      warnings.push('You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.')
+    }
+    pnpmConfig.neverBuiltDependencies = []
+  }
+  if (pnpmConfig.ci) {
+    // Using a global virtual store in CI makes little sense,
+    // as there is never a warm cache in that environment.
+    pnpmConfig.enableGlobalVirtualStore = false
+  }
+
+  transformPathKeys(pnpmConfig, os.homedir())
 
   return { config: pnpmConfig, warnings }
 }

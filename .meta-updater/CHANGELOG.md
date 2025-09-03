@@ -1,5 +1,155 @@
 # @pnpm-private/updater
 
+## 3.0.19
+
+### Patch Changes
+
+- 2b0d35f: `@pnpm/worker` should always be a peer dependency.
+
+## 3.0.18
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.17
+- @pnpm/workspace.read-manifest@1000.2.2
+- @pnpm/parse-overrides@1001.0.2
+
+## 3.0.17
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.fs@1001.1.16
+  - @pnpm/workspace.read-manifest@1000.2.1
+  - @pnpm/parse-overrides@1001.0.1
+
+## 3.0.16
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.15
+
+## 3.0.15
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.14
+
+## 3.0.14
+
+### Patch Changes
+
+- Updated dependencies [c8341cc]
+  - @pnpm/workspace.read-manifest@1000.2.0
+  - @pnpm/lockfile.fs@1001.1.13
+
+## 3.0.13
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/object.key-sorting@1000.0.1
+  - @pnpm/types@1000.6.0
+  - @pnpm/workspace.read-manifest@1000.1.5
+
+## 3.0.12
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+  - @pnpm/parse-overrides@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/workspace.read-manifest@1000.1.4
+
+## 3.0.11
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.10
+
+## 3.0.10
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/workspace.read-manifest@1000.1.3
+
+## 3.0.9
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/workspace.read-manifest@1000.1.2
+
+## 3.0.8
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.7
+
+## 3.0.7
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.6
+
+## 3.0.6
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/workspace.read-manifest@1000.1.1
+
+## 3.0.5
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/workspace.read-manifest@1000.1.0
+  - @pnpm/lockfile.fs@1001.1.4
+
+## 3.0.4
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.3
+
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/workspace.read-manifest@1000.0.2
+  - @pnpm/parse-overrides@1000.0.2
+
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lockfile.fs@1001.1.1
+
 ## 3.0.1
 
 ### Patch Changes

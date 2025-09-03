@@ -1,5 +1,162 @@
 # @pnpm/create-cafs-store
 
+## 1000.0.17
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+  - @pnpm/fetcher-base@1001.0.0
+  - @pnpm/store.cafs@1000.0.16
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/fs.indexed-pkg-importer@1000.1.11
+
+## 1000.0.16
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/fetcher-base@1000.1.0
+  - @pnpm/exec.pkg-requires-build@1000.0.9
+  - @pnpm/store.cafs@1000.0.15
+  - @pnpm/fs.indexed-pkg-importer@1000.1.10
+
+## 1000.0.15
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.12
+- @pnpm/store-controller-types@1003.0.3
+- @pnpm/store.cafs@1000.0.14
+- @pnpm/fs.indexed-pkg-importer@1000.1.9
+
+## 1000.0.14
+
+### Patch Changes
+
+- Updated dependencies [509948d]
+  - @pnpm/store-controller-types@1003.0.2
+  - @pnpm/fs.indexed-pkg-importer@1000.1.8
+  - @pnpm/store.cafs@1000.0.13
+
+## 1000.0.13
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [c24c66e]
+  - @pnpm/fs.indexed-pkg-importer@1000.1.7
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/exec.pkg-requires-build@1000.0.8
+  - @pnpm/fetcher-base@1000.0.11
+  - @pnpm/store.cafs@1000.0.12
+
+## 1000.0.12
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/fs.indexed-pkg-importer@1000.1.6
+  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/fetcher-base@1000.0.10
+  - @pnpm/exec.pkg-requires-build@1000.0.7
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [032fff8]
+  - @pnpm/fs.indexed-pkg-importer@1000.1.5
+  - @pnpm/fetcher-base@1000.0.9
+  - @pnpm/store-controller-types@1002.0.1
+  - @pnpm/store.cafs@1000.0.10
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [72cff38]
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/exec.pkg-requires-build@1000.0.6
+  - @pnpm/fetcher-base@1000.0.8
+  - @pnpm/store.cafs@1000.0.9
+  - @pnpm/fs.indexed-pkg-importer@1000.1.4
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.5
+- @pnpm/fetcher-base@1000.0.7
+- @pnpm/store.cafs@1000.0.8
+- @pnpm/store-controller-types@1001.0.5
+- @pnpm/fs.indexed-pkg-importer@1000.1.3
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.6
+- @pnpm/store-controller-types@1001.0.4
+- @pnpm/store.cafs@1000.0.7
+- @pnpm/fs.indexed-pkg-importer@1000.1.2
+
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.4
+- @pnpm/fetcher-base@1000.0.5
+- @pnpm/store.cafs@1000.0.6
+- @pnpm/store-controller-types@1001.0.3
+- @pnpm/fs.indexed-pkg-importer@1000.1.1
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [e32b1a2]
+  - @pnpm/fs.indexed-pkg-importer@1000.1.0
+  - @pnpm/exec.pkg-requires-build@1000.0.3
+  - @pnpm/fetcher-base@1000.0.4
+  - @pnpm/store.cafs@1000.0.5
+  - @pnpm/store-controller-types@1001.0.2
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.2
+- @pnpm/fetcher-base@1000.0.3
+- @pnpm/store.cafs@1000.0.4
+- @pnpm/store-controller-types@1001.0.1
+- @pnpm/fs.indexed-pkg-importer@1000.0.5
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/fs.indexed-pkg-importer@1000.0.4
+  - @pnpm/store.cafs@1000.0.3
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.1
+- @pnpm/fetcher-base@1000.0.2
+- @pnpm/store.cafs@1000.0.2
+- @pnpm/store-controller-types@1000.1.1
+- @pnpm/fs.indexed-pkg-importer@1000.0.3
+
 ## 1000.0.2
 
 ### Patch Changes

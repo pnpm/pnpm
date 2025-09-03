@@ -7,22 +7,27 @@ permissions:
 
 jobs:
   build:
+    # Skip pull_request events from PRs in the same repo. This prevents
+    # duplicate build jobs from running when creating a PR in the original repo.
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository }}
+
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.platform }}-${{ matrix.node }}
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.platform }}-${{ matrix.node[0] }}
       cancel-in-progress: true
 
     strategy:
       fail-fast: false
       matrix:
         node:
-          - '18.12'
-          - '20'
-          - '22'
+          - [18, 12, 1]
+          - [20, 18, 1]
+          - [22, 12, 0]
+          - [24, 0, 0]
         platform:
           - ubuntu-latest
           - windows-latest
 
-    name: '${{matrix.platform}} / Node.js ${{ matrix.node }}'
+    name: ${{matrix.platform}} / Node.js ${{ matrix.node[0] }}
     runs-on: ${{matrix.platform}}
 
     steps:
@@ -32,15 +37,13 @@ jobs:
         git config --global user.name "xyz"
         git config --global user.email "x@y.z"
     - name: Checkout Commit
-      uses: actions/checkout@v4
-      with:
-        lfs: true
+      uses: actions/checkout@v5
     - name: Install pnpm
-      uses: pnpm/action-setup@v4.0.0
+      uses: pnpm/action-setup@v4.1.0
       with:
         standalone: true
     - name: Setup Node
-      run: pnpm env use -g ${{ matrix.node }}
+      run: pnpm env use -g ${{ join(matrix.node, '.') }}
       timeout-minutes: 1
     - name: Install npm@8
       run: pnpm add --global npm@8

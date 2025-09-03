@@ -4,12 +4,12 @@ import { preparePackages } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import { loadWorkspaceState } from '@pnpm/workspace.state'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils'
+import { execPnpm, execPnpmSync, pnpmBinLocation } from '../utils/index.js'
 
 const CONFIG = ['--config.verify-deps-before-run=error'] as const
 
 test('single dependency', async () => {
-  const checkEnv = 'node --eval "assert.strictEqual(process.env.pnpm_run_skip_deps_check, \'true\')"'
+  const checkEnv = 'node --eval "assert.strictEqual(process.env.pnpm_config_verify_deps_before_run, \'false\')"'
 
   const manifests: Record<string, ProjectManifest> = {
     root: {
@@ -90,16 +90,16 @@ test('single dependency', async () => {
   // pnpm install should create a packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual(expect.objectContaining({
+    expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       projects: {
         [path.resolve('.')]: { name: 'root', version: '0.0.0' },
         [path.resolve('foo')]: { name: 'foo', version: '0.0.0' },
         [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
       },
-    }))
+    })
   }
 
   // should be able to execute a script in root after dependencies have been installed
@@ -259,9 +259,9 @@ test('single dependency', async () => {
   // pnpm install should update the packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual(expect.objectContaining({
+    expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       projects: {
         [path.resolve('.')]: { name: 'root', version: '0.0.0' },
@@ -269,7 +269,7 @@ test('single dependency', async () => {
         [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
         [path.resolve('baz')]: { name: 'baz' },
       },
-    }))
+    })
   }
 
   // should be able to execute a script after projects list have been updated
@@ -278,7 +278,24 @@ test('single dependency', async () => {
     expect(stdout.toString()).toContain('hello from root')
   }
 
-  // should set env.pnpm_run_skip_deps_check for all the scripts
+  fs.rmSync('foo/node_modules', { recursive: true })
+
+  // attempting to execute a script after the modules directory of a workspace package has been deleted should fail
+  {
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'])
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toContain('Workspace package foo has dependencies but does not have a modules directory')
+  }
+
+  await execPnpm([...CONFIG, 'install'])
+
+  // should be able to execute a script after dependencies have been updated
+  {
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from root')
+  }
+
+  // should set env.pnpm_config_verify_deps_before_run to false for all the scripts (to skip check in nested scripts)
   await execPnpm([...CONFIG, '--recursive', 'run', 'checkEnv'])
 })
 
@@ -364,16 +381,16 @@ test('multiple lockfiles', async () => {
   // pnpm install should create a packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual(expect.objectContaining({
+    expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       projects: {
         [path.resolve('.')]: { name: 'root', version: '0.0.0' },
         [path.resolve('foo')]: { name: 'foo', version: '0.0.0' },
         [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
       },
-    }))
+    })
   }
 
   // should be able to execute a script in root after dependencies have been installed
@@ -528,9 +545,9 @@ test('multiple lockfiles', async () => {
   // pnpm install should update the packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual(expect.objectContaining({
+    expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       projects: {
         [path.resolve('.')]: { name: 'root', version: '0.0.0' },
@@ -538,7 +555,7 @@ test('multiple lockfiles', async () => {
         [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
         [path.resolve('baz')]: { name: 'baz' },
       },
-    }))
+    })
   }
 
   // should be able to execute a script after projects list have been updated
@@ -675,16 +692,16 @@ test('no dependencies', async () => {
   // pnpm install should create a packages list cache
   {
     const workspaceState = loadWorkspaceState(process.cwd())
-    expect(workspaceState).toStrictEqual(expect.objectContaining({
+    expect(workspaceState).toMatchObject({
       lastValidatedTimestamp: expect.any(Number),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       projects: {
         [path.resolve('.')]: { name: 'root', version: '0.0.0' },
         [path.resolve('foo')]: { name: 'foo', version: '0.0.0' },
         [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
       },
-    }))
+    })
   }
 
   // should be able to execute a script after `pnpm install`
@@ -738,11 +755,14 @@ test('nested `pnpm run` should not check for mutated manifest', async () => {
   // add to every manifest file a script named `start` which would inherit `config` and invoke `nestedScript`
   for (const name in projects) {
     manifests[name].scripts!.start =
-      `node mutate-manifest.js && node ${pnpmBinLocation} ${CONFIG.join(' ')} run nestedScript`
+      `node mutate-manifest.js && node ${pnpmBinLocation} run nestedScript`
     projects[name].writePackageJson(manifests[name])
   }
 
-  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    // verifyDepsBeforeRun: 'error',
+  })
 
   // attempting to execute a script without installing dependencies should fail
   {
@@ -859,7 +879,7 @@ test('should check for outdated catalogs', async () => {
           default: workspaceManifest.catalog,
         },
       }),
-      pnpmfileExists: false,
+      pnpmfiles: [],
       filteredInstall: false,
       lastValidatedTimestamp: expect.any(Number),
       projects: {

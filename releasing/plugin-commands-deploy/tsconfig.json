@@ -19,12 +19,6 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../catalogs/resolver"
-    },
-    {
-      "path": "../../catalogs/types"
-    },
-    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -47,6 +41,12 @@
     },
     {
       "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/dependency-path"
     },
     {
       "path": "../../packages/error"

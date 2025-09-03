@@ -1,5 +1,135 @@
 # @pnpm/git-resolver
 
+## 1001.1.3
+
+### Patch Changes
+
+- Updated dependencies [87d3aa8]
+  - @pnpm/fetch@1000.2.4
+
+## 1001.1.2
+
+### Patch Changes
+
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/resolver-base@1005.0.0
+
+## 1001.1.1
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/fetch@1000.2.3
+
+## 1001.1.0
+
+### Minor Changes
+
+- 2721291: Create different resolver result types which provide more information.
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/resolver-base@1004.0.0
+
+## 1001.0.2
+
+### Patch Changes
+
+- 5055399: Fixed the problem of path loss caused by parsing URL address. Fixes a regression shipped in pnpm v10.11 via [#9502](https://github.com/pnpm/pnpm/pull/9502).
+
+## 1001.0.1
+
+### Patch Changes
+
+- 6b6ccf9: Remove `url.parse` usage to fix warning on Node.js 24 [#9492](https://github.com/pnpm/pnpm/issues/9492).
+- Updated dependencies [09cf46f]
+  - @pnpm/fetch@1000.2.2
+  - @pnpm/resolver-base@1003.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+- 5b73df1: Renamed `normalizedPref` to `specifiers`.
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/fetch@1000.2.1
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/fetch@1000.2.0
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/fetch@1000.1.6
+- @pnpm/resolver-base@1000.2.1
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/fetch@1000.1.5
+- @pnpm/resolver-base@1000.1.4
+
+## 1000.0.6
+
+### Patch Changes
+
+- @pnpm/fetch@1000.1.4
+- @pnpm/resolver-base@1000.1.3
+
+## 1000.0.5
+
+### Patch Changes
+
+- d6a4ff1: Proxy settings should be respected, when resolving Git-hosted dependencies [#6530](https://github.com/pnpm/pnpm/issues/6530).
+
+## 1000.0.4
+
+### Patch Changes
+
+- @pnpm/fetch@1000.1.3
+- @pnpm/resolver-base@1000.1.2
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/fetch@1000.1.2
+- @pnpm/resolver-base@1000.1.1
+
 ## 1000.0.2
 
 ### Patch Changes

@@ -1,0 +1,40 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../__utils__/prepare-temp-dir"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
+      "path": "../../fs/find-packages"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../object/key-sorting"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../read-manifest"
+    }
+  ]
+}

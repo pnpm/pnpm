@@ -1,6 +1,6 @@
 import path from 'path'
 import os from 'os'
-import { getAuthHeadersFromConfig } from '../src/getAuthHeadersFromConfig'
+import { getAuthHeadersFromConfig } from '../src/getAuthHeadersFromConfig.js'
 import { Buffer } from 'safe-buffer'
 
 const osTokenHelper = {

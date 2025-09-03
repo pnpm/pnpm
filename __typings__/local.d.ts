@@ -114,11 +114,6 @@ declare module 'yaml-tag' {
   export = anything
 }
 
-declare module 'nerf-dart' {
-  const anything: any
-  export = anything
-}
-
 declare module '@pnpm/patch-package/dist/applyPatches' {
   export function applyPatch (opts: any): boolean
 }
@@ -127,3 +122,6 @@ declare module 'ramda/src/map' {
   function map <K extends string | number | symbol, V, U> (fn: (x: V) => U, obj: Record<K, V>): Record<K, U>
   export = map
 }
+
+declare module '@yarnpkg/core/semverUtils'
+declare module '@yarnpkg/core/structUtils'

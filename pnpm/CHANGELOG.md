@@ -1,6 +1,592 @@
 # pnpm
 
-## 10.0.0-rc.2
+## 10.15.1
+
+### Patch Changes
+
+- Fix `.pnp.cjs` crash when importing subpath [#9904](https://github.com/pnpm/pnpm/issues/9904).
+- When resolving peer dependencies, pnpm looks whether the peer dependency is present in the root workspace project's dependencies. This change makes it so that the peer dependency is correctly resolved even from aliased npm-hosted dependencies or other types of dependencies [#9913](https://github.com/pnpm/pnpm/issues/9913).
+
+## 10.15.0
+
+### Minor Changes
+
+- Added the `cleanupUnusedCatalogs` configuration. When set to `true`, pnpm will remove unused catalog entries during installation [#9793](https://github.com/pnpm/pnpm/pull/9793).
+- Automatically load pnpmfiles from config dependencies that are named `@*/pnpm-plugin-*` [#9780](https://github.com/pnpm/pnpm/issues/9780).
+- `pnpm config get` now prints an INI string for an object value [#9797](https://github.com/pnpm/pnpm/issues/9797).
+- `pnpm config get` now accepts property paths (e.g. `pnpm config get catalog.react`, `pnpm config get .catalog.react`, `pnpm config get 'packageExtensions["@babel/parser"].peerDependencies["@babel/types"]'`), and `pnpm config set` now accepts dot-leading or subscripted keys (e.g. `pnpm config set .ignoreScripts true`).
+- `pnpm config get --json` now prints a JSON serialization of config value, and `pnpm config set --json` now parses the input value as JSON.
+
+### Patch Changes
+
+- **Semi-breaking.** When automatically installing missing peer dependencies, prefer versions that are already present in the direct dependencies of the root workspace package [#9835](https://github.com/pnpm/pnpm/pull/9835).
+- When executing the `pnpm create` command, must verify whether the node version is supported even if a cache already exists [#9775](https://github.com/pnpm/pnpm/pull/9775).
+- When making requests for the non-abbreviated packument, add `*/*` to the `Accept` header to avoid getting a 406 error on AWS CodeArtifact [#9862](https://github.com/pnpm/pnpm/issues/9862).
+- The standalone exe version of pnpm works with glibc 2.26 again [#9734](https://github.com/pnpm/pnpm/issues/9734).
+- Fix a regression in which `pnpm dlx pkg --help` doesn't pass `--help` to `pkg` [#9823](https://github.com/pnpm/pnpm/issues/9823).
+
+## 10.14.0
+
+### Minor Changes
+
+- **Added support for JavaScript runtime resolution**
+
+  Declare Node.js, Deno, or Bun in [`devEngines.runtime`](https://github.com/openjs-foundation/package-metadata-interoperability-collab-space/issues/15) (inside `package.json`) and let pnpm download and pin it automatically.
+
+  Usage example:
+
+  ```json
+  {
+    "devEngines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.4.0",
+        "onFail": "download" (we only support the "download" value for now)
+      }
+    }
+  }
+  ```
+
+  How it works:
+
+  1. `pnpm install` resolves your specified range to the latest matching runtime version.
+  1. The exact version (and checksum) is saved in the lockfile.
+  1. Scripts use the local runtime, ensuring consistency across environments.
+
+  Why this is better:
+
+  1. This new setting supports also Deno and Bun (vs. our Node-only settings `useNodeVersion` and `executionEnv.nodeVersion`)
+  1. Supports version ranges (not just a fixed version).
+  1. The resolved version is stored in the pnpm lockfile, along with an integrity checksum for future validation of the Node.js content's validity.
+  1. It can be used on any workspace project (like `executionEnv.nodeVersion`). So, different projects in a workspace can use different runtimes.
+  1. For now `devEngines.runtime` setting will install the runtime locally, which we will improve in future versions of pnpm by using a shared location on the computer.
+
+  Related PR: [#9755](https://github.com/pnpm/pnpm/pull/9755).
+
+- Add `--cpu`, `--libc`, and `--os` to `pnpm install`, `pnpm add`, and `pnpm dlx` to customize `supportedArchitectures` via the CLI [#7510](https://github.com/pnpm/pnpm/issues/7510).
+
+### Patch Changes
+
+- Fix a bug in which `pnpm add` downloads packages whose `libc` differ from `pnpm.supportedArchitectures.libc`.
+- The integrities of the downloaded Node.js artifacts are verified [#9750](https://github.com/pnpm/pnpm/pull/9750).
+- Allow `dlx` to parse CLI flags and options between the `dlx` command and the command to run or between the `dlx` command and `--` [#9719](https://github.com/pnpm/pnpm/issues/9719).
+- `pnpm install --prod` should removing hoisted dev dependencies [#9782](https://github.com/pnpm/pnpm/issues/9782).
+- Fix an edge case bug causing local tarballs to not re-link into the virtual store. This bug would happen when changing the contents of the tarball without renaming the file and running a filtered install.
+- Fix a bug causing `pnpm install` to incorrectly assume the lockfile is up to date after changing a local tarball that has peers dependencies.
+
+## 10.13.1
+
+### Patch Changes
+
+- Run user defined pnpmfiles after pnpmfiles of plugins.
+
+## 10.13.0
+
+### Minor Changes
+
+- Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+- pnpm will now automatically load the `pnpmfile.cjs` file from any [config dependency](https://pnpm.io/config-dependencies) named `@pnpm/plugin-*` or `pnpm-plugin-*` [#9729](https://github.com/pnpm/pnpm/pull/9729).
+
+  The order in which config dependencies are initialized should not matter — they are initialized in alphabetical order. If a specific order is needed, the paths to the `pnpmfile.cjs` files in the config dependencies can be explicitly listed using the `pnpmfile` setting in `pnpm-workspace.yaml`.
+
+### Patch Changes
+
+- When patching dependencies installed via `pkg.pr.new`, treat them as Git tarball URLs [#9694](https://github.com/pnpm/pnpm/pull/9694).
+- Prevent conflicts between local projects' config and the global config in `dangerouslyAllowAllBuilds`, `onlyBuiltDependencies`, `onlyBuiltDependenciesFile`, and `neverBuiltDependencies` [#9628](https://github.com/pnpm/pnpm/issues/9628).
+- Sort keys in `pnpm-workspace.yaml` with deep [#9701](https://github.com/pnpm/pnpm/pull/9701).
+- The `pnpm rebuild` command should not add pkgs included in `ignoredBuiltDependencies` to `ignoredBuilds` in `node_modules/.modules.yaml` [#9338](https://github.com/pnpm/pnpm/issues/9338).
+- Replaced `shell-quote` with `shlex` for quoting command arguments [#9381](https://github.com/pnpm/pnpm/issues/9381).
+
+## 10.12.4
+
+### Patch Changes
+
+- Fix `pnpm licenses` command for local dependencies [#9583](https://github.com/pnpm/pnpm/pull/9583).
+- Fix a bug in which `pnpm ls --filter=not-exist --json` prints nothing instead of an empty array [#9672](https://github.com/pnpm/pnpm/issues/9672).
+- Fix a deadlock that sometimes happens during peer dependency resolution [#9673](https://github.com/pnpm/pnpm/issues/9673).
+- Running `pnpm install` after `pnpm fetch` should hoist all dependencies that need to be hoisted.
+  Fixes a regression introduced in [v10.12.2] by [#9648]; resolves [#9689].
+
+  [v10.12.2]: https://github.com/pnpm/pnpm/releases/tag/v10.12.2Add commentMore actions
+  [#9648]: https://github.com/pnpm/pnpm/pull/9648
+  [#9689]: https://github.com/pnpm/pnpm/issues/9689
+
+## 10.12.3
+
+### Patch Changes
+
+- Restore hoisting of optional peer dependencies when installing with an outdated lockfile.
+  Regression introduced in [v10.12.2] by [#9648]; resolves [#9685].
+
+  [v10.12.2]: https://github.com/pnpm/pnpm/releases/tag/v10.12.2
+  [#9648]: https://github.com/pnpm/pnpm/pull/9648
+  [#9685]: https://github.com/pnpm/pnpm/issues/9685
+
+## 10.12.2
+
+### Patch Changes
+
+- Fixed hoisting with `enableGlobalVirtualStore` set to `true` [#9648](https://github.com/pnpm/pnpm/pull/9648).
+- Fix the `--help` and `-h` flags not working as expected for the `pnpm create` command.
+- The dependency package path output by the `pnpm licenses list --json` command is incorrect.
+- Fix a bug in which `pnpm deploy` fails due to overridden dependencies having peer dependencies causing `ERR_PNPM_OUTDATED_LOCKFILE` [#9595](https://github.com/pnpm/pnpm/issues/9595).
+
+## 10.12.1
+
+### Minor Changes
+
+- **Experimental.** Added support for global virtual stores. When enabled, `node_modules` contains only symlinks to a central virtual store, rather to `node_modules/.pnpm`. By default, this central store is located at `<store-path>/links` (you can find the store path by running `pnpm store path`).
+
+  In the central virtual store, each package is hard linked into a directory whose name is the hash of its dependency graph. This allows multiple projects on the system to symlink shared dependencies from this central location, significantly improving installation speed when a warm cache is available.
+
+  > This is conceptually similar to how [NixOS manages packages](https://nixos.org/guides/how-nix-works/), using dependency graph hashes to create isolated and reusable package directories.
+
+  To enable the global virtual store, set `enableGlobalVirtualStore: true` in your root `pnpm-workspace.yaml`, or globally via:
+
+  ```sh
+  pnpm config -g set enable-global-virtual-store true
+  ```
+
+  NOTE: In CI environments, where caches are typically cold, this setting may slow down installation. pnpm automatically disables the global virtual store when running in CI.
+
+  Related PR: [#8190](https://github.com/pnpm/pnpm/pull/8190)
+
+* The `pnpm update` command now supports updating `catalog:` protocol dependencies and writes new specifiers to `pnpm-workspace.yaml`.
+* Added two new CLI options (`--save-catalog` and `--save-catalog-name=<name>`) to `pnpm add` to save new dependencies as catalog entries. `catalog:` or `catalog:<name>` will be added to `package.json` and the package specifier will be added to the `catalogs` or `catalog[<name>]` object in `pnpm-workspace.yaml` [#9425](https://github.com/pnpm/pnpm/issues/9425).
+* **Semi-breaking.** The keys used for side-effects caches have changed. If you have a side-effects cache generated by a previous version of pnpm, the new version will not use it and will create a new cache instead [#9605](https://github.com/pnpm/pnpm/pull/9605).
+* Added a new setting called `ci` for explicitly telling pnpm if the current environment is a CI or not.
+
+### Patch Changes
+
+- Sort versions printed by `pnpm patch` using semantic versioning rules.
+- Improve the way the error message displays mismatched specifiers. Show differences instead of 2 whole objects [#9598](https://github.com/pnpm/pnpm/pull/9598).
+- Revert [#9574](https://github.com/pnpm/pnpm/pull/9574) to fix a regression [#9596](https://github.com/pnpm/pnpm/issues/9596).
+
+## 10.11.1
+
+### Patch Changes
+
+- Fix an issue in which `pnpm deploy --legacy` creates unexpected directories when the root `package.json` has a workspace package as a peer dependency [#9550](https://github.com/pnpm/pnpm/issues/9550).
+- Dependencies specified via a URL that redirects will only be locked to the target if it is immutable, fixing a regression when installing from GitHub releases. ([#9531](https://github.com/pnpm/pnpm/issues/9531))
+- Installation should not exit with an error if `strictPeerDependencies` is `true` but all issues are ignored by `peerDependencyRules` [#9505](https://github.com/pnpm/pnpm/pull/9505).
+- Use `pnpm_config_` env variables instead of `npm_config_` [#9571](https://github.com/pnpm/pnpm/pull/9571).
+- Fix a regression (in v10.9.0) causing the `--lockfile-only` flag on `pnpm update` to produce a different `pnpm-lock.yaml` than an update without the flag.
+- Let `pnpm deploy` work in repos with `overrides` when `inject-workspace-packages=true` [#9283](https://github.com/pnpm/pnpm/issues/9283).
+- Fixed the problem of path loss caused by parsing URL address. Fixes a regression shipped in pnpm v10.11 via [#9502](https://github.com/pnpm/pnpm/pull/9502).
+- `pnpm -r --silent run` should not print out section [#9563](https://github.com/pnpm/pnpm/issues/9563).
+
+## 10.11.0
+
+### Minor Changes
+
+- A new setting added for `pnpm init` to create a `package.json` with `type=module`, when `init-type` is `module`. Works as a flag for the init command too [#9463](https://github.com/pnpm/pnpm/pull/9463).
+- Added support for Nushell to `pnpm setup` [#6476](https://github.com/pnpm/pnpm/issues/6476).
+- Added two new flags to the `pnpm audit` command, `--ignore` and `--ignore-unfixable` [#8474](https://github.com/pnpm/pnpm/pull/8474).
+
+  Ignore all vulnerabilities that have no solution:
+
+  ```shell
+  > pnpm audit --ignore-unfixable
+  ```
+
+  Provide a list of CVE's to ignore those specifically, even if they have a resolution.
+
+  ```shell
+  > pnpm audit --ignore=CVE-2021-1234 --ignore=CVE-2021-5678
+  ```
+
+- Added support for recursively running pack in every project of a workspace [#4351](https://github.com/pnpm/pnpm/issues/4351).
+
+  Now you can run `pnpm -r pack` to pack all packages in the workspace.
+
+### Patch Changes
+
+- pnpm version management should work, when `dangerouslyAllowAllBuilds` is set to `true` [#9472](https://github.com/pnpm/pnpm/issues/9472).
+- `pnpm link` should work from inside a workspace [#9506](https://github.com/pnpm/pnpm/issues/9506).
+- Set the default `workspaceConcurrency` to `Math.min(os.availableParallelism(), 4)` [#9493](https://github.com/pnpm/pnpm/pull/9493).
+- Installation should not exit with an error if `strictPeerDependencies` is `true` but all issues are ignored by `peerDependencyRules` [#9505](https://github.com/pnpm/pnpm/pull/9505).
+- Read `updateConfig` from `pnpm-workspace.yaml` [#9500](https://github.com/pnpm/pnpm/issues/9500).
+- Add support for `recursive pack`
+- Remove `url.parse` usage to fix warning on Node.js 24 [#9492](https://github.com/pnpm/pnpm/issues/9492).
+- `pnpm run` should be able to run commands from the workspace root, if `ignoreScripts` is set tot `true` [#4858](https://github.com/pnpm/pnpm/issues/4858).
+
+## 10.10.0
+
+### Minor Changes
+
+- Allow loading the `preResolution`, `importPackage`, and `fetchers` hooks from local pnpmfile.
+
+### Patch Changes
+
+- Fix `cd` command, when `shellEmulator` is `true` [#7838](https://github.com/pnpm/pnpm/issues/7838).
+- Sort keys in `pnpm-workspace.yaml` [#9453](https://github.com/pnpm/pnpm/pull/9453).
+- Pass the `npm_package_json` environment variable to the executed scripts [#9452](https://github.com/pnpm/pnpm/issues/9452).
+- Fixed a mistake in the description of the `--reporter=silent` option.
+
+## 10.9.0
+
+### Minor Changes
+
+- **Added support for installing JSR packages.** You can now install JSR packages using the following syntax:
+
+  ```
+  pnpm add jsr:<pkg_name>
+  ```
+
+  or with a version range:
+
+  ```
+  pnpm add jsr:<pkg_name>@<range>
+  ```
+
+  For example, running:
+
+  ```
+  pnpm add jsr:@foo/bar
+  ```
+
+  will add the following entry to your `package.json`:
+
+  ```json
+  {
+    "dependencies": {
+      "@foo/bar": "jsr:^0.1.2"
+    }
+  }
+  ```
+
+  When publishing, this entry will be transformed into a format compatible with npm, older versions of Yarn, and previous pnpm versions:
+
+  ```json
+  {
+    "dependencies": {
+      "@foo/bar": "npm:@jsr/foo__bar@^0.1.2"
+    }
+  }
+  ```
+
+  Related issue: [#8941](https://github.com/pnpm/pnpm/issues/8941).
+
+  Note: The `@jsr` scope defaults to <https://npm.jsr.io/> if the `@jsr:registry` setting is not defined.
+
+- Added a new setting, `dangerouslyAllowAllBuilds`, for automatically running any scripts of dependencies without the need to approve any builds. It was already possible to allow all builds by adding this to `pnpm-workspace.yaml`:
+
+  ```yaml
+  neverBuiltDependencies: []
+  ```
+
+  `dangerouslyAllowAllBuilds` has the same effect but also allows to be set globally via:
+
+  ```
+  pnpm config set dangerouslyAllowAllBuilds true
+  ```
+
+  It can also be set when running a command:
+
+  ```
+  pnpm install --dangerously-allow-all-builds
+  ```
+
+### Patch Changes
+
+- Fix a false negative in `verifyDepsBeforeRun` when `nodeLinker` is `hoisted` and there is a workspace package without dependencies and `node_modules` directory [#9424](https://github.com/pnpm/pnpm/issues/9424).
+- Explicitly drop `verifyDepsBeforeRun` support for `nodeLinker: pnp`. Combining `verifyDepsBeforeRun` and `nodeLinker: pnp` will now print a warning.
+
+## 10.8.1
+
+### Patch Changes
+
+- Removed bright white highlighting, which didn't look good on some light themes [#9389](https://github.com/pnpm/pnpm/pull/9389).
+- If there is no pnpm related configuration in `package.json`, `onlyBuiltDependencies` will be written to `pnpm-workspace.yaml` file [#9404](https://github.com/pnpm/pnpm/pull/9404).
+
+## 10.8.0
+
+### Minor Changes
+
+- **Experimental.** A new hook is supported for updating configuration settings. The hook can be provided via `.pnpmfile.cjs`. For example:
+
+  ```js
+  module.exports = {
+    hooks: {
+      updateConfig: (config) => ({
+        ...config,
+        nodeLinker: "hoisted",
+      }),
+    },
+  };
+  ```
+
+- Now you can use the `pnpm add` command with the `--config` flag to install new configurational dependencies [#9377](https://github.com/pnpm/pnpm/pull/9377).
+
+### Patch Changes
+
+- Do not hang indefinitely, when there is a glob that starts with `!/` in `pnpm-workspace.yaml`. This fixes a regression introduced by [#9169](https://github.com/pnpm/pnpm/pull/9169).
+- `pnpm audit --fix` should update the overrides in `pnpm-workspace.yaml`.
+- `pnpm link` should update overrides in `pnpm-workspace.yaml`, not in `package.json` [#9365](https://github.com/pnpm/pnpm/pull/9365).
+
+## 10.7.1
+
+### Patch Changes
+
+- `pnpm config set` should convert the settings to their correct type before adding them to `pnpm-workspace.yaml` [#9355](https://github.com/pnpm/pnpm/issues/9355).
+- `pnpm config get` should read auth related settings via npm CLI [#9345](https://github.com/pnpm/pnpm/issues/9345).
+- Replace leading `~/` in a path in `.npmrc` with the home directory [#9217](https://github.com/pnpm/pnpm/issues/9217).
+
+## 10.7.0
+
+### Minor Changes
+
+- `pnpm config get` and `list` also show settings set in `pnpm-workspace.yaml` files [#9316](https://github.com/pnpm/pnpm/pull/9316).
+- It should be possible to use env variables in `pnpm-workspace.yaml` setting names and value.
+- Add an ability to patch dependencies by version ranges. Exact versions override version ranges, which in turn override name-only patches. Version range `*` is the same as name-only, except that patch application failure will not be ignored.
+
+  For example:
+
+  ```yaml
+  patchedDependencies:
+    foo: patches/foo-1.patch
+    foo@^2.0.0: patches/foo-2.patch
+    foo@2.1.0: patches/foo-3.patch
+  ```
+
+  The above configuration would apply `patches/foo-3.patch` to `foo@2.1.0`, `patches/foo-2.patch` to all `foo` versions which satisfy `^2.0.0` except `2.1.0`, and `patches/foo-1.patch` to the remaining `foo` versions.
+
+  > [!WARNING]
+  > The version ranges should not overlap. If you want to specialize a sub range, make sure to exclude it from the other keys. For example:
+  >
+  > ```yaml
+  > # pnpm-workspace.yaml
+  > patchedDependencies:
+  >   # the specialized sub range
+  >   'foo@2.2.0-2.8.0': patches/foo.2.2.0-2.8.0.patch
+  >   # the more general patch, excluding the sub range above
+  >   'foo@>=2.0.0 <2.2.0 || >2.8.0': 'patches/foo.gte2.patch
+  > ```
+  >
+  > In most cases, however, it's sufficient to just define an exact version to override the range.
+
+- `pnpm config set --location=project` saves the setting to a `pnpm-workspace.yaml` file if no `.npmrc` file is present in the directory [#9316](https://github.com/pnpm/pnpm/pull/9316).
+- Rename `pnpm.allowNonAppliedPatches` to `pnpm.allowUnusedPatches`. The old name is still supported but it would print a deprecation warning message.
+- Add `pnpm.ignorePatchFailures` to manage whether pnpm would ignore patch application failures.
+
+  If `ignorePatchFailures` is not set, pnpm would throw an error when patches with exact versions or version ranges fail to apply, and it would ignore failures from name-only patches.
+
+  If `ignorePatchFailures` is explicitly set to `false`, pnpm would throw an error when any type of patch fails to apply.
+
+  If `ignorePatchFailures` is explicitly set to `true`, pnpm would print a warning when any type of patch fails to apply.
+
+### Patch Changes
+
+- Remove dependency paths from audit output to prevent out-of-memory errors [#9280](https://github.com/pnpm/pnpm/issues/9280).
+
+## 10.6.5
+
+### Patch Changes
+
+- Remove warnings after having explicitly approved no builds [#9296](https://github.com/pnpm/pnpm/issues/9296).
+- When installing different dependency packages, should retain the `ignoredBuilds` field in the `.modules.yaml` file [#9240](https://github.com/pnpm/pnpm/issues/9240).
+- Fix usages of the [`catalog:` protocol](https://pnpm.io/catalogs) in [injected local workspace packages](https://pnpm.io/package_json#dependenciesmetainjected). This previously errored with `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`. [#8715](https://github.com/pnpm/pnpm/issues/8715)
+- Setting `workspace-concurrency` to less than or equal to 0 should work [#9297](https://github.com/pnpm/pnpm/issues/9297).
+
+## 10.6.4
+
+### Patch Changes
+
+- Fix `pnpm dlx` with `--allow-build` flag [#9263](https://github.com/pnpm/pnpm/issues/9263).
+- Invalid Node.js version in `use-node-version` should not cause pnpm itself to break [#9276](https://github.com/pnpm/pnpm/issues/9276).
+- The max amount of workers running for linking packages from the store has been reduced to 4 to achieve optimal results [#9286](https://github.com/pnpm/pnpm/issues/9286). The workers are performing many file system operations, so increasing the number of CPUs doesn't help performance after some point.
+
+## 10.6.3
+
+### Patch Changes
+
+- `pnpm install --prod=false` should not crash, when executed in a project with a `pnpm-workspace.yaml` file [#9233](https://github.com/pnpm/pnpm/issues/9233). This fixes regression introduced via [#9211](https://github.com/pnpm/pnpm/pull/9211).
+- Add the missing `node-options` config to `recursive run` [#9180](https://github.com/pnpm/pnpm/issues/9180).
+- Removed a branching code path that only executed when `dedupe-peer-dependents=false`. We believe this internal refactor will not result in behavior changes, but we expect it to make future pnpm versions behave more consistently for projects that override `dedupe-peer-dependents` to false. There should be less unique bugs from turning off `dedupe-peer-dependents`.
+
+  See details in [#9259](https://github.com/pnpm/pnpm/pull/9259).
+
+## 10.6.2
+
+### Patch Changes
+
+- `pnpm self-update` should always update the version in the `packageManager` field of `package.json`.
+- Fix running pnpm CLI from pnpm CLI on Windows when the CLI is bundled to an executable [#8971](https://github.com/pnpm/pnpm/issues/8971).
+- `pnpm patch-commit` will now use the same filesystem as the store directory to compare and create patch files.
+- Don't show info output when `--loglevel=error` is used.
+- `peerDependencyRules` should be set in `pnpm-workspace.yaml` to take effect.
+
+## 10.6.1
+
+### Patch Changes
+
+- The pnpm CLI process should not stay hanging, when `--silent` reporting is used.
+- When `--loglevel` is set to `error`, don't show installation summary, execution time, and big tarball download progress.
+- Don't ignore pnpm.patchedDependencies from `package.json` [#9226](https://github.com/pnpm/pnpm/issues/9226).
+- When executing the `approve-builds` command, if package.json contains `onlyBuiltDependencies` or `ignoredBuiltDependencies`, the selected dependency package will continue to be written into `package.json`.
+- When a package version cannot be found in the package metadata, print the registry from which the package was fetched.
+
+## 10.6.0
+
+### Minor Changes
+
+- `pnpm-workspace.yaml` can now hold all the settings that `.npmrc` accepts. The settings should use camelCase [#9211](https://github.com/pnpm/pnpm/pull/9211).
+
+  `pnpm-workspace.yaml` example:
+
+  ```yaml
+  verifyDepsBeforeRun: install
+  optimisticRepeatInstall: true
+  publicHoistPattern:
+    - "*types*"
+    - "!@types/react"
+  ```
+
+- Projects using a `file:` dependency on a local tarball file (i.e. `.tgz`, `.tar.gz`, `.tar`) will see a performance improvement during installation. Previously, using a `file:` dependency on a tarball caused the lockfile resolution step to always run. The lockfile will now be considered up-to-date if the tarball is unchanged.
+
+### Patch Changes
+
+- `pnpm self-update` should not leave a directory with a broken pnpm installation if the installation fails.
+- `fast-glob` replace with `tinyglobby` to reduce the size of the pnpm CLI dependencies [#9169](https://github.com/pnpm/pnpm/pull/9169).
+- `pnpm deploy` should not remove fields from the deployed package's `package.json` file [#9215](https://github.com/pnpm/pnpm/issues/9215).
+- `pnpm self-update` should not read the pnpm settings from the `package.json` file in the current working directory.
+- Fix `pnpm deploy` creating a `package.json` without the `imports` and `license` field [#9193](https://github.com/pnpm/pnpm/issues/9193).
+- `pnpm update -i` should list only packages that have newer versions [#9206](https://github.com/pnpm/pnpm/issues/9206).
+- Fix a bug causing entries in the `catalogs` section of the `pnpm-lock.yaml` file to be removed when `dedupe-peer-dependents=false` on a filtered install. [#9112](https://github.com/pnpm/pnpm/issues/9112)
+
+## 10.5.2
+
+### Patch Changes
+
+- The `pnpm config set` command should change the global `.npmrc` file by default.
+  This was a regression introduced by [#9151](https://github.com/pnpm/pnpm/pull/9151) and shipped in pnpm v10.5.0.
+
+## 10.5.1
+
+### Patch Changes
+
+- Throw an error message if a `pnpm-workspaces.yaml` or `pnpm-workspaces.yml` file is found instead of a `pnpm-workspace.yaml` [#9170](https://github.com/pnpm/pnpm/issues/9170).
+- Fix the update of `pnpm-workspace.yaml` by the `pnpm approve-builds` command [#9168](https://github.com/pnpm/pnpm/issues/9168).
+- Normalize generated link paths in `package.json` [#9163](https://github.com/pnpm/pnpm/pull/9163)
+- Specifying `overrides` in `pnpm-workspace.yaml` should work.
+- `pnpm dlx` should ignore settings from the `package.json` file in the current working directory [#9178](https://github.com/pnpm/pnpm/issues/9178).
+
+## 10.5.0
+
+### Minor Changes
+
+- Allow to set the "pnpm" settings from `package.json` via the `pnpm-workspace.yaml` file [#9121](https://github.com/pnpm/pnpm/pull/9121).
+- Added support for automatically syncing files of injected workspace packages after `pnpm run` [#9081](https://github.com/pnpm/pnpm/issues/9081). Use the `sync-injected-deps-after-scripts` setting to specify which scripts build the workspace package. This tells pnpm when syncing is needed. The setting should be defined in a `.npmrc` file at the root of the workspace. Example:
+
+  ```ini
+  sync-injected-deps-after-scripts[]=compile
+  ```
+
+- The `packages` field in `pnpm-workspace.yaml` became optional.
+
+### Patch Changes
+
+- `pnpm link` with no parameters should work as if `--global` is specified [#9151](https://github.com/pnpm/pnpm/pull/9151).
+- Allow scope registry CLI option without `--config.` prefix such as `--@scope:registry=https://scope.example.com/npm` [#9089](https://github.com/pnpm/pnpm/pull/9089).
+- `pnpm link <path>` should calculate relative path from the root of the workspace directory [#9132](https://github.com/pnpm/pnpm/pull/9132).
+- Fix a bug causing catalog snapshots to be removed from the `pnpm-lock.yaml` file when using `--fix-lockfile` and `--filter`. [#8639](https://github.com/pnpm/pnpm/issues/8639)
+- Fix a bug causing catalog protocol dependencies to not re-resolve on a filtered install [#8638](https://github.com/pnpm/pnpm/issues/8638).
+
+## 10.4.1
+
+### Patch Changes
+
+- Throws an error when the value provided by the `--allow-build` option overlaps with the `pnpm.ignoredBuildDependencies` list [#9105](https://github.com/pnpm/pnpm/pull/9105).
+- Print pnpm's version after the execution time at the end of the console output.
+- Print warning about ignored builds of dependencies on repeat install [#9106](https://github.com/pnpm/pnpm/issues/9106).
+- Setting `init-package-manager` should work.
+
+## 10.4.0
+
+### Minor Changes
+
+- `pnpm approve-builds --global` works now for allowing dependencies of globally installed packages to run postinstall scripts.
+- The `pnpm add` command now supports a new flag, `--allow-build`, which allows building the specified dependencies. For instance, if you want to install a package called `bundle` that has `esbuild` as a dependency and want to allow `esbuild` to run postinstall scripts, you can run:
+
+  ```
+  pnpm --allow-build=esbuild add bundle
+  ```
+
+  This will run `esbuild`'s postinstall script and also add it to the `pnpm.onlyBuiltDependencies` field of `package.json`. So, `esbuild` will always be allowed to run its scripts in the future.
+
+  Related PR: [#9086](https://github.com/pnpm/pnpm/pull/9086).
+
+- The `pnpm init` command adds a `packageManager` field with the current version of pnpm CLI [#9069](https://github.com/pnpm/pnpm/pull/9069). To disable this behaviour, set the `init-package-manager` setting to `false`.
+
+### Patch Changes
+
+- `pnpm approve-builds` should work after two consecutive `pnpm install` runs [#9083](https://github.com/pnpm/pnpm/pull/9083).
+- Fix instruction for updating pnpm with corepack [#9101](https://github.com/pnpm/pnpm/pull/9101).
+- The pnpm version specified by `packageManager` cannot start with `v`.
+
+## 10.3.0
+
+### Minor Changes
+
+- Added a new setting called `strict-dep-builds`. When enabled, the installation will exit with a non-zero exit code if any dependencies have unreviewed build scripts (aka postinstall scripts) [#9071](https://github.com/pnpm/pnpm/pull/9071).
+
+### Patch Changes
+
+- Fix a false negative of `verify-deps-before-run` after `pnpm install --production|--no-optional` [#9019](https://github.com/pnpm/pnpm/issues/9019).
+- Print the warning about blocked installation scripts at the end of the installation output and make it more prominent.
+
+## 10.2.1
+
+### Patch Changes
+
+- Don't read a package from side-effects cache if it isn't allowed to be built [#9042](https://github.com/pnpm/pnpm/issues/9042).
+- `pnpm approve-builds` should work, when executed from a subdirectory of a workspace [#9042](https://github.com/pnpm/pnpm/issues/9042).
+- `pnpm deploy --legacy` should work without injected dependencies.
+- Add information about how to deploy without "injected dependencies" to the "pnpm deploy" error message.
+
+## 10.2.0
+
+### Minor Changes
+
+- Packages executed via `pnpm dlx` and `pnpm create` are allowed to be built (run postinstall scripts) by default.
+
+  If the packages executed by `dlx` or `create` have dependencies that have to be built, they should be listed via the `--allow-build` flag. For instance, if you want to run a package called `bundle` that has `esbuild` in dependencies and want to allow `esbuild` to run postinstall scripts, run:
+
+  ```
+  pnpm --allow-build=esbuild dlx bundle
+  ```
+
+  Related PR: [#9026](https://github.com/pnpm/pnpm/pull/9026).
+
+### Patch Changes
+
+- Quote args for scripts with shell-quote to support new lines (on POSIX only) [#8980](https://github.com/pnpm/pnpm/issues/8980).
+- Fix a bug in which `pnpm deploy` fails to read the correct `projectId` when the deploy source is the same as the workspace directory [#9001](https://github.com/pnpm/pnpm/issues/9001).
+- Proxy settings should be respected, when resolving Git-hosted dependencies [#6530](https://github.com/pnpm/pnpm/issues/6530).
+- Prevent `overrides` from adding invalid version ranges to `peerDependencies` by keeping the `peerDependencies` and overriding them with prod `dependencies` [#8978](https://github.com/pnpm/pnpm/issues/8978).
+- Sort the package names in the "pnpm.onlyBuiltDependencies" list saved by `pnpm approve-builds`.
+
+## 10.1.0
+
+### Minor Changes
+
+- Added a new command for printing the list of dependencies with ignored build scripts: `pnpm ignored-builds` [#8963](https://github.com/pnpm/pnpm/pull/8963).
+- Added a new command for approving dependencies for running scripts during installation: `pnpm approve-builds` [#8963](https://github.com/pnpm/pnpm/pull/8963).
+- Added a new setting called `optimistic-repeat-install`. When enabled, a fast check will be performed before proceeding to installation. This way a repeat install or an install on a project with everything up-to-date becomes a lot faster. But some edge cases might arise, so we keep it disabled by default for now [#8977](https://github.com/pnpm/pnpm/pull/8977).
+- Added a new field "pnpm.ignoredBuiltDependencies" for explicitly listing packages that should not be built. When a package is in the list, pnpm will not print an info message about that package not being built [#8935](https://github.com/pnpm/pnpm/issues/8935).
+
+### Patch Changes
+
+- Verify that the package name is valid when executing the publish command.
+- When running `pnpm install`, the `preprepare` and `postprepare` scripts of the project should be executed [#8989](https://github.com/pnpm/pnpm/pull/8989).
+- Allow `workspace:` and `catalog:` to be part of wider version range in `peerDependencies`.
+- `pnpm deploy` should inherit the `pnpm` object from the root `package.json` [#8991](https://github.com/pnpm/pnpm/pull/8991).
+- Make sure that the deletion of a `node_modules` in a sub-project of a monorepo is detected as out-of-date [#8959](https://github.com/pnpm/pnpm/issues/8959).
+- Fix infinite loop caused by lifecycle scripts using `pnpm` to execute other scripts during `pnpm install` with `verify-deps-before-run=install` [#8954](https://github.com/pnpm/pnpm/issues/8954).
+- Replace `strip-ansi` with the built-in `util.stripVTControlCharacters` [#9009](https://github.com/pnpm/pnpm/pull/9009).
+- Do not print patched dependencies as ignored dependencies that require a build [#8952](https://github.com/pnpm/pnpm/issues/8952).
+
+## 10.0.0
 
 ### Major Changes
 
@@ -80,6 +666,23 @@
 - `pnpm deploy` now tries creating a dedicated lockfile from a shared lockfile for deployment. It will fallback to deployment without a lockfile if there is no shared lockfile or `force-legacy-deploy` is set to `true`.
 
 ### Minor Changes
+
+- Added support for a new type of dependencies called "configurational dependencies". These dependencies are installed before all the other types of dependencies (before "dependencies", "devDependencies", "optionalDependencies").
+
+  Configurational dependencies cannot have dependencies of their own or lifecycle scripts. They should be added using exact version and the integrity checksum. Example:
+
+  ```json
+  {
+    "pnpm": {
+      "configDependencies": {
+        "my-configs": "1.0.0+sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw=="
+      }
+    }
+  }
+  ```
+
+  Related RFC: [#8](https://github.com/pnpm/rfcs/pull/8).
+  Related PR: [#8915](https://github.com/pnpm/pnpm/pull/8915).
 
 - New settings:
 

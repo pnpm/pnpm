@@ -2,6 +2,7 @@ const path = require('path')
 
 const config = {
   preset: "ts-jest",
+  resolver: path.join(__dirname, 'node_modules/ts-jest-resolver'),
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       // For most projects, the tsconfig.json and test/tsconfig.json are almost
@@ -25,6 +26,14 @@ if (process.env.PNPM_SCRIPT_SRC_DIR) {
   const pathAsArr = process.env.PNPM_SCRIPT_SRC_DIR.split(path.sep)
   const packageName = pathAsArr[pathAsArr.length - 1]
   config.cacheDirectory = path.join(__dirname, ".jest-cache", packageName)
+}
+
+// We are running test script from pnpm command, this seems to confuse tests
+// Clean up env from pnpm variables so that nested pnpm runs won't get affected on config read
+for (const key of Object.keys(process.env)) {
+  if (/^p?npm_(config|package|lifecycle|node|command|execpath)(_|$)/ui.test(key)) {
+    delete process.env[key]
+  }
 }
 
 module.exports = config

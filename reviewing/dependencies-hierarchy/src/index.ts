@@ -1,4 +1,4 @@
-export { buildDependenciesHierarchy, type DependenciesHierarchy } from './buildDependenciesHierarchy'
-export { type PackageNode } from './PackageNode'
-export { type SearchFunction } from './types'
-export { createPackagesSearcher } from './createPackagesSearcher'
+export { buildDependenciesHierarchy, type DependenciesHierarchy } from './buildDependenciesHierarchy.js'
+export { type PackageNode } from './PackageNode.js'
+export { type SearchFunction } from './types.js'
+export { createPackagesSearcher } from './createPackagesSearcher.js'

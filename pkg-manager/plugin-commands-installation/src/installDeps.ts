@@ -22,12 +22,14 @@ import {
 } from '@pnpm/core'
 import { globalInfo, logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
+import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import isSubdir from 'is-subdir'
-import { getPinnedVersion } from './getPinnedVersion'
-import { getSaveType } from './getSaveType'
-import { getNodeExecPath } from './nodeExecPath'
+import { IgnoredBuildsError } from './errors.js'
+import { getPinnedVersion } from './getPinnedVersion.js'
+import { getSaveType } from './getSaveType.js'
+import { getNodeExecPath } from './nodeExecPath.js'
 import {
   type CommandFullName,
   type RecursiveOptions,
@@ -36,8 +38,8 @@ import {
   matchDependencies,
   makeIgnorePatterns,
   recursive,
-} from './recursive'
-import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
+} from './recursive.js'
+import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -51,6 +53,8 @@ export type InstallDepsOptions = Pick<Config,
 | 'bail'
 | 'bin'
 | 'catalogs'
+| 'catalogMode'
+| 'cleanupUnusedCatalogs'
 | 'cliOptions'
 | 'dedupePeerDependents'
 | 'depth'
@@ -60,13 +64,13 @@ export type InstallDepsOptions = Pick<Config,
 | 'global'
 | 'globalPnpmfile'
 | 'hooks'
-| 'ignoreCurrentPrefs'
+| 'ignoreCurrentSpecifiers'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
+| 'optimisticRepeatInstall'
 | 'linkWorkspacePackages'
 | 'lockfileDir'
 | 'lockfileOnly'
-| 'pnpmfile'
 | 'production'
 | 'preferWorkspacePackages'
 | 'rawLocalConfig'
@@ -98,6 +102,8 @@ export type InstallDepsOptions = Pick<Config,
 | 'extraEnv'
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
+| 'configDependencies'
+| 'updateConfig'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -130,13 +136,15 @@ export type InstallDepsOptions = Pick<Config,
   includeOnlyPackageFiles?: boolean
   prepareExecutionEnv: PrepareExecutionEnv
   fetchFullMetadata?: boolean
-} & Partial<Pick<Config, 'pnpmHomeDir'>>
+  pruneLockfileImporters?: boolean
+  pnpmfile: string[]
+} & Partial<Pick<Config, 'pnpmHomeDir' | 'strictDepBuilds'>>
 
 export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ): Promise<void> {
-  if (!opts.update && !opts.dedupe && params.length === 0) {
+  if (!opts.update && !opts.dedupe && params.length === 0 && opts.optimisticRepeatInstall) {
     const { upToDate } = await checkDepsStatus({
       ...opts,
       ignoreFilteredInstallCache: true,
@@ -166,6 +174,7 @@ when running add/update with the --workspace option')
     // @ts-expect-error
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
+  const store = await createOrConnectStoreController(opts)
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,
     devDependencies: true,
@@ -200,20 +209,10 @@ when running add/update with the --workspace option')
         })
       }
 
-      let allProjectsGraph!: ProjectsGraph
-      if (opts.dedupePeerDependents) {
-        allProjectsGraph = opts.allProjectsGraph ?? createPkgGraph(allProjects, {
-          linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
-        }).graph
-      } else {
-        allProjectsGraph = selectedProjectsGraph
-        if (!allProjectsGraph[opts.workspaceDir as ProjectRootDir]) {
-          allProjectsGraph = {
-            ...allProjectsGraph,
-            ...selectProjectByDir(allProjects, opts.workspaceDir),
-          }
-        }
-      }
+      const allProjectsGraph: ProjectsGraph = opts.allProjectsGraph ?? createPkgGraph(allProjects, {
+        linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
+      }).graph
+
       await recursiveInstallThenUpdateWorkspaceState(allProjects,
         params,
         {
@@ -223,6 +222,7 @@ when running add/update with the --workspace option')
           forcePublicHoistPattern,
           allProjectsGraph,
           selectedProjectsGraph,
+          storeControllerAndDir: store,
           workspaceDir: opts.workspaceDir,
         },
         opts.update ? 'update' : (params.length === 0 ? 'install' : 'add')
@@ -248,10 +248,9 @@ when running add/update with the --workspace option')
     manifest = {}
   }
 
-  const store = await createOrConnectStoreController(opts)
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    ...getOptionsFromRootManifest(opts.dir, manifest),
+    ...getOptionsFromRootManifest(opts.dir, (opts.dir === opts.rootProjectManifestDir ? opts.rootProjectManifest ?? manifest : manifest)),
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository
@@ -275,7 +274,7 @@ when running add/update with the --workspace option')
   let updateMatch: UpdateDepsMatcher | null
   if (opts.update) {
     if (params.length === 0) {
-      const ignoreDeps = manifest.pnpm?.updateConfig?.ignoreDependencies
+      const ignoreDeps = opts.updateConfig?.ignoreDependencies
       if (ignoreDeps?.length) {
         params = makeIgnorePatterns(ignoreDeps)
       }
@@ -317,25 +316,46 @@ when running add/update with the --workspace option')
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const updatedImporter = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const { updatedCatalogs, updatedProject, ignoredBuilds } = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false) {
-      await writeProjectManifest(updatedImporter.manifest)
+      await Promise.all([
+        writeProjectManifest(updatedProject.manifest),
+        updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+          updatedCatalogs,
+          cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+          allProjects: opts.allProjects,
+        }),
+      ])
     }
     if (!opts.lockfileOnly) {
       await updateWorkspaceState({
         allProjects,
         settings: opts,
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
-        pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
+        pnpmfiles: opts.pnpmfile,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
+        configDependencies: opts.configDependencies,
       })
+    }
+    if (opts.strictDepBuilds && ignoredBuilds?.length) {
+      throw new IgnoredBuildsError(ignoredBuilds)
     }
     return
   }
 
-  const updatedManifest = await install(manifest, installOpts)
+  const { updatedCatalogs, updatedManifest, ignoredBuilds } = await install(manifest, installOpts)
   if (opts.update === true && opts.save !== false) {
-    await writeProjectManifest(updatedManifest)
+    await Promise.all([
+      writeProjectManifest(updatedManifest),
+      updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+        updatedCatalogs,
+        cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+        allProjects,
+      }),
+    ])
+  }
+  if (opts.strictDepBuilds && ignoredBuilds?.length) {
+    throw new IgnoredBuildsError(ignoredBuilds)
   }
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {
@@ -379,8 +399,9 @@ when running add/update with the --workspace option')
         allProjects,
         settings: opts,
         workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
-        pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
+        pnpmfiles: opts.pnpmfile,
         filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
+        configDependencies: opts.configDependencies,
       })
     }
   }
@@ -404,8 +425,9 @@ async function recursiveInstallThenUpdateWorkspaceState (
       allProjects,
       settings: opts,
       workspaceDir: opts.workspaceDir,
-      pnpmfileExists: opts.hooks?.calculatePnpmfileChecksum != null,
+      pnpmfiles: opts.pnpmfile,
       filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
+      configDependencies: opts.configDependencies,
     })
   }
   return recursiveResult

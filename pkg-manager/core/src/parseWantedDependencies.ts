@@ -1,14 +1,13 @@
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { type Dependencies } from '@pnpm/types'
-import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
-import { type PinnedVersion, type WantedDependency } from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
+import { type WantedDependency } from '@pnpm/resolve-dependencies'
 import { type Catalog } from '@pnpm/catalogs.types'
 
 export function parseWantedDependencies (
   rawWantedDependencies: string[],
   opts: {
     allowNew: boolean
-    currentPrefs: Dependencies
+    currentBareSpecifiers: Dependencies
     defaultTag: string
     dev: boolean
     devDependencies: Dependencies
@@ -17,6 +16,7 @@ export function parseWantedDependencies (
     overrides?: Record<string, string>
     updateWorkspaceDependencies?: boolean
     preferredSpecs?: Record<string, string>
+    saveCatalogName?: string
     defaultCatalog?: Catalog
   }
 ): WantedDependency[] {
@@ -24,57 +24,49 @@ export function parseWantedDependencies (
     .map((rawWantedDependency) => {
       const parsed = parseWantedDependency(rawWantedDependency)
       const alias = parsed['alias']
-      let pref = parsed['pref']
-      let pinnedVersion!: PinnedVersion | undefined
+      let bareSpecifier = parsed['bareSpecifier']
 
-      if (!opts.allowNew && (!alias || !opts.currentPrefs[alias])) {
+      if (!opts.allowNew && (!alias || !opts.currentBareSpecifiers[alias])) {
         return null
       }
       if (alias && opts.defaultCatalog?.[alias] && (
-        (!opts.currentPrefs[alias] && pref === undefined) ||
-          opts.defaultCatalog[alias] === pref ||
-          opts.defaultCatalog[alias] === opts.currentPrefs[alias]
+        (!opts.currentBareSpecifiers[alias] && bareSpecifier === undefined) ||
+          opts.defaultCatalog[alias] === bareSpecifier ||
+          opts.defaultCatalog[alias] === opts.currentBareSpecifiers[alias]
       )) {
-        pref = 'catalog:'
+        bareSpecifier = 'catalog:'
       }
-      if (alias && opts.currentPrefs[alias]) {
-        if (!pref) {
-          pref = (opts.currentPrefs[alias].startsWith('workspace:') && opts.updateWorkspaceDependencies === true)
-            ? 'workspace:*'
-            : opts.currentPrefs[alias]
-        }
-        pinnedVersion = whichVersionIsPinned(opts.currentPrefs[alias])
+      if (alias && opts.currentBareSpecifiers[alias]) {
+        bareSpecifier ??= opts.currentBareSpecifiers[alias]
       }
       const result = {
         alias,
         dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
         optional: Boolean(opts.optional || alias && !!opts.optionalDependencies[alias]),
-        pinnedVersion,
-        raw: alias && opts.currentPrefs?.[alias]?.startsWith('workspace:') ? `${alias}@${opts.currentPrefs[alias]}` : rawWantedDependency,
-      }
-      if (pref) {
+        prevSpecifier: alias && opts.currentBareSpecifiers[alias],
+        saveCatalogName: opts.saveCatalogName,
+      } satisfies Partial<WantedDependency>
+      if (bareSpecifier) {
         return {
           ...result,
-          pref,
+          bareSpecifier,
         }
       }
       if (alias && opts.preferredSpecs?.[alias]) {
         return {
           ...result,
-          pref: opts.preferredSpecs[alias],
-          raw: `${rawWantedDependency}@${opts.preferredSpecs[alias]}`,
+          bareSpecifier: opts.preferredSpecs[alias],
         }
       }
       if (alias && opts.overrides?.[alias]) {
         return {
           ...result,
-          pref: opts.overrides[alias],
-          raw: `${alias}@${opts.overrides[alias]}`,
+          bareSpecifier: opts.overrides[alias],
         }
       }
       return {
         ...result,
-        pref: opts.defaultTag,
+        bareSpecifier: opts.defaultTag,
       }
     })
     .filter((wd) => wd !== null) as WantedDependency[]

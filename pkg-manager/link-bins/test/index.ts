@@ -8,6 +8,7 @@ import {
   linkBinsOfPkgsByAliases,
 } from '@pnpm/link-bins'
 import { fixtures } from '@pnpm/test-fixtures'
+import { jest } from '@jest/globals'
 import CMD_EXTENSION from 'cmd-extension'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
@@ -30,7 +31,7 @@ const binsConflictLogger = logger('bins-conflict')
 const f = fixtures(__dirname)
 
 beforeEach(() => {
-  (binsConflictLogger.debug as jest.Mock).mockClear()
+  jest.mocked(binsConflictLogger.debug).mockClear()
 })
 
 const POWER_SHELL_IS_SUPPORTED = isWindows()

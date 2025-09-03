@@ -16,9 +16,6 @@
       "path": "../../catalogs/types"
     },
     {
-      "path": "../../config/pick-registry-for-package"
-    },
-    {
       "path": "../../fetching/pick-fetcher"
     },
     {
@@ -32,6 +29,9 @@
     },
     {
       "path": "../../lockfile/utils"
+    },
+    {
+      "path": "../../packages/calc-dep-state"
     },
     {
       "path": "../../packages/constants"
@@ -52,9 +52,6 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../packages/which-version-is-pinned"
-    },
-    {
       "path": "../../patching/config"
     },
     {
@@ -71,6 +68,9 @@
     },
     {
       "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../semver/peer-range"
     },
     {
       "path": "../../store/store-controller-types"

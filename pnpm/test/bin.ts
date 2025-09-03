@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
 import { tempDir } from '@pnpm/prepare'
-import { execPnpmSync } from './utils'
+import { execPnpmSync } from './utils/index.js'
 
 test('pnpm bin', async () => {
   tempDir()
