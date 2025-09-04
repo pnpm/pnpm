@@ -79,8 +79,8 @@ catalogs:
       specifier: 3.0.0
       version: 3.0.0
     '@pnpm/npm-lifecycle':
-      specifier: ^1000.0.4
-      version: 1000.0.4
+      specifier: ^1001.0.0
+      version: 1001.0.0
     '@pnpm/npm-package-arg':
       specifier: ^2.0.0
       version: 2.0.0
@@ -2578,7 +2578,7 @@ importers:
         version: link:../../pkg-manager/link-bins
       '@pnpm/npm-lifecycle':
         specifier: 'catalog:'
-        version: 1000.0.4(typanion@3.14.0)
+        version: 1001.0.0(typanion@3.14.0)
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -9867,6 +9867,10 @@ packages:
     resolution: {integrity: sha512-xb9dfSGi1qfUKY3r4Zy9JdC9+ZeaDxwfE7HrrGIEsBVY1hvIn6ntbR7A97z3nk44yX7vwbINNf9sizTp0WEtEw==}
     engines: {node: '>=18.12'}
 
+  '@pnpm/constants@1001.3.0':
+    resolution: {integrity: sha512-ZFRekNHbDlu//67Byg+mG8zmtmCsfBhNsg1wKBLRtF7VjH+Q5TDGMX0+8aJYSikQDuzM2FOhvQcDwyjILKshJQ==}
+    engines: {node: '>=18.12'}
+
   '@pnpm/core-loggers@1000.1.4':
     resolution: {integrity: sha512-cmmEk1YuqCfF1RWqHyEDczp2RSd/Sn4np/9iaSd5TISlY0lFCc8A2CKQvkOf2E7N2kpXf/dS7W0Vb3PzW/5w2Q==}
     engines: {node: '>=18.12'}
@@ -9937,6 +9941,10 @@ packages:
 
   '@pnpm/error@1000.0.2':
     resolution: {integrity: sha512-2SfE4FFL73rE1WVIoESbqlj4sLy5nWW4M/RVdHvCRJPjlQHa9MH7m7CVJM204lz6I+eHoB+E7rL3zmpJR5wYnQ==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/error@1000.0.4':
+    resolution: {integrity: sha512-22mG/Mq4u2r7gr2+XY5j4GlN7J4Mg4WiCfT9flvsUc1uZecShocv6WkyoA20qs14M64f6I+aaWB6b6xsDiITlg==}
     engines: {node: '>=18.12'}
 
   '@pnpm/exec.pkg-requires-build@1000.0.8':
@@ -10114,6 +10122,10 @@ packages:
 
   '@pnpm/npm-lifecycle@1000.0.4':
     resolution: {integrity: sha512-sN7dG1UV7jZvMgH2C/qtvriq4PsDkJQekuAHWO3DCw4n9Ef5Edv5nNoyg5I288FFzDsEV963HpyVOqB7x94DNw==}
+    engines: {node: '>=18.12'}
+
+  '@pnpm/npm-lifecycle@1001.0.0':
+    resolution: {integrity: sha512-5jW/GNLdZMiw+PJ8FYSvOghoApSjsORNIro2fj8j6NHAqJxJjcHekC5/NsKaawoI5LAkU/XDDVjNC71Yz+uS1w==}
     engines: {node: '>=18.12'}
 
   '@pnpm/npm-package-arg@2.0.0':
@@ -13940,8 +13952,8 @@ packages:
     engines: {node: ^18.17.0 || >=20.5.0}
     hasBin: true
 
-  node-gyp@11.2.0:
-    resolution: {integrity: sha512-T0S1zqskVUSxcsSTkAsLc7xCycrRYmtDHadDinzocrThjyQCn5kMlEBSj6H4qDbgsIOSLmmlRIeb0lZXj+UArA==}
+  node-gyp@11.4.2:
+    resolution: {integrity: sha512-3gD+6zsrLQH7DyYOUIutaauuXrcyxeTPyQuZQCQoNPZMHMMS5m4y0xclNpvYzoK3VNzuyxT6eF4mkIL4WSZ1eQ==}
     engines: {node: ^18.17.0 || >=20.5.0}
     hasBin: true
 
@@ -17347,6 +17359,8 @@ snapshots:
 
   '@pnpm/constants@1001.1.0': {}
 
+  '@pnpm/constants@1001.3.0': {}
+
   '@pnpm/core-loggers@1000.1.4(@pnpm/logger@1001.0.0)':
     dependencies:
       '@pnpm/logger': 1001.0.0
@@ -17480,6 +17494,10 @@ snapshots:
   '@pnpm/error@1000.0.2':
     dependencies:
       '@pnpm/constants': 1001.1.0
+
+  '@pnpm/error@1000.0.4':
+    dependencies:
+      '@pnpm/constants': 1001.3.0
 
   '@pnpm/exec.pkg-requires-build@1000.0.8':
     dependencies:
@@ -17749,7 +17767,7 @@ snapshots:
 
   '@pnpm/network.proxy-agent@2.0.3':
     dependencies:
-      '@pnpm/error': 1000.0.2
+      '@pnpm/error': 1000.0.4
       http-proxy-agent: 7.0.2
       https-proxy-agent: 7.0.6
       lru-cache: 7.18.3
@@ -17780,7 +17798,23 @@ snapshots:
       '@pnpm/error': 1000.0.2
       '@yarnpkg/fslib': 3.1.2
       '@yarnpkg/shell': 4.0.0(typanion@3.14.0)
-      node-gyp: 11.2.0
+      node-gyp: 11.4.2
+      resolve-from: 5.0.0
+      slide: 1.1.6
+      uid-number: 0.0.6
+      umask: 1.1.0
+      which: 4.0.0
+    transitivePeerDependencies:
+      - supports-color
+      - typanion
+
+  '@pnpm/npm-lifecycle@1001.0.0(typanion@3.14.0)':
+    dependencies:
+      '@pnpm/byline': 1.0.0
+      '@pnpm/error': 1000.0.4
+      '@yarnpkg/fslib': 3.1.2
+      '@yarnpkg/shell': 4.0.0(typanion@3.14.0)
+      node-gyp: 11.4.2
       resolve-from: 5.0.0
       slide: 1.1.6
       uid-number: 0.0.6
@@ -17836,11 +17870,11 @@ snapshots:
 
   '@pnpm/os.env.path-extender-posix@2.1.0':
     dependencies:
-      '@pnpm/error': 1000.0.2
+      '@pnpm/error': 1000.0.4
 
   '@pnpm/os.env.path-extender-windows@2.0.3':
     dependencies:
-      '@pnpm/error': 1000.0.2
+      '@pnpm/error': 1000.0.4
       safe-execa: 0.1.4
       string.prototype.matchall: 4.0.12
 
@@ -22597,7 +22631,7 @@ snapshots:
       - supports-color
     optional: true
 
-  node-gyp@11.2.0:
+  node-gyp@11.4.2:
     dependencies:
       env-paths: 2.2.1
       exponential-backoff: 3.1.2
