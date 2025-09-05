@@ -73,8 +73,8 @@ catalogs:
       specifier: ^2.0.3
       version: 2.0.3
     '@pnpm/nopt':
-      specifier: ^0.2.1
-      version: 0.2.1
+      specifier: ^0.3.1
+      version: 0.3.1
     '@pnpm/npm-conf':
       specifier: 3.0.0
       version: 3.0.0
@@ -1539,7 +1539,7 @@ importers:
         version: link:../../workspace/find-workspace-dir
       '@pnpm/nopt':
         specifier: 'catalog:'
-        version: 0.2.1
+        version: 0.3.1
       didyoumean2:
         specifier: 'catalog:'
         version: 6.0.1
@@ -1567,7 +1567,7 @@ importers:
         version: link:../../workspace/find-workspace-dir
       '@pnpm/nopt':
         specifier: 'catalog:'
-        version: 0.2.1
+        version: 0.3.1
       '@pnpm/parse-cli-args':
         specifier: workspace:^
         version: link:../../cli/parse-cli-args
@@ -6389,7 +6389,7 @@ importers:
         version: link:../pkg-manager/modules-yaml
       '@pnpm/nopt':
         specifier: 'catalog:'
-        version: 0.2.1
+        version: 0.3.1
       '@pnpm/parse-cli-args':
         specifier: workspace:*
         version: link:../cli/parse-cli-args
@@ -10111,9 +10111,9 @@ packages:
     resolution: {integrity: sha512-eYwrzhKUBGFdq78rJStGjaHTUHA2VH+Avr//CVx/T+EJkI7hnFmOy6YghvcB2clj8HpO4V8tXRNuFNfRX08ayw==}
     engines: {node: ^10.17 || >=12.3}
 
-  '@pnpm/nopt@0.2.1':
-    resolution: {integrity: sha512-zkgDE6q3Y6KeZPjqXCk/hRQ2t6iw9JXbdnYZghwpe/HR73e4VmV5JZ5QSFypmSd5Sx4+gjNfAqME5BVAOBCk9g==}
-    engines: {node: '>=6'}
+  '@pnpm/nopt@0.3.1':
+    resolution: {integrity: sha512-5XP6EwsFv8+CtaNJD/pog3CkiwCgux8/edLHV+lgz94g5n65dlwo+jQk+053RPq8vK8ODP9ajZB0oNOp7Fxdvw==}
+    engines: {node: '>=18.12'}
     hasBin: true
 
   '@pnpm/npm-conf@3.0.0':
@@ -17782,7 +17782,7 @@ snapshots:
     transitivePeerDependencies:
       - domexception
 
-  '@pnpm/nopt@0.2.1':
+  '@pnpm/nopt@0.3.1':
     dependencies:
       abbrev: 1.1.1
 
