@@ -69,7 +69,7 @@ export async function searchForPackages (
     finders?: Finder[]
   }
 ): Promise<PackageDependencyHierarchy[]> {
-  const search = createPackagesSearcher(packages)
+  const search = createPackagesSearcher(packages, opts.finders)
 
   return Promise.all(
     Object.entries(await buildDependenciesHierarchy(projectPaths, {

@@ -25,7 +25,7 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   'exclude-peers': Boolean,
   recursive: Boolean,
-  'find-by': String,
+  'find-by': [String, Array],
 })
 
 export const shorthands: Record<string, string> = {

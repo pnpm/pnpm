@@ -273,7 +273,7 @@ test('filter 1 package with depth 0', async () => {
     {
       depth: 0,
       lockfileDir: generalFixture,
-      search: ({ name }) => name === 'rimraf',
+      search: ({ manifest: { name } }) => name === 'rimraf',
       virtualStoreDirMaxLength,
     }
   )
@@ -492,7 +492,7 @@ test('unsaved dependencies are listed and filtered', async () => {
       {
         depth: 0,
         lockfileDir: withUnsavedDepsFixture,
-        search: ({ name }) => name === 'symlink-dir',
+        search: ({ manifest: { name } }) => name === 'symlink-dir',
         virtualStoreDirMaxLength,
       }
     )
