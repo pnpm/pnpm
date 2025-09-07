@@ -1,13 +1,13 @@
 import { createMatcher } from '@pnpm/matcher'
 import npa from '@pnpm/npm-package-arg'
-import { type SearchFunction } from './types.js'
+import { FinderContext, type Finder } from '@pnpm/types'
 import semver from 'semver'
 
-export function createPackagesSearcher (queries: string[]): SearchFunction {
-  const searchers: SearchFunction[] = queries
+export function createPackagesSearcher (queries: string[], finders?: Finder[]): Finder {
+  const searchers: Finder[] = queries
     .map(parseSearchQuery)
     .map((packageSelector) => search.bind(null, packageSelector))
-  return (pkg) => searchers.some((search) => search(pkg))
+  return (pkg) => searchers.some((search) => search(pkg) && finders?.every((finder) => finder(pkg)))
 }
 
 type MatchFunction = (entry: string) => boolean
@@ -17,15 +17,15 @@ function search (
     matchName: MatchFunction
     matchVersion?: MatchFunction
   },
-  pkg: { name: string, version: string }
+  { manifest }: FinderContext
 ): boolean {
-  if (!packageSelector.matchName(pkg.name)) {
+  if (!packageSelector.matchName(manifest.name)) {
     return false
   }
   if (packageSelector.matchVersion == null) {
     return true
   }
-  return !pkg.version.startsWith('link:') && packageSelector.matchVersion(pkg.version)
+  return !manifest.version.startsWith('link:') && packageSelector.matchVersion(manifest.version)
 }
 
 interface ParsedSearchQuery {

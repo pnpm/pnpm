@@ -32,6 +32,7 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   'exclude-peers': Boolean,
   'only-projects': Boolean,
   recursive: Boolean,
+  'find-by': String,
 })
 
 export const shorthands: Record<string, string> = {
@@ -139,6 +140,7 @@ export type ListCommandOptions = Pick<Config,
   parseable?: boolean
   onlyProjects?: boolean
   recursive?: boolean
+  findBy?: string
 }
 
 export async function handler (
@@ -178,6 +180,7 @@ export async function render (
     parseable?: boolean
     modulesDir?: string
     virtualStoreDirMaxLength: number
+    findBy?: string
   }
 ): Promise<string> {
   const listOpts = {

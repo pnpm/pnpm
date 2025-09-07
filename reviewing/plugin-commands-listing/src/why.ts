@@ -25,6 +25,7 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   ...rcOptionsTypes(),
   'exclude-peers': Boolean,
   recursive: Boolean,
+  'find-by': String,
 })
 
 export const shorthands: Record<string, string> = {
@@ -103,8 +104,8 @@ export async function handler (
   opts: ListCommandOptions,
   params: string[]
 ): Promise<string> {
-  if (params.length === 0) {
-    throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name')
+  if (params.length === 0 && opts.findBy == null) {
+    throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name or --find-by=<finder-name>')
   }
   return list({
     ...opts,

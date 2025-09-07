@@ -12,12 +12,11 @@ import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type DependenciesField, DEPENDENCIES_FIELDS, type Registries } from '@pnpm/types'
+import { type DependenciesField, type Finder, DEPENDENCIES_FIELDS, type Registries } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
 import { type PackageNode } from './PackageNode.js'
-import { type SearchFunction } from './types.js'
 import { getTree } from './getTree.js'
 import { getTreeNodeChildId } from './getTreeNodeChildId.js'
 import { getPkgInfo } from './getPkgInfo.js'
@@ -38,7 +37,7 @@ export async function buildDependenciesHierarchy (
     include?: { [dependenciesField in DependenciesField]: boolean }
     registries?: Registries
     onlyProjects?: boolean
-    search?: SearchFunction
+    search?: Finder
     lockfileDir: string
     modulesDir?: string
     virtualStoreDirMaxLength: number
@@ -109,7 +108,7 @@ async function dependenciesHierarchyForPackage (
     include: { [dependenciesField in DependenciesField]: boolean }
     registries: Registries
     onlyProjects?: boolean
-    search?: SearchFunction
+    search?: Finder
     skipped: Set<string>
     lockfileDir: string
     modulesDir?: string
@@ -166,7 +165,7 @@ async function dependenciesHierarchyForPackage (
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       })
       let newEntry: PackageNode | null = null
-      const matchedSearched = opts.search?.(packageInfo)
+      const matchedSearched = opts.search?.({ manifest: packageInfo })
       const nodeId = getTreeNodeChildId({
         parentId,
         dep: { alias, ref },
@@ -219,7 +218,7 @@ async function dependenciesHierarchyForPackage (
         path: pkgPath,
         version,
       }
-      const matchedSearched = opts.search?.(pkg)
+      const matchedSearched = opts.search?.({ manifest: pkg })
       if ((opts.search != null) && !matchedSearched) return
       const newEntry: PackageNode = pkg
       if (matchedSearched) {

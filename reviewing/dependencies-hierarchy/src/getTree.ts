@@ -1,8 +1,7 @@
 import path from 'path'
 import { type PackageSnapshots, type ProjectSnapshot } from '@pnpm/lockfile.fs'
 import { type DepTypes } from '@pnpm/lockfile.detect-dep-types'
-import { type Registries } from '@pnpm/types'
-import { type SearchFunction } from './types.js'
+import { type Finder, type Registries } from '@pnpm/types'
 import { type PackageNode } from './PackageNode.js'
 import { getPkgInfo } from './getPkgInfo.js'
 import { getTreeNodeChildId } from './getTreeNodeChildId.js'
@@ -16,7 +15,7 @@ interface GetTreeOpts {
   excludePeerDependencies?: boolean
   lockfileDir: string
   onlyProjects?: boolean
-  search?: SearchFunction
+  search?: Finder
   skipped: Set<string>
   registries: Registries
   importers: Record<string, ProjectSnapshot>
@@ -142,7 +141,7 @@ function getTreeHelper (
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
     let circular: boolean
-    const matchedSearched = opts.search?.(packageInfo)
+    const matchedSearched = opts.search?.({ manifest: packageInfo })
     let newEntry: PackageNode | null = null
     const nodeId = getTreeNodeChildId({
       parentId,

@@ -3,7 +3,7 @@ import fs from 'fs'
 import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import { type PackageManifest } from '@pnpm/types'
+import { type PackageManifest, type Finder } from '@pnpm/types'
 import chalk from 'chalk'
 import { type Hooks } from './Hooks.js'
 
@@ -27,8 +27,11 @@ class PnpmFileFailError extends PnpmError {
   }
 }
 
+export type Finders = Record<string, Finder>
+
 export interface Pnpmfile {
   hooks?: Hooks
+  finders?: Finders
 }
 
 export function requirePnpmfile (pnpmFilePath: string, prefix: string): { pnpmfileModule: Pnpmfile | undefined } | undefined {
