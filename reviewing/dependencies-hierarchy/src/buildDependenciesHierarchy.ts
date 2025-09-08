@@ -195,6 +195,9 @@ async function dependenciesHierarchyForPackage (
       if (newEntry != null) {
         if (matchedSearched) {
           newEntry.searched = true
+          if (typeof matchedSearched === 'string') {
+            newEntry.searchMessage = matchedSearched
+          }
         }
         result[dependenciesField]!.push(newEntry)
       }
@@ -231,6 +234,9 @@ async function dependenciesHierarchyForPackage (
       const newEntry: PackageNode = pkg
       if (matchedSearched) {
         newEntry.searched = true
+        if (typeof matchedSearched === 'string') {
+          newEntry.searchMessage = matchedSearched
+        }
       }
       result.unsavedDependencies = result.unsavedDependencies ?? []
       result.unsavedDependencies.push(newEntry)

@@ -213,6 +213,9 @@ function getTreeHelper (
       }
       if (matchedSearched) {
         newEntry.searched = true
+        if (typeof matchedSearched === 'string') {
+          newEntry.searchMessage = matchedSearched
+        }
       }
       if (!newEntry.isPeer || !opts.excludePeerDependencies || newEntry.dependencies?.length) {
         resultDependencies.push(newEntry)

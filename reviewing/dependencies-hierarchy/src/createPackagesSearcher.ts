@@ -7,7 +7,22 @@ export function createPackagesSearcher (queries: string[], finders?: Finder[]): 
   const searchers: Finder[] = queries
     .map(parseSearchQuery)
     .map((packageSelector) => search.bind(null, packageSelector))
-  return (pkg) => (searchers.some((search) => search(pkg)) || searchers.length === 0) && finders?.every((finder) => finder(pkg)) === true
+  return (pkg) => {
+    if (searchers.length > 0 && searchers.every((search) => !search(pkg))) {
+      return false
+    }
+    if (finders == null) return false
+    const messages: string[] = []
+    for (const finder of finders) {
+      const result = finder(pkg)
+      if (!result) return false
+      if (typeof result === 'string') {
+        messages.push(result)
+      }
+    }
+    if (messages.length) return messages.join('\n')
+    return true
+  }
 }
 
 type MatchFunction = (entry: string) => boolean

@@ -21,4 +21,4 @@ export interface FinderContext {
   readManifest: () => DependencyManifest
 }
 
-export type Finder = (ctx: FinderContext) => boolean
+export type Finder = (ctx: FinderContext) => boolean | string
