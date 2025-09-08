@@ -8,8 +8,8 @@ export function createPackagesSearcher (queries: string[], finders?: Finder[]): 
     .map(parseSearchQuery)
     .map((packageSelector) => search.bind(null, packageSelector))
   return (pkg) => {
-    if (searchers.length > 0 && searchers.every((search) => !search(pkg))) {
-      return false
+    if (searchers.length > 0 && searchers.some((search) => search(pkg))) {
+      return true
     }
     if (finders == null) return false
     const messages: string[] = []
