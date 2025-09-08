@@ -1,6 +1,5 @@
-import { type DependencyManifest } from './package.js'
 import { type DependenciesField } from './misc.js'
-import { type BaseManifest } from './package.js'
+import { type BaseManifest, type DependencyManifest } from './package.js'
 
 export type LogBase = {
   level: 'debug' | 'error'
@@ -23,4 +22,3 @@ export interface FinderContext {
 }
 
 export type Finder = (ctx: FinderContext) => boolean
-
