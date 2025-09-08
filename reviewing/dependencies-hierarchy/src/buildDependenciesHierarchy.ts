@@ -151,7 +151,7 @@ async function dependenciesHierarchyForPackage (
     result[dependenciesField] = []
     for (const alias in topDeps) {
       const ref = topDeps[alias]
-      const packageInfo = getPkgInfo({
+      const { pkgInfo: packageInfo, readManifest } = getPkgInfo({
         alias,
         currentPackages: currentLockfile.packages ?? {},
         depTypes,
@@ -168,7 +168,7 @@ async function dependenciesHierarchyForPackage (
       const matchedSearched = opts.search?.({
         name: packageInfo.name,
         version: packageInfo.version,
-        readManifest: packageInfo.readManifest,
+        readManifest,
       })
       const nodeId = getTreeNodeChildId({
         parentId,

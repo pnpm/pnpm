@@ -41,7 +41,7 @@ export interface GetPkgInfoOpts {
   readonly rewriteLinkVersionDir?: string
 }
 
-export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
+export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readManifest: () => DependencyManifest } {
   let name!: string
   let version: string
   let resolved: string | undefined
@@ -96,7 +96,6 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
     name,
     path: fullPackagePath,
     version,
-    readManifest: () => readPackageJsonFromDirSync(fullPackagePath),
   }
   if (resolved) {
     packageInfo.resolved = resolved
@@ -109,7 +108,10 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
   } else if (depType === DepType.ProdOnly) {
     packageInfo.dev = false
   }
-  return packageInfo
+  return {
+    pkgInfo: packageInfo,
+    readManifest: () => readPackageJsonFromDirSync(fullPackagePath),
+  }
 }
 
 interface PackageInfo {
@@ -123,5 +125,4 @@ interface PackageInfo {
   resolved?: string
   optional?: true
   dev?: boolean
-  readManifest: () => DependencyManifest
 }

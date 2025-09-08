@@ -126,7 +126,7 @@ function getTreeHelper (
 
   for (const alias in deps) {
     const ref = deps[alias]
-    const packageInfo = getPkgInfo({
+    const { pkgInfo: packageInfo, readManifest } = getPkgInfo({
       alias,
       currentPackages: opts.currentPackages,
       depTypes: opts.depTypes,
@@ -144,7 +144,7 @@ function getTreeHelper (
     const matchedSearched = opts.search?.({
       name: packageInfo.name,
       version: packageInfo.version,
-      readManifest: packageInfo.readManifest,
+      readManifest,
     })
     let newEntry: PackageNode | null = null
     const nodeId = getTreeNodeChildId({
