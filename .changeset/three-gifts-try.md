@@ -4,4 +4,4 @@
 "pnpm": major
 ---
 
-`pnpm config get` and `pnpm config list` no longer include non camelCase options from the workspace manifest (`pnpm-workspace.yaml`).
+`pnpm config get` and `pnpm config list` no longer load non camelCase options from the workspace manifest (`pnpm-workspace.yaml`).
