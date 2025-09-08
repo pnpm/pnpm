@@ -11,7 +11,7 @@ import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
-import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { safeReadPackageJsonFromDir, readPackageJsonFromDirSync } from '@pnpm/read-package-json'
 import { type DependenciesField, type Finder, DEPENDENCIES_FIELDS, type Registries } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
@@ -165,7 +165,11 @@ async function dependenciesHierarchyForPackage (
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       })
       let newEntry: PackageNode | null = null
-      const matchedSearched = opts.search?.({ manifest: packageInfo })
+      const matchedSearched = opts.search?.({
+        name: packageInfo.name,
+        version: packageInfo.version,
+        readManifest: packageInfo.readManifest,
+      })
       const nodeId = getTreeNodeChildId({
         parentId,
         dep: { alias, ref },
@@ -218,7 +222,11 @@ async function dependenciesHierarchyForPackage (
         path: pkgPath,
         version,
       }
-      const matchedSearched = opts.search?.({ manifest: pkg })
+      const matchedSearched = opts.search?.({
+        name: pkg.name,
+        version: pkg.version,
+        readManifest: () => readPackageJsonFromDirSync(pkgPath),
+      })
       if ((opts.search != null) && !matchedSearched) return
       const newEntry: PackageNode = pkg
       if (matchedSearched) {

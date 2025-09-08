@@ -17,15 +17,15 @@ function search (
     matchName: MatchFunction
     matchVersion?: MatchFunction
   },
-  { manifest }: FinderContext
+  { name, version }: FinderContext
 ): boolean {
-  if (!packageSelector.matchName(manifest.name)) {
+  if (!packageSelector.matchName(name)) {
     return false
   }
   if (packageSelector.matchVersion == null) {
     return true
   }
-  return !manifest.version.startsWith('link:') && packageSelector.matchVersion(manifest.version)
+  return !version.startsWith('link:') && packageSelector.matchVersion(version)
 }
 
 interface ParsedSearchQuery {

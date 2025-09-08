@@ -141,7 +141,11 @@ function getTreeHelper (
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
     let circular: boolean
-    const matchedSearched = opts.search?.({ manifest: packageInfo })
+    const matchedSearched = opts.search?.({
+      name: packageInfo.name,
+      version: packageInfo.version,
+      readManifest: packageInfo.readManifest,
+    })
     let newEntry: PackageNode | null = null
     const nodeId = getTreeNodeChildId({
       parentId,
