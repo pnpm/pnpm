@@ -593,6 +593,7 @@ async function resolveDependenciesOfImporterDependency (
       parentPkgAliases: importer.parentPkgAliases,
       pickLowestVersion: pickLowestVersion && !importer.updatePackageManifest,
       pinnedVersion: importer.pinnedVersion,
+      publishedBy: ctx.maximumPublishedBy,
     },
     extendedWantedDep
   )

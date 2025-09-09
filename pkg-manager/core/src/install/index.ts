@@ -1179,6 +1179,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       supportedArchitectures: opts.supportedArchitectures,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
       injectWorkspacePackages: opts.injectWorkspacePackages,
+      minimumReleaseAge: opts.minimumReleaseAge,
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {

@@ -122,24 +122,31 @@ export function pickVersionByVersionRange (
 ): string | null {
   let latest: string | undefined = meta['dist-tags'].latest
 
+  if (publishedBy) {
+    if (meta.time == null) {
+      throw new PnpmError('MISSING_TIME', `The metadata of ${meta.name} is missing the "time" field`)
+    }
+  }
+
   if (preferredVerSels != null && Object.keys(preferredVerSels).length > 0) {
     const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVerSels)
     for (const preferredVersions of prioritizedPreferredVersions) {
       if (preferredVersions.includes(latest) && semverSatisfiesLoose(latest, versionRange)) {
-        return latest
+        if (!publishedBy || new Date(meta.time![latest]) <= publishedBy) {
+          return latest
+        }
       }
       const preferredVersion = semver.maxSatisfying(preferredVersions, versionRange, true)
       if (preferredVersion) {
-        return preferredVersion
+        if (!publishedBy || new Date(meta.time![preferredVersion]) <= publishedBy) {
+          return preferredVersion
+        }
       }
     }
   }
 
   let versions = Object.keys(meta.versions)
   if (publishedBy) {
-    if (meta.time == null) {
-      throw new PnpmError('MISSING_TIME', `The metadata of ${meta.name} is missing the "time" field`)
-    }
     versions = versions.filter(version => new Date(meta.time![version]) <= publishedBy)
     if (!versions.includes(latest)) {
       latest = undefined
