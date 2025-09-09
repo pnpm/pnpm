@@ -227,6 +227,7 @@ export interface Config extends OptionsFromRootManifest {
   dangerouslyAllowAllBuilds: boolean
   ci: boolean
   preserveAbsolutePaths?: boolean
+  minimumReleaseAge?: number
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

@@ -63,6 +63,7 @@ export const types = Object.assign({
   maxsockets: Number,
   'modules-cache-max-age': Number,
   'dlx-cache-max-age': Number,
+  'minimum-release-age': Number,
   'modules-dir': String,
   'network-concurrency': Number,
   'node-linker': ['pnp', 'isolated', 'hoisted'],

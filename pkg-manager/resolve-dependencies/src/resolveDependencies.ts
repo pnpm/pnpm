@@ -176,6 +176,7 @@ export interface ResolutionContext {
   workspacePackages?: WorkspacePackages
   missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { depth: number, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
+  maximumPublishedBy?: Date
 }
 
 export interface MissingPeerInfo {
@@ -484,6 +485,9 @@ async function resolveDependenciesOfImporters (
       publishedBy = new Date(result.publishedBy.getTime() + 60 * 60 * 1000) // adding 1 hour delta
       time = result.newTime
     }
+  }
+  if (ctx.maximumPublishedBy && (publishedBy == null || publishedBy > ctx.maximumPublishedBy)) {
+    publishedBy = ctx.maximumPublishedBy
   }
   const pkgAddressesByImportersWithoutPeers = await Promise.all(zipWith(async (importer, { pkgAddresses, postponedResolutionsQueue, postponedPeersResolutionQueue }) => {
     const newPreferredVersions = Object.create(importer.preferredVersions) as PreferredVersions
