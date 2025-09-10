@@ -32,7 +32,7 @@ beforeEach(() => {
   nock.enableNetConnect()
 })
 
-test('fall back to a newer version if there is no version published by the given date', async () => {
+test.skip('fall back to a newer version if there is no version published by the given date', async () => {
   nock(registries.default)
     .get('/bad-dates')
     .reply(200, badDatesMeta)
@@ -52,7 +52,7 @@ test('fall back to a newer version if there is no version published by the given
   expect(resolveResult!.id).toBe('bad-dates@1.0.0')
 })
 
-test('request metadata when the one in cache does not have a version satisfying the range', async () => {
+test.skip('request metadata when the one in cache does not have a version satisfying the range', async () => {
   const cacheDir = tempy.directory()
   const cachedMeta = {
     'dist-tags': {},

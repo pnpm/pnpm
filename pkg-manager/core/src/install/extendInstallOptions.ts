@@ -166,6 +166,7 @@ export interface StrictInstallOptions {
   injectWorkspacePackages?: boolean
   ci?: boolean
   minimumReleaseAge?: number
+  minimumReleaseAgeExclude?: string[]
 }
 
 export type InstallOptions =

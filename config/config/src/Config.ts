@@ -228,6 +228,7 @@ export interface Config extends OptionsFromRootManifest {
   ci: boolean
   preserveAbsolutePaths?: boolean
   minimumReleaseAge?: number
+  minimumReleaseAgeExclude?: string[]
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

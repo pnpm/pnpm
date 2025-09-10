@@ -177,6 +177,7 @@ export interface ResolutionContext {
   missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { depth: number, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
   maximumPublishedBy?: Date
+  minimumReleaseAgeExclude?: string[]
 }
 
 export interface MissingPeerInfo {
@@ -1304,6 +1305,17 @@ async function resolveDependency (
     if (!options.updateRequested && options.preferredVersion != null) {
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
     }
+    let publishedBy: Date | undefined
+    if (
+      options.publishedBy &&
+      (
+        ctx.minimumReleaseAgeExclude == null ||
+        wantedDependency.alias == null ||
+        !ctx.minimumReleaseAgeExclude.includes(wantedDependency.alias)
+      )
+    ) {
+      publishedBy = options.publishedBy
+    }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPkg: currentPkg
@@ -1317,7 +1329,7 @@ async function resolveDependency (
       expectedPkg: currentPkg,
       defaultTag: ctx.defaultTag,
       ignoreScripts: ctx.ignoreScripts,
-      publishedBy: options.publishedBy,
+      publishedBy,
       pickLowestVersion: options.pickLowestVersion,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
