@@ -19,6 +19,12 @@ export function pickPackageFromMeta (
   meta: PackageMeta,
   publishedBy?: Date
 ): PackageInRegistry | null {
+  if (publishedBy) {
+    if (meta.time == null) {
+      throw new PnpmError('MISSING_TIME', `The metadata of ${meta.name} is missing the "time" field`)
+    }
+    meta = filterMetaByPublishedDate(meta, publishedBy)
+  }
   if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {
     // Unfortunately, the npm registry doesn't return the time field in the abbreviated metadata.
     // So we won't always know if the package was unpublished.
@@ -120,38 +126,22 @@ export function pickVersionByVersionRange (
   preferredVerSels?: VersionSelectors,
   publishedBy?: Date
 ): string | null {
-  let latest: string | undefined = meta['dist-tags'].latest
-
-  if (publishedBy) {
-    if (meta.time == null) {
-      throw new PnpmError('MISSING_TIME', `The metadata of ${meta.name} is missing the "time" field`)
-    }
-  }
+  const latest: string | undefined = meta['dist-tags'].latest
 
   if (preferredVerSels != null && Object.keys(preferredVerSels).length > 0) {
     const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVerSels)
     for (const preferredVersions of prioritizedPreferredVersions) {
       if (preferredVersions.includes(latest) && semverSatisfiesLoose(latest, versionRange)) {
-        if (!publishedBy || new Date(meta.time![latest]) <= publishedBy) {
-          return latest
-        }
+        return latest
       }
       const preferredVersion = semver.maxSatisfying(preferredVersions, versionRange, true)
       if (preferredVersion) {
-        if (!publishedBy || new Date(meta.time![preferredVersion]) <= publishedBy) {
-          return preferredVersion
-        }
+        return preferredVersion
       }
     }
   }
 
-  let versions = Object.keys(meta.versions)
-  if (publishedBy) {
-    versions = versions.filter(version => new Date(meta.time![version]) <= publishedBy)
-    if (!versions.includes(latest)) {
-      latest = undefined
-    }
-  }
+  const versions = Object.keys(meta.versions)
   if (latest && (versionRange === '*' || semverSatisfiesLoose(latest, versionRange))) {
     // Not using semver.satisfies in case of * because it does not select beta versions.
     // E.g.: 1.0.0-beta.1. See issue: https://github.com/pnpm/pnpm/issues/865
@@ -230,5 +220,78 @@ class PreferredVersionsPrioritizer {
     return Object.keys(versionsByWeight)
       .sort((a, b) => parseInt(b, 10) - parseInt(a, 10))
       .map((weight) => versionsByWeight[parseInt(weight, 10)])
+  }
+}
+
+function filterMetaByPublishedDate (meta: PackageMeta, publishedBy: Date): PackageMeta {
+  const versionsWithinDate: PackageMeta['versions'] = {}
+  for (const version in meta.versions) {
+    if (!Object.prototype.hasOwnProperty.call(meta.versions, version)) continue
+    const timeStr = meta.time && (meta.time as Record<string, string>)[version]
+    if (timeStr && new Date(timeStr) <= publishedBy) {
+      versionsWithinDate[version] = meta.versions[version]
+    }
+  }
+
+  let timeWithinDate: Record<string, string> | undefined
+  if (meta.time) {
+    timeWithinDate = {}
+    for (const key in meta.time) {
+      if (!Object.prototype.hasOwnProperty.call(meta.time, key)) continue
+      if (key === 'unpublished') continue
+      const value = (meta.time as Record<string, string | { time: string, versions: string[] }>)[key]
+      if (typeof value === 'string') {
+        try {
+          if (new Date(value) <= publishedBy) {
+            timeWithinDate[key] = value
+          }
+        } catch {}
+      }
+    }
+  }
+
+  const distTagsWithinDate: PackageMeta['dist-tags'] = {}
+  const allDistTags = meta['dist-tags'] || {}
+  for (const tag in allDistTags) {
+    if (!Object.prototype.hasOwnProperty.call(allDistTags, tag)) continue
+    const ver = allDistTags[tag]
+    if (versionsWithinDate[ver]) {
+      distTagsWithinDate[tag] = ver
+      continue
+    }
+    // Repopulate the tag to the highest version available within date that has the same major as the original tag's version
+    let originalSemVer: semver.SemVer | null = null
+    try {
+      originalSemVer = new semver.SemVer(ver, true)
+    } catch {
+      originalSemVer = null
+    }
+    if (!originalSemVer) continue
+    const originalMajor = originalSemVer.major
+    let bestVersion: string | undefined
+    const originalMajorPrefix = `${originalMajor}.`
+    for (const candidate in versionsWithinDate) {
+      if (!Object.prototype.hasOwnProperty.call(versionsWithinDate, candidate)) continue
+      if (!candidate.startsWith(originalMajorPrefix)) continue
+      if (!bestVersion) {
+        bestVersion = candidate
+      } else {
+        try {
+          if (semver.gt(candidate, bestVersion, true)) {
+            bestVersion = candidate
+          }
+        } catch {}
+      }
+    }
+    if (bestVersion) {
+      distTagsWithinDate[tag] = bestVersion
+    }
+  }
+
+  return {
+    ...meta,
+    versions: versionsWithinDate,
+    time: timeWithinDate,
+    'dist-tags': distTagsWithinDate,
   }
 }

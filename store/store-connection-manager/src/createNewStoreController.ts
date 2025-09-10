@@ -54,7 +54,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
 ): Promise<{ ctrl: StoreController, dir: string }> {
-  const fullMetadata = opts.fetchFullMetadata ?? ((opts.resolutionMode === 'time-based' || opts.minimumReleaseAge) && !opts.registrySupportsTimeField)
+  const fullMetadata = opts.fetchFullMetadata ?? ((opts.resolutionMode === 'time-based' || Boolean(opts.minimumReleaseAge)) && !opts.registrySupportsTimeField)
   const { resolve, fetchers, clearResolutionCache } = createClient({
     customFetchers: opts.hooks?.fetchers,
     userConfig: opts.userConfig,
