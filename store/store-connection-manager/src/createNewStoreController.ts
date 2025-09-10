@@ -95,6 +95,7 @@ export async function createNewStoreController (
     includeOnlyPackageFiles: !opts.deployAllFiles,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     preserveAbsolutePaths: opts.preserveAbsolutePaths,
+    strictPublishedByCheck: Boolean(opts.minimumReleaseAge),
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {

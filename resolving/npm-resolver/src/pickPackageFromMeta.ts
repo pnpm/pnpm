@@ -123,8 +123,7 @@ export function pickLowestVersionByVersionRange (
 export function pickVersionByVersionRange (
   meta: PackageMeta,
   versionRange: string,
-  preferredVerSels?: VersionSelectors,
-  publishedBy?: Date
+  preferredVerSels?: VersionSelectors
 ): string | null {
   const latest: string | undefined = meta['dist-tags'].latest
 
