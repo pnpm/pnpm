@@ -149,6 +149,9 @@ async function purgeModulesDirsOfImporters (
   importers: ImporterToPurge[]
 ): Promise<void> {
   if (opts.confirmModulesPurge ?? true) {
+    if (!process.stdin.isTTY) {
+      throw new PnpmError('ABORTED_REMOVE_MODULES_DIR_NO_TTY', 'Aborted removal of modules directory due to no TTY. See `confirmModulesPurge` option or set the CI env var.')
+    }
     const confirmed = await enquirer.prompt<{ question: boolean }>({
       type: 'confirm',
       name: 'question',
