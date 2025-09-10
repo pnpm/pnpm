@@ -1,6 +1,5 @@
 import path from 'path'
 import { type Catalogs } from '@pnpm/catalogs.types'
-import { resolveFromCatalog, matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
@@ -89,6 +88,7 @@ export interface ImporterToResolve extends Importer<{
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
   update?: boolean
+  updateToLatest?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest: boolean
   targetDependenciesField?: DependenciesField
@@ -129,6 +129,7 @@ export async function resolveDependencies (
     preferredVersions: opts.preferredVersions,
     virtualStoreDir: opts.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
+    updateToLatest: importers.some(project => project.updateToLatest),
     noDependencySelectors: importers.every(({ wantedDependencies }) => wantedDependencies.length === 0),
   })
   const projectsToResolve = await Promise.all(importers.map(async (project) => _toResolveImporter(project)))
@@ -282,38 +283,15 @@ export async function resolveDependencies (
 
   let updatedCatalogs: Record<string, Record<string, string>> | undefined
   for (const project of projectsToResolve) {
-    if (!project.updatePackageManifest) continue
+    if (!project.updatePackageManifest && !project.updateToLatest) continue
     const resolvedImporter = resolvedImporters[project.id]
     for (let i = 0; i < resolvedImporter.directDependencies.length; i++) {
-      if (project.wantedDependencies[i]?.updateSpec == null) continue
+      if (project.wantedDependencies[i]?.updateSpec !== true) continue
       const dep = resolvedImporter.directDependencies[i]
       if (dep.catalogLookup == null) continue
       updatedCatalogs ??= {}
       updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
       updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier ?? dep.catalogLookup.userSpecifiedBareSpecifier
-    }
-
-    // Also process peer dependencies with catalog protocol during updates
-    if (project.manifest.peerDependencies && project.updateToLatest) {
-      for (const [peerName, peerSpec] of Object.entries(project.manifest.peerDependencies)) {
-        const catalogLookup = matchCatalogResolveResult(resolveFromCatalog(opts.catalogs ?? {}, {
-          bareSpecifier: peerSpec,
-          alias: peerName,
-        }), {
-          found: (result) => result.resolution,
-          unused: () => undefined,
-          misconfiguration: () => undefined,
-        })
-        if (catalogLookup != null) {
-          const resolvedImporter = resolvedImporters[project.id]
-          const resolvedPeerDep = resolvedImporter.directDependencies.find(dep => dep.alias === peerName)
-
-          updatedCatalogs ??= {}
-          updatedCatalogs[catalogLookup.catalogName] ??= {}
-          // Use the resolved version if available, otherwise fall back to the original specifier
-          updatedCatalogs[catalogLookup.catalogName][peerName] = resolvedPeerDep?.normalizedBareSpecifier ?? resolvedPeerDep?.catalogLookup?.userSpecifiedBareSpecifier ?? catalogLookup.specifier
-        }
-      }
     }
   }
 
