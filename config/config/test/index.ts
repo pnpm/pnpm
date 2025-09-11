@@ -150,13 +150,24 @@ test('throw error if --virtual-store-dir is used with --global', async () => {
   })
 })
 
-test('.npmrc does not load workspace-specific settings', async () => {
+test('.npmrc does not load pnpm settings', async () => {
   prepareEmpty()
 
   const npmrc = [
-    'shared-workspace-lockfile=true',
-    'packages[]=foo',
-    'packages[]=bar',
+    // npm options
+    '//my-org.registry.example.com:username=some-employee',
+    '//my-org.registry.example.com:_authToken=some-employee-token',
+    '@my-org:registry=https://my-org.registry.example.com',
+    '@jsr:registry=https://not-actually-jsr.example.com',
+    'username=example-user-name',
+    '_authToken=example-auth-token',
+
+    // pnpm options
+    'dlx-cache-max-age=1234',
+    'only-built-dependencies[]=foo',
+    'only-built-dependencies[]=bar',
+    'packages[]=baz',
+    'packages[]=qux',
   ].join('\n')
   fs.writeFileSync('.npmrc', npmrc)
 
@@ -171,10 +182,20 @@ test('.npmrc does not load workspace-specific settings', async () => {
   })
 
   // rc options appear as usual
-  expect(config.sharedWorkspaceLockfile).toBe(true)
-  expect(config.rawConfig['shared-workspace-lockfile']).toBe(true)
+  expect(config.rawConfig).toMatchObject({
+    '//my-org.registry.example.com:username': 'some-employee',
+    '//my-org.registry.example.com:_authToken': 'some-employee-token',
+    '@my-org:registry': 'https://my-org.registry.example.com',
+    '@jsr:registry': 'https://not-actually-jsr.example.com',
+    username: 'example-user-name',
+    _authToken: 'example-auth-token',
+  })
 
   // workspace-specific settings are omitted
+  expect(config.rawConfig['dlx-cache-max-age']).toBeUndefined()
+  expect(config.rawConfig['dlxCacheMaxAge']).toBeUndefined()
+  expect(config.rawConfig['only-built-dependencies']).toBeUndefined()
+  expect(config.rawConfig['onlyBuiltDependencies']).toBeUndefined()
   expect(config.rawConfig.packages).toBeUndefined()
 })
 

@@ -5,62 +5,40 @@ import { type Config } from '@pnpm/config'
 import { prepare } from '@pnpm/prepare'
 import { execPnpmSync } from '../utils/index.js'
 
-test('pnpm config list reads rc options but ignores workspace-specific settings from .npmrc', () => {
+test('pnpm config list reads npm options but ignores other settings from .npmrc', () => {
   prepare()
   fs.writeFileSync('.npmrc', [
-    // rc options
+    // npm options
+    '//my-org.registry.example.com:username=some-employee',
+    '//my-org.registry.example.com:_authToken=some-employee-token',
+    '@my-org:registry=https://my-org.registry.example.com',
+    '@jsr:registry=https://not-actually-jsr.example.com',
+    'username=example-user-name',
+    '_authToken=example-auth-token',
+
+    // pnpm options
     'dlx-cache-max-age=1234',
     'only-built-dependencies[]=foo',
     'only-built-dependencies[]=bar',
-
-    // workspace-specific settings
     'packages[]=baz',
     'packages[]=qux',
   ].join('\n'))
 
   const { stdout } = execPnpmSync(['config', 'list', '--json'], { expectSuccess: true })
   expect(JSON.parse(stdout.toString())).toMatchObject({
-    dlxCacheMaxAge: 1234,
-    onlyBuiltDependencies: ['foo', 'bar'],
+    '//my-org.registry.example.com:username': '(protected)',
+    '//my-org.registry.example.com:_authToken': '(protected)',
+    '@my-org:registry': 'https://my-org.registry.example.com',
+    '@jsr:registry': 'https://not-actually-jsr.example.com',
   } as Partial<Config>)
-  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['packages'])
-})
-
-test('pnpm config list ignores non kebab-case options from .npmrc', () => {
-  prepare()
-  fs.writeFileSync('.npmrc', [
-    'dlxCacheMaxAge=1234',
-    'onlyBuiltDependencies[]=foo',
-    'onlyBuiltDependencies[]=bar',
-  ].join('\n'))
-
-  const { stdout } = execPnpmSync(['config', 'list', '--json'], { expectSuccess: true })
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlx-cache-max-age'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['dlxCacheMaxAge'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['only-built-dependencies'])
   expect(JSON.parse(stdout.toString())).not.toHaveProperty(['onlyBuiltDependencies'])
+  expect(JSON.parse(stdout.toString())).not.toHaveProperty(['packages'])
 })
 
-test('pnpm config list ignores unknown kebab-case options from .npmrc', () => {
-  prepare()
-  fs.writeFileSync('.npmrc', [
-    'this-option-is-not-defined-by-pnpm=some-value',
-  ].join('\n'))
-
-  {
-    const { stdout } = execPnpmSync(['config', 'list'], { expectSuccess: true })
-    expect(ini.decode(stdout.toString())).not.toHaveProperty(['this-option-is-not-defined-by-pnpm'])
-    expect(ini.decode(stdout.toString())).not.toHaveProperty(['thisOptionIsNotDefinedByPnpm'])
-  }
-
-  {
-    const { stdout } = execPnpmSync(['config', 'list', '--json'], { expectSuccess: true })
-    expect(ini.decode(stdout.toString())).not.toHaveProperty(['this-option-is-not-defined-by-pnpm'])
-    expect(ini.decode(stdout.toString())).not.toHaveProperty(['thisOptionIsNotDefinedByPnpm'])
-  }
-})
-
-test('pnpm config list reads both rc options and workspace-specific settings from pnpm-workspace.yaml', () => {
+test('pnpm config list reads workspace-specific settings from pnpm-workspace.yaml', () => {
   const workspaceManifest = {
     dlxCacheMaxAge: 1234,
     onlyBuiltDependencies: ['foo', 'bar'],

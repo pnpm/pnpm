@@ -4,52 +4,34 @@ import { type WorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { prepare } from '@pnpm/prepare'
 import { execPnpmSync } from '../utils/index.js'
 
-test('pnpm config get reads rc options but ignores workspace-specific settings from .npmrc', () => {
+test('pnpm config get reads npm options but ignores other settings from .npmrc', () => {
   prepare()
   fs.writeFileSync('.npmrc', [
-    // rc options
+    // npm options
+    '//my-org.registry.example.com:username=some-employee',
+    '//my-org.registry.example.com:_authToken=some-employee-token',
+    '@my-org:registry=https://my-org.registry.example.com',
+    '@jsr:registry=https://not-actually-jsr.example.com',
+    'username=example-user-name',
+    '_authToken=example-auth-token',
+
+    // pnpm options
     'dlx-cache-max-age=1234',
     'only-built-dependencies[]=foo',
     'only-built-dependencies[]=bar',
-
-    // workspace-specific settings
     'packages[]=baz',
     'packages[]=qux',
   ].join('\n'))
 
   {
-    const { stdout } = execPnpmSync(['config', 'get', 'dlx-cache-max-age'], { expectSuccess: true })
-    expect(stdout.toString().trim()).toBe('1234')
+    const { stdout } = execPnpmSync(['config', 'get', '@my-org:registry'], { expectSuccess: true })
+    expect(stdout.toString().trim()).toBe('https://my-org.registry.example.com')
   }
 
   {
-    const { stdout } = execPnpmSync(['config', 'get', 'dlxCacheMaxAge'], { expectSuccess: true })
-    expect(stdout.toString().trim()).toBe('1234')
+    const { stdout } = execPnpmSync(['config', 'get', '@jsr:registry'], { expectSuccess: true })
+    expect(stdout.toString().trim()).toBe('https://not-actually-jsr.example.com')
   }
-
-  {
-    const { stdout } = execPnpmSync(['config', 'get', '--json', 'only-built-dependencies'], { expectSuccess: true })
-    expect(JSON.parse(stdout.toString())).toStrictEqual(['foo', 'bar'])
-  }
-
-  {
-    const { stdout } = execPnpmSync(['config', 'get', '--json', 'onlyBuiltDependencies'], { expectSuccess: true })
-    expect(JSON.parse(stdout.toString())).toStrictEqual(['foo', 'bar'])
-  }
-
-  {
-    const { stdout } = execPnpmSync(['config', 'get', 'packages'], { expectSuccess: true })
-    expect(stdout.toString().trim()).toBe('undefined')
-  }
-})
-
-test('pnpm config get ignores non kebab-case options from .npmrc', async () => {
-  prepare()
-  fs.writeFileSync('.npmrc', [
-    'dlxCacheMaxAge=1234',
-    'onlyBuiltDependencies[]=foo',
-    'onlyBuiltDependencies[]=bar',
-  ].join('\n'))
 
   {
     const { stdout } = execPnpmSync(['config', 'get', 'dlx-cache-max-age'], { expectSuccess: true })
@@ -70,9 +52,14 @@ test('pnpm config get ignores non kebab-case options from .npmrc', async () => {
     const { stdout } = execPnpmSync(['config', 'get', 'onlyBuiltDependencies'], { expectSuccess: true })
     expect(stdout.toString().trim()).toBe('undefined')
   }
+
+  {
+    const { stdout } = execPnpmSync(['config', 'get', 'packages'], { expectSuccess: true })
+    expect(stdout.toString().trim()).toBe('undefined')
+  }
 })
 
-test('pnpm config get reads both rc options and workspace-specific settings from pnpm-workspace.yaml', () => {
+test('pnpm config get reads workspace-specific settings from pnpm-workspace.yaml', () => {
   prepare()
   writeYamlFile('pnpm-workspace.yaml', {
     dlxCacheMaxAge: 1234,
