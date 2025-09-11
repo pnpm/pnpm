@@ -13,15 +13,18 @@ export function createPackagesSearcher (queries: string[], finders?: Finder[]): 
     }
     if (finders == null) return false
     const messages: string[] = []
+    let found = false
     for (const finder of finders) {
       const result = finder(pkg)
-      if (!result) return false
-      if (typeof result === 'string') {
-        messages.push(result)
+      if (result) {
+        found = true
+        if (typeof result === 'string') {
+          messages.push(result)
+        }
       }
     }
     if (messages.length) return messages.join('\n')
-    return true
+    return found
   }
 }
 

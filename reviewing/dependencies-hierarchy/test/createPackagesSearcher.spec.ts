@@ -25,6 +25,16 @@ test('packages searcher', () => {
   }
 })
 
+test('package searcher with 2 finders', () => {
+  const search = createPackagesSearcher([], [
+    (ctx) => ctx.name === 'once',
+    (ctx) => ctx.name === 'rimraf',
+  ])
+  expect(search(mockContext({ name: 'minimatch', version: '2.0.0' }))).toBeFalsy()
+  expect(search(mockContext({ name: 'once', version: '1.4.1' }))).toBeTruthy()
+  expect(search(mockContext({ name: 'rimraf', version: '1.0.0' }))).toBeTruthy()
+})
+
 function mockContext (manifest: DependencyManifest) {
   return {
     name: manifest.name,
