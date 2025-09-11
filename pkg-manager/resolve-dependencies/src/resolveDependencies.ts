@@ -176,6 +176,8 @@ export interface ResolutionContext {
   workspacePackages?: WorkspacePackages
   missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { depth: number, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
+  maximumPublishedBy?: Date
+  minimumReleaseAgeExclude?: string[]
 }
 
 export interface MissingPeerInfo {
@@ -485,6 +487,9 @@ async function resolveDependenciesOfImporters (
       time = result.newTime
     }
   }
+  if (ctx.maximumPublishedBy && (publishedBy == null || publishedBy > ctx.maximumPublishedBy)) {
+    publishedBy = ctx.maximumPublishedBy
+  }
   const pkgAddressesByImportersWithoutPeers = await Promise.all(zipWith(async (importer, { pkgAddresses, postponedResolutionsQueue, postponedPeersResolutionQueue }) => {
     const newPreferredVersions = Object.create(importer.preferredVersions) as PreferredVersions
     const currentParentPkgAliases: Record<string, PkgAddress | true> = {}
@@ -589,6 +594,7 @@ async function resolveDependenciesOfImporterDependency (
       parentPkgAliases: importer.parentPkgAliases,
       pickLowestVersion: pickLowestVersion && !importer.updatePackageManifest,
       pinnedVersion: importer.pinnedVersion,
+      publishedBy: ctx.maximumPublishedBy,
     },
     extendedWantedDep
   )
@@ -1299,6 +1305,17 @@ async function resolveDependency (
     if (!options.updateRequested && options.preferredVersion != null) {
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
     }
+    let publishedBy: Date | undefined
+    if (
+      options.publishedBy &&
+      (
+        ctx.minimumReleaseAgeExclude == null ||
+        wantedDependency.alias == null ||
+        !ctx.minimumReleaseAgeExclude.includes(wantedDependency.alias)
+      )
+    ) {
+      publishedBy = options.publishedBy
+    }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPkg: currentPkg
@@ -1312,7 +1329,7 @@ async function resolveDependency (
       expectedPkg: currentPkg,
       defaultTag: ctx.defaultTag,
       ignoreScripts: ctx.ignoreScripts,
-      publishedBy: options.publishedBy,
+      publishedBy,
       pickLowestVersion: options.pickLowestVersion,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,

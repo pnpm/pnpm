@@ -25,6 +25,10 @@ export interface PackageMeta {
   cachedAt?: number
 }
 
+export interface PackageMetaWithTime extends PackageMeta {
+  time: PackageMetaTime
+}
+
 export type PackageMetaTime = Record<string, string> & {
   unpublished?: {
     time: string
@@ -90,6 +94,15 @@ export interface PickPackageOptions {
   updateToLatest?: boolean
 }
 
+function pickPackageFromMetaUsingTimeStrict (
+  spec: RegistryPackageSpec,
+  preferredVersionSelectors: VersionSelectors | undefined,
+  meta: PackageMeta,
+  publishedBy?: Date
+): PackageInRegistry | null {
+  return pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
+}
+
 function pickPackageFromMetaUsingTime (
   spec: RegistryPackageSpec,
   preferredVersionSelectors: VersionSelectors | undefined,
@@ -98,7 +111,7 @@ function pickPackageFromMetaUsingTime (
 ): PackageInRegistry | null {
   const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
   if (pickedPackage) return pickedPackage
-  return pickPackageFromMeta(pickLowestVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
+  return pickPackageFromMeta(pickLowestVersionByVersionRange, spec, preferredVersionSelectors, meta)
 }
 
 export async function pickPackage (
@@ -110,6 +123,7 @@ export async function pickPackage (
     offline?: boolean
     preferOffline?: boolean
     filterMetadata?: boolean
+    strictPublishedByCheck?: boolean
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
@@ -117,7 +131,7 @@ export async function pickPackage (
   opts = opts || {}
   let _pickPackageFromMeta =
     opts.publishedBy
-      ? pickPackageFromMetaUsingTime
+      ? (ctx.strictPublishedByCheck ? pickPackageFromMetaUsingTimeStrict : pickPackageFromMetaUsingTime)
       : (pickPackageFromMeta.bind(null, opts.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange))
 
   if (opts.updateToLatest) {
@@ -186,11 +200,17 @@ export async function pickPackage (
     if (opts.publishedBy) {
       metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
       if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
-        const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
-        if (pickedPackage) {
-          return {
-            meta: metaCachedInStore,
-            pickedPackage,
+        try {
+          const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
+          if (pickedPackage) {
+            return {
+              meta: metaCachedInStore,
+              pickedPackage,
+            }
+          }
+        } catch (err) {
+          if (ctx.strictPublishedByCheck) {
+            throw err
           }
         }
       }

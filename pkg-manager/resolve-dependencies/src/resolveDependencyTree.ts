@@ -133,6 +133,8 @@ export interface ResolveDependenciesOptions {
   workspacePackages: WorkspacePackages
   supportedArchitectures?: SupportedArchitectures
   peersSuffixMaxLength: number
+  minimumReleaseAge?: number
+  minimumReleaseAgeExclude?: string[]
 }
 
 export interface ResolveDependencyTreeResult {
@@ -193,6 +195,8 @@ export async function resolveDependencyTree<T> (
     missingPeersOfChildrenByPkgId: {},
     hoistPeers: autoInstallPeers || opts.dedupePeerDependents,
     allPeerDepNames: new Set(),
+    maximumPublishedBy: opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
