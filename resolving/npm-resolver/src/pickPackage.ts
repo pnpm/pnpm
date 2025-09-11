@@ -25,6 +25,10 @@ export interface PackageMeta {
   cachedAt?: number
 }
 
+export interface PackageMetaWithTime extends PackageMeta {
+  time: PackageMetaTime
+}
+
 export type PackageMetaTime = Record<string, string> & {
   unpublished?: {
     time: string

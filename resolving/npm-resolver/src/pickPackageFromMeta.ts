@@ -4,7 +4,7 @@ import { type VersionSelectors } from '@pnpm/resolver-base'
 import semver from 'semver'
 import util from 'util'
 import { type RegistryPackageSpec } from './parseBareSpecifier.js'
-import { type PackageInRegistry, type PackageMeta } from './pickPackage.js'
+import { type PackageInRegistry, type PackageMeta, type PackageMetaWithTime } from './pickPackage.js'
 
 export type PickVersionByVersionRange = (
   meta: PackageMeta,
@@ -21,9 +21,7 @@ export function pickPackageFromMeta (
   publishedBy?: Date
 ): PackageInRegistry | null {
   if (publishedBy) {
-    if (meta.time == null) {
-      throw new PnpmError('MISSING_TIME', `The metadata of ${meta.name} is missing the "time" field`)
-    }
+    assertMetaHasTime(meta)
     meta = filterMetaByPublishedDate(meta, publishedBy)
   }
   if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {
@@ -71,6 +69,12 @@ export function pickPackageFromMeta (
       `Received malformed metadata for "${spec.name}"`,
       { hint: 'This might mean that the package was unpublished from the registry' }
     )
+  }
+}
+
+function assertMetaHasTime (meta: PackageMeta): asserts meta is PackageMetaWithTime {
+  if (meta.time == null) {
+    throw new PnpmError('MISSING_TIME', `The metadata of ${meta.name} is missing the "time" field`)
   }
 }
 
@@ -223,52 +227,32 @@ class PreferredVersionsPrioritizer {
   }
 }
 
-function filterMetaByPublishedDate (meta: PackageMeta, publishedBy: Date): PackageMeta {
+function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedBy: Date): PackageMeta {
   const versionsWithinDate: PackageMeta['versions'] = {}
   for (const version in meta.versions) {
     if (!Object.prototype.hasOwnProperty.call(meta.versions, version)) continue
-    const timeStr = meta.time && (meta.time as Record<string, string>)[version]
+    const timeStr = meta.time[version]
     if (timeStr && new Date(timeStr) <= publishedBy) {
       versionsWithinDate[version] = meta.versions[version]
     }
   }
 
-  let timeWithinDate: Record<string, string> | undefined
-  if (meta.time) {
-    timeWithinDate = {}
-    for (const key in meta.time) {
-      if (!Object.prototype.hasOwnProperty.call(meta.time, key)) continue
-      if (key === 'unpublished') continue
-      const time = meta.time[key]
-      if (typeof time === 'string') {
-        try {
-          if (new Date(time) <= publishedBy) {
-            timeWithinDate[key] = time
-          }
-        } catch {
-          globalWarn(`The time ${time} for ${key} in the packument of ${meta.name} is invalid`)
-        }
-      }
-    }
-  }
-
   const distTagsWithinDate: PackageMeta['dist-tags'] = {}
-  const allDistTags = meta['dist-tags'] || {}
+  const allDistTags = meta['dist-tags'] ?? {}
   for (const tag in allDistTags) {
     if (!Object.prototype.hasOwnProperty.call(allDistTags, tag)) continue
-    const ver = allDistTags[tag]
-    if (versionsWithinDate[ver]) {
-      distTagsWithinDate[tag] = ver
+    const distTagVersion = allDistTags[tag]
+    if (versionsWithinDate[distTagVersion]) {
+      distTagsWithinDate[tag] = distTagVersion
       continue
     }
     // Repopulate the tag to the highest version available within date that has the same major as the original tag's version
     let originalSemVer: semver.SemVer | null = null
     try {
-      originalSemVer = new semver.SemVer(ver, true)
+      originalSemVer = new semver.SemVer(distTagVersion, true)
     } catch {
-      originalSemVer = null
+      continue
     }
-    if (!originalSemVer) continue
     const originalMajor = originalSemVer.major
     let bestVersion: string | undefined
     const originalMajorPrefix = `${originalMajor}.`
@@ -295,7 +279,6 @@ function filterMetaByPublishedDate (meta: PackageMeta, publishedBy: Date): Packa
   return {
     ...meta,
     versions: versionsWithinDate,
-    time: timeWithinDate,
     'dist-tags': distTagsWithinDate,
   }
 }
