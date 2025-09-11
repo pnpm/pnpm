@@ -251,13 +251,15 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null) {
     try {
       await symlinkDir(cmd.path, externalBinPath)
-      if (await canFixBin(cmd.path)) await fixBin(cmd.path, 0o755)
-      else globalWarn(`Skipped fixing bin permissions of \`${cmd.path}\` because the file is not owned by the current user`)
+      await fixBin(cmd.path, 0o755)
     } catch (err: any) { // eslint-disable-line
-      if (err.code !== 'ENOENT') {
+      if (!await canFixBin(cmd.path)) {
+        globalWarn(`Skipped fixing bin permissions of \`${cmd.path}\` because the file is not owned by current user`)
+      } else if (err.code !== 'ENOENT') {
         throw err
+      } else {
+        globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
       }
-      globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
     }
     return
   }
@@ -287,8 +289,15 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // ensure that bin are executable and not containing
   // windows line-endings(CRLF) on the hashbang line
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
-    if (await canFixBin(cmd.path)) await fixBin(cmd.path, 0o755)
-    else globalWarn(`Skipped fixing bin permissions of \`${cmd.path}\` because the file is not owned by the current user`)
+    try {
+      await fixBin(cmd.path, 0o755)
+    } catch (err: any) { // eslint-disable-line
+      if (!await canFixBin(cmd.path)) {
+        globalWarn(`Skipped fixing bin permissions of \`${cmd.path}\` because the file is not owned by current user`)
+      } else {
+        throw err
+      }
+    }
   }
 }
 
