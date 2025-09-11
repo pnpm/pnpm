@@ -32,6 +32,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
+    "@pnpm/config": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
@@ -45,6 +46,7 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "load-json-file": "catalog:",
+    "mem": "catalog:",
     "p-limit": "catalog:",
     "path-absolute": "catalog:",
     "ramda": "catalog:",
