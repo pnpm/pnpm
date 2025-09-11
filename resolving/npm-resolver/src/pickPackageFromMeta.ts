@@ -1,4 +1,5 @@
 import { PnpmError } from '@pnpm/error'
+import { globalWarn } from '@pnpm/logger'
 import { type VersionSelectors } from '@pnpm/resolver-base'
 import semver from 'semver'
 import util from 'util'
@@ -238,13 +239,15 @@ function filterMetaByPublishedDate (meta: PackageMeta, publishedBy: Date): Packa
     for (const key in meta.time) {
       if (!Object.prototype.hasOwnProperty.call(meta.time, key)) continue
       if (key === 'unpublished') continue
-      const value = (meta.time as Record<string, string | { time: string, versions: string[] }>)[key]
-      if (typeof value === 'string') {
+      const time = meta.time[key]
+      if (typeof time === 'string') {
         try {
-          if (new Date(value) <= publishedBy) {
-            timeWithinDate[key] = value
+          if (new Date(time) <= publishedBy) {
+            timeWithinDate[key] = time
           }
-        } catch {}
+        } catch {
+          globalWarn(`The time ${time} for ${key} in the packument of ${meta.name} is invalid`)
+        }
       }
     }
   }
@@ -279,7 +282,9 @@ function filterMetaByPublishedDate (meta: PackageMeta, publishedBy: Date): Packa
           if (semver.gt(candidate, bestVersion, true)) {
             bestVersion = candidate
           }
-        } catch {}
+        } catch (err) {
+          globalWarn(`Error comparing semver versions ${candidate} and ${bestVersion} from packument of ${meta.name}`)
+        }
       }
     }
     if (bestVersion) {
