@@ -267,7 +267,7 @@ function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedBy: Date
             bestVersion = candidate
           }
         } catch (err) {
-          globalWarn(`Error comparing semver versions ${candidate} and ${bestVersion} from packument of ${meta.name}`)
+          globalWarn(`Failed to compare semver versions ${candidate} and ${bestVersion} from packument of ${meta.name}, skipping candidate version.`)
         }
       }
     }
