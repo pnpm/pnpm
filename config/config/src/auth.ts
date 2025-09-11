@@ -86,7 +86,6 @@ export function inheritAuthConfig (targetCfg: InheritableConfig, authSrcCfg: Inh
   inheritPickedConfig(targetCfg, authSrcCfg, pickAuthConfig, pickRawAuthConfig)
 }
 
-
 export const isSupportedNpmConfig = (key: string): boolean =>
   key.startsWith('@') || key.startsWith('//') || NPM_AUTH_SETTINGS.includes(key)
 
