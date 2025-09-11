@@ -2,6 +2,7 @@ import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
+import { provenanceLogger } from '@pnpm/core-loggers'
 import { type PatchGroupRecord } from '@pnpm/patching.config'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
@@ -36,6 +37,7 @@ import {
   type ResolvedPkgsById,
   type ResolutionContext,
 } from './resolveDependencies.js'
+import { PnpmError } from '@pnpm/error'
 
 export type { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies.js'
 
@@ -133,6 +135,7 @@ export interface ResolveDependenciesOptions {
   workspacePackages: WorkspacePackages
   supportedArchitectures?: SupportedArchitectures
   peersSuffixMaxLength: number
+  checkProvenance: 'strict' | 'warn' | 'ignore'
 }
 
 export interface ResolveDependencyTreeResult {
@@ -274,8 +277,13 @@ export async function resolveDependencyTree<T> (
   }
 
   const resolvedImporters: ResolvedImporters = {}
-
+  const pkgs = [] as Array<{
+    name: string
+    version: string
+    provenance: boolean | 'trustedPublisher'
+  }>
   for (const { id, wantedDependencies } of importers) {
+    const wantedDependenciesSet = new Set(wantedDependencies.map((dep) => dep.alias))
     const directDeps = dedupeSameAliasDirectDeps(directDepsByImporterId[id], wantedDependencies)
     const [linkedDependencies, directNonLinkedDeps] = partition((dep) => dep.isLinkedDependency === true, directDeps) as [LinkedDependency[], PkgAddress[]]
     resolvedImporters[id] = {
@@ -285,6 +293,20 @@ export async function resolveDependencyTree<T> (
             return dep
           }
           const resolvedPackage = ctx.dependenciesTree.get(dep.nodeId)!.resolvedPackage as ResolvedPackage
+          if (opts.checkProvenance !== 'ignore' && wantedDependenciesSet.has(dep.alias)) {
+            const provenance = Boolean(dep.pkg.dist?.attestations?.provenance)
+            if (!provenance) {
+              if (opts.checkProvenance === 'strict') {
+                throw new PnpmError('MISSING_PROVENANCE', `The package ${dep.pkg.name}@${dep.pkg.version} is missing provenance attestation. Aborting install the package to ensure supply chain security.`)
+              }
+              pkgs.push({
+                name: resolvedPackage.name,
+                version: resolvedPackage.version,
+                provenance: provenance ? 'trustedPublisher' : false,
+              })
+            }
+          }
+
           return {
             alias: dep.alias,
             catalogLookup: dep.catalogLookup,
@@ -301,6 +323,7 @@ export async function resolveDependencyTree<T> (
       linkedDependencies,
     }
   }
+  provenanceLogger.debug({ pkgs })
 
   return {
     dependenciesTree: ctx.dependenciesTree,
