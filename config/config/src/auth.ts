@@ -40,6 +40,18 @@ const AUTH_CFG_KEYS = [
   'strictSsl',
 ] satisfies Array<keyof Config>
 
+const NPM_AUTH_SETTINGS = [
+  '_auth',
+  '_authToken',
+  '_password',
+  'cafile',
+  'email',
+  'keyfile',
+  'key',
+  'registry',
+  'username',
+]
+
 function isRawAuthCfgKey (rawCfgKey: string): boolean {
   if ((RAW_AUTH_CFG_KEYS as string[]).includes(rawCfgKey)) return true
   if (RAW_AUTH_CFG_KEY_SUFFIXES.some(suffix => rawCfgKey.endsWith(suffix))) return true
@@ -72,4 +84,20 @@ function pickAuthConfig (localCfg: Partial<Config>): Partial<Config> {
 
 export function inheritAuthConfig (targetCfg: InheritableConfig, authSrcCfg: InheritableConfig): void {
   inheritPickedConfig(targetCfg, authSrcCfg, pickAuthConfig, pickRawAuthConfig)
+}
+
+
+export const isSupportedNpmConfig = (key: string): boolean =>
+  key.startsWith('@') || key.startsWith('//') || NPM_AUTH_SETTINGS.includes(key)
+
+export function pickNpmAuthConfig<RawConfig extends Record<string, unknown>> (rawConfig: RawConfig): Partial<RawConfig> {
+  const result: Partial<RawConfig> = {}
+
+  for (const key in rawConfig) {
+    if (isSupportedNpmConfig(key)) {
+      result[key] = rawConfig[key]
+    }
+  }
+
+  return result
 }

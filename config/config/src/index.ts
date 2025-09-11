@@ -19,7 +19,7 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
-import { inheritAuthConfig } from './auth.js'
+import { inheritAuthConfig, isSupportedNpmConfig, pickNpmAuthConfig } from './auth.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getNetworkConfigs } from './getNetworkConfigs.js'
@@ -37,7 +37,6 @@ import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 import { types } from './types.js'
 import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest.js'
-import { isNpmSetting } from './isNpmSetting.js'
 import {
   type CliOptions as SupportedArchitecturesCliOptions,
   overrideSupportedArchitecturesWithCLI,
@@ -238,7 +237,9 @@ export async function getConfig (opts: {
   )
 
   const pnpmConfig: ConfigWithDeprecatedSettings = Object.fromEntries(
-    rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)])
+    rcOptions
+      .filter(isSupportedNpmConfig)
+      .map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)])
   ) as ConfigWithDeprecatedSettings
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
@@ -264,15 +265,10 @@ export async function getConfig (opts: {
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   pnpmConfig.rawConfig = Object.assign.apply(Object, [
     {},
-    ...[...npmConfig.list].reverse(),
-    cliOptions,
+    ...npmConfig.list.map(pickNpmAuthConfig).reverse(),
+    pickNpmAuthConfig(cliOptions),
     { 'user-agent': pnpmConfig.userAgent },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-  for (const key in pnpmConfig.rawConfig) {
-    if (!isNpmSetting(key)) {
-      delete pnpmConfig.rawConfig[key]
-    }
-  }
   const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
   pnpmConfig.registries = {
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
