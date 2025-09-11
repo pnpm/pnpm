@@ -6,12 +6,14 @@ import util from 'util'
 import { type RegistryPackageSpec } from './parseBareSpecifier.js'
 import { type PackageInRegistry, type PackageMeta, type PackageMetaWithTime } from './pickPackage.js'
 
-export type PickVersionByVersionRange = (
-  meta: PackageMeta,
-  versionRange: string,
-  preferredVerSels?: VersionSelectors,
+export interface PickVersionByVersionRangeOptions {
+  meta: PackageMeta
+  versionRange: string
+  preferredVersionSelectors?: VersionSelectors
   publishedBy?: Date
-) => string | null
+}
+
+export type PickVersionByVersionRange = (options: PickVersionByVersionRangeOptions) => string | null
 
 export function pickPackageFromMeta (
   pickVersionByVersionRangeFn: PickVersionByVersionRange,
@@ -42,7 +44,12 @@ export function pickPackageFromMeta (
       version = meta['dist-tags'][spec.fetchSpec]
       break
     case 'range':
-      version = pickVersionByVersionRangeFn(meta, spec.fetchSpec, preferredVersionSelectors, publishedBy)
+      version = pickVersionByVersionRangeFn({
+        meta,
+        versionRange: spec.fetchSpec,
+        preferredVersionSelectors,
+        publishedBy,
+      })
       break
     }
     if (!version) return null
@@ -106,12 +113,10 @@ function semverSatisfiesLoose (version: string, range: string): boolean {
 }
 
 export function pickLowestVersionByVersionRange (
-  meta: PackageMeta,
-  versionRange: string,
-  preferredVerSels?: VersionSelectors
+  { meta, versionRange, preferredVersionSelectors }: PickVersionByVersionRangeOptions
 ): string | null {
-  if (preferredVerSels != null && Object.keys(preferredVerSels).length > 0) {
-    const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVerSels)
+  if (preferredVersionSelectors != null && Object.keys(preferredVersionSelectors).length > 0) {
+    const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVersionSelectors)
     for (const preferredVersions of prioritizedPreferredVersions) {
       const preferredVersion = semver.minSatisfying(preferredVersions, versionRange, true)
       if (preferredVersion) {
@@ -125,15 +130,11 @@ export function pickLowestVersionByVersionRange (
   return semver.minSatisfying(Object.keys(meta.versions), versionRange, true)
 }
 
-export function pickVersionByVersionRange (
-  meta: PackageMeta,
-  versionRange: string,
-  preferredVerSels?: VersionSelectors
-): string | null {
+export function pickVersionByVersionRange ({ meta, versionRange, preferredVersionSelectors }: PickVersionByVersionRangeOptions): string | null {
   const latest: string | undefined = meta['dist-tags'].latest
 
-  if (preferredVerSels != null && Object.keys(preferredVerSels).length > 0) {
-    const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVerSels)
+  if (preferredVersionSelectors != null && Object.keys(preferredVersionSelectors).length > 0) {
+    const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVersionSelectors)
     for (const preferredVersions of prioritizedPreferredVersions) {
       if (preferredVersions.includes(latest) && semverSatisfiesLoose(latest, versionRange)) {
         return latest
