@@ -1,5 +1,16 @@
 # @pnpm/package-is-installable
 
+## 1000.0.13
+
+### Patch Changes
+
+- df8d57f: Throw an error if `nodeVersion` is not set to an exact semver version [#9934](https://github.com/pnpm/pnpm/issues/9934).
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/cli-meta@1000.0.10
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/env.system-node-version@1000.0.10
+
 ## 1000.0.12
 
 ### Patch Changes

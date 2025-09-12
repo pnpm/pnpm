@@ -1,5 +1,43 @@
 # @pnpm/resolve-dependencies
 
+## 1008.1.0
+
+### Minor Changes
+
+- 38e2599: There have been several incidents recently where popular packages were successfully attacked. To reduce the risk of installing a compromised version, we are introducing a new setting that delays the installation of newly released dependencies. In most cases, such attacks are discovered quickly and the malicious versions are removed from the registry within an hour.
+
+  The new setting is called `minimumReleaseAge`. It specifies the number of minutes that must pass after a version is published before pnpm will install it. For example, setting `minimumReleaseAge: 1440` ensures that only packages released at least one day ago can be installed.
+
+  If you set `minimumReleaseAge` but need to disable this restriction for certain dependencies, you can list them under the `minimumReleaseAgeExclude` setting. For instance, with the following configuration pnpm will always install the latest version of webpack, regardless of its release time:
+
+  ```yaml
+  minimumReleaseAgeExclude:
+    - webpack
+  ```
+
+  Related issue: [#9921](https://github.com/pnpm/pnpm/issues/9921).
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/npm-resolver@1004.2.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.preferred-versions@1000.0.19
+  - @pnpm/lockfile.pruner@1001.0.14
+  - @pnpm/lockfile.types@1002.0.1
+  - @pnpm/lockfile.utils@1003.0.1
+  - @pnpm/calc-dep-state@1002.0.5
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/dependency-path@1001.1.1
+  - @pnpm/manifest-utils@1001.0.4
+  - @pnpm/resolver-base@1005.0.1
+  - @pnpm/store-controller-types@1004.0.2
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/patching.config@1001.0.8
+
 ## 1008.0.2
 
 ### Patch Changes

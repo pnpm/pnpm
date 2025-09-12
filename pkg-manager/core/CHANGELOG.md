@@ -1,5 +1,65 @@
 # @pnpm/core
 
+## 1010.1.0
+
+### Minor Changes
+
+- 38e2599: There have been several incidents recently where popular packages were successfully attacked. To reduce the risk of installing a compromised version, we are introducing a new setting that delays the installation of newly released dependencies. In most cases, such attacks are discovered quickly and the malicious versions are removed from the registry within an hour.
+
+  The new setting is called `minimumReleaseAge`. It specifies the number of minutes that must pass after a version is published before pnpm will install it. For example, setting `minimumReleaseAge: 1440` ensures that only packages released at least one day ago can be installed.
+
+  If you set `minimumReleaseAge` but need to disable this restriction for certain dependencies, you can list them under the `minimumReleaseAgeExclude` setting. For instance, with the following configuration pnpm will always install the latest version of webpack, regardless of its release time:
+
+  ```yaml
+  minimumReleaseAgeExclude:
+    - webpack
+  ```
+
+  Related issue: [#9921](https://github.com/pnpm/pnpm/issues/9921).
+
+### Patch Changes
+
+- 2ebd45a: Throw a `ABORTED_REMOVE_MODULES_DIR_NO_TTY` error if there's no TTY instead of showing the prompt to ask for confirmation to remove the modules directory and immediately exiting with code 0.
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+- Updated dependencies [a6856fd]
+  - @pnpm/resolve-dependencies@1008.1.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/lifecycle@1001.0.21
+  - @pnpm/build-modules@1000.3.14
+  - @pnpm/lockfile.verification@1001.2.6
+  - @pnpm/headless@1004.2.4
+  - @pnpm/link-bins@1000.2.2
+  - @pnpm/package-requester@1006.0.1
+  - @pnpm/remove-bins@1000.0.13
+  - @pnpm/lockfile.filtering@1001.0.18
+  - @pnpm/normalize-registries@1000.1.3
+  - @pnpm/symlink-dependency@1000.0.11
+  - @pnpm/hooks.read-package-hook@1000.0.13
+  - @pnpm/hooks.types@1001.0.11
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/lockfile-to-pnp@1001.0.20
+  - @pnpm/lockfile.preferred-versions@1000.0.19
+  - @pnpm/lockfile.pruner@1001.0.14
+  - @pnpm/lockfile.utils@1003.0.1
+  - @pnpm/lockfile.walker@1001.0.14
+  - @pnpm/calc-dep-state@1002.0.5
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/dependency-path@1001.1.1
+  - @pnpm/get-context@1001.1.5
+  - @pnpm/hoist@1002.0.4
+  - @pnpm/modules-cleaner@1001.0.20
+  - @pnpm/modules-yaml@1000.3.5
+  - @pnpm/manifest-utils@1001.0.4
+  - @pnpm/read-project-manifest@1001.1.1
+  - @pnpm/resolver-base@1005.0.1
+  - @pnpm/store-controller-types@1004.0.2
+  - @pnpm/worker@1000.1.12
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/lockfile.settings-checker@1001.0.13
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.11
+  - @pnpm/patching.config@1001.0.8
+
 ## 1010.0.2
 
 ### Patch Changes

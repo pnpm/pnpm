@@ -1,5 +1,104 @@
 # pnpm
 
+## 10.16.0
+
+### Minor Changes
+
+- There have been several incidents recently where popular packages were successfully attacked. To reduce the risk of installing a compromised version, we are introducing a new setting that delays the installation of newly released dependencies. In most cases, such attacks are discovered quickly and the malicious versions are removed from the registry within an hour.
+
+  The new setting is called `minimumReleaseAge`. It specifies the number of minutes that must pass after a version is published before pnpm will install it. For example, setting `minimumReleaseAge: 1440` ensures that only packages released at least one day ago can be installed.
+
+  If you set `minimumReleaseAge` but need to disable this restriction for certain dependencies, you can list them under the `minimumReleaseAgeExclude` setting. For instance, with the following configuration pnpm will always install the latest version of webpack, regardless of its release time:
+
+  ```yaml
+  minimumReleaseAgeExclude:
+    - webpack
+  ```
+
+  Related issue: [#9921](https://github.com/pnpm/pnpm/issues/9921).
+
+- Added support for `finders` [#9946](https://github.com/pnpm/pnpm/pull/9946).
+
+  In the past, `pnpm list` and `pnpm why` could only search for dependencies by **name** (and optionally version). For example:
+
+  ```
+  pnpm why minimist
+  ```
+
+  prints the chain of dependencies to any installed instance of `minimist`:
+
+  ```
+  verdaccio 5.20.1
+  ├─┬ handlebars 4.7.7
+  │ └── minimist 1.2.8
+  └─┬ mv 2.1.1
+    └─┬ mkdirp 0.5.6
+      └── minimist 1.2.8
+  ```
+
+  What if we want to search by **other properties** of a dependency, not just its name? For instance, find all packages that have `react@17` in their peer dependencies?
+
+  This is now possible with "finder functions". Finder functions can be declared in `.pnpmfile.cjs` and invoked with the `--find-by=<function name>` flag when running `pnpm list` or `pnpm why`.
+
+  Let's say we want to find any dependencies that have React 17 in peer dependencies. We can add this finder to our `.pnpmfile.cjs`:
+
+  ```js
+  module.exports = {
+    finders: {
+      react17: (ctx) => {
+        return ctx.readManifest().peerDependencies?.react === "^17.0.0";
+      },
+    },
+  };
+  ```
+
+  Now we can use this finder function by running:
+
+  ```
+  pnpm why --find-by=react17
+  ```
+
+  pnpm will find all dependencies that have this React in peer dependencies and print their exact locations in the dependency graph.
+
+  ```
+  @apollo/client 4.0.4
+  ├── @graphql-typed-document-node/core 3.2.0
+  └── graphql-tag 2.12.6
+  ```
+
+  It is also possible to print out some additional information in the output by returning a string from the finder. For example, with the following finder:
+
+  ```js
+  module.exports = {
+    finders: {
+      react17: (ctx) => {
+        const manifest = ctx.readManifest();
+        if (manifest.peerDependencies?.react === "^17.0.0") {
+          return `license: ${manifest.license}`;
+        }
+        return false;
+      },
+    },
+  };
+  ```
+
+  Every matched package will also print out the license from its `package.json`:
+
+  ```
+  @apollo/client 4.0.4
+  ├── @graphql-typed-document-node/core 3.2.0
+  │   license: MIT
+  └── graphql-tag 2.12.6
+      license: MIT
+  ```
+
+### Patch Changes
+
+- Fix deprecation warning printed when executing pnpm with Node.js 24 [#9529](https://github.com/pnpm/pnpm/issues/9529).
+- Throw an error if `nodeVersion` is not set to an exact semver version [#9934](https://github.com/pnpm/pnpm/issues/9934).
+- `pnpm publish` should be able to publish a `.tar.gz` file [#9927](https://github.com/pnpm/pnpm/pull/9927).
+- Canceling a running process with Ctrl-C should make `pnpm run` return a non-zero exit code [#9626](https://github.com/pnpm/pnpm/issues/9626).
+
 ## 10.15.1
 
 ### Patch Changes

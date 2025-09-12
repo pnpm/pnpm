@@ -1,5 +1,22 @@
 # @pnpm/deps.status
 
+## 1003.0.7
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/config@1004.3.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.verification@1001.2.6
+  - @pnpm/workspace.state@1002.0.3
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/get-context@1001.1.5
+  - @pnpm/resolver-base@1005.0.1
+  - @pnpm/workspace.find-packages@1000.0.35
+  - @pnpm/workspace.read-manifest@1000.2.3
+  - @pnpm/lockfile.settings-checker@1001.0.13
+
 ## 1003.0.6
 
 ### Patch Changes

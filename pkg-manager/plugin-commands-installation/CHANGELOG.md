@@ -1,5 +1,58 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.6.0
+
+### Minor Changes
+
+- 38e2599: There have been several incidents recently where popular packages were successfully attacked. To reduce the risk of installing a compromised version, we are introducing a new setting that delays the installation of newly released dependencies. In most cases, such attacks are discovered quickly and the malicious versions are removed from the registry within an hour.
+
+  The new setting is called `minimumReleaseAge`. It specifies the number of minutes that must pass after a version is published before pnpm will install it. For example, setting `minimumReleaseAge: 1440` ensures that only packages released at least one day ago can be installed.
+
+  If you set `minimumReleaseAge` but need to disable this restriction for certain dependencies, you can list them under the `minimumReleaseAgeExclude` setting. For instance, with the following configuration pnpm will always install the latest version of webpack, regardless of its release time:
+
+  ```yaml
+  minimumReleaseAgeExclude:
+    - webpack
+  ```
+
+  Related issue: [#9921](https://github.com/pnpm/pnpm/issues/9921).
+
+### Patch Changes
+
+- c182b2d: `cleanupUnusedCatalogs` configuration should be applied when removing a dependency package.
+- Updated dependencies [e792927]
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+- Updated dependencies [2ebd45a]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/store-connection-manager@1002.1.0
+  - @pnpm/core@1010.1.0
+  - @pnpm/config@1004.3.0
+  - @pnpm/pnpmfile@1002.1.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/cli-utils@1001.2.0
+  - @pnpm/config.deps-installer@1000.0.12
+  - @pnpm/plugin-commands-rebuild@1002.0.25
+  - @pnpm/outdated@1001.0.29
+  - @pnpm/workspace.pkgs-graph@1000.0.19
+  - @pnpm/deps.status@1003.0.7
+  - @pnpm/plugin-commands-env@1000.0.36
+  - @pnpm/workspace.state@1002.0.3
+  - @pnpm/config.config-writer@1000.0.11
+  - @pnpm/pick-registry-for-package@1000.0.10
+  - @pnpm/dedupe.check@1001.0.11
+  - @pnpm/lockfile.types@1002.0.1
+  - @pnpm/get-context@1001.1.5
+  - @pnpm/manifest-utils@1001.0.4
+  - @pnpm/read-project-manifest@1001.1.1
+  - @pnpm/write-project-manifest@1000.0.10
+  - @pnpm/resolver-base@1005.0.1
+  - @pnpm/package-store@1002.0.10
+  - @pnpm/filter-workspace-packages@1000.0.35
+  - @pnpm/workspace.find-packages@1000.0.35
+  - @pnpm/workspace.manifest-writer@1001.0.1
+  - @pnpm/sort-packages@1000.0.10
+
 ## 1004.5.1
 
 ### Patch Changes

@@ -1,5 +1,27 @@
 # @pnpm/cli-utils
 
+## 1001.2.0
+
+### Minor Changes
+
+- e792927: Added support for `finders` [#9946](https://github.com/pnpm/pnpm/pull/9946).
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [df8d57f]
+- Updated dependencies [e792927]
+  - @pnpm/store-connection-manager@1002.1.0
+  - @pnpm/config@1004.3.0
+  - @pnpm/package-is-installable@1000.0.13
+  - @pnpm/pnpmfile@1002.1.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/config.deps-installer@1000.0.12
+  - @pnpm/default-reporter@1002.0.6
+  - @pnpm/cli-meta@1000.0.10
+  - @pnpm/manifest-utils@1001.0.4
+  - @pnpm/read-project-manifest@1001.1.1
+
 ## 1001.1.2
 
 ### Patch Changes
