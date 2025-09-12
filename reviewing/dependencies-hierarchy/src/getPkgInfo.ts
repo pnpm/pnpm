@@ -12,6 +12,7 @@ import { type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
 import { type Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
 import normalizePath from 'normalize-path'
+import type { Modules } from '@pnpm/modules-yaml'
 
 export interface GetPkgInfoOpts {
   readonly alias: string
@@ -24,6 +25,7 @@ export interface GetPkgInfoOpts {
   readonly virtualStoreDir?: string
   readonly virtualStoreDirMaxLength: number
   readonly depTypes: DepTypes
+  readonly nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
 
   /**
    * The base dir if the `ref` argument is a `"link:"` relative path.
@@ -40,7 +42,7 @@ export interface GetPkgInfoOpts {
   readonly rewriteLinkVersionDir?: string
 }
 
-export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
+export function getPkgInfo (opts: GetPkgInfoOpts, manifestInfo?: Modules): PackageInfo {
   let name!: string
   let version: string
   let resolved: string | undefined
@@ -79,9 +81,21 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
   if (!version) {
     version = opts.ref
   }
-  const fullPackagePath = depPath
-    ? path.join(opts.virtualStoreDir ?? '.pnpm', depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules', name)
-    : path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
+  let fullPackagePath = ''
+  if (depPath) {
+    if (opts.nodeLinker === 'hoisted') {
+      const hoistedDepPath = manifestInfo?.hoistedLocations?.[depPath]
+      if (hoistedDepPath?.length) {
+        fullPackagePath = path.join(opts.linkedPathBaseDir, hoistedDepPath[0])
+      } else {
+        fullPackagePath = path.join(opts.linkedPathBaseDir, 'node_modules', name)
+      }
+    } else {
+      fullPackagePath = path.join(opts.virtualStoreDir ?? '.pnpm', depPathToFilename(depPath, opts.virtualStoreDirMaxLength), 'node_modules', name)
+    }
+  } else {
+    fullPackagePath = path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
+  }
 
   if (version.startsWith('link:') && opts.rewriteLinkVersionDir) {
     version = `link:${normalizePath(path.relative(opts.rewriteLinkVersionDir, fullPackagePath))}`

@@ -8,7 +8,7 @@ import {
   type ResolvedDependencies,
 } from '@pnpm/lockfile.fs'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
-import { readModulesManifest } from '@pnpm/modules-yaml'
+import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -42,6 +42,7 @@ export async function buildDependenciesHierarchy (
     lockfileDir: string
     modulesDir?: string
     virtualStoreDirMaxLength: number
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   }
 ): Promise<{ [projectDir: string]: DependenciesHierarchy }> {
   if (!maybeOpts?.lockfileDir) {
@@ -86,6 +87,7 @@ export async function buildDependenciesHierarchy (
     modulesDir: maybeOpts.modulesDir,
     virtualStoreDir: modules?.virtualStoreDir,
     virtualStoreDirMaxLength: modules?.virtualStoreDirMaxLength ?? maybeOpts.virtualStoreDirMaxLength,
+    nodeLinker: maybeOpts.nodeLinker,
   }
   const pairs = await Promise.all(projectPaths.map(async (projectPath) => {
     return [
@@ -115,6 +117,7 @@ async function dependenciesHierarchyForPackage (
     modulesDir?: string
     virtualStoreDir?: string
     virtualStoreDirMaxLength: number
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   }
 ): Promise<DependenciesHierarchy> {
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
@@ -145,6 +148,8 @@ async function dependenciesHierarchyForPackage (
     virtualStoreDir: opts.virtualStoreDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
   })
+  const manifestDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
+  const manifestInfo = await readModulesManifest(manifestDir)
   const parentId: TreeNodeId = { type: 'importer', importerId }
   const result: DependenciesHierarchy = {}
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciesField => opts.include[dependenciesField])) {
@@ -164,7 +169,8 @@ async function dependenciesHierarchyForPackage (
         wantedPackages: wantedLockfile?.packages ?? {},
         virtualStoreDir: opts.virtualStoreDir,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-      })
+        nodeLinker: opts.nodeLinker,
+      }, manifestInfo as Modules)
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.(packageInfo)
       const nodeId = getTreeNodeChildId({
