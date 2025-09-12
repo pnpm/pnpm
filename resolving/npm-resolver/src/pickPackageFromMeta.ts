@@ -231,7 +231,7 @@ class PreferredVersionsPrioritizer {
 function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedBy: Date): PackageMeta {
   const versionsWithinDate: PackageMeta['versions'] = {}
   for (const version in meta.versions) {
-    if (!Object.prototype.hasOwnProperty.call(meta.versions, version)) continue
+    if (!Object.hasOwn(meta.versions, version)) continue
     const timeStr = meta.time[version]
     if (timeStr && new Date(timeStr) <= publishedBy) {
       versionsWithinDate[version] = meta.versions[version]
@@ -241,7 +241,7 @@ function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedBy: Date
   const distTagsWithinDate: PackageMeta['dist-tags'] = {}
   const allDistTags = meta['dist-tags'] ?? {}
   for (const tag in allDistTags) {
-    if (!Object.prototype.hasOwnProperty.call(allDistTags, tag)) continue
+    if (!Object.hasOwn(allDistTags, tag)) continue
     const distTagVersion = allDistTags[tag]
     if (versionsWithinDate[distTagVersion]) {
       distTagsWithinDate[tag] = distTagVersion
@@ -258,8 +258,7 @@ function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedBy: Date
     let bestVersion: string | undefined
     const originalMajorPrefix = `${originalMajor}.`
     for (const candidate in versionsWithinDate) {
-      if (!Object.prototype.hasOwnProperty.call(versionsWithinDate, candidate)) continue
-      if (!candidate.startsWith(originalMajorPrefix)) continue
+      if (!Object.hasOwn(versionsWithinDate, candidate) || !candidate.startsWith(originalMajorPrefix)) continue
       if (!bestVersion) {
         bestVersion = candidate
       } else {
