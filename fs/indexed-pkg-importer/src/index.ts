@@ -1,7 +1,7 @@
 import assert from 'assert'
 import { constants, type Stats, existsSync } from 'fs'
 import util from 'util'
-import fs, { copyFileWithRetry, linkSyncWithRetry } from '@pnpm/graceful-fs'
+import fs from '@pnpm/graceful-fs'
 import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
@@ -67,7 +67,7 @@ function createAutoImporter (): ImportIndexedPackage {
       }
     }
     try {
-      if (!hardlinkPkg(linkSyncWithRetry, to, opts)) return undefined
+      if (!hardlinkPkg(fs.linkSync, to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'hardlink' })
       auto = hardlinkPkg.bind(null, linkOrCopy)
       return 'hardlink'
@@ -147,7 +147,7 @@ function createCloneFunction (): CloneFunction {
   }
   return (src: string, dest: string) => {
     try {
-      copyFileWithRetry(src, dest, constants.COPYFILE_FICLONE_FORCE)
+      fs.copyFile(src, dest, constants.COPYFILE_FICLONE_FORCE)
     } catch (err: unknown) {
       if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
     }
@@ -183,7 +183,7 @@ function shouldRelinkPkg (
 
 function linkOrCopy (existingPath: string, newPath: string): void {
   try {
-    linkSyncWithRetry(existingPath, newPath)
+    fs.linkSync(existingPath, newPath)
   } catch (err: unknown) {
     // If a hard link to the same file already exists
     // then trying to copy it will make an empty file from it.
@@ -191,7 +191,7 @@ function linkOrCopy (existingPath: string, newPath: string): void {
     // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
-    copyFileWithRetry(existingPath, newPath)
+    fs.copyFile(existingPath, newPath)
   }
 }
 
@@ -233,7 +233,7 @@ export function copyPkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (opts.resolvedFrom !== 'store' || opts.force || !existsSync(pkgJsonPath)) {
-    importIndexedDir(copyFileWithRetry, to, opts.filesMap, opts)
+    importIndexedDir(fs.copyFile, to, opts.filesMap, opts)
     return 'copy'
   }
   return undefined

@@ -1,8 +1,25 @@
 import util, { promisify } from 'util'
-import fs from 'fs'
 import gfs from 'graceful-fs'
 
-export function withEagainRetry<T extends unknown[], R> (
+export default { // eslint-disable-line
+  copyFile: promisify(gfs.copyFile),
+  copyFileSync: withEagainRetry(gfs.copyFileSync),
+  createReadStream: gfs.createReadStream,
+  link: promisify(gfs.link),
+  linkSync: withEagainRetry(gfs.linkSync),
+  mkdirSync: withEagainRetry(gfs.mkdirSync),
+  renameSync: withEagainRetry(gfs.renameSync),
+  readFile: promisify(gfs.readFile),
+  readFileSync: gfs.readFileSync,
+  readdirSync: gfs.readdirSync,
+  stat: promisify(gfs.stat),
+  statSync: gfs.statSync,
+  unlinkSync: gfs.unlinkSync,
+  writeFile: promisify(gfs.writeFile),
+  writeFileSync: withEagainRetry(gfs.writeFileSync),
+}
+
+function withEagainRetry<T extends unknown[], R> (
   fn: (...args: T) => R,
   maxRetries: number = 15
 ): (...args: T) => R {
@@ -24,26 +41,4 @@ export function withEagainRetry<T extends unknown[], R> (
     }
     throw new Error('Unreachable')
   }
-}
-
-export const renameSyncWithRetry = withEagainRetry(fs.renameSync)
-export const mkdirSyncWithRetry = withEagainRetry(fs.mkdirSync)
-export const writeFileWithRetry = withEagainRetry(fs.writeFileSync)
-export const linkSyncWithRetry = withEagainRetry(fs.linkSync)
-export const copyFileWithRetry = withEagainRetry(fs.copyFileSync)
-
-export default { // eslint-disable-line
-  copyFile: promisify(gfs.copyFile),
-  copyFileSync: gfs.copyFileSync,
-  createReadStream: gfs.createReadStream,
-  link: promisify(gfs.link),
-  linkSync: gfs.linkSync,
-  readFile: promisify(gfs.readFile),
-  readFileSync: gfs.readFileSync,
-  readdirSync: gfs.readdirSync,
-  stat: promisify(gfs.stat),
-  statSync: gfs.statSync,
-  unlinkSync: gfs.unlinkSync,
-  writeFile: promisify(gfs.writeFile),
-  writeFileSync: gfs.writeFileSync,
 }

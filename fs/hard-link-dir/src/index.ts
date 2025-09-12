@@ -3,7 +3,7 @@ import path from 'path'
 import util from 'util'
 import fs from 'fs'
 import { globalWarn } from '@pnpm/logger'
-import { linkSyncWithRetry, copyFileWithRetry, mkdirSyncWithRetry } from '@pnpm/graceful-fs'
+import gfs from '@pnpm/graceful-fs'
 
 export function hardLinkDir (src: string, destDirs: string[]): void {
   if (destDirs.length === 0) return
@@ -20,7 +20,7 @@ function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean) {
     if (!isRoot || !((util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT'))) throw err
     globalWarn(`Source directory not found when creating hardLinks for: ${src}. Creating destinations as empty: ${destDirs.join(', ')}`)
     for (const dir of destDirs) {
-      mkdirSyncWithRetry(dir, { recursive: true })
+      gfs.mkdirSync(dir, { recursive: true })
     }
     return
   }
@@ -31,7 +31,7 @@ function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean) {
       const destSubdirs = destDirs.map((destDir) => {
         const destSubdir = path.join(destDir, file)
         try {
-          mkdirSyncWithRetry(destSubdir, { recursive: true })
+          gfs.mkdirSync(destSubdir, { recursive: true })
         } catch (err: unknown) {
           if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
         }
@@ -61,7 +61,7 @@ function linkOrCopyFile (srcFile: string, destFile: string): void {
   } catch (err: unknown) {
     assert(util.types.isNativeError(err))
     if ('code' in err && err.code === 'ENOENT') {
-      mkdirSyncWithRetry(path.dirname(destFile), { recursive: true })
+      gfs.mkdirSync(path.dirname(destFile), { recursive: true })
       linkOrCopy(srcFile, destFile)
       return
     }
@@ -77,9 +77,9 @@ function linkOrCopyFile (srcFile: string, destFile: string): void {
  */
 function linkOrCopy (srcFile: string, destFile: string): void {
   try {
-    linkSyncWithRetry(srcFile, destFile)
+    gfs.linkSync(srcFile, destFile)
   } catch (err: unknown) {
     if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EXDEV')) throw err
-    copyFileWithRetry(srcFile, destFile)
+    gfs.copyFile(srcFile, destFile)
   }
 }

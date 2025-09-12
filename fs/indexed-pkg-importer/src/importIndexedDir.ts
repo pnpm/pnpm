@@ -8,7 +8,7 @@ import { sync as makeEmptyDir } from 'make-empty-dir'
 import sanitizeFilename from 'sanitize-filename'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import renameOverwrite from 'rename-overwrite'
-import { renameSyncWithRetry, mkdirSyncWithRetry } from '@pnpm/graceful-fs'
+import gfs from '@pnpm/graceful-fs'
 
 const filenameConflictsLogger = logger('_filename-conflicts')
 
@@ -92,7 +92,7 @@ function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames:
   }
   Array.from(allDirs)
     .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
-    .forEach((dir) => mkdirSyncWithRetry(path.join(newDir, dir), { recursive: true }))
+    .forEach((dir) => fs.mkdirSync(path.join(newDir, dir), { recursive: true }))
   for (const [f, src] of Object.entries(filenames)) {
     const dest = path.join(newDir, f)
     importFile(src, dest)
@@ -144,7 +144,7 @@ function moveOrMergeModulesDirs (src: string, dest: string): void {
 
 function renameEvenAcrossDevices (src: string, dest: string): void {
   try {
-    renameSyncWithRetry(src, dest)
+    gfs.renameSync(src, dest)
   } catch (err: unknown) {
     if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EXDEV')) throw err
     copySync(src, dest)

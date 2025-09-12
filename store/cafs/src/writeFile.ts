@@ -1,5 +1,5 @@
 import path from 'path'
-import { writeFileWithRetry, mkdirSyncWithRetry } from '@pnpm/graceful-fs'
+import fs from '@pnpm/graceful-fs'
 
 const dirs = new Set()
 
@@ -9,13 +9,13 @@ export function writeFile (
   mode?: number
 ): void {
   makeDirForFile(fileDest)
-  writeFileWithRetry(fileDest, buffer, { mode })
+  fs.writeFileSync(fileDest, buffer, { mode })
 }
 
 function makeDirForFile (fileDest: string): void {
   const dir = path.dirname(fileDest)
   if (!dirs.has(dir)) {
-    mkdirSyncWithRetry(dir, { recursive: true })
+    fs.mkdirSync(dir, { recursive: true })
     dirs.add(dir)
   }
 }
