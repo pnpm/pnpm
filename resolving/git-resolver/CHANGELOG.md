@@ -1,5 +1,12 @@
 # @pnpm/git-resolver
 
+## 1001.1.4
+
+### Patch Changes
+
+- @pnpm/fetch@1000.2.5
+- @pnpm/resolver-base@1005.0.1
+
 ## 1001.1.3
 
 ### Patch Changes

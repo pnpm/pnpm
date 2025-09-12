@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/jest-config",
-  "version": "1000.0.0",
+  "version": "1000.0.1",
   "private": true,
   "main": "jest-preset.js",
   "type": "module",

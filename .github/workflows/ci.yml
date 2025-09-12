@@ -36,7 +36,7 @@ jobs:
         git config --global user.name "xyz"
         git config --global user.email "x@y.z"
     - name: Checkout Commit
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Install pnpm
       uses: pnpm/action-setup@v4.1.0
       with:

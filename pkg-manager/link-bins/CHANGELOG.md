@@ -1,5 +1,23 @@
 # @pnpm/link-bins
 
+## 1000.2.2
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+- Updated dependencies [e792927]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/package-bins@1000.0.10
+  - @pnpm/manifest-utils@1001.0.4
+  - @pnpm/read-project-manifest@1001.1.1
+
+## 1000.2.1
+
+### Patch Changes
+
+- affdd5b: Replace `p-settle` with the builtin `Promise.allSettled`
+
 ## 1000.2.0
 
 ### Minor Changes

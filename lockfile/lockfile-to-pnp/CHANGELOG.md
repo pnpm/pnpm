@@ -1,5 +1,21 @@
 # @pnpm/lockfile-to-pnp
 
+## 1001.0.20
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/lockfile.utils@1003.0.1
+  - @pnpm/dependency-path@1001.1.1
+
+## 1001.0.19
+
+### Patch Changes
+
+- 77d5b17: Fix `.pnp.cjs` crash when importing subpath [#9904](https://github.com/pnpm/pnpm/issues/9904).
+
 ## 1001.0.18
 
 ### Patch Changes

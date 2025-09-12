@@ -9,8 +9,9 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile.utils'
 import { type DepTypes, DepType } from '@pnpm/lockfile.detect-dep-types'
-import { type Registries } from '@pnpm/types'
+import { type DependencyManifest, type Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
+import { readPackageJsonFromDirSync } from '@pnpm/read-package-json'
 import normalizePath from 'normalize-path'
 
 export interface GetPkgInfoOpts {
@@ -40,7 +41,7 @@ export interface GetPkgInfoOpts {
   readonly rewriteLinkVersionDir?: string
 }
 
-export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
+export function getPkgInfo (opts: GetPkgInfoOpts): { pkgInfo: PackageInfo, readManifest: () => DependencyManifest } {
   let name!: string
   let version: string
   let resolved: string | undefined
@@ -107,7 +108,10 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
   } else if (depType === DepType.ProdOnly) {
     packageInfo.dev = false
   }
-  return packageInfo
+  return {
+    pkgInfo: packageInfo,
+    readManifest: () => readPackageJsonFromDirSync(fullPackagePath),
+  }
 }
 
 interface PackageInfo {

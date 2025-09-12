@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-completion
 
+## 1000.0.32
+
+### Patch Changes
+
+- 7e89138: Fix deprecation warning printed when executing pnpm with Node.js 24 [#9529](https://github.com/pnpm/pnpm/issues/9529).
+- Updated dependencies [7e89138]
+- Updated dependencies [e792927]
+  - @pnpm/parse-cli-args@1000.1.3
+  - @pnpm/cli-utils@1001.2.0
+  - @pnpm/workspace.find-packages@1000.0.35
+  - @pnpm/workspace.read-manifest@1000.2.3
+
 ## 1000.0.31
 
 ### Patch Changes

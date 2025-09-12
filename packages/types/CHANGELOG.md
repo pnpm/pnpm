@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 1000.8.0
+
+### Minor Changes
+
+- e792927: Added support for `finders` [#9946](https://github.com/pnpm/pnpm/pull/9946).
+
 ## 1000.7.0
 
 ### Minor Changes

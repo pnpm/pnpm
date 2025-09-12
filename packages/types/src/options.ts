@@ -1,5 +1,5 @@
 import { type DependenciesField } from './misc.js'
-import { type BaseManifest } from './package.js'
+import { type BaseManifest, type DependencyManifest } from './package.js'
 
 export type LogBase = {
   level: 'debug' | 'error'
@@ -14,3 +14,11 @@ export type IncludedDependencies = {
 }
 
 export type ReadPackageHook = <Pkg extends BaseManifest> (pkg: Pkg, dir?: string) => Pkg | Promise<Pkg>
+
+export interface FinderContext {
+  name: string
+  version: string
+  readManifest: () => DependencyManifest
+}
+
+export type Finder = (ctx: FinderContext) => boolean | string

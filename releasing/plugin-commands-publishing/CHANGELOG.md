@@ -1,5 +1,34 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.2.11
+
+### Patch Changes
+
+- d021669: `pnpm publish` should be able to publish a `.tar.gz` file [#9927](https://github.com/pnpm/pnpm/pull/9927).
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+- Updated dependencies [a6856fd]
+  - @pnpm/config@1004.3.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/cli-utils@1001.2.0
+  - @pnpm/lifecycle@1001.0.21
+  - @pnpm/plugin-commands-env@1000.0.36
+  - @pnpm/pick-registry-for-package@1000.0.10
+  - @pnpm/client@1001.0.4
+  - @pnpm/package-bins@1000.0.10
+  - @pnpm/exportable-manifest@1000.1.4
+  - @pnpm/resolver-base@1005.0.1
+  - @pnpm/sort-packages@1000.0.10
+
+## 1000.2.10
+
+### Patch Changes
+
+- @pnpm/lifecycle@1001.0.20
+- @pnpm/client@1001.0.3
+- @pnpm/plugin-commands-env@1000.0.35
+- @pnpm/cli-utils@1001.1.2
+
 ## 1000.2.9
 
 ### Patch Changes
