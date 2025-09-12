@@ -2,6 +2,7 @@
 import fs from 'fs'
 import path from 'path'
 import PATH from 'path-name'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import loadNpmConf from '@pnpm/npm-conf'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -146,6 +147,155 @@ test('throw error if --virtual-store-dir is used with --global', async () => {
   })).rejects.toMatchObject({
     code: 'ERR_PNPM_CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
     message: 'Configuration conflict. "virtual-store-dir" may not be used with "global"',
+  })
+})
+
+test('.npmrc does not load pnpm settings', async () => {
+  prepareEmpty()
+
+  const npmrc = [
+    // npm options
+    '//my-org.registry.example.com:username=some-employee',
+    '//my-org.registry.example.com:_authToken=some-employee-token',
+    '@my-org:registry=https://my-org.registry.example.com',
+    '@jsr:registry=https://not-actually-jsr.example.com',
+    'username=example-user-name',
+    '_authToken=example-auth-token',
+
+    // pnpm options
+    'dlx-cache-max-age=1234',
+    'only-built-dependencies[]=foo',
+    'only-built-dependencies[]=bar',
+    'packages[]=baz',
+    'packages[]=qux',
+  ].join('\n')
+  fs.writeFileSync('.npmrc', npmrc)
+
+  const { config } = await getConfig({
+    cliOptions: {
+      global: false,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  // rc options appear as usual
+  expect(config.rawConfig).toMatchObject({
+    '//my-org.registry.example.com:username': 'some-employee',
+    '//my-org.registry.example.com:_authToken': 'some-employee-token',
+    '@my-org:registry': 'https://my-org.registry.example.com',
+    '@jsr:registry': 'https://not-actually-jsr.example.com',
+    username: 'example-user-name',
+    _authToken: 'example-auth-token',
+  })
+
+  // workspace-specific settings are omitted
+  expect(config.rawConfig['dlx-cache-max-age']).toBeUndefined()
+  expect(config.rawConfig['dlxCacheMaxAge']).toBeUndefined()
+  expect(config.dlxCacheMaxAge).toBeUndefined()
+  expect(config.rawConfig['only-built-dependencies']).toBeUndefined()
+  expect(config.rawConfig['onlyBuiltDependencies']).toBeUndefined()
+  expect(config.onlyBuiltDependencies).toBeUndefined()
+  expect(config.rawConfig.packages).toBeUndefined()
+})
+
+test('rc options appear as kebab-case in rawConfig even if it was defined as camelCase by pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    ignoreScripts: true,
+    linkWorkspacePackages: true,
+    nodeLinker: 'hoisted',
+    sharedWorkspaceLockfile: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {
+      global: false,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config).toMatchObject({
+    ignoreScripts: true,
+    linkWorkspacePackages: true,
+    nodeLinker: 'hoisted',
+    sharedWorkspaceLockfile: true,
+    rawConfig: {
+      'ignore-scripts': true,
+      'link-workspace-packages': true,
+      'node-linker': 'hoisted',
+      'shared-workspace-lockfile': true,
+    },
+  })
+
+  expect(config.rawConfig.ignoreScripts).toBeUndefined()
+  expect(config.rawConfig.linkWorkspacePackages).toBeUndefined()
+  expect(config.rawConfig.nodeLinker).toBeUndefined()
+  expect(config.rawConfig.sharedWorkspaceLockfile).toBeUndefined()
+})
+
+test('workspace-specific settings preserve case in rawConfig', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    packages: ['foo', 'bar'],
+    packageExtensions: {
+      '@babel/parser': {
+        peerDependencies: {
+          '@babel/types': '*',
+        },
+      },
+      'jest-circus': {
+        dependencies: {
+          slash: '3',
+        },
+      },
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {
+      global: false,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.rawConfig.packages).toStrictEqual(['foo', 'bar'])
+  expect(config.rawConfig.packageExtensions).toStrictEqual({
+    '@babel/parser': {
+      peerDependencies: {
+        '@babel/types': '*',
+      },
+    },
+    'jest-circus': {
+      dependencies: {
+        slash: '3',
+      },
+    },
+  })
+  expect(config.rawConfig['package-extensions']).toBeUndefined()
+  expect(config.packageExtensions).toStrictEqual({
+    '@babel/parser': {
+      peerDependencies: {
+        '@babel/types': '*',
+      },
+    },
+    'jest-circus': {
+      dependencies: {
+        slash: '3',
+      },
+    },
   })
 })
 
@@ -589,7 +739,7 @@ test('read only supported settings from config', async () => {
   expect(config.storeDir).toBe('__store__')
   // @ts-expect-error
   expect(config['foo']).toBeUndefined()
-  expect(config.rawConfig['foo']).toBe('bar')
+  expect(config.rawConfig['foo']).toBeUndefined()
 })
 
 test('all CLI options are added to the config', async () => {

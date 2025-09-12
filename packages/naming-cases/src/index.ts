@@ -8,3 +8,10 @@ export function isStrictlyKebabCase (name: string): boolean {
   if (segments.length < 2) return false
   return segments.every(segment => /^[a-z][a-z0-9]*$/.test(segment))
 }
+
+/**
+ * Check if a name is camelCase.
+ */
+export function isCamelCase (name: string): boolean {
+  return /^[a-z][a-zA-Z0-9]*$/.test(name)
+}
