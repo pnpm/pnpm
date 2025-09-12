@@ -147,7 +147,7 @@ function createCloneFunction (): CloneFunction {
   }
   return (src: string, dest: string) => {
     try {
-      fs.copyFile(src, dest, constants.COPYFILE_FICLONE_FORCE)
+      fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
     } catch (err: unknown) {
       if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EEXIST')) throw err
     }
@@ -191,7 +191,7 @@ function linkOrCopy (existingPath: string, newPath: string): void {
     // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
-    fs.copyFile(existingPath, newPath)
+    fs.copyFileSync(existingPath, newPath)
   }
 }
 

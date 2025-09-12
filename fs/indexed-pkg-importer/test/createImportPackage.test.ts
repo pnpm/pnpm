@@ -58,7 +58,7 @@ testOnLinuxOnly('packageImportMethod=auto: clone files by default', () => {
     force: false,
     resolvedFrom: 'remote',
   })).toBe('clone')
-  expect(gfs.copyFile).toHaveBeenCalledWith(
+  expect(gfs.copyFileSync).toHaveBeenCalledWith(
     path.join('hash1'),
     path.join('project', 'package_tmp', 'package.json'),
     fs.constants.COPYFILE_FICLONE_FORCE

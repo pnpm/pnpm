@@ -80,6 +80,6 @@ function linkOrCopy (srcFile: string, destFile: string): void {
     gfs.linkSync(srcFile, destFile)
   } catch (err: unknown) {
     if (!(util.types.isNativeError(err) && 'code' in err && err.code === 'EXDEV')) throw err
-    gfs.copyFile(srcFile, destFile)
+    gfs.copyFileSync(srcFile, destFile)
   }
 }
