@@ -11,7 +11,7 @@ test('minimumReleaseAge prevents installation of versions that do not meet the r
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], testDefaults({ minimumReleaseAge }))
 
-  expect(manifest.dependencies!['is-odd']).toEqual('~0.1.0')
+  expect(manifest.dependencies!['is-odd']).toBe('~0.1.0')
 })
 
 test('minimumReleaseAge is ignored for packages in the minimumReleaseAgeExclude array', async () => {
@@ -20,5 +20,5 @@ test('minimumReleaseAge is ignored for packages in the minimumReleaseAgeExclude 
   const opts = testDefaults({ minimumReleaseAge, minimumReleaseAgeExclude: ['is-odd'] })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
 
-  expect(manifest.dependencies!['is-odd']).toEqual('~0.1.2')
+  expect(manifest.dependencies!['is-odd']).toBe('~0.1.2')
 })
