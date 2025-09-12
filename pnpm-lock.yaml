@@ -3444,6 +3444,9 @@ importers:
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
 
   hooks/read-package-hook:
     dependencies:

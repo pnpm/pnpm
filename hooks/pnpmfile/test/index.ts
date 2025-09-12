@@ -1,9 +1,11 @@
 import path from 'path'
 import { type Log } from '@pnpm/core-loggers'
 import { requireHooks, BadReadPackageHookError, type HookContext } from '@pnpm/pnpmfile'
+import { fixtures } from '@pnpm/test-fixtures'
 import { requirePnpmfile } from '../src/requirePnpmfile.js'
 
 const defaultHookContext: HookContext = { log () {} }
+const f = fixtures(__dirname)
 
 test('ignoring a pnpmfile that exports undefined', () => {
   const { pnpmfileModule: pnpmfile } = requirePnpmfile(path.join(__dirname, '__fixtures__/undefined.js'), __dirname)!
@@ -82,4 +84,11 @@ test('updateConfig throws an error if it returns undefined', async () => {
 
 test('requireHooks throw an error if one of the specified pnpmfiles does not exist', async () => {
   expect(() => requireHooks(__dirname, { pnpmfiles: ['does-not-exist.cjs'] })).toThrow('is not found')
+})
+
+test('requireHooks throws an error if there are two finders with the same name', async () => {
+  const findersDir = f.find('finders')
+  const pnpmfile1 = path.join(findersDir, 'finderFoo1.js')
+  const pnpmfile2 = path.join(findersDir, 'finderFoo2.js')
+  expect(() => requireHooks(__dirname, { pnpmfiles: [pnpmfile1, pnpmfile2] })).toThrow('Finder "foo" defined in both')
 })

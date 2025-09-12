@@ -120,10 +120,23 @@ export function requireHooks (
 
   let importProvider: string | undefined
   let fetchersProvider: string | undefined
+  const finderProviders: Record<string, string> = {}
 
   // process hooks in order
   for (const { hooks, file, finders } of entries) {
-    Object.assign(mergedFinders, finders)
+    if (finders != null) {
+      for (const [finderName, finder] of Object.entries(finders)) {
+        if (mergedFinders[finderName] != null) {
+          const firstDefinedIn = finderProviders[finderName]
+          throw new PnpmError(
+            'DUPLICATE_FINDER',
+            `Finder "${finderName}" defined in both ${firstDefinedIn} and ${file}`
+          )
+        }
+        mergedFinders[finderName] = finder
+        finderProviders[finderName] = file
+      }
+    }
     const fileHooks: Hooks = hooks ?? {}
 
     // readPackage & afterAllResolved
