@@ -1,5 +1,12 @@
 # pnpm
 
+## 10.15.1
+
+### Patch Changes
+
+- Fix `.pnp.cjs` crash when importing subpath [#9904](https://github.com/pnpm/pnpm/issues/9904).
+- When resolving peer dependencies, pnpm looks whether the peer dependency is present in the root workspace project's dependencies. This change makes it so that the peer dependency is correctly resolved even from aliased npm-hosted dependencies or other types of dependencies [#9913](https://github.com/pnpm/pnpm/issues/9913).
+
 ## 10.15.0
 
 ### Minor Changes

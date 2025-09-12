@@ -1,5 +1,11 @@
 # pd
 
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.34
+
 ## 1000.0.1
 
 ### Patch Changes

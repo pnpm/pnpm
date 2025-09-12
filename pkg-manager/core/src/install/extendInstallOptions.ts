@@ -166,6 +166,8 @@ export interface StrictInstallOptions {
   returnListOfDepsRequiringBuild?: boolean
   injectWorkspacePackages?: boolean
   ci?: boolean
+  minimumReleaseAge?: number
+  minimumReleaseAgeExclude?: string[]
 }
 
 export type InstallOptions =

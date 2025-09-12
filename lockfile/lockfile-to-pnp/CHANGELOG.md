@@ -1,5 +1,11 @@
 # @pnpm/lockfile-to-pnp
 
+## 1001.0.19
+
+### Patch Changes
+
+- 77d5b17: Fix `.pnp.cjs` crash when importing subpath [#9904](https://github.com/pnpm/pnpm/issues/9904).
+
 ## 1001.0.18
 
 ### Patch Changes

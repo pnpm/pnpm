@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 1008.0.2
+
+### Patch Changes
+
+- 3482fe1: When resolving peer dependencies, pnpm looks whether the peer dependency is present in the root workspace project's dependencies. This change makes it so that the peer dependency is correctly resolved even from aliased npm-hosted dependencies or other types of dependencies [#9913](https://github.com/pnpm/pnpm/issues/9913).
+
 ## 1008.0.1
 
 ### Patch Changes
