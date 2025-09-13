@@ -20,6 +20,11 @@ jest.mock('@pnpm/graceful-fs', () => {
   return {
     __esModule: true,
     default: fsMock,
+    copyFileSync: jest.fn(),
+    linkSync: jest.fn(),
+    mkdirSyncWithRetry: jest.fn(),
+    renameSyncWithRetry: jest.fn(),
+    writeFileWithRetry: jest.fn(),
   }
 })
 jest.mock('path-temp', () => ({ fastPathTemp: (file: string) => `${file}_tmp` }))
@@ -36,6 +41,10 @@ jest.mock('@pnpm/logger', () => ({
 beforeEach(() => {
   jest.mocked(gfs.copyFileSync).mockClear()
   jest.mocked(gfs.linkSync).mockClear()
+  jest.mocked(gfs.copyFile).mockClear()
+  jest.mocked(gfs.linkSync).mockClear()
+  jest.mocked(gfs.mkdirSync).mockClear()
+  jest.mocked(gfs.renameSync).mockClear()
   jest.mocked(globalInfo).mockReset()
 })
 
