@@ -1,5 +1,12 @@
 # @pnpm/calc-dep-state
 
+## 1002.0.6
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+
 ## 1002.0.5
 
 ### Patch Changes

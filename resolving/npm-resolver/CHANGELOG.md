@@ -1,5 +1,15 @@
 # @pnpm/npm-resolver
 
+## 1004.2.1
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/error@1000.0.5
+  - @pnpm/resolving.jsr-specifier-parser@1000.0.3
+  - @pnpm/crypto.hash@1000.2.0
+
 ## 1004.2.0
 
 ### Minor Changes

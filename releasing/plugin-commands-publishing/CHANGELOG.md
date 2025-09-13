@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.2.12
+
+### Patch Changes
+
+- @pnpm/config@1004.3.1
+- @pnpm/error@1000.0.5
+- @pnpm/cli-utils@1001.2.1
+- @pnpm/plugin-commands-env@1000.0.37
+- @pnpm/lifecycle@1001.0.22
+- @pnpm/network.auth-header@1000.0.6
+- @pnpm/exportable-manifest@1000.1.5
+- @pnpm/client@1001.0.5
+
 ## 1000.2.11
 
 ### Patch Changes

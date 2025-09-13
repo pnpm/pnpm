@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-listing",
-  "version": "1000.1.0",
+  "version": "1000.1.1",
   "description": "The list and why commands of pnpm",
   "keywords": [
     "pnpm",

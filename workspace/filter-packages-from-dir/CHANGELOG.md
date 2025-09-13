@@ -1,5 +1,13 @@
 # @pnpm/workspace.filter-packages-from-dir
 
+## 1000.0.36
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.36
+- @pnpm/workspace.read-manifest@1000.2.4
+- @pnpm/filter-workspace-packages@1000.0.36
+
 ## 1000.0.35
 
 ### Patch Changes

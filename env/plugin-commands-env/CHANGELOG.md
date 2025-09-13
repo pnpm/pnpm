@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-env
 
+## 1000.0.37
+
+### Patch Changes
+
+- @pnpm/config@1004.3.1
+- @pnpm/node.resolver@1001.0.2
+- @pnpm/error@1000.0.5
+- @pnpm/store-path@1000.0.5
+- @pnpm/cli-utils@1001.2.1
+- @pnpm/node.fetcher@1001.0.4
+- @pnpm/remove-bins@1000.0.14
+
 ## 1000.0.36
 
 ### Patch Changes

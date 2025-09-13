@@ -1,5 +1,17 @@
 # @pnpm/client
 
+## 1001.0.5
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1001.0.4
+- @pnpm/default-resolver@1002.2.5
+- @pnpm/fetching.binary-fetcher@1000.0.3
+- @pnpm/tarball-fetcher@1001.0.15
+- @pnpm/network.auth-header@1000.0.6
+- @pnpm/git-fetcher@1001.0.15
+- @pnpm/directory-fetcher@1000.1.12
+
 ## 1001.0.4
 
 ### Patch Changes

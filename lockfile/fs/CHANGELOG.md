@@ -1,5 +1,13 @@
 # @pnpm/lockfile-file
 
+## 1001.1.19
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/error@1000.0.5
+
 ## 1001.1.18
 
 ### Patch Changes

@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.12
+
+### Patch Changes
+
+- c1540ea: Forcibly disable ANSI color codes when generating patch diff [#9914](https://github.com/pnpm/pnpm/pull/9914).
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/config@1004.3.1
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/error@1000.0.5
+  - @pnpm/plugin-commands-installation@1004.6.1
+  - @pnpm/store-path@1000.0.5
+  - @pnpm/workspace.read-manifest@1000.2.4
+  - @pnpm/cli-utils@1001.2.1
+  - @pnpm/store-connection-manager@1002.1.1
+  - @pnpm/patching.apply-patch@1000.0.7
+  - @pnpm/read-package-json@1000.1.1
+  - @pnpm/read-project-manifest@1001.1.2
+  - @pnpm/config.config-writer@1000.0.12
+  - @pnpm/crypto.hash@1000.2.0
+
 ## 1000.3.11
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @pnpm/resolve-dependencies
 
+## 1008.1.1
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/lockfile.pruner@1001.0.15
+  - @pnpm/calc-dep-state@1002.0.6
+  - @pnpm/error@1000.0.5
+  - @pnpm/npm-resolver@1004.2.1
+  - @pnpm/patching.config@1001.0.9
+  - @pnpm/manifest-utils@1001.0.5
+  - @pnpm/read-package-json@1000.1.1
+  - @pnpm/lockfile.preferred-versions@1000.0.20
+
 ## 1008.1.0
 
 ### Minor Changes

@@ -1,5 +1,13 @@
 # @pnpm/hoist
 
+## 1002.0.5
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/link-bins@1000.2.3
+
 ## 1002.0.4
 
 ### Patch Changes

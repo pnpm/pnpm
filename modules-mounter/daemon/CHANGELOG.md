@@ -1,5 +1,13 @@
 # @pnpm/mount-modules
 
+## 1001.0.31
+
+### Patch Changes
+
+- @pnpm/config@1004.3.1
+- @pnpm/lockfile.fs@1001.1.19
+- @pnpm/store-path@1000.0.5
+
 ## 1001.0.30
 
 ### Patch Changes

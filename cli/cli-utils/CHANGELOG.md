@@ -1,5 +1,19 @@
 # @pnpm/cli-utils
 
+## 1001.2.1
+
+### Patch Changes
+
+- @pnpm/config@1004.3.1
+- @pnpm/error@1000.0.5
+- @pnpm/default-reporter@1002.0.7
+- @pnpm/store-connection-manager@1002.1.1
+- @pnpm/config.deps-installer@1000.0.13
+- @pnpm/package-is-installable@1000.0.14
+- @pnpm/pnpmfile@1002.1.1
+- @pnpm/manifest-utils@1001.0.5
+- @pnpm/read-project-manifest@1001.1.2
+
 ## 1001.2.0
 
 ### Minor Changes

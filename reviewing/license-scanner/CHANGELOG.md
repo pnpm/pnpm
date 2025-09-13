@@ -1,5 +1,15 @@
 # @pnpm/license-scanner
 
+## 1001.0.25
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.19
+- @pnpm/error@1000.0.5
+- @pnpm/package-is-installable@1000.0.14
+- @pnpm/read-package-json@1000.1.1
+- @pnpm/directory-fetcher@1000.1.12
+
 ## 1001.0.24
 
 ### Patch Changes

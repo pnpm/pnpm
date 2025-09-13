@@ -1,5 +1,14 @@
 # @pnpm/get-context
 
+## 1001.1.6
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/read-projects-context@1000.0.22
+
 ## 1001.1.5
 
 ### Patch Changes
