@@ -335,6 +335,25 @@ module.exports = {
   expect(nodeModulesFiles).toContain('is-number')
 })
 
+test('loading an ESM pnpmfile', async () => {
+  prepare()
+
+  fs.writeFileSync('.pnpmfile.mjs', `
+export const hooks = {
+  updateConfig: (config) => ({
+    ...config,
+    nodeLinker: 'hoisted',
+  }),
+}`, 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', { pnpmfile: ['.pnpmfile.mjs'] })
+
+  await execPnpm(['add', 'is-odd@1.0.0'])
+
+  const nodeModulesFiles = fs.readdirSync('node_modules')
+  expect(nodeModulesFiles).toContain('kind-of')
+  expect(nodeModulesFiles).toContain('is-number')
+})
+
 test('loading multiple pnpmfiles', async () => {
   prepare()
 
