@@ -75,6 +75,7 @@ export interface ResolverFactoryOptions {
   registries: Registries
   saveWorkspaceProtocol?: boolean | 'rolling'
   preserveAbsolutePaths?: boolean
+  strictPublishedByCheck?: boolean
 }
 
 export interface NpmResolveResult extends ResolveResult {
@@ -132,6 +133,7 @@ export function createNpmResolver (
       offline: opts.offline,
       preferOffline: opts.preferOffline,
       cacheDir: opts.cacheDir,
+      strictPublishedByCheck: opts.strictPublishedByCheck,
     }),
     registries: opts.registries,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,

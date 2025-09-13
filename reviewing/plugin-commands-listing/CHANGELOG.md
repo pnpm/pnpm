@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-listing
 
+## 1000.1.0
+
+### Minor Changes
+
+- e792927: Added support for `finders` [#9946](https://github.com/pnpm/pnpm/pull/9946).
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/config@1004.3.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/list@1000.1.0
+  - @pnpm/cli-utils@1001.2.0
+
+## 1000.0.35
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.1.2
+
 ## 1000.0.34
 
 ### Patch Changes

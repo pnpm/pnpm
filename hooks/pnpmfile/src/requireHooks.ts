@@ -5,7 +5,7 @@ import { createHashFromMultipleFiles } from '@pnpm/crypto.hash'
 import pathAbsolute from 'path-absolute'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
-import { requirePnpmfile, type Pnpmfile } from './requirePnpmfile.js'
+import { requirePnpmfile, type Pnpmfile, type Finders } from './requirePnpmfile.js'
 import { type HookContext, type Hooks } from './Hooks.js'
 
 // eslint-disable-next-line
@@ -24,6 +24,7 @@ interface PnpmfileEntry {
 interface PnpmfileEntryLoaded {
   file: string
   hooks: Pnpmfile['hooks'] | undefined
+  finders: Pnpmfile['finders'] | undefined
   includeInChecksum: boolean
 }
 
@@ -40,6 +41,7 @@ export interface CookedHooks {
 
 export interface RequireHooksResult {
   hooks: CookedHooks
+  finders: Finders
   resolvedPnpmfilePaths: string[]
 }
 
@@ -85,6 +87,7 @@ export async function requireHooks (
           file,
           includeInChecksum,
           hooks: requirePnpmfileResult.pnpmfileModule?.hooks,
+          finders: requirePnpmfileResult.pnpmfileModule?.finders,
         })
       } else if (!optional) {
         throw new PnpmError('PNPMFILE_NOT_FOUND', `pnpmfile at "${file}" is not found`)
@@ -92,6 +95,7 @@ export async function requireHooks (
     }
   }))
 
+  const mergedFinders: Finders = {}
   const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'readPackage' | 'preResolution' | 'afterAllResolved' | 'filterLog' | 'updateConfig'>> = {
     readPackage: [],
     preResolution: [],
@@ -116,9 +120,23 @@ export async function requireHooks (
 
   let importProvider: string | undefined
   let fetchersProvider: string | undefined
+  const finderProviders: Record<string, string> = {}
 
   // process hooks in order
-  for (const { hooks, file } of entries) {
+  for (const { hooks, file, finders } of entries) {
+    if (finders != null) {
+      for (const [finderName, finder] of Object.entries(finders)) {
+        if (mergedFinders[finderName] != null) {
+          const firstDefinedIn = finderProviders[finderName]
+          throw new PnpmError(
+            'DUPLICATE_FINDER',
+            `Finder "${finderName}" defined in both ${firstDefinedIn} and ${file}`
+          )
+        }
+        mergedFinders[finderName] = finder
+        finderProviders[finderName] = file
+      }
+    }
     const fileHooks: Hooks = hooks ?? {}
 
     // readPackage & afterAllResolved
@@ -180,6 +198,7 @@ export async function requireHooks (
 
   return {
     hooks: cookedHooks,
+    finders: mergedFinders,
     resolvedPnpmfilePaths: entries.map(({ file }) => file),
   }
 }

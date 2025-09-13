@@ -113,12 +113,17 @@ export async function toArchyTree (
   return Promise.all(
     sortPackages(entryNodes).map(async (node) => {
       const nodes = await toArchyTree(getPkgColor, node.dependencies ?? [], opts)
+      const labelLines: string[] = [
+        printLabel(getPkgColor, node),
+      ]
+      if (node.searchMessage) {
+        labelLines.push(node.searchMessage)
+      }
       if (opts.long) {
         const pkg = await getPkgInfo(node)
-        const labelLines = [
-          printLabel(getPkgColor, node),
-          pkg.description,
-        ]
+        if (pkg.description) {
+          labelLines.push(pkg.description)
+        }
         if (pkg.repository) {
           labelLines.push(pkg.repository)
         }
@@ -128,14 +133,9 @@ export async function toArchyTree (
         if (pkg.path) {
           labelLines.push(pkg.path)
         }
-
-        return {
-          label: labelLines.join('\n'),
-          nodes,
-        }
       }
       return {
-        label: printLabel(getPkgColor, node),
+        label: labelLines.join('\n'),
         nodes,
       }
     })
