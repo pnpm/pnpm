@@ -90,14 +90,14 @@ test('requireHooks throws an error if there are two finders with the same name',
   const findersDir = f.find('finders')
   const pnpmfile1 = path.join(findersDir, 'finderFoo1.js')
   const pnpmfile2 = path.join(findersDir, 'finderFoo2.js')
-  expect(() => requireHooks(import.meta.dirname, { pnpmfiles: [pnpmfile1, pnpmfile2] })).toThrow('Finder "foo" defined in both')
+  await expect(requireHooks(import.meta.dirname, { pnpmfiles: [pnpmfile1, pnpmfile2] })).rejects.toThrow('Finder "foo" defined in both')
 })
 
 test('requireHooks merges all the finders', async () => {
   const findersDir = f.find('finders')
   const pnpmfile1 = path.join(findersDir, 'finderFoo1.js')
   const pnpmfile2 = path.join(findersDir, 'finderBar.js')
-  const { finders } = requireHooks(import.meta.dirname, { pnpmfiles: [pnpmfile1, pnpmfile2] })
+  const { finders } = await requireHooks(import.meta.dirname, { pnpmfiles: [pnpmfile1, pnpmfile2] })
   expect(finders.foo).toBeDefined()
   expect(finders.bar).toBeDefined()
 })
