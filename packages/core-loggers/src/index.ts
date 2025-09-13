@@ -22,6 +22,7 @@ import {
   type StatsLog,
   type SummaryLog,
   type UpdateCheckLog,
+  type ProvenanceLog,
 } from './all.js'
 
 export * from './all.js'
@@ -50,3 +51,4 @@ export type Log =
   | StatsLog
   | SummaryLog
   | UpdateCheckLog
+  | ProvenanceLog
