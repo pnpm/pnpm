@@ -1,6 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
+import v8 from 'v8'
 import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
 import { ENGINE_NAME, STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { hashObject } from '@pnpm/crypto.object-hasher'
@@ -9,7 +10,6 @@ import { prepare } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import execa from 'execa'
-import { loadJsonFileSync } from 'load-json-file'
 import sinon from 'sinon'
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -76,7 +76,7 @@ test('rebuilds dependencies', async () => {
   }
 
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const cacheIntegrity = loadJsonFileSync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const cacheIntegrity = v8.deserialize(fs.readFileSync(cacheIntegrityPath))
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -109,12 +109,12 @@ test('skipIfHasSideEffectsCache', async () => {
   ])
 
   const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  let cacheIntegrity = loadJsonFileSync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  let cacheIntegrity = v8.deserialize(fs.readFileSync(cacheIntegrityPath))
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({ '@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   cacheIntegrity.sideEffects = {
     [sideEffectsKey]: { added: { foo: 'bar' } },
   }
-  fs.writeFileSync(cacheIntegrityPath, JSON.stringify(cacheIntegrity, null, 2), 'utf8')
+  fs.writeFileSync(cacheIntegrityPath, v8.serialize(cacheIntegrity))
 
   let modules = project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
@@ -136,7 +136,7 @@ test('skipIfHasSideEffectsCache', async () => {
   expect(modules).toBeTruthy()
   expect(modules!.pendingBuilds).toHaveLength(0)
 
-  cacheIntegrity = loadJsonFileSync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  cacheIntegrity = v8.deserialize(fs.readFileSync(cacheIntegrityPath))
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'foo'])
 })

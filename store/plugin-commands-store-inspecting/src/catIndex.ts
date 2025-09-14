@@ -1,3 +1,5 @@
+import fs from 'fs'
+import v8 from 'v8'
 import { type Config } from '@pnpm/config'
 import { createResolver } from '@pnpm/client'
 import { type TarballResolution } from '@pnpm/lockfile.types'
@@ -8,7 +10,6 @@ import { getStorePath } from '@pnpm/store-path'
 import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 
-import { loadJsonFile } from 'load-json-file'
 import renderHelp from 'render-help'
 
 export const skipPackageManagerCheck = true
@@ -86,7 +87,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]): 
     `${alias}@${bareSpecifier}`
   )
   try {
-    const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+    const pkgFilesIndex: PackageFilesIndex = v8.deserialize(fs.readFileSync(filesIndexFile))
     return JSON.stringify(sortDeepKeys(pkgFilesIndex), null, 2)
   } catch {
     throw new PnpmError(

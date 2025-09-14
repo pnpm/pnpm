@@ -43,10 +43,10 @@ test('print index file path with hash error', async () => {
       },
     })
     await findHash.handler(config as findHash.FindHashCommandOptions, ['sha512-fXs1pWlUdqT2j'])
-    } catch (_err: any) { // eslint-disable-line
+  } catch (_err: any) { // eslint-disable-line
     err = _err
   }
 
-  expect(err.code).toBe('ERR_PNPM_INVALID_FILE_HASH')
   expect(err.message).toBe('No package or index file matching this hash was found.')
+  expect(err.code).toBe('ERR_PNPM_INVALID_FILE_HASH')
 })

@@ -1,5 +1,7 @@
+import { promises as fs } from 'fs'
 import path from 'path'
-import { getIndexFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import v8 from 'v8'
+import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import {
   nameVerFromPkgSnapshot,
@@ -10,7 +12,6 @@ import { streamParser } from '@pnpm/logger'
 import * as dp from '@pnpm/dependency-path'
 import { type DepPath } from '@pnpm/types'
 import dint from 'dint'
-import { loadJsonFile } from 'load-json-file'
 import pFilter from 'p-filter'
 import {
   extendStoreStatusOptions,
@@ -52,7 +53,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
     const pkgIndexFilePath = integrity
       ? getIndexFilePathInCafs(storeDir, integrity, id)
       : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.json')
-    const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
+    const { files } = v8.deserialize(await fs.readFile(pkgIndexFilePath))
     return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, maybeOpts.virtualStoreDirMaxLength), 'node_modules', name), files)) === false
   }, { concurrency: 8 })
 

@@ -1,14 +1,13 @@
 import fs from 'fs'
 import path from 'path'
+import v8 from 'v8'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import { hashObject } from '@pnpm/crypto.object-hasher'
-import { getIndexFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
+import { getIndexFilePathInCafs, getFilePathByModeInCafs } from '@pnpm/store.cafs'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { prepareEmpty } from '@pnpm/prepare'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { sync as rimraf } from '@zkochan/rimraf'
-import { loadJsonFileSync } from 'load-json-file'
-import { writeJsonFileSync } from 'write-json-file'
 import { testDefaults } from '../utils/index.js'
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
@@ -83,7 +82,7 @@ test('using side effects cache', async () => {
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
 
   const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const filesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndex = v8.deserialize(fs.readFileSync(filesIndexFile))
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -97,7 +96,7 @@ test('using side effects cache', async () => {
   expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'added', 'generated-by-preinstall.js'])
   expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'added', 'generated-by-postinstall.js'])
   delete filesIndex.sideEffects![sideEffectsKey].added?.['generated-by-postinstall.js']
-  writeJsonFileSync(filesIndexFile, filesIndex)
+  fs.writeFileSync(filesIndexFile, v8.serialize(filesIndex))
 
   rimraf('node_modules')
   rimraf('pnpm-lock.yaml') // to avoid headless install
@@ -164,7 +163,7 @@ test('uploading errors do not interrupt installation', async () => {
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
 
   const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const filesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndex = v8.deserialize(fs.readFileSync(filesIndexFile))
   expect(filesIndex.sideEffects).toBeFalsy()
 })
 
@@ -181,7 +180,7 @@ test('a postinstall script does not modify the original sources added to the sto
   expect(fs.readFileSync('node_modules/@pnpm/postinstall-modifies-source/empty-file.txt', 'utf8')).toContain('hello')
 
   const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0'), '@pnpm/postinstall-modifies-source@1.0.0')
-  const filesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndex = v8.deserialize(fs.readFileSync(filesIndexFile))
   const patchedFileIntegrity = filesIndex.sideEffects?.[`${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm/postinstall-modifies-source@1.0.0:${getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0')}`,
     deps: {},
@@ -206,7 +205,7 @@ test('a corrupted side-effects cache is ignored', async () => {
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
 
   const filesIndexFile = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const filesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
+  const filesIndex = v8.deserialize(fs.readFileSync(filesIndexFile))
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,

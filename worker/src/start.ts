@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import v8 from 'v8'
 import path from 'path'
 import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
@@ -18,7 +19,6 @@ import {
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import { type DependencyManifest } from '@pnpm/types'
-import { loadJsonFileSync } from 'load-json-file'
 import { parentPort } from 'worker_threads'
 import {
   type AddDirToStoreMessage,
@@ -80,7 +80,7 @@ async function handleMessage (
       let { storeDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
-        pkgFilesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
+        pkgFilesIndex = v8.deserialize(fs.readFileSync(filesIndexFile))
       } catch {
         // ignoring. It is fine if the integrity file is not present. Just refetch the package
       }
@@ -211,7 +211,7 @@ function addFilesFromDir ({ dir, storeDir, filesIndexFile, sideEffectsCacheKey, 
   if (sideEffectsCacheKey) {
     let filesIndex!: PackageFilesIndex
     try {
-      filesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
+      filesIndex = v8.deserialize(fs.readFileSync(filesIndexFile))
     } catch {
       // If there is no existing index file, then we cannot store the side effects.
       return {
@@ -356,6 +356,6 @@ function writeJsonFile (filePath: string, data: unknown): void {
   // We remove the "-index.json" from the end of the temp file name
   // in order to avoid ENAMETOOLONG errors
   const temp = `${filePath.slice(0, -11)}${process.pid}`
-  gfs.writeFileSync(temp, JSON.stringify(data))
+  gfs.writeFileSync(temp, v8.serialize(data))
   optimisticRenameOverwrite(temp, filePath)
 }

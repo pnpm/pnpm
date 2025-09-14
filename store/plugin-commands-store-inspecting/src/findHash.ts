@@ -1,5 +1,6 @@
 import path from 'path'
 import fs from 'fs'
+import v8 from 'v8'
 import chalk from 'chalk'
 
 import { type Config } from '@pnpm/config'
@@ -7,7 +8,6 @@ import { PnpmError } from '@pnpm/error'
 import { getStorePath } from '@pnpm/store-path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 
-import { loadJsonFileSync } from 'load-json-file'
 import renderHelp from 'render-help'
 
 export const PACKAGE_INFO_CLR = chalk.greenBright
@@ -64,7 +64,12 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
   }
 
   for (const filesIndexFile of indexFiles) {
-    const pkgFilesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
+    let pkgFilesIndex!: PackageFilesIndex
+    try {
+      pkgFilesIndex = v8.deserialize(fs.readFileSync(filesIndexFile))
+    } catch {
+      continue
+    }
 
     for (const [, file] of Object.entries(pkgFilesIndex.files)) {
       if (file?.integrity === hash) {
