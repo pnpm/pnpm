@@ -327,6 +327,9 @@ managePackageManagerVersions: true
 
 minimumReleaseAge: 10080
 
+minimumReleaseAgeExclude:
+  - pnpm
+
 nodeVersion: 18.18.0
 
 onlyBuiltDependencies:
