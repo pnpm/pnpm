@@ -186,17 +186,6 @@ export async function pickPackage (
       }
     }
 
-    if (!opts.updateToLatest && spec.type === 'version') {
-      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
-      // use the cached meta only if it has the required package version
-      // otherwise it is probably out of date
-      if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
-        return {
-          meta: metaCachedInStore,
-          pickedPackage: metaCachedInStore.versions[spec.fetchSpec],
-        }
-      }
-    }
     if (opts.publishedBy) {
       metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
       if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
