@@ -71,6 +71,8 @@ function getErrorInfo (logObj: Log, config?: Config): ErrorInfo | null {
       return { title: err.message, body: 'If you cannot fix this registry issue, then set "resolution-mode" to "highest".' }
     case 'ERR_PNPM_NO_MATCHING_VERSION':
       return formatNoMatchingVersion(err, logObj as unknown as { packageMeta: PackageMeta })
+    case 'ERR_PNPM_NO_MATCHING_VERSION_WITH_MINIMUM_RELEASE_AGE':
+      return formatNoMatchingVersionWithMinimumReleaseAge(err, logObj as unknown as { packageMeta: PackageMeta })
     case 'ERR_PNPM_RECURSIVE_FAIL':
       return formatRecursiveCommandSummary(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_BAD_TARBALL_SIZE':
@@ -145,6 +147,18 @@ function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta })
   }
 
   output += `${EOL}If you need the full list of all ${Object.keys(meta.versions).length} published versions run "$ pnpm view ${meta.name} versions".`
+
+  return {
+    title: err.message,
+    body: output,
+  }
+}
+
+function formatNoMatchingVersionWithMinimumReleaseAge (err: Error, msg: { packageMeta: PackageMeta }) {
+  const meta: PackageMeta = msg.packageMeta
+  let output = `The latest release of ${meta.name} is "${meta['dist-tags'].latest}".${EOL}`
+
+  output += `${EOL}It seems that you set "minimumReleaseAge" which caused the installation to fail. Please refer to the documentation for more information. https://pnpm.io/blog/releases/10.16#new-setting-for-delayed-dependency-updates`
 
   return {
     title: err.message,

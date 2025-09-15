@@ -55,6 +55,17 @@ export class NoMatchingVersionError extends PnpmError {
   }
 }
 
+export class NoMatchingVersionWithMinimumReleaseAgeError extends PnpmError {
+  public readonly packageMeta: PackageMeta
+  constructor (opts: { wantedDependency: WantedDependency, packageMeta: PackageMeta, registry: string }) {
+    const dep = opts.wantedDependency.alias
+      ? `${opts.wantedDependency.alias}@${opts.wantedDependency.bareSpecifier ?? ''}`
+      : opts.wantedDependency.bareSpecifier!
+    super('NO_MATCHING_VERSION_WITH_MINIMUM_RELEASE_AGE', `No matching version found for ${dep} while fetching it from ${opts.registry}`)
+    this.packageMeta = opts.packageMeta
+  }
+}
+
 export {
   parseBareSpecifier,
   workspacePrefToNpm,
@@ -257,6 +268,10 @@ async function resolveNpm (
       } catch {
         // ignore
       }
+    }
+
+    if (opts.publishedBy) {
+      throw new NoMatchingVersionWithMinimumReleaseAgeError({ wantedDependency, packageMeta: meta, registry })
     }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   }
