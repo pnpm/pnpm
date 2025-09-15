@@ -194,7 +194,7 @@ test('.npmrc does not load pnpm settings', async () => {
   // workspace-specific settings are omitted
   expect(config.rawConfig['dlx-cache-max-age']).toBeUndefined()
   expect(config.rawConfig['dlxCacheMaxAge']).toBeUndefined()
-  expect(config.dlxCacheMaxAge).toBeUndefined()
+  expect(config.dlxCacheMaxAge).toBe(24 * 60) // TODO: refactor to make defaultOptions importable
   expect(config.rawConfig['only-built-dependencies']).toBeUndefined()
   expect(config.rawConfig['onlyBuiltDependencies']).toBeUndefined()
   expect(config.onlyBuiltDependencies).toBeUndefined()
