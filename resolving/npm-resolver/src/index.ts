@@ -272,23 +272,12 @@ async function resolveNpm (
     }
 
     if (opts.publishedBy) {
-      let version!: string | null
-      switch (spec.type) {
-      case 'version':
-        version = spec.fetchSpec
-        break
-      case 'tag':
-        version = meta['dist-tags'][spec.fetchSpec]
-        break
-      case 'range':
-        version = pickVersionByVersionRange({
-          meta: meta,
-          versionRange: spec.fetchSpec,
-          preferredVersionSelectors: opts.preferredVersions?.[spec.name],
-          publishedBy: opts.publishedBy,
-        })
-        break
-      }
+      const version = pickVersionByVersionRange({
+        meta,
+        versionRange: spec.fetchSpec,
+        preferredVersionSelectors: opts.preferredVersions?.[spec.name],
+        publishedBy: opts.publishedBy,
+      })
       if (version) {
         throw new NoMatchingVersionWithMinimumReleaseAgeError({ wantedDependency, packageMeta: meta, registry })
       }
