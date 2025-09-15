@@ -43,6 +43,7 @@ import {
 import { fromRegistry, RegistryResponseError } from './fetch.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
+import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
 
 export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
@@ -271,7 +272,26 @@ async function resolveNpm (
     }
 
     if (opts.publishedBy) {
-      throw new NoMatchingVersionWithMinimumReleaseAgeError({ wantedDependency, packageMeta: meta, registry })
+      let version!: string | null
+      switch (spec.type) {
+      case 'version':
+        version = spec.fetchSpec
+        break
+      case 'tag':
+        version = meta['dist-tags'][spec.fetchSpec]
+        break
+      case 'range':
+        version = pickVersionByVersionRange({
+          meta: meta,
+          versionRange: spec.fetchSpec,
+          preferredVersionSelectors: opts.preferredVersions?.[spec.name],
+          publishedBy: opts.publishedBy,
+        })
+        break
+      }
+      if (version) {
+        throw new NoMatchingVersionWithMinimumReleaseAgeError({ wantedDependency, packageMeta: meta, registry })
+      }
     }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   }
