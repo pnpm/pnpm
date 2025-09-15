@@ -41,14 +41,12 @@ const AUTH_CFG_KEYS = [
 ] satisfies Array<keyof Config>
 
 const NPM_AUTH_SETTINGS = [
+  ...RAW_AUTH_CFG_KEYS,
   '_auth',
   '_authToken',
   '_password',
-  'cafile',
   'email',
   'keyfile',
-  'key',
-  'registry',
   'username',
 ]
 
