@@ -282,6 +282,9 @@ export async function getConfig (opts: {
     if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
     return false
   })()
+  // NOTE: this block of code in this location is pointless.
+  // TODO: move this block of code to after the code that loads pnpm-workspace.yaml.
+  // TODO: unskip test `getConfig() sets mergeGiBranchLockfiles when branch matches mergeGitBranchLockfilesBranchPattern`.
   pnpmConfig.useGitBranchLockfile = (() => {
     if (typeof pnpmConfig.gitBranchLockfile === 'boolean') return pnpmConfig.gitBranchLockfile
     return false
