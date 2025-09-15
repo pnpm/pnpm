@@ -11,7 +11,6 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
-  ignoredScriptsLogger,
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
@@ -1300,6 +1299,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           )
       }
       if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
+        if (ctx.modulesFile?.ignoredBuilds?.length) {
+          throw new PnpmError('IGNORED_BUILD_DEPENDENCIES', 'There are some ignored build dependencies in the lockfile. Run pnpm approve-builds to build them before running the install command.')
+        }
         // postinstall hooks
         const depPaths = Object.keys(dependenciesGraph) as DepPath[]
         const rootNodes = depPaths.filter((depPath) => dependenciesGraph[depPath].depth === 0)
@@ -1335,10 +1337,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
         })).ignoredBuilds
-        if (ignoredBuilds == null && ctx.modulesFile?.ignoredBuilds?.length) {
-          ignoredBuilds = ctx.modulesFile.ignoredBuilds
-          ignoredScriptsLogger.debug({ packageNames: ignoredBuilds })
-        }
       }
     }
 
