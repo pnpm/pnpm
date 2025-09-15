@@ -238,8 +238,10 @@ export async function getConfig (opts: {
 
   const pnpmConfig: ConfigWithDeprecatedSettings = Object.fromEntries(
     rcOptions
-      .filter(isSupportedNpmConfig)
-      .map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)])
+      .map((configKey) => [
+        camelcase(configKey, { locale: 'en-US' }),
+        isSupportedNpmConfig(configKey) ? npmConfig.get(configKey) : (defaultOptions as Record<string, unknown>)[configKey],
+      ])
   ) as ConfigWithDeprecatedSettings
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
