@@ -59,6 +59,7 @@ import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers.js'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable.js'
 import { type CatalogLookupMetadata } from './resolveDependencyTree.js'
 import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier.js'
+import { createMatcher } from '@pnpm/matcher'
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
 
@@ -1311,7 +1312,8 @@ async function resolveDependency (
       (
         ctx.minimumReleaseAgeExclude == null ||
         wantedDependency.alias == null ||
-        !ctx.minimumReleaseAgeExclude.includes(wantedDependency.alias)
+        ctx.minimumReleaseAgeExclude.length === 0 ||
+        !createMatcher(ctx.minimumReleaseAgeExclude)(wantedDependency.alias)
       )
     ) {
       publishedBy = options.publishedBy
