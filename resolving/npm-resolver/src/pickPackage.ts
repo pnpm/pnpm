@@ -191,9 +191,18 @@ export async function pickPackage (
       // use the cached meta only if it has the required package version
       // otherwise it is probably out of date
       if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
-        return {
-          meta: metaCachedInStore,
-          pickedPackage: metaCachedInStore.versions[spec.fetchSpec],
+        try {
+          const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
+          if (pickedPackage) {
+            return {
+              meta: metaCachedInStore,
+              pickedPackage,
+            }
+          }
+        } catch (err) {
+          if (ctx.strictPublishedByCheck) {
+            throw err
+          }
         }
       }
     }
