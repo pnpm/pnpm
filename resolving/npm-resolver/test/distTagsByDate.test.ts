@@ -180,7 +180,7 @@ test('repopulate dist-tag to highest prerelease same-major version within the da
     },
   }
 
-  // Cutoff before 3.2.0, so latest must be remapped to 3.1.0 (same major 3)
+  // Cutoff before 3.2.0 and 3.0.0-alpha.2, so latest must be remapped to 3.0.0-alpha.1 (the highest prerelease version within the cutoff)
   const cutoff = new Date('2020-04-01T00:00:00.000Z')
 
   nock(registries.default)
