@@ -177,7 +177,7 @@ export interface ResolutionContext {
   missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { depth: number, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
   maximumPublishedBy?: Date
-  minimumReleaseAgeExclude?: string[]
+  minimumReleaseAgeExclude?: (pkgName: string) => boolean
 }
 
 export interface MissingPeerInfo {
@@ -1311,7 +1311,7 @@ async function resolveDependency (
       (
         ctx.minimumReleaseAgeExclude == null ||
         wantedDependency.alias == null ||
-        !ctx.minimumReleaseAgeExclude.includes(wantedDependency.alias)
+        !ctx.minimumReleaseAgeExclude(wantedDependency.alias)
       )
     ) {
       publishedBy = options.publishedBy

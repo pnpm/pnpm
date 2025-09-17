@@ -44,6 +44,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/patching.types": "workspace:*",
