@@ -1,5 +1,11 @@
 # @pnpm/client
 
+## 1001.0.6
+
+### Patch Changes
+
+- @pnpm/default-resolver@1002.2.6
+
 ## 1001.0.5
 
 ### Patch Changes

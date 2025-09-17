@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 1010.1.2
+
+### Patch Changes
+
+- Updated dependencies [3a58aaa]
+  - @pnpm/resolve-dependencies@1008.2.0
+  - @pnpm/package-requester@1006.0.2
+  - @pnpm/headless@1004.2.5
+
 ## 1010.1.1
 
 ### Patch Changes

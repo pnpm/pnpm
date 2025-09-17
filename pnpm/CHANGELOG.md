@@ -1,5 +1,24 @@
 # pnpm
 
+## 10.17.0
+
+### Minor Changes
+
+- The `minimumReleaseAgeExclude` setting now supports patterns. For instance:
+
+  ```yaml
+  minimumReleaseAge: 1440
+  minimumReleaseAgeExclude:
+    - "@eslint/*"
+  ```
+
+  Related PR: [#9984](https://github.com/pnpm/pnpm/pull/9984).
+
+### Patch Changes
+
+- Don't ignore the `minimumReleaseAge` check, when the package is requested by exact version and the packument is loaded from cache [#9978](https://github.com/pnpm/pnpm/issues/9978).
+- When `minimumReleaseAge` is set and the active version under a dist-tag is not mature enough, do not downgrade to a prerelease version in case the original version wasn't a prerelease one [#9979](https://github.com/pnpm/pnpm/issues/9979).
+
 ## 10.16.1
 
 ### Patch Changes

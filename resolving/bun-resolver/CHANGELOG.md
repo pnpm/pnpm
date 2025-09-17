@@ -1,5 +1,13 @@
 # @pnpm/resolving.bun-resolver
 
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [121b44e]
+- Updated dependencies [02f8b69]
+  - @pnpm/npm-resolver@1004.2.2
+
 ## 1000.0.4
 
 ### Patch Changes

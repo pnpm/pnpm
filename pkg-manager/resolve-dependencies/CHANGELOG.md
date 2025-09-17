@@ -1,5 +1,25 @@
 # @pnpm/resolve-dependencies
 
+## 1008.2.0
+
+### Minor Changes
+
+- 3a58aaa: The `minimumReleaseAgeExclude` setting now supports patterns. For instance:
+
+  ```yaml
+  minimumReleaseAge: 1440
+  minimumReleaseAgeExclude:
+    - "@eslint/*"
+  ```
+
+  Related PR: [#9984](https://github.com/pnpm/pnpm/pull/9984).
+
+### Patch Changes
+
+- Updated dependencies [121b44e]
+- Updated dependencies [02f8b69]
+  - @pnpm/npm-resolver@1004.2.2
+
 ## 1008.1.1
 
 ### Patch Changes

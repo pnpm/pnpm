@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 1004.2.2
+
+### Patch Changes
+
+- 121b44e: Don't ignore the `minimumReleaseAge` check, when the package is requested by exact version and the packument is loaded from cache [#9978](https://github.com/pnpm/pnpm/issues/9978).
+- 02f8b69: When `minimumReleaseAge` is set and the active version under a dist-tag is not mature enough, do not downgrade to a prerelease version in case the original version wasn't a prerelease one [#9979](https://github.com/pnpm/pnpm/issues/9979).
+
 ## 1004.2.1
 
 ### Patch Changes
