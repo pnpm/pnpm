@@ -267,7 +267,11 @@ function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedBy: Date
     for (const candidate in versionsWithinDate) {
       if (!Object.hasOwn(versionsWithinDate, candidate)) continue
       const candidateParsed = tryParseSemver(candidate)
-      if (!candidateParsed || candidateParsed.major !== originalSemVer.major || candidateParsed.prerelease.length !== originalSemVer.prerelease.length) continue
+      if (
+        !candidateParsed ||
+        candidateParsed.major !== originalSemVer.major ||
+        (candidateParsed.prerelease.length > 0) !== (originalSemVer.prerelease.length > 0)
+      ) continue
       if (!bestVersion) {
         bestVersion = candidate
       } else {
