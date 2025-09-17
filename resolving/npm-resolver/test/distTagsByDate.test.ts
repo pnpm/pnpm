@@ -137,6 +137,70 @@ test('repopulate dist-tag to highest non-prerelease same-major version within th
   expect(res!.id).toBe(`${name}@3.0.0`)
 })
 
+test('repopulate dist-tag to highest prerelease same-major version within the date cutoff', async () => {
+  const name = 'dist-tag-date'
+  const meta = {
+    name,
+    versions: {
+      '3.0.0-alpha.0': {
+        name,
+        version: '3.0.0-alpha.0',
+        dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-3.0.0-alpha.0.tgz` },
+      },
+      '3.0.0-alpha.1': {
+        name,
+        version: '3.0.0-alpha.1',
+        dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-3.0.0-alpha.1.tgz` },
+      },
+      '3.0.0-alpha.2': {
+        name,
+        version: '3.0.0-alpha.2',
+        dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-3.0.0-alpha.2.tgz` },
+      },
+      '3.2.0': {
+        name,
+        version: '3.2.0',
+        dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-3.2.0.tgz` },
+      },
+      '2.9.9': {
+        name,
+        version: '2.9.9',
+        dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-2.9.9.tgz` },
+      },
+    },
+    'dist-tags': {
+      latest: '3.0.0-alpha.2',
+    },
+    time: {
+      '2.9.9': '2020-01-01T00:00:00.000Z',
+      '3.0.0-alpha.0': '2020-02-01T00:00:00.000Z',
+      '3.0.0-alpha.1': '2020-03-01T00:00:00.000Z',
+      '3.0.0-alpha.2': '2020-05-01T00:00:00.000Z',
+      '3.2.0': '2020-05-01T00:00:00.000Z',
+    },
+  }
+
+  // Cutoff before 3.2.0, so latest must be remapped to 3.1.0 (same major 3)
+  const cutoff = new Date('2020-04-01T00:00:00.000Z')
+
+  nock(registries.default)
+    .get(`/${name}`)
+    .reply(200, meta)
+
+  const cacheDir = tempy.directory()
+  const { resolveFromNpm } = createResolveFromNpm({
+    cacheDir,
+    fullMetadata: true,
+    registries,
+  })
+
+  const res = await resolveFromNpm({ alias: name, bareSpecifier: 'latest' }, {
+    publishedBy: cutoff,
+  })
+
+  expect(res!.id).toBe(`${name}@3.0.0-alpha.1`)
+})
+
 test('keep dist-tag if original version is within the date cutoff', async () => {
   const name = 'dist-tag-date-keep'
   const meta = {
