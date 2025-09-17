@@ -263,6 +263,7 @@ function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedBy: Date
     // Repopulate the tag to the highest version available within date that has the same major as the original tag's version
     const originalSemVer = tryParseSemver(distTagVersion)
     if (!originalSemVer) continue
+    const originalIsPrerelease = (originalSemVer.prerelease.length > 0)
     let bestVersion: string | undefined
     for (const candidate in versionsWithinDate) {
       if (!Object.hasOwn(versionsWithinDate, candidate)) continue
@@ -270,7 +271,7 @@ function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedBy: Date
       if (
         !candidateParsed ||
         candidateParsed.major !== originalSemVer.major ||
-        (candidateParsed.prerelease.length > 0) !== (originalSemVer.prerelease.length > 0)
+        (candidateParsed.prerelease.length > 0) !== originalIsPrerelease
       ) continue
       if (!bestVersion) {
         bestVersion = candidate
