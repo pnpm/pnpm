@@ -240,6 +240,19 @@ function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedBy: Date
 
   const distTagsWithinDate: PackageMeta['dist-tags'] = {}
   const allDistTags = meta['dist-tags'] ?? {}
+  const parsedSemverCache = new Map<string, semver.SemVer>()
+  function tryParseSemver (semverStr: string): semver.SemVer | null {
+    let parsedSemver = parsedSemverCache.get(semverStr)
+    if (!parsedSemver) {
+      try {
+        parsedSemver = new semver.SemVer(semverStr, true)
+      } catch {
+        return null
+      }
+      parsedSemverCache.set(semverStr, parsedSemver)
+    }
+    return parsedSemver
+  }
   for (const tag in allDistTags) {
     if (!Object.hasOwn(allDistTags, tag)) continue
     const distTagVersion = allDistTags[tag]
@@ -248,17 +261,13 @@ function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedBy: Date
       continue
     }
     // Repopulate the tag to the highest version available within date that has the same major as the original tag's version
-    let originalSemVer: semver.SemVer | null = null
-    try {
-      originalSemVer = new semver.SemVer(distTagVersion, true)
-    } catch {
-      continue
-    }
-    const originalMajor = originalSemVer.major
+    const originalSemVer = tryParseSemver(distTagVersion)
+    if (!originalSemVer) continue
     let bestVersion: string | undefined
-    const originalMajorPrefix = `${originalMajor}.`
     for (const candidate in versionsWithinDate) {
-      if (!Object.hasOwn(versionsWithinDate, candidate) || !candidate.startsWith(originalMajorPrefix)) continue
+      if (!Object.hasOwn(versionsWithinDate, candidate)) continue
+      const candidateParsed = tryParseSemver(candidate)
+      if (!candidateParsed || candidateParsed.major !== originalSemVer.major || candidateParsed.prerelease.length !== originalSemVer.prerelease.length) continue
       if (!bestVersion) {
         bestVersion = candidate
       } else {
