@@ -29,5 +29,5 @@ test('minimumReleaseAge is ignored for packages in the minimumReleaseAgeExclude 
   const opts = testDefaults({ minimumReleaseAge, minimumReleaseAgeExclude: ['is-*'] })
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
 
-  expect(manifest.dependencies!['is-odd']).toEqual('~0.1.2')
+  expect(manifest.dependencies!['is-odd']).toBe('~0.1.2')
 })
