@@ -300,7 +300,7 @@ test('topological order of packages with self-dependencies in monorepo is correc
   expect(server2.getLines()).toStrictEqual(['project-2', 'project-3', 'project-1'])
 })
 
-test('test-pattern is respected by the test script', async () => {
+test('testPattern is respected by the test script', async () => {
   await using server = await createTestIpcServer()
 
   const remote = temporaryDirectory()
