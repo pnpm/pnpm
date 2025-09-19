@@ -40,8 +40,16 @@ const AUTH_CFG_KEYS = [
   'strictSsl',
 ] satisfies Array<keyof Config>
 
+const PNPM_COMPAT_SETTINGS = [
+  // NOTE: This field is kept in .npmrc because `managePackageManagerVersions: true`
+  //       in pnpm-workspace.yaml currently causes pnpm to be unresponsive (probably
+  //       due to an infinite loop of some kind).
+  'manage-package-manager-versions',
+] satisfies Array<keyof typeof types>
+
 const NPM_AUTH_SETTINGS = [
   ...RAW_AUTH_CFG_KEYS,
+  ...PNPM_COMPAT_SETTINGS,
   '_auth',
   '_authToken',
   '_password',

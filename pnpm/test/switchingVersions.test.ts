@@ -19,7 +19,7 @@ test('switch to the pnpm version specified in the packageManager field of packag
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
-test('do not switch to the pnpm version specified in the packageManager field of package.json, if manage-package-manager-versions is set to false', async () => {
+test('do not switch to the pnpm version specified in the packageManager field of package.json, if manage-package-manager-versions is set to false (backward-compatibility)', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -77,7 +77,10 @@ test('throws error if pnpm tools dir is corrupt', () => {
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
   const version = '9.3.0'
+
+  // NOTE: replace this .npmrc file with an equivalent pnpm-workspace.yaml would cause the test to hang indefinitely.
   fs.writeFileSync('.npmrc', 'manage-package-manager-versions=true')
+
   writeJsonFileSync('package.json', {
     packageManager: `pnpm@${version}`,
   })
