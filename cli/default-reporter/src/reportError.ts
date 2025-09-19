@@ -70,9 +70,8 @@ function getErrorInfo (logObj: Log, config?: Config): ErrorInfo | null {
     case 'ERR_PNPM_MISSING_TIME':
       return { title: err.message, body: 'If you cannot fix this registry issue, then set "resolution-mode" to "highest".' }
     case 'ERR_PNPM_NO_MATCHING_VERSION':
-      return formatNoMatchingVersion(err, logObj as unknown as { packageMeta: PackageMeta })
     case 'ERR_PNPM_NO_MATCHING_VERSION_WITH_MINIMUM_RELEASE_AGE':
-      return formatNoMatchingVersionWithMinimumReleaseAge(err, logObj as unknown as { packageMeta: PackageMeta })
+      return formatNoMatchingVersion(err, logObj as unknown as { packageMeta: PackageMeta, immatureVersion?: string })
     case 'ERR_PNPM_RECURSIVE_FAIL':
       return formatRecursiveCommandSummary(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_BAD_TARBALL_SIZE':
@@ -131,39 +130,54 @@ interface PackageMeta {
     latest: string
   }
   versions: Record<string, object>
+  time?: Record<string, string>
 }
 
-function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta }) {
+function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta, immatureVersion?: string }) {
   const meta: PackageMeta = msg.packageMeta
-  let output = `The latest release of ${meta.name} is "${meta['dist-tags'].latest}".${EOL}`
+  const latestVersion = meta['dist-tags'].latest
+  let output = `The latest release of ${meta.name} is "${latestVersion}".`
+  const latestTime = msg.packageMeta.time?.[latestVersion]
+  if (latestTime) {
+    output += ` Published at ${stringifyDate(latestTime)}`
+  }
+  output += EOL
 
   if (!equals(Object.keys(meta['dist-tags']), ['latest'])) {
     output += EOL + 'Other releases are:' + EOL
     for (const tag in meta['dist-tags']) {
       if (tag !== 'latest') {
-        output += `  * ${tag}: ${meta['dist-tags'][tag]}${EOL}`
+        const version = meta['dist-tags'][tag]
+        output += `  * ${tag}: ${version}`
+        const time = msg.packageMeta.time?.[version]
+        if (time) {
+          output += ` published at ${stringifyDate(time)}`
+        }
+        output += EOL
       }
     }
   }
 
   output += `${EOL}If you need the full list of all ${Object.keys(meta.versions).length} published versions run "$ pnpm view ${meta.name} versions".`
 
+  if (msg.immatureVersion) {
+    output += `${EOL}${EOL}If you want to install the matched version ignoring the time it was published, you can add the package name to the minimumReleaseAgeExclude setting. Read more about it: https://pnpm.io/settings#minimumreleaseageexclude`
+  }
+
   return {
     title: err.message,
     body: output,
   }
 }
 
-function formatNoMatchingVersionWithMinimumReleaseAge (err: Error, msg: { packageMeta: PackageMeta }) {
-  const meta: PackageMeta = msg.packageMeta
-  let output = `The latest release of ${meta.name} is "${meta['dist-tags'].latest}".${EOL}`
-
-  output += `${EOL}It seems that you set "minimumReleaseAge" which caused the installation to fail. Please refer to the documentation for more information. https://pnpm.io/blog/releases/10.16#new-setting-for-delayed-dependency-updates`
-
-  return {
-    title: err.message,
-    body: output,
+function stringifyDate (dateStr: string): string {
+  const now = Date.now()
+  const oneDayAgo = now - 24 * 60 * 60 * 1000
+  const date = new Date(dateStr)
+  if (date.getTime() < oneDayAgo) {
+    return date.toLocaleDateString()
   }
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`
 }
 
 function reportUnexpectedStore (

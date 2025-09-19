@@ -412,7 +412,7 @@ test('minimumReleaseAge makes install fail if there is no version that was publi
     dir: path.resolve('project'),
     minimumReleaseAge,
     linkWorkspacePackages: false,
-  }, ['is-odd@0.1.1'])).rejects.toThrow('No matching version found for is-odd@0.1.1 (released at 2016-12-07T07:18:01.205Z)')
+  }, ['is-odd@0.1.1'])).rejects.toThrow(/No matching version found for is-odd@0\.1\.1.*satisfies the specs but/)
 })
 
 describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchitectures.libc', () => {

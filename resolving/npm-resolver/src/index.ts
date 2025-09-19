@@ -45,25 +45,31 @@ import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
 
-export class NoMatchingVersionError extends PnpmError {
-  public readonly packageMeta: PackageMeta
-  constructor (opts: { wantedDependency: WantedDependency, packageMeta: PackageMeta, registry: string }) {
-    const dep = opts.wantedDependency.alias
-      ? `${opts.wantedDependency.alias}@${opts.wantedDependency.bareSpecifier ?? ''}`
-      : opts.wantedDependency.bareSpecifier!
-    super('NO_MATCHING_VERSION', `No matching version found for ${dep} while fetching it from ${opts.registry}`)
-    this.packageMeta = opts.packageMeta
-  }
+export interface NoMatchingVersionErrorOptions {
+  wantedDependency: WantedDependency
+  packageMeta: PackageMeta
+  registry: string
+  immatureVersion?: string,
+  publishedBy?: Date
 }
 
-export class NoMatchingVersionWithMinimumReleaseAgeError extends PnpmError {
+export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
-  constructor (opts: { wantedDependency: WantedDependency, packageMeta: PackageMeta, registry: string, time?: string }) {
+  public readonly immatureVersion?: string
+  constructor (opts: NoMatchingVersionErrorOptions) {
     const dep = opts.wantedDependency.alias
       ? `${opts.wantedDependency.alias}@${opts.wantedDependency.bareSpecifier ?? ''}`
       : opts.wantedDependency.bareSpecifier!
-    super('NO_MATCHING_VERSION_WITH_MINIMUM_RELEASE_AGE', `No matching version found for ${dep + (opts.time ? ` (released at ${opts.time})` : '')} while fetching it from ${opts.registry}`)
+    let errorMessage: string
+    if (opts.publishedBy && opts.immatureVersion && opts.packageMeta.time) {
+      const time = new Date(opts.packageMeta.time[opts.immatureVersion])
+      errorMessage = `No matching version found for ${dep} published by ${opts.publishedBy.toString()} while fetching it from ${opts.registry}. Version ${opts.immatureVersion} satisfies the specs but was released at ${time.toString()}`
+    } else {
+      errorMessage = `No matching version found for ${dep} while fetching it from ${opts.registry}`
+    }
+    super('NO_MATCHING_VERSION', errorMessage)
     this.packageMeta = opts.packageMeta
+    this.immatureVersion = opts.immatureVersion
   }
 }
 
@@ -272,15 +278,20 @@ async function resolveNpm (
     }
 
     if (opts.publishedBy) {
-      const version = pickVersionByVersionRange({
+      const immatureVersion = pickVersionByVersionRange({
         meta,
         versionRange: spec.fetchSpec,
         preferredVersionSelectors: opts.preferredVersions?.[spec.name],
         publishedBy: opts.publishedBy,
       })
-      if (version) {
-        const time = meta.time?.[version]
-        throw new NoMatchingVersionWithMinimumReleaseAgeError({ wantedDependency, packageMeta: meta, registry, time })
+      if (immatureVersion) {
+        throw new NoMatchingVersionError({
+          wantedDependency,
+          packageMeta: meta,
+          registry,
+          immatureVersion,
+          publishedBy: opts.publishedBy,
+        })
       }
     }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
