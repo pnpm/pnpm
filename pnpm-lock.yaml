@@ -1638,6 +1638,9 @@ importers:
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../matcher
+      '@pnpm/naming-cases':
+        specifier: workspace:*
+        version: link:../../packages/naming-cases
       '@pnpm/npm-conf':
         specifier: 'catalog:'
         version: 3.0.0
@@ -1726,6 +1729,9 @@ importers:
       symlink-dir:
         specifier: 'catalog:'
         version: 6.0.5
+      write-yaml-file:
+        specifier: 'catalog:'
+        version: 5.0.0
 
   config/config-writer:
     dependencies:
@@ -1928,6 +1934,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/naming-cases':
+        specifier: workspace:*
+        version: link:../../packages/naming-cases
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../../object/key-sorting
@@ -4393,6 +4402,12 @@ importers:
         specifier: 'catalog:'
         version: safe-execa@0.2.0
 
+  packages/naming-cases:
+    devDependencies:
+      '@pnpm/naming-cases':
+        specifier: workspace:*
+        version: 'link:'
+
   packages/parse-wanted-dependency:
     dependencies:
       validate-npm-package-name:
@@ -6534,6 +6549,9 @@ importers:
       '@types/cross-spawn':
         specifier: 'catalog:'
         version: 6.0.6
+      '@types/ini':
+        specifier: 'catalog:'
+        version: 1.3.31
       '@types/is-windows':
         specifier: 'catalog:'
         version: 1.0.2
@@ -6579,6 +6597,9 @@ importers:
       exists-link:
         specifier: 'catalog:'
         version: 2.0.0
+      ini:
+        specifier: 'catalog:'
+        version: 5.0.0
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2

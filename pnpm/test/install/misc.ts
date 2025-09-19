@@ -15,6 +15,7 @@ import { sync as rimraf } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
 import { loadJsonFileSync } from 'load-json-file'
 import { writeJsonFileSync } from 'write-json-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import crossSpawn from 'cross-spawn'
 import {
   execPnpm,
@@ -71,10 +72,12 @@ test('write to stderr when --use-stderr is used', async () => {
   expect(result.stderr.toString()).not.toBe('')
 })
 
-test('install with package-lock=false in .npmrc', async () => {
+test('install with useLockfile being false in pnpm-workspace.yaml', async () => {
   const project = prepare()
 
-  fs.writeFileSync('.npmrc', 'package-lock=false', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    useLockfile: false,
+  })
 
   await execPnpm(['add', 'is-positive'])
 

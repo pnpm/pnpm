@@ -40,6 +40,24 @@ const AUTH_CFG_KEYS = [
   'strictSsl',
 ] satisfies Array<keyof Config>
 
+const PNPM_COMPAT_SETTINGS = [
+  // NOTE: This field is kept in .npmrc because `managePackageManagerVersions: true`
+  //       in pnpm-workspace.yaml currently causes pnpm to be unresponsive (probably
+  //       due to an infinite loop of some kind).
+  'manage-package-manager-versions',
+] satisfies Array<keyof typeof types>
+
+const NPM_AUTH_SETTINGS = [
+  ...RAW_AUTH_CFG_KEYS,
+  ...PNPM_COMPAT_SETTINGS,
+  '_auth',
+  '_authToken',
+  '_password',
+  'email',
+  'keyfile',
+  'username',
+]
+
 function isRawAuthCfgKey (rawCfgKey: string): boolean {
   if ((RAW_AUTH_CFG_KEYS as string[]).includes(rawCfgKey)) return true
   if (RAW_AUTH_CFG_KEY_SUFFIXES.some(suffix => rawCfgKey.endsWith(suffix))) return true
@@ -72,4 +90,19 @@ function pickAuthConfig (localCfg: Partial<Config>): Partial<Config> {
 
 export function inheritAuthConfig (targetCfg: InheritableConfig, authSrcCfg: InheritableConfig): void {
   inheritPickedConfig(targetCfg, authSrcCfg, pickAuthConfig, pickRawAuthConfig)
+}
+
+export const isSupportedNpmConfig = (key: string): boolean =>
+  key.startsWith('@') || key.startsWith('//') || NPM_AUTH_SETTINGS.includes(key)
+
+export function pickNpmAuthConfig<RawConfig extends Record<string, unknown>> (rawConfig: RawConfig): Partial<RawConfig> {
+  const result: Partial<RawConfig> = {}
+
+  for (const key in rawConfig) {
+    if (isSupportedNpmConfig(key)) {
+      result[key] = rawConfig[key]
+    }
+  }
+
+  return result
 }
