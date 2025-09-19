@@ -814,7 +814,7 @@ test('respects testPattern', async () => {
   }
 })
 
-test('respects changed-files-ignore-pattern', async () => {
+test('respects changedFilesIgnorePattern', async () => {
   {
     const { config } = await getConfig({
       cliOptions: {},
@@ -822,6 +822,7 @@ test('respects changed-files-ignore-pattern', async () => {
         name: 'pnpm',
         version: '1.0.0',
       },
+      workspaceDir: process.cwd(),
     })
 
     expect(config.changedFilesIgnorePattern).toBeUndefined()
@@ -829,12 +830,9 @@ test('respects changed-files-ignore-pattern', async () => {
   {
     prepareEmpty()
 
-    const npmrc = [
-      'changed-files-ignore-pattern[]=.github/**',
-      'changed-files-ignore-pattern[]=**/README.md',
-    ].join('\n')
-
-    fs.writeFileSync('.npmrc', npmrc, 'utf8')
+    writeYamlFile('pnpm-workspace.yaml', {
+      changedFilesIgnorePattern: ['.github/**', '**/README.md'],
+    })
 
     const { config } = await getConfig({
       cliOptions: {
@@ -844,6 +842,7 @@ test('respects changed-files-ignore-pattern', async () => {
         name: 'pnpm',
         version: '1.0.0',
       },
+      workspaceDir: process.cwd(),
     })
 
     expect(config.changedFilesIgnorePattern).toEqual(['.github/**', '**/README.md'])
