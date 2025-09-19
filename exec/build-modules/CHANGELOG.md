@@ -1,5 +1,18 @@
 # @pnpm/build-modules
 
+## 1000.3.15
+
+### Patch Changes
+
+- @pnpm/config@1004.3.1
+- @pnpm/calc-dep-state@1002.0.6
+- @pnpm/link-bins@1000.2.3
+- @pnpm/lifecycle@1001.0.22
+- @pnpm/patching.apply-patch@1000.0.7
+- @pnpm/read-package-json@1000.1.1
+- @pnpm/worker@1000.1.13
+- @pnpm/fs.hard-link-dir@1000.0.1
+
 ## 1000.3.14
 
 ### Patch Changes

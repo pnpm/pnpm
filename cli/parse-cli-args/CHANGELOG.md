@@ -1,5 +1,12 @@
 # @pnpm/parse-cli-args
 
+## 1000.1.4
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/find-workspace-dir@1000.1.3
+
 ## 1000.1.3
 
 ### Patch Changes

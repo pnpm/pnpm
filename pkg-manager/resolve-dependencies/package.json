@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "1008.1.0",
+  "version": "1008.2.0",
   "description": "Resolves dependency graph of a package",
   "keywords": [
     "pnpm",
@@ -44,6 +44,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/patching.types": "workspace:*",

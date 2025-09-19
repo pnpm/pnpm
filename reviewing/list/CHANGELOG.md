@@ -1,5 +1,13 @@
 # @pnpm/list
 
+## 1000.1.1
+
+### Patch Changes
+
+- @pnpm/reviewing.dependencies-hierarchy@1001.1.1
+- @pnpm/read-package-json@1000.1.1
+- @pnpm/read-project-manifest@1001.1.2
+
 ## 1000.1.0
 
 ### Minor Changes

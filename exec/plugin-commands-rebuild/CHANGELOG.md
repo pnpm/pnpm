@@ -1,5 +1,31 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1002.0.27
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.2
+- @pnpm/workspace.find-packages@1000.0.37
+- @pnpm/store-connection-manager@1002.1.2
+
+## 1002.0.26
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/config@1004.3.1
+  - @pnpm/calc-dep-state@1002.0.6
+  - @pnpm/error@1000.0.5
+  - @pnpm/get-context@1001.1.6
+  - @pnpm/link-bins@1000.2.3
+  - @pnpm/workspace.find-packages@1000.0.36
+  - @pnpm/cli-utils@1001.2.1
+  - @pnpm/store-connection-manager@1002.1.1
+  - @pnpm/lifecycle@1001.0.22
+  - @pnpm/read-package-json@1000.1.1
+  - @pnpm/worker@1000.1.13
+
 ## 1002.0.25
 
 ### Patch Changes

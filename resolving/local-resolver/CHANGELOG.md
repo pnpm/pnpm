@@ -1,5 +1,13 @@
 # @pnpm/local-resolver
 
+## 1002.1.2
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/read-project-manifest@1001.1.2
+- @pnpm/crypto.hash@1000.2.0
+
 ## 1002.1.1
 
 ### Patch Changes

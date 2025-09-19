@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 1002.0.12
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/read-project-manifest@1001.1.2
+
 ## 1002.0.11
 
 ### Patch Changes

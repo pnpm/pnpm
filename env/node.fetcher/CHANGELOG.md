@@ -1,5 +1,16 @@
 # @pnpm/node.fetcher
 
+## 1001.0.4
+
+### Patch Changes
+
+- @pnpm/node.resolver@1001.0.2
+- @pnpm/error@1000.0.5
+- @pnpm/crypto.shasums-file@1001.0.1
+- @pnpm/fetching.binary-fetcher@1000.0.3
+- @pnpm/tarball-fetcher@1001.0.15
+- @pnpm/create-cafs-store@1000.0.18
+
 ## 1001.0.3
 
 ### Patch Changes

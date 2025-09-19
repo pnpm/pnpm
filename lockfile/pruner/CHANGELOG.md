@@ -1,5 +1,12 @@
 # @pnpm/prune-lockfile
 
+## 1001.0.15
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+
 ## 1001.0.14
 
 ### Patch Changes
