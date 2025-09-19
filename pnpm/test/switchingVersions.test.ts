@@ -3,6 +3,7 @@ import fs from 'fs'
 import { prepare } from '@pnpm/prepare'
 import { getToolDirPath } from '@pnpm/tools.path'
 import { writeJsonFileSync } from 'write-json-file'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpmSync } from './utils/index.js'
 import isWindows from 'is-windows'
 
@@ -24,6 +25,22 @@ test('do not switch to the pnpm version specified in the packageManager field of
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
   fs.writeFileSync('.npmrc', 'manage-package-manager-versions=false')
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+
+  const { stdout } = execPnpmSync(['help'], { env })
+
+  expect(stdout.toString()).not.toContain('Version 9.3.0')
+})
+
+test('do not switch to the pnpm version specified in the packageManager field of package.json, if managePackageManagerVersions is set to false', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeYamlFile('pnpm-workspace.yaml', {
+    managePackageManagerVersions: false,
+  })
   writeJsonFileSync('package.json', {
     packageManager: 'pnpm@9.3.0',
   })
