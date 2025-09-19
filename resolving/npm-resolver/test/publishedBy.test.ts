@@ -82,7 +82,7 @@ test('request metadata when the one in cache does not have a version satisfying 
 })
 
 test('do not pick version that does not satisfy the date requirement even if it is loaded from cache and requested by exact version', async () => {
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const fooMeta = {
     'dist-tags': {},
     versions: {

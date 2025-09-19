@@ -123,7 +123,7 @@ test('repopulate dist-tag to highest non-prerelease same-major version within th
     .get(`/${name}`)
     .reply(200, meta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     fullMetadata: true,
@@ -187,7 +187,7 @@ test('repopulate dist-tag to highest prerelease same-major version within the da
     .get(`/${name}`)
     .reply(200, meta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     fullMetadata: true,
