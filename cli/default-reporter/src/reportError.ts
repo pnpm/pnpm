@@ -70,7 +70,6 @@ function getErrorInfo (logObj: Log, config?: Config): ErrorInfo | null {
     case 'ERR_PNPM_MISSING_TIME':
       return { title: err.message, body: 'If you cannot fix this registry issue, then set "resolution-mode" to "highest".' }
     case 'ERR_PNPM_NO_MATCHING_VERSION':
-    case 'ERR_PNPM_NO_MATCHING_VERSION_WITH_MINIMUM_RELEASE_AGE':
       return formatNoMatchingVersion(err, logObj as unknown as { packageMeta: PackageMeta, immatureVersion?: string })
     case 'ERR_PNPM_RECURSIVE_FAIL':
       return formatRecursiveCommandSummary(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
