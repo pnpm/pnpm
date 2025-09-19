@@ -771,7 +771,7 @@ test('setting workspace-concurrency to negative number', async () => {
   expect(config.workspaceConcurrency >= 1).toBeTruthy()
 })
 
-test('respects test-pattern', async () => {
+test('respects testPattern', async () => {
   {
     const { config } = await getConfig({
       cliOptions: {},
@@ -779,6 +779,7 @@ test('respects test-pattern', async () => {
         name: 'pnpm',
         version: '1.0.0',
       },
+      workspaceDir: process.cwd(),
     })
 
     expect(config.testPattern).toBeUndefined()
@@ -796,6 +797,20 @@ test('respects test-pattern', async () => {
     })
 
     expect(config.testPattern).toEqual(['*.spec.js', '*.spec.ts'])
+  }
+  {
+    const workspaceDir = path.join(import.meta.dirname, 'ignore-test-pattern')
+    process.chdir(workspaceDir)
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir,
+    })
+
+    expect(config.testPattern).toBeUndefined()
   }
 })
 
