@@ -49,7 +49,7 @@ export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
   packageMeta: PackageMeta
   registry: string
-  immatureVersion?: string,
+  immatureVersion?: string
   publishedBy?: Date
 }
 
@@ -282,7 +282,6 @@ async function resolveNpm (
         meta,
         versionRange: spec.fetchSpec,
         preferredVersionSelectors: opts.preferredVersions?.[spec.name],
-        publishedBy: opts.publishedBy,
       })
       if (immatureVersion) {
         throw new NoMatchingVersionError({
