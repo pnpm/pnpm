@@ -1,10 +1,9 @@
 import { type Dirent, promises as fs } from 'fs'
+import v8 from 'v8'
 import util from 'util'
 import path from 'path'
-import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
-import { loadJsonFile } from 'load-json-file'
 import ssri from 'ssri'
 
 const BIG_ONE = BigInt(1) as unknown
@@ -74,7 +73,7 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFi
 
   let pkgCounter = 0
   await Promise.all(pkgIndexFiles.map(async (pkgIndexFilePath) => {
-    const { files: pkgFilesIndex } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
+    const { files: pkgFilesIndex } = v8.deserialize(await fs.readFile(pkgIndexFilePath))
     if (removedHashes.has(pkgFilesIndex['package.json'].integrity)) {
       await fs.unlink(pkgIndexFilePath)
       pkgCounter++

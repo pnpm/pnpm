@@ -1,4 +1,5 @@
 import path from 'path'
+import v8 from 'v8'
 import pathAbsolute from 'path-absolute'
 import { readFile } from 'fs/promises'
 import { readPackageJson } from '@pnpm/read-package-json'
@@ -10,9 +11,7 @@ import {
   getIndexFilePathInCafs,
   type PackageFiles,
   type PackageFileInfo,
-  type PackageFilesIndex,
 } from '@pnpm/store.cafs'
-import { loadJsonFile } from 'load-json-file'
 import { PnpmError } from '@pnpm/error'
 import { type LicensePackage } from './licenses.js'
 import { type DirectoryResolution, type PackageSnapshot, pkgSnapshotToResolution, type Resolution } from '@pnpm/lockfile.utils'
@@ -276,7 +275,7 @@ export async function readPackageIndexFile (
   }
 
   try {
-    const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
+    const { files } = v8.deserialize(await readFile(pkgIndexFilePath))
     return {
       local: false,
       files,
