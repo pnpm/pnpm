@@ -101,9 +101,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
 
   writeEditDirState({
     editDir,
-    modulesDir: opts.modulesDir
-      ? path.join(opts.dir, opts.modulesDir)
-      : modulesDir,
+    modulesDir,
     patchedPkg: params[0],
     applyToAll: patchedDep.applyToAll,
   })
