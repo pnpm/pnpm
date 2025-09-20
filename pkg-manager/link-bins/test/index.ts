@@ -586,3 +586,38 @@ describe('enable prefer-symlinked-executables', () => {
     ).toHaveBeenCalled()
   })
 })
+
+test('linkBins() should change permissions of files not owned by current user, if current user is root (issue 3699)', async () => {
+  const globalWarnCallsCountBeforeLinkingBins = (globalWarn as jest.Mock).mock.calls.length
+
+  // SETUP
+  const binTarget = tempy.directory()
+  const fixture = f.prepare('bin-from-workspace-package')
+  const binFilePath = path.join(fixture, 'package-a/bin-file')
+
+  const permissionsBeforeLinkBinsCall = fs.statSync(binFilePath).mode
+
+  // @ts-expect-error TypeScript complains about the return type
+  //                  But we don't want to mock the whole fs.stat response
+  jest.spyOn(fs.promises, 'stat').mockImplementation(async (filePath) => {
+    if (filePath !== binFilePath) {
+      throw new Error(`Unexpected file path: ${filePath.toString()}. You should handle this case.`)
+    }
+
+    return Promise.resolve({
+      uid: -1, // Simulate a different user
+    })
+  })
+
+  jest.spyOn(process, 'getuid').mockReturnValue(0) // Simulate root user
+
+  // ACT
+  await linkBins(fixture, binTarget, { warn: jest.fn() })
+
+  // ASSERT
+  expect(globalWarn).toHaveBeenCalledTimes(globalWarnCallsCountBeforeLinkingBins) // No warning should be logged
+
+  const permissionsAfterLinkBinsCall = fs.statSync(binFilePath).mode
+  // permissions should have been changed, because user is root
+  expect(permissionsAfterLinkBinsCall).not.toBe(permissionsBeforeLinkBinsCall)
+})
