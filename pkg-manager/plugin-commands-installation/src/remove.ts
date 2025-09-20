@@ -12,13 +12,14 @@ import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type DependenciesField, type ProjectRootDir } from '@pnpm/types'
+import { type DependenciesField, type ProjectRootDir, type Project } from '@pnpm/types'
 import { mutateModulesInSingleProject } from '@pnpm/core'
 import pick from 'ramda/src/pick'
 import without from 'ramda/src/without'
 import renderHelp from 'render-help'
 import { getSaveType } from './getSaveType.js'
 import { recursive } from './recursive.js'
+import { type WorkspacePackages } from '@pnpm/resolver-base'
 
 class RemoveMissingDepsError extends PnpmError {
   constructor (
@@ -217,8 +218,23 @@ export async function handler (
     removeOpts
   )
   await writeProjectManifest(mutationResult.updatedProject.manifest)
+
+  const allProjects: Project[] = [
+    mutationResult.updatedProject as Project,
+  ]
+  // @ts-expect-error
+  if (opts.workspacePackages != null) {
+    // @ts-expect-error
+    const workspacePackagesMap = opts.workspacePackages as WorkspacePackages
+    for (const [name, versionsMap] of workspacePackagesMap) {
+      if (name === mutationResult.updatedProject.manifest.name) continue
+      for (const [, workspacePackage] of versionsMap) {
+        allProjects.push(workspacePackage as Project)
+      }
+    }
+  }
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
     cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
-    allProjects: opts.allProjects,
+    allProjects,
   })
 }
