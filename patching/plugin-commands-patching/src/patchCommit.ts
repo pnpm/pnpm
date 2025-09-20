@@ -60,7 +60,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   const editDir = path.resolve(opts.dir, userDir)
   const stateValue = readEditDirState({
     editDir,
-    modulesDir: path.join(opts.dir, opts.modulesDir ?? 'node_modules'),
+    modulesDir: path.join(lockfileDir, opts.modulesDir ?? 'node_modules'),
   })
   if (!stateValue) {
     throw new PnpmError('INVALID_PATCH_DIR', `${userDir} is not a valid patch directory`, {
