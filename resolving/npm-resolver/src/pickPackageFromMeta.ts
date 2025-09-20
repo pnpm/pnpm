@@ -277,7 +277,12 @@ function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedBy: Date
         bestVersion = candidate
       } else {
         try {
-          if (semver.gt(candidate, bestVersion, true)) {
+          const candidateIsDeprecated = meta.versions[candidate].deprecated != null
+          const bestVersionIsDeprecated = meta.versions[bestVersion].deprecated != null
+          if (
+            (semver.gt(candidate, bestVersion, true) && (bestVersionIsDeprecated === candidateIsDeprecated)) ||
+            (bestVersionIsDeprecated && !candidateIsDeprecated)
+          ) {
             bestVersion = candidate
           }
         } catch (err) {
