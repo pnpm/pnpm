@@ -1,5 +1,9 @@
 import { type PackageManifest } from '@pnpm/types'
 
+export type PackageDocument = PackageMeta
+
+export type PackageDocumentWithTime = PackageMetaWithTime
+
 export interface PackageMeta {
   name: string
   'dist-tags': Record<string, string>

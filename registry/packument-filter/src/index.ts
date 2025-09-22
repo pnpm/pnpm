@@ -1,19 +1,19 @@
 import { globalWarn } from '@pnpm/logger'
-import { type PackageMeta, type PackageMetaWithTime } from '@pnpm/registry.types'
+import { type PackageDocumentWithTime } from '@pnpm/registry.types'
 import semver from 'semver'
 
-export function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedBy: Date): PackageMeta {
-  const versionsWithinDate: PackageMeta['versions'] = {}
-  for (const version in meta.versions) {
-    if (!Object.hasOwn(meta.versions, version)) continue
-    const timeStr = meta.time[version]
+export function filterPkgDocByPublishDate (pkgDoc: PackageDocumentWithTime, publishedBy: Date): PackageDocumentWithTime {
+  const versionsWithinDate: PackageDocumentWithTime['versions'] = {}
+  for (const version in pkgDoc.versions) {
+    if (!Object.hasOwn(pkgDoc.versions, version)) continue
+    const timeStr = pkgDoc.time[version]
     if (timeStr && new Date(timeStr) <= publishedBy) {
-      versionsWithinDate[version] = meta.versions[version]
+      versionsWithinDate[version] = pkgDoc.versions[version]
     }
   }
 
-  const distTagsWithinDate: PackageMeta['dist-tags'] = {}
-  const allDistTags = meta['dist-tags'] ?? {}
+  const distTagsWithinDate: PackageDocumentWithTime['dist-tags'] = {}
+  const allDistTags = pkgDoc['dist-tags'] ?? {}
   const parsedSemverCache = new Map<string, semver.SemVer>()
   function tryParseSemver (semverStr: string): semver.SemVer | null {
     let parsedSemver = parsedSemverCache.get(semverStr)
@@ -51,8 +51,8 @@ export function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedB
         bestVersion = candidate
       } else {
         try {
-          const candidateIsDeprecated = meta.versions[candidate].deprecated != null
-          const bestVersionIsDeprecated = meta.versions[bestVersion].deprecated != null
+          const candidateIsDeprecated = pkgDoc.versions[candidate].deprecated != null
+          const bestVersionIsDeprecated = pkgDoc.versions[bestVersion].deprecated != null
           if (
             (semver.gt(candidate, bestVersion, true) && (bestVersionIsDeprecated === candidateIsDeprecated)) ||
             (bestVersionIsDeprecated && !candidateIsDeprecated)
@@ -60,7 +60,7 @@ export function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedB
             bestVersion = candidate
           }
         } catch (err) {
-          globalWarn(`Failed to compare semver versions ${candidate} and ${bestVersion} from packument of ${meta.name}, skipping candidate version.`)
+          globalWarn(`Failed to compare semver versions ${candidate} and ${bestVersion} from packument of ${pkgDoc.name}, skipping candidate version.`)
         }
       }
     }
@@ -70,7 +70,7 @@ export function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedB
   }
 
   return {
-    ...meta,
+    ...pkgDoc,
     versions: versionsWithinDate,
     'dist-tags': distTagsWithinDate,
   }

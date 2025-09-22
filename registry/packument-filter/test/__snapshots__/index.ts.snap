@@ -1,6 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`filterMetaByPublishedDate 1`] = `
+exports[`filterPkgDocByPublishDate 1`] = `
 {
   "dist-tags": {
     "latest": "3.0.0",
