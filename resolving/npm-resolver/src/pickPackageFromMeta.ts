@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { filterPkgDocByPublishDate } from '@pnpm/registry.packument-filter'
+import { filterPkgDocByPublishDate } from '@pnpm/registry.pkg-doc-filter'
 import { type PackageInRegistry, type PackageMeta, type PackageMetaWithTime } from '@pnpm/registry.types'
 import { type VersionSelectors } from '@pnpm/resolver-base'
 import semver from 'semver'

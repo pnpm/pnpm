@@ -43,7 +43,7 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../registry/packument-filter"
+      "path": "../../registry/pkg-doc-filter"
     },
     {
       "path": "../../registry/types"

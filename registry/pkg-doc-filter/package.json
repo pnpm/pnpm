@@ -1,17 +1,17 @@
 {
-  "name": "@pnpm/registry.packument-filter",
+  "name": "@pnpm/registry.pkg-doc-filter",
   "version": "1000.0.0-0",
-  "description": "Filters the packument from the registry",
+  "description": "Filters the package document from the registry",
   "keywords": [
     "pnpm",
     "pnpm10",
     "npm",
-    "packument"
+    "pkg-doc"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/registry/packument-filter",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/registry/packument-filter#readme",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/registry/pkg-doc-filter",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/registry/pkg-doc-filter#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -41,7 +41,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "workspace:*",
-    "@pnpm/registry.packument-filter": "workspace:*",
+    "@pnpm/registry.pkg-doc-filter": "workspace:*",
     "@types/semver": "catalog:"
   },
   "engines": {

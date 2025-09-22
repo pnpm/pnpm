@@ -40,7 +40,7 @@
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
-    "@pnpm/registry.packument-filter": "workspace:*",
+    "@pnpm/registry.pkg-doc-filter": "workspace:*",
     "@pnpm/registry.types": "workspace:*",
     "@pnpm/resolve-workspace-range": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
