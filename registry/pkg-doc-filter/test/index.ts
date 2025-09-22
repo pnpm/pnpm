@@ -1,4 +1,4 @@
-import { filterPkgDocByPublishDate } from '@pnpm/registry.packument-filter'
+import { filterPkgDocByPublishDate } from '@pnpm/registry.pkg-doc-filter'
 
 test('filterPkgDocByPublishDate', () => {
   const cutoff = new Date('2020-04-01T00:00:00.000Z')
