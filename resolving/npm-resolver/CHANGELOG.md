@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 1004.2.3
+
+### Patch Changes
+
+- baf8bf6: When a version specifier cannot be resolved because the versions don't satisfy the `minimumReleaseAge` setting, print this information out in the error message [#9974](https://github.com/pnpm/pnpm/pull/9974).
+- 702ddb9: When `minimumReleaseAge` is set and the `latest` tag is not mature enough, prefer a non-deprecated version as the new `latest` [#9987](https://github.com/pnpm/pnpm/issues/9987).
+
 ## 1004.2.2
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/resolving.deno-resolver
 
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [baf8bf6]
+- Updated dependencies [702ddb9]
+  - @pnpm/npm-resolver@1004.2.3
+
 ## 1000.0.5
 
 ### Patch Changes

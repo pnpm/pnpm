@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "1004.2.2",
+  "version": "1004.2.3",
   "description": "Resolver for npm-hosted packages",
   "keywords": [
     "pnpm",
