@@ -6706,6 +6706,35 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  registry/pkg-doc-filter:
+    dependencies:
+      '@pnpm/registry.types':
+        specifier: workspace:*
+        version: link:../types
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.1
+    devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@pnpm/registry.pkg-doc-filter':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
+
+  registry/types:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/registry.types':
+        specifier: workspace:*
+        version: 'link:'
+
   releasing/plugin-commands-deploy:
     dependencies:
       '@pnpm/cli-utils':
@@ -7199,6 +7228,12 @@ importers:
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
+      '@pnpm/registry.pkg-doc-filter':
+        specifier: workspace:*
+        version: link:../../registry/pkg-doc-filter
+      '@pnpm/registry.types':
+        specifier: workspace:*
+        version: link:../../registry/types
       '@pnpm/resolve-workspace-range':
         specifier: workspace:*
         version: link:../../workspace/resolve-workspace-range

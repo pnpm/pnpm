@@ -31,6 +31,7 @@ packages:
   - tools/*
   - worker
   - pnpm/artifacts/*
+  - registry/*
   - releasing/*
   - resolving/*
   - reviewing/*

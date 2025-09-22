@@ -5,7 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import gfs from '@pnpm/graceful-fs'
 import { type VersionSelectors } from '@pnpm/resolver-base'
-import { type PackageManifest } from '@pnpm/types'
+import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import getRegistryName from 'encode-registry'
 import loadJsonFile from 'load-json-file'
 import pLimit from 'p-limit'
@@ -17,38 +17,10 @@ import { toRaw } from './toRaw.js'
 import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange } from './pickPackageFromMeta.js'
 import { type RegistryPackageSpec } from './parseBareSpecifier.js'
 
-export interface PackageMeta {
-  name: string
-  'dist-tags': Record<string, string>
-  versions: Record<string, PackageInRegistry>
-  time?: PackageMetaTime
-  cachedAt?: number
-}
-
-export interface PackageMetaWithTime extends PackageMeta {
-  time: PackageMetaTime
-}
-
-export type PackageMetaTime = Record<string, string> & {
-  unpublished?: {
-    time: string
-    versions: string[]
-  }
-}
-
 export interface PackageMetaCache {
   get: (key: string) => PackageMeta | undefined
   set: (key: string, meta: PackageMeta) => void
   has: (key: string) => boolean
-}
-
-export interface PackageInRegistry extends PackageManifest {
-  hasInstallScript?: boolean
-  dist: {
-    integrity?: string
-    shasum: string
-    tarball: string
-  }
 }
 
 interface RefCountedLimiter {
