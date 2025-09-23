@@ -1,0 +1,6 @@
+{
+  "name": "libc-field-array",
+  "version": "1.0.0",
+  "libc": ["glibc", "musl"],
+  "description": "fixture with libc array"
+}
