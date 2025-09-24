@@ -7,6 +7,7 @@ import {
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
+import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
   type DirectoryResolution,
@@ -28,8 +29,6 @@ import semver from 'semver'
 import ssri from 'ssri'
 import versionSelectorType from 'version-selector-type'
 import {
-  type PackageInRegistry,
-  type PackageMeta,
   type PackageMetaCache,
   type PickPackageOptions,
   pickPackage,
@@ -43,15 +42,33 @@ import {
 import { fromRegistry, RegistryResponseError } from './fetch.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
+import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
+
+export interface NoMatchingVersionErrorOptions {
+  wantedDependency: WantedDependency
+  packageMeta: PackageMeta
+  registry: string
+  immatureVersion?: string
+  publishedBy?: Date
+}
 
 export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
-  constructor (opts: { wantedDependency: WantedDependency, packageMeta: PackageMeta, registry: string }) {
+  public readonly immatureVersion?: string
+  constructor (opts: NoMatchingVersionErrorOptions) {
     const dep = opts.wantedDependency.alias
       ? `${opts.wantedDependency.alias}@${opts.wantedDependency.bareSpecifier ?? ''}`
       : opts.wantedDependency.bareSpecifier!
-    super('NO_MATCHING_VERSION', `No matching version found for ${dep} while fetching it from ${opts.registry}`)
+    let errorMessage: string
+    if (opts.publishedBy && opts.immatureVersion && opts.packageMeta.time) {
+      const time = new Date(opts.packageMeta.time[opts.immatureVersion])
+      errorMessage = `No matching version found for ${dep} published by ${opts.publishedBy.toString()} while fetching it from ${opts.registry}. Version ${opts.immatureVersion} satisfies the specs but was released at ${time.toString()}`
+    } else {
+      errorMessage = `No matching version found for ${dep} while fetching it from ${opts.registry}`
+    }
+    super('NO_MATCHING_VERSION', errorMessage)
     this.packageMeta = opts.packageMeta
+    this.immatureVersion = opts.immatureVersion
   }
 }
 
@@ -256,6 +273,23 @@ async function resolveNpm (
         })
       } catch {
         // ignore
+      }
+    }
+
+    if (opts.publishedBy) {
+      const immatureVersion = pickVersionByVersionRange({
+        meta,
+        versionRange: spec.fetchSpec,
+        preferredVersionSelectors: opts.preferredVersions?.[spec.name],
+      })
+      if (immatureVersion) {
+        throw new NoMatchingVersionError({
+          wantedDependency,
+          packageMeta: meta,
+          registry,
+          immatureVersion,
+          publishedBy: opts.publishedBy,
+        })
       }
     }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })

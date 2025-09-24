@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "1004.2.2",
+  "version": "1004.2.3",
   "description": "Resolver for npm-hosted packages",
   "keywords": [
     "pnpm",
@@ -40,6 +40,8 @@
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
+    "@pnpm/registry.pkg-metadata-filter": "workspace:*",
+    "@pnpm/registry.types": "workspace:*",
     "@pnpm/resolve-workspace-range": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
