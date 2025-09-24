@@ -32,6 +32,9 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
+  "dependencies": {
+    "@pnpm/graceful-fs": "workspace:*"
+  },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"
   },
