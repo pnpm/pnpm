@@ -1,5 +1,5 @@
 ---
-"@pnpm/registry.pkg-doc-filter": major
+"@pnpm/registry.pkg-metadata-filter": major
 "@pnpm/registry.types": major
 ---
 

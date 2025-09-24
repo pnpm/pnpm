@@ -6709,7 +6709,7 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  registry/pkg-doc-filter:
+  registry/pkg-metadata-filter:
     dependencies:
       '@pnpm/registry.types':
         specifier: workspace:*
@@ -6721,7 +6721,7 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../packages/logger
-      '@pnpm/registry.pkg-doc-filter':
+      '@pnpm/registry.pkg-metadata-filter':
         specifier: workspace:*
         version: 'link:'
       '@types/semver':
@@ -7231,9 +7231,9 @@ importers:
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
-      '@pnpm/registry.pkg-doc-filter':
+      '@pnpm/registry.pkg-metadata-filter':
         specifier: workspace:*
-        version: link:../../registry/pkg-doc-filter
+        version: link:../../registry/pkg-metadata-filter
       '@pnpm/registry.types':
         specifier: workspace:*
         version: link:../../registry/types

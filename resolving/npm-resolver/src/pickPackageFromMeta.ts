@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { filterPkgDocByPublishDate } from '@pnpm/registry.pkg-doc-filter'
+import { filterPkgMetadataByPublishDate } from '@pnpm/registry.pkg-metadata-filter'
 import { type PackageInRegistry, type PackageMeta, type PackageMetaWithTime } from '@pnpm/registry.types'
 import { type VersionSelectors } from '@pnpm/resolver-base'
 import semver from 'semver'
@@ -24,7 +24,7 @@ export function pickPackageFromMeta (
 ): PackageInRegistry | null {
   if (publishedBy) {
     assertMetaHasTime(meta)
-    meta = filterPkgDocByPublishDate(meta, publishedBy)
+    meta = filterPkgMetadataByPublishDate(meta, publishedBy)
   }
   if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {
     // Unfortunately, the npm registry doesn't return the time field in the abbreviated metadata.

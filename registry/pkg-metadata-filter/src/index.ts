@@ -1,9 +1,9 @@
 import { globalWarn } from '@pnpm/logger'
-import { type PackageDocumentWithTime } from '@pnpm/registry.types'
+import { type PackageMetadataWithTime } from '@pnpm/registry.types'
 import semver from 'semver'
 
-export function filterPkgDocByPublishDate (pkgDoc: PackageDocumentWithTime, publishedBy: Date): PackageDocumentWithTime {
-  const versionsWithinDate: PackageDocumentWithTime['versions'] = {}
+export function filterPkgMetadataByPublishDate (pkgDoc: PackageMetadataWithTime, publishedBy: Date): PackageMetadataWithTime {
+  const versionsWithinDate: PackageMetadataWithTime['versions'] = {}
   for (const version in pkgDoc.versions) {
     if (!Object.hasOwn(pkgDoc.versions, version)) continue
     const timeStr = pkgDoc.time[version]
@@ -12,7 +12,7 @@ export function filterPkgDocByPublishDate (pkgDoc: PackageDocumentWithTime, publ
     }
   }
 
-  const distTagsWithinDate: PackageDocumentWithTime['dist-tags'] = {}
+  const distTagsWithinDate: PackageMetadataWithTime['dist-tags'] = {}
   const allDistTags = pkgDoc['dist-tags'] ?? {}
   const parsedSemverCache = new Map<string, semver.SemVer>()
   function tryParseSemver (semverStr: string): semver.SemVer | null {

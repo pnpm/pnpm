@@ -1,8 +1,8 @@
 import { type PackageManifest } from '@pnpm/types'
 
-export type PackageDocument = PackageMeta
+export type PackageMetadata = PackageMeta
 
-export type PackageDocumentWithTime = PackageMetaWithTime
+export type PackageMetadataWithTime = PackageMetaWithTime
 
 export interface PackageMeta {
   name: string

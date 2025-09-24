@@ -1,9 +1,9 @@
-import { filterPkgDocByPublishDate } from '@pnpm/registry.pkg-doc-filter'
+import { filterPkgMetadataByPublishDate } from '@pnpm/registry.pkg-metadata-filter'
 
-test('filterPkgDocByPublishDate', () => {
+test('filterPkgMetadataByPublishDate', () => {
   const cutoff = new Date('2020-04-01T00:00:00.000Z')
   const name = 'dist-tag-date'
-  expect(filterPkgDocByPublishDate({
+  expect(filterPkgMetadataByPublishDate({
     name,
     versions: {
       '3.0.0': {
