@@ -1540,6 +1540,89 @@ describe('update', () => {
     expect(Object.keys(lockfile.snapshots)).toEqual(['@pnpm.e2e/foo@1.3.0'])
   })
 
+  test('pnpm upgrade --latest -r should update both dependencies and peerDependencies using catalog', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '1.3.0', distTag: 'latest' })
+
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+      {
+        name: 'app1',
+        dependencies: {
+          '@pnpm.e2e/foo': 'catalog:',
+        },
+      },
+      {
+        name: 'pkg1',
+        peerDependencies: {
+          '@pnpm.e2e/foo': 'catalog:',
+        },
+      },
+    ])
+
+    const catalogs = {
+      default: { '@pnpm.e2e/foo': '1.0.0' },
+    }
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs,
+    }
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    const lockfile = readLockfile()
+
+    // Verify initial state - both should have version 1.0.0
+    expect(lockfile.importers?.['app1' as ProjectId]?.dependencies?.['@pnpm.e2e/foo']).toEqual({
+      specifier: 'catalog:',
+      version: '1.0.0',
+    })
+    expect(lockfile.importers?.['pkg1' as ProjectId]?.dependencies?.['@pnpm.e2e/foo']).toEqual({
+      specifier: 'catalog:',
+      version: '1.0.0',
+    })
+
+    // Simulate pnpm upgrade --latest -r
+    const mutatedImporters: MutatedProject[] = []
+
+    for (const [projectId] of Object.entries(projects)) {
+      mutatedImporters.push({
+        mutation: 'installSome',
+        rootDir: path.join(options.lockfileDir, projectId),
+        dependencySelectors: ['@pnpm.e2e/foo'],
+        update: true,
+        updateToLatest: true,
+        allowNew: false,
+        updatePackageManifest: false,
+      } as MutatedProject)
+    }
+
+    await mutateModules(mutatedImporters, {
+      ...mutateOpts,
+      lockfileOnly: false,
+    })
+    const finalLockfile = readLockfile()
+
+    // Both projects should have the updated version
+    expect(finalLockfile.importers?.['app1' as ProjectId]?.dependencies?.['@pnpm.e2e/foo']).toEqual({
+      specifier: 'catalog:',
+      version: '1.3.0',
+    })
+
+    const pkg1Dependencies = finalLockfile.importers?.['pkg1' as ProjectId]?.dependencies?.['@pnpm.e2e/foo']
+    if (pkg1Dependencies) {
+      expect(pkg1Dependencies).toEqual({
+        specifier: 'catalog:',
+        version: '1.3.0',
+      })
+    }
+
+    // The catalog snapshot should reflect the new version
+    expect(finalLockfile.catalogs?.default?.['@pnpm.e2e/foo']).toEqual({
+      specifier: '1.3.0',
+      version: '1.3.0',
+    })
+  })
+
   test('update --latest works on cataloged dependency', async () => {
     await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
 
