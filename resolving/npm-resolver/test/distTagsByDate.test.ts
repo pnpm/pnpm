@@ -124,7 +124,7 @@ test('repopulate dist-tag to highest same-major version within the date cutoff. 
     .get(`/${name}`)
     .reply(200, meta)
 
-  const cacheDir = tempy.directory()
+  const cacheDir = temporaryDirectory()
   const { resolveFromNpm } = createResolveFromNpm({
     cacheDir,
     fullMetadata: true,
