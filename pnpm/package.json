@@ -151,6 +151,7 @@
     "deep-require-cwd": "catalog:",
     "delay": "catalog:",
     "dir-is-case-sensitive": "catalog:",
+    "get-port": "catalog:",
     "esbuild": "catalog:",
     "execa": "catalog:",
     "exists-link": "catalog:",

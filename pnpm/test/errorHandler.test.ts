@@ -1,4 +1,5 @@
 import { prepare, preparePackages } from '@pnpm/prepare'
+import getPort from 'get-port'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpmSync } from './utils/index.js'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -42,10 +43,18 @@ test('should print json format error when add dependency on workspace root', asy
 })
 
 test('should clean up child processes when process exited', async () => {
+  const fooPort = await getPort()
+  const barPort = await getPort()
   process.chdir(multipleScriptsErrorExit)
-  execPnpmSync(['run', '/^dev:.*/'], { stdio: 'inherit', env: {} })
-  expect(await isPortInUse(9990)).toBe(false)
-  expect(await isPortInUse(9999)).toBe(false)
+  execPnpmSync(['run', '/^dev:.*/'], {
+    stdio: 'inherit',
+    env: {
+      FOO_PORT: fooPort.toString(),
+      BAR_PORT: barPort.toString(),
+    },
+  })
+  expect(await isPortInUse(fooPort)).toBe(false)
+  expect(await isPortInUse(barPort)).toBe(false)
 })
 
 test('should print error summary when some packages fail with --no-bail', async () => {
