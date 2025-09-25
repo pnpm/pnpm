@@ -183,9 +183,11 @@ export async function handler (
     storeDir: store.dir,
     include,
   })
-  const allProjects = opts.workspaceDir
-    ? await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
-    : undefined
+  const allProjects = opts.allProjects ?? (
+    opts.workspaceDir
+      ? await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
+      : undefined
+  )
   // @ts-expect-error
   removeOpts['workspacePackages'] = allProjects
     ? arrayOfWorkspacePackagesToMap(allProjects)
