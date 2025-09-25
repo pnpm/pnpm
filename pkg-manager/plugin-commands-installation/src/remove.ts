@@ -19,7 +19,6 @@ import without from 'ramda/src/without'
 import renderHelp from 'render-help'
 import { getSaveType } from './getSaveType.js'
 import { recursive } from './recursive.js'
-import { type WorkspacePackages } from '@pnpm/resolver-base'
 
 class RemoveMissingDepsError extends PnpmError {
   constructor (
@@ -184,9 +183,12 @@ export async function handler (
     storeDir: store.dir,
     include,
   })
+  const allProjects = opts.workspaceDir
+    ? await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
+    : undefined
   // @ts-expect-error
-  removeOpts['workspacePackages'] = opts.workspaceDir
-    ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns }))
+  removeOpts['workspacePackages'] = allProjects
+    ? arrayOfWorkspacePackagesToMap(allProjects)
     : undefined
   const targetDependenciesField = getSaveType(opts)
   const {
@@ -219,24 +221,13 @@ export async function handler (
   )
   await writeProjectManifest(mutationResult.updatedProject.manifest)
 
-  const allProjects: Project[] = [
+  const updatedProjects: Project[] = [
     mutationResult.updatedProject as Project,
   ]
-  // @ts-expect-error
-  if (opts.workspacePackages != null) {
-    // @ts-expect-error
-    const workspacePackagesMap = opts.workspacePackages as WorkspacePackages
-    for (const [name, versionsMap] of workspacePackagesMap) {
-      if (name === mutationResult.updatedProject.manifest.name) continue
-      for (const [, workspacePackage] of versionsMap) {
-        allProjects.push(workspacePackage as Project)
-      }
-    }
-  }
-  if (opts.allProjects) {
-    for (const project of opts.allProjects) {
-      if (allProjects.some((p) => p.manifest.name === project.manifest.name)) continue
-      allProjects.push(project)
+  if (allProjects != null) {
+    for (const project of allProjects) {
+      if (project.rootDir === mutationResult.updatedProject.rootDir) continue
+      updatedProjects.push(project)
     }
   }
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
