@@ -132,7 +132,7 @@ interface PackageMeta {
   time?: Record<string, string>
 }
 
-function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta, immatureVersion?: string, latestAvailableVersion?: string | null }): ErrorInfo {
+function formatNoMatchingVersion (err: Error, msg: { packageMeta: PackageMeta, immatureVersion?: string, latestAvailableVersion?: string | null }) {
   const meta: PackageMeta = msg.packageMeta
   const latestVersion = meta['dist-tags'].latest
   let output = `The latest release of ${meta.name} is "${latestVersion}".`
