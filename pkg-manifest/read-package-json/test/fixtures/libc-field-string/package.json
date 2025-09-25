@@ -1,0 +1,6 @@
+{
+  "name": "libc-field-string",
+  "version": "1.0.0",
+  "libc": "musl",
+  "description": "fixture with libc as string"
+}
