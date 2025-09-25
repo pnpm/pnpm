@@ -223,13 +223,17 @@ export async function handler (
   )
   await writeProjectManifest(mutationResult.updatedProject.manifest)
 
-  const updatedProjects: Project[] = [
-    mutationResult.updatedProject as Project,
-  ]
+  const updatedProjects: Project[] = []
   if (allProjects != null) {
     for (const project of allProjects) {
-      if (project.rootDir === mutationResult.updatedProject.rootDir) continue
-      updatedProjects.push(project)
+      if (project.rootDir === mutationResult.updatedProject.rootDir) {
+        updatedProjects.push({
+          ...project,
+          manifest: mutationResult.updatedProject.manifest,
+        })
+      } else {
+        updatedProjects.push(project)
+      }
     }
   }
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
