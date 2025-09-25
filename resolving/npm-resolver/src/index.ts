@@ -31,7 +31,6 @@ import versionSelectorType from 'version-selector-type'
 import {
   type PackageMetaCache,
   type PickPackageOptions,
-  type PackageMetaWithTime,
   pickPackage,
 } from './pickPackage.js'
 import {
@@ -43,7 +42,9 @@ import {
 import { fromRegistry, RegistryResponseError } from './fetch.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
-import { pickVersionByVersionRange, getLatestAvailableVersion } from './pickPackageFromMeta.js'
+import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { getLatestAvailableVersion } from '@pnpm/registry.pkg-metadata-filter'
+import { type PackageMetaWithTime } from '@pnpm/registry.types'
 
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
