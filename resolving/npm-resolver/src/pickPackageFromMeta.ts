@@ -301,3 +301,10 @@ function filterMetaByPublishedDate (meta: PackageMetaWithTime, publishedBy: Date
     'dist-tags': distTagsWithinDate,
   }
 }
+
+export function getLatestAvailableVersion (meta: PackageMetaWithTime, publishedBy: Date): string | null {
+  meta = filterMetaByPublishedDate(meta, publishedBy) as PackageMetaWithTime
+  const versions = Object.keys(meta.versions)
+  if (versions.length === 0) return null
+  return semver.maxSatisfying(versions, '*', true)
+}

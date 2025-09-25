@@ -32,6 +32,7 @@ import {
   type PackageMeta,
   type PackageMetaCache,
   type PickPackageOptions,
+  type PackageMetaWithTime,
   pickPackage,
 } from './pickPackage.js'
 import {
@@ -43,7 +44,7 @@ import {
 import { fromRegistry, RegistryResponseError } from './fetch.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
-import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { pickVersionByVersionRange, getLatestAvailableVersion } from './pickPackageFromMeta.js'
 
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
@@ -51,11 +52,13 @@ export interface NoMatchingVersionErrorOptions {
   registry: string
   immatureVersion?: string
   publishedBy?: Date
+  latestAvailableVersion?: string | null
 }
 
 export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
   public readonly immatureVersion?: string
+  public readonly latestAvailableVersion?: string | null
   constructor (opts: NoMatchingVersionErrorOptions) {
     const dep = opts.wantedDependency.alias
       ? `${opts.wantedDependency.alias}@${opts.wantedDependency.bareSpecifier ?? ''}`
@@ -70,6 +73,7 @@ export class NoMatchingVersionError extends PnpmError {
     super('NO_MATCHING_VERSION', errorMessage)
     this.packageMeta = opts.packageMeta
     this.immatureVersion = opts.immatureVersion
+    this.latestAvailableVersion = opts.latestAvailableVersion
   }
 }
 
@@ -284,11 +288,13 @@ async function resolveNpm (
         preferredVersionSelectors: opts.preferredVersions?.[spec.name],
       })
       if (immatureVersion) {
+        const latestAvailableVersion = getLatestAvailableVersion(meta as PackageMetaWithTime, opts.publishedBy)
         throw new NoMatchingVersionError({
           wantedDependency,
           packageMeta: meta,
           registry,
           immatureVersion,
+          latestAvailableVersion,
           publishedBy: opts.publishedBy,
         })
       }
