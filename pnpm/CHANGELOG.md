@@ -1,5 +1,13 @@
 # pnpm
 
+## 10.17.1
+
+### Patch Changes
+
+- When a version specifier cannot be resolved because the versions don't satisfy the `minimumReleaseAge` setting, print this information out in the error message [#9974](https://github.com/pnpm/pnpm/pull/9974).
+- Fix `state.json` creation path when executing `pnpm patch` in a workspace project [#9733](https://github.com/pnpm/pnpm/pull/9733).
+- When `minimumReleaseAge` is set and the `latest` tag is not mature enough, prefer a non-deprecated version as the new `latest` [#9987](https://github.com/pnpm/pnpm/issues/9987).
+
 ## 10.17.0
 
 ### Minor Changes

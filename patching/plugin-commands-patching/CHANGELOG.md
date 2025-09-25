@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.14
+
+### Patch Changes
+
+- 6633eb3: Fix `state.json` creation path when executing `pnpm patch` in a workspace project [#9733](https://github.com/pnpm/pnpm/pull/9733).
+  - @pnpm/cli-utils@1001.2.3
+  - @pnpm/plugin-commands-installation@1004.6.3
+  - @pnpm/store-connection-manager@1002.1.3
+
 ## 1000.3.13
 
 ### Patch Changes

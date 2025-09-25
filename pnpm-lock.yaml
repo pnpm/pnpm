@@ -6558,6 +6558,9 @@ importers:
       exists-link:
         specifier: 'catalog:'
         version: 2.0.0
+      get-port:
+        specifier: 'catalog:'
+        version: 5.1.1
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -6703,6 +6706,35 @@ importers:
         version: 0.25.0
     devDependencies:
       pd:
+        specifier: workspace:*
+        version: 'link:'
+
+  registry/pkg-metadata-filter:
+    dependencies:
+      '@pnpm/registry.types':
+        specifier: workspace:*
+        version: link:../types
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.1
+    devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@pnpm/registry.pkg-metadata-filter':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
+
+  registry/types:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/registry.types':
         specifier: workspace:*
         version: 'link:'
 
@@ -7199,6 +7231,12 @@ importers:
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
+      '@pnpm/registry.pkg-metadata-filter':
+        specifier: workspace:*
+        version: link:../../registry/pkg-metadata-filter
+      '@pnpm/registry.types':
+        specifier: workspace:*
+        version: link:../../registry/types
       '@pnpm/resolve-workspace-range':
         specifier: workspace:*
         version: link:../../workspace/resolve-workspace-range
@@ -17191,7 +17229,7 @@ snapshots:
   '@pnpm/catalogs.resolver@1000.0.2':
     dependencies:
       '@pnpm/catalogs.protocol-parser': 1000.0.0
-      '@pnpm/error': 1000.0.2
+      '@pnpm/error': 1000.0.4
 
   '@pnpm/catalogs.types@1000.0.0': {}
 
@@ -17801,7 +17839,7 @@ snapshots:
   '@pnpm/npm-lifecycle@1000.0.4(typanion@3.14.0)':
     dependencies:
       '@pnpm/byline': 1.0.0
-      '@pnpm/error': 1000.0.2
+      '@pnpm/error': 1000.0.4
       '@yarnpkg/fslib': 3.1.2
       '@yarnpkg/shell': 4.0.0(typanion@3.14.0)
       node-gyp: 11.4.2

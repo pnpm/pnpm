@@ -7,6 +7,7 @@ import {
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
+import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
   type DirectoryResolution,
@@ -28,8 +29,6 @@ import semver from 'semver'
 import ssri from 'ssri'
 import versionSelectorType from 'version-selector-type'
 import {
-  type PackageInRegistry,
-  type PackageMeta,
   type PackageMetaCache,
   type PickPackageOptions,
   type PackageMetaWithTime,
