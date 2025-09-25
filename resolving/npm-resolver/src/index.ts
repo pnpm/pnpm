@@ -7,7 +7,7 @@ import {
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
+import { type PackageMeta, type PackageInRegistry, type PackageMetaWithTime } from '@pnpm/registry.types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
   type DirectoryResolution,
@@ -44,7 +44,6 @@ import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
 import { getLatestAvailableVersion } from '@pnpm/registry.pkg-metadata-filter'
-import { type PackageMetaWithTime } from '@pnpm/registry.types'
 
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
