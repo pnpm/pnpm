@@ -16,8 +16,12 @@ function normalizeLibc (libc: MaybeLibc): string[] | undefined {
 function preserveLibcField (manifest: PackageManifest): void {
   const originalLibc = normalizeLibc(manifest.libc)
   normalizePackageData(manifest)
-  const normalizedLibc = normalizeLibc(manifest.libc)
-  manifest.libc = normalizedLibc ?? originalLibc
+  const normalizedLibc = normalizeLibc(manifest.libc) ?? originalLibc
+  if (normalizedLibc) {
+    manifest.libc = normalizedLibc
+  } else {
+    delete manifest.libc
+  }
 }
 
 export function readPackageJsonSync (pkgPath: string): PackageManifest {
