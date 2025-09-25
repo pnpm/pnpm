@@ -233,6 +233,12 @@ export async function handler (
       }
     }
   }
+  if (opts.allProjects) {
+    for (const project of opts.allProjects) {
+      if (allProjects.some((p) => p.manifest.name === project.manifest.name)) continue
+      allProjects.push(project)
+    }
+  }
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
     cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
     allProjects,
