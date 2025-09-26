@@ -355,3 +355,62 @@ test('update catalogs and remove catalog', async () => {
     },
   })
 })
+
+test('when allProjects is undefined should not cleanup unused catalogs', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFile(filePath, {
+    catalogs: {
+      foo: {
+        ghi: '7.8.9',
+      },
+    },
+  })
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      foo: {
+        abc: '0.1.2',
+      },
+      bar: {
+        def: '3.2.1',
+      },
+    },
+  })
+  expect(readYamlFile(filePath)).toStrictEqual({
+    catalogs: {
+      foo: {
+        abc: '0.1.2',
+        ghi: '7.8.9',
+      },
+      bar: {
+        def: '3.2.1',
+      },
+    },
+  })
+  prepare({
+    dependencies: {
+      def: 'catalog:bar',
+      ghi: 'catalog:foo',
+    },
+  }, { tempDir: dir })
+  await updateWorkspaceManifest(dir, {
+    updatedCatalogs: {
+      foo: {
+        ghi: '7.9.9',
+      },
+    },
+    cleanupUnusedCatalogs: true,
+    allProjects: undefined,
+  })
+  expect(readYamlFile(filePath)).toStrictEqual({
+    catalogs: {
+      foo: {
+        abc: '0.1.2',
+        ghi: '7.9.9',
+      },
+      bar: {
+        def: '3.2.1',
+      },
+    },
+  })
+})

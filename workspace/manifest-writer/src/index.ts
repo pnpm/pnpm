@@ -102,7 +102,7 @@ function addCatalogs (manifest: Partial<WorkspaceManifest>, newCatalogs: Catalog
 function removePackagesFromWorkspaceCatalog (manifest: Partial<WorkspaceManifest>, packagesJson: Project[]): boolean {
   let shouldBeUpdated = false
 
-  if (manifest.catalog == null && manifest.catalogs == null) {
+  if (packagesJson.length === 0 || (manifest.catalog == null && manifest.catalogs == null)) {
     return shouldBeUpdated
   }
   const packageReferences: Record<string, Set<string>> = {}
