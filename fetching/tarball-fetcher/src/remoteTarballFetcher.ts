@@ -108,7 +108,6 @@ export function createDownloader (
     async function fetch (currentAttempt: number): Promise<FetchResult> {
       let data: Buffer
       try {
-        const startTime = Date.now() // Record start time for slow network detection
         const res = await fetchFromRegistry(url, {
           authHeaderValue,
           // The fetch library can retry requests on bad HTTP responses.
@@ -135,6 +134,7 @@ export function createDownloader (
         const onProgress = (size != null && size >= BIG_TARBALL_SIZE && opts.onProgress)
           ? throttle(opts.onProgress, 500)
           : undefined
+        const startTime = Date.now()
         let downloaded = 0
         const chunks: Buffer[] = []
         // This will handle the 'data', 'error', and 'end' events.
@@ -150,20 +150,18 @@ export function createDownloader (
             tarballUrl: url,
           })
         }
+        const elapsedSec = (Date.now() - startTime) / 1000
+        const avgKiBps = Math.floor((downloaded / elapsedSec) / 1024)
+        if (downloaded > 0 && elapsedSec > 1 && avgKiBps < fetchMinSpeedKiBps) {
+          const sizeKb = Math.floor(downloaded / 1024)
+          globalWarn(`Tarball download average speed ${avgKiBps} KiB/s (size ${sizeKb} KiB) is below ${fetchMinSpeedKiBps} KiB/s: ${url} (GET)`)
+        }
 
         data = Buffer.from(new SharedArrayBuffer(downloaded))
         let offset: number = 0
         for (const chunk of chunks) {
           chunk.copy(data, offset)
           offset += chunk.length
-        }
-
-        // Log if the request was slow
-        const elapsedMs = Date.now() - startTime
-        const avgKiBps = Math.floor((downloaded / (elapsedMs / 1000) / 1024))
-        if (downloaded > 0 && avgKiBps < fetchMinSpeedKiBps) {
-          const sizeKb = Math.floor(downloaded / 1024)
-          globalWarn(`Tarball download average speed ${avgKiBps} KiB/s (size ${sizeKb} KiB) is below ${fetchMinSpeedKiBps} KiB/s: ${url} (GET)`)
         }
       } catch (err: unknown) {
         assert(util.types.isNativeError(err))
