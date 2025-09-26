@@ -6,6 +6,7 @@ import { FetchError } from '@pnpm/error'
 import { type FetchResult, type FetchOptions } from '@pnpm/fetcher-base'
 import { type Cafs } from '@pnpm/cafs-types'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
+import { globalWarn } from '@pnpm/logger'
 import { addFilesFromTarball } from '@pnpm/worker'
 import * as retry from '@zkochan/retry'
 import throttle from 'lodash.throttle'
@@ -33,19 +34,22 @@ export interface NpmRegistryClient {
   fetch: (url: string, opts: { auth?: object }, cb: (err: Error, res: IncomingMessage) => void) => void
 }
 
+export interface CreateDownloaderOptions {
+  // retry
+  retry?: {
+    retries?: number
+    factor?: number
+    minTimeout?: number
+    maxTimeout?: number
+    randomize?: boolean
+  }
+  timeout?: number
+  fetchMinSpeedKiBps?: number
+}
+
 export function createDownloader (
   fetchFromRegistry: FetchFromRegistry,
-  gotOpts: {
-    // retry
-    retry?: {
-      retries?: number
-      factor?: number
-      minTimeout?: number
-      maxTimeout?: number
-      randomize?: boolean
-    }
-    timeout?: number
-  }
+  gotOpts: CreateDownloaderOptions
 ): DownloadFunction {
   const retryOpts = {
     factor: 10,
@@ -54,6 +58,7 @@ export function createDownloader (
     retries: 2,
     ...gotOpts.retry,
   }
+  const fetchMinSpeedKiBps = gotOpts.fetchMinSpeedKiBps ?? 50 // 50 KiB/s
 
   return async function download (url: string, opts: {
     getAuthHeaderByURI: (registry: string) => string | undefined
@@ -103,6 +108,7 @@ export function createDownloader (
     async function fetch (currentAttempt: number): Promise<FetchResult> {
       let data: Buffer
       try {
+        const startTime = Date.now() // Record start time for slow network detection
         const res = await fetchFromRegistry(url, {
           authHeaderValue,
           // The fetch library can retry requests on bad HTTP responses.
@@ -150,6 +156,14 @@ export function createDownloader (
         for (const chunk of chunks) {
           chunk.copy(data, offset)
           offset += chunk.length
+        }
+
+        // Log if the request was slow
+        const elapsedMs = Date.now() - startTime
+        const avgKiBps = Math.floor((downloaded / (elapsedMs / 1000) / 1024))
+        if (downloaded > 0 && avgKiBps < fetchMinSpeedKiBps) {
+          const sizeKb = Math.floor(downloaded / 1024)
+          globalWarn(`Tarball download average speed ${avgKiBps} KiB/s (size ${sizeKb} KiB) is below ${fetchMinSpeedKiBps} KiB/s: ${url} (GET)`)
         }
       } catch (err: unknown) {
         assert(util.types.isNativeError(err))

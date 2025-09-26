@@ -26,6 +26,7 @@ export const types = Object.assign({
   'extend-node-path': Boolean,
   'fetch-timeout': Number,
   'fetch-warn-timeout-ms': Number,
+  'fetch-min-speed-ki-bps': Number,
   'fetching-concurrency': Number,
   filter: [String, Array],
   'filter-prod': [String, Array],
