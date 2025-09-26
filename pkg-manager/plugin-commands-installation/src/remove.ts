@@ -238,6 +238,6 @@ export async function handler (
   }
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
     cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
-    allProjects,
+    allProjects: updatedProjects,
   })
 }
