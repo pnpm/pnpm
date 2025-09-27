@@ -240,6 +240,325 @@ test('outdated() should return deprecated package even if its current version is
   ])
 })
 
+test('outdated() with minimumReleaseAge', async () => {
+  const getLatestManifestForMinimumAge = async (packageName: string) => {
+    // Simulate packages where 'is-negative' 2.1.0 is filtered out due to minimumReleaseAge
+    // and returns 2.0.0 instead
+    return ({
+      'is-negative': {
+        name: 'is-negative',
+        version: '2.0.0', // older version within the age limit
+      },
+      'is-positive': {
+        name: 'is-positive',
+        version: '3.1.0',
+      },
+    })[packageName] ?? null
+  }
+
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'is-negative': '1.0.0',
+            'is-positive': '1.0.0',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-negative@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxx',
+          },
+        },
+        ['is-positive@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-yyy',
+          },
+        },
+      },
+    },
+    getLatestManifest: getLatestManifestForMinimumAge,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'with-min-age',
+      version: '1.0.0',
+      devDependencies: {
+        'is-negative': '^2.1.0',
+        'is-positive': '^1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'is-negative': '2.1.0',
+            'is-positive': '3.1.0',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-negative@2.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxx',
+          },
+        },
+        ['is-positive@3.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-zzz',
+          },
+        },
+      },
+    },
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+    minimumReleaseAge: 10080,
+  })
+
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'is-negative',
+      belongsTo: 'devDependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-negative',
+        version: '2.0.0', // older version returned due to minimumReleaseAge
+      },
+      packageName: 'is-negative',
+      wanted: '2.1.0',
+      workspace: 'with-min-age',
+    },
+    {
+      alias: 'is-positive',
+      belongsTo: 'devDependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-positive',
+        version: '3.1.0',
+      },
+      packageName: 'is-positive',
+      wanted: '3.1.0',
+      workspace: 'with-min-age',
+    },
+  ])
+})
+
+test('outdated() with minimumReleaseAgeExclude', async () => {
+  const getLatestManifestWithExclude = async (packageName: string) => {
+    // Simulate that 'is-negative' is excluded from minimumReleaseAge
+    // so it returns the real latest version
+    return ({
+      'is-negative': {
+        name: 'is-negative',
+        version: '2.1.0', // latest version (excluded from age filter)
+      },
+      'is-positive': {
+        name: 'is-positive',
+        version: '3.0.0', // older version (age filter applied)
+      },
+    })[packageName] ?? null
+  }
+
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'is-negative': '1.0.0',
+            'is-positive': '1.0.0',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-negative@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxx',
+          },
+        },
+        ['is-positive@1.0.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-yyy',
+          },
+        },
+      },
+    },
+    getLatestManifest: getLatestManifestWithExclude,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'with-exclude',
+      version: '1.0.0',
+      devDependencies: {
+        'is-negative': '^2.1.0',
+        'is-positive': '^1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'is-negative': '2.1.0',
+            'is-positive': '3.1.0',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-negative@2.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxx',
+          },
+        },
+        ['is-positive@3.1.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-zzz',
+          },
+        },
+      },
+    },
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+    minimumReleaseAge: 10080,
+    minimumReleaseAgeExclude: ['is-negative'],
+  })
+
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'is-negative',
+      belongsTo: 'devDependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-negative',
+        version: '2.1.0', // latest version (excluded from age filter)
+      },
+      packageName: 'is-negative',
+      wanted: '2.1.0',
+      workspace: 'with-exclude',
+    },
+    {
+      alias: 'is-positive',
+      belongsTo: 'devDependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-positive',
+        version: '3.0.0', // older version (age filter applied)
+      },
+      packageName: 'is-positive',
+      wanted: '3.1.0',
+      workspace: 'with-exclude',
+    },
+  ])
+})
+
+test('outdated() with minimumReleaseAge returns intermediate version', async () => {
+  const getLatestManifestWithIntermediateVersion = async (packageName: string) => {
+    // This simulates the behavior where:
+    // - Without minimumReleaseAge: returns 1.0.0
+    // - With minimumReleaseAge that filters 1.0.0: returns 0.9.3
+    return ({
+      'is-positive': {
+        name: 'is-positive',
+        version: '0.9.3', // intermediate version when 1.0.0 is filtered
+      },
+    })[packageName] ?? null
+  }
+
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'is-positive': '0.9.0',
+          },
+          specifiers: {
+            'is-positive': '^0.9.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-positive@0.9.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxx',
+          },
+        },
+      },
+    },
+    getLatestManifest: getLatestManifestWithIntermediateVersion,
+    lockfileDir: 'project',
+    manifest: {
+      name: 'with-intermediate-version',
+      version: '1.0.0',
+      devDependencies: {
+        'is-positive': '^0.9.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          devDependencies: {
+            'is-positive': '0.9.0',
+          },
+          specifiers: {
+            'is-positive': '^0.9.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        ['is-positive@0.9.0' as DepPath]: {
+          resolution: {
+            integrity: 'sha512-xxx',
+          },
+        },
+      },
+    },
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+    minimumReleaseAge: 10080,
+  })
+
+  expect(outdatedPkgs).toStrictEqual([
+    {
+      alias: 'is-positive',
+      belongsTo: 'devDependencies',
+      current: '0.9.0',
+      latestManifest: {
+        name: 'is-positive',
+        version: '0.9.3', // intermediate version, not the absolute latest
+      },
+      packageName: 'is-positive',
+      wanted: '0.9.0',
+      workspace: 'with-intermediate-version',
+    },
+  ])
+})
+
 test('using a matcher', async () => {
   const outdatedPkgs = await outdated({
     currentLockfile: {
