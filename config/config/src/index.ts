@@ -32,6 +32,7 @@ import {
   type WantedPackageManager,
 } from './Config.js'
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
+import { parseEnvVars } from './env.js'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 import { types } from './types.js'
@@ -239,6 +240,11 @@ export async function getConfig (opts: {
     rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)])
   ) as ConfigWithDeprecatedSettings
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
+
+  for (const { key, value } of parseEnvVars(npmConfig, process.env)) {
+    // @ts-expect-error
+    pnpmConfig[key] = value
+  }
 
   Object.assign(pnpmConfig, configFromCliOpts)
   // Resolving the current working directory to its actual location is crucial.
