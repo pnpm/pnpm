@@ -156,6 +156,8 @@ export type OutdatedCommandOptions = {
 | 'key'
 | 'localAddress'
 | 'lockfileDir'
+| 'minimumReleaseAge'
+| 'minimumReleaseAgeExclude'
 | 'networkConcurrency'
 | 'noProxy'
 | 'offline'
@@ -195,6 +197,8 @@ export async function handler (
     fullMetadata: opts.long,
     ignoreDependencies: opts.updateConfig?.ignoreDependencies,
     include,
+    minimumReleaseAge: opts.minimumReleaseAge,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

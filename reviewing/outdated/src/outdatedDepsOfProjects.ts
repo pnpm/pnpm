@@ -22,6 +22,8 @@ export async function outdatedDepsOfProjects (
     compatible?: boolean
     ignoreDependencies?: string[]
     include: IncludedDependencies
+    minimumReleaseAge?: number
+    minimumReleaseAgeExclude?: string[]
   } & Partial<Pick<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'>>
 ): Promise<OutdatedPackage[][]> {
   if (!opts.lockfileDir) {
@@ -37,8 +39,10 @@ export async function outdatedDepsOfProjects (
   const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }) ?? currentLockfile
   const getLatestManifest = createManifestGetter({
     ...opts,
-    fullMetadata: opts.fullMetadata === true,
+    fullMetadata: opts.fullMetadata === true || Boolean(opts.minimumReleaseAge),
     lockfileDir,
+    minimumReleaseAge: opts.minimumReleaseAge,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
   })
   return Promise.all(pkgs.map(async ({ rootDir, manifest }): Promise<OutdatedPackage[]> => {
     const match = (args.length > 0) && createMatcher(args) || undefined
@@ -52,6 +56,8 @@ export async function outdatedDepsOfProjects (
       lockfileDir,
       manifest,
       match,
+      minimumReleaseAge: opts.minimumReleaseAge,
+      minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
       prefix: rootDir,
       registries: opts.registries,
       wantedLockfile,
