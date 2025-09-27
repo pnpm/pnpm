@@ -45,7 +45,6 @@ test('filterPkgMetadataByPublishDate logs skipped versions', () => {
   clearLoggedPackages()
   const cutoff = new Date('2020-04-01T00:00:00.000Z')
   const name = 'test-package'
-  // Mock globalInfo to capture log messages
   const infoMessages: string[] = []
   jest.spyOn(logger, 'globalInfo').mockImplementation((msg: string) => {
     infoMessages.push(msg)
@@ -80,7 +79,6 @@ test('filterPkgMetadataByPublishDate logs skipped versions', () => {
     },
   }, cutoff)
 
-  // Check that info message was logged
   expect(infoMessages).toHaveLength(1)
   expect(infoMessages[0]).toBe('test-package: Skipping version(s) due to minimumReleaseAge: 1.2.0')
 
