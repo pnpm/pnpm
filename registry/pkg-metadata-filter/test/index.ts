@@ -1,4 +1,5 @@
-import { filterPkgMetadataByPublishDate } from '@pnpm/registry.pkg-metadata-filter'
+import { filterPkgMetadataByPublishDate, clearLoggedPackages } from '@pnpm/registry.pkg-metadata-filter'
+import * as logger from '@pnpm/logger'
 
 test('filterPkgMetadataByPublishDate', () => {
   const cutoff = new Date('2020-04-01T00:00:00.000Z')
@@ -38,4 +39,50 @@ test('filterPkgMetadataByPublishDate', () => {
       '3.2.0': '2020-05-01T00:00:00.000Z',
     },
   }, cutoff)).toMatchSnapshot()
+})
+
+test('filterPkgMetadataByPublishDate logs skipped versions', () => {
+  clearLoggedPackages()
+  const cutoff = new Date('2020-04-01T00:00:00.000Z')
+  const name = 'test-package'
+  // Mock globalInfo to capture log messages
+  const infoMessages: string[] = []
+  jest.spyOn(logger, 'globalInfo').mockImplementation((msg: string) => {
+    infoMessages.push(msg)
+  })
+
+  filterPkgMetadataByPublishDate({
+    name,
+    versions: {
+      '1.0.0': {
+        name,
+        version: '1.0.0',
+        dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-1.0.0.tgz`, shasum: '' },
+      },
+      '1.1.0': {
+        name,
+        version: '1.1.0',
+        dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-1.1.0.tgz`, shasum: '' },
+      },
+      '1.2.0': {
+        name,
+        version: '1.2.0',
+        dist: { tarball: `https://registry.npmjs.org/${name}/-/${name}-1.2.0.tgz`, shasum: '' },
+      },
+    },
+    'dist-tags': {
+      latest: '1.2.0',
+    },
+    time: {
+      '1.0.0': '2020-01-01T00:00:00.000Z',
+      '1.1.0': '2020-03-01T00:00:00.000Z',
+      '1.2.0': '2020-05-01T00:00:00.000Z', // This will be skipped
+    },
+  }, cutoff)
+
+  // Check that info message was logged
+  expect(infoMessages).toHaveLength(1)
+  expect(infoMessages[0]).toBe('test-package: Skipping version(s) due to minimumReleaseAge: 1.2.0')
+
+  jest.restoreAllMocks()
 })
