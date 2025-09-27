@@ -88,7 +88,7 @@ export async function fetchMetadataFromFromRegistry (
         // Check if request took longer than expected
         const elapsedMs = Date.now() - startTime
         if (elapsedMs > fetchOpts.fetchWarnTimeoutMs) {
-          globalWarn(`Request took ${elapsedMs}ms: ${url.toString()}`)
+          globalWarn(`Request took ${elapsedMs}ms: ${uri}`)
         }
         resolve(json)
       } catch (error: any) { // eslint-disable-line
