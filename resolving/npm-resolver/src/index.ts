@@ -39,7 +39,7 @@ import {
   type JsrRegistryPackageSpec,
   type RegistryPackageSpec,
 } from './parseBareSpecifier.js'
-import { fromRegistry, RegistryResponseError } from './fetch.js'
+import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOptions, RegistryResponseError } from './fetch.js'
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
@@ -93,6 +93,7 @@ export interface ResolverFactoryOptions {
   saveWorkspaceProtocol?: boolean | 'rolling'
   preserveAbsolutePaths?: boolean
   strictPublishedByCheck?: boolean
+  fetchWarnTimeoutMs?: number
 }
 
 export interface NpmResolveResult extends ResolveResult {
@@ -128,11 +129,13 @@ export function createNpmResolver (
   if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
-  const fetchOpts = {
+  const fetchOpts: FetchMetadataFromFromRegistryOptions = {
+    fetch: fetchFromRegistry,
     retry: opts.retry ?? {},
     timeout: opts.timeout ?? 60000,
+    fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs ?? 10 * 1000, // 10 sec
   }
-  const fetch = pMemoize(fromRegistry.bind(null, fetchFromRegistry, fetchOpts), {
+  const fetch = pMemoize(fetchMetadataFromFromRegistry.bind(null, fetchOpts), {
     cacheKey: (...args) => JSON.stringify(args),
     maxAge: 1000 * 20, // 20 seconds
   })

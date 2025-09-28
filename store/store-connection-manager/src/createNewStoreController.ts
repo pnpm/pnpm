@@ -21,6 +21,8 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'force'
 | 'nodeVersion'
 | 'fetchTimeout'
+| 'fetchWarnTimeoutMs'
+| 'fetchMinSpeedKiBps'
 | 'gitShallowHosts'
 | 'ignoreScripts'
 | 'hooks'
@@ -63,6 +65,8 @@ export async function createNewStoreController (
     ca: opts.ca,
     cacheDir: opts.cacheDir,
     cert: opts.cert,
+    fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs,
+    fetchMinSpeedKiBps: opts.fetchMinSpeedKiBps,
     fullMetadata,
     filterMetadata: fullMetadata,
     httpProxy: opts.httpProxy,

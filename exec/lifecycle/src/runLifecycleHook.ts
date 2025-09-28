@@ -59,7 +59,7 @@ export async function runLifecycleHook (
   //
   // Note that npm (as of version 10.5.0) doesn't support setting script-shell
   // to a .bat or .cmd file either.
-  if (opts.scriptShell != null && isWindowsBatchFile(opts.scriptShell)) {
+  if (opts.scriptShell != null && typeof opts.scriptShell === 'string' && isWindowsBatchFile(opts.scriptShell)) {
     throw new PnpmError('ERR_PNPM_INVALID_SCRIPT_SHELL_WINDOWS', 'Cannot spawn .bat or .cmd as a script shell.', {
       hint: `\
 The pnpm-workspace.yaml scriptShell option was configured to a .bat or .cmd file. These cannot be used as a script shell reliably.
