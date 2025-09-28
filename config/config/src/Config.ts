@@ -231,6 +231,8 @@ export interface Config extends OptionsFromRootManifest {
   preserveAbsolutePaths?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  fetchWarnTimeoutMs?: number
+  fetchMinSpeedKiBps?: number
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
