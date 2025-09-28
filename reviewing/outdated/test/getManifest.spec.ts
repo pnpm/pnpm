@@ -46,7 +46,7 @@ test('getManifest()', async () => {
   })
 })
 
-test('getManifest() converts latest to * when minimumReleaseAge is set', async () => {
+test('getManifest() with minimumReleaseAge filters latest when too new', async () => {
   const opts = {
     dir: '',
     lockfileDir: '',
@@ -55,28 +55,18 @@ test('getManifest() converts latest to * when minimumReleaseAge is set', async (
   }
 
   const resolve: ResolveFunction = jest.fn(async function (wantedPackage, resolveOpts) {
-    expect(wantedPackage.bareSpecifier).toBe('*')
+    expect(wantedPackage.bareSpecifier).toBe('latest')
     expect(resolveOpts.publishedBy).toBeInstanceOf(Date)
 
-    return {
-      id: 'foo/0.9.3' as PkgResolutionId,
-      latest: '1.0.0',
-      manifest: {
-        name: 'foo',
-        version: '0.9.3',
-      },
-      resolution: {} as TarballResolution,
-      resolvedVia: 'npm-registry',
-    }
+    // Simulate latest version being too new
+    const error = new Error('No matching version found') as Error & { code?: string }
+    error.code = 'ERR_PNPM_NO_MATCHING_VERSION'
+    throw error
   })
 
   const result = await getManifest(resolve, opts, 'foo', 'latest')
 
-  expect(result).toStrictEqual({
-    name: 'foo',
-    version: '0.9.3',
-  })
-
+  expect(result).toBeNull()
   expect(resolve).toHaveBeenCalledTimes(1)
 })
 

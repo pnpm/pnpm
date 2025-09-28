@@ -44,12 +44,8 @@ export async function getManifest (
     }
   }
 
-  // When minimumReleaseAge is set and requesting 'latest',
-  // use '*' instead to get the latest version that meets the age requirement
-  const specifier = (publishedBy && bareSpecifier === 'latest') ? '*' : bareSpecifier
-
   try {
-    const resolution = await resolve({ alias: packageName, bareSpecifier: specifier }, {
+    const resolution = await resolve({ alias: packageName, bareSpecifier }, {
       lockfileDir: opts.lockfileDir,
       preferredVersions: {},
       projectDir: opts.dir,
