@@ -233,7 +233,7 @@ export function copyPkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (opts.resolvedFrom !== 'store' || opts.force || !existsSync(pkgJsonPath)) {
-    importIndexedDir(fs.copyFile, to, opts.filesMap, opts)
+    importIndexedDir(fs.copyFileSync, to, opts.filesMap, opts)
     return 'copy'
   }
   return undefined
