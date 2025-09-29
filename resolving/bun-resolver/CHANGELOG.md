@@ -1,5 +1,15 @@
 # @pnpm/resolving.bun-resolver
 
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/npm-resolver@1004.3.0
+  - @pnpm/worker@1000.1.14
+  - @pnpm/node.fetcher@1001.0.5
+  - @pnpm/crypto.shasums-file@1001.0.2
+
 ## 1000.0.6
 
 ### Patch Changes

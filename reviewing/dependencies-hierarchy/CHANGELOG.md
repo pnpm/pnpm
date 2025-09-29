@@ -1,5 +1,14 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1001.1.2
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.1.2
+- @pnpm/lockfile.detect-dep-types@1001.0.15
+- @pnpm/lockfile.fs@1001.1.20
+- @pnpm/lockfile.utils@1003.0.2
+
 ## 1001.1.1
 
 ### Patch Changes

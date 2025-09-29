@@ -1,5 +1,13 @@
 # @pnpm/fs.hard-link-dir
 
+## 1000.0.2
+
+### Patch Changes
+
+- 9b9faa5: Retry filesystem operations on EAGAIN errors [#9959](https://github.com/pnpm/pnpm/pull/9959).
+- Updated dependencies [9b9faa5]
+  - @pnpm/graceful-fs@1000.0.1
+
 ## 1000.0.1
 
 ### Patch Changes

@@ -1,9 +1,4 @@
 ---
-"@pnpm/store-connection-manager": minor
-"@pnpm/tarball-fetcher": minor
-"@pnpm/npm-resolver": minor
-"@pnpm/client": minor
-"@pnpm/config": minor
 "pnpm": minor
 ---
 

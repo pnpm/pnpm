@@ -1,5 +1,18 @@
 # @pnpm/resolve-dependencies
 
+## 1008.2.2
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/npm-resolver@1004.3.0
+  - @pnpm/dependency-path@1001.1.2
+  - @pnpm/lockfile.pruner@1001.0.16
+  - @pnpm/lockfile.utils@1003.0.2
+  - @pnpm/calc-dep-state@1002.0.7
+  - @pnpm/patching.config@1001.0.10
+  - @pnpm/lockfile.preferred-versions@1000.0.21
+
 ## 1008.2.1
 
 ### Patch Changes

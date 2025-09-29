@@ -1,5 +1,33 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.6.4
+
+### Patch Changes
+
+- 93fdc73: Correctly apply the `cleanupUnusedCatalogs` configuration when removing dependent packages.
+- Updated dependencies [9b9faa5]
+- Updated dependencies [fb4da0c]
+  - @pnpm/graceful-fs@1000.0.1
+  - @pnpm/store-connection-manager@1002.2.0
+  - @pnpm/config@1004.4.0
+  - @pnpm/read-project-manifest@1001.1.3
+  - @pnpm/plugin-commands-rebuild@1002.0.29
+  - @pnpm/core@1010.1.4
+  - @pnpm/package-store@1002.0.12
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/config.deps-installer@1000.0.16
+  - @pnpm/outdated@1001.0.33
+  - @pnpm/workspace.pkgs-graph@1000.0.23
+  - @pnpm/deps.status@1003.0.11
+  - @pnpm/plugin-commands-env@1000.0.40
+  - @pnpm/workspace.state@1002.0.5
+  - @pnpm/pnpmfile@1002.1.2
+  - @pnpm/config.config-writer@1000.0.13
+  - @pnpm/workspace.find-packages@1000.0.39
+  - @pnpm/filter-workspace-packages@1000.0.39
+  - @pnpm/workspace.manifest-writer@1001.0.2
+  - @pnpm/get-context@1001.1.7
+
 ## 1004.6.3
 
 ### Patch Changes

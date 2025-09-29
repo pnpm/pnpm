@@ -1,5 +1,14 @@
 # @pnpm/cache.commands
 
+## 1000.0.39
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/config@1004.4.0
+  - @pnpm/cache.api@1000.0.33
+  - @pnpm/cli-utils@1001.2.4
+
 ## 1000.0.38
 
 ### Patch Changes

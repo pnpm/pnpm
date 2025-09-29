@@ -1,8 +1,4 @@
 ---
-"@pnpm/fs.indexed-pkg-importer": patch
-"@pnpm/fs.hard-link-dir": patch
-"@pnpm/graceful-fs": patch
-"@pnpm/store.cafs": patch
 "pnpm": patch
 ---
 

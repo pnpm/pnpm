@@ -1,5 +1,4 @@
 ---
-"@pnpm/lifecycle": patch
 "pnpm": patch
 ---
 

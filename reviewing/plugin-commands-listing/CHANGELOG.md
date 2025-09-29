@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-listing
 
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/config@1004.4.0
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/list@1000.1.2
+
 ## 1000.1.3
 
 ### Patch Changes

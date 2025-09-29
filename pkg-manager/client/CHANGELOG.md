@@ -1,5 +1,25 @@
 # @pnpm/client
 
+## 1001.1.0
+
+### Minor Changes
+
+- fb4da0c: Added network performance monitoring to pnpm by implementing warnings for slow network requests, including both metadata fetches and tarball downloads.
+
+  Added configuration options for warning thresholds: `fetchWarnTimeoutMs` and `fetchMinSpeedKiBps`.
+  Warning messages are displayed when requests exceed time thresholds or fall below speed minimums
+
+  Related PR: [#10025](https://github.com/pnpm/pnpm/pull/10025).
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/tarball-fetcher@1001.1.0
+  - @pnpm/git-fetcher@1001.0.16
+  - @pnpm/node.fetcher@1001.0.5
+  - @pnpm/default-resolver@1002.2.8
+  - @pnpm/directory-fetcher@1000.1.13
+
 ## 1001.0.7
 
 ### Patch Changes

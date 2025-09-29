@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-outdated
 
+## 1000.0.41
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/config@1004.4.0
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/default-resolver@1002.2.8
+  - @pnpm/outdated@1001.0.33
+  - @pnpm/lockfile.fs@1001.1.20
+
 ## 1000.0.40
 
 ### Patch Changes
