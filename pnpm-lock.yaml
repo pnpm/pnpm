@@ -3291,6 +3291,10 @@ importers:
         version: 4.1.9
 
   fs/hard-link-dir:
+    dependencies:
+      '@pnpm/graceful-fs':
+        specifier: workspace:*
+        version: link:../graceful-fs
     devDependencies:
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*

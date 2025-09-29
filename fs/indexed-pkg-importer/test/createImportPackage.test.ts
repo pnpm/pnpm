@@ -8,18 +8,21 @@ import { jest } from '@jest/globals'
 const testOnLinuxOnly = (process.platform === 'darwin' || process.platform === 'win32') ? test.skip : test
 
 jest.mock('@pnpm/graceful-fs', () => {
-  const { access, promises } = jest.requireActual<typeof fs>('fs')
+  const { access } = jest.requireActual<typeof fs>('fs')
   const fsMock = {
-    mkdirSync: promises.mkdir,
-    readdirSync: promises.readdir,
     access,
     copyFileSync: jest.fn(),
+    readdirSync: jest.fn(),
     linkSync: jest.fn(),
+    mkdirSync: jest.fn(),
+    renameSync: jest.fn(),
+    writeFileSync: jest.fn(),
     statSync: jest.fn(),
   }
   return {
     __esModule: true,
     default: fsMock,
+    ...fsMock,
   }
 })
 jest.mock('path-temp', () => ({ fastPathTemp: (file: string) => `${file}_tmp` }))
@@ -36,6 +39,8 @@ jest.mock('@pnpm/logger', () => ({
 beforeEach(() => {
   jest.mocked(gfs.copyFileSync).mockClear()
   jest.mocked(gfs.linkSync).mockClear()
+  jest.mocked(gfs.mkdirSync).mockClear()
+  jest.mocked(gfs.renameSync).mockClear()
   jest.mocked(globalInfo).mockReset()
 })
 
