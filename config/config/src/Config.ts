@@ -1,5 +1,6 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
 import {
+  type Finder,
   type Project,
   type ProjectManifest,
   type ProjectsGraph,
@@ -141,6 +142,7 @@ export interface Config extends OptionsFromRootManifest {
   pnpmfile: string[] | string
   tryLoadDefaultPnpmfile?: boolean
   hooks?: Hooks
+  finders?: Record<string, Finder>
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   hoistPattern?: string[]
   publicHoistPattern?: string[] | string
@@ -227,6 +229,10 @@ export interface Config extends OptionsFromRootManifest {
   dangerouslyAllowAllBuilds: boolean
   ci: boolean
   preserveAbsolutePaths?: boolean
+  minimumReleaseAge?: number
+  minimumReleaseAgeExclude?: string[]
+  fetchWarnTimeoutMs?: number
+  fetchMinSpeedKiBps?: number
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

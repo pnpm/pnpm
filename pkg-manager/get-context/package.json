@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/get-context",
-  "version": "1001.1.4",
+  "version": "1001.1.6",
   "description": "Gets context information about a project",
   "keywords": [
     "pnpm",

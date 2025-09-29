@@ -1,5 +1,28 @@
 # @pnpm/list
 
+## 1000.1.1
+
+### Patch Changes
+
+- @pnpm/reviewing.dependencies-hierarchy@1001.1.1
+- @pnpm/read-package-json@1000.1.1
+- @pnpm/read-project-manifest@1001.1.2
+
+## 1000.1.0
+
+### Minor Changes
+
+- e792927: Added support for `finders` [#9946](https://github.com/pnpm/pnpm/pull/9946).
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+- Updated dependencies [e792927]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/reviewing.dependencies-hierarchy@1001.1.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/read-project-manifest@1001.1.1
+
 ## 1000.0.22
 
 ### Patch Changes

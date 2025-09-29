@@ -16,6 +16,10 @@ test('node version too old', () => {
   expect(err?.wanted.node).toBe('0.10.24')
 })
 
+test('node range passed in instead of version', () => {
+  expect(() => checkEngine(packageId, { node: '21.0.0' }, { node: '>=20.0.0' })).toThrow('The nodeVersion setting is')
+})
+
 test('pnpm version too old', () => {
   const err = checkEngine(packageId, { pnpm: '^1.4.6' }, { pnpm: '1.3.2', node: '0.2.1' })
   expect(err).toBeTruthy()

@@ -43,6 +43,12 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../registry/pkg-metadata-filter"
+    },
+    {
+      "path": "../../registry/types"
+    },
+    {
       "path": "../../workspace/resolve-workspace-range"
     },
     {

@@ -1,5 +1,46 @@
 # @pnpm/build-modules
 
+## 1000.3.15
+
+### Patch Changes
+
+- @pnpm/config@1004.3.1
+- @pnpm/calc-dep-state@1002.0.6
+- @pnpm/link-bins@1000.2.3
+- @pnpm/lifecycle@1001.0.22
+- @pnpm/patching.apply-patch@1000.0.7
+- @pnpm/read-package-json@1000.1.1
+- @pnpm/worker@1000.1.13
+- @pnpm/fs.hard-link-dir@1000.0.1
+
+## 1000.3.14
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+- Updated dependencies [a6856fd]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/config@1004.3.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/lifecycle@1001.0.21
+  - @pnpm/link-bins@1000.2.2
+  - @pnpm/calc-dep-state@1002.0.5
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/store-controller-types@1004.0.2
+  - @pnpm/worker@1000.1.12
+  - @pnpm/fs.hard-link-dir@1000.0.1
+  - @pnpm/patching.apply-patch@1000.0.6
+
+## 1000.3.13
+
+### Patch Changes
+
+- Updated dependencies [affdd5b]
+  - @pnpm/link-bins@1000.2.1
+  - @pnpm/lifecycle@1001.0.20
+
 ## 1000.3.12
 
 ### Patch Changes

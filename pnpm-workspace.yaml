@@ -31,6 +31,7 @@ packages:
   - tools/*
   - worker
   - pnpm/artifacts/*
+  - registry/*
   - releasing/*
   - resolving/*
   - reviewing/*
@@ -68,9 +69,9 @@ catalog:
   '@pnpm/logger': '>=1001.0.0 <1002.0.0'
   '@pnpm/meta-updater': 2.0.6
   '@pnpm/network.agent': ^2.0.3
-  '@pnpm/nopt': ^0.2.1
+  '@pnpm/nopt': ^0.3.1
   '@pnpm/npm-conf': 3.0.0
-  '@pnpm/npm-lifecycle': ^1000.0.4
+  '@pnpm/npm-lifecycle': ^1001.0.0
   '@pnpm/npm-package-arg': ^2.0.0
   '@pnpm/os.env.path-extender': ^2.0.3
   '@pnpm/patch-package': 0.0.1
@@ -279,7 +280,7 @@ catalog:
   string-length: ^6.0.0
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
-  symlink-dir: ^6.0.5
+  symlink-dir: ^7.0.0
   tar: ^6.2.1
   tar-stream: ^2.2.0
   tempy: 3.0.0
@@ -325,6 +326,11 @@ ignoredBuiltDependencies:
   - core-js
 
 managePackageManagerVersions: true
+
+minimumReleaseAge: 0
+
+minimumReleaseAgeExclude:
+  - pnpm
 
 nodeVersion: 20.19.4
 

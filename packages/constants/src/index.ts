@@ -15,7 +15,7 @@ export const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 // of one package/version
 export const ABBREVIATED_META_DIR = 'metadata-v1.3'
 export const FULL_META_DIR = 'metadata-full-v1.3' // This is currently not used at all
-export const FULL_FILTERED_META_DIR = 'metadata-v1.3'
+export const FULL_FILTERED_META_DIR = 'metadata-ff-v1.3'
 
 export const USEFUL_NON_ROOT_PNPM_FIELDS = ['executionEnv'] as const
 

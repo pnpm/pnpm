@@ -1,5 +1,35 @@
 # @pnpm/lifecycle
 
+## 1001.0.22
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/link-bins@1000.2.3
+- @pnpm/read-package-json@1000.1.1
+- @pnpm/directory-fetcher@1000.1.12
+
+## 1001.0.21
+
+### Patch Changes
+
+- a6856fd: Canceling a running process with Ctrl-C should make `pnpm run` return a non-zero exit code [#9626](https://github.com/pnpm/pnpm/issues/9626).
+- Updated dependencies [e792927]
+- Updated dependencies [e792927]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/link-bins@1000.2.2
+  - @pnpm/directory-fetcher@1000.1.11
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/store-controller-types@1004.0.2
+
+## 1001.0.20
+
+### Patch Changes
+
+- Updated dependencies [affdd5b]
+  - @pnpm/link-bins@1000.2.1
+
 ## 1001.0.19
 
 ### Patch Changes

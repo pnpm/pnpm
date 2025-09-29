@@ -260,5 +260,5 @@ test('`pnpm recursive why` should fail if no package name was provided', async (
   }
 
   expect(err.code).toBe('ERR_PNPM_MISSING_PACKAGE_NAME')
-  expect(err.message).toBe('`pnpm why` requires the package name')
+  expect(err.message).toMatch('`pnpm why` requires the package name')
 })

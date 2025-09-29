@@ -147,6 +147,8 @@ export async function getConfig (opts: {
     'fetch-retry-maxtimeout': 60000,
     'fetch-retry-mintimeout': 10000,
     'fetch-timeout': 60000,
+    'fetch-warn-timeout-ms': 10_000, // 10 sec
+    'fetch-min-speed-ki-bps': 50, // 50 KiB/s
     'force-legacy-deploy': false,
     'git-shallow-hosts': [
       // Follow https://github.com/npm/git/blob/1e1dbd26bd5b87ca055defecc3679777cb480e2a/lib/clone.js#L13-L19

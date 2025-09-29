@@ -82,6 +82,7 @@ function applyDedupeMap<T extends PartialResolvedPackage> (
       const prev = opts.resolvedImporters[id].directDependencies[index]
       const linkedDep: LinkedDependency & ResolvedDirectDependency = {
         ...prev,
+        pkg: prev,
         isLinkedDependency: true,
         pkgId: `link:${normalize(path.relative(id, dedupedProjectId))}` as PkgResolutionId,
         resolution: {

@@ -1,5 +1,22 @@
 # @pnpm/directory-fetcher
 
+## 1000.1.12
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1001.1.2
+
+## 1000.1.11
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/exec.pkg-requires-build@1000.0.10
+  - @pnpm/fetcher-base@1001.0.1
+  - @pnpm/read-project-manifest@1001.1.1
+  - @pnpm/resolver-base@1005.0.1
+
 ## 1000.1.10
 
 ### Patch Changes

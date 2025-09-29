@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.injected-deps-syncer",
-  "version": "1000.0.11",
+  "version": "1000.0.13",
   "description": "Update all injected replica of a workspace package",
   "keywords": [
     "pnpm",

@@ -1,5 +1,31 @@
 # @pnpm/default-reporter
 
+## 1002.0.8
+
+### Patch Changes
+
+- baf8bf6: When a version specifier cannot be resolved because the versions don't satisfy the `minimumReleaseAge` setting, print this information out in the error message [#9974](https://github.com/pnpm/pnpm/pull/9974).
+
+## 1002.0.7
+
+### Patch Changes
+
+- @pnpm/config@1004.3.1
+- @pnpm/error@1000.0.5
+- @pnpm/render-peer-issues@1002.0.4
+
+## 1002.0.6
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/config@1004.3.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/cli-meta@1000.0.10
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/render-peer-issues@1002.0.3
+
 ## 1002.0.5
 
 ### Patch Changes

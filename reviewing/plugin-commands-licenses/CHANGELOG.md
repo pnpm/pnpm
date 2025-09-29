@@ -1,5 +1,47 @@
 # @pnpm/plugin-commands-licenses
 
+## 1000.0.40
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.3
+
+## 1000.0.39
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.2
+
+## 1000.0.38
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/config@1004.3.1
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/error@1000.0.5
+  - @pnpm/license-scanner@1001.0.25
+  - @pnpm/store-path@1000.0.5
+  - @pnpm/cli-utils@1001.2.1
+
+## 1000.0.37
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/config@1004.3.0
+  - @pnpm/cli-utils@1001.2.0
+  - @pnpm/license-scanner@1001.0.24
+  - @pnpm/lockfile.fs@1001.1.18
+
+## 1000.0.36
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.1.2
+
 ## 1000.0.35
 
 ### Patch Changes

@@ -1,5 +1,52 @@
 # @pnpm/plugin-commands-audit
 
+## 1002.1.14
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.3
+
+## 1002.1.13
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.2
+
+## 1002.1.12
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/config@1004.3.1
+  - @pnpm/audit@1002.0.12
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/error@1000.0.5
+  - @pnpm/cli-utils@1001.2.1
+  - @pnpm/network.auth-header@1000.0.6
+  - @pnpm/read-project-manifest@1001.1.2
+  - @pnpm/config.config-writer@1000.0.12
+
+## 1002.1.11
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/config@1004.3.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/cli-utils@1001.2.0
+  - @pnpm/config.config-writer@1000.0.11
+  - @pnpm/audit@1002.0.11
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/read-project-manifest@1001.1.1
+
+## 1002.1.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.1.2
+
 ## 1002.1.9
 
 ### Patch Changes

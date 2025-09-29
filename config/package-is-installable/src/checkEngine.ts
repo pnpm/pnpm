@@ -22,6 +22,9 @@ export function checkEngine (
   if (!wantedEngine) return null
   const unsatisfiedWanted: WantedEngine = {}
   if (wantedEngine.node && !semver.satisfies(currentEngine.node, wantedEngine.node, { includePrerelease: true })) {
+    if (!semver.valid(currentEngine.node)) {
+      throw new PnpmError('INVALID_NODE_VERSION', `The nodeVersion setting is "${currentEngine.node}", which is not exact semver version`)
+    }
     unsatisfiedWanted.node = wantedEngine.node
   }
   if (currentEngine.pnpm && wantedEngine.pnpm && !semver.satisfies(currentEngine.pnpm, wantedEngine.pnpm, { includePrerelease: true })) {

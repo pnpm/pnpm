@@ -1,5 +1,81 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1002.0.28
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.3
+- @pnpm/workspace.find-packages@1000.0.38
+- @pnpm/store-connection-manager@1002.1.3
+
+## 1002.0.27
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.2
+- @pnpm/workspace.find-packages@1000.0.37
+- @pnpm/store-connection-manager@1002.1.2
+
+## 1002.0.26
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/config@1004.3.1
+  - @pnpm/calc-dep-state@1002.0.6
+  - @pnpm/error@1000.0.5
+  - @pnpm/get-context@1001.1.6
+  - @pnpm/link-bins@1000.2.3
+  - @pnpm/workspace.find-packages@1000.0.36
+  - @pnpm/cli-utils@1001.2.1
+  - @pnpm/store-connection-manager@1002.1.1
+  - @pnpm/lifecycle@1001.0.22
+  - @pnpm/read-package-json@1000.1.1
+  - @pnpm/worker@1000.1.13
+
+## 1002.0.25
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+- Updated dependencies [a6856fd]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/store-connection-manager@1002.1.0
+  - @pnpm/config@1004.3.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/cli-utils@1001.2.0
+  - @pnpm/lifecycle@1001.0.21
+  - @pnpm/link-bins@1000.2.2
+  - @pnpm/normalize-registries@1000.1.3
+  - @pnpm/exec.pkg-requires-build@1000.0.10
+  - @pnpm/lockfile.types@1002.0.1
+  - @pnpm/lockfile.utils@1003.0.1
+  - @pnpm/lockfile.walker@1001.0.14
+  - @pnpm/calc-dep-state@1002.0.5
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/dependency-path@1001.1.1
+  - @pnpm/get-context@1001.1.5
+  - @pnpm/modules-yaml@1000.3.5
+  - @pnpm/store.cafs@1000.0.17
+  - @pnpm/store-controller-types@1004.0.2
+  - @pnpm/worker@1000.1.12
+  - @pnpm/workspace.find-packages@1000.0.35
+  - @pnpm/sort-packages@1000.0.10
+
+## 1002.0.24
+
+### Patch Changes
+
+- Updated dependencies [affdd5b]
+  - @pnpm/link-bins@1000.2.1
+  - @pnpm/lifecycle@1001.0.20
+  - @pnpm/store-connection-manager@1002.0.11
+  - @pnpm/cli-utils@1001.1.2
+  - @pnpm/workspace.find-packages@1000.0.34
+
 ## 1002.0.23
 
 ### Patch Changes

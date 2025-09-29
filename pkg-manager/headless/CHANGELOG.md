@@ -1,5 +1,78 @@
 # @pnpm/headless
 
+## 1004.2.5
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/deps.graph-builder@1002.2.5
+  - @pnpm/lockfile.filtering@1001.0.19
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/calc-dep-state@1002.0.6
+  - @pnpm/error@1000.0.5
+  - @pnpm/hoist@1002.0.5
+  - @pnpm/link-bins@1000.2.3
+  - @pnpm/build-modules@1000.3.15
+  - @pnpm/modules-cleaner@1001.0.21
+  - @pnpm/lockfile-to-pnp@1001.0.21
+  - @pnpm/real-hoist@1001.0.18
+  - @pnpm/package-is-installable@1000.0.14
+  - @pnpm/lifecycle@1001.0.22
+  - @pnpm/patching.config@1001.0.9
+  - @pnpm/package-requester@1006.0.2
+  - @pnpm/read-package-json@1000.1.1
+  - @pnpm/read-project-manifest@1001.1.2
+  - @pnpm/worker@1000.1.13
+  - @pnpm/symlink-dependency@1000.0.11
+
+## 1004.2.4
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+- Updated dependencies [df8d57f]
+- Updated dependencies [e792927]
+- Updated dependencies [a6856fd]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/package-is-installable@1000.0.13
+  - @pnpm/types@1000.8.0
+  - @pnpm/lifecycle@1001.0.21
+  - @pnpm/build-modules@1000.3.14
+  - @pnpm/link-bins@1000.2.2
+  - @pnpm/package-requester@1006.0.1
+  - @pnpm/deps.graph-builder@1002.2.4
+  - @pnpm/lockfile.filtering@1001.0.18
+  - @pnpm/symlink-dependency@1000.0.11
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/lockfile-to-pnp@1001.0.20
+  - @pnpm/lockfile.utils@1003.0.1
+  - @pnpm/calc-dep-state@1002.0.5
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/dependency-path@1001.1.1
+  - @pnpm/hoist@1002.0.4
+  - @pnpm/modules-cleaner@1001.0.20
+  - @pnpm/modules-yaml@1000.3.5
+  - @pnpm/real-hoist@1001.0.17
+  - @pnpm/read-project-manifest@1001.1.1
+  - @pnpm/store-controller-types@1004.0.2
+  - @pnpm/worker@1000.1.12
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.11
+  - @pnpm/patching.config@1001.0.8
+
+## 1004.2.3
+
+### Patch Changes
+
+- Updated dependencies [77d5b17]
+- Updated dependencies [affdd5b]
+  - @pnpm/lockfile-to-pnp@1001.0.19
+  - @pnpm/link-bins@1000.2.1
+  - @pnpm/build-modules@1000.3.13
+  - @pnpm/lifecycle@1001.0.20
+  - @pnpm/hoist@1002.0.3
+  - @pnpm/package-requester@1006.0.0
+
 ## 1004.2.2
 
 ### Patch Changes

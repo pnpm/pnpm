@@ -369,8 +369,8 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     })
   }
   return sortKeysInManifest({
-    type: 'module',
     ...manifest,
+    type: 'module',
     bugs: {
       url: 'https://github.com/pnpm/pnpm/issues',
     },

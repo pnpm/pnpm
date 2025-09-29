@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.deps-installer",
-  "version": "1000.0.11",
+  "version": "1000.0.15",
   "description": "Installer for configurational dependencies",
   "keywords": [
     "pnpm",
