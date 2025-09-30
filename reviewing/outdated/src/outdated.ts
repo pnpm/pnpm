@@ -55,6 +55,8 @@ export async function outdated (
     lockfileDir: string
     manifest: ProjectManifest
     match?: (dependencyName: string) => boolean
+    minimumReleaseAge?: number
+    minimumReleaseAgeExclude?: string[]
     prefix: string
     registries: Registries
     wantedLockfile: LockfileObject | null
