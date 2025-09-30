@@ -36,23 +36,28 @@ export function createManifestGetter (
     ? createMatcher(opts.minimumReleaseAgeExclude)
     : undefined
 
-  return (packageName: string, bareSpecifier: string) =>
-    getManifest(resolve, opts, packageName, bareSpecifier, publishedBy, isExcludedMatcher)
+  return getManifest.bind(null, {
+    ...opts,
+    resolve,
+    publishedBy,
+    isExcludedMatcher,
+  })
 }
 
 export async function getManifest (
-  resolve: ResolveFunction,
-  opts: GetManifestOpts,
+  opts: GetManifestOpts & {
+    resolve: ResolveFunction
+    publishedBy?: Date
+    isExcludedMatcher?: ((packageName: string) => boolean)
+  },
   packageName: string,
-  bareSpecifier: string,
-  publishedBy?: Date,
-  isExcludedMatcher?: ((packageName: string) => boolean)
+  bareSpecifier: string
 ): Promise<DependencyManifest | null> {
-  const isExcluded = isExcludedMatcher?.(packageName)
-  const effectivePublishedBy = isExcluded ? undefined : publishedBy
+  const isExcluded = opts.isExcludedMatcher?.(packageName)
+  const effectivePublishedBy = isExcluded ? undefined : opts.publishedBy
 
   try {
-    const resolution = await resolve({ alias: packageName, bareSpecifier }, {
+    const resolution = await opts.resolve({ alias: packageName, bareSpecifier }, {
       lockfileDir: opts.lockfileDir,
       preferredVersions: {},
       projectDir: opts.dir,

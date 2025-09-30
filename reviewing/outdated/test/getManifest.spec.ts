@@ -22,7 +22,7 @@ test('getManifest()', async () => {
     }
   }
 
-  expect(await getManifest(resolve, opts, 'foo', 'latest')).toStrictEqual({
+  expect(await getManifest({ ...opts, resolve }, 'foo', 'latest')).toStrictEqual({
     name: 'foo',
     version: '1.0.0',
   })
@@ -40,7 +40,7 @@ test('getManifest()', async () => {
     }
   }
 
-  expect(await getManifest(resolve2, opts, '@scope/foo', 'latest')).toStrictEqual({
+  expect(await getManifest({ ...opts, resolve: resolve2 }, '@scope/foo', 'latest')).toStrictEqual({
     name: 'foo',
     version: '2.0.0',
   })
@@ -66,7 +66,7 @@ test('getManifest() with minimumReleaseAge filters latest when too new', async (
     throw error
   })
 
-  const result = await getManifest(resolve, opts, 'foo', 'latest', publishedBy)
+  const result = await getManifest({ ...opts, resolve, publishedBy }, 'foo', 'latest')
 
   expect(result).toBeNull()
   expect(resolve).toHaveBeenCalledTimes(1)
@@ -94,7 +94,7 @@ test('getManifest() does not convert non-latest specifiers', async () => {
     }
   })
 
-  await getManifest(resolve, opts, 'foo', '^1.0.0')
+  await getManifest({ ...opts, resolve }, 'foo', '^1.0.0')
   expect(resolve).toHaveBeenCalledTimes(1)
 })
 
@@ -113,7 +113,7 @@ test('getManifest() handles NO_MATCHING_VERSION error gracefully', async () => {
     throw error
   })
 
-  const result = await getManifest(resolve, opts, 'foo', 'latest', publishedBy)
+  const result = await getManifest({ ...opts, resolve, publishedBy }, 'foo', 'latest')
 
   // Should return null when no version matches minimumReleaseAge
   expect(result).toBeNull()
@@ -145,6 +145,6 @@ test('getManifest() with minimumReleaseAgeExclude', async () => {
     }
   })
 
-  await getManifest(resolve, opts, 'excluded-package', 'latest', publishedBy, isExcludedMatcher)
+  await getManifest({ ...opts, resolve, isExcludedMatcher, publishedBy }, 'excluded-package', 'latest')
   expect(resolve).toHaveBeenCalledTimes(1)
 })
