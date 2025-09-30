@@ -243,7 +243,7 @@ export async function getConfig (opts: {
   ) as ConfigWithDeprecatedSettings
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
-  for (const { key, value } of parseEnvVars(npmConfig, process.env)) {
+  for (const { key, value } of parseEnvVars(npmConfig, env)) {
     // @ts-expect-error
     pnpmConfig[key] = value
   }
