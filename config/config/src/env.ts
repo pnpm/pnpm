@@ -45,7 +45,7 @@ export function * parseEnvVars (npmConf: NpmConf, env: NodeJS.ProcessEnv): Gener
  * Otherwise, return `undefined`.
  */
 function getEnvKeySuffix (envKey: string): string | undefined {
-  if (envKey.startsWith(PREFIX)) return undefined
+  if (!envKey.startsWith(PREFIX)) return undefined
   const suffix = envKey.slice(PREFIX.length)
   if (!isEnvKeySuffix(suffix)) return undefined
   return suffix
