@@ -16,14 +16,19 @@ const { getCurrentBranch } = await import('@pnpm/git-utils')
 
 // To override any local settings,
 // we force the default values of config
-delete process.env.npm_config_depth
 process.env['npm_config_hoist'] = 'true'
-delete process.env.npm_config_registry
-delete process.env.npm_config_virtual_store_dir
-delete process.env.npm_config_shared_workspace_lockfile
-delete process.env.npm_config_side_effects_cache
-delete process.env.npm_config_node_version
-delete process.env.npm_config_fetch_retries
+process.env['pnpm_config_hoist'] = 'true'
+for (const suffix of [
+  'depth',
+  'registry',
+  'virtual_store_dir',
+  'shared_workspace_lockfile',
+  'node_version',
+  'fetch_retries',
+]) {
+  delete process.env[`npm_config_${suffix}`]
+  delete process.env[`pnpm_config_${suffix}`]
+}
 
 const env = {
   PNPM_HOME: import.meta.dirname,
@@ -1124,4 +1129,26 @@ test('when dangerouslyAllowAllBuilds is set to true and neverBuiltDependencies n
 
   expect(config.neverBuiltDependencies).toStrictEqual([])
   expect(warnings).toStrictEqual(['You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.'])
+})
+
+test.skip('loads setting from environment variable pnpm_config_*', async () => {
+  prepareEmpty()
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      pnpm_config_fetch_retries: '100',
+      pnpm_config_hoist_pattern: 'react,react-dom',
+      pnpm_config_node_version: '22',
+      pnpm_config_only_build_dependencies: 'is-number is-positive is-negative',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    workspaceDir: process.cwd(),
+  })
+  expect(config.fetchRetries).toBe(100)
+  expect(config.hoistPattern).toStrictEqual(['react', 'react-dom'])
+  expect(config.nodeVersion).toBe('22')
+  expect(config.onlyBuiltDependencies).toStrictEqual(['is-number', 'is-positive'])
 })
