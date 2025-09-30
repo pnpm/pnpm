@@ -27,33 +27,40 @@ export function createManifestGetter (
     filterMetadata: Boolean(opts.minimumReleaseAge),
     strictPublishedByCheck: Boolean(opts.minimumReleaseAge),
   })
-  return getManifest.bind(null, resolve, opts)
+
+  const publishedBy = opts.minimumReleaseAge
+    ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000)
+    : undefined
+
+  const isExcludedMatcher = opts.minimumReleaseAgeExclude
+    ? createMatcher(opts.minimumReleaseAgeExclude)
+    : undefined
+
+  return (packageName: string, bareSpecifier: string) =>
+    getManifest(resolve, opts, packageName, bareSpecifier, publishedBy, isExcludedMatcher)
 }
 
 export async function getManifest (
   resolve: ResolveFunction,
   opts: GetManifestOpts,
   packageName: string,
-  bareSpecifier: string
+  bareSpecifier: string,
+  publishedBy?: Date,
+  isExcludedMatcher?: ((packageName: string) => boolean)
 ): Promise<DependencyManifest | null> {
-  let publishedBy: Date | undefined
-  if (opts.minimumReleaseAge) {
-    const isExcluded = opts.minimumReleaseAgeExclude && createMatcher(opts.minimumReleaseAgeExclude)(packageName)
-    if (!isExcluded) {
-      publishedBy = new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000)
-    }
-  }
+  const isExcluded = isExcludedMatcher?.(packageName)
+  const effectivePublishedBy = isExcluded ? undefined : publishedBy
 
   try {
     const resolution = await resolve({ alias: packageName, bareSpecifier }, {
       lockfileDir: opts.lockfileDir,
       preferredVersions: {},
       projectDir: opts.dir,
-      publishedBy,
+      publishedBy: effectivePublishedBy,
     })
     return resolution?.manifest ?? null
   } catch (err) {
-    if ((err as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION' && publishedBy) {
+    if ((err as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION' && effectivePublishedBy) {
       // No versions found that meet the minimumReleaseAge requirement
       return null
     }

@@ -54,6 +54,8 @@ test('getManifest() with minimumReleaseAge filters latest when too new', async (
     minimumReleaseAge: 10080,
   }
 
+  const publishedBy = new Date(Date.now() - 10080 * 60 * 1000)
+
   const resolve: ResolveFunction = jest.fn(async function (wantedPackage, resolveOpts) {
     expect(wantedPackage.bareSpecifier).toBe('latest')
     expect(resolveOpts.publishedBy).toBeInstanceOf(Date)
@@ -64,7 +66,7 @@ test('getManifest() with minimumReleaseAge filters latest when too new', async (
     throw error
   })
 
-  const result = await getManifest(resolve, opts, 'foo', 'latest')
+  const result = await getManifest(resolve, opts, 'foo', 'latest', publishedBy)
 
   expect(result).toBeNull()
   expect(resolve).toHaveBeenCalledTimes(1)
@@ -75,7 +77,6 @@ test('getManifest() does not convert non-latest specifiers', async () => {
     dir: '',
     lockfileDir: '',
     rawConfig: {},
-    minimumReleaseAge: 10080,
   }
 
   const resolve: ResolveFunction = jest.fn(async function (wantedPackage, resolveOpts) {
@@ -102,8 +103,9 @@ test('getManifest() handles NO_MATCHING_VERSION error gracefully', async () => {
     dir: '',
     lockfileDir: '',
     rawConfig: {},
-    minimumReleaseAge: 10080,
   }
+
+  const publishedBy = new Date(Date.now() - 10080 * 60 * 1000)
 
   const resolve: ResolveFunction = jest.fn(async function () {
     const error = new Error('No matching version found') as Error & { code?: string }
@@ -111,7 +113,7 @@ test('getManifest() handles NO_MATCHING_VERSION error gracefully', async () => {
     throw error
   })
 
-  const result = await getManifest(resolve, opts, 'foo', 'latest')
+  const result = await getManifest(resolve, opts, 'foo', 'latest', publishedBy)
 
   // Should return null when no version matches minimumReleaseAge
   expect(result).toBeNull()
@@ -122,9 +124,10 @@ test('getManifest() with minimumReleaseAgeExclude', async () => {
     dir: '',
     lockfileDir: '',
     rawConfig: {},
-    minimumReleaseAge: 10080,
-    minimumReleaseAgeExclude: ['excluded-package'],
   }
+
+  const publishedBy = new Date(Date.now() - 10080 * 60 * 1000)
+  const isExcludedMatcher = (packageName: string) => packageName === 'excluded-package'
 
   const resolve: ResolveFunction = jest.fn(async function (wantedPackage, resolveOpts) {
     // Excluded package should not have publishedBy set
@@ -142,6 +145,6 @@ test('getManifest() with minimumReleaseAgeExclude', async () => {
     }
   })
 
-  await getManifest(resolve, opts, 'excluded-package', 'latest')
+  await getManifest(resolve, opts, 'excluded-package', 'latest', publishedBy, isExcludedMatcher)
   expect(resolve).toHaveBeenCalledTimes(1)
 })
