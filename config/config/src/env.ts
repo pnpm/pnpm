@@ -55,7 +55,7 @@ function getEnvKeySuffix (envKey: string): string | undefined {
  * A valid env key suffix is lower_snake_case without redundant underscore characters.
  */
 function isEnvKeySuffix (envKeySuffix: string): boolean {
-  return envKeySuffix.split('_').every(segment => segment !== '' && /^[a-z0-9]*$/.test(segment))
+  return envKeySuffix.split('_').every(segment => /^[a-z0-9]+$/.test(segment))
 }
 
 function parseEnvVar (envKeySuffix: string, envValue: string): string | string[] {
