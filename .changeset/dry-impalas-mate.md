@@ -1,6 +1,7 @@
 ---
-"@pnpm/plugin-commands-outdated": minor
-"@pnpm/outdated": minor
+"@pnpm/plugin-commands-outdated": patch
+"@pnpm/outdated": patch
+"pnpm": patch
 ---
 
-feat: outdated command respects minimumReleaseAge configuration.
+Outdated command respects `minimumReleaseAge` configuration [#10030](https://github.com/pnpm/pnpm/pull/10030).
