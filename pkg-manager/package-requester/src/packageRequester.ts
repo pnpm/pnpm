@@ -72,6 +72,7 @@ const pickBundledManifest = pick([
   'dependencies',
   'directories',
   'engines',
+  'libc',
   'name',
   'optionalDependencies',
   'os',
@@ -232,7 +233,7 @@ async function resolveAndFetch (
     forceFetch = Boolean(
       ((options.currentPkg?.resolution) != null) &&
       pkgId?.startsWith('file:') &&
-      (options.currentPkg?.resolution as TarballResolution).integrity !== (resolveResult.resolution as TarballResolution).integrity
+      (options.currentPkg?.resolution as TarballResolution)?.integrity !== (resolveResult.resolution as TarballResolution).integrity
     )
 
     updated = pkgId !== resolveResult.id || !resolution || forceFetch

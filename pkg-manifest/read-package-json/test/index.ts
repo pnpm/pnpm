@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
-import { readPackageJson, readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { readPackageJson, readPackageJsonFromDir, readPackageJsonSync } from '@pnpm/read-package-json'
 
 const fixtures = path.join(__dirname, 'fixtures')
 
@@ -30,4 +30,14 @@ test('readPackageJson() throw initial error when package.json not found', async 
     err = _
   }
   expect(err.code).toBe('ENOENT')
+})
+
+test('readPackageJson() keeps libc field', async () => {
+  const manifest = await readPackageJson(path.join(fixtures, 'libc-field-string', 'package.json'))
+  expect(manifest.libc).toEqual(['musl'])
+})
+
+test('readPackageJsonSync() keeps libc array', () => {
+  const manifest = readPackageJsonSync(path.join(fixtures, 'libc-field-array', 'package.json'))
+  expect(manifest.libc).toEqual(['glibc', 'musl'])
 })
