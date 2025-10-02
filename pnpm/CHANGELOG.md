@@ -1,5 +1,24 @@
 # pnpm
 
+## 10.18.0
+
+### Minor Changes
+
+- Added network performance monitoring to pnpm by implementing warnings for slow network requests, including both metadata fetches and tarball downloads.
+
+  Added configuration options for warning thresholds: `fetchWarnTimeoutMs` and `fetchMinSpeedKiBps`.
+  Warning messages are displayed when requests exceed time thresholds or fall below speed minimums
+
+  Related PR: [#10025](https://github.com/pnpm/pnpm/pull/10025).
+
+### Patch Changes
+
+- Retry filesystem operations on EAGAIN errors [#9959](https://github.com/pnpm/pnpm/pull/9959).
+- Outdated command respects `minimumReleaseAge` configuration [#10030](https://github.com/pnpm/pnpm/pull/10030).
+- Correctly apply the `cleanupUnusedCatalogs` configuration when removing dependent packages.
+- Don't fail with a meaningless error when `scriptShell` is set to `false` [#8748](https://github.com/pnpm/pnpm/issues/8748).
+- `pnpm dlx` should not fail when `minimumReleaseAge` is set [#10037](https://github.com/pnpm/pnpm/issues/10037).
+
 ## 10.17.1
 
 ### Patch Changes

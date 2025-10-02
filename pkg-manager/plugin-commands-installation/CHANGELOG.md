@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.6.5
+
+### Patch Changes
+
+- Updated dependencies [2e07c4f]
+  - @pnpm/outdated@1001.0.34
+
 ## 1004.6.4
 
 ### Patch Changes

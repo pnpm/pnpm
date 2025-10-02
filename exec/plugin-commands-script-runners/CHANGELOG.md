@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.0.10
+
+### Patch Changes
+
+- fddd85b: `pnpm dlx` should not fail when `minimumReleaseAge` is set [#10037](https://github.com/pnpm/pnpm/issues/10037).
+  - @pnpm/plugin-commands-installation@1004.6.5
+
 ## 1001.0.9
 
 ### Patch Changes

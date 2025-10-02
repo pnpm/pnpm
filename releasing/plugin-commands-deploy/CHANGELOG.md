@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-deploy
 
+## 1002.0.9
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.6.5
+
 ## 1002.0.8
 
 ### Patch Changes

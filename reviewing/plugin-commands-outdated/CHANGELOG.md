@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-outdated
 
+## 1000.0.42
+
+### Patch Changes
+
+- 2e07c4f: Outdated command respects `minimumReleaseAge` configuration [#10030](https://github.com/pnpm/pnpm/pull/10030).
+- Updated dependencies [2e07c4f]
+  - @pnpm/outdated@1001.0.34
+
 ## 1000.0.41
 
 ### Patch Changes
