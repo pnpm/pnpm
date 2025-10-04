@@ -46,6 +46,7 @@ packages:
 auditConfig:
   ignoreGhsas:
     - GHSA-76c9-3jph-rj3q
+    - GHSA-ffrw-9mx8-89p8
 
 catalog:
   '@babel/core': ^7.26.10
