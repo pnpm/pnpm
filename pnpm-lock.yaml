@@ -15237,8 +15237,8 @@ packages:
     resolution: {integrity: sha512-9kY+CygyYM6j02t5YFHbNz2FN5QmYGv9zAjVp4lCDjlCw7amdckXlEt/bjMhUIfj4ThGRE4gCUH5+yGnNuPo5A==}
     engines: {node: '>=10.0.0'}
 
-  tar-fs@2.1.3:
-    resolution: {integrity: sha512-090nwYJDmlhwFwEW3QQl+vaNnxsO2yVsd45eTKRBzSzu+hlb1w2K9inVq5b0ngXuLVqQ4ApvsUHHnu/zQNkWAg==}
+  tar-fs@2.1.4:
+    resolution: {integrity: sha512-mDAjwmZdh7LTT6pNleZ05Yt65HC3E+NiQzl672vQG38jIrehtJk/J3mNwIg+vShQPcLF/LV7CMnDW6vjj6sfYQ==}
 
   tar-stream@2.2.0:
     resolution: {integrity: sha512-ujeqbceABgwMZxEJnk2HDY2DlnUZ+9oEcb1KzTVfYHio0UE6dG71n60d8D2I4qNvleWrrXpmjpt7vZeF1LnMZQ==}
@@ -18879,7 +18879,7 @@ snapshots:
       node-fetch: 2.7.0(encoding@0.1.13)
       progress: 2.0.3
       semver: 7.7.2
-      tar-fs: 2.1.3
+      tar-fs: 2.1.4
       yargs: 16.2.0
     transitivePeerDependencies:
       - encoding
@@ -23103,7 +23103,7 @@ snapshots:
       pump: 3.0.2
       rc: 1.2.8
       simple-get: 4.0.1
-      tar-fs: 2.1.3
+      tar-fs: 2.1.4
       tunnel-agent: 0.6.0
 
   preferred-pm@3.1.4:
@@ -24028,7 +24028,7 @@ snapshots:
       string-width: 4.2.3
       strip-ansi: 6.0.1
 
-  tar-fs@2.1.3:
+  tar-fs@2.1.4:
     dependencies:
       chownr: 1.1.4
       mkdirp-classic: 0.5.3
