@@ -1629,12 +1629,6 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         ignoredBuilds,
       }
     }
-    if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
-      logger.warn({
-        message: '`node_modules` is present. Lockfile only installation will make it out-of-date',
-        prefix: ctx.lockfileDir,
-      })
-    }
     return await _installInContext(projects, ctx, opts)
   } catch (error: any) { // eslint-disable-line
     if (
