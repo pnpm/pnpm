@@ -53,6 +53,12 @@ function getExecPath (): string {
   return (require.main != null) ? require.main.filename : process.cwd()
 }
 
+/**
+ * Copy the CLI into a directory on the PATH and create a command shim to run it.
+ * Without the shim, `pnpm self-update` on Windows cannot replace the running executable
+ * and fails with: `EPERM: operation not permitted, unlink 'C:\Users\<user>\AppData\Local\pnpm\pnpm.exe'`.
+ * Related issue: https://github.com/pnpm/pnpm/issues/5700
+ */
 async function copyCli (currentLocation: string, targetDir: string): Promise<void> {
   const newExecPath = path.join(targetDir, `_${path.basename(currentLocation)}`)
   if (path.relative(newExecPath, currentLocation) === '') return
@@ -63,7 +69,9 @@ async function copyCli (currentLocation: string, targetDir: string): Promise<voi
   fs.mkdirSync(targetDir, { recursive: true })
   rimraf.sync(newExecPath)
   fs.copyFileSync(currentLocation, newExecPath)
-  await cmdShim(newExecPath, path.join(targetDir, 'pnpm'))
+  await cmdShim(newExecPath, path.join(targetDir, 'pnpm'), {
+    makePowerShellShim: false,
+  })
 }
 
 function createPnpxScripts (targetDir: string): void {
