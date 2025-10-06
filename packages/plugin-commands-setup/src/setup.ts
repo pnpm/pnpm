@@ -10,6 +10,7 @@ import {
 } from '@pnpm/os.env.path-extender'
 import renderHelp from 'render-help'
 import rimraf from '@zkochan/rimraf'
+import cmdShim from '@zkochan/cmd-shim'
 
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
 
@@ -52,8 +53,8 @@ function getExecPath (): string {
   return (require.main != null) ? require.main.filename : process.cwd()
 }
 
-function copyCli (currentLocation: string, targetDir: string): void {
-  const newExecPath = path.join(targetDir, path.basename(currentLocation))
+async function copyCli (currentLocation: string, targetDir: string): Promise<void> {
+  const newExecPath = path.join(targetDir, `_${path.basename(currentLocation)}`)
   if (path.relative(newExecPath, currentLocation) === '') return
   logger.info({
     message: `Copying pnpm CLI from ${currentLocation} to ${newExecPath}`,
@@ -62,6 +63,7 @@ function copyCli (currentLocation: string, targetDir: string): void {
   fs.mkdirSync(targetDir, { recursive: true })
   rimraf.sync(newExecPath)
   fs.copyFileSync(currentLocation, newExecPath)
+  await cmdShim(newExecPath, path.join(targetDir, 'pnpm'))
 }
 
 function createPnpxScripts (targetDir: string): void {
@@ -101,7 +103,7 @@ export async function handler (
 ): Promise<string> {
   const execPath = getExecPath()
   if (execPath.match(/\.[cm]?js$/) == null) {
-    copyCli(execPath, opts.pnpmHomeDir)
+    await copyCli(execPath, opts.pnpmHomeDir)
     createPnpxScripts(opts.pnpmHomeDir)
   }
   try {

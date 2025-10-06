@@ -4477,6 +4477,9 @@ importers:
       '@pnpm/os.env.path-extender':
         specifier: 'catalog:'
         version: 2.0.3
+      '@zkochan/cmd-shim':
+        specifier: 'catalog:'
+        version: 7.0.0
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
