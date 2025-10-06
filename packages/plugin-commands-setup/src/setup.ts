@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
+import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli-meta'
 import { docsUrl } from '@pnpm/cli-utils'
 import { logger } from '@pnpm/logger'
 import {
@@ -60,7 +60,8 @@ function getExecPath (): string {
  * Related issue: https://github.com/pnpm/pnpm/issues/5700
  */
 async function copyCli (currentLocation: string, targetDir: string): Promise<void> {
-  const newExecPath = path.join(targetDir, `_${path.basename(currentLocation)}`)
+  const toolsDir = path.join(targetDir, '.tools/pnpm-exe', packageManager.version)
+  const newExecPath = path.join(toolsDir, path.basename(currentLocation))
   if (path.relative(newExecPath, currentLocation) === '') return
   logger.info({
     message: `Copying pnpm CLI from ${currentLocation} to ${newExecPath}`,
@@ -70,7 +71,7 @@ async function copyCli (currentLocation: string, targetDir: string): Promise<voi
   rimraf.sync(newExecPath)
   fs.copyFileSync(currentLocation, newExecPath)
   await cmdShim(newExecPath, path.join(targetDir, 'pnpm'), {
-    makePowerShellShim: false,
+    createPwshFile: false,
   })
 }
 
