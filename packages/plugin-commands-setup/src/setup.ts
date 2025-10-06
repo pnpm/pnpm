@@ -67,7 +67,7 @@ async function copyCli (currentLocation: string, targetDir: string): Promise<voi
     message: `Copying pnpm CLI from ${currentLocation} to ${newExecPath}`,
     prefix: process.cwd(),
   })
-  fs.mkdirSync(targetDir, { recursive: true })
+  fs.mkdirSync(toolsDir, { recursive: true })
   rimraf.sync(newExecPath)
   fs.copyFileSync(currentLocation, newExecPath)
   await cmdShim(newExecPath, path.join(targetDir, 'pnpm'), {
