@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-setup
 
+## 1000.1.16
+
+### Patch Changes
+
+- `pnpm setup` should create a command shim to the pnpm executable. This is needed to be able to run `pnpm self-update` on Windows [#5700](https://github.com/pnpm/pnpm/issues/5700).
+
 ## 1000.1.15
 
 ### Patch Changes

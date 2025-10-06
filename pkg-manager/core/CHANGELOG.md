@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 1010.1.5
+
+### Patch Changes
+
+- c5e895f: Don't print a warning, when `--lockfile-only` is used [#8320](https://github.com/pnpm/pnpm/issues/8320).
+- Updated dependencies [a004e37]
+  - @pnpm/resolve-dependencies@1008.2.3
+
 ## 1010.1.4
 
 ### Patch Changes
