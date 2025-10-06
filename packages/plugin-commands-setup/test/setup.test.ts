@@ -7,6 +7,11 @@ jest.mock('@pnpm/os.env.path-extender', () => ({
   addDirToEnvPath: jest.fn(),
 }))
 
+jest.mock('@zkochan/cmd-shim', () => ({
+  __esModule: true,
+  default: jest.fn(),
+}))
+
 jest.mock('fs', () => {
   const actualFs = jest.createMockFromModule('fs')
   return {
@@ -15,6 +20,7 @@ jest.mock('fs', () => {
     promises: {
       // @ts-expect-error
       ...actualFs.promises,
+      readFile: jest.fn(),
       writeFile: jest.fn(),
     },
   }

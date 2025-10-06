@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
+import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli-meta'
 import { docsUrl } from '@pnpm/cli-utils'
 import { logger } from '@pnpm/logger'
 import {
@@ -10,6 +10,7 @@ import {
 } from '@pnpm/os.env.path-extender'
 import renderHelp from 'render-help'
 import rimraf from '@zkochan/rimraf'
+import cmdShim from '@zkochan/cmd-shim'
 
 export const rcOptionsTypes = (): Record<string, unknown> => ({})
 
@@ -52,16 +53,26 @@ function getExecPath (): string {
   return (require.main != null) ? require.main.filename : process.cwd()
 }
 
-function copyCli (currentLocation: string, targetDir: string): void {
-  const newExecPath = path.join(targetDir, path.basename(currentLocation))
+/**
+ * Copy the CLI into a directory on the PATH and create a command shim to run it.
+ * Without the shim, `pnpm self-update` on Windows cannot replace the running executable
+ * and fails with: `EPERM: operation not permitted, unlink 'C:\Users\<user>\AppData\Local\pnpm\pnpm.exe'`.
+ * Related issue: https://github.com/pnpm/pnpm/issues/5700
+ */
+async function copyCli (currentLocation: string, targetDir: string): Promise<void> {
+  const toolsDir = path.join(targetDir, '.tools/pnpm-exe', packageManager.version)
+  const newExecPath = path.join(toolsDir, path.basename(currentLocation))
   if (path.relative(newExecPath, currentLocation) === '') return
   logger.info({
     message: `Copying pnpm CLI from ${currentLocation} to ${newExecPath}`,
     prefix: process.cwd(),
   })
-  fs.mkdirSync(targetDir, { recursive: true })
+  fs.mkdirSync(toolsDir, { recursive: true })
   rimraf.sync(newExecPath)
   fs.copyFileSync(currentLocation, newExecPath)
+  await cmdShim(newExecPath, path.join(targetDir, 'pnpm'), {
+    createPwshFile: false,
+  })
 }
 
 function createPnpxScripts (targetDir: string): void {
@@ -101,7 +112,7 @@ export async function handler (
 ): Promise<string> {
   const execPath = getExecPath()
   if (execPath.match(/\.[cm]?js$/) == null) {
-    copyCli(execPath, opts.pnpmHomeDir)
+    await copyCli(execPath, opts.pnpmHomeDir)
     createPnpxScripts(opts.pnpmHomeDir)
   }
   try {
