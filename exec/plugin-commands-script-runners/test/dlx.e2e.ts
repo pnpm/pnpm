@@ -4,7 +4,7 @@ import { add } from '@pnpm/plugin-commands-installation'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import * as systemNodeVersion from '@pnpm/env.system-node-version'
 import { prepareEmpty } from '@pnpm/prepare'
-import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
+import { DLX_DEFAULT_OPTS as DEFAULT_OPTS, DLX_DEFAULT_OPTS } from './utils/index.js'
 
 const testOnWindowsOnly = process.platform === 'win32' ? test : test.skip
 
@@ -368,4 +368,21 @@ test('dlx builds the packages passed via --allow-build', async () => {
   const builtPkg2Path = path.join(dlxCacheDir, 'node_modules/.pnpm/@pnpm.e2e+install-script-example@1.0.0/node_modules/@pnpm.e2e/install-script-example')
   expect(fs.existsSync(path.join(builtPkg2Path, 'package.json'))).toBeTruthy()
   expect(fs.existsSync(path.join(builtPkg2Path, 'generated-by-install.js'))).toBeTruthy()
+})
+
+test('dlx should fail when the requested package does not meet the minimum age requirement', async () => {
+  prepareEmpty()
+
+  await expect(
+    dlx.handler({
+      ...DLX_DEFAULT_OPTS,
+      dir: path.resolve('project'),
+      minimumReleaseAge: 60 * 24 * 10000,
+      registries: {
+        // We must use the public registry instead of verdaccio here
+        // because verdaccio has the "times" field in the abbreviated metadata too.
+        default: 'https://registry.npmjs.org/',
+      },
+    }, ['shx@0.3.4'])
+  ).rejects.toThrow('No matching version found for shx@0.3.4 published by')
 })

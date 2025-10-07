@@ -12,6 +12,7 @@ interface GetManifestOpts {
   rawConfig: object
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  registrySupportsTimeField?: boolean
 }
 
 export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig'>
@@ -21,10 +22,12 @@ export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig'>
 export function createManifestGetter (
   opts: ManifestGetterOptions
 ): (packageName: string, bareSpecifier: string) => Promise<DependencyManifest | null> {
+  const fullMetadata = Boolean(opts.minimumReleaseAge) && !opts.registrySupportsTimeField
   const { resolve } = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
-    filterMetadata: Boolean(opts.minimumReleaseAge),
+    filterMetadata: fullMetadata,
+    fullMetadata,
     strictPublishedByCheck: Boolean(opts.minimumReleaseAge),
   })
 

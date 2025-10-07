@@ -85,9 +85,12 @@ export async function handler (
   [command, ...args]: string[]
 ): Promise<{ exitCode: number }> {
   const pkgs = opts.package ?? [command]
+  const fullMetadata = ((opts.resolutionMode === 'time-based' || Boolean(opts.minimumReleaseAge)) && !opts.registrySupportsTimeField)
   const { resolve } = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
+    fullMetadata,
+    filterMetadata: fullMetadata,
   })
   const resolvedPkgAliases: string[] = []
   const publishedBy = opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined
