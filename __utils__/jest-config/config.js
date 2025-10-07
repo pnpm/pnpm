@@ -1,6 +1,31 @@
 const path = require('path')
 
 const config = {
+  projects: [
+    'cli/*',
+    'config/*',
+    'dedupe/*',
+    'deps/*',
+    'env/*',
+    'exec/*',
+    'fetching/*',
+    'fs/*',
+    'hooks/*',
+    'lockfile/*',
+    'network/*',
+    'modules-mounter/*',
+    'packages/*',
+    'pkg-manager/*',
+    'pkg-manifest/*',
+    'patching/*',
+    'pnpm',
+    'releasing/*',
+    'resolving/*',
+    'reviewing/*',
+    'store/*',
+    'text/*',
+    'workspace/*',
+  ],
   preset: "ts-jest",
   resolver: path.join(__dirname, 'node_modules/ts-jest-resolver'),
   transform: {
