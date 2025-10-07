@@ -3,15 +3,19 @@ import camelcase from 'camelcase'
 
 const PREFIX = 'pnpm_config_'
 
-/**
- * Represent the config object of `@pnpm/npm-conf`.
- *
- * This type was defined here because `@pnpm/npm-conf` has no typescript definition at the time of writing.
- */
-export interface NpmConf {
-  get: (key: string) => unknown
-  set: (key: string, value: string | string[]) => void
-}
+export type ValueConstructor =
+  | ArrayConstructor
+  | BooleanConstructor
+  | NumberConstructor
+  | StringConstructor
+
+export type LiteralSchema = string | boolean | null
+
+export type UnionVariant = LiteralSchema | ValueConstructor
+
+export type Schema = ValueConstructor | UnionVariant[]
+
+export type GetSchema = (key: string) => Schema | undefined
 
 /**
  * Pair of a camelCase key and a parsed value
@@ -22,22 +26,116 @@ export interface ConfigPair<Value> {
 }
 
 /**
- * Load all the environment variables whose names start with {@link PREFIX} into a config object to parse their raw values according
- * to the types then emit back pairs of camelCase keys and parsed values.
+ * Parse all the environment variables whose names start with {@link PREFIX} according to the {@link types} then emit
+ * pairs of camelCase keys and parsed values.
  */
-export function * parseEnvVars (npmConf: NpmConf, env: NodeJS.ProcessEnv): Generator<ConfigPair<unknown>, void, void> {
+export function * parseEnvVars (getSchema: GetSchema, env: NodeJS.ProcessEnv): Generator<ConfigPair<unknown>, void, void> {
   for (const envKey in env) {
     const suffix = getEnvKeySuffix(envKey)
     if (!suffix) continue
     const envValue = env[envKey]
     if (envValue == null) continue
-    const confKey = kebabCase(suffix)
-    const confValue = parseEnvVar(suffix, envValue)
-    npmConf.set(confKey, confValue)
+    const schemaKey = kebabCase(suffix)
+    const schema = getSchema(schemaKey)
+    if (schema == null) continue
     const key = camelcase(suffix)
-    const value = npmConf.get(confKey)
+    const value = parseValueBySchema(schema, envValue)
     yield { key, value }
   }
+}
+
+function parseValueBySchema (schema: Schema, envVar: string): unknown {
+  if (Array.isArray(schema)) {
+    return parseValueByTypeUnion(schema, envVar)
+  } else if (typeof schema === 'function') {
+    return parseValueByConstructor(schema, envVar)
+  }
+
+  const _typeGuard: never = schema
+  throw new Error(`Invalid schema: ${_typeGuard}`) // eslint-disable-line @typescript-eslint/restrict-template-expressions
+}
+
+function parseValueByTypeUnion (schema: readonly UnionVariant[], envVar: string): unknown {
+  // reverse because currently `types` has Array as the last element, and I don't want to blow up the diff
+  for (const variant of sortUnionVariant(schema)) {
+    let value: unknown
+    if (typeof variant === 'string') {
+      value = parseStringLiteral(variant, envVar)
+    } else if (typeof variant === 'boolean') {
+      value = parseBooleanLiteral(variant, envVar)
+    } else if (variant === null) {
+      value = parseNullLiteral(envVar)
+    } else if (typeof variant === 'function') {
+      value = parseValueByConstructor(variant, envVar)
+    } else {
+      const _typeGuard: never = variant
+      throw new Error(`Invalid schema variant: ${_typeGuard}`) // eslint-disable-line @typescript-eslint/restrict-template-expressions
+    }
+    if (value !== undefined) return value
+  }
+
+  return undefined
+}
+
+function parseStringLiteral<StringLiteral extends string> (schema: StringLiteral, envVar: string): StringLiteral | undefined {
+  return envVar === schema ? schema : undefined
+}
+
+function parseBooleanLiteral<BooleanLiteral extends boolean> (schema: BooleanLiteral, envVar: string): BooleanLiteral | undefined {
+  return schema.toString() === envVar ? schema : undefined
+}
+
+function parseNullLiteral (envVar: string): null | undefined {
+  return envVar === 'null' ? null : undefined
+}
+
+function parseValueByConstructor (schema: ValueConstructor, envVar: string): unknown {
+  if (schema === Array) {
+    const value = tryParseObjectOrArray(envVar)
+    return Array.isArray(value) ? value : undefined
+  }
+
+  if (schema === Boolean) {
+    switch (envVar) {
+    case 'true': return true
+    case 'false': return false
+    default: return undefined
+    }
+  }
+
+  if (schema === Number) {
+    const value = Number(envVar)
+    return isNaN(value) ? undefined : value
+  }
+
+  if (schema === String) {
+    return envVar
+  }
+
+  return undefined
+}
+
+/** De-prioritize string parsing to prevent it from shadowing other types */
+function sortUnionVariant (variants: readonly UnionVariant[]): UnionVariant[] {
+  const sorted = variants.filter(variant => variant !== String)
+  if (variants.includes(String)) {
+    sorted.push(String)
+  }
+  return sorted
+}
+
+function tryParseObjectOrArray (envVar: string): object | unknown[] | undefined {
+  let result: unknown
+  try {
+    result = JSON.parse(envVar)
+  } catch {
+    return undefined
+  }
+
+  // typeof array is also 'object'
+  return result == null || typeof result !== 'object'
+    ? undefined
+    : result
 }
 
 /**
@@ -56,19 +154,4 @@ function getEnvKeySuffix (envKey: string): string | undefined {
  */
 function isEnvKeySuffix (envKeySuffix: string): boolean {
   return envKeySuffix.split('_').every(segment => /^[a-z0-9]+$/.test(segment))
-}
-
-function parseEnvVar (envKeySuffix: string, envValue: string): string | string[] {
-  switch (envKeySuffix) {
-  case 'hoist_pattern':
-  case 'public_hoist_pattern':
-    return parseEnvVarAsList(envValue)
-  }
-  return envValue
-}
-
-function parseEnvVarAsList (envValue: string): string[] {
-  const npmConfigSep = '\n\n'
-  const configSep = envValue.includes(npmConfigSep) ? npmConfigSep : ','
-  return envValue.split(configSep)
 }

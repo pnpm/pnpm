@@ -35,7 +35,7 @@ import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concu
 import { parseEnvVars } from './env.js'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
-import { types } from './types.js'
+import { pnpmTypes, types } from './types.js'
 import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 import {
   type CliOptions as SupportedArchitecturesCliOptions,
@@ -243,7 +243,11 @@ export async function getConfig (opts: {
   ) as ConfigWithDeprecatedSettings
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
-  for (const { key, value } of parseEnvVars(npmConfig, env)) {
+  for (const { key, value } of parseEnvVars(key => pnpmTypes[key as keyof typeof pnpmTypes], env)) {
+    // undefined means that the env key was defined, but its value couldn't be parsed according to the schema
+    // TODO: should we throw some error or print some warning here?
+    if (value === undefined) continue
+
     // @ts-expect-error
     pnpmConfig[key] = value
   }

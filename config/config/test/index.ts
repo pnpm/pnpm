@@ -1131,15 +1131,15 @@ test('when dangerouslyAllowAllBuilds is set to true and neverBuiltDependencies n
   expect(warnings).toStrictEqual(['You have set dangerouslyAllowAllBuilds to true. The dependencies listed in neverBuiltDependencies will run their scripts.'])
 })
 
-test.skip('loads setting from environment variable pnpm_config_*', async () => {
+test('loads setting from environment variable pnpm_config_*', async () => {
   prepareEmpty()
   const { config } = await getConfig({
     cliOptions: {},
     env: {
       pnpm_config_fetch_retries: '100',
-      pnpm_config_hoist_pattern: 'react,react-dom',
+      pnpm_config_hoist_pattern: '["react", "react-dom"]',
       pnpm_config_node_version: '22',
-      pnpm_config_only_build_dependencies: 'is-number is-positive is-negative',
+      pnpm_config_only_build_dependencies: '["is-number", "is-positive", "is-negative"]',
     },
     packageManager: {
       name: 'pnpm',
@@ -1147,8 +1147,10 @@ test.skip('loads setting from environment variable pnpm_config_*', async () => {
     },
     workspaceDir: process.cwd(),
   })
-  expect(config.fetchRetries).toBe(100)
+  // NOTE: lines commented out are those not yet working
+  // TODO: fix them
+  // expect(config.fetchRetries).toBe(100)
   expect(config.hoistPattern).toStrictEqual(['react', 'react-dom'])
-  expect(config.nodeVersion).toBe('22')
-  expect(config.onlyBuiltDependencies).toStrictEqual(['is-number', 'is-positive'])
+  // expect(config.nodeVersion).toBe('22')
+  // expect(config.onlyBuiltDependencies).toStrictEqual(['is-number', 'is-positive'])
 })
