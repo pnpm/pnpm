@@ -4,7 +4,7 @@ import { add } from '@pnpm/plugin-commands-installation'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import * as systemNodeVersion from '@pnpm/env.system-node-version'
 import { prepareEmpty } from '@pnpm/prepare'
-import { DLX_DEFAULT_OPTS as DEFAULT_OPTS, DLX_DEFAULT_OPTS } from './utils/index.js'
+import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils/index.js'
 
 const testOnWindowsOnly = process.platform === 'win32' ? test : test.skip
 
@@ -375,7 +375,7 @@ test('dlx should fail when the requested package does not meet the minimum age r
 
   await expect(
     dlx.handler({
-      ...DLX_DEFAULT_OPTS,
+      ...DEFAULT_OPTS,
       dir: path.resolve('project'),
       minimumReleaseAge: 60 * 24 * 10000,
       registries: {
