@@ -347,3 +347,117 @@ test('pnpm licenses should work git repository name containing capital letters',
 
   expect(exitCode).toBe(0)
 })
+
+test('pnpm licenses: returns multiple paths when node-linker is isolated', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-multiple-versions', workspaceDir)
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+  })
+
+  // Attempt to run the licenses command now
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    json: true,
+    // we need to prefix it with STORE_VERSION otherwise licenses tool can't find anything
+    // in the content-addressable directory
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  expect(output).not.toHaveLength(0)
+  expect(output).not.toBe('No licenses in packages found')
+  const parsedOutput = JSON.parse(output)
+  expect(parsedOutput).toEqual({
+    MIT: [
+      {
+        name: 'is-positive',
+        versions: ['3.0.0', '3.1.0'],
+        paths: [expect.stringContaining('is-positive@3.0.0'), expect.stringContaining('is-positive@3.1.0')],
+        license: 'MIT',
+        author: expect.any(String),
+        homepage: expect.any(String),
+        description: expect.any(String),
+      },
+    ],
+    ISC: [
+      {
+        name: 'pnpm-with-multiple-versions-sub-dep-1',
+        paths: [expect.stringContaining('pnpm-with-multiple-versions-sub-dep-1@file+sub-dep-1')],
+        license: 'ISC',
+        versions: [null],
+      },
+      {
+        name: 'pnpm-with-multiple-versions-sub-dep-2',
+        paths: [expect.stringContaining('pnpm-with-multiple-versions-sub-dep-2@file+sub-dep-2')],
+        license: 'ISC',
+        versions: [null],
+      },
+    ],
+  })
+})
+
+test('pnpm licenses: returns single path when node-linker is hoisted', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-multiple-versions-hoisted', workspaceDir)
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+  })
+
+  // Attempt to run the licenses command now
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    json: true,
+    // we need to prefix it with STORE_VERSION otherwise licenses tool can't find anything
+    // in the content-addressable directory
+    storeDir: path.resolve(storeDir, STORE_VERSION),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  expect(output).not.toHaveLength(0)
+  expect(output).not.toBe('No licenses in packages found')
+  const parsedOutput = JSON.parse(output)
+  expect(parsedOutput).toEqual({
+    MIT: [
+      {
+        name: 'is-positive',
+        versions: ['3.0.0', '3.1.0'],
+        paths: [expect.stringContaining('node_modules/is-positive')],
+        license: 'MIT',
+        author: expect.any(String),
+        homepage: expect.any(String),
+        description: expect.any(String),
+      },
+    ],
+    ISC: [
+      {
+        name: 'pnpm-with-multiple-versions-hoisted-sub-dep-1',
+        paths: [expect.stringContaining('node_modules/pnpm-with-multiple-versions-hoisted-sub-dep-1')],
+        license: 'ISC',
+        versions: [null],
+      },
+      {
+        name: 'pnpm-with-multiple-versions-hoisted-sub-dep-2',
+        paths: [expect.stringContaining('node_modules/pnpm-with-multiple-versions-hoisted-sub-dep-2')],
+        license: 'ISC',
+        versions: [null],
+      },
+    ],
+  })
+})

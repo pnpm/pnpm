@@ -1,0 +1,34 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      pnpm-with-file-protocol-sub-dep-1:
+        specifier: file:./sub-dep-1
+        version: file:sub-dep-1
+      pnpm-with-file-protocol-sub-dep-2:
+        specifier: file:./sub-dep-2
+        version: file:sub-dep-2
+
+packages:
+
+  pnpm-with-file-protocol-sub-dep-1@file:sub-dep-1:
+    resolution: {directory: sub-dep, type: directory}
+    version: 1.0.0
+  
+  pnpm-with-file-protocol-sub-dep-2@file:sub-dep-2:
+    resolution: {directory: sub-dep, type: directory}
+    version: 1.0.0
+
+snapshots:
+
+  pnpm-with-file-protocol-sub-dep-1@file:sub-dep-1:
+    dev: false
+
+  pnpm-with-file-protocol-sub-dep-2@file:sub-dep-2:
+    dev: false

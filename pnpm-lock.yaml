@@ -7428,6 +7428,9 @@ importers:
 
   reviewing/license-scanner:
     dependencies:
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
@@ -7467,6 +7470,9 @@ importers:
       load-json-file:
         specifier: 'catalog:'
         version: 6.2.0
+      mem:
+        specifier: 'catalog:'
+        version: 8.1.1
       p-limit:
         specifier: 'catalog:'
         version: 3.1.0

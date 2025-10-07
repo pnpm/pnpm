@@ -1,0 +1,16 @@
+{
+  "name": "pnpm-with-multiple-versions",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "pnpm-with-file-protocol-sub-dep-1": "file:./sub-dep-1",
+    "pnpm-with-file-protocol-sub-dep-2": "file:./sub-dep-2"
+  }
+}
