@@ -260,25 +260,24 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
     ...sortOutdatedPackages(outdatedPackages, { sortBy: opts.sortBy })
       .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
   ]
-  let detailsColumnMaxWidth = 40
+  const tableOptions = {
+    ...TABLE_OPTIONS,
+  }
   if (opts.long) {
-    detailsColumnMaxWidth = outdatedPackages.filter(pkg => pkg.latestManifest && !pkg.latestManifest.deprecated).reduce((maxWidth, pkg) => {
+    const detailsColumnMaxWidth = outdatedPackages.filter(pkg => pkg.latestManifest && !pkg.latestManifest.deprecated).reduce((maxWidth, pkg) => {
       const cellWidth = pkg.latestManifest?.homepage?.length ?? 0
       return Math.max(maxWidth, cellWidth)
-    }, 0)
-  }
-
-  return table(data, {
-    ...TABLE_OPTIONS,
-    columns: {
-      ...TABLE_OPTIONS.columns,
+    }, 40)
+    tableOptions.columns = {
       // Detail column:
       3: {
-        width: detailsColumnMaxWidth,
+        width: Math.max(detailsColumnMaxWidth, 1),
         wrapWord: true,
       },
-    },
-  })
+    }
+  }
+
+  return table(data, tableOptions)
 }
 
 function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortBy?: 'name' }): string {
