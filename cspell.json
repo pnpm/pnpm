@@ -66,6 +66,7 @@
     "enoent",
     "enten",
     "eperm",
+    "epipe",
     "etamponi",
     "exdev",
     "execa",
