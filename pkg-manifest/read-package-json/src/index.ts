@@ -1,12 +1,12 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { type PackageManifest } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFile, loadJsonFileSync } from 'load-json-file'
 import normalizePackageData from 'normalize-package-data'
 
 export function readPackageJsonSync (pkgPath: string): PackageManifest {
   try {
-    const manifest = loadJsonFile.sync<PackageManifest>(pkgPath)
+    const manifest = loadJsonFileSync<PackageManifest>(pkgPath)
     normalizePackageData(manifest)
     return manifest
   } catch (err: any) { // eslint-disable-line

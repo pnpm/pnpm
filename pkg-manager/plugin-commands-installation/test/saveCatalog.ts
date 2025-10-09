@@ -4,7 +4,7 @@ import { add } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type LockfileFile } from '@pnpm/lockfile.types'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync as loadJsonFile } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync as loadJsonFile } from 'load-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm } from './utils/index.js'
 

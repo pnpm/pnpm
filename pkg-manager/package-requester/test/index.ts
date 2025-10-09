@@ -11,7 +11,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import delay from 'delay'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { restartWorkerPool } from '@pnpm/worker'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import normalize from 'normalize-path'
 import tempy from 'tempy'
@@ -384,7 +384,7 @@ test('fetchPackageToStore()', async () => {
   expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.resolvedFrom).toBe('remote')
 
-  const indexFile = loadJsonFile.sync<PackageFilesIndex>(fetchResult.filesIndexFile)
+  const indexFile = loadJsonFileSync<PackageFilesIndex>(fetchResult.filesIndexFile)
   expect(indexFile).toBeTruthy()
   expect(typeof indexFile.files['package.json'].checkedAt).toBeTruthy()
 

@@ -1,6 +1,6 @@
 import path from 'path'
 import { type DependencyManifest } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 
 const defaultManifest = {
   name: process.env.npm_package_name != null && process.env.npm_package_name !== ''
@@ -17,7 +17,7 @@ if (require.main == null) {
   try {
     pkgJson = {
       ...defaultManifest,
-      ...loadJsonFile.sync<DependencyManifest>(
+      ...loadJsonFileSync<DependencyManifest>(
         path.join(path.dirname(require.main.filename), '../package.json')
       ),
     }

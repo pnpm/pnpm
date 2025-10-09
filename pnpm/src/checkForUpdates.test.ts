@@ -2,7 +2,7 @@ import { getConfig } from '@pnpm/config'
 import { updateCheckLogger } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import { jest } from '@jest/globals'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import { checkForUpdates } from './checkForUpdates.js'
 
@@ -34,7 +34,7 @@ test('check for updates when no pnpm state file is present', async () => {
     latestVersion: expect.any(String),
   })
 
-  const state = loadJsonFile.sync('pnpm-state.json')
+  const state = loadJsonFileSync('pnpm-state.json')
   expect(state).toEqual({
     lastUpdateCheck: expect.any(String),
   })
@@ -60,7 +60,7 @@ test('do not check for updates when last update check happened recently', async 
 
   expect(updateCheckLogger.debug).not.toHaveBeenCalled()
 
-  const state = loadJsonFile.sync('pnpm-state.json')
+  const state = loadJsonFileSync('pnpm-state.json')
   expect(state).toStrictEqual({ lastUpdateCheck })
 })
 
@@ -91,7 +91,7 @@ test('check for updates when last update check happened two days ago', async () 
     latestVersion: expect.any(String),
   })
 
-  const state = loadJsonFile.sync<{ lastUpdateCheck: string }>('pnpm-state.json')
+  const state = loadJsonFileSync<{ lastUpdateCheck: string }>('pnpm-state.json')
   expect(state.lastUpdateCheck).toBeDefined()
   expect(state.lastUpdateCheck).not.toEqual(initialLastUpdateCheck)
 })

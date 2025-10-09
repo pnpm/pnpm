@@ -7,7 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import { getStorePath } from '@pnpm/store-path'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import renderHelp from 'render-help'
 
 export const PACKAGE_INFO_CLR = chalk.greenBright
@@ -64,7 +64,7 @@ export async function handler (opts: FindHashCommandOptions, params: string[]): 
   }
 
   for (const filesIndexFile of indexFiles) {
-    const pkgFilesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
+    const pkgFilesIndex = loadJsonFileSync<PackageFilesIndex>(filesIndexFile)
 
     for (const [, file] of Object.entries(pkgFilesIndex.files)) {
       if (file?.integrity === hash) {

@@ -15,7 +15,7 @@ import { type ProjectRootDir } from '@pnpm/types'
 import { restartWorkerPool } from '@pnpm/worker'
 import { sync as rimraf } from '@zkochan/rimraf'
 import isWindows from 'is-windows'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import PATH from 'path-name'
 import sinon from 'sinon'
 import { testDefaults } from '../utils/index.js'
@@ -203,10 +203,10 @@ test('INIT_CWD is always set to lockfile directory', async () => {
     lockfileDir: rootDir,
   }))
 
-  const childEnv = loadJsonFile.sync<{ INIT_CWD: string }>(path.join(rootDir, 'node_modules/@pnpm.e2e/write-lifecycle-env/env.json'))
+  const childEnv = loadJsonFileSync<{ INIT_CWD: string }>(path.join(rootDir, 'node_modules/@pnpm.e2e/write-lifecycle-env/env.json'))
   expect(childEnv.INIT_CWD).toBe(rootDir)
 
-  const output = loadJsonFile.sync(path.join(rootDir, 'output.json'))
+  const output = loadJsonFileSync(path.join(rootDir, 'output.json'))
   expect(output).toStrictEqual(process.cwd())
 })
 

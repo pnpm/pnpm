@@ -6,7 +6,7 @@ import { type MutatedProject, mutateModules, type ProjectOptions, type MutateMod
 import { type CatalogSnapshots } from '@pnpm/lockfile.types'
 import { logger } from '@pnpm/logger'
 import { jest } from '@jest/globals'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync as loadJsonFile } from 'load-json-file'
 import path from 'path'
 import { testDefaults } from './utils/index.js'
 

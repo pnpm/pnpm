@@ -3,7 +3,7 @@ import { type LockfileFile } from '@pnpm/lockfile.types'
 import { add } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync as loadJsonFile } from 'load-json-file'
 import { DEFAULT_OPTS } from './utils/index.js'
 
 // This must be a function because some of its values depend on CWD

@@ -18,7 +18,7 @@ import {
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import { type DependencyManifest } from '@pnpm/types'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync as loadJsonFile } from 'load-json-file'
 import { parentPort } from 'worker_threads'
 import {
   type AddDirToStoreMessage,

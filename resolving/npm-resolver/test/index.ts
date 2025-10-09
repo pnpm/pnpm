@@ -12,7 +12,7 @@ import {
 } from '@pnpm/npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type Registries, type ProjectRootDir } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import omit from 'ramda/src/omit'
 import tempy from 'tempy'
@@ -20,13 +20,13 @@ import { delay, retryLoadJsonFile } from './utils/index.js'
 
 const f = fixtures(__dirname)
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const isPositiveMeta = loadJsonFile.sync<any>(f.find('is-positive.json'))
-const isPositiveMetaWithDeprecated = loadJsonFile.sync<any>(f.find('is-positive-with-deprecated.json'))
-const isPositiveMetaFull = loadJsonFile.sync<any>(f.find('is-positive-full.json'))
-const isPositiveBrokenMeta = loadJsonFile.sync<any>(f.find('is-positive-broken.json'))
-const sindresorhusIsMeta = loadJsonFile.sync<any>(f.find('sindresorhus-is.json'))
-const jsonMeta = loadJsonFile.sync<any>(f.find('JSON.json'))
-const brokenIntegrity = loadJsonFile.sync<any>(f.find('broken-integrity.json'))
+const isPositiveMeta = loadJsonFileSync<any>(f.find('is-positive.json'))
+const isPositiveMetaWithDeprecated = loadJsonFileSync<any>(f.find('is-positive-with-deprecated.json'))
+const isPositiveMetaFull = loadJsonFileSync<any>(f.find('is-positive-full.json'))
+const isPositiveBrokenMeta = loadJsonFileSync<any>(f.find('is-positive-broken.json'))
+const sindresorhusIsMeta = loadJsonFileSync<any>(f.find('sindresorhus-is.json'))
+const jsonMeta = loadJsonFileSync<any>(f.find('JSON.json'))
+const brokenIntegrity = loadJsonFileSync<any>(f.find('broken-integrity.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const registries = {
@@ -1764,7 +1764,7 @@ test('request to metadata is retried if the received JSON is broken', async () =
 test('request to a package with unpublished versions', async () => {
   nock(registries.default)
     .get('/code-snippet')
-    .reply(200, loadJsonFile.sync(f.find('unpublished.json')))
+    .reply(200, loadJsonFileSync(f.find('unpublished.json')))
 
   const cacheDir = tempy.directory()
   const { resolveFromNpm } = createResolveFromNpm({
@@ -1796,7 +1796,7 @@ test('request to a package with no versions', async () => {
 })
 
 test('request to a package with no dist-tags', async () => {
-  const isPositiveMeta = omit(['dist-tags'], loadJsonFile.sync<any>(f.find('is-positive.json'))) // eslint-disable-line
+  const isPositiveMeta = omit(['dist-tags'], loadJsonFileSync<any>(f.find('is-positive.json'))) // eslint-disable-line
   nock(registries.default)
     .get('/is-positive')
     .reply(200, isPositiveMeta)

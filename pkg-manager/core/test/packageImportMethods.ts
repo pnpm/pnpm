@@ -1,7 +1,7 @@
 import fs from 'fs'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage } from '@pnpm/core'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync as loadJsonFile } from 'load-json-file'
 import { testDefaults } from './utils/index.js'
 
 test('packageImportMethod can be set to copy', async () => {

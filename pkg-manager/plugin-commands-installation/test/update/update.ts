@@ -4,7 +4,7 @@ import { install, update } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import { DEFAULT_OPTS } from '../utils/index.js'
 
 test('update with "*" pattern', async () => {
@@ -202,7 +202,7 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
   })
 
   {
-    const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
+    const manifest = loadJsonFileSync<ProjectManifest>('package.json')
     expect(manifest.dependencies?.['@pnpm.e2e/peer-a']).toBe('^1.0.0')
 
     const lockfile = project.readLockfile()
@@ -220,7 +220,7 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
   }, [])
 
   {
-    const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
+    const manifest = loadJsonFileSync<ProjectManifest>('package.json')
     expect(manifest.dependencies?.['@pnpm.e2e/peer-a']).toBe('^1.0.0')
 
     const lockfile = project.readLockfile()
@@ -405,7 +405,7 @@ test('should not update tag version when --latest not set', async () => {
     latest: false,
   })
 
-  const manifest = loadJsonFile.sync<ProjectManifest>('package.json')
+  const manifest = loadJsonFileSync<ProjectManifest>('package.json')
   expect(manifest.dependencies?.['@pnpm.e2e/peer-a']).toBe('latest')
   expect(manifest.dependencies?.['@pnpm.e2e/peer-c']).toBe('canary')
   expect(manifest.dependencies?.['@pnpm.e2e/foo']).toBe('1.0.0')

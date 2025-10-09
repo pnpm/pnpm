@@ -5,7 +5,7 @@ import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createNpmResolver } from '@pnpm/npm-resolver'
 import { type Registries } from '@pnpm/types'
 import { fixtures } from '@pnpm/test-fixtures'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import tempy from 'tempy'
 
@@ -16,7 +16,7 @@ const registries: Registries = {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const badDatesMeta = loadJsonFile.sync<any>(f.find('bad-dates.json'))
+const badDatesMeta = loadJsonFileSync<any>(f.find('bad-dates.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const fetch = createFetchFromRegistry({})

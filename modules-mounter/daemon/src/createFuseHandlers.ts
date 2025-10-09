@@ -7,7 +7,7 @@ import {
 } from '@pnpm/lockfile.utils'
 import { type DepPath } from '@pnpm/types'
 import * as schemas from 'hyperdrive-schemas'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import Fuse from 'fuse-native'
 import * as cafsExplorer from './cafsExplorer.js'
 import { makeVirtualNodeModules } from './makeVirtualNodeModules.js'
@@ -185,7 +185,7 @@ export function createFuseHandlersFromLockfile (lockfile: LockfileObject, storeD
       pkgSnapshotCache.set(depPath, {
         ...nameVer,
         pkgSnapshot,
-        index: loadJsonFile.sync<PackageFilesIndex>(indexPath), // TODO: maybe make it async?
+        index: loadJsonFileSync<PackageFilesIndex>(indexPath), // TODO: maybe make it async?
       })
     }
     return pkgSnapshotCache.get(depPath)

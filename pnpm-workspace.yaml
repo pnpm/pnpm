@@ -208,7 +208,7 @@ catalog:
   json5: ^2.2.3
   keyv: 4.5.4
   lcov-result-merger: ^3.3.0
-  load-json-file: ^6.2.0
+  load-json-file: ^7.0.1
   lodash.kebabcase: ^4.1.1
   lodash.throttle: 4.1.1
   loud-rejection: ^2.2.0
@@ -413,7 +413,6 @@ updateConfig:
     - find-up
     - get-port
     - is-port-reachable
-    - load-json-file
     - mem
     - npm-packlist
     - node-fetch

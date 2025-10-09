@@ -3,7 +3,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
 import { installConfigDeps } from '@pnpm/config.deps-installer'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync as loadJsonFile } from 'load-json-file'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 

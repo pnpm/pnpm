@@ -20,7 +20,7 @@ import { getIntegrity } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { sync as rimraf } from '@zkochan/rimraf'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import { testDefaults } from './utils/testDefaults.js'
@@ -52,7 +52,7 @@ test('installing a simple project', async () => {
   expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:package-manifest',
-    updated: loadJsonFile.sync(path.join(prefix, 'package.json')),
+    updated: loadJsonFileSync(path.join(prefix, 'package.json')),
   } as PackageManifestLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     added: 15,
@@ -616,7 +616,7 @@ test('installing with publicHoistPattern=*', async () => {
   expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:package-manifest',
-    updated: loadJsonFile.sync(path.join(prefix, 'package.json')),
+    updated: loadJsonFileSync(path.join(prefix, 'package.json')),
   } as PackageManifestLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     added: 17,
@@ -679,7 +679,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   await headlessInstall(opts)
 
   const cacheIntegrityPath = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const cacheIntegrity = loadJsonFileSync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -844,7 +844,7 @@ test('installing in a workspace with node-linker=hoisted', async () => {
 })
 
 function readPkgVersion (dir: string): string {
-  return loadJsonFile.sync<{ version: string }>(path.join(dir, 'package.json')).version
+  return loadJsonFileSync<{ version: string }>(path.join(dir, 'package.json')).version
 }
 
 test('installing a package deeply installs all required dependencies', async () => {

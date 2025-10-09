@@ -8,7 +8,7 @@ import { connectStoreController, createServer } from '@pnpm/server'
 import { type Registries } from '@pnpm/types'
 import fetch from 'node-fetch'
 import { sync as rimraf } from '@zkochan/rimraf'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import tempy from 'tempy'
 import isPortReachable from 'is-port-reachable'
 
@@ -183,7 +183,7 @@ test('server upload', async () => {
     filesIndexFile,
   })
 
-  const cacheIntegrity = loadJsonFile.sync<any>(filesIndexFile) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const cacheIntegrity = loadJsonFileSync<any>(filesIndexFile) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(Object.keys(cacheIntegrity?.['sideEffects'][fakeEngine].added).sort()).toStrictEqual(['side-effect.js', 'side-effect.txt'])
 
   await server.close()

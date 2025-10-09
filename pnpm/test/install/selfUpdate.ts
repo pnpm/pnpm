@@ -5,7 +5,7 @@ import { STORE_VERSION } from '@pnpm/constants'
 import { prepare } from '@pnpm/prepare'
 import { type ProjectManifest } from '@pnpm/types'
 import isWindows from 'is-windows'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync as loadJsonFile } from 'load-json-file'
 import {
   execPnpm,
   retryLoadJsonFile,

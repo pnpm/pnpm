@@ -20,7 +20,7 @@ import {
   type ProjectOptions,
 } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'
-import loadJsonFile from 'load-json-file'
+import { loadJsonFileSync } from 'load-json-file'
 import nock from 'nock'
 import sinon from 'sinon'
 import { sync as writeYamlFile } from 'write-yaml-file'
@@ -1061,7 +1061,7 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
 const REGISTRY_MIRROR_DIR = path.join(__dirname, './registry-mirror')
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const isPositiveMeta = loadJsonFile.sync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-positive.json'))
+const isPositiveMeta = loadJsonFileSync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-positive.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 const tarballPath = f.find('is-positive-3.1.0.tgz')
 

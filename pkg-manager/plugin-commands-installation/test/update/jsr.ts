@@ -4,7 +4,7 @@ import { install, update } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
-import { sync as loadJsonFile } from 'load-json-file'
+import { loadJsonFileSync as loadJsonFile } from 'load-json-file'
 import { DEFAULT_OPTS } from '../utils/index.js'
 
 // This must be a function because some of its values depend on CWD
