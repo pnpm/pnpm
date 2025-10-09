@@ -67,6 +67,7 @@ export async function getManifest (
     return resolution?.manifest ?? null
   } catch (err) {
     if ((err as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION' && effectivePublishedBy) {
+      // No versions found that meet the minimumReleaseAge requirement
       return null
     }
     throw err
