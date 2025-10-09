@@ -24,7 +24,7 @@ export function createManifestGetter (
   const { resolve } = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
-    filterMetadata: Boolean(opts.minimumReleaseAge),
+    filterMetadata: false, // We need all the data from metadata for "outdated --long" to work.
     strictPublishedByCheck: Boolean(opts.minimumReleaseAge),
   })
 
