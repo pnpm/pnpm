@@ -35,6 +35,7 @@
     "@pnpm/client": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/server": "workspace:*",
     "@pnpm/store-path": "workspace:*",

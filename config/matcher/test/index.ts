@@ -1,4 +1,4 @@
-import { createMatcher, createMatcherWithIndex } from '@pnpm/matcher'
+import { createMatcher, createMatcherWithIndex, createVersionMatcher } from '@pnpm/matcher'
 
 test('matcher()', () => {
   {
@@ -109,5 +109,46 @@ test('createMatcherWithIndex()', () => {
     expect(match('foo')).toBe(-1)
     expect(match('bar')).toBe(-1)
     expect(match('baz')).toBe(-1)
+  }
+})
+
+test('createVersionMatcher()', () => {
+  {
+    const match = createVersionMatcher(['axios@1.12.2'])
+    expect(match('axios', '1.12.2')).toBe(true)
+    expect(match('axios', '1.12.3')).toBe(false)
+    expect(match('axios', '1.12.1')).toBe(false)
+  }
+  {
+    const match = createVersionMatcher(['is-*'])
+    expect(match('is-odd', '0.1.2')).toBe(true)
+    expect(match('is-even', '1.0.0')).toBe(true)
+    expect(match('lodash', '4.17.21')).toBe(false)
+  }
+  {
+    const match = createVersionMatcher(['@babel/core@7.20.0'])
+    expect(match('@babel/core', '7.20.0')).toBe(true)
+    expect(match('@babel/core', '7.20.1')).toBe(false)
+  }
+  {
+    const match = createVersionMatcher(['@babel/core'])
+    expect(match('@babel/core', '7.20.0')).toBe(true)
+    expect(match('@babel/core', '6.26.0')).toBe(true)
+  }
+  {
+    const match = createVersionMatcher(['axios@1.12.2'])
+    expect(match('axios')).toBe(false)
+  }
+  {
+    const match = createVersionMatcher(['axios@1.12.2', 'lodash@4.17.21', 'is-*'])
+    expect(match('axios', '1.12.2')).toBe(true)
+    expect(match('axios', '1.12.3')).toBe(false)
+    expect(match('lodash', '4.17.21')).toBe(true)
+    expect(match('is-odd', '0.1.2')).toBe(true)
+  }
+  {
+    expect(() => createVersionMatcher(['lodash@^4.17.0'])).toThrow(/Semantic version ranges are not supported/)
+    expect(() => createVersionMatcher(['lodash@~4.17.0'])).toThrow(/Semantic version ranges are not supported/)
+    expect(() => createVersionMatcher(['react@>=18.0.0'])).toThrow(/Semantic version ranges are not supported/)
   }
 })

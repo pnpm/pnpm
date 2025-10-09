@@ -16,6 +16,7 @@ import renameOverwrite from 'rename-overwrite'
 import { toRaw } from './toRaw.js'
 import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange } from './pickPackageFromMeta.js'
 import { type RegistryPackageSpec } from './parseBareSpecifier.js'
+import { type ExcludeMatcher } from '@pnpm/registry.pkg-metadata-filter'
 
 export interface PackageMetaCache {
   get: (key: string) => PackageMeta | undefined
@@ -70,18 +71,20 @@ function pickPackageFromMetaUsingTimeStrict (
   spec: RegistryPackageSpec,
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
-  publishedBy?: Date
+  publishedBy?: Date,
+  excludeMatcher?: ExcludeMatcher
 ): PackageInRegistry | null {
-  return pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
+  return pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy, excludeMatcher)
 }
 
 function pickPackageFromMetaUsingTime (
   spec: RegistryPackageSpec,
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
-  publishedBy?: Date
+  publishedBy?: Date,
+  excludeMatcher?: ExcludeMatcher
 ): PackageInRegistry | null {
-  const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
+  const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy, excludeMatcher)
   if (pickedPackage) return pickedPackage
   return pickPackageFromMeta(pickLowestVersionByVersionRange, spec, preferredVersionSelectors, meta)
 }
@@ -96,15 +99,27 @@ export async function pickPackage (
     preferOffline?: boolean
     filterMetadata?: boolean
     strictPublishedByCheck?: boolean
+    excludeMatcher?: ExcludeMatcher
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
 ): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> {
   opts = opts || {}
-  let _pickPackageFromMeta =
-    opts.publishedBy
-      ? (ctx.strictPublishedByCheck ? pickPackageFromMetaUsingTimeStrict : pickPackageFromMetaUsingTime)
-      : (pickPackageFromMeta.bind(null, opts.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange))
+  let _pickPackageFromMeta: (
+    spec: RegistryPackageSpec,
+    preferredVersionSelectors: VersionSelectors | undefined,
+    meta: PackageMeta,
+    publishedBy?: Date
+  ) => PackageInRegistry | null
+
+  if (opts.publishedBy) {
+    const baseFn = ctx.strictPublishedByCheck ? pickPackageFromMetaUsingTimeStrict : pickPackageFromMetaUsingTime
+    _pickPackageFromMeta = (spec, preferredVersionSelectors, meta, publishedBy) =>
+      baseFn(spec, preferredVersionSelectors, meta, publishedBy, ctx.excludeMatcher)
+  } else {
+    const baseFn = pickPackageFromMeta.bind(null, opts.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange)
+    _pickPackageFromMeta = baseFn
+  }
 
   if (opts.updateToLatest) {
     const _pickPackageBase = _pickPackageFromMeta
