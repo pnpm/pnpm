@@ -12,7 +12,7 @@ export function parse (): Transform {
       if (row) return JSON.parse(row)
     } catch (e) {
       if (opts.strict) {
-        this.emit('error', new Error(`Could not parse row ${row.slice(0, 50)}...`))
+        this.emit('error', new Error(`Could not parse row "${row.length > 50 ? `${row.slice(0, 50)}...` : row}"`))
       }
     }
   }
