@@ -510,9 +510,6 @@ catalogs:
     micromatch:
       specifier: ^4.0.8
       version: 4.0.8
-    ndjson:
-      specifier: ^2.0.0
-      version: 2.0.0
     nock:
       specifier: 13.3.4
       version: 13.3.4
@@ -684,6 +681,9 @@ catalogs:
     split-cmd:
       specifier: ^1.1.0
       version: 1.1.0
+    split2:
+      specifier: ^4.2.0
+      version: 4.2.0
     ssri:
       specifier: 10.0.5
       version: 10.0.5
@@ -4325,9 +4325,9 @@ importers:
       bole:
         specifier: 'catalog:'
         version: 5.0.17
-      ndjson:
+      split2:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 4.2.0
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -15060,6 +15060,10 @@ packages:
   split2@3.2.2:
     resolution: {integrity: sha512-9NThjpgZnifTkJpzTZ7Eue85S49QwpNhZTq6GRJwObb6jnLFNGB7Qm73V5HewTROPyxD0C29xqmaI68bQtV+hg==}
 
+  split2@4.2.0:
+    resolution: {integrity: sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg==}
+    engines: {node: '>= 10.x'}
+
   sprintf-js@1.0.3:
     resolution: {integrity: sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g==}
 
@@ -23817,6 +23821,8 @@ snapshots:
   split2@3.2.2:
     dependencies:
       readable-stream: 3.6.2
+
+  split2@4.2.0: {}
 
   sprintf-js@1.0.3: {}
 
