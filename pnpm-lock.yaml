@@ -7235,6 +7235,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/matcher':
+        specifier: workspace:*
+        version: link:../../config/matcher
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
@@ -8327,6 +8330,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/matcher':
+        specifier: workspace:*
+        version: link:../../config/matcher
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../package-store
