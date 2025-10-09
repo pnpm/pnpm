@@ -59,6 +59,12 @@ export function createResolver (
   const _resolveBunRuntime = resolveBunRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, rawConfig: pnpmOpts.rawConfig, resolveFromNpm })
   return {
     resolve: async (wantedDependency, opts) => {
+      if (wantedDependency.bareSpecifier?.includes(',')) {
+        throw new PnpmError(
+          'INVALID_DEPENDENCY',
+          `The dependency specifier "${wantedDependency.bareSpecifier}" is invalid. It cannot contain commas.`
+        )
+      }
       const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
         await resolveFromJsr(wantedDependency, opts as ResolveFromNpmOptions) ??
         (wantedDependency.bareSpecifier && (
