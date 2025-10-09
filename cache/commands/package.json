@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cache.commands",
-  "version": "1000.0.39",
+  "version": "1000.0.40",
   "description": "Commands for controlling the cache",
   "keywords": [
     "pnpm",

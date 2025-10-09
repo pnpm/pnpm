@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-store-inspecting
 
+## 1000.0.38
+
+### Patch Changes
+
+- @pnpm/client@1001.1.1
+
 ## 1000.0.37
 
 ### Patch Changes

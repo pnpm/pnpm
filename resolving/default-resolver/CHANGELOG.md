@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 1002.2.9
+
+### Patch Changes
+
+- @pnpm/resolving.bun-resolver@1001.0.0
+- @pnpm/resolving.deno-resolver@1001.0.0
+
 ## 1002.2.8
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/core
 
+## 1011.0.0
+
+### Patch Changes
+
+- Updated dependencies [06d2160]
+  - @pnpm/worker@1000.2.0
+  - @pnpm/build-modules@1001.0.0
+  - @pnpm/headless@1005.0.0
+  - @pnpm/package-requester@1007.0.0
+
 ## 1010.1.5
 
 ### Patch Changes

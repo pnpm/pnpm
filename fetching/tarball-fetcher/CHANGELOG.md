@@ -1,5 +1,12 @@
 # @pnpm/tarball-fetcher
 
+## 1002.0.0
+
+### Patch Changes
+
+- Updated dependencies [06d2160]
+  - @pnpm/worker@1000.2.0
+
 ## 1001.1.0
 
 ### Minor Changes

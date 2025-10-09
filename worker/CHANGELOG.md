@@ -1,5 +1,11 @@
 # @pnpm/worker
 
+## 1000.2.0
+
+### Minor Changes
+
+- 06d2160: Allow to specify the max amount of pnpm workers via the `PNPM_MAX_WORKERS` environment variable [#10056](https://github.com/pnpm/pnpm/pull/10056).
+
 ## 1000.1.14
 
 ### Patch Changes

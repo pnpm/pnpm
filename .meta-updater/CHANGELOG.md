@@ -1,5 +1,12 @@
 # @pnpm-private/updater
 
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [b9effa2]
+  - @pnpm/logger@1001.0.1
+
 ## 1000.0.3
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.0.12
+
+### Patch Changes
+
+- 2b6100d: `pnpm dlx` should request the full metadata of packages, when `minimumReleaseAge` is set [#9963](https://github.com/pnpm/pnpm/issues/9963).
+  - @pnpm/plugin-commands-installation@1004.6.7
+  - @pnpm/client@1001.1.1
+  - @pnpm/plugin-commands-env@1000.0.41
+  - @pnpm/cli-utils@1001.2.5
+  - @pnpm/deps.status@1003.0.12
+
 ## 1001.0.11
 
 ### Patch Changes

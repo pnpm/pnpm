@@ -1,5 +1,13 @@
 # @pnpm/package-store
 
+## 1003.0.0
+
+### Patch Changes
+
+- Updated dependencies [06d2160]
+  - @pnpm/worker@1000.2.0
+  - @pnpm/package-requester@1007.0.0
+
 ## 1002.0.12
 
 ### Patch Changes

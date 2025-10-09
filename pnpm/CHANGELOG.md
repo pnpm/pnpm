@@ -1,5 +1,15 @@
 # pnpm
 
+## 10.18.2
+
+### Patch Changes
+
+- `pnpm outdated --long` should work [#10040](https://github.com/pnpm/pnpm/issues/10040).
+- Replace ndjson with split2. Reduce the bundle size of pnpm CLI [#10054](https://github.com/pnpm/pnpm/pull/10054).
+- `pnpm dlx` should request the full metadata of packages, when `minimumReleaseAge` is set [#9963](https://github.com/pnpm/pnpm/issues/9963).
+- pnpm version switching should work when the pnpm home directory is in a symlinked directory [#9715](https://github.com/pnpm/pnpm/issues/9715).
+- Fix `EPIPE` errors when piping output to other commands [#10027](https://github.com/pnpm/pnpm/issues/10027).
+
 ## 10.18.1
 
 ### Patch Changes

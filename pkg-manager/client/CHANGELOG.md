@@ -1,5 +1,15 @@
 # @pnpm/client
 
+## 1001.1.1
+
+### Patch Changes
+
+- @pnpm/fetching.binary-fetcher@1001.0.0
+- @pnpm/git-fetcher@1002.0.0
+- @pnpm/tarball-fetcher@1002.0.0
+- @pnpm/node.fetcher@1001.0.6
+- @pnpm/default-resolver@1002.2.9
+
 ## 1001.1.0
 
 ### Minor Changes

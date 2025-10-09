@@ -1,5 +1,12 @@
 # @pnpm/outdated
 
+## 1001.0.35
+
+### Patch Changes
+
+- 39b728a: `pnpm outdated --long` should work [#10040](https://github.com/pnpm/pnpm/issues/10040).
+  - @pnpm/client@1001.1.1
+
 ## 1001.0.34
 
 ### Patch Changes
