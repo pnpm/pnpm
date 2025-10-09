@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "bole": "catalog:",
-    "ndjson": "catalog:"
+    "split2": "catalog:"
   },
   "devDependencies": {
     "@pnpm/logger": "workspace:*"
