@@ -389,6 +389,15 @@ export async function getConfig (opts: {
 
   overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
 
+  // If verifyDepsBeforeRun is enabled for pre/post install scripts, pnpm can enter an infinite loop
+  // this has to be AFTER the config is loaded from workspace configuration so it isn't overwritten
+  switch (getProcessEnv('npm_lifecycle_event')) {
+  case 'preinstall':
+  case 'postinstall': {
+    pnpmConfig.verifyDepsBeforeRun = false
+  }
+  }
+
   if (opts.cliOptions['global']) {
     extractAndRemoveDependencyBuildOptions(pnpmConfig)
     Object.assign(pnpmConfig, globalDepsBuildConfig)
