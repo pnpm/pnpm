@@ -48,7 +48,7 @@ export async function installPnpmToTools (pnpmVersion: string, opts: SelfUpdateC
       // We want to avoid symlinks because of the rename step,
       // which breaks the junctions on Windows.
       '--config.node-linker=hoisted',
-      `--config.bin=${path.join(stage, 'bin')}`,
+      '--config.bin=bin',
     ], { cwd: stage })
     renameOverwrite.sync(stage, dir)
   } catch (err: unknown) {
