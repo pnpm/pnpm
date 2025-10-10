@@ -406,6 +406,13 @@ export async function getConfig (opts: {
 
     // @ts-expect-error
     pnpmConfig[key] = value
+
+    if (key === 'registry') {
+      if (typeof value !== 'string') {
+        throw new TypeError(`Unexpected type of registry, expecting a string but received ${JSON.stringify(value)}`)
+      }
+      pnpmConfig.registries.default = normalizeRegistryUrl(value)
+    }
   }
 
   overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
