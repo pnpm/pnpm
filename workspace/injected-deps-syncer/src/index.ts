@@ -71,7 +71,6 @@ async function syncBinLinks (
   targetDirs: string[],
   workspaceDir: string
 ): Promise<void> {
-  // Read the package.json to check if it has binaries
   const manifest = await safeReadPackageJsonFromDir(pkgRootDir) as DependencyManifest | undefined
 
   if (!manifest?.bin || !manifest?.name) {
@@ -79,11 +78,8 @@ async function syncBinLinks (
   }
 
   // Step 1: Link bins in .pnpm virtual store
-  // For each target directory (injected location), create bin links in its parent .bin directory
   const binLinkPromises = targetDirs.map(async (targetDir) => {
     const resolvedTargetDir = path.resolve(workspaceDir, targetDir)
-    // targetDir is like: node_modules/.pnpm/package@version/node_modules/package
-    // We need to create bins in: node_modules/.pnpm/package@version/node_modules/.bin
     const parentNodeModulesDir = path.dirname(resolvedTargetDir)
     const binDir = path.join(parentNodeModulesDir, '.bin')
 
@@ -97,8 +93,7 @@ async function syncBinLinks (
     )
   })
 
-  // Step 2: Relink bins for all consuming projects
-  // Find workspace projects that have this package as an injected dependency
+  // Step 2: Relink bins for consuming projects
   const allProjects = await findWorkspacePackagesNoCheck(workspaceDir, {})
   const consumingProjects = allProjects.filter(project => {
     const depMeta = project.manifest.dependenciesMeta?.[manifest.name!]
@@ -109,7 +104,7 @@ async function syncBinLinks (
     const projectNodeModules = path.join(project.rootDir, 'node_modules')
     const projectBinDir = path.join(projectNodeModules, '.bin')
 
-    // Relink all bins in the consumer project's node_modules
+    // Ensure consumer projects see the updated binaries after injection
     await linkBins(projectNodeModules, projectBinDir, {
       allowExoticManifests: true,
       projectManifest: project.manifest,
