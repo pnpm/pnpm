@@ -2,6 +2,7 @@ import path from 'path'
 import fs from 'fs'
 import os from 'os'
 import { isCI } from 'ci-info'
+import { omit } from 'ramda'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -35,7 +36,7 @@ import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concu
 import { parseEnvVars } from './env.js'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
-import { pnpmTypes, types } from './types.js'
+import { types } from './types.js'
 import { getOptionsFromPnpmSettings, getOptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 import {
   type CliOptions as SupportedArchitecturesCliOptions,
@@ -243,7 +244,15 @@ export async function getConfig (opts: {
   ) as ConfigWithDeprecatedSettings
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
-  for (const { key, value } of parseEnvVars(key => pnpmTypes[key as keyof typeof pnpmTypes], env)) {
+  // omit some schema that the custom parser can't yet handle
+  const envPnpmTypes = omit([
+    'init-version', // the type is a private function named 'semver'
+    'node-version', // the type is a private function named 'semver'
+    'umask', // the type is a private function named 'Umask'
+    'logstream', // the custom parser doesn't have logic to handle 'Stream' yet
+  ], types)
+
+  for (const { key, value } of parseEnvVars(key => envPnpmTypes[key as keyof typeof envPnpmTypes], env)) {
     // undefined means that the env key was defined, but its value couldn't be parsed according to the schema
     // TODO: should we throw some error or print some warning here?
     if (value === undefined) continue

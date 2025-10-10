@@ -1,3 +1,5 @@
+import path from 'path'
+import url from 'url'
 import kebabCase from 'lodash.kebabcase'
 import camelcase from 'camelcase'
 
@@ -9,11 +11,17 @@ export type ValueConstructor =
   | NumberConstructor
   | StringConstructor
 
+export type ModuleSchema =
+  | typeof path
+  | typeof url
+
+export type ValueSchema = ValueConstructor | ModuleSchema
+
 export type LiteralSchema = string | boolean | null
 
-export type UnionVariant = LiteralSchema | ValueConstructor
+export type UnionVariant = LiteralSchema | ValueSchema
 
-export type Schema = ValueConstructor | UnionVariant[]
+export type Schema = ValueSchema | UnionVariant[]
 
 export type GetSchema = (key: string) => Schema | undefined
 
@@ -39,23 +47,25 @@ export function * parseEnvVars (getSchema: GetSchema, env: NodeJS.ProcessEnv): G
     const schema = getSchema(schemaKey)
     if (schema == null) continue
     const key = camelcase(suffix)
-    const value = parseValueBySchema(schema, envValue)
+    const value = parseValueBySchema(schema, envValue, env as { HOME?: string })
     yield { key, value }
   }
 }
 
-function parseValueBySchema (schema: Schema, envVar: string): unknown {
+function parseValueBySchema (schema: Schema, envVar: string, env: { HOME?: string }): unknown {
   if (Array.isArray(schema)) {
-    return parseValueByTypeUnion(schema, envVar)
+    return parseValueByTypeUnion(schema, envVar, env)
   } else if (typeof schema === 'function') {
     return parseValueByConstructor(schema, envVar)
+  } else if (schema && typeof schema === 'object') {
+    return parseValueByModule(schema, envVar, env)
   }
 
   const _typeGuard: never = schema
   throw new Error(`Invalid schema: ${_typeGuard}`) // eslint-disable-line @typescript-eslint/restrict-template-expressions
 }
 
-function parseValueByTypeUnion (schema: readonly UnionVariant[], envVar: string): unknown {
+function parseValueByTypeUnion (schema: readonly UnionVariant[], envVar: string, env: { HOME?: string }): unknown {
   // reverse because currently `types` has Array as the last element, and I don't want to blow up the diff
   for (const variant of sortUnionVariant(schema)) {
     let value: unknown
@@ -67,6 +77,8 @@ function parseValueByTypeUnion (schema: readonly UnionVariant[], envVar: string)
       value = parseNullLiteral(envVar)
     } else if (typeof variant === 'function') {
       value = parseValueByConstructor(variant, envVar)
+    } else if (typeof variant === 'object') {
+      value = parseValueByModule(variant, envVar, env)
     } else {
       const _typeGuard: never = variant
       throw new Error(`Invalid schema variant: ${_typeGuard}`) // eslint-disable-line @typescript-eslint/restrict-template-expressions
@@ -110,6 +122,22 @@ function parseValueByConstructor (schema: ValueConstructor, envVar: string): unk
 
   if (schema === String) {
     return envVar
+  }
+
+  return undefined
+}
+
+function parseValueByModule (schema: ModuleSchema, envVar: string, env: { HOME?: string }): unknown {
+  if (schema === path) {
+    const homePrefix = /^~[/\\]/
+    if (env.HOME && homePrefix.test(envVar)) {
+      return path.join(env.HOME, envVar.replace(homePrefix, ''))
+    }
+    return envVar
+  }
+
+  if (schema === url) {
+    return new url.URL(envVar).toString()
   }
 
   return undefined

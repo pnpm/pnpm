@@ -1138,8 +1138,8 @@ test('loads setting from environment variable pnpm_config_*', async () => {
     env: {
       pnpm_config_fetch_retries: '100',
       pnpm_config_hoist_pattern: '["react", "react-dom"]',
-      pnpm_config_node_version: '22',
-      pnpm_config_only_build_dependencies: '["is-number", "is-positive", "is-negative"]',
+      pnpm_config_use_node_version: '22',
+      pnpm_config_only_built_dependencies: '["is-number", "is-positive", "is-negative"]',
     },
     packageManager: {
       name: 'pnpm',
@@ -1147,10 +1147,8 @@ test('loads setting from environment variable pnpm_config_*', async () => {
     },
     workspaceDir: process.cwd(),
   })
-  // NOTE: lines commented out are those not yet working
-  // TODO: fix them
-  // expect(config.fetchRetries).toBe(100)
+  expect(config.fetchRetries).toBe(100)
   expect(config.hoistPattern).toStrictEqual(['react', 'react-dom'])
-  // expect(config.nodeVersion).toBe('22')
-  // expect(config.onlyBuiltDependencies).toStrictEqual(['is-number', 'is-positive'])
+  expect(config.useNodeVersion).toBe('22')
+  expect(config.onlyBuiltDependencies).toStrictEqual(['is-number', 'is-positive', 'is-negative'])
 })

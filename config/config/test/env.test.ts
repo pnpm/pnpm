@@ -1,3 +1,5 @@
+import path from 'path'
+import url from 'url'
 import { type ConfigPair, type GetSchema, type Schema, parseEnvVars } from '../src/env.js'
 
 function assertSchemaKey (key: string): void {
@@ -78,6 +80,47 @@ test('parseEnvVars works with arrays', () => {
     foo: [0, 1, 2],
     bar: ['a', 'b'],
     baz: undefined,
+  })
+})
+
+test('parseEnvVars works with paths', () => {
+  expect(pairsToObject(parseEnvVars(alwaysSchema(path), {
+    HOME: '/home/fake-user',
+    PATH: '/bin:/usr/bin:/usr/local/bin:/home/fake-user/.bin:/home/fake-user/share/local/bin',
+    pnpm_config_foo: 'abc/def/ghi',
+    pnpm_config_bar: '~/abc/def/ghi',
+    pnpm_config_baz: '~\\abc\\def\\ghi',
+    pnpm_config_undefined_somehow: undefined,
+  }))).toStrictEqual({
+    foo: 'abc/def/ghi',
+    bar: path.join('/home/fake-user', 'abc/def/ghi'),
+    baz: path.join('/home/fake-user', 'abc\\def\\ghi'),
+  })
+
+  expect(pairsToObject(parseEnvVars(alwaysSchema(path), {
+    pnpm_config_foo: 'abc/def/ghi',
+    pnpm_config_bar: '~/abc/def/ghi',
+    pnpm_config_baz: '~\\abc\\def\\ghi',
+    pnpm_config_undefined_somehow: undefined,
+  }))).toStrictEqual({
+    foo: 'abc/def/ghi',
+    bar: '~/abc/def/ghi',
+    baz: '~\\abc\\def\\ghi',
+  })
+})
+
+test('parseEnvVars works with URLs', () => {
+  expect(pairsToObject(parseEnvVars(alwaysSchema(url), {
+    HOME: '/home/fake-user',
+    PATH: '/bin:/usr/bin:/usr/local/bin:/home/fake-user/.bin:/home/fake-user/share/local/bin',
+    pnpm_config_foo: 'https://registry.npmjs.com',
+    pnpm_config_bar: 'http://example.org',
+    pnpm_config_baz: 'file:///path/to/some/local/file',
+    pnpm_config_undefined_somehow: undefined,
+  }))).toStrictEqual({
+    foo: 'https://registry.npmjs.com',
+    bar: 'http://example.org',
+    baz: 'file:///path/to/some/local/file',
   })
 })
 

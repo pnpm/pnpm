@@ -1,6 +1,6 @@
 import npmTypes from '@pnpm/npm-conf/lib/types.js'
 
-export const pnpmTypes = {
+export const types = Object.assign({
   'auto-install-peers': Boolean,
   bail: Boolean,
   ci: Boolean,
@@ -137,6 +137,4 @@ export const pnpmTypes = {
   cpu: [String, Array],
   libc: [String, Array],
   os: [String, Array],
-}
-
-export const types = { ...pnpmTypes, ...npmTypes.types }
+}, npmTypes.types)
