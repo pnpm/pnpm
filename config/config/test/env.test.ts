@@ -118,8 +118,8 @@ test('parseEnvVars works with URLs', () => {
     pnpm_config_baz: 'file:///path/to/some/local/file',
     pnpm_config_undefined_somehow: undefined,
   }))).toStrictEqual({
-    foo: 'https://registry.npmjs.com',
-    bar: 'http://example.org',
+    foo: 'https://registry.npmjs.com/',
+    bar: 'http://example.org/',
     baz: 'file:///path/to/some/local/file',
   })
 })
