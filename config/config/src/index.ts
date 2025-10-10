@@ -382,21 +382,21 @@ export async function getConfig (opts: {
           pnpmConfig[key] = value
           pnpmConfig.rawConfig[kebabCase(key)] = value
         }
+        // All the pnpm_config_ env variables should override the settings from pnpm-workspace.yaml,
+        // as it happens with .npmrc.
+        // Until that is fixed, we should at the very least keep the right priority for verifyDepsBeforeRun,
+        // or else, we'll get infinite recursion.
+        // Related issue: https://github.com/pnpm/pnpm/issues/10060
+        if (process.env.pnpm_config_verify_deps_before_run != null) {
+          pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
+          pnpmConfig.rawConfig['verify-deps-before-run'] = pnpmConfig.verifyDepsBeforeRun
+        }
         pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
       }
     }
   }
 
   overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)
-
-  // If verifyDepsBeforeRun is enabled for pre/post install scripts, pnpm can enter an infinite loop
-  // this has to be AFTER the config is loaded from workspace configuration so it isn't overwritten
-  switch (getProcessEnv('npm_lifecycle_event')) {
-  case 'preinstall':
-  case 'postinstall': {
-    pnpmConfig.verifyDepsBeforeRun = false
-  }
-  }
 
   if (opts.cliOptions['global']) {
     extractAndRemoveDependencyBuildOptions(pnpmConfig)
