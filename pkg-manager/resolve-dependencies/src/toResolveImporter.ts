@@ -48,6 +48,12 @@ export async function toResolveImporter (
       dep.updateSpec = true
     }
   }
+  // Also set updateSpec for wanted dependencies when updateToLatest is true
+  if (opts.updateToLatest) {
+    for (const dep of project.wantedDependencies) {
+      dep.updateSpec = true
+    }
+  }
   let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>
   if (!project.manifest) {
     wantedDependencies = [
