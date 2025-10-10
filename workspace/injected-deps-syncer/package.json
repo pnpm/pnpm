@@ -33,7 +33,11 @@
   "dependencies": {
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/link-bins": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.find-packages": "workspace:*",
     "@types/normalize-path": "catalog:",
     "normalize-path": "catalog:"
   },

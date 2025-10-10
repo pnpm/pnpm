@@ -1,7 +1,11 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
+import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger as createLogger } from '@pnpm/logger'
 import { readModulesManifest } from '@pnpm/modules-yaml'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { type DependencyManifest } from '@pnpm/types'
+import { findWorkspacePackagesNoCheck } from '@pnpm/workspace.find-packages'
 import normalizePath from 'normalize-path'
 import { DirPatcher } from './DirPatcher.js'
 
@@ -57,4 +61,61 @@ export async function syncInjectedDeps (opts: SyncInjectedDepsOptions): Promise<
     targetDirs.map(targetDir => path.resolve(opts.workspaceDir!, targetDir))
   )
   await Promise.all(patchers.map(patcher => patcher.apply()))
+
+  // After syncing files, also sync bin links if the package has binaries
+  await syncBinLinks(pkgRootDir, targetDirs, opts.workspaceDir)
+}
+
+async function syncBinLinks (
+  pkgRootDir: string,
+  targetDirs: string[],
+  workspaceDir: string
+): Promise<void> {
+  // Read the package.json to check if it has binaries
+  const manifest = await safeReadPackageJsonFromDir(pkgRootDir) as DependencyManifest | undefined
+
+  if (!manifest?.bin || !manifest?.name) {
+    return
+  }
+
+  // Step 1: Link bins in .pnpm virtual store
+  // For each target directory (injected location), create bin links in its parent .bin directory
+  const binLinkPromises = targetDirs.map(async (targetDir) => {
+    const resolvedTargetDir = path.resolve(workspaceDir, targetDir)
+    // targetDir is like: node_modules/.pnpm/package@version/node_modules/package
+    // We need to create bins in: node_modules/.pnpm/package@version/node_modules/.bin
+    const parentNodeModulesDir = path.dirname(resolvedTargetDir)
+    const binDir = path.join(parentNodeModulesDir, '.bin')
+
+    await linkBinsOfPackages(
+      [{
+        manifest,
+        location: resolvedTargetDir,
+      }],
+      binDir,
+      {}
+    )
+  })
+
+  // Step 2: Relink bins for all consuming projects
+  // Find workspace projects that have this package as an injected dependency
+  const allProjects = await findWorkspacePackagesNoCheck(workspaceDir, {})
+  const consumingProjects = allProjects.filter(project => {
+    const depMeta = project.manifest.dependenciesMeta?.[manifest.name!]
+    return depMeta?.injected === true
+  })
+
+  const consumerLinkPromises = consumingProjects.map(async (project) => {
+    const projectNodeModules = path.join(project.rootDir, 'node_modules')
+    const projectBinDir = path.join(projectNodeModules, '.bin')
+
+    // Relink all bins in the consumer project's node_modules
+    await linkBins(projectNodeModules, projectBinDir, {
+      allowExoticManifests: true,
+      projectManifest: project.manifest,
+      warn: () => {},
+    })
+  })
+
+  await Promise.all([...binLinkPromises, ...consumerLinkPromises])
 }
