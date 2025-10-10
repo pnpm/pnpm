@@ -54,6 +54,7 @@
     "@pnpm/logger": "catalog:"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/logger": "workspace:*",
     "@pnpm/outdated": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
