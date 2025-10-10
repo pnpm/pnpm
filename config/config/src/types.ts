@@ -73,7 +73,7 @@ export const types = Object.assign({
   noproxy: String,
   'npm-path': String,
   offline: Boolean,
-  'only-built-dependencies': [String],
+  'only-built-dependencies': [String, Array],
   'pack-destination': String,
   'pack-gzip-level': Number,
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
