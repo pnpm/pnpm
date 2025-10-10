@@ -1139,7 +1139,7 @@ test('loads setting from environment variable pnpm_config_*', async () => {
     env: {
       pnpm_config_fetch_retries: '100',
       pnpm_config_hoist_pattern: '["react", "react-dom"]',
-      pnpm_config_use_node_version: '22',
+      pnpm_config_use_node_version: '22.0.0',
       pnpm_config_only_built_dependencies: '["is-number", "is-positive", "is-negative"]',
     },
     packageManager: {
@@ -1150,7 +1150,7 @@ test('loads setting from environment variable pnpm_config_*', async () => {
   })
   expect(config.fetchRetries).toBe(100)
   expect(config.hoistPattern).toStrictEqual(['react', 'react-dom'])
-  expect(config.useNodeVersion).toBe('22')
+  expect(config.useNodeVersion).toBe('22.0.0')
   expect(config.onlyBuiltDependencies).toStrictEqual(['is-number', 'is-positive', 'is-negative'])
 })
 
@@ -1158,7 +1158,7 @@ test('environment variable pnpm_config_* should override pnpm-workspace.yaml', a
   prepareEmpty()
 
   writeYamlFile('pnpm-workspace.yaml', {
-    useNodeVersion: '20',
+    useNodeVersion: '20.0.0',
   })
 
   async function getConfigValue (env: NodeJS.ProcessEnv): Promise<string | undefined> {
@@ -1174,10 +1174,10 @@ test('environment variable pnpm_config_* should override pnpm-workspace.yaml', a
     return config.useNodeVersion
   }
 
-  expect(await getConfigValue({})).toBe('20')
+  expect(await getConfigValue({})).toBe('20.0.0')
   expect(await getConfigValue({
-    pnpm_config_use_node_version: '22',
-  })).toBe('22')
+    pnpm_config_use_node_version: '22.0.0',
+  })).toBe('22.0.0')
 })
 
 test('CLI should override environment variable pnpm_config_*', async () => {
@@ -1187,7 +1187,7 @@ test('CLI should override environment variable pnpm_config_*', async () => {
     const { config } = await getConfig({
       cliOptions,
       env: {
-        pnpm_config_use_node_version: '18',
+        pnpm_config_use_node_version: '18.0.0',
       },
       packageManager: {
         name: 'pnpm',
@@ -1198,11 +1198,11 @@ test('CLI should override environment variable pnpm_config_*', async () => {
     return config.useNodeVersion
   }
 
-  expect(await getConfigValue({})).toBe('18')
+  expect(await getConfigValue({})).toBe('18.0.0')
   expect(await getConfigValue({
-    useNodeVersion: '22',
-  })).toBe('22')
+    useNodeVersion: '22.0.0',
+  })).toBe('22.0.0')
   expect(await getConfigValue({
-    'use-node-version': '22',
-  })).toBe('22')
+    'use-node-version': '22.0.0',
+  })).toBe('22.0.0')
 })
