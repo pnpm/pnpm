@@ -45,8 +45,7 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
     // Check if it's an ESM module (ends with .mjs)
     if (pnpmFilePath.endsWith('.mjs')) {
       const url = pathToFileURL(path.resolve(pnpmFilePath)).href
-      const module = await import(url)
-      pnpmfile = module.default || module
+      pnpmfile = await import(url)
     } else {
       // Use require for CommonJS modules
       pnpmfile = require(pnpmFilePath)
@@ -105,4 +104,3 @@ function pnpmFileExistsSync (pnpmFilePath: string): boolean {
     : `${pnpmFilePath}.cjs`
   return fs.existsSync(pnpmFileRealName)
 }
-
