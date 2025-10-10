@@ -22,7 +22,19 @@
       "path": "../../packages/logger"
     },
     {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manager/link-bins"
+    },
+    {
       "path": "../../pkg-manager/modules-yaml"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../find-packages"
     }
   ]
 }
