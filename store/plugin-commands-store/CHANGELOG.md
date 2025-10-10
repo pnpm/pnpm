@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-store
 
+## 1000.0.42
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@1002.2.1
+- @pnpm/cli-utils@1001.2.5
+
+## 1000.0.41
+
+### Patch Changes
+
+- Updated dependencies [9b9faa5]
+- Updated dependencies [fb4da0c]
+  - @pnpm/store.cafs@1000.0.18
+  - @pnpm/store-connection-manager@1002.2.0
+  - @pnpm/config@1004.4.0
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/dependency-path@1001.1.2
+  - @pnpm/lockfile.utils@1003.0.2
+  - @pnpm/get-context@1001.1.7
+
 ## 1000.0.40
 
 ### Patch Changes

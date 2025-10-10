@@ -1,5 +1,47 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1001.0.12
+
+### Patch Changes
+
+- 2b6100d: `pnpm dlx` should request the full metadata of packages, when `minimumReleaseAge` is set [#9963](https://github.com/pnpm/pnpm/issues/9963).
+  - @pnpm/plugin-commands-installation@1004.6.7
+  - @pnpm/client@1001.1.1
+  - @pnpm/plugin-commands-env@1000.0.41
+  - @pnpm/cli-utils@1001.2.5
+  - @pnpm/deps.status@1003.0.12
+
+## 1001.0.11
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.6.6
+
+## 1001.0.10
+
+### Patch Changes
+
+- fddd85b: `pnpm dlx` should not fail when `minimumReleaseAge` is set [#10037](https://github.com/pnpm/pnpm/issues/10037).
+  - @pnpm/plugin-commands-installation@1004.6.5
+
+## 1001.0.9
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+- Updated dependencies [93fdc73]
+- Updated dependencies [a514bc0]
+  - @pnpm/client@1001.1.0
+  - @pnpm/config@1004.4.0
+  - @pnpm/plugin-commands-installation@1004.6.4
+  - @pnpm/lifecycle@1001.0.23
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/read-project-manifest@1001.1.3
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/deps.status@1003.0.11
+  - @pnpm/plugin-commands-env@1000.0.40
+  - @pnpm/workspace.injected-deps-syncer@1000.0.14
+
 ## 1001.0.8
 
 ### Patch Changes

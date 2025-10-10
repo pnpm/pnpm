@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-config
 
+## 1000.2.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.5
+
+## 1000.2.6
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/config@1004.4.0
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/workspace.manifest-writer@1001.0.2
+
 ## 1000.2.5
 
 ### Patch Changes

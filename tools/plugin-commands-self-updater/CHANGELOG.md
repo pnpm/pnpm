@@ -1,5 +1,24 @@
 # @pnpm/tools.plugin-commands-self-updater
 
+## 1000.1.28
+
+### Patch Changes
+
+- 3d9a3c8: pnpm version switching should work when the pnpm home directory is in a symlinked directory [#9715](https://github.com/pnpm/pnpm/issues/9715).
+  - @pnpm/client@1001.1.1
+  - @pnpm/cli-utils@1001.2.5
+
+## 1000.1.27
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/client@1001.1.0
+  - @pnpm/config@1004.4.0
+  - @pnpm/read-project-manifest@1001.1.3
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/link-bins@1000.2.4
+
 ## 1000.1.26
 
 ### Patch Changes

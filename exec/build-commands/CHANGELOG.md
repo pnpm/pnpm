@@ -1,5 +1,20 @@
 # @pnpm/exec.build-commands
 
+## 1001.0.30
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@1003.0.0
+
+## 1001.0.29
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/config@1004.4.0
+  - @pnpm/plugin-commands-rebuild@1002.0.29
+  - @pnpm/config.config-writer@1000.0.13
+
 ## 1001.0.28
 
 ### Patch Changes

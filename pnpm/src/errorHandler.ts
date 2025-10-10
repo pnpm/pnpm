@@ -37,7 +37,11 @@ export async function errorHandler (error: Error & { code?: string }): Promise<v
       resolve()
     }, 0))
   }
-  await killProcesses('errno' in error && typeof error.errno === 'number' ? error.errno : 1)
+  await killProcesses(
+    error && typeof error === 'object' && 'errno' in error && typeof error.errno === 'number'
+      ? error.errno
+      : 1
+  )
 }
 
 async function killProcesses (status: number): Promise<void> {

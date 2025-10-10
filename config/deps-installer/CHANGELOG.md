@@ -1,5 +1,20 @@
 # @pnpm/config.deps-installer
 
+## 1000.0.17
+
+### Patch Changes
+
+- @pnpm/package-store@1003.0.0
+
+## 1000.0.16
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/npm-resolver@1004.3.0
+  - @pnpm/package-store@1002.0.12
+  - @pnpm/config.config-writer@1000.0.13
+
 ## 1000.0.15
 
 ### Patch Changes

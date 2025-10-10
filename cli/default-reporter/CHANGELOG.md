@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 1002.0.9
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/config@1004.4.0
+
 ## 1002.0.8
 
 ### Patch Changes

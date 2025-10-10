@@ -1,5 +1,27 @@
 # @pnpm/build-modules
 
+## 1001.0.0
+
+### Patch Changes
+
+- Updated dependencies [06d2160]
+  - @pnpm/worker@1000.2.0
+
+## 1000.3.16
+
+### Patch Changes
+
+- Updated dependencies [9b9faa5]
+- Updated dependencies [fb4da0c]
+- Updated dependencies [a514bc0]
+  - @pnpm/fs.hard-link-dir@1000.0.2
+  - @pnpm/config@1004.4.0
+  - @pnpm/lifecycle@1001.0.23
+  - @pnpm/worker@1000.1.14
+  - @pnpm/link-bins@1000.2.4
+  - @pnpm/calc-dep-state@1002.0.7
+  - @pnpm/patching.apply-patch@1000.0.7
+
 ## 1000.3.15
 
 ### Patch Changes

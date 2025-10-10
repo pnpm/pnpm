@@ -8,7 +8,6 @@ import {
   addDependenciesToPackage,
   install,
 } from '@pnpm/core'
-import sinon from 'sinon'
 import { testDefaults } from '../utils/index.js'
 
 test('install with lockfileOnly = true', async () => {
@@ -44,35 +43,6 @@ test('install with lockfileOnly = true', async () => {
   project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
   expect(project.readCurrentLockfile()).toBeFalsy()
-})
-
-test('warn when installing with lockfileOnly = true and node_modules exists', async () => {
-  const project = prepareEmpty()
-  const reporter = sinon.spy()
-
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive'], testDefaults())
-  await addDependenciesToPackage(manifest, ['rimraf@2.5.1'], testDefaults({
-    lockfileOnly: true,
-    reporter,
-  }))
-
-  expect(reporter.calledWithMatch({
-    level: 'warn',
-    message: '`node_modules` is present. Lockfile only installation will make it out-of-date',
-    name: 'pnpm',
-  })).toBeTruthy()
-
-  project.storeHas('rimraf', '2.5.1')
-  project.hasNot('rimraf')
-
-  expect(manifest.dependencies!.rimraf).toBeTruthy()
-
-  const lockfile = project.readLockfile()
-  expect(lockfile.importers['.'].dependencies?.rimraf).toBeTruthy()
-  expect(lockfile.packages['rimraf@2.5.1']).toBeTruthy()
-
-  const currentLockfile = project.readCurrentLockfile()
-  expect(currentLockfile.packages['rimraf@2.5.1']).toBeFalsy()
 })
 
 test('do not update the lockfile when lockfileOnly and frozenLockfile are both used', async () => {

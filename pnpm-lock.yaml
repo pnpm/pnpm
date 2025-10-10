@@ -513,9 +513,6 @@ catalogs:
     micromatch:
       specifier: ^4.0.8
       version: 4.0.8
-    ndjson:
-      specifier: ^2.0.0
-      version: 2.0.0
     nock:
       specifier: 13.3.4
       version: 13.3.4
@@ -687,6 +684,9 @@ catalogs:
     split-cmd:
       specifier: ^1.1.0
       version: 1.1.0
+    split2:
+      specifier: ^4.2.0
+      version: 4.2.0
     ssri:
       specifier: 12.0.0
       version: 12.0.0
@@ -3303,6 +3303,10 @@ importers:
         version: 4.1.9
 
   fs/hard-link-dir:
+    dependencies:
+      '@pnpm/graceful-fs':
+        specifier: workspace:*
+        version: link:../graceful-fs
     devDependencies:
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
@@ -4336,9 +4340,9 @@ importers:
       bole:
         specifier: 'catalog:'
         version: 5.0.17
-      ndjson:
+      split2:
         specifier: 'catalog:'
-        version: 2.0.0
+        version: 4.2.0
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -4488,6 +4492,9 @@ importers:
       '@pnpm/os.env.path-extender':
         specifier: 'catalog:'
         version: 2.0.3
+      '@zkochan/cmd-shim':
+        specifier: 'catalog:'
+        version: 7.0.0
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 3.0.2
@@ -15748,8 +15755,8 @@ packages:
     resolution: {integrity: sha512-9kY+CygyYM6j02t5YFHbNz2FN5QmYGv9zAjVp4lCDjlCw7amdckXlEt/bjMhUIfj4ThGRE4gCUH5+yGnNuPo5A==}
     engines: {node: '>=10.0.0'}
 
-  tar-fs@2.1.3:
-    resolution: {integrity: sha512-090nwYJDmlhwFwEW3QQl+vaNnxsO2yVsd45eTKRBzSzu+hlb1w2K9inVq5b0ngXuLVqQ4ApvsUHHnu/zQNkWAg==}
+  tar-fs@2.1.4:
+    resolution: {integrity: sha512-mDAjwmZdh7LTT6pNleZ05Yt65HC3E+NiQzl672vQG38jIrehtJk/J3mNwIg+vShQPcLF/LV7CMnDW6vjj6sfYQ==}
 
   tar-stream@2.2.0:
     resolution: {integrity: sha512-ujeqbceABgwMZxEJnk2HDY2DlnUZ+9oEcb1KzTVfYHio0UE6dG71n60d8D2I4qNvleWrrXpmjpt7vZeF1LnMZQ==}
@@ -19555,7 +19562,7 @@ snapshots:
       picocolors: 1.1.1
       progress: 2.0.3
       semver: 7.7.2
-      tar-fs: 2.1.3
+      tar-fs: 2.1.4
       yargs: 16.2.0
     transitivePeerDependencies:
       - encoding
@@ -23885,7 +23892,7 @@ snapshots:
       pump: 3.0.3
       rc: 1.2.8
       simple-get: 4.0.1
-      tar-fs: 2.1.3
+      tar-fs: 2.1.4
       tunnel-agent: 0.6.0
 
   preferred-pm@3.1.4:
@@ -24853,7 +24860,7 @@ snapshots:
       string-width: 4.2.3
       strip-ansi: 6.0.1
 
-  tar-fs@2.1.3:
+  tar-fs@2.1.4:
     dependencies:
       chownr: 1.1.4
       mkdirp-classic: 0.5.3

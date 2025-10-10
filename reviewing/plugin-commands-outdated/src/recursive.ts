@@ -56,6 +56,8 @@ export async function outdatedRecursive (
     ...opts,
     fullMetadata: opts.long,
     ignoreDependencies: opts.updateConfig?.ignoreDependencies,
+    minimumReleaseAge: opts.minimumReleaseAge,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

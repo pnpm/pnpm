@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-setup",
-  "version": "1000.1.14",
+  "version": "1000.1.17",
   "description": "pnpm commands for setting up pnpm",
   "keywords": [
     "pnpm",
@@ -35,6 +35,7 @@
     "@pnpm/cli-meta": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/os.env.path-extender": "catalog:",
+    "@zkochan/cmd-shim": "catalog:",
     "@zkochan/rimraf": "catalog:",
     "render-help": "catalog:"
   },

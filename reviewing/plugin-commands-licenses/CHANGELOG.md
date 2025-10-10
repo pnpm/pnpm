@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-licenses
 
+## 1000.0.42
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.5
+
+## 1000.0.41
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/config@1004.4.0
+  - @pnpm/license-scanner@1001.0.26
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/lockfile.fs@1001.1.20
+
 ## 1000.0.40
 
 ### Patch Changes
