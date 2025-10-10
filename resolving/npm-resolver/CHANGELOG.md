@@ -1,5 +1,29 @@
 # @pnpm/npm-resolver
 
+## 1004.2.3
+
+### Patch Changes
+
+- baf8bf6: When a version specifier cannot be resolved because the versions don't satisfy the `minimumReleaseAge` setting, print this information out in the error message [#9974](https://github.com/pnpm/pnpm/pull/9974).
+- 702ddb9: When `minimumReleaseAge` is set and the `latest` tag is not mature enough, prefer a non-deprecated version as the new `latest` [#9987](https://github.com/pnpm/pnpm/issues/9987).
+
+## 1004.2.2
+
+### Patch Changes
+
+- 121b44e: Don't ignore the `minimumReleaseAge` check, when the package is requested by exact version and the packument is loaded from cache [#9978](https://github.com/pnpm/pnpm/issues/9978).
+- 02f8b69: When `minimumReleaseAge` is set and the active version under a dist-tag is not mature enough, do not downgrade to a prerelease version in case the original version wasn't a prerelease one [#9979](https://github.com/pnpm/pnpm/issues/9979).
+
+## 1004.2.1
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/error@1000.0.5
+  - @pnpm/resolving.jsr-specifier-parser@1000.0.3
+  - @pnpm/crypto.hash@1000.2.0
+
 ## 1004.2.0
 
 ### Minor Changes

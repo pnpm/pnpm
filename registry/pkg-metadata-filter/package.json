@@ -1,0 +1,53 @@
+{
+  "name": "@pnpm/registry.pkg-metadata-filter",
+  "version": "1000.0.0-0",
+  "description": "Filters the package metadata from the registry",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "npm",
+    "pkg-doc"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/registry/pkg-metadata-filter",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/registry/pkg-metadata-filter#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "_test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/registry.types": "workspace:*",
+    "semver": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/registry.pkg-metadata-filter": "workspace:*",
+    "@types/semver": "catalog:"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

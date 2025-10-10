@@ -1,5 +1,17 @@
 # @pnpm/config
 
+## 1004.3.1
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/error@1000.0.5
+  - @pnpm/workspace.read-manifest@1000.2.4
+  - @pnpm/catalogs.config@1000.0.5
+  - @pnpm/pnpmfile@1002.1.1
+  - @pnpm/read-project-manifest@1001.1.2
+
 ## 1004.3.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/directory-fetcher
 
+## 1000.1.12
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1001.1.2
+
 ## 1000.1.11
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/object.property-path",
-  "version": "1000.0.0",
+  "version": "1000.0.1",
   "description": "Basic library to manipulate object property path which includes dots and subscriptions",
   "keywords": [
     "pnpm",

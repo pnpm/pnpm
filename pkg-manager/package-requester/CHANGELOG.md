@@ -1,5 +1,14 @@
 # @pnpm/package-requester
 
+## 1006.0.2
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/package-is-installable@1000.0.14
+- @pnpm/read-package-json@1000.1.1
+- @pnpm/worker@1000.1.13
+
 ## 1006.0.1
 
 ### Patch Changes

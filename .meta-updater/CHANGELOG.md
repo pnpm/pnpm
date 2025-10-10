@@ -1,5 +1,13 @@
 # @pnpm-private/updater
 
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.19
+- @pnpm/workspace.read-manifest@1000.2.4
+- @pnpm/parse-overrides@1001.0.3
+
 ## 1000.0.1
 
 ### Patch Changes

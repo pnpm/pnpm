@@ -1,5 +1,13 @@
 # @pnpm/prepare-package
 
+## 1000.0.23
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/lifecycle@1001.0.22
+- @pnpm/read-package-json@1000.1.1
+
 ## 1000.0.22
 
 ### Patch Changes

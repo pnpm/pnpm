@@ -1,5 +1,70 @@
 # @pnpm/plugin-commands-installation
 
+## 1004.6.3
+
+### Patch Changes
+
+- @pnpm/config.deps-installer@1000.0.15
+- @pnpm/outdated@1001.0.32
+- @pnpm/workspace.pkgs-graph@1000.0.22
+- @pnpm/cli-utils@1001.2.3
+- @pnpm/core@1010.1.3
+- @pnpm/filter-workspace-packages@1000.0.38
+- @pnpm/plugin-commands-env@1000.0.39
+- @pnpm/plugin-commands-rebuild@1002.0.28
+- @pnpm/workspace.find-packages@1000.0.38
+- @pnpm/package-store@1002.0.11
+- @pnpm/store-connection-manager@1002.1.3
+- @pnpm/deps.status@1003.0.10
+
+## 1004.6.2
+
+### Patch Changes
+
+- @pnpm/config.deps-installer@1000.0.14
+- @pnpm/outdated@1001.0.31
+- @pnpm/workspace.pkgs-graph@1000.0.21
+- @pnpm/core@1010.1.2
+- @pnpm/cli-utils@1001.2.2
+- @pnpm/filter-workspace-packages@1000.0.37
+- @pnpm/plugin-commands-env@1000.0.38
+- @pnpm/plugin-commands-rebuild@1002.0.27
+- @pnpm/workspace.find-packages@1000.0.37
+- @pnpm/package-store@1002.0.11
+- @pnpm/store-connection-manager@1002.1.2
+- @pnpm/deps.status@1003.0.9
+
+## 1004.6.1
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/config@1004.3.1
+  - @pnpm/deps.status@1003.0.8
+  - @pnpm/plugin-commands-rebuild@1002.0.26
+  - @pnpm/error@1000.0.5
+  - @pnpm/core@1010.1.1
+  - @pnpm/get-context@1001.1.6
+  - @pnpm/outdated@1001.0.30
+  - @pnpm/workspace.find-packages@1000.0.36
+  - @pnpm/workspace.manifest-writer@1001.0.2
+  - @pnpm/cli-utils@1001.2.1
+  - @pnpm/plugin-commands-env@1000.0.37
+  - @pnpm/store-connection-manager@1002.1.1
+  - @pnpm/workspace.state@1002.0.4
+  - @pnpm/config.deps-installer@1000.0.13
+  - @pnpm/dedupe.check@1001.0.12
+  - @pnpm/pnpmfile@1002.1.1
+  - @pnpm/manifest-utils@1001.0.5
+  - @pnpm/read-package-json@1000.1.1
+  - @pnpm/read-project-manifest@1001.1.2
+  - @pnpm/filter-workspace-packages@1000.0.36
+  - @pnpm/find-workspace-dir@1000.1.3
+  - @pnpm/workspace.pkgs-graph@1000.0.20
+  - @pnpm/config.config-writer@1000.0.12
+  - @pnpm/package-store@1002.0.11
+
 ## 1004.6.0
 
 ### Minor Changes

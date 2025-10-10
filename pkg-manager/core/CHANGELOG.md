@@ -1,5 +1,56 @@
 # @pnpm/core
 
+## 1010.1.3
+
+### Patch Changes
+
+- @pnpm/resolve-dependencies@1008.2.1
+- @pnpm/package-requester@1006.0.2
+- @pnpm/headless@1004.2.5
+
+## 1010.1.2
+
+### Patch Changes
+
+- Updated dependencies [3a58aaa]
+  - @pnpm/resolve-dependencies@1008.2.0
+  - @pnpm/package-requester@1006.0.2
+  - @pnpm/headless@1004.2.5
+
+## 1010.1.1
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/lockfile.filtering@1001.0.19
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/lockfile.pruner@1001.0.15
+  - @pnpm/lockfile.verification@1001.2.7
+  - @pnpm/calc-dep-state@1002.0.6
+  - @pnpm/error@1000.0.5
+  - @pnpm/get-context@1001.1.6
+  - @pnpm/headless@1004.2.5
+  - @pnpm/hoist@1002.0.5
+  - @pnpm/link-bins@1000.2.3
+  - @pnpm/resolve-dependencies@1008.1.1
+  - @pnpm/build-modules@1000.3.15
+  - @pnpm/modules-cleaner@1001.0.21
+  - @pnpm/lockfile-to-pnp@1001.0.21
+  - @pnpm/parse-overrides@1001.0.3
+  - @pnpm/lifecycle@1001.0.22
+  - @pnpm/hooks.read-package-hook@1000.0.14
+  - @pnpm/patching.config@1001.0.9
+  - @pnpm/package-requester@1006.0.2
+  - @pnpm/manifest-utils@1001.0.5
+  - @pnpm/read-project-manifest@1001.1.2
+  - @pnpm/worker@1000.1.13
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/symlink-dependency@1000.0.11
+  - @pnpm/lockfile.settings-checker@1001.0.14
+  - @pnpm/lockfile.preferred-versions@1000.0.20
+  - @pnpm/remove-bins@1000.0.14
+
 ## 1010.1.0
 
 ### Minor Changes

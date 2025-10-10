@@ -1,5 +1,34 @@
 # @pnpm/config.deps-installer
 
+## 1000.0.15
+
+### Patch Changes
+
+- Updated dependencies [baf8bf6]
+- Updated dependencies [702ddb9]
+  - @pnpm/npm-resolver@1004.2.3
+  - @pnpm/package-store@1002.0.11
+
+## 1000.0.14
+
+### Patch Changes
+
+- Updated dependencies [121b44e]
+- Updated dependencies [02f8b69]
+  - @pnpm/npm-resolver@1004.2.2
+  - @pnpm/package-store@1002.0.11
+
+## 1000.0.13
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/npm-resolver@1004.2.1
+- @pnpm/network.auth-header@1000.0.6
+- @pnpm/read-package-json@1000.1.1
+- @pnpm/config.config-writer@1000.0.12
+- @pnpm/package-store@1002.0.11
+
 ## 1000.0.12
 
 ### Patch Changes

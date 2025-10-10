@@ -1,5 +1,14 @@
 # @pnpm/lifecycle
 
+## 1001.0.22
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/link-bins@1000.2.3
+- @pnpm/read-package-json@1000.1.1
+- @pnpm/directory-fetcher@1000.1.12
+
 ## 1001.0.21
 
 ### Patch Changes

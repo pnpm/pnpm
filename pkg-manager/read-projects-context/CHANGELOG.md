@@ -1,5 +1,11 @@
 # @pnpm/read-projects-context
 
+## 1000.0.22
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.19
+
 ## 1000.0.21
 
 ### Patch Changes

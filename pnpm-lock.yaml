@@ -703,8 +703,8 @@ catalogs:
       specifier: 1.2.0
       version: 1.2.0
     symlink-dir:
-      specifier: ^6.0.5
-      version: 6.0.5
+      specifier: ^7.0.0
+      version: 7.0.0
     tar:
       specifier: ^6.2.1
       version: 6.2.1
@@ -1725,7 +1725,7 @@ importers:
         version: 2.0.2
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.5
+        version: 7.0.0
 
   config/config-writer:
     dependencies:
@@ -2367,7 +2367,7 @@ importers:
         version: 7.7.2
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.5
+        version: 7.0.0
       write-json-file:
         specifier: 'catalog:'
         version: 6.0.0
@@ -2899,7 +2899,7 @@ importers:
         version: 1.0.3
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.5
+        version: 7.0.0
       which:
         specifier: 'catalog:'
         version: '@pnpm/which@3.0.1'
@@ -3405,7 +3405,7 @@ importers:
         version: link:../../packages/types
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.5
+        version: 7.0.0
     devDependencies:
       '@pnpm/logger':
         specifier: workspace:*
@@ -5073,7 +5073,7 @@ importers:
         version: 16.1.3
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.5
+        version: 7.0.0
       write-json-file:
         specifier: 'catalog:'
         version: 6.0.0
@@ -5358,7 +5358,7 @@ importers:
         version: 2.0.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.5
+        version: 7.0.0
     devDependencies:
       '@pnpm/hoist':
         specifier: workspace:*
@@ -5422,7 +5422,7 @@ importers:
         version: 7.7.2
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.5
+        version: 7.0.0
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -5923,7 +5923,7 @@ importers:
         version: 16.1.3
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.5
+        version: 7.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -6065,6 +6065,9 @@ importers:
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
+      '@pnpm/matcher':
+        specifier: workspace:*
+        version: link:../../config/matcher
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
@@ -6576,6 +6579,9 @@ importers:
       exists-link:
         specifier: 'catalog:'
         version: 2.0.0
+      get-port:
+        specifier: 'catalog:'
+        version: 7.1.0
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -6617,7 +6623,7 @@ importers:
         version: 1.1.0
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.5
+        version: 7.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -6721,6 +6727,35 @@ importers:
         version: 0.25.9
     devDependencies:
       pd:
+        specifier: workspace:*
+        version: 'link:'
+
+  registry/pkg-metadata-filter:
+    dependencies:
+      '@pnpm/registry.types':
+        specifier: workspace:*
+        version: link:../types
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.2
+    devDependencies:
+      '@pnpm/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@pnpm/registry.pkg-metadata-filter':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
+
+  registry/types:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/registry.types':
         specifier: workspace:*
         version: 'link:'
 
@@ -7226,6 +7261,12 @@ importers:
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
+      '@pnpm/registry.pkg-metadata-filter':
+        specifier: workspace:*
+        version: link:../../registry/pkg-metadata-filter
+      '@pnpm/registry.types':
+        specifier: workspace:*
+        version: link:../../registry/types
       '@pnpm/resolve-workspace-range':
         specifier: workspace:*
         version: link:../../workspace/resolve-workspace-range
@@ -7885,7 +7926,7 @@ importers:
         version: 7.1.5
       symlink-dir:
         specifier: 'catalog:'
-        version: 6.0.5
+        version: 7.0.0
       tempy:
         specifier: 'catalog:'
         version: 3.0.0
@@ -15691,6 +15732,11 @@ packages:
 
   symlink-dir@6.0.5:
     resolution: {integrity: sha512-xkihq5JPUZqxZbUOrz+fJprx5KZD0vPmesImGpoqFpPwmaFBpxBB4sl8GEwG2tE5/XVekSZw5I1D5NiwNvtwdQ==}
+    engines: {node: '>=18.12'}
+    hasBin: true
+
+  symlink-dir@7.0.0:
+    resolution: {integrity: sha512-BHQ+Oa0ff8hfcF+QIhWnCaeQOI/G9ZOBhCVWzFsi5IBan0kUZmQROSHOfo+SwpXMEr726rD57Cb0qJO+zqgFDA==}
     engines: {node: '>=18.12'}
     hasBin: true
 
@@ -24786,6 +24832,11 @@ snapshots:
   supports-preserve-symlinks-flag@1.0.0: {}
 
   symlink-dir@6.0.5:
+    dependencies:
+      better-path-resolve: 1.0.0
+      rename-overwrite: 6.0.3
+
+  symlink-dir@7.0.0:
     dependencies:
       better-path-resolve: 1.0.0
       rename-overwrite: 6.0.3

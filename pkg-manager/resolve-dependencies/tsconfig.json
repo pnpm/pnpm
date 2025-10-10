@@ -16,6 +16,9 @@
       "path": "../../catalogs/types"
     },
     {
+      "path": "../../config/matcher"
+    },
+    {
       "path": "../../fetching/pick-fetcher"
     },
     {

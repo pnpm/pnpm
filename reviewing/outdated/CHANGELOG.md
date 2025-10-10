@@ -1,5 +1,37 @@
 # @pnpm/outdated
 
+## 1001.0.32
+
+### Patch Changes
+
+- Updated dependencies [baf8bf6]
+- Updated dependencies [702ddb9]
+  - @pnpm/npm-resolver@1004.2.3
+  - @pnpm/client@1001.0.7
+
+## 1001.0.31
+
+### Patch Changes
+
+- Updated dependencies [121b44e]
+- Updated dependencies [02f8b69]
+  - @pnpm/npm-resolver@1004.2.2
+  - @pnpm/client@1001.0.6
+
+## 1001.0.30
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/error@1000.0.5
+  - @pnpm/npm-resolver@1004.2.1
+  - @pnpm/parse-overrides@1001.0.3
+  - @pnpm/hooks.read-package-hook@1000.0.14
+  - @pnpm/manifest-utils@1001.0.5
+  - @pnpm/client@1001.0.5
+
 ## 1001.0.29
 
 ### Patch Changes

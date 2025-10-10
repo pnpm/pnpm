@@ -80,3 +80,40 @@ test('request metadata when the one in cache does not have a version satisfying 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
   expect(resolveResult!.id).toBe('bad-dates@1.0.0')
 })
+
+test('do not pick version that does not satisfy the date requirement even if it is loaded from cache and requested by exact version', async () => {
+  const cacheDir = temporaryDirectory()
+  const fooMeta = {
+    'dist-tags': {},
+    versions: {
+      '1.0.0': {
+        dist: {
+          integrity: 'sha512-9Qa5b+9n69IEuxk4FiNcavXqkixb9lD03BLtdTeu2bbORnLZQrw+pR/exiSg7SoODeu08yxS47mdZa9ddodNwQ==',
+          shasum: '857db584a1ba5d1cb2980527fc3b6c435d37b0fd',
+          tarball: 'https://registry.npmjs.org/is-positive/-/foo-1.0.0.tgz',
+        },
+      },
+    },
+    time: {
+      '1.0.0': '2016-08-17T19:26:00.508Z',
+    },
+    cachedAt: '2016-08-17T19:26:00.508Z',
+  }
+  fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })
+  fs.writeFileSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/foo.json`), JSON.stringify(fooMeta), 'utf8')
+
+  nock(registries.default)
+    .get('/foo')
+    .reply(200, fooMeta)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+    strictPublishedByCheck: true,
+  })
+  await expect(resolveFromNpm({ alias: 'foo', bareSpecifier: '1.0.0' }, {
+    publishedBy: new Date('2015-08-17T19:26:00.508Z'),
+  })).rejects.toThrow('No matching version found')
+})

@@ -31,6 +31,7 @@ packages:
   - tools/*
   - worker
   - pnpm/artifacts/*
+  - registry/*
   - releasing/*
   - resolving/*
   - reviewing/*
@@ -279,7 +280,7 @@ catalog:
   string-length: ^6.0.0
   strip-bom: ^5.0.0
   strip-comments-strings: 1.2.0
-  symlink-dir: ^6.0.5
+  symlink-dir: ^7.0.0
   tar: ^6.2.1
   tar-stream: ^2.2.0
   tempy: 3.0.0
@@ -325,6 +326,11 @@ ignoredBuiltDependencies:
   - core-js
 
 managePackageManagerVersions: true
+
+minimumReleaseAge: 0
+
+minimumReleaseAgeExclude:
+  - pnpm
 
 nodeVersion: 20.19.4
 

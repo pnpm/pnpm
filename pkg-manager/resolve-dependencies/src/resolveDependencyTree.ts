@@ -2,6 +2,7 @@ import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
+import { createMatcher } from '@pnpm/matcher'
 import { type PatchGroupRecord } from '@pnpm/patching.config'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
@@ -195,7 +196,7 @@ export async function resolveDependencyTree<T> (
     hoistPeers: autoInstallPeers || opts.dedupePeerDependents,
     allPeerDepNames: new Set(),
     maximumPublishedBy: opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined,
-    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude ? createMatcher(opts.minimumReleaseAgeExclude) : undefined,
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {

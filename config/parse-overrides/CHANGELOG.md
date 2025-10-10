@@ -1,5 +1,11 @@
 # @pnpm/parse-overrides
 
+## 1001.0.3
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+
 ## 1001.0.2
 
 ### Patch Changes
