@@ -244,23 +244,6 @@ export async function getConfig (opts: {
   ) as ConfigWithDeprecatedSettings
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
-  // omit some schema that the custom parser can't yet handle
-  const envPnpmTypes = omit([
-    'init-version', // the type is a private function named 'semver'
-    'node-version', // the type is a private function named 'semver'
-    'umask', // the type is a private function named 'Umask'
-    'logstream', // the custom parser doesn't have logic to handle 'Stream' yet
-  ], types)
-
-  for (const { key, value } of parseEnvVars(key => envPnpmTypes[key as keyof typeof envPnpmTypes], env)) {
-    // undefined means that the env key was defined, but its value couldn't be parsed according to the schema
-    // TODO: should we throw some error or print some warning here?
-    if (value === undefined) continue
-
-    // @ts-expect-error
-    pnpmConfig[key] = value
-  }
-
   Object.assign(pnpmConfig, configFromCliOpts)
   // Resolving the current working directory to its actual location is crucial.
   // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
@@ -404,6 +387,25 @@ export async function getConfig (opts: {
         pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
       }
     }
+  }
+
+  // omit some schema that the custom parser can't yet handle
+  const envPnpmTypes = omit([
+    'init-version', // the type is a private function named 'semver'
+    'node-version', // the type is a private function named 'semver'
+    'umask', // the type is a private function named 'Umask'
+    'logstream', // the custom parser doesn't have logic to handle 'Stream' yet
+  ], types)
+
+  for (const { key, value } of parseEnvVars(key => envPnpmTypes[key as keyof typeof envPnpmTypes], env)) {
+    // undefined means that the env key was defined, but its value couldn't be parsed according to the schema
+    // TODO: should we throw some error or print some warning here?
+    if (value === undefined) continue
+
+    if (key in cliOptions) continue
+
+    // @ts-expect-error
+    pnpmConfig[key] = value
   }
 
   overrideSupportedArchitecturesWithCLI(pnpmConfig, cliOptions)

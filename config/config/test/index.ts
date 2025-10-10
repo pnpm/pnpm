@@ -2,6 +2,7 @@
 import fs from 'fs'
 import path from 'path'
 import PATH from 'path-name'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import loadNpmConf from '@pnpm/npm-conf'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -1151,4 +1152,54 @@ test('loads setting from environment variable pnpm_config_*', async () => {
   expect(config.hoistPattern).toStrictEqual(['react', 'react-dom'])
   expect(config.useNodeVersion).toBe('22')
   expect(config.onlyBuiltDependencies).toStrictEqual(['is-number', 'is-positive', 'is-negative'])
+})
+
+test('environment variable pnpm_config_* should override pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    useNodeVersion: '20',
+  })
+
+  async function getConfigValue (env: NodeJS.ProcessEnv): Promise<string | undefined> {
+    const { config } = await getConfig({
+      cliOptions: {},
+      env,
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+    return config.useNodeVersion
+  }
+
+  expect(await getConfigValue({})).toBe('20')
+  expect(await getConfigValue({
+    pnpm_config_use_node_version: '22',
+  })).toBe('22')
+})
+
+test('CLI should override environment variable pnpm_config_*', async () => {
+  prepareEmpty()
+
+  async function getConfigValue (cliOptions: Record<string, unknown>): Promise<string | undefined> {
+    const { config } = await getConfig({
+      cliOptions,
+      env: {
+        pnpm_config_use_node_version: '18',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+    return config.useNodeVersion
+  }
+
+  expect(await getConfigValue({})).toBe('18')
+  expect(await getConfigValue({
+    useNodeVersion: '22',
+  })).toBe('22')
 })
