@@ -1,6 +1,6 @@
 import bole from 'bole'
-import ndjson from 'ndjson'
 import { type LogBase } from './LogBase.js'
+import * as ndjson from './ndjsonParse.js'
 
 export type Reporter<LogObj extends LogBase> = (logObj: LogObj) => void
 

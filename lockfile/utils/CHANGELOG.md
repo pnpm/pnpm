@@ -1,5 +1,11 @@
 # @pnpm/lockfile-utils
 
+## 1003.0.2
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.1.2
+
 ## 1003.0.1
 
 ### Patch Changes

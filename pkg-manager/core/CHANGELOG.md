@@ -1,5 +1,54 @@
 # @pnpm/core
 
+## 1011.0.0
+
+### Patch Changes
+
+- Updated dependencies [06d2160]
+  - @pnpm/worker@1000.2.0
+  - @pnpm/build-modules@1001.0.0
+  - @pnpm/headless@1005.0.0
+  - @pnpm/package-requester@1007.0.0
+
+## 1010.1.5
+
+### Patch Changes
+
+- c5e895f: Don't print a warning, when `--lockfile-only` is used [#8320](https://github.com/pnpm/pnpm/issues/8320).
+- Updated dependencies [a004e37]
+  - @pnpm/resolve-dependencies@1008.2.3
+
+## 1010.1.4
+
+### Patch Changes
+
+- Updated dependencies [a514bc0]
+  - @pnpm/lifecycle@1001.0.23
+  - @pnpm/build-modules@1000.3.16
+  - @pnpm/worker@1000.1.14
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/package-requester@1006.0.3
+  - @pnpm/read-project-manifest@1001.1.3
+  - @pnpm/headless@1004.2.6
+  - @pnpm/resolve-dependencies@1008.2.2
+  - @pnpm/lockfile.settings-checker@1001.0.15
+  - @pnpm/lockfile.verification@1001.2.8
+  - @pnpm/dependency-path@1001.1.2
+  - @pnpm/link-bins@1000.2.4
+  - @pnpm/lockfile.filtering@1001.0.20
+  - @pnpm/lockfile.fs@1001.1.20
+  - @pnpm/lockfile-to-pnp@1001.0.22
+  - @pnpm/lockfile.pruner@1001.0.16
+  - @pnpm/lockfile.utils@1003.0.2
+  - @pnpm/lockfile.walker@1001.0.15
+  - @pnpm/calc-dep-state@1002.0.7
+  - @pnpm/patching.config@1001.0.10
+  - @pnpm/modules-cleaner@1001.0.22
+  - @pnpm/hoist@1002.0.6
+  - @pnpm/get-context@1001.1.7
+  - @pnpm/lockfile.preferred-versions@1000.0.21
+  - @pnpm/symlink-dependency@1000.0.11
+
 ## 1010.1.3
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @pnpm/testing.temp-store
 
+## 1000.0.20
+
+### Patch Changes
+
+- @pnpm/package-store@1003.0.0
+- @pnpm/client@1001.1.1
+
+## 1000.0.19
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/client@1001.1.0
+  - @pnpm/package-store@1002.0.12
+
 ## 1000.0.18
 
 ### Patch Changes
