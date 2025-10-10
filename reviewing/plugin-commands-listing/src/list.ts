@@ -20,6 +20,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'global-dir',
     'global',
     'json',
+    'lockfile-only',
     'long',
     'only',
     'optional',
@@ -108,6 +109,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: "Don't display packages from `optionalDependencies`",
             name: '--no-optional',
           },
+          {
+            description: 'List packages from the lockfile only, without checking node_modules.',
+            name: '--lockfile-only',
+          },
           EXCLUDE_PEERS_HELP,
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
@@ -138,6 +143,7 @@ export type ListCommandOptions = Pick<Config,
   excludePeers?: boolean
   json?: boolean
   lockfileDir?: string
+  lockfileOnly?: boolean
   long?: boolean
   parseable?: boolean
   onlyProjects?: boolean
@@ -176,6 +182,7 @@ export async function render (
     excludePeers?: boolean
     include: IncludedDependencies
     lockfileDir: string
+    lockfileOnly?: boolean
     long?: boolean
     json?: boolean
     onlyProjects?: boolean
@@ -201,6 +208,7 @@ export async function render (
     excludePeerDependencies: opts.excludePeers,
     include: opts.include,
     lockfileDir: opts.lockfileDir,
+    lockfileOnly: opts.lockfileOnly,
     long: opts.long,
     onlyProjects: opts.onlyProjects,
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
