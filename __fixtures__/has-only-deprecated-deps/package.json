@@ -1,0 +1,7 @@
+{
+  "name": "has-only-deprecated-deps",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/deprecated": "1.0.0"
+  }
+}

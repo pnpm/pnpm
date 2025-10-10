@@ -5,6 +5,7 @@ packages:
   - '!has-no-lockfile'
   - '!has-not-outdated-deps'
   - '!has-npm-shrinkwrap-json'
+  - '!has-only-deprecated-deps'
   - '!has-outdated-deps'
   - '!has-package-lock-json'
   - '!has-package-lock-v3-json'
