@@ -1,6 +1,8 @@
 import assert from 'assert'
 import fs from 'fs'
+import path from 'path'
 import util from 'util'
+import { pathToFileURL } from 'url'
 import { createRequire } from 'module'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
@@ -42,7 +44,8 @@ export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Pr
     let pnpmfile: Pnpmfile
     // Check if it's an ESM module (ends with .mjs)
     if (pnpmFilePath.endsWith('.mjs')) {
-      const module = await import(pnpmFilePath)
+      const url = pathToFileURL(path.resolve(pnpmFilePath)).href
+      const module = await import(url)
       pnpmfile = module.default || module
     } else {
       // Use require for CommonJS modules
@@ -102,3 +105,4 @@ function pnpmFileExistsSync (pnpmFilePath: string): boolean {
     : `${pnpmFilePath}.cjs`
   return fs.existsSync(pnpmFileRealName)
 }
+
