@@ -143,14 +143,14 @@ export function execPnpxSync (
 
 function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
   const env: Record<string, string> = {
-    npm_config_fetch_retries: '4',
-    npm_config_hoist: 'true',
-    npm_config_registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
-    npm_config_silent: 'true',
-    npm_config_store_dir: opts?.storeDir ?? '../store',
+    pnpm_config_fetch_retries: '4',
+    pnpm_config_hoist: 'true',
+    pnpm_config_registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    pnpm_config_silent: 'true',
+    pnpm_config_store_dir: opts?.storeDir ?? '../store',
     // Although this is the default value of verify-store-integrity (as of pnpm 1.38.0)
     // on CI servers we set it to `false`. That is why we set it back to true for the tests
-    npm_config_verify_store_integrity: 'true',
+    pnpm_config_verify_store_integrity: 'true',
   }
   for (const [key, value] of Object.entries(process.env)) {
     if (key.toLowerCase() === 'path' || key === 'COLORTERM' || key === 'APPDATA') {
