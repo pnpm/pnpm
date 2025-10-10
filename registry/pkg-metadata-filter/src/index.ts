@@ -75,3 +75,10 @@ export function filterPkgMetadataByPublishDate (pkgDoc: PackageMetadataWithTime,
     'dist-tags': distTagsWithinDate,
   }
 }
+
+export function getLatestAvailableVersion (meta: PackageMetadataWithTime, publishedBy: Date): string | null {
+  meta = filterPkgMetadataByPublishDate(meta, publishedBy) as PackageMetadataWithTime
+  const versions = Object.keys(meta.versions)
+  if (versions.length === 0) return null
+  return semver.maxSatisfying(versions, '*', true)
+}
