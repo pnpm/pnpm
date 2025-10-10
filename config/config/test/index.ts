@@ -1202,4 +1202,7 @@ test('CLI should override environment variable pnpm_config_*', async () => {
   expect(await getConfigValue({
     useNodeVersion: '22',
   })).toBe('22')
+  expect(await getConfigValue({
+    'use-node-version': '22',
+  })).toBe('22')
 })
