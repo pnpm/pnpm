@@ -284,10 +284,13 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       await symlinkDir(cmd.path, externalBinPath)
       await fixBin(cmd.path, 0o755)
     } catch (err: any) { // eslint-disable-line
-      if (err.code !== 'ENOENT') {
+      if (!await canFixBin(cmd.path)) {
+        globalWarn(`Skipped fixing bin permissions of \`${cmd.path}\` because the file is not owned by current user`)
+      } else if (err.code !== 'ENOENT') {
         throw err
+      } else {
+        globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
       }
-      globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
     }
     return
   }
@@ -317,8 +320,30 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   // ensure that bin are executable and not containing
   // windows line-endings(CRLF) on the hashbang line
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
-    await fixBin(cmd.path, 0o755)
+    try {
+      await fixBin(cmd.path, 0o755)
+    } catch (err: any) { // eslint-disable-line
+      if (!await canFixBin(cmd.path)) {
+        globalWarn(`Skipped fixing bin permissions of \`${cmd.path}\` because the file is not owned by current user`)
+      } else {
+        throw err
+      }
+    }
   }
+}
+
+async function canFixBin (filePath: string): Promise<boolean> {
+  if (IS_WINDOWS) return true
+
+  const userId = process.getuid?.()
+  const userIsRoot = userId === 0
+  if (userIsRoot) return true
+
+  const { uid: fileOwnerId } = await fs.stat(filePath)
+  const userIsFileOwner = fileOwnerId === userId
+  if (userIsFileOwner) return true
+
+  return false
 }
 
 function getExeExtension (): string {
