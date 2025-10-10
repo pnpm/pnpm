@@ -1422,7 +1422,7 @@ async function resolveDependency (
 
   let prepare!: boolean
   let hasBin!: boolean
-  let pkg: PackageManifest = getManifestFromResponse(pkgResponse, wantedDependency)
+  let pkg: PackageManifest = getManifestFromResponse(pkgResponse, wantedDependency, currentPkg)
   if (!pkg.dependencies) {
     pkg.dependencies = {}
   }
@@ -1506,7 +1506,9 @@ async function resolveDependency (
     ) {
       pkg.deprecated = currentPkg.dependencyLockfile.deprecated
     }
-    hasBin = Boolean((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin)
+    hasBin = (currentPkg.dependencyLockfile?.hasBin != null && !pkg.bin)
+      ? currentPkg.dependencyLockfile.hasBin
+      : Boolean((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin)
   }
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
     ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest
@@ -1651,9 +1653,17 @@ async function resolveDependency (
 
 function getManifestFromResponse (
   pkgResponse: PackageResponse,
-  wantedDependency: WantedDependency
+  wantedDependency: WantedDependency,
+  currentPkg?: Partial<InfoFromLockfile>
 ): PackageManifest {
   if (pkgResponse.body.manifest) return pkgResponse.body.manifest
+
+  if (currentPkg?.name && currentPkg?.version) {
+    return {
+      name: currentPkg.name,
+      version: currentPkg.version,
+    }
+  }
   return {
     name: wantedDependency.alias ? wantedDependency.alias : wantedDependency.bareSpecifier.split('/').pop()!,
     version: '0.0.0',
