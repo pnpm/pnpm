@@ -96,3 +96,88 @@ function matcherWhenOnlyOnePattern (pattern: string): Matcher {
   const m = matcherFromPattern(ignorePattern)
   return (input) => !m(input)
 }
+
+export type VersionMatcher = (pkgName: string, version?: string) => boolean
+
+export function packageNameMatchesExcludeList (patterns: string[], pkgName: string): boolean {
+  const parsedPatterns = patterns.map(parseVersionPattern)
+  for (const { packagePattern } of parsedPatterns) {
+    const nameMatcher = createMatcher(packagePattern)
+    if (nameMatcher(pkgName)) {
+      return true
+    }
+  }
+  return false
+}
+
+export function getExactVersionFromExcludeList (patterns: string[], pkgName: string): string | undefined {
+  const parsedPatterns = patterns.map(parseVersionPattern)
+  for (const { packagePattern, exactVersion } of parsedPatterns) {
+    const nameMatcher = createMatcher(packagePattern)
+    if (nameMatcher(pkgName) && exactVersion) {
+      return exactVersion
+    }
+  }
+  return undefined
+}
+
+function parseVersionPattern (pattern: string): { packagePattern: string, exactVersion?: string } {
+  const isScoped = pattern.startsWith('@')
+
+  if (isScoped) {
+    const secondAtIndex = pattern.indexOf('@', 1)
+    if (secondAtIndex === -1) {
+      return { packagePattern: pattern }
+    }
+    return {
+      packagePattern: pattern.slice(0, secondAtIndex),
+      exactVersion: pattern.slice(secondAtIndex + 1),
+    }
+  }
+
+  const atIndex = pattern.indexOf('@')
+  if (atIndex === -1) {
+    return { packagePattern: pattern }
+  }
+
+  const version = pattern.slice(atIndex + 1)
+
+  if (version.match(/^[~^>=<]/)) {
+    throw new Error(
+      'Semantic version ranges are not supported in minimumReleaseAgeExclude. ' +
+      `Found: "${pattern}". Use exact versions only.`
+    )
+  }
+
+  return {
+    packagePattern: pattern.slice(0, atIndex),
+    exactVersion: version,
+  }
+}
+
+export function createVersionMatcher (patterns: string[]): VersionMatcher {
+  const parsedPatterns = patterns.map(parseVersionPattern)
+
+  return (pkgName: string, version?: string): boolean => {
+    for (const { packagePattern, exactVersion } of parsedPatterns) {
+      const nameMatcher = createMatcher(packagePattern)
+      if (!nameMatcher(pkgName)) {
+        continue
+      }
+
+      if (!exactVersion) {
+        return true
+      }
+
+      if (!version) {
+        return false
+      }
+
+      if (version === exactVersion) {
+        return true
+      }
+    }
+
+    return false
+  }
+}

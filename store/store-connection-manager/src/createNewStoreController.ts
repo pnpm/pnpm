@@ -32,6 +32,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'localAddress'
 | 'maxSockets'
 | 'minimumReleaseAge'
+| 'minimumReleaseAgeExclude'
 | 'networkConcurrency'
 | 'noProxy'
 | 'offline'
@@ -100,6 +101,7 @@ export async function createNewStoreController (
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
     preserveAbsolutePaths: opts.preserveAbsolutePaths,
     strictPublishedByCheck: Boolean(opts.minimumReleaseAge),
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {
