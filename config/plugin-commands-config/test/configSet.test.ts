@@ -291,6 +291,44 @@ test('config set with location=project and json=true', async () => {
   })
 })
 
+test('config set registry-specific setting with --location=project should create .npmrc', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', '//registry.example.com/:_auth', 'test-auth-value'])
+
+  expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
+    '//registry.example.com/:_auth': 'test-auth-value',
+  })
+  expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBeFalsy()
+})
+
+test('config set scoped registry with --location=project should create .npmrc', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', '@myorg:registry', 'https://test-registry.example.com/'])
+
+  expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
+    '@myorg:registry': 'https://test-registry.example.com/',
+  })
+  expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBeFalsy()
+})
+
 test('config set when both pnpm-workspace.yaml and .npmrc exist, pnpm-workspace.yaml has priority', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')

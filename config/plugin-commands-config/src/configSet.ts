@@ -1,3 +1,4 @@
+import path from 'path'
 import util from 'util'
 import { types } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -23,17 +24,31 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   if (valueParam != null && opts.json) {
     value = JSON.parse(valueParam)
   }
-  if (opts.global && settingShouldFallBackToNpm(key)) {
-    const _runNpm = runNpm.bind(null, opts.npmPath)
-    if (value == null) {
-      _runNpm(['config', 'delete', key])
+
+  if (shouldFallbackToNpm) {
+    if (opts.global) {
+      const _runNpm = runNpm.bind(null, opts.npmPath)
+      if (value == null) {
+        _runNpm(['config', 'delete', key])
+        return
+      }
+      if (typeof value === 'string') {
+        _runNpm(['config', 'set', `${key}=${value}`])
+        return
+      }
+      throw new PnpmError('CONFIG_SET_AUTH_NON_STRING', `Cannot set ${key} to a non-string value (${JSON.stringify(value)})`)
+    } else {
+      const configPath = path.join(opts.dir, '.npmrc')
+      const settings = await safeReadIniFile(configPath)
+      if (value == null) {
+        if (settings[key] == null) return
+        delete settings[key]
+      } else {
+        settings[key] = value
+      }
+      await writeIniFile(configPath, settings)
       return
     }
-    if (typeof value === 'string') {
-      _runNpm(['config', 'set', `${key}=${value}`])
-      return
-    }
-    throw new PnpmError('CONFIG_SET_AUTH_NON_STRING', `Cannot set ${key} to a non-string value (${JSON.stringify(value)})`)
   }
 
   const { configPath, isWorkspaceYaml } = getConfigFilePath(opts)
