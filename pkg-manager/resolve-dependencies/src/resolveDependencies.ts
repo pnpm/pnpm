@@ -1420,8 +1420,8 @@ async function resolveDependency (
     }
   }
 
-  let prepare!: boolean
-  let hasBin!: boolean
+  let prepare: boolean = false
+  let hasBin: boolean = false
   let pkg: PackageManifest = getManifestFromResponse(pkgResponse, wantedDependency)
   if (!pkg.dependencies) {
     pkg.dependencies = {}
@@ -1494,20 +1494,22 @@ async function resolveDependency (
       ...omitDepsFields(currentPkg.dependencyLockfile),
       ...pkg,
     }
-  } else {
-    prepare = Boolean(
-      pkgResponse.body.resolvedVia === 'git-repository' &&
-      typeof pkg.scripts?.prepare === 'string'
-    )
-
-    if (
-      currentPkg.dependencyLockfile?.deprecated &&
-      !pkgResponse.body.updated && !pkg.deprecated
-    ) {
-      pkg.deprecated = currentPkg.dependencyLockfile.deprecated
-    }
-    hasBin = Boolean((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin)
   }
+
+  prepare = Boolean(
+    prepare ||
+    pkgResponse.body.resolvedVia === 'git-repository' &&
+      typeof pkg.scripts?.prepare === 'string'
+  )
+  hasBin = Boolean(hasBin || ((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin))
+
+  if (
+    currentPkg.dependencyLockfile?.deprecated &&
+      !pkgResponse.body.updated && !pkg.deprecated
+  ) {
+    pkg.deprecated = currentPkg.dependencyLockfile.deprecated
+  }
+  /* eslint-enable @typescript-eslint/dot-notation */
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
     ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest
   }
