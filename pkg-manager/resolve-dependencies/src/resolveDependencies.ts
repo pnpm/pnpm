@@ -60,6 +60,8 @@ import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable.js'
 import { type CatalogLookupMetadata } from './resolveDependencyTree.js'
 import { replaceVersionInBareSpecifier } from './replaceVersionInBareSpecifier.js'
 
+export type { WantedDependency }
+
 const dependencyResolvedLogger = logger('_dependency_resolved')
 
 const omitDepsFields = omit(['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'])
@@ -1651,7 +1653,7 @@ async function resolveDependency (
   }
 }
 
-function getManifestFromResponse (
+export function getManifestFromResponse (
   pkgResponse: PackageResponse,
   wantedDependency: WantedDependency,
   currentPkg?: Partial<InfoFromLockfile>
