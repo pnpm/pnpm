@@ -271,7 +271,7 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
     tableOptions.columns = {
       // Detail column:
       3: {
-        width: Math.max(detailsColumnMaxWidth, 1),
+        width: detailsColumnMaxWidth,
         wrapWord: true,
       },
     }
