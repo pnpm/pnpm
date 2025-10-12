@@ -4,6 +4,7 @@ import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import gfs from '@pnpm/graceful-fs'
+import { type VersionMatcher } from '@pnpm/matcher'
 import { type VersionSelectors } from '@pnpm/resolver-base'
 import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import getRegistryName from 'encode-registry'
@@ -16,7 +17,6 @@ import renameOverwrite from 'rename-overwrite'
 import { toRaw } from './toRaw.js'
 import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange } from './pickPackageFromMeta.js'
 import { type RegistryPackageSpec } from './parseBareSpecifier.js'
-import { type ExcludeMatcher } from '@pnpm/registry.pkg-metadata-filter'
 
 export interface PackageMetaCache {
   get: (key: string) => PackageMeta | undefined
@@ -72,7 +72,7 @@ function pickPackageFromMetaUsingTimeStrict (
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
   publishedBy?: Date,
-  excludeMatcher?: ExcludeMatcher
+  excludeMatcher?: VersionMatcher
 ): PackageInRegistry | null {
   return pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy, excludeMatcher)
 }
@@ -82,7 +82,7 @@ function pickPackageFromMetaUsingTime (
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
   publishedBy?: Date,
-  excludeMatcher?: ExcludeMatcher
+  excludeMatcher?: VersionMatcher
 ): PackageInRegistry | null {
   const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy, excludeMatcher)
   if (pickedPackage) return pickedPackage
@@ -99,7 +99,7 @@ export async function pickPackage (
     preferOffline?: boolean
     filterMetadata?: boolean
     strictPublishedByCheck?: boolean
-    excludeMatcher?: ExcludeMatcher
+    excludeMatcher?: VersionMatcher
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions

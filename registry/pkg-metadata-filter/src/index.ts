@@ -2,7 +2,7 @@ import { globalWarn } from '@pnpm/logger'
 import { type PackageMetadataWithTime } from '@pnpm/registry.types'
 import semver from 'semver'
 
-export type ExcludeMatcher = (pkgName: string, version?: string) => boolean
+export type ExcludeMatcher = (version: string) => boolean
 
 export function filterPkgMetadataByPublishDate (
   pkgDoc: PackageMetadataWithTime,
@@ -13,7 +13,7 @@ export function filterPkgMetadataByPublishDate (
   for (const version in pkgDoc.versions) {
     if (!Object.hasOwn(pkgDoc.versions, version)) continue
     const timeStr = pkgDoc.time[version]
-    const isExcluded = excludeMatcher?.(pkgDoc.name, version)
+    const isExcluded = excludeMatcher?.(version)
     if ((timeStr && new Date(timeStr) <= publishedBy) || isExcluded) {
       versionsWithinDate[version] = pkgDoc.versions[version]
     }
