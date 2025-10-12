@@ -116,12 +116,15 @@ const GIT_CHECKS_HINT = 'If you want to disable Git checks on publish, set the "
  * Remove pnpm-specific CLI options that npm doesn't recognize.
  */
 export function removePnpmSpecificOptions (args: string[]): string[] {
-  const pnpmOnlyOptions = new Set([
-    '--publish-branch',
+  const booleanOptions = new Set([
     '--no-git-checks',
-    '--npm-path',
     '--embed-readme',
     '--no-embed-readme',
+  ])
+
+  const optionsWithValue = new Set([
+    '--publish-branch',
+    '--npm-path',
   ])
 
   const result: string[] = []
@@ -130,10 +133,13 @@ export function removePnpmSpecificOptions (args: string[]): string[] {
   while (i < args.length) {
     const arg = args[i]
 
-    if (pnpmOnlyOptions.has(arg)) {
-      // Skip the option itself
+    if (booleanOptions.has(arg)) {
+      // Skip only the boolean option itself
       i++
-      // Skip its value if the next arg exists and doesn't look like an option
+    } else if (optionsWithValue.has(arg)) {
+      // Skip the option and its value
+      i++
+      // Skip the value if it exists and doesn't look like another option
       if (i < args.length && args[i][0] !== '-') {
         i++
       }
