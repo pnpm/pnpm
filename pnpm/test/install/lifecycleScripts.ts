@@ -329,6 +329,32 @@ test('preinstall script does not trigger verify-deps-before-run (#8954)', async 
   expect(output.stdout.toString()).toContain('hello world')
 })
 
+test('preinstall and postinstall scripts do not trigger verify-deps-before-run when using settings from a config file (#10060)', async () => {
+  const pnpm = `${process.execPath} ${pnpmBinLocation}` // this would fail if either paths happen to contain spaces
+
+  prepare({
+    name: 'preinstall-script-does-not-trigger-verify-deps-before-run-config-file',
+    version: '1.0.0',
+    private: true,
+    scripts: {
+      sayHello: 'echo hello world',
+      preinstall: `${pnpm} run sayHello`,
+      postinstall: `${pnpm} run sayHello`,
+    },
+    dependencies: {
+      cowsay: '1.5.0', // to make the default state outdated, any dependency will do
+    },
+  })
+
+  await writeYamlFile('pnpm-workspace.yaml', { verifyDepsBeforeRun: 'install' })
+
+  // 20s timeout because if it fails it will run for 3 minutes instead
+  const output = execPnpmSync(['install'], { expectSuccess: true, timeout: 20_000 })
+
+  expect(output.status).toBe(0)
+  expect(output.stdout.toString()).toContain('hello world')
+})
+
 test('throw an error when strict-dep-builds is true and there are ignored scripts', async () => {
   const project = prepare({})
   const result = execPnpmSync(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '--config.strict-dep-builds=true'])

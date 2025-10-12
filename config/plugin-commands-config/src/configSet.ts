@@ -1,4 +1,3 @@
-import fs from 'fs'
 import path from 'path'
 import util from 'util'
 import { types } from '@pnpm/config'
@@ -11,6 +10,7 @@ import kebabCase from 'lodash.kebabcase'
 import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
 import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
+import { getConfigFilePath } from './getConfigFilePath.js'
 import { isStrictlyKebabCase } from './isStrictlyKebabCase.js'
 import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
@@ -51,8 +51,16 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
     }
   }
 
-  if (opts.global === true || fs.existsSync(path.join(opts.dir, '.npmrc'))) {
-    const configPath = opts.global ? path.join(opts.configDir, 'rc') : path.join(opts.dir, '.npmrc')
+  const { configPath, isWorkspaceYaml } = getConfigFilePath(opts)
+
+  if (isWorkspaceYaml) {
+    key = camelCase(key)
+    await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+      updatedFields: ({
+        [key]: castField(value, kebabCase(key)),
+      }),
+    })
+  } else {
     const settings = await safeReadIniFile(configPath)
     key = kebabCase(key)
     if (value == null) {
@@ -62,14 +70,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       settings[key] = value
     }
     await writeIniFile(configPath, settings)
-    return
   }
-  key = camelCase(key)
-  await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
-    updatedFields: ({
-      [key]: castField(value, kebabCase(key)),
-    }),
-  })
 }
 
 function castField (value: unknown, key: string) {
