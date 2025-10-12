@@ -112,6 +112,40 @@ export function help (): string {
 
 const GIT_CHECKS_HINT = 'If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks".'
 
+/**
+ * Remove pnpm-specific CLI options that npm doesn't recognize.
+ */
+export function removePnpmSpecificOptions (args: string[]): string[] {
+  const pnpmOnlyOptions = new Set([
+    '--publish-branch',
+    '--no-git-checks',
+    '--npm-path',
+    '--embed-readme',
+    '--no-embed-readme',
+  ])
+
+  const result: string[] = []
+  let i = 0
+
+  while (i < args.length) {
+    const arg = args[i]
+
+    if (pnpmOnlyOptions.has(arg)) {
+      // Skip the option itself
+      i++
+      // Skip its value if the next arg exists and doesn't look like an option
+      if (i < args.length && args[i][0] !== '-') {
+        i++
+      }
+    } else {
+      result.push(arg)
+      i++
+    }
+  }
+
+  return result
+}
+
 export async function handler (
   opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
     argv: {
@@ -195,16 +229,7 @@ Do you want to continue?`,
   if (dirInParams) {
     args = args.filter(arg => arg !== params[0])
   }
-  const index = args.indexOf('--publish-branch')
-  if (index !== -1) {
-    // If --publish-branch follows with another cli option, only remove this argument
-    // otherwise remove the following argument as well
-    if (args[index + 1]?.[0] === '-') {
-      args.splice(index, 1)
-    } else {
-      args.splice(index, 2)
-    }
-  }
+  args = removePnpmSpecificOptions(args)
 
   if (dirInParams != null && (dirInParams.endsWith('.tgz') || dirInParams?.endsWith('.tar.gz'))) {
     const { status } = runNpm(opts.npmPath, ['publish', dirInParams, ...args])
