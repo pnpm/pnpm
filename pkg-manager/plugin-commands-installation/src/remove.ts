@@ -5,7 +5,7 @@ import {
 } from '@pnpm/cli-utils'
 import { type CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config'
+import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
@@ -176,7 +176,6 @@ export async function handler (
     return
   }
   const removeOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     storeController: store.ctrl,
     storeDir: store.dir,
