@@ -147,7 +147,9 @@ function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
     pnpm_config_hoist: 'true',
     pnpm_config_registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
     pnpm_config_silent: 'true',
-    pnpm_config_store_dir: opts?.storeDir ?? '../store',
+    // We can't currently use `pnpm_config_` for this because the test in `test/install/globalVirtualStore.ts`
+    // would fail for some reason
+    npm_config_store_dir: opts?.storeDir ?? '../store',
     // Although this is the default value of verify-store-integrity (as of pnpm 1.38.0)
     // on CI servers we set it to `false`. That is why we set it back to true for the tests
     pnpm_config_verify_store_integrity: 'true',
