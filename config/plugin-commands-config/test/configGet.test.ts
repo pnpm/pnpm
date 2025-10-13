@@ -205,7 +205,7 @@ test('config get with scoped registry key (global: true)', async () => {
     },
   }, ['get', '@scope:registry'])
 
-  expect(getOutputString(getResult)).toEqual('https://custom-registry.example.com/')
+  expect(getOutputString(getResult)).toBe('https://custom-registry.example.com/')
 })
 
 test('config get with scoped registry key that does not exist', async () => {
