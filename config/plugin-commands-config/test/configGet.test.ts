@@ -179,3 +179,43 @@ describe('config get with a property path', () => {
     })
   })
 })
+
+test('config get with scoped registry key (global: false)', async () => {
+  const getResult = await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    rawConfig: {
+      '@scope:registry': 'https://custom-registry.example.com/',
+    },
+  }, ['get', '@scope:registry'])
+
+  expect(getOutputString(getResult)).toEqual('https://custom-registry.example.com/')
+})
+
+test('config get with scoped registry key (global: true)', async () => {
+  const getResult = await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    rawConfig: {
+      '@scope:registry': 'https://custom-registry.example.com/',
+    },
+  }, ['get', '@scope:registry'])
+
+  expect(getOutputString(getResult)).toEqual('https://custom-registry.example.com/')
+})
+
+test('config get with scoped registry key that does not exist', async () => {
+  const getResult = await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: false,
+    rawConfig: {},
+  }, ['get', '@scope:registry'])
+
+  expect(getOutputString(getResult)).toEqual('undefined')
+})
