@@ -66,7 +66,6 @@ function parseValueBySchema (schema: Schema, envVar: string, env: { HOME?: strin
 }
 
 function parseValueByTypeUnion (schema: readonly UnionVariant[], envVar: string, env: { HOME?: string }): unknown {
-  // reverse because currently `types` has Array as the last element, and I don't want to blow up the diff
   for (const variant of sortUnionVariant(schema)) {
     let value: unknown
     switch (typeof variant) {
