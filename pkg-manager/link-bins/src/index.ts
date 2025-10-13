@@ -284,7 +284,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       await symlinkDir(cmd.path, externalBinPath)
       await fixBin(cmd.path, 0o755)
     } catch (err: any) { // eslint-disable-line
-      if (err.code !== 'ENOENT') {
+      if (err.code !== 'ENOENT' && err.code !== 'EISDIR') {
         throw err
       }
       globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
@@ -308,7 +308,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       nodeExecPath: cmd.nodeExecPath,
     })
   } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT') {
+    if (err.code !== 'ENOENT' && err.code !== 'EISDIR') {
       throw err
     }
     globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
