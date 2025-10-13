@@ -10,6 +10,8 @@ import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
   const isScopedKey = key.startsWith('@')
+  // Exclude scoped keys from npm fallback because they are pnpm-native config
+  // that can be read directly from rawConfig (e.g., '@scope:registry')
   if (opts.global && settingShouldFallBackToNpm(key) && !isScopedKey) {
     const { status: exitCode } = runNpm(opts.npmPath, ['config', 'get', key])
     return { output: '', exitCode: exitCode ?? 0 }
