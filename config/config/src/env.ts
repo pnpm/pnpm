@@ -69,23 +69,24 @@ function parseValueByTypeUnion (schema: readonly UnionVariant[], envVar: string,
   for (const variant of sortUnionVariant(schema)) {
     let value: unknown
     switch (typeof variant) {
-      case 'string':
-        value = parseStringLiteral(variant, envVar)
-        break
-      case 'boolean':
-        value = parseBooleanLiteral(variant, envVar)
-        break
-      case 'function':
-        value = parseValueByConstructor(variant, envVar)
-        break
-      case 'object':
-        value = variant === null
-          ? parseNullLiteral(envVar)
-          : parseValueByModule(variant, envVar, env)
-        break
-      default:
-        const _typeGuard: never = variant
-        throw new Error(`Invalid schema variant: ${_typeGuard}`) // eslint-disable-line @typescript-eslint/restrict-template-expressions
+    case 'string':
+      value = parseStringLiteral(variant, envVar)
+      break
+    case 'boolean':
+      value = parseBooleanLiteral(variant, envVar)
+      break
+    case 'function':
+      value = parseValueByConstructor(variant, envVar)
+      break
+    case 'object':
+      value = variant === null
+        ? parseNullLiteral(envVar)
+        : parseValueByModule(variant, envVar, env)
+      break
+    default: {
+      const _typeGuard: never = variant
+      throw new Error(`Invalid schema variant: ${_typeGuard}`) // eslint-disable-line @typescript-eslint/restrict-template-expressions
+    }
     }
     if (value !== undefined) return value
   }
