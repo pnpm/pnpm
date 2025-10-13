@@ -5,7 +5,7 @@ import {
   readDepNameCompletions,
   readProjectManifest,
 } from '@pnpm/cli.utils'
-import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config.reader'
+import { type Config, types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalRemove } from '@pnpm/global.commands'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
@@ -186,7 +186,6 @@ export async function handler (
     return
   }
   const removeOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     storeController: store.ctrl,
     storeDir: store.dir,

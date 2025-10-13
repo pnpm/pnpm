@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/config.normalize-registries'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config.reader'
+import { type Config } from '@pnpm/config.reader'
 import type { LogBase } from '@pnpm/logger'
 import type { StoreController } from '@pnpm/store.controller-types'
 import type { Registries } from '@pnpm/types'
@@ -104,7 +104,6 @@ export async function extendBuildOptions (
     ...defaultOpts,
     ...opts,
     storeDir: defaultOpts.storeDir,
-    ...(opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest) : {}),
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   return extendedOpts

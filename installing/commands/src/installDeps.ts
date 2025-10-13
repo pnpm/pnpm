@@ -5,7 +5,7 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli.utils'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config.reader'
+import { type Config } from '@pnpm/config.reader'
 import { checkDepsStatus } from '@pnpm/deps.status'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
@@ -225,16 +225,10 @@ when running add/update with the --workspace option')
         linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
       }).graph
 
-      const recursiveRootManifestOpts = getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {})
       await recursiveInstallThenUpdateWorkspaceState(allProjects,
         params,
         {
           ...opts,
-          ...recursiveRootManifestOpts,
-          allowBuilds: {
-            ...recursiveRootManifestOpts.allowBuilds,
-            ...opts.allowBuilds,
-          },
           forceHoistPattern,
           forcePublicHoistPattern,
           preferredVersions: opts.packageVulnerabilityAudit ? preferNonvulnerablePackageVersions(opts.packageVulnerabilityAudit) : undefined,
@@ -266,14 +260,8 @@ when running add/update with the --workspace option')
     manifest = {}
   }
 
-  const rootManifestOpts = getOptionsFromRootManifest(opts.dir, (opts.dir === opts.rootProjectManifestDir ? opts.rootProjectManifest ?? manifest : manifest))
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    ...rootManifestOpts,
-    allowBuilds: {
-      ...rootManifestOpts.allowBuilds,
-      ...opts.allowBuilds,
-    },
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository

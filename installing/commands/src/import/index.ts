@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { docsUrl } from '@pnpm/cli.utils'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config.reader'
+import { type Config } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
@@ -178,10 +178,8 @@ export async function handler (
 
   const store = await createStoreController(opts)
   const manifest = await readProjectManifestOnly(opts.dir)
-  const manifestOpts = opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest) : {}
   const installOpts = {
     ...opts,
-    ...manifestOpts,
     lockfileOnly: true,
     preferredVersions,
     storeController: store.ctrl,

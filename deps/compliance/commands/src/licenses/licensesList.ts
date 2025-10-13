@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { readProjectManifestOnly } from '@pnpm/cli.utils'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config.reader'
+import { type Config } from '@pnpm/config.reader'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { findDependencyLicenses } from '@pnpm/deps.compliance.license-scanner'
 import { PnpmError } from '@pnpm/error'
@@ -31,6 +31,7 @@ export type LicensesCommandOptions = {
 | 'selectedProjectsGraph'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
+| 'supportedArchitectures'
 | 'virtualStoreDirMaxLength'
 > &
 Partial<Pick<Config, 'userConfig'>>
@@ -76,7 +77,7 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
     wantedLockfile: lockfile,
     manifest,
     includedImporterIds,
-    supportedArchitectures: getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}).supportedArchitectures,
+    supportedArchitectures: opts.supportedArchitectures,
   })
 
   if (licensePackages.length === 0)
