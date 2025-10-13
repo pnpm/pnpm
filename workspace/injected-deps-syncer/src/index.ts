@@ -107,7 +107,9 @@ async function syncBinLinks (
     await linkBins(projectNodeModules, projectBinDir, {
       allowExoticManifests: true,
       projectManifest: project.manifest,
-      warn: () => {},
+      warn: (msg: string) => {
+        console.warn(`[linkBins warning] ${msg}`)
+      },
     })
   })
 
