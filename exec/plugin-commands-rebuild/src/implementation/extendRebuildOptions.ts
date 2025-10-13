@@ -1,5 +1,5 @@
 import path from 'path'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 import { type LogBase } from '@pnpm/logger'
 import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { type StoreController } from '@pnpm/store-controller-types'
@@ -103,7 +103,6 @@ export async function extendRebuildOptions (
     ...defaultOpts,
     ...opts,
     storeDir: defaultOpts.storeDir,
-    ...(opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest) : {}),
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   if (extendedOpts.neverBuiltDependencies == null && extendedOpts.onlyBuiltDependencies == null && extendedOpts.onlyBuiltDependenciesFile == null) {

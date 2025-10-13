@@ -8,7 +8,6 @@ import {
 import {
   type Config,
   type OptionsFromRootManifest,
-  getOptionsFromRootManifest,
   getWorkspaceConcurrency,
   readLocalConfig,
 } from '@pnpm/config'
@@ -143,9 +142,7 @@ export async function recursive (
 
   const workspacePackages: WorkspacePackages = arrayOfWorkspacePackagesToMap(allProjects) as WorkspacePackages
   const targetDependenciesField = getSaveType(opts)
-  const rootManifestDir = (opts.lockfileDir ?? opts.dir) as ProjectRootDir
   const installOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(rootManifestDir, manifestsByPath[rootManifestDir]?.manifest ?? {}),
     allProjects: getAllProjects(manifestsByPath, opts.allProjectsGraph, opts.sort),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     ownLifecycleHooksStdio: 'pipe',
@@ -395,7 +392,6 @@ export async function recursive (
           {
             ...installOpts,
             ...localConfig,
-            ...getOptionsFromRootManifest(rootDir, manifest),
             ...opts.allProjectsGraph[rootDir]?.package,
             bin: path.join(rootDir, 'node_modules', '.bin'),
             dir: rootDir,
