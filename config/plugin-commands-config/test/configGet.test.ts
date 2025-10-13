@@ -217,5 +217,5 @@ test('config get with scoped registry key that does not exist', async () => {
     rawConfig: {},
   }, ['get', '@scope:registry'])
 
-  expect(getOutputString(getResult)).toEqual('undefined')
+  expect(getOutputString(getResult)).toBe('undefined')
 })
