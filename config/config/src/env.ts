@@ -62,7 +62,7 @@ function parseValueBySchema (schema: Schema, envVar: string, env: { HOME?: strin
   }
 
   const _typeGuard: never = schema
-  throw new Error(`Invalid schema: ${_typeGuard}`) // eslint-disable-line @typescript-eslint/restrict-template-expressions
+  throw new Error(`Invalid schema: ${JSON.stringify(_typeGuard)}`)
 }
 
 function parseValueByTypeUnion (schema: readonly UnionVariant[], envVar: string, env: { HOME?: string }): unknown {
@@ -85,7 +85,7 @@ function parseValueByTypeUnion (schema: readonly UnionVariant[], envVar: string,
       break
     default: {
       const _typeGuard: never = variant
-      throw new Error(`Invalid schema variant: ${_typeGuard}`) // eslint-disable-line @typescript-eslint/restrict-template-expressions
+      throw new Error(`Invalid schema variant: ${JSON.stringify(_typeGuard)}`)
     }
     }
     if (value !== undefined) return value
