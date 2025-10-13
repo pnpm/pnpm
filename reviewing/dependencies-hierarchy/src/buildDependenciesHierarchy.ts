@@ -169,6 +169,7 @@ async function dependenciesHierarchyForPackage (
         name: packageInfo.name,
         version: packageInfo.version,
         readManifest,
+        alias,
       })
       const nodeId = getTreeNodeChildId({
         parentId,
@@ -229,6 +230,7 @@ async function dependenciesHierarchyForPackage (
         name: pkg.name,
         version: pkg.version,
         readManifest: () => readPackageJsonFromDirSync(pkgPath),
+        alias: pkg.alias,
       })
       if ((opts.search != null) && !matchedSearched) return
       const newEntry: PackageNode = pkg
