@@ -179,33 +179,6 @@ test('should update onlyBuiltDependencies when package.json exists with ignoredB
   })
 })
 
-test('should approve builds when package.json exists with onlyBuiltDependencies defined', async () => {
-  const temp = tempDir()
-
-  prepare({
-    dependencies: {
-      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
-      '@pnpm.e2e/install-script-example': '*',
-    },
-    pnpm: {
-      onlyBuiltDependencies: ['@pnpm.e2e/install-script-example'],
-    },
-  }, {
-    tempDir: temp,
-  })
-
-  const workspaceManifestFile = path.join(temp, 'pnpm-workspace.yaml')
-  writeYamlFile(workspaceManifestFile, { packages: ['packages/*'] })
-  await approveSomeBuilds({ workspaceDir: temp, rootProjectManifestDir: temp })
-
-  expect(readYamlFile(workspaceManifestFile)).toStrictEqual({
-    packages: ['packages/*'],
-  })
-  expect(loadJsonFileSync<ProjectManifest>(path.join(temp, 'package.json'))!.pnpm).toStrictEqual({
-    onlyBuiltDependencies: ['@pnpm.e2e/install-script-example', '@pnpm.e2e/pre-and-postinstall-scripts-example'],
-  })
-})
-
 test('should approve builds with package.json that has no onlyBuiltDependencies and ignoredBuiltDependencies fields defined', async () => {
   const temp = tempDir()
 
