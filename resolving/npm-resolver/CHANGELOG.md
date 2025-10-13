@@ -1,5 +1,25 @@
 # @pnpm/npm-resolver
 
+## 1004.3.0
+
+### Minor Changes
+
+- fb4da0c: Added network performance monitoring to pnpm by implementing warnings for slow network requests, including both metadata fetches and tarball downloads.
+
+  Added configuration options for warning thresholds: `fetchWarnTimeoutMs` and `fetchMinSpeedKiBps`.
+  Warning messages are displayed when requests exceed time thresholds or fall below speed minimums
+
+  Related PR: [#10025](https://github.com/pnpm/pnpm/pull/10025).
+
+### Patch Changes
+
+- Updated dependencies [9b9faa5]
+- Updated dependencies [4a2d871]
+  - @pnpm/graceful-fs@1000.0.1
+  - @pnpm/registry.pkg-metadata-filter@1000.0.0
+  - @pnpm/registry.types@1000.0.0
+  - @pnpm/crypto.hash@1000.2.1
+
 ## 1004.2.3
 
 ### Patch Changes

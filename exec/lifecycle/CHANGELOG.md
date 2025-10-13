@@ -1,5 +1,13 @@
 # @pnpm/lifecycle
 
+## 1001.0.23
+
+### Patch Changes
+
+- a514bc0: Don't fail with a meaningless error when `scriptShell` is set to `false` [#8748](https://github.com/pnpm/pnpm/issues/8748).
+  - @pnpm/directory-fetcher@1000.1.13
+  - @pnpm/link-bins@1000.2.4
+
 ## 1001.0.22
 
 ### Patch Changes

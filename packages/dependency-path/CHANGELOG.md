@@ -1,5 +1,11 @@
 # @pnpm/dependency-path
 
+## 1001.1.2
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.2.1
+
 ## 1001.1.1
 
 ### Patch Changes

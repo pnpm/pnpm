@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/dependency-path",
-  "version": "1001.1.1",
+  "version": "1001.1.2",
   "description": "Utilities for working with symlinked node_modules",
   "keywords": [
     "pnpm",

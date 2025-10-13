@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 1000.1.6
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1001.1.3
+
 ## 1000.1.5
 
 ### Patch Changes

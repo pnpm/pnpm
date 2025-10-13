@@ -46,6 +46,7 @@ packages:
 auditConfig:
   ignoreGhsas:
     - GHSA-76c9-3jph-rj3q
+    - GHSA-ffrw-9mx8-89p8
 
 catalog:
   '@babel/core': ^7.28.3
@@ -217,7 +218,6 @@ catalog:
   mdast-util-to-string: ^2.0.0
   mem: ^10.0.0
   micromatch: ^4.0.8
-  ndjson: ^2.0.0
   nock: 13.3.4
   node-fetch: ^3.3.2
   normalize-newline: 4.1.0
@@ -275,6 +275,7 @@ catalog:
   sinon: ^16.1.3
   sort-keys: ^6.0.0
   split-cmd: ^1.1.0
+  split2: ^4.2.0
   ssri: 12.0.0
   stacktracey: ^2.1.8
   string-length: ^6.0.0

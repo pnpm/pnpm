@@ -1,5 +1,42 @@
 # pnpm
 
+## 10.18.2
+
+### Patch Changes
+
+- `pnpm outdated --long` should work [#10040](https://github.com/pnpm/pnpm/issues/10040).
+- Replace ndjson with split2. Reduce the bundle size of pnpm CLI [#10054](https://github.com/pnpm/pnpm/pull/10054).
+- `pnpm dlx` should request the full metadata of packages, when `minimumReleaseAge` is set [#9963](https://github.com/pnpm/pnpm/issues/9963).
+- pnpm version switching should work when the pnpm home directory is in a symlinked directory [#9715](https://github.com/pnpm/pnpm/issues/9715).
+- Fix `EPIPE` errors when piping output to other commands [#10027](https://github.com/pnpm/pnpm/issues/10027).
+
+## 10.18.1
+
+### Patch Changes
+
+- Don't print a warning, when `--lockfile-only` is used [#8320](https://github.com/pnpm/pnpm/issues/8320).
+- `pnpm setup` creates a command shim to the pnpm executable. This is needed to be able to run `pnpm self-update` on Windows [#5700](https://github.com/pnpm/pnpm/issues/5700).
+- When using pnpm catalogs and running a normal `pnpm install`, pnpm produced false positive warnings for "_skip adding to the default catalog because it already exists_". This warning now only prints when using `pnpm add --save-catalog` as originally intended.
+
+## 10.18.0
+
+### Minor Changes
+
+- Added network performance monitoring to pnpm by implementing warnings for slow network requests, including both metadata fetches and tarball downloads.
+
+  Added configuration options for warning thresholds: `fetchWarnTimeoutMs` and `fetchMinSpeedKiBps`.
+  Warning messages are displayed when requests exceed time thresholds or fall below speed minimums
+
+  Related PR: [#10025](https://github.com/pnpm/pnpm/pull/10025).
+
+### Patch Changes
+
+- Retry filesystem operations on EAGAIN errors [#9959](https://github.com/pnpm/pnpm/pull/9959).
+- Outdated command respects `minimumReleaseAge` configuration [#10030](https://github.com/pnpm/pnpm/pull/10030).
+- Correctly apply the `cleanupUnusedCatalogs` configuration when removing dependent packages.
+- Don't fail with a meaningless error when `scriptShell` is set to `false` [#8748](https://github.com/pnpm/pnpm/issues/8748).
+- `pnpm dlx` should not fail when `minimumReleaseAge` is set [#10037](https://github.com/pnpm/pnpm/issues/10037).
+
 ## 10.17.1
 
 ### Patch Changes

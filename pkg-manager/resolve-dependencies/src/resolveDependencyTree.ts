@@ -244,6 +244,11 @@ export async function resolveDependencyTree<T> (
   for (const directDependencies of pkgAddressesByImporters) {
     for (const directDep of directDependencies as PkgAddress[]) {
       const { alias, normalizedBareSpecifier, version, saveCatalogName } = directDep
+
+      if (saveCatalogName == null) {
+        continue
+      }
+
       const existingCatalog = opts.catalogs?.default?.[alias]
       if (existingCatalog != null) {
         if (existingCatalog !== normalizedBareSpecifier) {
@@ -251,7 +256,7 @@ export async function resolveDependencyTree<T> (
             `Skip adding ${alias} to the default catalog because it already exists as ${existingCatalog}. Please use \`pnpm update\` to update the catalogs.`
           )
         }
-      } else if (saveCatalogName != null && normalizedBareSpecifier != null && version != null) {
+      } else if (normalizedBareSpecifier != null && version != null) {
         const userSpecifiedBareSpecifier = `catalog:${saveCatalogName === 'default' ? '' : saveCatalogName}`
 
         // Attach metadata about how this new catalog dependency should be

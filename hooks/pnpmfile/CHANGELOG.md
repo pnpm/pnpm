@@ -1,5 +1,11 @@
 # @pnpm/pnpmfile
 
+## 1002.1.2
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.2.1
+
 ## 1002.1.1
 
 ### Patch Changes

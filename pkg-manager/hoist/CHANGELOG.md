@@ -1,5 +1,11 @@
 # @pnpm/hoist
 
+## 1002.0.6
+
+### Patch Changes
+
+- @pnpm/link-bins@1000.2.4
+
 ## 1002.0.5
 
 ### Patch Changes

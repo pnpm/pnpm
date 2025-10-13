@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-doctor
 
+## 1000.1.39
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.5
+
+## 1000.1.38
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/config@1004.4.0
+  - @pnpm/cli-utils@1001.2.4
+
 ## 1000.1.37
 
 ### Patch Changes
