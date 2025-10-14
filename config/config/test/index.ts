@@ -1141,6 +1141,7 @@ test('loads setting from environment variable pnpm_config_*', async () => {
       pnpm_config_hoist_pattern: '["react", "react-dom"]',
       pnpm_config_use_node_version: '22.0.0',
       pnpm_config_only_built_dependencies: '["is-number", "is-positive", "is-negative"]',
+      pnpm_config_registry: 'https://registry.example.com',
     },
     packageManager: {
       name: 'pnpm',
@@ -1152,6 +1153,8 @@ test('loads setting from environment variable pnpm_config_*', async () => {
   expect(config.hoistPattern).toStrictEqual(['react', 'react-dom'])
   expect(config.useNodeVersion).toBe('22.0.0')
   expect(config.onlyBuiltDependencies).toStrictEqual(['is-number', 'is-positive', 'is-negative'])
+  expect(config.registry).toBe('https://registry.example.com/')
+  expect(config.registries.default).toBe('https://registry.example.com/')
 })
 
 test('environment variable pnpm_config_* should override pnpm-workspace.yaml', async () => {
