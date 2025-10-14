@@ -33,6 +33,9 @@ export interface Modules {
   virtualStoreDirMaxLength: number
   injectedDeps?: Record<string, string[]>
   hoistedLocations?: Record<string, string[]>
+  onlyBuiltDependencies?: string[]
+  onlyBuiltDependenciesFile?: string
+  neverBuiltDependencies?: string[]
 }
 
 export async function readModulesManifest (modulesDir: string): Promise<Modules | null> {

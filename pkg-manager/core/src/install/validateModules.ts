@@ -47,6 +47,10 @@ export async function validateModules (
     publicHoistPattern?: string[] | undefined
     forcePublicHoistPattern?: boolean
     global?: boolean
+
+    onlyBuiltDependencies?: string[]
+    onlyBuiltDependenciesFile?: string
+    neverBuiltDependencies?: string[]
   }
 ): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
@@ -73,6 +77,22 @@ export async function validateModules (
     throw new PnpmError(
       'PUBLIC_HOIST_PATTERN_DIFF',
       'This modules directory was created using a different public-hoist-pattern value.' +
+      ' Run "pnpm install" to recreate the modules directory.'
+    )
+  }
+
+  if (
+    !equals(modules.onlyBuiltDependencies, opts.onlyBuiltDependencies) ||
+    !equals(modules.onlyBuiltDependenciesFile, opts.onlyBuiltDependenciesFile) ||
+    !equals(modules.neverBuiltDependencies, opts.neverBuiltDependencies)
+  ) {
+    if (opts.forceNewModules && (rootProject != null)) {
+      await purgeModulesDirsOfImporter(opts, rootProject)
+      return { purged: true }
+    }
+    throw new PnpmError(
+      'DEP_BUILD_SETTINGS_DIFF',
+      'This modules directory was created using different dependency build settings (onlyBuiltDependencies, onlyBuiltDependenciesFile, or neverBuiltDependencies).' +
       ' Run "pnpm install" to recreate the modules directory.'
     )
   }

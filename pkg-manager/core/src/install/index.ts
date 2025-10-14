@@ -301,6 +301,10 @@ export async function mutateModules (
       publicHoistPattern: opts.publicHoistPattern,
       currentPublicHoistPattern: ctx.currentPublicHoistPattern,
       global: opts.global,
+
+      onlyBuiltDependencies: opts.onlyBuiltDependencies,
+      onlyBuiltDependenciesFile: opts.onlyBuiltDependenciesFile,
+      neverBuiltDependencies: opts.neverBuiltDependencies,
     })
     if (purged) {
       ctx = await getContext(opts)
@@ -1465,6 +1469,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           storeDir: ctx.storeDir,
           virtualStoreDir: ctx.virtualStoreDir,
           virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
+          onlyBuiltDependencies: opts.onlyBuiltDependencies,
+          onlyBuiltDependenciesFile: opts.onlyBuiltDependenciesFile,
+          neverBuiltDependencies: opts.neverBuiltDependencies,
         }, {
           makeModulesDir: Object.keys(result.currentLockfile.packages ?? {}).length > 0,
         })
