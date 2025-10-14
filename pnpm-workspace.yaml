@@ -44,6 +44,8 @@ packages:
   - '!resolving/local-resolver/example-package/**'
 
 auditConfig:
+  ignoreCves:
+    - CVE-2025-56200
   ignoreGhsas:
     - GHSA-76c9-3jph-rj3q
     - GHSA-ffrw-9mx8-89p8
