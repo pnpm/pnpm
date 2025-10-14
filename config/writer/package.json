@@ -33,13 +33,10 @@
   },
   "dependencies": {
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.project-manifest-reader": "workspace:*",
-    "@pnpm/workspace.workspace-manifest-writer": "workspace:*",
-    "ramda": "catalog:"
+    "@pnpm/workspace.workspace-manifest-writer": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/config.writer": "workspace:*",
-    "@types/ramda": "catalog:"
+    "@pnpm/config.writer": "workspace:*"
   },
   "engines": {
     "node": ">=22.13"
