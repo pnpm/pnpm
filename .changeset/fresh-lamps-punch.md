@@ -6,6 +6,7 @@
 "@pnpm/lockfile.types": minor
 "@pnpm/types": minor
 "@pnpm/config": minor
+"pnpm": minor
 ---
 
 Added npm version management for publish command [#9812](https://github.com/pnpm/pnpm/issues/9812).
