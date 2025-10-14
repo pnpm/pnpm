@@ -105,7 +105,7 @@ function calculateRepositoryRoot (
   // assume repo root is workspace dir
   let relativeRepoRoot = '.'
   for (const rootDir of projectDirs) {
-    const relativePartRegExp = new RegExp(`^(\\.\\.\\${path.sep})+`)
+    const relativePartRegExp = new RegExp(`^(\\.\\.\\${path.sep})*\\.\\.(\\${path.sep})?`)
     const relativePartMatch = relativePartRegExp.exec(path.relative(workspaceDir, rootDir))
     if (relativePartMatch == null) continue
     const relativePart = relativePartMatch[0]
