@@ -219,3 +219,17 @@ test('config get with scoped registry key that does not exist', async () => {
 
   expect(getOutputString(getResult)).toBe('undefined')
 })
+
+test('config get globalconfig', async () => {
+  const getResult = await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: '/Users/test/Library/Preferences/pnpm',
+    global: true,
+    rawConfig: {
+      globalconfig: '/Users/test/Library/Preferences/pnpm/rc',
+    },
+  }, ['get', 'globalconfig'])
+
+  expect(getOutputString(getResult)).toBe('/Users/test/Library/Preferences/pnpm/rc')
+})

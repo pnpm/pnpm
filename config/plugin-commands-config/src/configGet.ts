@@ -1,3 +1,4 @@
+import path from 'path'
 import kebabCase from 'lodash.kebabcase'
 import { encode } from 'ini'
 import { globalWarn } from '@pnpm/logger'
@@ -9,6 +10,10 @@ import { parseConfigPropertyPath } from './parseConfigPropertyPath.js'
 import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
+  if (key === 'globalconfig') {
+    return { output: path.join(opts.configDir, 'rc'), exitCode: 0 }
+  }
+
   const isScopedKey = key.startsWith('@')
   // Exclude scoped keys from npm fallback because they are pnpm-native config
   // that can be read directly from rawConfig (e.g., '@scope:registry')
