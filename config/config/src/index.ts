@@ -366,6 +366,9 @@ export async function getConfig (opts: {
       if (pnpmConfig.rootProjectManifest.packageManager) {
         pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
       }
+      if (pnpmConfig.rootProjectManifest.pnpm?.npmVersion) {
+        pnpmConfig.wantedNpmVersion = pnpmConfig.rootProjectManifest.pnpm.npmVersion
+      }
       if (pnpmConfig.rootProjectManifest) {
         Object.assign(pnpmConfig, getOptionsFromRootManifest(pnpmConfig.rootProjectManifestDir, pnpmConfig.rootProjectManifest))
       }

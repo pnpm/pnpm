@@ -39,6 +39,7 @@
     "@pnpm/exec.pnpm-cli-runner": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/tools.installer": "workspace:*",
     "@pnpm/tools.path": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "path-temp": "catalog:",

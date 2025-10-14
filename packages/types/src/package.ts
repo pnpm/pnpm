@@ -177,6 +177,7 @@ export interface PnpmSettings {
   requiredScripts?: string[]
   supportedArchitectures?: SupportedArchitectures
   executionEnv?: ExecutionEnv
+  npmVersion?: string
 }
 
 export interface ProjectManifest extends BaseManifest {

@@ -6883,6 +6883,9 @@ importers:
       '@pnpm/sort-packages':
         specifier: workspace:*
         version: link:../../workspace/sort-packages
+      '@pnpm/tools.npm-manager':
+        specifier: workspace:*
+        version: link:../../tools/npm-manager
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -8453,6 +8456,41 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  tools/installer:
+    dependencies:
+      '@pnpm/exec.pnpm-cli-runner':
+        specifier: workspace:*
+        version: link:../../exec/pnpm-cli-runner
+      '@pnpm/tools.path':
+        specifier: workspace:*
+        version: link:../path
+      '@zkochan/rimraf':
+        specifier: 'catalog:'
+        version: 3.0.2
+      path-temp:
+        specifier: 'catalog:'
+        version: 2.1.0
+      rename-overwrite:
+        specifier: 'catalog:'
+        version: 6.0.2
+    devDependencies:
+      '@pnpm/tools.installer':
+        specifier: workspace:*
+        version: 'link:'
+
+  tools/npm-manager:
+    dependencies:
+      '@pnpm/tools.installer':
+        specifier: workspace:*
+        version: link:../installer
+    devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 29.7.0
+      '@pnpm/tools.npm-manager':
+        specifier: workspace:*
+        version: 'link:'
+
   tools/path:
     devDependencies:
       '@pnpm/tools.path':
@@ -8488,6 +8526,9 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
+      '@pnpm/tools.installer':
+        specifier: workspace:*
+        version: link:../installer
       '@pnpm/tools.path':
         specifier: workspace:*
         version: link:../path

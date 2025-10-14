@@ -40,6 +40,9 @@
       "path": "../../pkg-manifest/read-project-manifest"
     },
     {
+      "path": "../installer"
+    },
+    {
       "path": "../path"
     }
   ]
