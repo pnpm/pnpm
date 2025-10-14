@@ -1,3 +1,4 @@
+import path from 'path'
 import * as ini from 'ini'
 import { config } from '@pnpm/plugin-commands-config'
 import { getOutputString } from './utils/index.js'
@@ -221,15 +222,16 @@ test('config get with scoped registry key that does not exist', async () => {
 })
 
 test('config get globalconfig', async () => {
+  // configDir is normally set by getConfigDir() in production.
+  // Here we just verify that 'rc' is appended to whatever configDir value is provided.
+  const configDir = process.cwd()
   const getResult = await config.handler({
     dir: process.cwd(),
     cliOptions: {},
-    configDir: '/Users/test/Library/Preferences/pnpm',
+    configDir,
     global: true,
-    rawConfig: {
-      globalconfig: '/Users/test/Library/Preferences/pnpm/rc',
-    },
+    rawConfig: {},
   }, ['get', 'globalconfig'])
 
-  expect(getOutputString(getResult)).toBe('/Users/test/Library/Preferences/pnpm/rc')
+  expect(getOutputString(getResult)).toBe(path.join(configDir, 'rc'))
 })
