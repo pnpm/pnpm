@@ -420,15 +420,7 @@ describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchit
     ['glibc', '@pnpm.e2e+only-linux-x64-glibc@1.0.0', '@pnpm.e2e+only-linux-x64-musl@1.0.0'],
     ['musl', '@pnpm.e2e+only-linux-x64-musl@1.0.0', '@pnpm.e2e+only-linux-x64-glibc@1.0.0'],
   ])('%p → installs %p, does not install %p', async (libc, found, notFound) => {
-    const rootProjectManifest: ProjectManifest = {
-      pnpm: {
-        supportedArchitectures: {
-          os: ['linux'],
-          cpu: ['x64'],
-          libc: [libc],
-        },
-      },
-    }
+    const rootProjectManifest: ProjectManifest = {}
 
     prepare(rootProjectManifest)
 
@@ -437,6 +429,11 @@ describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchit
       rootProjectManifest,
       dir: process.cwd(),
       linkWorkspacePackages: true,
+      supportedArchitectures: {
+        os: ['linux'],
+        cpu: ['x64'],
+        libc: [libc],
+      },
     }, ['@pnpm.e2e/support-different-architectures'])
 
     const pkgDirs = fs.readdirSync(path.resolve('node_modules', '.pnpm'))
