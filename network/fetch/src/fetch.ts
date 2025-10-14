@@ -44,6 +44,7 @@ class AdaptiveLimiter {
   // rolling stats
   private bytesWindow = 0
   private lastBytesWindow = 0
+  private rollingBytesWindow: number[] = [] // Keep last 5 measurements
   private successes = 0
   private failures = 0
   private p95MetaLatencyMs = 200
@@ -69,7 +70,7 @@ class AdaptiveLimiter {
       tar: Math.max(4, Math.min(16, 2 * cores)) // start moderate
     }
 
-    const tickMs = Math.max(1000, opts?.tickMs ?? 2000)
+    const tickMs = Math.max(500, opts?.tickMs ?? 1000)
     this.interval = setInterval(() => this.tick(), tickMs)
     // Don’t keep the process open just for the timer
     this.interval.unref?.()
@@ -181,14 +182,24 @@ class AdaptiveLimiter {
     const cap = this.effectiveCap()
     // CPU pressure (simple proxy using 1m load / cores)
     const [l1] = os.loadavg()
-    const cpuBusy = Math.min(1, l1 / Math.max(1, os.cpus().length))
+    const cores = Math.max(1, os.cpus().length)
+    const cpuBusy = Math.min(1, l1 / cores) // * 0.7)
 
     // for logging
     const prevTar = this.limits.tar
     const prevMeta = this.limits.meta
 
     const bytesDelta = Math.max(0, this.bytesWindow - this.lastBytesWindow)
-    const improved = bytesDelta > this.lastBytesWindow * 1.10 // +10% throughput
+
+    // Track rolling average for better improvement detection
+    this.rollingBytesWindow.push(bytesDelta)
+    if (this.rollingBytesWindow.length > 5) this.rollingBytesWindow.shift()
+
+    const avgBytes = this.rollingBytesWindow.reduce((a, b) => a + b, 0) / this.rollingBytesWindow.length
+    const prevAvg = this.rollingBytesWindow.length > 1 ?
+      this.rollingBytesWindow.slice(0, -1).reduce((a, b) => a + b, 0) / (this.rollingBytesWindow.length - 1) : 0
+
+    const improved = avgBytes > prevAvg * 1.05
     const errorRate = (this.failures) / Math.max(1, this.failures + this.successes)
     const metaTooSlow = this.p95MetaLatencyMs > 400 // arbitrary comfort threshold
 
@@ -225,11 +236,12 @@ class AdaptiveLimiter {
     this.drain('tar')
     this.drain('meta')
 
-    // reset window
+    // reset window (keep rolling window for better adaptation)
     this.lastBytesWindow = this.bytesWindow
     this.bytesWindow = 0
-    this.successes = 0
-    this.failures = 0
+    // Don't reset success/failure counts every tick - use exponential decay instead
+    this.successes = Math.floor(this.successes * 0.9)
+    this.failures = Math.floor(this.failures * 0.9)
   }
 }
 
