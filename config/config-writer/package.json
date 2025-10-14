@@ -32,14 +32,11 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/workspace.manifest-writer": "workspace:*",
-    "ramda": "catalog:"
+    "@pnpm/workspace.manifest-writer": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/config.config-writer": "workspace:*",
-    "@types/ramda": "catalog:"
+    "@pnpm/config.config-writer": "workspace:*"
   },
   "engines": {
     "node": ">=20.19"

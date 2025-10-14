@@ -1748,25 +1748,16 @@ importers:
 
   config/config-writer:
     dependencies:
-      '@pnpm/read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
       '@pnpm/workspace.manifest-writer':
         specifier: workspace:*
         version: link:../../workspace/manifest-writer
-      ramda:
-        specifier: 'catalog:'
-        version: '@pnpm/ramda@0.28.1'
     devDependencies:
       '@pnpm/config.config-writer':
         specifier: workspace:*
         version: 'link:'
-      '@types/ramda':
-        specifier: 'catalog:'
-        version: 0.29.12
 
   config/deps-installer:
     dependencies:
@@ -2541,9 +2532,6 @@ importers:
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.29.12
-      load-json-file:
-        specifier: 'catalog:'
-        version: 7.0.1
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
