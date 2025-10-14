@@ -1,5 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
+import v8 from 'v8'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { hashObject } from '@pnpm/crypto.object-hasher'
@@ -23,7 +24,6 @@ import { jest } from '@jest/globals'
 import { sync as rimraf } from '@zkochan/rimraf'
 import { loadJsonFileSync } from 'load-json-file'
 import sinon from 'sinon'
-import { writeJsonFileSync } from 'write-json-file'
 import { testDefaults } from './utils/testDefaults.js'
 
 const f = fixtures(import.meta.dirname)
@@ -680,7 +680,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   await headlessInstall(opts)
 
   const cacheIntegrityPath = getIndexFilePathInCafs(opts.storeDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0')
-  const cacheIntegrity = loadJsonFileSync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const cacheIntegrity = v8.deserialize(fs.readFileSync(cacheIntegrityPath))
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME};deps=${hashObject({
     id: `@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:${getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0')}`,
@@ -695,7 +695,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   delete cacheIntegrity!.sideEffects[sideEffectsKey].added['generated-by-postinstall.js']
 
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'added', 'generated-by-preinstall.js'])
-  writeJsonFileSync(cacheIntegrityPath, cacheIntegrity)
+  fs.writeFileSync(cacheIntegrityPath, v8.serialize(cacheIntegrity))
 
   prefix = f.prepare('side-effects')
   const opts2 = await testDefaults({
