@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-publishing
 
+## 1000.2.17
+
+### Patch Changes
+
+- 3abd394: Remove pnpm-specific CLI options before passing to npm publish to prevent "Unknown cli config" warnings [#9646](https://github.com/pnpm/pnpm/issues/9646).
+- Updated dependencies [9865167]
+  - @pnpm/config@1004.4.1
+  - @pnpm/cli-utils@1001.2.6
+  - @pnpm/plugin-commands-env@1000.0.42
+  - @pnpm/lifecycle@1001.0.24
+  - @pnpm/client@1001.1.2
+
 ## 1000.2.16
 
 ### Patch Changes

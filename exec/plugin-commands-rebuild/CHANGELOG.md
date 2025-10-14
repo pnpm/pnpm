@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1003.0.1
+
+### Patch Changes
+
+- Updated dependencies [9865167]
+- Updated dependencies [a8797c4]
+  - @pnpm/config@1004.4.1
+  - @pnpm/link-bins@1000.2.5
+  - @pnpm/cli-utils@1001.2.6
+  - @pnpm/store-connection-manager@1002.2.2
+  - @pnpm/lifecycle@1001.0.24
+  - @pnpm/workspace.find-packages@1000.0.41
+
 ## 1003.0.0
 
 ### Patch Changes

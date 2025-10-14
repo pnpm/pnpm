@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-outdated
 
+## 1000.0.44
+
+### Patch Changes
+
+- 270c447: Prevent a table width error in `pnpm outdated --long` [#10040](https://github.com/pnpm/pnpm/issues/10040).
+- Updated dependencies [9865167]
+  - @pnpm/config@1004.4.1
+  - @pnpm/cli-utils@1001.2.6
+  - @pnpm/default-resolver@1002.2.10
+  - @pnpm/outdated@1001.0.36
+
 ## 1000.0.43
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 1000.2.5
+
+### Patch Changes
+
+- a8797c4: Fixed EISDIR error when bin field points to a directory [#9441](https://github.com/pnpm/pnpm/issues/9441).
+
 ## 1000.2.4
 
 ### Patch Changes

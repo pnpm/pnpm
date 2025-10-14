@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 1008.2.4
+
+### Patch Changes
+
+- 9c65b96: Preserve version and hasBin for variations packages [#10022](https://github.com/pnpm/pnpm/issues/10022).
+
 ## 1008.2.3
 
 ### Patch Changes

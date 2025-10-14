@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 1002.0.1
+
+### Patch Changes
+
+- @pnpm/prepare-package@1000.0.25
+
 ## 1002.0.0
 
 ### Patch Changes

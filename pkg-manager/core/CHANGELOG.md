@@ -1,5 +1,19 @@
 # @pnpm/core
 
+## 1011.0.1
+
+### Patch Changes
+
+- Updated dependencies [a8797c4]
+- Updated dependencies [9c65b96]
+  - @pnpm/link-bins@1000.2.5
+  - @pnpm/resolve-dependencies@1008.2.4
+  - @pnpm/build-modules@1001.0.1
+  - @pnpm/lifecycle@1001.0.24
+  - @pnpm/headless@1005.0.1
+  - @pnpm/hoist@1002.0.7
+  - @pnpm/package-requester@1007.0.0
+
 ## 1011.0.0
 
 ### Patch Changes
