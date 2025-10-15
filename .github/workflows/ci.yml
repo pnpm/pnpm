@@ -23,6 +23,7 @@ jobs:
           - [20, 18, 1]
           - [22, 12, 0]
           - [24, 0, 0]
+          - [25, 0, 0]
         platform:
           - ubuntu-latest
           - windows-latest
