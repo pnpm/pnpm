@@ -26,7 +26,6 @@ import {
   type PreferredVersions,
   type Resolution,
   type ResolveFunction,
-  type ResolveResult,
   type TarballResolution,
   type AtomicResolution,
 } from '@pnpm/resolver-base'
@@ -206,7 +205,7 @@ async function resolveAndFetch (
       }
       : options.preferredVersions
 
-    const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
+    const resolveResult = await ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
       publishedBy: options.publishedBy,
@@ -221,7 +220,7 @@ async function resolveAndFetch (
       injectWorkspacePackages: options.injectWorkspacePackages,
       calcSpecifier: options.calcSpecifier,
       pinnedVersion: options.pinnedVersion,
-    }), { priority: options.downloadPriority })
+    })
 
     manifest = resolveResult.manifest
     latest = resolveResult.latest
@@ -608,13 +607,7 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
       // We fetch into targetStage directory first and then fs.rename() it to the
       // target directory.
 
-      // Tarballs are requested first because they are bigger than metadata files.
-      // However, when one line is left available, allow it to be picked up by a metadata request.
-      // This is done in order to avoid situations when tarballs are downloaded in chunks
-      // As many tarballs should be downloaded simultaneously as possible.
-      const priority = (++ctx.requestsQueue.counter % ctx.requestsQueue.concurrency === 0 ? -1 : 1) * 1000
-
-      const fetchedPackage = await ctx.requestsQueue.add(async () => ctx.fetch(
+      const fetchedPackage = await ctx.fetch(
         opts.pkg.id,
         resolution,
         {
@@ -641,7 +634,7 @@ Actual package in the store with the given integrity: ${pkgFilesIndex.name}@${pk
             version: opts.pkg.version,
           },
         }
-      ), { priority })
+      )
 
       if (isLocalTarballDep && (opts.pkg.resolution as TarballResolution).integrity) {
         await fs.mkdir(target, { recursive: true })
