@@ -100,6 +100,7 @@ export interface Config extends OptionsFromRootManifest {
   recursive?: boolean
   enablePrePostScripts?: boolean
   useNodeVersion?: string
+  npmVersion?: string
   useStderr?: boolean
   nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   preferSymlinkedExecutables?: boolean

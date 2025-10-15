@@ -366,9 +366,6 @@ export async function getConfig (opts: {
       if (pnpmConfig.rootProjectManifest.packageManager) {
         pnpmConfig.wantedPackageManager = parsePackageManager(pnpmConfig.rootProjectManifest.packageManager)
       }
-      if (pnpmConfig.rootProjectManifest.pnpm?.npmVersion) {
-        pnpmConfig.wantedNpmVersion = pnpmConfig.rootProjectManifest.pnpm.npmVersion
-      }
       if (pnpmConfig.rootProjectManifest) {
         Object.assign(pnpmConfig, getOptionsFromRootManifest(pnpmConfig.rootProjectManifestDir, pnpmConfig.rootProjectManifest))
       }
@@ -395,6 +392,9 @@ export async function getConfig (opts: {
           pnpmConfig.rawConfig['verify-deps-before-run'] = pnpmConfig.verifyDepsBeforeRun
         }
         pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+        if (workspaceManifest.npmVersion) {
+          pnpmConfig.wantedNpmVersion = workspaceManifest.npmVersion
+        }
       }
     }
   }
