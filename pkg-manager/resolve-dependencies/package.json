@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "1008.0.1",
+  "version": "1008.2.3",
   "description": "Resolves dependency graph of a package",
   "keywords": [
     "pnpm",
@@ -44,6 +44,7 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/patching.types": "workspace:*",
@@ -53,6 +54,7 @@
     "@pnpm/semver.peer-range": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@yarnpkg/core": "catalog:",
     "filenamify": "catalog:",

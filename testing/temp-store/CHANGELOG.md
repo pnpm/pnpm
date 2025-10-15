@@ -1,5 +1,56 @@
 # @pnpm/testing.temp-store
 
+## 1000.0.20
+
+### Patch Changes
+
+- @pnpm/package-store@1003.0.0
+- @pnpm/client@1001.1.1
+
+## 1000.0.19
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/client@1001.1.0
+  - @pnpm/package-store@1002.0.12
+
+## 1000.0.18
+
+### Patch Changes
+
+- @pnpm/client@1001.0.7
+- @pnpm/package-store@1002.0.11
+
+## 1000.0.17
+
+### Patch Changes
+
+- @pnpm/client@1001.0.6
+- @pnpm/package-store@1002.0.11
+
+## 1000.0.16
+
+### Patch Changes
+
+- @pnpm/package-store@1002.0.11
+- @pnpm/client@1001.0.5
+
+## 1000.0.15
+
+### Patch Changes
+
+- @pnpm/client@1001.0.4
+- @pnpm/package-store@1002.0.10
+- @pnpm/store-controller-types@1004.0.2
+
+## 1000.0.14
+
+### Patch Changes
+
+- @pnpm/client@1001.0.3
+- @pnpm/package-store@1002.0.9
+
 ## 1000.0.13
 
 ### Patch Changes

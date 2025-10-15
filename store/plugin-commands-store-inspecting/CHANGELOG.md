@@ -1,5 +1,61 @@
 # @pnpm/plugin-commands-store-inspecting
 
+## 1000.0.38
+
+### Patch Changes
+
+- @pnpm/client@1001.1.1
+
+## 1000.0.37
+
+### Patch Changes
+
+- Updated dependencies [9b9faa5]
+- Updated dependencies [fb4da0c]
+  - @pnpm/graceful-fs@1000.0.1
+  - @pnpm/store.cafs@1000.0.18
+  - @pnpm/client@1001.1.0
+  - @pnpm/config@1004.4.0
+
+## 1000.0.36
+
+### Patch Changes
+
+- @pnpm/client@1001.0.7
+
+## 1000.0.35
+
+### Patch Changes
+
+- @pnpm/client@1001.0.6
+
+## 1000.0.34
+
+### Patch Changes
+
+- @pnpm/config@1004.3.1
+- @pnpm/error@1000.0.5
+- @pnpm/store-path@1000.0.5
+- @pnpm/client@1001.0.5
+
+## 1000.0.33
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/config@1004.3.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.types@1002.0.1
+  - @pnpm/client@1001.0.4
+  - @pnpm/store.cafs@1000.0.17
+
+## 1000.0.32
+
+### Patch Changes
+
+- @pnpm/client@1001.0.3
+
 ## 1000.0.31
 
 ### Patch Changes

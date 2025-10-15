@@ -2,6 +2,7 @@ import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
 import { globalWarn } from '@pnpm/logger'
+import { createMatcher } from '@pnpm/matcher'
 import { type PatchGroupRecord } from '@pnpm/patching.config'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
@@ -132,6 +133,8 @@ export interface ResolveDependenciesOptions {
   workspacePackages: WorkspacePackages
   supportedArchitectures?: SupportedArchitectures
   peersSuffixMaxLength: number
+  minimumReleaseAge?: number
+  minimumReleaseAgeExclude?: string[]
 }
 
 export interface ResolveDependencyTreeResult {
@@ -192,6 +195,8 @@ export async function resolveDependencyTree<T> (
     missingPeersOfChildrenByPkgId: {},
     hoistPeers: autoInstallPeers || opts.dedupePeerDependents,
     allPeerDepNames: new Set(),
+    maximumPublishedBy: opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude ? createMatcher(opts.minimumReleaseAgeExclude) : undefined,
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
@@ -239,6 +244,11 @@ export async function resolveDependencyTree<T> (
   for (const directDependencies of pkgAddressesByImporters) {
     for (const directDep of directDependencies as PkgAddress[]) {
       const { alias, normalizedBareSpecifier, version, saveCatalogName } = directDep
+
+      if (saveCatalogName == null) {
+        continue
+      }
+
       const existingCatalog = opts.catalogs?.default?.[alias]
       if (existingCatalog != null) {
         if (existingCatalog !== normalizedBareSpecifier) {
@@ -246,7 +256,7 @@ export async function resolveDependencyTree<T> (
             `Skip adding ${alias} to the default catalog because it already exists as ${existingCatalog}. Please use \`pnpm update\` to update the catalogs.`
           )
         }
-      } else if (saveCatalogName != null && normalizedBareSpecifier != null && version != null) {
+      } else if (normalizedBareSpecifier != null && version != null) {
         const userSpecifiedBareSpecifier = `catalog:${saveCatalogName === 'default' ? '' : saveCatalogName}`
 
         // Attach metadata about how this new catalog dependency should be

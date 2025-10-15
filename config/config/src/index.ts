@@ -2,6 +2,7 @@ import path from 'path'
 import fs from 'fs'
 import os from 'os'
 import { isCI } from 'ci-info'
+import { omit } from 'ramda'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -33,6 +34,7 @@ import {
   type WantedPackageManager,
 } from './Config.js'
 import { getDefaultWorkspaceConcurrency, getWorkspaceConcurrency } from './concurrency.js'
+import { parseEnvVars } from './env.js'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 
 import { types } from './types.js'
@@ -147,6 +149,8 @@ export async function getConfig (opts: {
     'fetch-retry-maxtimeout': 60000,
     'fetch-retry-mintimeout': 10000,
     'fetch-timeout': 60000,
+    'fetch-warn-timeout-ms': 10_000, // 10 sec
+    'fetch-min-speed-ki-bps': 50, // 50 KiB/s
     'force-legacy-deploy': false,
     'git-shallow-hosts': [
       // Follow https://github.com/npm/git/blob/1e1dbd26bd5b87ca055defecc3679777cb480e2a/lib/clone.js#L13-L19
@@ -397,6 +401,32 @@ export async function getConfig (opts: {
         }
         pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
       }
+    }
+  }
+
+  // omit some schema that the custom parser can't yet handle
+  const envPnpmTypes = omit([
+    'init-version', // the type is a private function named 'semver'
+    'node-version', // the type is a private function named 'semver'
+    'umask', // the type is a private function named 'Umask'
+    'logstream', // the custom parser doesn't have logic to handle 'Stream' yet
+  ], types)
+
+  for (const { key, value } of parseEnvVars(key => envPnpmTypes[key as keyof typeof envPnpmTypes], env)) {
+    // undefined means that the env key was defined, but its value couldn't be parsed according to the schema
+    // TODO: should we throw some error or print some warning here?
+    if (value === undefined) continue
+
+    if (key in cliOptions || kebabCase(key) in cliOptions) continue
+
+    // @ts-expect-error
+    pnpmConfig[key] = value
+
+    if (key === 'registry') {
+      if (typeof value !== 'string') {
+        throw new TypeError(`Unexpected type of registry, expecting a string but received ${JSON.stringify(value)}`)
+      }
+      pnpmConfig.registries.default = normalizeRegistryUrl(value)
     }
   }
 

@@ -1,6 +1,6 @@
 import path from 'path'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { type DependenciesField, type Registries } from '@pnpm/types'
+import { type DependenciesField, type Registries, type Finder } from '@pnpm/types'
 import { type PackageNode, buildDependenciesHierarchy, type DependenciesHierarchy, createPackagesSearcher } from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderJson } from './renderJson.js'
 import { renderParseable } from './renderParseable.js'
@@ -66,9 +66,10 @@ export async function searchForPackages (
     registries?: Registries
     modulesDir?: string
     virtualStoreDirMaxLength: number
+    finders?: Finder[]
   }
 ): Promise<PackageDependencyHierarchy[]> {
-  const search = createPackagesSearcher(packages)
+  const search = createPackagesSearcher(packages, opts.finders)
 
   return Promise.all(
     Object.entries(await buildDependenciesHierarchy(projectPaths, {
@@ -110,6 +111,7 @@ export async function listForPackages (
     registries?: Registries
     modulesDir?: string
     virtualStoreDirMaxLength: number
+    finders?: Finder[]
   }
 ): Promise<string> {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -143,6 +145,7 @@ export async function list (
     showExtraneous?: boolean
     modulesDir?: string
     virtualStoreDirMaxLength: number
+    finders?: Finder[]
   }
 ): Promise<string> {
   const opts = { ...DEFAULTS, ...maybeOpts }

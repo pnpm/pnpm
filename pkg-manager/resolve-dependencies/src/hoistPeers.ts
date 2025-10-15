@@ -1,4 +1,5 @@
 import { type PreferredVersions } from '@pnpm/resolver-base'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import semver from 'semver'
 import { type PkgAddressOrLink } from './resolveDependencies.js'
 
@@ -12,9 +13,16 @@ export function hoistPeers (
 ): Record<string, string> {
   const dependencies: Record<string, string> = {}
   for (const [peerName, { range }] of missingRequiredPeers) {
-    const rootDep = opts.workspaceRootDeps.find((rootDep) => rootDep.alias === peerName)
-    if (rootDep?.version) {
-      dependencies[peerName] = rootDep.version
+    const rootDepByAlias = opts.workspaceRootDeps.find((rootDep) => rootDep.alias === peerName)
+    if (rootDepByAlias?.normalizedBareSpecifier) {
+      dependencies[peerName] = rootDepByAlias.normalizedBareSpecifier
+      continue
+    }
+    const rootDep = opts.workspaceRootDeps
+      .filter((rootDep) => rootDep.pkg.name === peerName)
+      .sort((rootDep1, rootDep2) => lexCompare(rootDep1.alias, rootDep2.alias))[0]
+    if (rootDep?.normalizedBareSpecifier) {
+      dependencies[peerName] = rootDep.normalizedBareSpecifier
       continue
     }
     if (opts.allPreferredVersions![peerName]) {

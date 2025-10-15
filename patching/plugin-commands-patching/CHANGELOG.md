@@ -1,5 +1,112 @@
 # @pnpm/plugin-commands-patching
 
+## 1000.3.18
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.6.7
+- @pnpm/store-connection-manager@1002.2.1
+- @pnpm/cli-utils@1001.2.5
+
+## 1000.3.17
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.6.6
+
+## 1000.3.16
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.6.5
+
+## 1000.3.15
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+- Updated dependencies [93fdc73]
+  - @pnpm/store-connection-manager@1002.2.0
+  - @pnpm/config@1004.4.0
+  - @pnpm/plugin-commands-installation@1004.6.4
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/read-project-manifest@1001.1.3
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/config.config-writer@1000.0.13
+  - @pnpm/lockfile.fs@1001.1.20
+  - @pnpm/lockfile.utils@1003.0.2
+  - @pnpm/patching.apply-patch@1000.0.7
+
+## 1000.3.14
+
+### Patch Changes
+
+- 6633eb3: Fix `state.json` creation path when executing `pnpm patch` in a workspace project [#9733](https://github.com/pnpm/pnpm/pull/9733).
+  - @pnpm/cli-utils@1001.2.3
+  - @pnpm/plugin-commands-installation@1004.6.3
+  - @pnpm/store-connection-manager@1002.1.3
+
+## 1000.3.13
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.2
+- @pnpm/plugin-commands-installation@1004.6.2
+- @pnpm/store-connection-manager@1002.1.2
+
+## 1000.3.12
+
+### Patch Changes
+
+- c1540ea: Forcibly disable ANSI color codes when generating patch diff [#9914](https://github.com/pnpm/pnpm/pull/9914).
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/config@1004.3.1
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/error@1000.0.5
+  - @pnpm/plugin-commands-installation@1004.6.1
+  - @pnpm/store-path@1000.0.5
+  - @pnpm/workspace.read-manifest@1000.2.4
+  - @pnpm/cli-utils@1001.2.1
+  - @pnpm/store-connection-manager@1002.1.1
+  - @pnpm/patching.apply-patch@1000.0.7
+  - @pnpm/read-package-json@1000.1.1
+  - @pnpm/read-project-manifest@1001.1.2
+  - @pnpm/config.config-writer@1000.0.12
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1000.3.11
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+- Updated dependencies [c182b2d]
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/plugin-commands-installation@1004.6.0
+  - @pnpm/store-connection-manager@1002.1.0
+  - @pnpm/config@1004.3.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/cli-utils@1001.2.0
+  - @pnpm/config.config-writer@1000.0.11
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/lockfile.utils@1003.0.1
+  - @pnpm/modules-yaml@1000.3.5
+  - @pnpm/read-project-manifest@1001.1.1
+  - @pnpm/workspace.read-manifest@1000.2.3
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/patching.apply-patch@1000.0.6
+  - @pnpm/pick-fetcher@1001.0.0
+
+## 1000.3.10
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@1004.5.1
+- @pnpm/store-connection-manager@1002.0.11
+- @pnpm/cli-utils@1001.1.2
+
 ## 1000.3.9
 
 ### Patch Changes

@@ -1,5 +1,6 @@
 import url from 'url'
 import { requestRetryLogger } from '@pnpm/core-loggers'
+import { globalWarn } from '@pnpm/logger'
 import {
   FetchError,
   type FetchErrorRequest,
@@ -7,8 +8,8 @@ import {
   PnpmError,
 } from '@pnpm/error'
 import { type FetchFromRegistry, type RetryTimeoutOptions } from '@pnpm/fetching-types'
+import { type PackageMeta } from '@pnpm/registry.types'
 import * as retry from '@zkochan/retry'
-import { type PackageMeta } from './pickPackage.js'
 
 interface RegistryResponse {
   status: number
@@ -41,9 +42,15 @@ export class RegistryResponseError extends FetchError {
   }
 }
 
-export async function fromRegistry (
-  fetch: FetchFromRegistry,
-  fetchOpts: { retry: RetryTimeoutOptions, timeout: number },
+export interface FetchMetadataFromFromRegistryOptions {
+  fetch: FetchFromRegistry
+  retry: RetryTimeoutOptions
+  timeout: number
+  fetchWarnTimeoutMs: number
+}
+
+export async function fetchMetadataFromFromRegistry (
+  fetchOpts: FetchMetadataFromFromRegistryOptions,
   pkgName: string,
   registry: string,
   authHeaderValue?: string
@@ -53,8 +60,9 @@ export async function fromRegistry (
   return new Promise((resolve, reject) => {
     op.attempt(async (attempt) => {
       let response: RegistryResponse
+      const startTime = Date.now()
       try {
-        response = await fetch(uri, {
+        response = await fetchOpts.fetch(uri, {
           authHeaderValue,
           compress: true,
           retry: fetchOpts.retry,
@@ -76,7 +84,13 @@ export async function fromRegistry (
       // Here we only retry broken JSON responses.
       // Other HTTP issues are retried by the @pnpm/fetch library
       try {
-        resolve(await response.json())
+        const json = await response.json()
+        // Check if request took longer than expected
+        const elapsedMs = Date.now() - startTime
+        if (elapsedMs > fetchOpts.fetchWarnTimeoutMs) {
+          globalWarn(`Request took ${elapsedMs}ms: ${uri}`)
+        }
+        resolve(json)
       } catch (error: any) { // eslint-disable-line
         const timeout = op.retry(
           new PnpmError('BROKEN_METADATA_JSON', error.message)

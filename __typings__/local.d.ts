@@ -4,7 +4,7 @@ declare module 'bole' {
   export = anything
 }
 
-declare module 'ndjson' {
+declare module 'split2' {
   const anything: any
   export = anything
 }

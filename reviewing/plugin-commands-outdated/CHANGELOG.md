@@ -1,5 +1,83 @@
 # @pnpm/plugin-commands-outdated
 
+## 1000.0.43
+
+### Patch Changes
+
+- Updated dependencies [39b728a]
+  - @pnpm/outdated@1001.0.35
+  - @pnpm/default-resolver@1002.2.9
+  - @pnpm/cli-utils@1001.2.5
+
+## 1000.0.42
+
+### Patch Changes
+
+- 2e07c4f: Outdated command respects `minimumReleaseAge` configuration [#10030](https://github.com/pnpm/pnpm/pull/10030).
+- Updated dependencies [2e07c4f]
+  - @pnpm/outdated@1001.0.34
+
+## 1000.0.41
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/config@1004.4.0
+  - @pnpm/cli-utils@1001.2.4
+  - @pnpm/default-resolver@1002.2.8
+  - @pnpm/outdated@1001.0.33
+  - @pnpm/lockfile.fs@1001.1.20
+
+## 1000.0.40
+
+### Patch Changes
+
+- @pnpm/default-resolver@1002.2.7
+- @pnpm/outdated@1001.0.32
+- @pnpm/cli-utils@1001.2.3
+
+## 1000.0.39
+
+### Patch Changes
+
+- @pnpm/default-resolver@1002.2.6
+- @pnpm/outdated@1001.0.31
+- @pnpm/cli-utils@1001.2.2
+
+## 1000.0.38
+
+### Patch Changes
+
+- @pnpm/config@1004.3.1
+- @pnpm/lockfile.fs@1001.1.19
+- @pnpm/error@1000.0.5
+- @pnpm/outdated@1001.0.30
+- @pnpm/store-path@1000.0.5
+- @pnpm/cli-utils@1001.2.1
+- @pnpm/default-resolver@1002.2.5
+
+## 1000.0.37
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/config@1004.3.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/cli-utils@1001.2.0
+  - @pnpm/default-resolver@1002.2.4
+  - @pnpm/outdated@1001.0.29
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/modules-yaml@1000.3.5
+
+## 1000.0.36
+
+### Patch Changes
+
+- @pnpm/outdated@1001.0.28
+- @pnpm/cli-utils@1001.1.2
+- @pnpm/default-resolver@1002.2.3
+
 ## 1000.0.35
 
 ### Patch Changes

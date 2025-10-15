@@ -1,5 +1,43 @@
 # @pnpm/deps.graph-builder
 
+## 1002.2.6
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.1.2
+- @pnpm/lockfile.fs@1001.1.20
+- @pnpm/lockfile.utils@1003.0.2
+- @pnpm/calc-dep-state@1002.0.7
+- @pnpm/patching.config@1001.0.10
+
+## 1002.2.5
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/calc-dep-state@1002.0.6
+  - @pnpm/package-is-installable@1000.0.14
+  - @pnpm/patching.config@1001.0.9
+
+## 1002.2.4
+
+### Patch Changes
+
+- Updated dependencies [df8d57f]
+- Updated dependencies [e792927]
+  - @pnpm/package-is-installable@1000.0.13
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/lockfile.utils@1003.0.1
+  - @pnpm/calc-dep-state@1002.0.5
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/dependency-path@1001.1.1
+  - @pnpm/modules-yaml@1000.3.5
+  - @pnpm/store-controller-types@1004.0.2
+  - @pnpm/patching.config@1001.0.8
+
 ## 1002.2.3
 
 ### Patch Changes

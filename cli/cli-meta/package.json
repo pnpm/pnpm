@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli-meta",
-  "version": "1000.0.9",
+  "version": "1000.0.10",
   "description": "Reads the metainfo of the currently running pnpm instance",
   "keywords": [
     "pnpm",

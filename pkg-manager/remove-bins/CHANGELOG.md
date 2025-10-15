@@ -1,5 +1,22 @@
 # @pnpm/remove-bins
 
+## 1000.0.14
+
+### Patch Changes
+
+- @pnpm/read-package-json@1000.1.1
+
+## 1000.0.13
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+- Updated dependencies [e792927]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/package-bins@1000.0.10
+
 ## 1000.0.12
 
 ### Patch Changes

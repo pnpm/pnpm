@@ -1,10 +1,12 @@
 import assert from 'assert'
 import fs from 'fs'
+import path from 'path'
 import util from 'util'
+import { pathToFileURL } from 'url'
 import { createRequire } from 'module'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import { type PackageManifest } from '@pnpm/types'
+import { type PackageManifest, type Finder } from '@pnpm/types'
 import chalk from 'chalk'
 import { type Hooks } from './Hooks.js'
 
@@ -30,13 +32,24 @@ class PnpmFileFailError extends PnpmError {
   }
 }
 
+export type Finders = Record<string, Finder>
+
 export interface Pnpmfile {
   hooks?: Hooks
+  finders?: Finders
 }
 
-export function requirePnpmfile (pnpmFilePath: string, prefix: string): { pnpmfileModule: Pnpmfile | undefined } | undefined {
+export async function requirePnpmfile (pnpmFilePath: string, prefix: string): Promise<{ pnpmfileModule: Pnpmfile | undefined } | undefined> {
   try {
-    const pnpmfile: Pnpmfile = require(pnpmFilePath)
+    let pnpmfile: Pnpmfile
+    // Check if it's an ESM module (ends with .mjs)
+    if (pnpmFilePath.endsWith('.mjs')) {
+      const url = pathToFileURL(path.resolve(pnpmFilePath)).href
+      pnpmfile = await import(url)
+    } else {
+      // Use require for CommonJS modules
+      pnpmfile = require(pnpmFilePath)
+    }
     if (typeof pnpmfile === 'undefined') {
       logger.warn({
         message: `Ignoring the pnpmfile at "${pnpmFilePath}". It exports "undefined".`,
@@ -86,7 +99,7 @@ export function requirePnpmfile (pnpmFilePath: string, prefix: string): { pnpmfi
 }
 
 function pnpmFileExistsSync (pnpmFilePath: string): boolean {
-  const pnpmFileRealName = pnpmFilePath.endsWith('.cjs')
+  const pnpmFileRealName = pnpmFilePath.endsWith('.cjs') || pnpmFilePath.endsWith('.mjs')
     ? pnpmFilePath
     : `${pnpmFilePath}.cjs`
   return fs.existsSync(pnpmFileRealName)

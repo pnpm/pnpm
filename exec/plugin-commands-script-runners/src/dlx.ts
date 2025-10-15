@@ -85,11 +85,15 @@ export async function handler (
   [command, ...args]: string[]
 ): Promise<{ exitCode: number }> {
   const pkgs = opts.package ?? [command]
+  const fullMetadata = ((opts.resolutionMode === 'time-based' || Boolean(opts.minimumReleaseAge)) && !opts.registrySupportsTimeField)
   const { resolve } = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
+    fullMetadata,
+    filterMetadata: fullMetadata,
   })
   const resolvedPkgAliases: string[] = []
+  const publishedBy = opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined
   const resolvedPkgs = await Promise.all(pkgs.map(async (pkg) => {
     const { alias, bareSpecifier } = parseWantedDependency(pkg) || {}
     if (alias == null) return pkg
@@ -98,6 +102,7 @@ export async function handler (
       lockfileDir: opts.lockfileDir ?? opts.dir,
       preferredVersions: {},
       projectDir: opts.dir,
+      publishedBy,
     })
     return resolved.id
   }))

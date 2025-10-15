@@ -100,17 +100,21 @@ DependenciesTreeNode<T>
 
 export type ResolvedPkgsById = Record<PkgResolutionId, ResolvedPackage>
 
-export interface LinkedDependency {
-  isLinkedDependency: true
-  optional: boolean
-  dev: boolean
-  resolution: DirectoryResolution
-  pkgId: PkgResolutionId
-  version: string
-  name: string
+export interface PkgAddressOrLinkBase {
   alias: string
   catalogLookup?: CatalogLookupMetadata
   normalizedBareSpecifier?: string
+  optional: boolean
+  pkg: PackageManifest
+  pkgId: PkgResolutionId
+}
+
+export interface LinkedDependency extends PkgAddressOrLinkBase {
+  isLinkedDependency: true
+  dev: boolean
+  resolution: DirectoryResolution
+  version: string
+  name: string
 }
 
 export interface PendingNode {
@@ -170,6 +174,8 @@ export interface ResolutionContext {
   workspacePackages?: WorkspacePackages
   missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { depth: number, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
+  maximumPublishedBy?: Date
+  minimumReleaseAgeExclude?: (pkgName: string) => boolean
 }
 
 export interface MissingPeerInfo {
@@ -188,32 +194,21 @@ interface MissingPeersOfChildren {
   resolved?: boolean
 }
 
-export type PkgAddress = {
-  alias: string
+export interface PkgAddress extends PkgAddressOrLinkBase {
   depIsLinked: boolean
   isNew: boolean
   isLinkedDependency?: false
   resolvedVia?: string
   nodeId: NodeId
-  pkgId: PkgResolutionId
   installable: boolean
-  pkg: PackageManifest
   version?: string
   updated: boolean
   rootDir: string
   missingPeers: MissingPeers
   missingPeersOfChildren?: MissingPeersOfChildren
   publishedAt?: string
-  catalogLookup?: CatalogLookupMetadata
-  optional: boolean
-  normalizedBareSpecifier?: string
   saveCatalogName?: string
-} & ({
-  isLinkedDependency: true
-  version: string
-} | {
-  isLinkedDependency: undefined
-})
+}
 
 export type PkgAddressOrLink = PkgAddress | LinkedDependency
 
@@ -490,6 +485,9 @@ async function resolveDependenciesOfImporters (
       time = result.newTime
     }
   }
+  if (ctx.maximumPublishedBy && (publishedBy == null || publishedBy > ctx.maximumPublishedBy)) {
+    publishedBy = ctx.maximumPublishedBy
+  }
   const pkgAddressesByImportersWithoutPeers = await Promise.all(zipWith(async (importer, { pkgAddresses, postponedResolutionsQueue, postponedPeersResolutionQueue }) => {
     const newPreferredVersions = Object.create(importer.preferredVersions) as PreferredVersions
     const currentParentPkgAliases: Record<string, PkgAddress | true> = {}
@@ -594,6 +592,7 @@ async function resolveDependenciesOfImporterDependency (
       parentPkgAliases: importer.parentPkgAliases,
       pickLowestVersion: pickLowestVersion && !importer.updatePackageManifest,
       pinnedVersion: importer.pinnedVersion,
+      publishedBy: ctx.maximumPublishedBy,
     },
     extendedWantedDep
   )
@@ -1304,6 +1303,17 @@ async function resolveDependency (
     if (!options.updateRequested && options.preferredVersion != null) {
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
     }
+    let publishedBy: Date | undefined
+    if (
+      options.publishedBy &&
+      (
+        ctx.minimumReleaseAgeExclude == null ||
+        wantedDependency.alias == null ||
+        !ctx.minimumReleaseAgeExclude(wantedDependency.alias)
+      )
+    ) {
+      publishedBy = options.publishedBy
+    }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPkg: currentPkg
@@ -1317,7 +1327,7 @@ async function resolveDependency (
       expectedPkg: currentPkg,
       defaultTag: ctx.defaultTag,
       ignoreScripts: ctx.ignoreScripts,
-      publishedBy: options.publishedBy,
+      publishedBy,
       pickLowestVersion: options.pickLowestVersion,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
@@ -1404,6 +1414,7 @@ async function resolveDependency (
       resolution: pkgResponse.body.resolution,
       version: pkgResponse.body.manifest.version,
       normalizedBareSpecifier: pkgResponse.body.normalizedBareSpecifier,
+      pkg: pkgResponse.body.manifest,
     }
   }
 

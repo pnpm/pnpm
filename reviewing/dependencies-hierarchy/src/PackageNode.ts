@@ -12,4 +12,5 @@ export interface PackageNode {
   resolved?: string
   searched?: true
   version: string
+  searchMessage?: string
 }

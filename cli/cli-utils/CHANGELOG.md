@@ -1,5 +1,83 @@
 # @pnpm/cli-utils
 
+## 1001.2.5
+
+### Patch Changes
+
+- @pnpm/config.deps-installer@1000.0.17
+- @pnpm/store-connection-manager@1002.2.1
+
+## 1001.2.4
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/store-connection-manager@1002.2.0
+  - @pnpm/config@1004.4.0
+  - @pnpm/read-project-manifest@1001.1.3
+  - @pnpm/config.deps-installer@1000.0.16
+  - @pnpm/default-reporter@1002.0.9
+  - @pnpm/pnpmfile@1002.1.2
+
+## 1001.2.3
+
+### Patch Changes
+
+- Updated dependencies [baf8bf6]
+  - @pnpm/default-reporter@1002.0.8
+  - @pnpm/config.deps-installer@1000.0.15
+  - @pnpm/store-connection-manager@1002.1.3
+
+## 1001.2.2
+
+### Patch Changes
+
+- @pnpm/config.deps-installer@1000.0.14
+- @pnpm/store-connection-manager@1002.1.2
+
+## 1001.2.1
+
+### Patch Changes
+
+- @pnpm/config@1004.3.1
+- @pnpm/error@1000.0.5
+- @pnpm/default-reporter@1002.0.7
+- @pnpm/store-connection-manager@1002.1.1
+- @pnpm/config.deps-installer@1000.0.13
+- @pnpm/package-is-installable@1000.0.14
+- @pnpm/pnpmfile@1002.1.1
+- @pnpm/manifest-utils@1001.0.5
+- @pnpm/read-project-manifest@1001.1.2
+
+## 1001.2.0
+
+### Minor Changes
+
+- e792927: Added support for `finders` [#9946](https://github.com/pnpm/pnpm/pull/9946).
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [df8d57f]
+- Updated dependencies [e792927]
+  - @pnpm/store-connection-manager@1002.1.0
+  - @pnpm/config@1004.3.0
+  - @pnpm/package-is-installable@1000.0.13
+  - @pnpm/pnpmfile@1002.1.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/config.deps-installer@1000.0.12
+  - @pnpm/default-reporter@1002.0.6
+  - @pnpm/cli-meta@1000.0.10
+  - @pnpm/manifest-utils@1001.0.4
+  - @pnpm/read-project-manifest@1001.1.1
+
+## 1001.1.2
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@1002.0.11
+- @pnpm/config.deps-installer@1000.0.11
+
 ## 1001.1.1
 
 ### Patch Changes

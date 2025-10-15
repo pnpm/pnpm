@@ -1,5 +1,182 @@
 # pnpm
 
+## 10.18.2
+
+### Patch Changes
+
+- `pnpm outdated --long` should work [#10040](https://github.com/pnpm/pnpm/issues/10040).
+- Replace ndjson with split2. Reduce the bundle size of pnpm CLI [#10054](https://github.com/pnpm/pnpm/pull/10054).
+- `pnpm dlx` should request the full metadata of packages, when `minimumReleaseAge` is set [#9963](https://github.com/pnpm/pnpm/issues/9963).
+- pnpm version switching should work when the pnpm home directory is in a symlinked directory [#9715](https://github.com/pnpm/pnpm/issues/9715).
+- Fix `EPIPE` errors when piping output to other commands [#10027](https://github.com/pnpm/pnpm/issues/10027).
+
+## 10.18.1
+
+### Patch Changes
+
+- Don't print a warning, when `--lockfile-only` is used [#8320](https://github.com/pnpm/pnpm/issues/8320).
+- `pnpm setup` creates a command shim to the pnpm executable. This is needed to be able to run `pnpm self-update` on Windows [#5700](https://github.com/pnpm/pnpm/issues/5700).
+- When using pnpm catalogs and running a normal `pnpm install`, pnpm produced false positive warnings for "_skip adding to the default catalog because it already exists_". This warning now only prints when using `pnpm add --save-catalog` as originally intended.
+
+## 10.18.0
+
+### Minor Changes
+
+- Added network performance monitoring to pnpm by implementing warnings for slow network requests, including both metadata fetches and tarball downloads.
+
+  Added configuration options for warning thresholds: `fetchWarnTimeoutMs` and `fetchMinSpeedKiBps`.
+  Warning messages are displayed when requests exceed time thresholds or fall below speed minimums
+
+  Related PR: [#10025](https://github.com/pnpm/pnpm/pull/10025).
+
+### Patch Changes
+
+- Retry filesystem operations on EAGAIN errors [#9959](https://github.com/pnpm/pnpm/pull/9959).
+- Outdated command respects `minimumReleaseAge` configuration [#10030](https://github.com/pnpm/pnpm/pull/10030).
+- Correctly apply the `cleanupUnusedCatalogs` configuration when removing dependent packages.
+- Don't fail with a meaningless error when `scriptShell` is set to `false` [#8748](https://github.com/pnpm/pnpm/issues/8748).
+- `pnpm dlx` should not fail when `minimumReleaseAge` is set [#10037](https://github.com/pnpm/pnpm/issues/10037).
+
+## 10.17.1
+
+### Patch Changes
+
+- When a version specifier cannot be resolved because the versions don't satisfy the `minimumReleaseAge` setting, print this information out in the error message [#9974](https://github.com/pnpm/pnpm/pull/9974).
+- Fix `state.json` creation path when executing `pnpm patch` in a workspace project [#9733](https://github.com/pnpm/pnpm/pull/9733).
+- When `minimumReleaseAge` is set and the `latest` tag is not mature enough, prefer a non-deprecated version as the new `latest` [#9987](https://github.com/pnpm/pnpm/issues/9987).
+
+## 10.17.0
+
+### Minor Changes
+
+- The `minimumReleaseAgeExclude` setting now supports patterns. For instance:
+
+  ```yaml
+  minimumReleaseAge: 1440
+  minimumReleaseAgeExclude:
+    - "@eslint/*"
+  ```
+
+  Related PR: [#9984](https://github.com/pnpm/pnpm/pull/9984).
+
+### Patch Changes
+
+- Don't ignore the `minimumReleaseAge` check, when the package is requested by exact version and the packument is loaded from cache [#9978](https://github.com/pnpm/pnpm/issues/9978).
+- When `minimumReleaseAge` is set and the active version under a dist-tag is not mature enough, do not downgrade to a prerelease version in case the original version wasn't a prerelease one [#9979](https://github.com/pnpm/pnpm/issues/9979).
+
+## 10.16.1
+
+### Patch Changes
+
+- The full metadata cache should be stored not at the same location as the abbreviated metadata. This fixes a bug where pnpm was loading the abbreviated metadata from cache and couldn't find the "time" field as a result [#9963](https://github.com/pnpm/pnpm/issues/9963).
+- Forcibly disable ANSI color codes when generating patch diff [#9914](https://github.com/pnpm/pnpm/pull/9914).
+
+## 10.16.0
+
+### Minor Changes
+
+- There have been several incidents recently where popular packages were successfully attacked. To reduce the risk of installing a compromised version, we are introducing a new setting that delays the installation of newly released dependencies. In most cases, such attacks are discovered quickly and the malicious versions are removed from the registry within an hour.
+
+  The new setting is called `minimumReleaseAge`. It specifies the number of minutes that must pass after a version is published before pnpm will install it. For example, setting `minimumReleaseAge: 1440` ensures that only packages released at least one day ago can be installed.
+
+  If you set `minimumReleaseAge` but need to disable this restriction for certain dependencies, you can list them under the `minimumReleaseAgeExclude` setting. For instance, with the following configuration pnpm will always install the latest version of webpack, regardless of its release time:
+
+  ```yaml
+  minimumReleaseAgeExclude:
+    - webpack
+  ```
+
+  Related issue: [#9921](https://github.com/pnpm/pnpm/issues/9921).
+
+- Added support for `finders` [#9946](https://github.com/pnpm/pnpm/pull/9946).
+
+  In the past, `pnpm list` and `pnpm why` could only search for dependencies by **name** (and optionally version). For example:
+
+  ```
+  pnpm why minimist
+  ```
+
+  prints the chain of dependencies to any installed instance of `minimist`:
+
+  ```
+  verdaccio 5.20.1
+  ├─┬ handlebars 4.7.7
+  │ └── minimist 1.2.8
+  └─┬ mv 2.1.1
+    └─┬ mkdirp 0.5.6
+      └── minimist 1.2.8
+  ```
+
+  What if we want to search by **other properties** of a dependency, not just its name? For instance, find all packages that have `react@17` in their peer dependencies?
+
+  This is now possible with "finder functions". Finder functions can be declared in `.pnpmfile.cjs` and invoked with the `--find-by=<function name>` flag when running `pnpm list` or `pnpm why`.
+
+  Let's say we want to find any dependencies that have React 17 in peer dependencies. We can add this finder to our `.pnpmfile.cjs`:
+
+  ```js
+  module.exports = {
+    finders: {
+      react17: (ctx) => {
+        return ctx.readManifest().peerDependencies?.react === "^17.0.0";
+      },
+    },
+  };
+  ```
+
+  Now we can use this finder function by running:
+
+  ```
+  pnpm why --find-by=react17
+  ```
+
+  pnpm will find all dependencies that have this React in peer dependencies and print their exact locations in the dependency graph.
+
+  ```
+  @apollo/client 4.0.4
+  ├── @graphql-typed-document-node/core 3.2.0
+  └── graphql-tag 2.12.6
+  ```
+
+  It is also possible to print out some additional information in the output by returning a string from the finder. For example, with the following finder:
+
+  ```js
+  module.exports = {
+    finders: {
+      react17: (ctx) => {
+        const manifest = ctx.readManifest();
+        if (manifest.peerDependencies?.react === "^17.0.0") {
+          return `license: ${manifest.license}`;
+        }
+        return false;
+      },
+    },
+  };
+  ```
+
+  Every matched package will also print out the license from its `package.json`:
+
+  ```
+  @apollo/client 4.0.4
+  ├── @graphql-typed-document-node/core 3.2.0
+  │   license: MIT
+  └── graphql-tag 2.12.6
+      license: MIT
+  ```
+
+### Patch Changes
+
+- Fix deprecation warning printed when executing pnpm with Node.js 24 [#9529](https://github.com/pnpm/pnpm/issues/9529).
+- Throw an error if `nodeVersion` is not set to an exact semver version [#9934](https://github.com/pnpm/pnpm/issues/9934).
+- `pnpm publish` should be able to publish a `.tar.gz` file [#9927](https://github.com/pnpm/pnpm/pull/9927).
+- Canceling a running process with Ctrl-C should make `pnpm run` return a non-zero exit code [#9626](https://github.com/pnpm/pnpm/issues/9626).
+
+## 10.15.1
+
+### Patch Changes
+
+- Fix `.pnp.cjs` crash when importing subpath [#9904](https://github.com/pnpm/pnpm/issues/9904).
+- When resolving peer dependencies, pnpm looks whether the peer dependency is present in the root workspace project's dependencies. This change makes it so that the peer dependency is correctly resolved even from aliased npm-hosted dependencies or other types of dependencies [#9913](https://github.com/pnpm/pnpm/issues/9913).
+
 ## 10.15.0
 
 ### Minor Changes

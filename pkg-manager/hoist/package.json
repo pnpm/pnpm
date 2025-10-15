@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/hoist",
-  "version": "1002.0.2",
+  "version": "1002.0.6",
   "description": "Hoists dependencies in a node_modules created by pnpm",
   "keywords": [
     "pnpm",

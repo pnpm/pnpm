@@ -1812,9 +1812,6 @@ packages/beta test: Done`
     'test',
   ])
 
-  console.log(singleResult.stdout
-    .toString())
-
   expect(
     singleResult.stdout
       .toString()

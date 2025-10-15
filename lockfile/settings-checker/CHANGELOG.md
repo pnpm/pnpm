@@ -1,5 +1,25 @@
 # @pnpm/lockfile.settings-checker
 
+## 1001.0.15
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.2.1
+
+## 1001.0.14
+
+### Patch Changes
+
+- @pnpm/parse-overrides@1001.0.3
+- @pnpm/crypto.hash@1000.2.0
+
+## 1001.0.13
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1002.0.1
+- @pnpm/crypto.hash@1000.2.0
+
 ## 1001.0.12
 
 ### Patch Changes

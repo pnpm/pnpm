@@ -1,5 +1,76 @@
 # @pnpm/deps.status
 
+## 1003.0.12
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.40
+
+## 1003.0.11
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/config@1004.4.0
+  - @pnpm/workspace.state@1002.0.5
+  - @pnpm/lockfile.settings-checker@1001.0.15
+  - @pnpm/lockfile.verification@1001.2.8
+  - @pnpm/workspace.find-packages@1000.0.39
+  - @pnpm/lockfile.fs@1001.1.20
+  - @pnpm/get-context@1001.1.7
+
+## 1003.0.10
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.38
+
+## 1003.0.9
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.37
+
+## 1003.0.8
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/config@1004.3.1
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/lockfile.verification@1001.2.7
+  - @pnpm/error@1000.0.5
+  - @pnpm/get-context@1001.1.6
+  - @pnpm/workspace.find-packages@1000.0.36
+  - @pnpm/workspace.read-manifest@1000.2.4
+  - @pnpm/workspace.state@1002.0.4
+  - @pnpm/parse-overrides@1001.0.3
+  - @pnpm/lockfile.settings-checker@1001.0.14
+
+## 1003.0.7
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/config@1004.3.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.verification@1001.2.6
+  - @pnpm/workspace.state@1002.0.3
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/get-context@1001.1.5
+  - @pnpm/resolver-base@1005.0.1
+  - @pnpm/workspace.find-packages@1000.0.35
+  - @pnpm/workspace.read-manifest@1000.2.3
+  - @pnpm/lockfile.settings-checker@1001.0.13
+
+## 1003.0.6
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.34
+
 ## 1003.0.5
 
 ### Patch Changes

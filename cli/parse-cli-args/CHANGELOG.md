@@ -1,5 +1,18 @@
 # @pnpm/parse-cli-args
 
+## 1000.1.4
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/find-workspace-dir@1000.1.3
+
+## 1000.1.3
+
+### Patch Changes
+
+- 7e89138: Fix deprecation warning printed when executing pnpm with Node.js 24 [#9529](https://github.com/pnpm/pnpm/issues/9529).
+
 ## 1000.1.2
 
 ### Patch Changes

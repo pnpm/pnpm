@@ -1,5 +1,12 @@
 # @pnpm/normalize-registries
 
+## 1000.1.3
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+
 ## 1000.1.2
 
 ### Patch Changes

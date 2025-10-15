@@ -1,5 +1,65 @@
 # @pnpm/config.deps-installer
 
+## 1000.0.17
+
+### Patch Changes
+
+- @pnpm/package-store@1003.0.0
+
+## 1000.0.16
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/npm-resolver@1004.3.0
+  - @pnpm/package-store@1002.0.12
+  - @pnpm/config.config-writer@1000.0.13
+
+## 1000.0.15
+
+### Patch Changes
+
+- Updated dependencies [baf8bf6]
+- Updated dependencies [702ddb9]
+  - @pnpm/npm-resolver@1004.2.3
+  - @pnpm/package-store@1002.0.11
+
+## 1000.0.14
+
+### Patch Changes
+
+- Updated dependencies [121b44e]
+- Updated dependencies [02f8b69]
+  - @pnpm/npm-resolver@1004.2.2
+  - @pnpm/package-store@1002.0.11
+
+## 1000.0.13
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/npm-resolver@1004.2.1
+- @pnpm/network.auth-header@1000.0.6
+- @pnpm/read-package-json@1000.1.1
+- @pnpm/config.config-writer@1000.0.12
+- @pnpm/package-store@1002.0.11
+
+## 1000.0.12
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/npm-resolver@1004.2.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/config.config-writer@1000.0.11
+  - @pnpm/pick-registry-for-package@1000.0.10
+  - @pnpm/fetch@1000.2.5
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/package-store@1002.0.10
+
 ## 1000.0.11
 
 ### Patch Changes

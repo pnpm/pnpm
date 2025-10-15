@@ -33,6 +33,15 @@ export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 
 loudRejection()
 
+// This prevents the program from crashing when the pipe's read side closes early
+// (e.g., when running `pnpm config list | head`)
+process.stdout.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EPIPE') {
+    process.exit(0)
+  }
+  throw err
+})
+
 const DEPRECATED_OPTIONS = new Set([
   'independent-leaves',
   'lock',
