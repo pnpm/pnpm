@@ -215,7 +215,7 @@ class AdaptiveLimiter {
     }
 
     // --- new logging section ---
-    if (prevTar !== this.limits.tar || prevMeta !== this.limits.meta) {
+    if ((prevTar !== this.limits.tar || prevMeta !== this.limits.meta) && process.env.PNPM_DEBUG_ADAPTIVE === 'true') {
       console.log(
         `[AdaptiveLimiter] updated concurrency → tar: ${this.limits.tar}, meta: ${this.limits.meta}, ` +
         `CPU: ${(cpuBusy * 100).toFixed(0)}%, errRate: ${(errorRate * 100).toFixed(1)}%`
