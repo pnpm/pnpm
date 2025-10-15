@@ -1,15 +1,32 @@
-import { globalWarn } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { type PackageMetadataWithTime } from '@pnpm/registry.types'
 import semver from 'semver'
 
+// Track packages that have already been logged to avoid duplicates
+const loggedPackages = new Set<string>()
+
+// Export for testing purposes
+export const clearLoggedPackages = (): void => {
+  loggedPackages.clear()
+}
+
 export function filterPkgMetadataByPublishDate (pkgDoc: PackageMetadataWithTime, publishedBy: Date): PackageMetadataWithTime {
   const versionsWithinDate: PackageMetadataWithTime['versions'] = {}
+  const skippedVersions: string[] = []
+
   for (const version in pkgDoc.versions) {
     if (!Object.hasOwn(pkgDoc.versions, version)) continue
     const timeStr = pkgDoc.time[version]
     if (timeStr && new Date(timeStr) <= publishedBy) {
       versionsWithinDate[version] = pkgDoc.versions[version]
+    } else if (timeStr) {
+      skippedVersions.push(version)
     }
+  }
+
+  if (skippedVersions.length > 0 && !loggedPackages.has(pkgDoc.name)) {
+    loggedPackages.add(pkgDoc.name)
+    globalInfo(`${pkgDoc.name}: Skipping version(s) due to minimumReleaseAge: ${skippedVersions.join(', ')}`)
   }
 
   const distTagsWithinDate: PackageMetadataWithTime['dist-tags'] = {}
