@@ -112,46 +112,44 @@ export function packageNameMatchesExcludeList (patterns: string[], pkgName: stri
 
 export function getExactVersionFromExcludeList (patterns: string[], pkgName: string): string | undefined {
   const parsedPatterns = patterns.map(parseVersionPattern)
-  for (const { packagePattern, exactVersion } of parsedPatterns) {
+  for (const { packagePattern, exactVersions } of parsedPatterns) {
     const nameMatcher = createMatcher(packagePattern)
-    if (nameMatcher(pkgName) && exactVersion) {
-      return exactVersion
+    if (nameMatcher(pkgName) && exactVersions.length > 0) {
+      return exactVersions[0]
     }
   }
   return undefined
 }
 
-function parseVersionPattern (pattern: string): { packagePattern: string, exactVersion?: string } {
+function parseVersionPattern (pattern: string): { packagePattern: string, exactVersions: string[] } {
   const isScoped = pattern.startsWith('@')
+  const atIndex = isScoped ? pattern.indexOf('@', 1) : pattern.indexOf('@')
 
-  if (isScoped) {
-    const secondAtIndex = pattern.indexOf('@', 1)
-    if (secondAtIndex === -1) {
-      return { packagePattern: pattern }
-    }
-    return {
-      packagePattern: pattern.slice(0, secondAtIndex),
-      exactVersion: pattern.slice(secondAtIndex + 1),
-    }
-  }
-
-  const atIndex = pattern.indexOf('@')
   if (atIndex === -1) {
-    return { packagePattern: pattern }
+    return { packagePattern: pattern, exactVersions: [] }
   }
 
-  const version = pattern.slice(atIndex + 1)
+  const packagePattern = pattern.slice(0, atIndex)
+  const versionsPart = pattern.slice(atIndex + 1)
 
-  if (version.match(/^[~^>=<]/)) {
-    throw new Error(
-      'Semantic version ranges are not supported in minimumReleaseAgeExclude. ' +
-      `Found: "${pattern}". Use exact versions only.`
-    )
-  }
+  // Parse versions separated by ||
+  const versions = versionsPart.split('||').map(v => v.trim()).filter(v => v)
+  validateVersions(versions, pattern)
 
   return {
-    packagePattern: pattern.slice(0, atIndex),
-    exactVersion: version,
+    packagePattern,
+    exactVersions: versions,
+  }
+}
+
+function validateVersions (versions: string[], originalPattern: string): void {
+  for (const version of versions) {
+    if (version.match(/^[~^>=<]/)) {
+      throw new Error(
+        'Semantic version ranges are not supported in minimumReleaseAgeExclude. ' +
+        `Found: "${originalPattern}". Use exact versions only.`
+      )
+    }
   }
 }
 
@@ -159,13 +157,13 @@ export function createVersionMatcher (patterns: string[]): VersionMatcher {
   const parsedPatterns = patterns.map(parseVersionPattern)
 
   return (pkgName: string, version?: string): boolean => {
-    for (const { packagePattern, exactVersion } of parsedPatterns) {
+    for (const { packagePattern, exactVersions } of parsedPatterns) {
       const nameMatcher = createMatcher(packagePattern)
       if (!nameMatcher(pkgName)) {
         continue
       }
 
-      if (!exactVersion) {
+      if (exactVersions.length === 0) {
         return true
       }
 
@@ -173,7 +171,7 @@ export function createVersionMatcher (patterns: string[]): VersionMatcher {
         return false
       }
 
-      if (version === exactVersion) {
+      if (exactVersions.includes(version)) {
         return true
       }
     }

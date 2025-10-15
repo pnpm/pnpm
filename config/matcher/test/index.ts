@@ -151,4 +151,23 @@ test('createVersionMatcher()', () => {
     expect(() => createVersionMatcher(['lodash@~4.17.0'])).toThrow(/Semantic version ranges are not supported/)
     expect(() => createVersionMatcher(['react@>=18.0.0'])).toThrow(/Semantic version ranges are not supported/)
   }
+  {
+    const match = createVersionMatcher(['axios@1.12.0 || 1.12.1'])
+    expect(match('axios', '1.12.0')).toBe(true)
+    expect(match('axios', '1.12.1')).toBe(true)
+    expect(match('axios', '1.12.2')).toBe(false)
+  }
+  {
+    const match = createVersionMatcher(['@scope/pkg@1.0.0 || 1.0.1'])
+    expect(match('@scope/pkg', '1.0.0')).toBe(true)
+    expect(match('@scope/pkg', '1.0.1')).toBe(true)
+    expect(match('@scope/pkg', '1.0.2')).toBe(false)
+  }
+  {
+    const match = createVersionMatcher(['pkg@1.0.0||1.0.1  ||  1.0.2'])
+    expect(match('pkg', '1.0.0')).toBe(true)
+    expect(match('pkg', '1.0.1')).toBe(true)
+    expect(match('pkg', '1.0.2')).toBe(true)
+    expect(match('pkg', '1.0.3')).toBe(false)
+  }
 })
