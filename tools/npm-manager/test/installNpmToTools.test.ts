@@ -12,7 +12,7 @@ describe('installNpmToTools', () => {
       const result = await installNpmToTools('9.0.0', { pnpmHomeDir })
 
       expect(result.alreadyExisted).toBe(false)
-      expect(result.binDir).toContain('npm/9.0.0')
+      expect(result.binDir).toContain(path.join('npm', '9.0.0'))
       expect(fs.existsSync(result.binDir)).toBe(true)
     } finally {
       if (fs.existsSync(pnpmHomeDir)) {

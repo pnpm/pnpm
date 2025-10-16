@@ -12,7 +12,7 @@ describe('installPnpmToTools', () => {
       const result = await installPnpmToTools('9.1.0', { pnpmHomeDir } as SelfUpdateCommandOptions)
 
       expect(result.alreadyExisted).toBe(false)
-      expect(result.binDir).toContain('pnpm/9.1.0')
+      expect(result.binDir).toContain(path.join('pnpm', '9.1.0'))
       expect(fs.existsSync(result.binDir)).toBe(true)
 
       // Verify that the pnpm binary exists
@@ -33,7 +33,7 @@ describe('installPnpmToTools', () => {
       const result = await installPnpmToTools('9.1.0', { pnpmHomeDir } as SelfUpdateCommandOptions)
 
       expect(result.alreadyExisted).toBe(true)
-      expect(result.binDir).toContain('pnpm/9.1.0')
+      expect(result.binDir).toContain(path.join('pnpm', '9.1.0'))
     } finally {
       if (fs.existsSync(pnpmHomeDir)) {
         fs.rmSync(pnpmHomeDir, { recursive: true, force: true })
