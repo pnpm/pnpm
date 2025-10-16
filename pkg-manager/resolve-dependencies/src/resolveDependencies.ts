@@ -177,7 +177,7 @@ export interface ResolutionContext {
   missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { depth: number, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
   maximumPublishedBy?: Date
-  minimumReleaseAgeExclude?: (pkgName: string, version?: string) => boolean
+  minimumReleaseAgeExclude?: (pkgName: string) => boolean | string[]
   minimumReleaseAgeExcludePatterns?: string[]
 }
 

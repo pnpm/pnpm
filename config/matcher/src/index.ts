@@ -97,7 +97,7 @@ function matcherWhenOnlyOnePattern (pattern: string): Matcher {
   return (input) => !m(input)
 }
 
-export type VersionMatcher = (pkgName: string, version?: string) => boolean
+export type VersionMatcher = (pkgName: string) => boolean | string[]
 
 export function packageNameMatchesExcludeList (patterns: string[], pkgName: string): boolean {
   const parsedPatterns = patterns.map(parseVersionPattern)
@@ -156,24 +156,16 @@ function validateVersions (versions: string[], originalPattern: string): void {
 export function createVersionMatcher (patterns: string[]): VersionMatcher {
   const parsedPatterns = patterns.map(parseVersionPattern)
 
-  return (pkgName: string, version?: string): boolean => {
+  return (pkgName: string): boolean | string[] => {
     for (const { packagePattern, exactVersions } of parsedPatterns) {
       const nameMatcher = createMatcher(packagePattern)
       if (!nameMatcher(pkgName)) {
         continue
       }
-
       if (exactVersions.length === 0) {
         return true
       }
-
-      if (!version) {
-        return false
-      }
-
-      if (exactVersions.includes(version)) {
-        return true
-      }
+      return exactVersions
     }
 
     return false

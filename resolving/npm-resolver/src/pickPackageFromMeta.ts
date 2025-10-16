@@ -26,10 +26,10 @@ export function pickPackageFromMeta (
 ): PackageInRegistry | null {
   if (publishedBy) {
     assertMetaHasTime(meta)
-    const versionExcludeMatcher = excludeMatcher
-      ? (version: string) => excludeMatcher(meta.name, version)
-      : undefined
-    meta = filterPkgMetadataByPublishDate(meta, publishedBy, versionExcludeMatcher)
+    const exclude = excludeMatcher?.(meta.name) ?? false
+    if (exclude !== true) {
+      meta = filterPkgMetadataByPublishDate(meta, publishedBy, Array.isArray(exclude) ? exclude : undefined)
+    }
   }
   if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {
     // Unfortunately, the npm registry doesn't return the time field in the abbreviated metadata.

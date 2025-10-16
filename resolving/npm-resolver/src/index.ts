@@ -178,7 +178,7 @@ export interface ResolveFromNpmContext {
   pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
   getAuthHeaderValueByURI: (registry: string) => string | undefined
   registries: Registries
-  minimumReleaseAgeExclude?: (pkgName: string, version?: string) => boolean
+  minimumReleaseAgeExclude?: (pkgName: string) => boolean | string[]
   saveWorkspaceProtocol?: boolean | 'rolling'
 }
 

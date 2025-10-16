@@ -49,7 +49,7 @@ export async function getManifest (
   opts: GetManifestOpts & {
     resolve: ResolveFunction
     publishedBy?: Date
-    isExcludedMatcher?: ((packageName: string, version?: string) => boolean)
+    isExcludedMatcher?: ((packageName: string) => boolean | string[])
   },
   packageName: string,
   bareSpecifier: string
