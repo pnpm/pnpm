@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import { LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import {
@@ -81,23 +82,31 @@ export async function validateModules (
     )
   }
 
-  if (
-    !equals(modules.onlyBuiltDependencies, opts.onlyBuiltDependencies) ||
-    !equals(modules.onlyBuiltDependenciesFile, opts.onlyBuiltDependenciesFile) ||
-    !equals(modules.neverBuiltDependencies, opts.neverBuiltDependencies)
-  ) {
-    if (opts.forceNewModules && (rootProject != null)) {
-      await purgeModulesDirsOfImporter(opts, rootProject)
-      return { purged: true }
-    }
-    throw new PnpmError(
-      'DEP_BUILD_SETTINGS_DIFF',
-      'This modules directory was created using different dependency build settings (onlyBuiltDependencies, onlyBuiltDependenciesFile, or neverBuiltDependencies).' +
-      ' Run "pnpm install" to recreate the modules directory.'
-    )
-  }
-
   const importersToPurge: ImporterToPurge[] = []
+
+  if (rootProject != null) {
+    try {
+      // Only check dependency build settings if the layout version is current.
+      // Otherwise, let checkCompatibility throw MODULES_BREAKING_CHANGE.
+      if (
+        modules.layoutVersion === LAYOUT_VERSION &&
+        (
+          !equals(modules.onlyBuiltDependencies, opts.onlyBuiltDependencies) ||
+          !equals(modules.onlyBuiltDependenciesFile, opts.onlyBuiltDependenciesFile) ||
+          !equals(modules.neverBuiltDependencies, opts.neverBuiltDependencies)
+        )
+      ) {
+        throw new PnpmError(
+          'DEP_BUILD_SETTINGS_DIFF',
+          'This modules directory was created using different dependency build settings (onlyBuiltDependencies, onlyBuiltDependenciesFile, or neverBuiltDependencies).' +
+          ' Run "pnpm install" to recreate the modules directory.'
+        )
+      }
+    } catch (err: any) { // eslint-disable-line
+      if (!opts.forceNewModules) throw err
+      importersToPurge.push(rootProject)
+    }
+  }
 
   if (opts.forceHoistPattern && (rootProject != null)) {
     try {
