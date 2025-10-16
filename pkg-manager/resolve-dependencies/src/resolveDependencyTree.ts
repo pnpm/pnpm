@@ -198,7 +198,6 @@ export async function resolveDependencyTree<T> (
     allPeerDepNames: new Set(),
     maximumPublishedBy: opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude ? createVersionMatcher(opts.minimumReleaseAgeExclude) : undefined,
-    minimumReleaseAgeExcludePatterns: opts.minimumReleaseAgeExclude,
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {

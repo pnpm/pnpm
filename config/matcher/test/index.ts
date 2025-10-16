@@ -115,7 +115,7 @@ test('createMatcherWithIndex()', () => {
 test('createVersionMatcher()', () => {
   {
     const match = createVersionMatcher(['axios@1.12.2'])
-    expect(match('axios')).toBe(['1.12.2'])
+    expect(match('axios')).toStrictEqual(['1.12.2'])
   }
   {
     const match = createVersionMatcher(['is-*'])
@@ -125,7 +125,7 @@ test('createVersionMatcher()', () => {
   }
   {
     const match = createVersionMatcher(['@babel/core@7.20.0'])
-    expect(match('@babel/core')).toBe(['7.20.0'])
+    expect(match('@babel/core')).toStrictEqual(['7.20.0'])
   }
   {
     const match = createVersionMatcher(['@babel/core'])
@@ -137,8 +137,8 @@ test('createVersionMatcher()', () => {
   }
   {
     const match = createVersionMatcher(['axios@1.12.2', 'lodash@4.17.21', 'is-*'])
-    expect(match('axios')).toBe(['1.12.2'])
-    expect(match('lodash')).toBe(['4.17.21'])
+    expect(match('axios')).toStrictEqual(['1.12.2'])
+    expect(match('lodash')).toStrictEqual(['4.17.21'])
     expect(match('is-odd')).toBe(true)
   }
   {
@@ -148,14 +148,14 @@ test('createVersionMatcher()', () => {
   }
   {
     const match = createVersionMatcher(['axios@1.12.0 || 1.12.1'])
-    expect(match('axios')).toBe(['1.12.0', '1.12.1'])
+    expect(match('axios')).toStrictEqual(['1.12.0', '1.12.1'])
   }
   {
     const match = createVersionMatcher(['@scope/pkg@1.0.0 || 1.0.1'])
-    expect(match('@scope/pkg')).toBe(['1.0.0', '1.0.1'])
+    expect(match('@scope/pkg')).toStrictEqual(['1.0.0', '1.0.1'])
   }
   {
     const match = createVersionMatcher(['pkg@1.0.0||1.0.1  ||  1.0.2'])
-    expect(match('pkg')).toBe(['1.0.0', '1.0.1', '1.0.2'])
+    expect(match('pkg')).toStrictEqual(['1.0.0', '1.0.1', '1.0.2'])
   }
 })

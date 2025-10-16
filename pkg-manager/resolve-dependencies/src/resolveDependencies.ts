@@ -178,7 +178,6 @@ export interface ResolutionContext {
   hoistPeers?: boolean
   maximumPublishedBy?: Date
   minimumReleaseAgeExclude?: (pkgName: string) => boolean | string[]
-  minimumReleaseAgeExcludePatterns?: string[]
 }
 
 export interface MissingPeerInfo {
