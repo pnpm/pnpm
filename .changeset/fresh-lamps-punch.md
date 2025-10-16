@@ -11,12 +11,10 @@
 
 Added npm version management for publish command [#9812](https://github.com/pnpm/pnpm/issues/9812).
 
-```json
-{
-  "pnpm": {
-    "npmVersion": "10.2.3"
-  }
-}
+You can specify which npm version to use in `pnpm-workspace.yaml`:
+
+```yaml
+npmVersion: "10.2.3"
 ```
 
 This enables using newer npm features like OIDC publishing without requiring users to manually install specific npm versions globally.
