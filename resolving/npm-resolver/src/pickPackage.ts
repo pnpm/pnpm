@@ -97,7 +97,7 @@ export async function pickPackage (
   opts: PickPackageOptions
 ): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> {
   opts = opts || {}
-  let _pickPackageFromMeta = (
+  const pickPackageFromMetaBySpec = (
     opts.publishedBy
       ? (ctx.strictPublishedByCheck ? pickPackageFromMetaUsingTimeStrict : pickPackageFromMetaUsingTime)
       : (pickPackageFromMeta.bind(null, opts.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange))
@@ -107,18 +107,20 @@ export async function pickPackage (
     publishedByExclude: opts.publishedByExclude,
   })
 
+  let _pickPackageFromMeta!: (meta: PackageMeta) => PackageInRegistry | null
   if (opts.updateToLatest) {
-    const _pickPackageBase = _pickPackageFromMeta
-    _pickPackageFromMeta = (spec, ...rest) => {
+    _pickPackageFromMeta = (meta) => {
       const latestStableSpec: RegistryPackageSpec = { ...spec, type: 'tag', fetchSpec: 'latest' }
-      const latestStable = _pickPackageBase(latestStableSpec, ...rest)
-      const current = _pickPackageBase(spec, ...rest)
+      const latestStable = pickPackageFromMetaBySpec(latestStableSpec, meta)
+      const current = pickPackageFromMetaBySpec(spec, meta)
 
       if (!latestStable) return current
       if (!current) return latestStable
       if (semver.lt(latestStable.version, current.version)) return current
       return latestStable
     }
+  } else {
+    _pickPackageFromMeta = pickPackageFromMetaBySpec.bind(null, spec)
   }
 
   validatePackageName(spec.name)
@@ -127,7 +129,7 @@ export async function pickPackage (
   if (cachedMeta != null) {
     return {
       meta: cachedMeta,
-      pickedPackage: _pickPackageFromMeta(spec, cachedMeta),
+      pickedPackage: _pickPackageFromMeta(cachedMeta),
     }
   }
 
@@ -142,14 +144,14 @@ export async function pickPackage (
       if (ctx.offline) {
         if (metaCachedInStore != null) return {
           meta: metaCachedInStore,
-          pickedPackage: _pickPackageFromMeta(spec, metaCachedInStore),
+          pickedPackage: _pickPackageFromMeta(metaCachedInStore),
         }
 
         throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
       }
 
       if (metaCachedInStore != null) {
-        const pickedPackage = _pickPackageFromMeta(spec, metaCachedInStore)
+        const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
         if (pickedPackage) {
           return {
             meta: metaCachedInStore,
@@ -165,7 +167,7 @@ export async function pickPackage (
       // otherwise it is probably out of date
       if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
         try {
-          const pickedPackage = _pickPackageFromMeta(spec, metaCachedInStore)
+          const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
           if (pickedPackage) {
             return {
               meta: metaCachedInStore,
@@ -183,7 +185,7 @@ export async function pickPackage (
       metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
       if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
         try {
-          const pickedPackage = _pickPackageFromMeta(spec, metaCachedInStore)
+          const pickedPackage = _pickPackageFromMeta(metaCachedInStore)
           if (pickedPackage) {
             return {
               meta: metaCachedInStore,
@@ -220,7 +222,7 @@ export async function pickPackage (
       }
       return {
         meta,
-        pickedPackage: _pickPackageFromMeta(spec, meta),
+        pickedPackage: _pickPackageFromMeta(meta),
       }
     } catch (err: any) { // eslint-disable-line
       err.spec = spec
@@ -230,7 +232,7 @@ export async function pickPackage (
       logger.debug({ message: `Using cached meta from ${pkgMirror}` })
       return {
         meta,
-        pickedPackage: _pickPackageFromMeta(spec, meta),
+        pickedPackage: _pickPackageFromMeta(meta),
       }
     }
   })
