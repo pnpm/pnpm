@@ -1456,6 +1456,7 @@ index 8e020ca..baede17 100644
  };
 `
     /* eslint-enable no-tabs */
+    await fs.promises.mkdir(path.join(process.cwd(), 'patches'), { recursive: true })
     await fs.promises.writeFile(path.join(process.cwd(), 'patches/is-positive+1.0.0.patch'), patchContent, 'utf8')
 
     await patchConvert.handler({
