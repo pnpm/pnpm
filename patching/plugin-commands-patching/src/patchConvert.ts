@@ -60,14 +60,15 @@ async function singlePatchFileConvert (patchFilePath: string): Promise<string[]>
     throw new PnpmError('INVALID_PATCH_FILE', `File must have .patch extension: ${patchFilePath}`)
   }
   if (!patchFilePath.includes('+')) {
-    throw new PnpmError('INVALID_PATCH_FILE_NAME', `Should be convert patch file must include '+': ${patchFilePath}`)
+    throw new PnpmError('INVALID_PATCH_FILE_NAME', `Invalid patch file name: expected '+' in the file name (e.g. pkg+1.0.0.patch): ${patchFilePath}`)
   }
-  const covertName = convertPatchNameToPnpmFormat(patchFilePath)
-  const allPatches = await fs.promises.readdir(path.dirname(patchFilePath))
-  if (allPatches.includes(covertName)) {
+  const covertName = convertPatchNameToPnpmFormat(path.basename(patchFilePath))
+  const outputPath = path.join(path.dirname(patchFilePath), covertName)
+  if (fs.existsSync(outputPath)) {
     throw new PnpmError('PATCH_ALREADY_EXISTS', `Converted patch file already exists: ${covertName}`)
   }
-  return [await convertContentAndFileName(patchFilePath)]
+  const output = await convertContentAndFileName(patchFilePath)
+  return output ? [output] : []
 }
 
 async function convertPatchFile (patchPath: string): Promise<string[]> {
