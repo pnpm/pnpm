@@ -37,7 +37,7 @@ async function convertContentAndFileName (patchFilePath: string): Promise<string
   if (!shouldBeConverted) {
     return ''
   }
-  const replaceStr = `/node_modules/${path.basename(patchFilePath).split('+').slice(0, -1).join('/')}`.replace(/\//g, '/')
+  const replaceStr = `/node_modules/${path.basename(patchFilePath).split('+').slice(0, -1).join('/')}`.replace(/\\/g, '/')
   const convertedContent = patchContent.replace(new RegExp(replaceStr, 'g'), '')
   const outputPath = convertPatchNameToPnpmFormat(patchFilePath)
 
