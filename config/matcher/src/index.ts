@@ -1,4 +1,6 @@
+import { PnpmError } from '@pnpm/error'
 import escapeStringRegexp from 'escape-string-regexp'
+import semver from 'semver'
 
 type Matcher = (input: string) => boolean
 type MatcherWithIndex = (input: string) => number
@@ -99,66 +101,11 @@ function matcherWhenOnlyOnePattern (pattern: string): Matcher {
 
 export type VersionMatcher = (pkgName: string) => boolean | string[]
 
-export function packageNameMatchesExcludeList (patterns: string[], pkgName: string): boolean {
-  const parsedPatterns = patterns.map(parseVersionPattern)
-  for (const { packagePattern } of parsedPatterns) {
-    const nameMatcher = createMatcher(packagePattern)
-    if (nameMatcher(pkgName)) {
-      return true
-    }
-  }
-  return false
-}
-
-export function getExactVersionFromExcludeList (patterns: string[], pkgName: string): string | undefined {
-  const parsedPatterns = patterns.map(parseVersionPattern)
-  for (const { packagePattern, exactVersions } of parsedPatterns) {
-    const nameMatcher = createMatcher(packagePattern)
-    if (nameMatcher(pkgName) && exactVersions.length > 0) {
-      return exactVersions[0]
-    }
-  }
-  return undefined
-}
-
-function parseVersionPattern (pattern: string): { packagePattern: string, exactVersions: string[] } {
-  const isScoped = pattern.startsWith('@')
-  const atIndex = isScoped ? pattern.indexOf('@', 1) : pattern.indexOf('@')
-
-  if (atIndex === -1) {
-    return { packagePattern: pattern, exactVersions: [] }
-  }
-
-  const packagePattern = pattern.slice(0, atIndex)
-  const versionsPart = pattern.slice(atIndex + 1)
-
-  // Parse versions separated by ||
-  const versions = versionsPart.split('||').map(v => v.trim()).filter(v => v)
-  validateVersions(versions, pattern)
-
-  return {
-    packagePattern,
-    exactVersions: versions,
-  }
-}
-
-function validateVersions (versions: string[], originalPattern: string): void {
-  for (const version of versions) {
-    if (version.match(/^[~^>=<]/)) {
-      throw new Error(
-        'Semantic version ranges are not supported in minimumReleaseAgeExclude. ' +
-        `Found: "${originalPattern}". Use exact versions only.`
-      )
-    }
-  }
-}
-
 export function createVersionMatcher (patterns: string[]): VersionMatcher {
   const parsedPatterns = patterns.map(parseVersionPattern)
 
   return (pkgName: string): boolean | string[] => {
-    for (const { packagePattern, exactVersions } of parsedPatterns) {
-      const nameMatcher = createMatcher(packagePattern)
+    for (const { nameMatcher, exactVersions } of parsedPatterns) {
       if (!nameMatcher(pkgName)) {
         continue
       }
@@ -170,4 +117,43 @@ export function createVersionMatcher (patterns: string[]): VersionMatcher {
 
     return false
   }
+}
+
+function parseVersionPattern (pattern: string): { nameMatcher: Matcher, exactVersions: string[] } {
+  const isScoped = pattern.startsWith('@')
+  const atIndex = isScoped ? pattern.indexOf('@', 1) : pattern.indexOf('@')
+
+  if (atIndex === -1) {
+    return { nameMatcher: createMatcher(pattern), exactVersions: [] }
+  }
+
+  const packageName = pattern.slice(0, atIndex)
+  const versionsPart = pattern.slice(atIndex + 1)
+
+  // Parse versions separated by ||
+  const exactVersions: string[] | null = parseExactVersionsUnion(versionsPart)
+  if (exactVersions == null) {
+    throw new PnpmError('INVALID_VERSION_UNION',
+      `Invalid versions union. Found: "${pattern}". Use exact versions only.`)
+  }
+  if (packageName.includes('*')) {
+    throw new PnpmError('NAME_PATTERN_IN_VERSION_UNION', `Name patterns are not allowed with version unions. Found: "${pattern}"`)
+  }
+
+  return {
+    nameMatcher: (pkgName: string) => pkgName === packageName,
+    exactVersions,
+  }
+}
+
+function parseExactVersionsUnion (versionsStr: string): string[] | null {
+  const versions: string[] = []
+  for (const versionRaw of versionsStr.split('||')) {
+    const version = semver.valid(versionRaw)
+    if (version == null) {
+      return null
+    }
+    versions.push(version)
+  }
+  return versions
 }

@@ -34,10 +34,13 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "escape-string-regexp": "catalog:"
+    "@pnpm/error": "workspace:*",
+    "escape-string-regexp": "catalog:",
+    "semver": "catalog:"
   },
   "devDependencies": {
-    "@pnpm/matcher": "workspace:*"
+    "@pnpm/matcher": "workspace:*",
+    "@types/semver": "catalog:"
   },
   "engines": {
     "node": ">=18.12"

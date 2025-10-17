@@ -142,9 +142,10 @@ test('createVersionMatcher()', () => {
     expect(match('is-odd')).toBe(true)
   }
   {
-    expect(() => createVersionMatcher(['lodash@^4.17.0'])).toThrow(/Semantic version ranges are not supported/)
-    expect(() => createVersionMatcher(['lodash@~4.17.0'])).toThrow(/Semantic version ranges are not supported/)
-    expect(() => createVersionMatcher(['react@>=18.0.0'])).toThrow(/Semantic version ranges are not supported/)
+    expect(() => createVersionMatcher(['lodash@^4.17.0'])).toThrow(/Invalid versions union/)
+    expect(() => createVersionMatcher(['lodash@~4.17.0'])).toThrow(/Invalid versions union/)
+    expect(() => createVersionMatcher(['react@>=18.0.0'])).toThrow(/Invalid versions union/)
+    expect(() => createVersionMatcher(['is-*@1.0.0'])).toThrow(/Name patterns are not allowed/)
   }
   {
     const match = createVersionMatcher(['axios@1.12.0 || 1.12.1'])
