@@ -18,11 +18,17 @@ export type PickVersionByVersionRange = (options: PickVersionByVersionRangeOptio
 
 export function pickPackageFromMeta (
   pickVersionByVersionRangeFn: PickVersionByVersionRange,
+  {
+    preferredVersionSelectors,
+    publishedBy,
+    publishedByExclude,
+  }: {
+    preferredVersionSelectors: VersionSelectors | undefined
+    publishedBy?: Date
+    publishedByExclude?: VersionMatcher
+  },
   spec: RegistryPackageSpec,
-  preferredVersionSelectors: VersionSelectors | undefined,
-  meta: PackageMeta,
-  publishedBy?: Date,
-  publishedByExclude?: VersionMatcher
+  meta: PackageMeta
 ): PackageInRegistry | null {
   if (publishedBy) {
     assertMetaHasTime(meta)
