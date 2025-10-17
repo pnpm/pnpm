@@ -60,6 +60,7 @@ async function runLimited<T> (pkgMirror: string, fn: (limit: pLimit.Limit) => Pr
 export interface PickPackageOptions {
   authHeaderValue?: string
   publishedBy?: Date
+  publishedByExclude?: VersionMatcher
   preferredVersionSelectors: VersionSelectors | undefined
   pickLowestVersion?: boolean
   registry: string
@@ -72,9 +73,9 @@ function pickPackageFromMetaUsingTimeStrict (
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
   publishedBy?: Date,
-  excludeMatcher?: VersionMatcher
+  publishedByExclude?: VersionMatcher
 ): PackageInRegistry | null {
-  return pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy, excludeMatcher)
+  return pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy, publishedByExclude)
 }
 
 function pickPackageFromMetaUsingTime (
@@ -82,9 +83,9 @@ function pickPackageFromMetaUsingTime (
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
   publishedBy?: Date,
-  excludeMatcher?: VersionMatcher
+  publishedByExclude?: VersionMatcher
 ): PackageInRegistry | null {
-  const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy, excludeMatcher)
+  const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy, publishedByExclude)
   if (pickedPackage) return pickedPackage
   return pickPackageFromMeta(pickLowestVersionByVersionRange, spec, preferredVersionSelectors, meta)
 }
@@ -99,7 +100,6 @@ export async function pickPackage (
     preferOffline?: boolean
     filterMetadata?: boolean
     strictPublishedByCheck?: boolean
-    excludeMatcher?: VersionMatcher
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
@@ -115,7 +115,7 @@ export async function pickPackage (
   if (opts.publishedBy) {
     const baseFn = ctx.strictPublishedByCheck ? pickPackageFromMetaUsingTimeStrict : pickPackageFromMetaUsingTime
     _pickPackageFromMeta = (spec, preferredVersionSelectors, meta, publishedBy) =>
-      baseFn(spec, preferredVersionSelectors, meta, publishedBy, ctx.excludeMatcher)
+      baseFn(spec, preferredVersionSelectors, meta, publishedBy, opts.publishedByExclude)
   } else {
     const baseFn = pickPackageFromMeta.bind(null, opts.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange)
     _pickPackageFromMeta = baseFn

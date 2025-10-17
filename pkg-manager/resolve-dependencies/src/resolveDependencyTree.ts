@@ -197,7 +197,7 @@ export async function resolveDependencyTree<T> (
     hoistPeers: autoInstallPeers || opts.dedupePeerDependents,
     allPeerDepNames: new Set(),
     maximumPublishedBy: opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined,
-    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude ? createVersionMatcher(opts.minimumReleaseAgeExclude) : undefined,
+    publishedByExclude: opts.minimumReleaseAgeExclude ? createVersionMatcher(opts.minimumReleaseAgeExclude) : undefined,
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {

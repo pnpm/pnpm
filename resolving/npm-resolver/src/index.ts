@@ -6,7 +6,7 @@ import {
   type GetAuthHeader,
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
-import { createVersionMatcher } from '@pnpm/matcher'
+import { type VersionMatcher } from '@pnpm/matcher'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
@@ -95,7 +95,6 @@ export interface ResolverFactoryOptions {
   preserveAbsolutePaths?: boolean
   strictPublishedByCheck?: boolean
   fetchWarnTimeoutMs?: number
-  minimumReleaseAgeExclude?: string[]
 }
 
 export interface NpmResolveResult extends ResolveResult {
@@ -145,9 +144,6 @@ export function createNpmResolver (
     max: 10000,
     ttl: 120 * 1000, // 2 minutes
   })
-  const excludeMatcher = opts.minimumReleaseAgeExclude
-    ? createVersionMatcher(opts.minimumReleaseAgeExclude)
-    : undefined
   const ctx = {
     getAuthHeaderValueByURI: getAuthHeader,
     pickPackage: pickPackage.bind(null, {
@@ -159,11 +155,9 @@ export function createNpmResolver (
       preferOffline: opts.preferOffline,
       cacheDir: opts.cacheDir,
       strictPublishedByCheck: opts.strictPublishedByCheck,
-      excludeMatcher,
     }),
     registries: opts.registries,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
-    minimumReleaseAgeExclude: excludeMatcher,
   }
   return {
     resolveFromNpm: resolveNpm.bind(null, ctx),
@@ -178,7 +172,6 @@ export interface ResolveFromNpmContext {
   pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
   getAuthHeaderValueByURI: (registry: string) => string | undefined
   registries: Registries
-  minimumReleaseAgeExclude?: (pkgName: string) => boolean | string[]
   saveWorkspaceProtocol?: boolean | 'rolling'
 }
 
@@ -186,6 +179,7 @@ export type ResolveFromNpmOptions = {
   alwaysTryWorkspacePackages?: boolean
   defaultTag?: string
   publishedBy?: Date
+  publishedByExclude?: VersionMatcher
   pickLowestVersion?: boolean
   dryRun?: boolean
   lockfileDir?: string
@@ -242,6 +236,7 @@ async function resolveNpm (
     pickResult = await ctx.pickPackage(spec, {
       pickLowestVersion: opts.pickLowestVersion,
       publishedBy: opts.publishedBy,
+      publishedByExclude: opts.publishedByExclude,
       authHeaderValue,
       dryRun: opts.dryRun === true,
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],

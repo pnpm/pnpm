@@ -68,5 +68,5 @@ test('throws error when semver range is used in minimumReleaseAgeExclude', async
       minimumReleaseAgeExclude: ['is-odd@^0.1.1'],
     })
     await addDependenciesToPackage({}, ['is-odd@0.1'], opts)
-  }).rejects.toThrow(/Semantic version ranges are not supported/)
+  }).rejects.toThrow(/Invalid versions union/)
 })

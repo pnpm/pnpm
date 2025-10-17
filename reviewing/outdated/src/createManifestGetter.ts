@@ -30,7 +30,6 @@ export function createManifestGetter (
     authConfig: opts.rawConfig,
     filterMetadata: false, // We need all the data from metadata for "outdated --long" to work.
     strictPublishedByCheck: Boolean(opts.minimumReleaseAge),
-    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
   })
 
   const publishedBy = opts.minimumReleaseAge
@@ -54,19 +53,17 @@ export async function getManifest (
   packageName: string,
   bareSpecifier: string
 ): Promise<DependencyManifest | null> {
-  const isExcludedByNameOnly = opts.isExcludedMatcher?.(packageName)
-  const effectivePublishedBy = isExcludedByNameOnly ? undefined : opts.publishedBy
-
   try {
     const resolution = await opts.resolve({ alias: packageName, bareSpecifier }, {
       lockfileDir: opts.lockfileDir,
       preferredVersions: {},
       projectDir: opts.dir,
-      publishedBy: effectivePublishedBy,
+      publishedBy: opts.publishedBy,
+      publishedByExclude: opts.isExcludedMatcher,
     })
     return resolution?.manifest ?? null
   } catch (err) {
-    if ((err as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION' && effectivePublishedBy) {
+    if ((err as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION' && opts.publishedBy) {
       // No versions found that meet the minimumReleaseAge requirement
       return null
     }

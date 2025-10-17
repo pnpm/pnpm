@@ -22,11 +22,11 @@ export function pickPackageFromMeta (
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
   publishedBy?: Date,
-  excludeMatcher?: VersionMatcher
+  publishedByExclude?: VersionMatcher
 ): PackageInRegistry | null {
   if (publishedBy) {
     assertMetaHasTime(meta)
-    const exclude = excludeMatcher?.(meta.name) ?? false
+    const exclude = publishedByExclude?.(meta.name) ?? false
     if (exclude !== true) {
       meta = filterPkgMetadataByPublishDate(meta, publishedBy, Array.isArray(exclude) ? exclude : undefined)
     }

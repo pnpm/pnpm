@@ -109,6 +109,7 @@ export interface ResolveOptions {
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date
+  publishedByExclude?: (pkgName: string) => boolean | string[]
   projectDir: string
   lockfileDir: string
   preferredVersions: PreferredVersions

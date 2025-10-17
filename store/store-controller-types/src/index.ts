@@ -118,6 +118,7 @@ export interface RequestPackageOptions {
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date
+  publishedByExclude?: (pkgName: string) => boolean | string[]
   downloadPriority: number
   ignoreScripts?: boolean
   projectDir: string
