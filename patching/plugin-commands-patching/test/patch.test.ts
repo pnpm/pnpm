@@ -1497,7 +1497,7 @@ index 8e020ca..baede17 100644
 
     const workspaceManifest = await readWorkspaceManifest(process.cwd())
     expect(workspaceManifest!.patchedDependencies).toStrictEqual({
-      'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+      'is-positive@1.0.0': 'new_patches/is-positive@1.0.0.patch',
     })
   })
 
@@ -1520,7 +1520,7 @@ index 8e020ca..baede17 100644
 
     const workspaceManifest = await readWorkspaceManifest(process.cwd())
     expect(workspaceManifest!.patchedDependencies).toStrictEqual({
-      'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+      'is-positive@1.0.0': 'new_patches/is-positive@1.0.0.patch',
     })
   })
 })
