@@ -1,3 +1,4 @@
+import { PnpmError } from '@pnpm/error'
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import { type Catalogs } from '@pnpm/catalogs.types'
 import { type LockfileObject } from '@pnpm/lockfile.types'
@@ -16,6 +17,7 @@ import {
   type ReadPackageHook,
   type Registries,
   type ProjectRootDir,
+  type PackageVersionPolicy,
 } from '@pnpm/types'
 import partition from 'ramda/src/partition'
 import zipObj from 'ramda/src/zipObj'
@@ -197,7 +199,16 @@ export async function resolveDependencyTree<T> (
     hoistPeers: autoInstallPeers || opts.dedupePeerDependents,
     allPeerDepNames: new Set(),
     maximumPublishedBy: opts.minimumReleaseAge ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000) : undefined,
-    publishedByExclude: opts.minimumReleaseAgeExclude ? createPackageVersionPolicy(opts.minimumReleaseAgeExclude) : undefined,
+    publishedByExclude: opts.minimumReleaseAgeExclude ? createPublishedByExclude(opts.minimumReleaseAgeExclude) : undefined,
+  }
+
+  function createPublishedByExclude (patterns: string[]): PackageVersionPolicy {
+    try {
+      return createPackageVersionPolicy(patterns)
+    } catch (err) {
+      if (!err || typeof err !== 'object' || !('message' in err)) throw err
+      throw new PnpmError('INVALID_MIN_RELEASE_AGE_EXCLUDE', `Invalid value in minimumReleaseAgeExclude: ${err.message as string}`)
+    }
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {

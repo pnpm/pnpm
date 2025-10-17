@@ -8339,9 +8339,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/matcher':
-        specifier: workspace:*
-        version: link:../../config/matcher
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../package-store

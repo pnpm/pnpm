@@ -32,7 +32,6 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'localAddress'
 | 'maxSockets'
 | 'minimumReleaseAge'
-| 'minimumReleaseAgeExclude'
 | 'networkConcurrency'
 | 'noProxy'
 | 'offline'
