@@ -16,17 +16,19 @@ export interface PickVersionByVersionRangeOptions {
 
 export type PickVersionByVersionRange = (options: PickVersionByVersionRangeOptions) => string | null
 
+export interface PickPackageFromMetaOptions {
+  preferredVersionSelectors: VersionSelectors | undefined
+  publishedBy?: Date
+  publishedByExclude?: VersionMatcher
+}
+
 export function pickPackageFromMeta (
   pickVersionByVersionRangeFn: PickVersionByVersionRange,
   {
     preferredVersionSelectors,
     publishedBy,
     publishedByExclude,
-  }: {
-    preferredVersionSelectors: VersionSelectors | undefined
-    publishedBy?: Date
-    publishedByExclude?: VersionMatcher
-  },
+  }: PickPackageFromMetaOptions,
   spec: RegistryPackageSpec,
   meta: PackageMeta
 ): PackageInRegistry | null {

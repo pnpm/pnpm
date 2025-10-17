@@ -4,8 +4,6 @@ import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import gfs from '@pnpm/graceful-fs'
-import { type VersionMatcher } from '@pnpm/matcher'
-import { type VersionSelectors } from '@pnpm/resolver-base'
 import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import getRegistryName from 'encode-registry'
 import loadJsonFile from 'load-json-file'
@@ -15,7 +13,12 @@ import pick from 'ramda/src/pick'
 import semver from 'semver'
 import renameOverwrite from 'rename-overwrite'
 import { toRaw } from './toRaw.js'
-import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange } from './pickPackageFromMeta.js'
+import {
+  pickPackageFromMeta,
+  pickVersionByVersionRange,
+  pickLowestVersionByVersionRange,
+  type PickPackageFromMetaOptions,
+} from './pickPackageFromMeta.js'
 import { type RegistryPackageSpec } from './parseBareSpecifier.js'
 
 export interface PackageMetaCache {
@@ -57,45 +60,24 @@ async function runLimited<T> (pkgMirror: string, fn: (limit: pLimit.Limit) => Pr
   }
 }
 
-export interface PickPackageOptions {
+export interface PickPackageOptions extends PickPackageFromMetaOptions {
   authHeaderValue?: string
-  publishedBy?: Date
-  publishedByExclude?: VersionMatcher
-  preferredVersionSelectors: VersionSelectors | undefined
   pickLowestVersion?: boolean
   registry: string
   dryRun: boolean
   updateToLatest?: boolean
 }
 
-function pickPackageFromMetaUsingTimeStrict (
-  opts: {
-    publishedBy?: Date
-    publishedByExclude?: VersionMatcher
-    preferredVersionSelectors: VersionSelectors | undefined
-  },
-  spec: RegistryPackageSpec,
-  meta: PackageMeta
-): PackageInRegistry | null {
-  return pickPackageFromMeta(pickVersionByVersionRange, opts, spec, meta)
-}
+const pickPackageFromMetaUsingTimeStrict = pickPackageFromMeta.bind(null, pickVersionByVersionRange)
 
 function pickPackageFromMetaUsingTime (
-  {
-    publishedBy,
-    publishedByExclude,
-    preferredVersionSelectors,
-  }: {
-    publishedBy?: Date
-    publishedByExclude?: VersionMatcher
-    preferredVersionSelectors: VersionSelectors | undefined
-  },
+  opts: PickPackageFromMetaOptions,
   spec: RegistryPackageSpec,
   meta: PackageMeta
 ): PackageInRegistry | null {
-  const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, { preferredVersionSelectors, publishedBy, publishedByExclude }, spec, meta)
+  const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, opts, spec, meta)
   if (pickedPackage) return pickedPackage
-  return pickPackageFromMeta(pickLowestVersionByVersionRange, { preferredVersionSelectors }, spec, meta)
+  return pickPackageFromMeta(pickLowestVersionByVersionRange, opts, spec, meta)
 }
 
 export async function pickPackage (
