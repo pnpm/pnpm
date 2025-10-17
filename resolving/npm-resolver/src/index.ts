@@ -6,7 +6,7 @@ import {
   type GetAuthHeader,
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
-import { type VersionMatcher } from '@pnpm/matcher'
+import { type PackageVersionPolicy } from '@pnpm/matcher'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
@@ -179,7 +179,7 @@ export type ResolveFromNpmOptions = {
   alwaysTryWorkspacePackages?: boolean
   defaultTag?: string
   publishedBy?: Date
-  publishedByExclude?: VersionMatcher
+  publishedByExclude?: PackageVersionPolicy
   pickLowestVersion?: boolean
   dryRun?: boolean
   lockfileDir?: string

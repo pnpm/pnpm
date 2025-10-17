@@ -99,27 +99,32 @@ function matcherWhenOnlyOnePattern (pattern: string): Matcher {
   return (input) => !m(input)
 }
 
-export type VersionMatcher = (pkgName: string) => boolean | string[]
+export type PackageVersionPolicy = (pkgName: string) => boolean | string[]
 
-export function createVersionMatcher (patterns: string[]): VersionMatcher {
-  const parsedPatterns = patterns.map(parseVersionPattern)
-
-  return (pkgName: string): boolean | string[] => {
-    for (const { nameMatcher, exactVersions } of parsedPatterns) {
-      if (!nameMatcher(pkgName)) {
-        continue
-      }
-      if (exactVersions.length === 0) {
-        return true
-      }
-      return exactVersions
-    }
-
-    return false
-  }
+export function createPackageVersionPolicy (patterns: string[]): PackageVersionPolicy {
+  const rules = patterns.map(parseVersionPolicyRule)
+  return evaluateVersionPolicy.bind(null, rules)
 }
 
-function parseVersionPattern (pattern: string): { nameMatcher: Matcher, exactVersions: string[] } {
+function evaluateVersionPolicy (rules: VersionPolicyRule[], pkgName: string): boolean | string[] {
+  for (const { nameMatcher, exactVersions } of rules) {
+    if (!nameMatcher(pkgName)) {
+      continue
+    }
+    if (exactVersions.length === 0) {
+      return true
+    }
+    return exactVersions
+  }
+  return false
+}
+
+interface VersionPolicyRule {
+  nameMatcher: Matcher
+  exactVersions: string[]
+}
+
+function parseVersionPolicyRule (pattern: string): VersionPolicyRule {
   const isScoped = pattern.startsWith('@')
   const atIndex = isScoped ? pattern.indexOf('@', 1) : pattern.indexOf('@')
 

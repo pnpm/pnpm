@@ -3,7 +3,7 @@ import {
   createResolver,
   type ResolveFunction,
 } from '@pnpm/client'
-import { createVersionMatcher } from '@pnpm/matcher'
+import { createPackageVersionPolicy } from '@pnpm/matcher'
 import { type DependencyManifest } from '@pnpm/types'
 
 interface GetManifestOpts {
@@ -22,7 +22,7 @@ export function createManifestGetter (
   opts: ManifestGetterOptions
 ): (packageName: string, bareSpecifier: string) => Promise<DependencyManifest | null> {
   const isExcludedMatcher = opts.minimumReleaseAgeExclude
-    ? createVersionMatcher(opts.minimumReleaseAgeExclude)
+    ? createPackageVersionPolicy(opts.minimumReleaseAgeExclude)
     : undefined
 
   const { resolve } = createResolver({

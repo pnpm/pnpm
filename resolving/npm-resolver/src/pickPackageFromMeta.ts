@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { type VersionMatcher } from '@pnpm/matcher'
+import { type PackageVersionPolicy } from '@pnpm/matcher'
 import { filterPkgMetadataByPublishDate } from '@pnpm/registry.pkg-metadata-filter'
 import { type PackageInRegistry, type PackageMeta, type PackageMetaWithTime } from '@pnpm/registry.types'
 import { type VersionSelectors } from '@pnpm/resolver-base'
@@ -19,7 +19,7 @@ export type PickVersionByVersionRange = (options: PickVersionByVersionRangeOptio
 export interface PickPackageFromMetaOptions {
   preferredVersionSelectors: VersionSelectors | undefined
   publishedBy?: Date
-  publishedByExclude?: VersionMatcher
+  publishedByExclude?: PackageVersionPolicy
 }
 
 export function pickPackageFromMeta (
@@ -34,9 +34,10 @@ export function pickPackageFromMeta (
 ): PackageInRegistry | null {
   if (publishedBy) {
     assertMetaHasTime(meta)
-    const exclude = publishedByExclude?.(meta.name) ?? false
-    if (exclude !== true) {
-      meta = filterPkgMetadataByPublishDate(meta, publishedBy, Array.isArray(exclude) ? exclude : undefined)
+    const excludeResult = publishedByExclude?.(meta.name) ?? false
+    if (excludeResult !== true) {
+      const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
+      meta = filterPkgMetadataByPublishDate(meta, publishedBy, trustedVersions)
     }
   }
   if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {
