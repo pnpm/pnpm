@@ -43,7 +43,7 @@ async function convertContentAndFileName (patchFilePath: string): Promise<string
 
   await fs.promises.writeFile(outputPath, convertedContent, 'utf8')
   await fs.promises.unlink(patchFilePath)
-  return path.basename(outputPath)
+  return outputPath
 }
 
 function convertPatchNameToPnpmFormat (patchFileName: string): string {
@@ -52,7 +52,14 @@ function convertPatchNameToPnpmFormat (patchFileName: string): string {
   return info.join('__') + '@' + version
 }
 
-async function singlePatchFileConvert (patchFilePath: string): Promise<string[]> {
+function convertedPathToPatchedDependencyKeyValue (convertedPath: string): [string, string] {
+  const baseName = path.basename(convertedPath)
+  const patchesDir = convertedPath.replace(/\\/g, '/').replace(baseName, '').split('/').filter(Boolean).pop()!
+  const key = baseName.replace(/\.patch$/, '').replace(/__/g, '/')
+  return [key, patchesDir + '/' + baseName]
+}
+
+async function singlePatchFileConvert (patchFilePath: string): Promise<Array<[string, string]>> {
   if (!fs.existsSync(patchFilePath)) {
     throw new PnpmError('FILE_NOT_FOUND', `Patch file not found: ${patchFilePath}`)
   }
@@ -68,16 +75,19 @@ async function singlePatchFileConvert (patchFilePath: string): Promise<string[]>
     throw new PnpmError('PATCH_ALREADY_EXISTS', `Converted patch file already exists: ${covertName}`)
   }
   const output = await convertContentAndFileName(patchFilePath)
-  return output ? [output] : []
+  return output ? [convertedPathToPatchedDependencyKeyValue(output)] : []
 }
 
-async function convertPatchFile (patchPath: string): Promise<string[]> {
+async function convertPatchFile (patchPath: string): Promise<Array<[string, string]>> {
+  if (!fs.existsSync(patchPath)) {
+    throw new PnpmError('PATH_NOT_FOUND', `Path not found: ${patchPath}`)
+  }
   const stat = await fs.promises.stat(patchPath)
   let patchFiles: string[]
 
   if (stat.isDirectory()) {
     patchFiles = processFolder(patchPath)
-    return (await Promise.all(patchFiles.map(convertContentAndFileName))).filter(Boolean)
+    return (await Promise.all(patchFiles.map(convertContentAndFileName))).filter(Boolean).map(convertedPathToPatchedDependencyKeyValue)
   } else {
     return singlePatchFileConvert(patchPath)
   }
@@ -107,21 +117,16 @@ export async function handler (
   opts: PatchConvertCommandOptions,
   params: string[]
 ): Promise<void> {
-  const patchesPath = path.join(params[0] ?? opts.patchesDir ?? './patches')
-
+  const patchesPath = path.join(opts.dir ?? process.cwd(), params[0] ?? opts.patchesDir ?? './patches').replace(/\\/g, '/')
   const pkgConvertedFiles = await convertPatchFile(patchesPath)
-  let shouldBeUpdated = false
+  if (!pkgConvertedFiles.length) {
+    return
+  }
   const patchedDependencies = opts.patchedDependencies ?? {}
   if (Array.isArray(pkgConvertedFiles) && pkgConvertedFiles.length) {
-    pkgConvertedFiles.forEach((file) => {
-      const k = file.replace(/\.patch$/, '').replace(/__/g, '/')
-      const v = path.join(patchesPath, file).replace(/\\/g, '/')
-      patchedDependencies[k] = v
-      shouldBeUpdated = true
+    pkgConvertedFiles.forEach(([key, value]) => {
+      patchedDependencies[key] = value
     })
-  }
-  if (!shouldBeUpdated) {
-    return
   }
   await updatePatchedDependencies(patchedDependencies, {
     ...opts,
