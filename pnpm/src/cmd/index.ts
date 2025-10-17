@@ -14,7 +14,7 @@ import { list, ll, why } from '@pnpm/plugin-commands-listing'
 import { licenses } from '@pnpm/plugin-commands-licenses'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
-import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
+import { patch, patchCommit, patchConvert, patchRemove } from '@pnpm/plugin-commands-patching'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import {
   create,
@@ -142,6 +142,7 @@ const commands: CommandDefinition[] = [
   patch,
   patchCommit,
   patchRemove,
+  patchConvert,
   prune,
   publish,
   rebuild,
