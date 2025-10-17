@@ -77,7 +77,9 @@ function pickPackageFromMetaUsingTime (
 ): PackageInRegistry | null {
   const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, opts, spec, meta)
   if (pickedPackage) return pickedPackage
-  return pickPackageFromMeta(pickLowestVersionByVersionRange, opts, spec, meta)
+  return pickPackageFromMeta(pickLowestVersionByVersionRange, {
+    preferredVersionSelectors: opts.preferredVersionSelectors,
+  }, spec, meta)
 }
 
 export async function pickPackage (
