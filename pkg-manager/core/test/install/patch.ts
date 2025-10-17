@@ -98,11 +98,12 @@ test('patch package with exact version', async () => {
     dependencies: {
       'is-positive': '1.0.0',
     },
-  }, {
-    ...opts,
-    patchedDependencies: undefined,
+  }, testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
     offline: true,
-  } as unknown as typeof opts)
+  }, {}, {}, { packageImportMethod: 'hardlink' }))
 
   // The original file did not break, when a patched version was created
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
@@ -192,11 +193,12 @@ test('patch package with version range', async () => {
     dependencies: {
       'is-positive': '1.0.0',
     },
-  }, {
-    ...opts,
-    patchedDependencies: undefined,
+  }, testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
     offline: true,
-  } as unknown as typeof opts)
+  }, {}, {}, { packageImportMethod: 'hardlink' }))
 
   // The original file did not break, when a patched version was created
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
@@ -358,11 +360,13 @@ test('patch package when scripts are ignored', async () => {
     dependencies: {
       'is-positive': '1.0.0',
     },
-  }, {
-    ...opts,
-    patchedDependencies: undefined,
+  }, testDefaults({
+    fastUnpack: false,
+    ignoreScripts: true,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
     offline: true,
-  } as unknown as typeof opts)
+  }, {}, {}, { packageImportMethod: 'hardlink' }))
 
   // The original file did not break, when a patched version was created
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
@@ -444,11 +448,14 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
     dependencies: {
       'is-positive': '1.0.0',
     },
-  }, {
-    ...opts,
-    patchedDependencies: undefined,
+  }, testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    neverBuiltDependencies: undefined,
+    onlyBuiltDependencies: [],
     offline: true,
-  } as unknown as typeof opts)
+  }, {}, {}, { packageImportMethod: 'hardlink' }))
 
   // The original file did not break, when a patched version was created
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')

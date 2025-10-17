@@ -30,7 +30,6 @@ export function testDefaults<T> (
       ...(opts?.registries != null ? { registries: opts.registries } : {}),
       ...resolveOpts,
       ...fetchOpts,
-      ...opts,
     },
     storeOptions: storeOpts,
   })
