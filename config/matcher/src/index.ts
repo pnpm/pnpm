@@ -1,4 +1,5 @@
 import { PnpmError } from '@pnpm/error'
+import { type PackageVersionPolicy } from '@pnpm/types'
 import escapeStringRegexp from 'escape-string-regexp'
 import semver from 'semver'
 
@@ -98,8 +99,6 @@ function matcherWhenOnlyOnePattern (pattern: string): Matcher {
   const m = matcherFromPattern(ignorePattern)
   return (input) => !m(input)
 }
-
-export type PackageVersionPolicy = (pkgName: string) => boolean | string[]
 
 export function createPackageVersionPolicy (patterns: string[]): PackageVersionPolicy {
   const rules = patterns.map(parseVersionPolicyRule)

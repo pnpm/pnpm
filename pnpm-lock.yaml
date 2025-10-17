@@ -1806,6 +1806,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       escape-string-regexp:
         specifier: 'catalog:'
         version: 4.0.0
@@ -7244,9 +7247,6 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
-      '@pnpm/matcher':
-        specifier: workspace:*
-        version: link:../../config/matcher
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package

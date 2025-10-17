@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "escape-string-regexp": "catalog:",
     "semver": "catalog:"
   },

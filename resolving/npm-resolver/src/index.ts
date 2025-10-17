@@ -6,7 +6,6 @@ import {
   type GetAuthHeader,
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
-import { type PackageVersionPolicy } from '@pnpm/matcher'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { type PackageMeta, type PackageInRegistry } from '@pnpm/registry.types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
@@ -21,7 +20,7 @@ import {
   type WorkspacePackages,
   type WorkspacePackagesByVersion,
 } from '@pnpm/resolver-base'
-import { type DependencyManifest, type Registries, type PinnedVersion } from '@pnpm/types'
+import { type DependencyManifest, type Registries, type PinnedVersion, type PackageVersionPolicy } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'

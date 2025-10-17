@@ -127,7 +127,7 @@ test('getManifest() with minimumReleaseAgeExclude', async () => {
   }
 
   const publishedBy = new Date(Date.now() - 10080 * 60 * 1000)
-  const isExcludedMatcher = (packageName: string) => packageName === 'excluded-package'
+  const publishedByExclude = (packageName: string) => packageName === 'excluded-package'
 
   const resolve: ResolveFunction = jest.fn(async function (wantedPackage, resolveOpts) {
     return {
@@ -142,6 +142,6 @@ test('getManifest() with minimumReleaseAgeExclude', async () => {
     }
   })
 
-  await getManifest({ ...opts, resolve, isExcludedMatcher, publishedBy }, 'excluded-package', 'latest')
+  await getManifest({ ...opts, resolve, publishedByExclude, publishedBy }, 'excluded-package', 'latest')
   expect(resolve).toHaveBeenCalledTimes(1)
 })

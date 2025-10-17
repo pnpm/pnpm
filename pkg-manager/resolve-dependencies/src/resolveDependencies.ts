@@ -39,6 +39,7 @@ import {
   type Registries,
   type PkgIdWithPatchHash,
   type PinnedVersion,
+  type PackageVersionPolicy,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
@@ -177,7 +178,7 @@ export interface ResolutionContext {
   missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { depth: number, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
   maximumPublishedBy?: Date
-  publishedByExclude?: (pkgName: string) => boolean | string[]
+  publishedByExclude?: PackageVersionPolicy
 }
 
 export interface MissingPeerInfo {

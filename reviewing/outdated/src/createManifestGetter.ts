@@ -4,7 +4,7 @@ import {
   type ResolveFunction,
 } from '@pnpm/client'
 import { createPackageVersionPolicy } from '@pnpm/matcher'
-import { type DependencyManifest } from '@pnpm/types'
+import { type PackageVersionPolicy, type DependencyManifest } from '@pnpm/types'
 
 interface GetManifestOpts {
   dir: string
@@ -21,7 +21,7 @@ export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig' | 'minimumR
 export function createManifestGetter (
   opts: ManifestGetterOptions
 ): (packageName: string, bareSpecifier: string) => Promise<DependencyManifest | null> {
-  const isExcludedMatcher = opts.minimumReleaseAgeExclude
+  const publishedByExclude = opts.minimumReleaseAgeExclude
     ? createPackageVersionPolicy(opts.minimumReleaseAgeExclude)
     : undefined
 
@@ -40,7 +40,7 @@ export function createManifestGetter (
     ...opts,
     resolve,
     publishedBy,
-    isExcludedMatcher,
+    publishedByExclude,
   })
 }
 
@@ -48,7 +48,7 @@ export async function getManifest (
   opts: GetManifestOpts & {
     resolve: ResolveFunction
     publishedBy?: Date
-    isExcludedMatcher?: ((packageName: string) => boolean | string[])
+    publishedByExclude?: PackageVersionPolicy
   },
   packageName: string,
   bareSpecifier: string
@@ -59,7 +59,7 @@ export async function getManifest (
       preferredVersions: {},
       projectDir: opts.dir,
       publishedBy: opts.publishedBy,
-      publishedByExclude: opts.isExcludedMatcher,
+      publishedByExclude: opts.publishedByExclude,
     })
     return resolution?.manifest ?? null
   } catch (err) {
