@@ -1418,6 +1418,20 @@ describe('patch convert', () => {
   let defaultPatchConvertOption: patchConvert.PatchConvertCommandOptions
   let cacheDir: string
   let storeDir: string
+  /* eslint-disable no-tabs */
+  const patchContent = `diff --git a/node_modules/is-positive/index.js b/node_modules/is-positive/index.js
+index 8e020ca..baede17 100644
+--- a/node_modules/is-positive/index.js
++++ b/node_modules/is-positive/index.js
+@@ -5,5 +5,5 @@ module.exports = function (n) {
+ 		throw new TypeError('Expected a number');
+ 	}
+
+-	return n >= 0;
++	return n > 0;
+ };
+`
+  /* eslint-enable no-tabs */
 
   beforeEach(async () => {
     prompt.mockClear()
@@ -1442,20 +1456,6 @@ describe('patch convert', () => {
     })
   })
   test('patch convert should work as expected', async () => {
-    /* eslint-disable no-tabs */
-    const patchContent = `diff --git a/node_modules/is-positive/index.js b/node_modules/is-positive/index.js
-index 8e020ca..baede17 100644
---- a/node_modules/is-positive/index.js
-+++ b/node_modules/is-positive/index.js
-@@ -5,5 +5,5 @@ module.exports = function (n) {
- 		throw new TypeError('Expected a number');
- 	}
-
--	return n >= 0;
-+	return n > 0;
- };
-`
-    /* eslint-enable no-tabs */
     await fs.promises.mkdir(path.join(process.cwd(), 'patches'), { recursive: true })
     await fs.promises.writeFile(path.join(process.cwd(), 'patches/is-positive+1.0.0.patch'), patchContent, 'utf8')
 
@@ -1464,6 +1464,52 @@ index 8e020ca..baede17 100644
     }, [])
 
     const patchesDir = path.join(process.cwd(), 'patches')
+    expect(fs.existsSync(patchesDir)).toBe(true)
+    expect(fs.existsSync(path.join(patchesDir, 'is-positive+1.0.0.patch'))).toBe(false)
+    expect(fs.existsSync(path.join(patchesDir, 'is-positive@1.0.0.patch'))).toBe(true)
+
+    const convertedContent = fs.readFileSync(path.join(patchesDir, 'is-positive@1.0.0.patch'), 'utf8')
+    expect(convertedContent.includes('a/node_modules/is-positive/index.js')).toBe(false)
+    expect(convertedContent.includes('b/node_modules/is-positive/index.js')).toBe(false)
+
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
+      'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+    })
+  })
+
+  test('patch convert should work as expected with specified folder', async () => {
+    await fs.promises.mkdir(path.join(process.cwd(), 'new_patches'), { recursive: true })
+    await fs.promises.writeFile(path.join(process.cwd(), 'new_patches/is-positive+1.0.0.patch'), patchContent, 'utf8')
+
+    await patchConvert.handler({
+      ...defaultPatchConvertOption,
+    }, ['new_patches'])
+
+    const patchesDir = path.join(process.cwd(), 'new_patches')
+    expect(fs.existsSync(patchesDir)).toBe(true)
+    expect(fs.existsSync(path.join(patchesDir, 'is-positive+1.0.0.patch'))).toBe(false)
+    expect(fs.existsSync(path.join(patchesDir, 'is-positive@1.0.0.patch'))).toBe(true)
+
+    const convertedContent = fs.readFileSync(path.join(patchesDir, 'is-positive@1.0.0.patch'), 'utf8')
+    expect(convertedContent.includes('a/node_modules/is-positive/index.js')).toBe(false)
+    expect(convertedContent.includes('b/node_modules/is-positive/index.js')).toBe(false)
+
+    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
+      'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+    })
+  })
+
+  test('patch convert should work as expected with specified patch file', async () => {
+    await fs.promises.mkdir(path.join(process.cwd(), 'new_patches'), { recursive: true })
+    await fs.promises.writeFile(path.join(process.cwd(), 'new_patches/is-positive+1.0.0.patch'), patchContent, 'utf8')
+
+    await patchConvert.handler({
+      ...defaultPatchConvertOption,
+    }, ['new_patches/is-positive+1.0.0.patch'])
+
+    const patchesDir = path.join(process.cwd(), 'new_patches')
     expect(fs.existsSync(patchesDir)).toBe(true)
     expect(fs.existsSync(path.join(patchesDir, 'is-positive+1.0.0.patch'))).toBe(false)
     expect(fs.existsSync(path.join(patchesDir, 'is-positive@1.0.0.patch'))).toBe(true)
