@@ -3,8 +3,8 @@ import {
   createResolver,
   type ResolveFunction,
 } from '@pnpm/client'
-import { createMatcher } from '@pnpm/matcher'
-import { type DependencyManifest } from '@pnpm/types'
+import { createPackageVersionPolicy } from '@pnpm/matcher'
+import { type PackageVersionPolicy, type DependencyManifest } from '@pnpm/types'
 
 interface GetManifestOpts {
   dir: string
@@ -14,13 +14,17 @@ interface GetManifestOpts {
   minimumReleaseAgeExclude?: string[]
 }
 
-export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig'>
+export type ManifestGetterOptions = Omit<ClientOptions, 'authConfig' | 'minimumReleaseAgeExclude'>
 & GetManifestOpts
 & { fullMetadata: boolean, rawConfig: Record<string, string> }
 
 export function createManifestGetter (
   opts: ManifestGetterOptions
 ): (packageName: string, bareSpecifier: string) => Promise<DependencyManifest | null> {
+  const publishedByExclude = opts.minimumReleaseAgeExclude
+    ? createPackageVersionPolicy(opts.minimumReleaseAgeExclude)
+    : undefined
+
   const { resolve } = createResolver({
     ...opts,
     authConfig: opts.rawConfig,
@@ -32,15 +36,11 @@ export function createManifestGetter (
     ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000)
     : undefined
 
-  const isExcludedMatcher = opts.minimumReleaseAgeExclude
-    ? createMatcher(opts.minimumReleaseAgeExclude)
-    : undefined
-
   return getManifest.bind(null, {
     ...opts,
     resolve,
     publishedBy,
-    isExcludedMatcher,
+    publishedByExclude,
   })
 }
 
@@ -48,24 +48,22 @@ export async function getManifest (
   opts: GetManifestOpts & {
     resolve: ResolveFunction
     publishedBy?: Date
-    isExcludedMatcher?: ((packageName: string) => boolean)
+    publishedByExclude?: PackageVersionPolicy
   },
   packageName: string,
   bareSpecifier: string
 ): Promise<DependencyManifest | null> {
-  const isExcluded = opts.isExcludedMatcher?.(packageName)
-  const effectivePublishedBy = isExcluded ? undefined : opts.publishedBy
-
   try {
     const resolution = await opts.resolve({ alias: packageName, bareSpecifier }, {
       lockfileDir: opts.lockfileDir,
       preferredVersions: {},
       projectDir: opts.dir,
-      publishedBy: effectivePublishedBy,
+      publishedBy: opts.publishedBy,
+      publishedByExclude: opts.publishedByExclude,
     })
     return resolution?.manifest ?? null
   } catch (err) {
-    if ((err as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION' && effectivePublishedBy) {
+    if ((err as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION' && opts.publishedBy) {
       // No versions found that meet the minimumReleaseAge requirement
       return null
     }
