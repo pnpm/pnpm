@@ -84,6 +84,14 @@ export async function validateModules (
 
   const importersToPurge: ImporterToPurge[] = []
 
+  // Normalize build settings: treat undefined and [] as equivalent
+  const normalizeArraySetting = (value: string[] | undefined): string[] | undefined => {
+    if (value === undefined || (Array.isArray(value) && value.length === 0)) {
+      return undefined
+    }
+    return value
+  }
+
   if (rootProject != null) {
     try {
       // Only check dependency build settings if the layout version is current.
@@ -91,9 +99,9 @@ export async function validateModules (
       if (
         modules.layoutVersion === LAYOUT_VERSION &&
         (
-          !equals(modules.onlyBuiltDependencies, opts.onlyBuiltDependencies) ||
+          !equals(normalizeArraySetting(modules.onlyBuiltDependencies), normalizeArraySetting(opts.onlyBuiltDependencies)) ||
           !equals(modules.onlyBuiltDependenciesFile, opts.onlyBuiltDependenciesFile) ||
-          !equals(modules.neverBuiltDependencies, opts.neverBuiltDependencies)
+          !equals(normalizeArraySetting(modules.neverBuiltDependencies), normalizeArraySetting(opts.neverBuiltDependencies))
         )
       ) {
         throw new PnpmError(
