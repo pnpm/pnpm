@@ -8,4 +8,4 @@
 "@pnpm/matcher": minor
 ---
 
-Added support for exact version in `minimumReleaseAgeExclude` [[#9985](https://github.com/pnpm/pnpm/issues/9985)].
+Added support for exact version in `minimumReleaseAgeExclude` [#9985](https://github.com/pnpm/pnpm/issues/9985).
