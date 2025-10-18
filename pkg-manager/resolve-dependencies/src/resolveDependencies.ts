@@ -180,6 +180,7 @@ export interface ResolutionContext {
   hoistPeers?: boolean
   maximumPublishedBy?: Date
   minimumReleaseAgeExclude?: (pkgName: string) => boolean
+  attestationCheck?: boolean
 }
 
 export interface MissingPeerInfo {
@@ -1386,6 +1387,17 @@ async function resolveDependency (
       rawSpec: wantedDependency.bareSpecifier,
     },
   })
+
+  if (ctx.attestationCheck && pkgResponse.body.provenanceDowngraded) {
+    const pkgName = wantedDependency.alias ?? pkgResponse.body.manifest?.name ?? 'unknown'
+    const currentVersion = options.currentPkg?.version ?? 'unknown'
+    const targetVersion = pkgResponse.body.manifest?.version ?? 'unknown'
+
+    throw new PnpmError(
+      'ATTESTATION_DOWNGRADE',
+      `Provenance downgrade detected for "${pkgName}": ${currentVersion} → ${targetVersion}`
+    )
+  }
 
   if (ctx.allPreferredVersions && pkgResponse.body.manifest?.version) {
     if (!ctx.allPreferredVersions[pkgResponse.body.manifest.name]) {

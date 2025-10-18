@@ -167,6 +167,7 @@ export interface StrictInstallOptions {
   ci?: boolean
   minimumReleaseAge?: number
   minimumReleaseAgeExclude?: string[]
+  attestationCheck?: boolean
 }
 
 export type InstallOptions =

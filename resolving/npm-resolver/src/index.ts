@@ -43,6 +43,7 @@ import { fetchMetadataFromFromRegistry, type FetchMetadataFromFromRegistryOption
 import { workspacePrefToNpm } from './workspacePrefToNpm.js'
 import { whichVersionIsPinned } from './whichVersionIsPinned.js'
 import { pickVersionByVersionRange } from './pickPackageFromMeta.js'
+import { getProvenance } from './getProvenance.js'
 
 export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
@@ -101,6 +102,7 @@ export interface NpmResolveResult extends ResolveResult {
   manifest: DependencyManifest
   resolution: TarballResolution
   resolvedVia: 'npm-registry'
+  provenanceDowngraded?: boolean
 }
 
 export interface JsrResolveResult extends ResolveResult {
@@ -187,6 +189,7 @@ export type ResolveFromNpmOptions = {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
+  currentVersion?: string
 } & ({
   projectDir?: string
   workspacePackages?: undefined
@@ -261,6 +264,15 @@ async function resolveNpm (
   }
   const pickedPackage = pickResult.pickedPackage
   const meta = pickResult.meta
+
+  let provenanceDowngraded: boolean | undefined
+  if (opts.currentVersion && meta.versions[opts.currentVersion] && pickedPackage) {
+    const currentProvenance = getProvenance(meta.versions[opts.currentVersion])
+    const targetProvenance = getProvenance(pickedPackage)
+    provenanceDowngraded = !!(currentProvenance && !targetProvenance) ||
+      (currentProvenance === 'trustedPublisher' && targetProvenance === true)
+  }
+
   if (pickedPackage == null) {
     if ((workspacePackages != null) && opts.projectDir) {
       try {
@@ -354,6 +366,7 @@ async function resolveNpm (
     resolvedVia: 'npm-registry',
     publishedAt: meta.time?.[pickedPackage.version],
     normalizedBareSpecifier,
+    provenanceDowngraded,
   }
 }
 

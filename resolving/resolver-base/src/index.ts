@@ -74,6 +74,7 @@ export interface ResolveResult {
   resolvedVia: string
   normalizedBareSpecifier?: string
   alias?: string
+  provenanceDowngraded?: boolean
 }
 
 export interface WorkspacePackage {
@@ -118,6 +119,7 @@ export interface ResolveOptions {
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
   pinnedVersion?: PinnedVersion
+  currentVersion?: string
 }
 
 export type WantedDependency = {

@@ -182,6 +182,7 @@ async function resolveAndFetch (
   let updated = false
   let resolvedVia: string | undefined
   let publishedAt: string | undefined
+  let provenanceDowngraded: boolean | undefined
 
   // When fetching is skipped, resolution cannot be skipped.
   // We need the package's manifest when doing `lockfile-only` installs.
@@ -220,12 +221,14 @@ async function resolveAndFetch (
       injectWorkspacePackages: options.injectWorkspacePackages,
       calcSpecifier: options.calcSpecifier,
       pinnedVersion: options.pinnedVersion,
+      currentVersion: options.currentPkg?.version,
     }), { priority: options.downloadPriority })
 
     manifest = resolveResult.manifest
     latest = resolveResult.latest
     resolvedVia = resolveResult.resolvedVia
     publishedAt = resolveResult.publishedAt
+    provenanceDowngraded = resolveResult.provenanceDowngraded
 
     // If the integrity of a local tarball dependency has changed,
     // the local tarball should be unpacked, so a fetch to the store should be forced
@@ -292,6 +295,7 @@ async function resolveAndFetch (
         updated,
         publishedAt,
         alias,
+        provenanceDowngraded,
       },
     }
   }
@@ -330,6 +334,7 @@ async function resolveAndFetch (
       updated,
       publishedAt,
       alias,
+      provenanceDowngraded,
     },
     fetching: fetchResult.fetching,
     filesIndexFile: fetchResult.filesIndexFile,

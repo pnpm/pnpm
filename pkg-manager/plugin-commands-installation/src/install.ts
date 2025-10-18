@@ -11,6 +11,7 @@ import { installDeps, type InstallDepsOptions } from './installDeps.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
+    'attestation-check',
     'cache-dir',
     'child-concurrency',
     'cpu',
@@ -202,6 +203,10 @@ by any dependencies, so it is an emulation of a flat node_modules',
           {
             description: 'Fail on missing or invalid peer dependencies',
             name: '--strict-peer-dependencies',
+          },
+          {
+            description: 'Fail when package provenance is downgraded (e.g., from trusted publisher to standard provenance or no provenance)',
+            name: '--attestation-check',
           },
           {
             description: 'Starts a store server in the background. The store server will keep running after installation is done. To stop the store server, run `pnpm server stop`',
