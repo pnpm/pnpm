@@ -8,37 +8,51 @@ import renderHelp from 'render-help'
 import pick from 'ramda/src/pick'
 import { docsUrl } from '@pnpm/cli-utils'
 
-function processFolder (folderPath: string): string[] {
+async function validateAndGetPatchFiles (folderPath: string): Promise<string[]> {
   if (!fs.existsSync(folderPath)) {
     throw new PnpmError('FOLDER_NOT_FOUND', `Folder not found: ${folderPath}`)
   }
 
-  const stat = fs.statSync(folderPath)
+  const stat = await fs.promises.stat(folderPath)
   if (!stat.isDirectory()) {
     throw new PnpmError('NOT_A_DIRECTORY', `Path is not a directory: ${folderPath}`)
   }
 
-  const files = fs.readdirSync(folderPath)
-  const patchFiles = files.filter(file => file.endsWith('.patch'))
+  const files = await fs.promises.readdir(folderPath)
+  const patchFiles = files.filter((file: string) => file.endsWith('.patch'))
 
   if (patchFiles.length === 0) {
     throw new PnpmError('NO_PATCH_FILES', `No patch files found in directory: ${folderPath}`)
   }
 
-  return patchFiles.map(file => path.join(folderPath, file))
+  return patchFiles.map((file: string) => path.join(folderPath, file))
+}
+
+const NODE_MODULES_PATTERNS = [
+  'diff --git a/node_modules/',
+  '--- a/node_modules/',
+  '+++ b/node_modules/',
+] as const
+
+function needsConversion (content: string): boolean {
+  return NODE_MODULES_PATTERNS.some(pattern => content.includes(pattern))
+}
+
+function generateReplacePattern (patchFilePath: string): string {
+  const baseName = path.basename(patchFilePath)
+  const packageInfo = baseName.split('+').slice(0, -1).join('/')
+  return `/node_modules/${packageInfo}`.replace(/\\/g, '/')
 }
 
 async function convertContentAndFileName (patchFilePath: string): Promise<string> {
   const patchContent = await fs.promises.readFile(patchFilePath, 'utf8')
-  const shouldBeConverted = patchContent.includes('diff --git a/node_modules/') ||
-    patchContent.includes('--- a/node_modules/') ||
-    patchContent.includes('+++ b/node_modules/')
 
-  if (!shouldBeConverted) {
+  if (!needsConversion(patchContent)) {
     return ''
   }
-  const replaceStr = `/node_modules/${path.basename(patchFilePath).split('+').slice(0, -1).join('/')}`.replace(/\\/g, '/')
-  const convertedContent = patchContent.replace(new RegExp(replaceStr, 'g'), '')
+
+  const replacePattern = generateReplacePattern(patchFilePath)
+  const convertedContent = patchContent.replace(new RegExp(replacePattern, 'g'), '')
   const outputPath = convertPatchNameToPnpmFormat(patchFilePath)
 
   await fs.promises.writeFile(outputPath, convertedContent, 'utf8')
@@ -47,19 +61,20 @@ async function convertContentAndFileName (patchFilePath: string): Promise<string
 }
 
 function convertPatchNameToPnpmFormat (patchFileName: string): string {
-  const info = patchFileName.split('+')
-  const version = info.pop()
-  return info.join('__') + '@' + version
+  const parts = patchFileName.split('+')
+  const version = parts.pop()
+  return `${parts.join('__')}@${version}`
 }
 
 function convertedPathToPatchedDependencyKeyValue (convertedPath: string): [string, string] {
   const baseName = path.basename(convertedPath)
-  const patchesDir = convertedPath.replace(/\\/g, '/').replace(baseName, '').split('/').filter(Boolean).pop()!
+  const normalizedPath = convertedPath.replace(/\\/g, '/')
+  const patchesDir = path.dirname(normalizedPath).split('/').pop()!
   const key = baseName.replace(/\.patch$/, '').replace(/__/g, '/')
-  return [key, patchesDir + '/' + baseName]
+  return [key, `${patchesDir}/${baseName}`]
 }
 
-async function singlePatchFileConvert (patchFilePath: string): Promise<Array<[string, string]>> {
+function validatePatchFile (patchFilePath: string): void {
   if (!fs.existsSync(patchFilePath)) {
     throw new PnpmError('FILE_NOT_FOUND', `Patch file not found: ${patchFilePath}`)
   }
@@ -69,27 +84,37 @@ async function singlePatchFileConvert (patchFilePath: string): Promise<Array<[st
   if (!patchFilePath.includes('+')) {
     throw new PnpmError('INVALID_PATCH_FILE_NAME', `Invalid patch file name: expected '+' in the file name (e.g. pkg+1.0.0.patch): ${patchFilePath}`)
   }
-  const covertName = convertPatchNameToPnpmFormat(path.basename(patchFilePath))
-  const outputPath = path.join(path.dirname(patchFilePath), covertName)
+}
+
+function checkOutputExists (patchFilePath: string): void {
+  const convertedName = convertPatchNameToPnpmFormat(path.basename(patchFilePath))
+  const outputPath = path.join(path.dirname(patchFilePath), convertedName)
   if (fs.existsSync(outputPath)) {
-    throw new PnpmError('PATCH_ALREADY_EXISTS', `Converted patch file already exists: ${covertName}`)
+    throw new PnpmError('PATCH_ALREADY_EXISTS', `Converted patch file already exists: ${convertedName}`)
   }
-  const output = await convertContentAndFileName(patchFilePath)
-  return output ? [convertedPathToPatchedDependencyKeyValue(output)] : []
+}
+
+async function convertSinglePatchFile (patchFilePath: string): Promise<Array<[string, string]>> {
+  validatePatchFile(patchFilePath)
+  checkOutputExists(patchFilePath)
+
+  const convertedPath = await convertContentAndFileName(patchFilePath)
+  return convertedPath ? [convertedPathToPatchedDependencyKeyValue(convertedPath)] : []
 }
 
 async function convertPatchFile (patchPath: string): Promise<Array<[string, string]>> {
   if (!fs.existsSync(patchPath)) {
     throw new PnpmError('PATH_NOT_FOUND', `Path not found: ${patchPath}`)
   }
+
   const stat = await fs.promises.stat(patchPath)
-  let patchFiles: string[]
 
   if (stat.isDirectory()) {
-    patchFiles = processFolder(patchPath)
-    return (await Promise.all(patchFiles.map(convertContentAndFileName))).filter(Boolean).map(convertedPathToPatchedDependencyKeyValue)
+    const patchFiles = await validateAndGetPatchFiles(patchPath)
+    const convertedPaths = await Promise.all(patchFiles.map(convertContentAndFileName))
+    return convertedPaths.filter(Boolean).map(convertedPathToPatchedDependencyKeyValue)
   } else {
-    return singlePatchFileConvert(patchPath)
+    return convertSinglePatchFile(patchPath)
   }
 }
 
@@ -98,7 +123,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 }
 
 export function cliOptionsTypes (): Record<string, unknown> {
-  return { ...rcOptionsTypes() }
+  return rcOptionsTypes()
 }
 
 export function help (): string {
@@ -113,21 +138,28 @@ export function help (): string {
 }
 
 export type PatchConvertCommandOptions = install.InstallCommandOptions & Pick<Config, 'dir' | 'lockfileDir' | 'patchesDir' | 'rootProjectManifest' | 'patchedDependencies'>
+function resolvePatchesPath (opts: PatchConvertCommandOptions, params: string[]): string {
+  const basePath = opts.dir ?? process.cwd()
+  const patchPath = params[0] ?? opts.patchesDir ?? './patches'
+  return path.join(basePath, patchPath).replace(/\\/g, '/')
+}
+
 export async function handler (
   opts: PatchConvertCommandOptions,
   params: string[]
 ): Promise<void> {
-  const patchesPath = path.join(opts.dir ?? process.cwd(), params[0] ?? opts.patchesDir ?? './patches').replace(/\\/g, '/')
-  const pkgConvertedFiles = await convertPatchFile(patchesPath)
-  if (!pkgConvertedFiles.length) {
+  const patchesPath = resolvePatchesPath(opts, params)
+  const convertedFiles = await convertPatchFile(patchesPath)
+
+  if (convertedFiles.length === 0) {
     return
   }
-  const patchedDependencies = opts.patchedDependencies ?? {}
-  if (Array.isArray(pkgConvertedFiles) && pkgConvertedFiles.length) {
-    pkgConvertedFiles.forEach(([key, value]) => {
-      patchedDependencies[key] = value
-    })
+
+  const patchedDependencies = { ...opts.patchedDependencies }
+  for (const [key, value] of convertedFiles) {
+    patchedDependencies[key] = value
   }
+
   await updatePatchedDependencies(patchedDependencies, {
     ...opts,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
