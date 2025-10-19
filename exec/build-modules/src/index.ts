@@ -23,7 +23,7 @@ export async function buildModules<T extends string> (
   depGraph: DependenciesGraph<T>,
   rootDepPaths: T[],
   opts: {
-    allowBuild?: (pkgName: string) => boolean
+    allowBuild?: (pkgName: string, version: string) => boolean
     ignorePatchFailures?: boolean
     ignoredBuiltDependencies?: string[]
     childConcurrency?: number
@@ -76,7 +76,7 @@ export async function buildModules<T extends string> (
       () => {
         let ignoreScripts = Boolean(buildDepOpts.ignoreScripts)
         if (!ignoreScripts) {
-          if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].name)) {
+          if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].name, depGraph[depPath].version)) {
             ignoredPkgs.add(depGraph[depPath].name)
             ignoreScripts = true
           }

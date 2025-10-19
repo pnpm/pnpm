@@ -32,6 +32,7 @@ export interface DependenciesGraphNode {
   hasBundledDependencies: boolean
   modules: string
   name: string
+  version: string
   fetching?: () => Promise<PkgRequestFetchResult>
   forceImportPackage?: boolean // Used to force re-imports from the store of local tarballs that have changed.
   dir: string
@@ -255,6 +256,7 @@ async function buildGraphFromPackages (
         hasBundledDependencies: pkgSnapshot.bundledDependencies != null,
         modules,
         name: pkgName,
+        version: pkgVersion,
         optional: !!pkgSnapshot.optional,
         optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
         patch: _getPatchInfo(pkgName, pkgVersion),

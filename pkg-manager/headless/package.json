@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:*",
-    "@pnpm/builder.policy": "catalog:",
+    "@pnpm/builder.policy": "workspace:*",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
