@@ -3,6 +3,7 @@ import {
   type DependencyManifest,
   type PkgResolutionId,
   type PinnedVersion,
+  type PackageVersionPolicy,
 } from '@pnpm/types'
 
 export { type PkgResolutionId }
@@ -110,6 +111,7 @@ export interface ResolveOptions {
   defaultTag?: string
   pickLowestVersion?: boolean
   publishedBy?: Date
+  publishedByExclude?: PackageVersionPolicy
   projectDir: string
   lockfileDir: string
   preferredVersions: PreferredVersions

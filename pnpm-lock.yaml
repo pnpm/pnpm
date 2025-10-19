@@ -1803,13 +1803,25 @@ importers:
 
   config/matcher:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       escape-string-regexp:
         specifier: 'catalog:'
         version: 4.0.0
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.1
     devDependencies:
       '@pnpm/matcher':
         specifier: workspace:*
         version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
 
   config/normalize-registries:
     dependencies:

@@ -20,7 +20,7 @@ import {
   type WorkspacePackages,
   type WorkspacePackagesByVersion,
 } from '@pnpm/resolver-base'
-import { type DependencyManifest, type Registries, type PinnedVersion } from '@pnpm/types'
+import { type DependencyManifest, type Registries, type PinnedVersion, type PackageVersionPolicy } from '@pnpm/types'
 import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'
@@ -180,6 +180,7 @@ export type ResolveFromNpmOptions = {
   alwaysTryWorkspacePackages?: boolean
   defaultTag?: string
   publishedBy?: Date
+  publishedByExclude?: PackageVersionPolicy
   pickLowestVersion?: boolean
   dryRun?: boolean
   lockfileDir?: string
@@ -237,6 +238,7 @@ async function resolveNpm (
     pickResult = await ctx.pickPackage(spec, {
       pickLowestVersion: opts.pickLowestVersion,
       publishedBy: opts.publishedBy,
+      publishedByExclude: opts.publishedByExclude,
       authHeaderValue,
       dryRun: opts.dryRun === true,
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],

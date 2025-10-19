@@ -39,6 +39,7 @@ import {
   type Registries,
   type PkgIdWithPatchHash,
   type PinnedVersion,
+  type PackageVersionPolicy,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
@@ -179,7 +180,7 @@ export interface ResolutionContext {
   missingPeersOfChildrenByPkgId: Record<PkgResolutionId, { depth: number, missingPeersOfChildren: MissingPeersOfChildren }>
   hoistPeers?: boolean
   maximumPublishedBy?: Date
-  minimumReleaseAgeExclude?: (pkgName: string) => boolean
+  publishedByExclude?: PackageVersionPolicy
   attestationCheck?: boolean
 }
 
@@ -1308,17 +1309,6 @@ async function resolveDependency (
     if (!options.updateRequested && options.preferredVersion != null) {
       wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, options.preferredVersion)
     }
-    let publishedBy: Date | undefined
-    if (
-      options.publishedBy &&
-      (
-        ctx.minimumReleaseAgeExclude == null ||
-        wantedDependency.alias == null ||
-        !ctx.minimumReleaseAgeExclude(wantedDependency.alias)
-      )
-    ) {
-      publishedBy = options.publishedBy
-    }
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
       currentPkg: currentPkg
@@ -1332,7 +1322,8 @@ async function resolveDependency (
       expectedPkg: currentPkg,
       defaultTag: ctx.defaultTag,
       ignoreScripts: ctx.ignoreScripts,
-      publishedBy,
+      publishedBy: options.publishedBy,
+      publishedByExclude: ctx.publishedByExclude,
       pickLowestVersion: options.pickLowestVersion,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,

@@ -211,6 +211,7 @@ async function resolveAndFetch (
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
       publishedBy: options.publishedBy,
+      publishedByExclude: options.publishedByExclude,
       pickLowestVersion: options.pickLowestVersion,
       lockfileDir: options.lockfileDir,
       preferredVersions,
