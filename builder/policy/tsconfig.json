@@ -11,6 +11,9 @@
   "references": [
     {
       "path": "../../config/matcher"
+    },
+    {
+      "path": "../../packages/types"
     }
   ]
 }

@@ -24,6 +24,7 @@ import {
 import { type StoreController, type TarballResolution } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import {
+  type AllowBuild,
   type DepPath,
   type HoistedDependencies,
   type Registries,
@@ -43,7 +44,7 @@ import { type ImporterToUpdate } from './index.js'
 const brokenModulesLogger = logger('_broken_node_modules')
 
 export interface LinkPackagesOptions {
-  allowBuild?: (pkgName: string, version: string) => boolean
+  allowBuild?: AllowBuild
   currentLockfile: LockfileObject
   dedupeDirectDeps: boolean
   dependenciesByProjectId: Record<string, Map<string, DepPath>>
@@ -318,7 +319,7 @@ function resolvePath (where: string, spec: string): string {
 }
 
 interface LinkNewPackagesOptions {
-  allowBuild?: (pkgName: string, version: string) => boolean
+  allowBuild?: AllowBuild
   depsStateCache: DepsStateCache
   disableRelinkLocalDirDeps?: boolean
   force: boolean
@@ -451,7 +452,7 @@ async function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
-    allowBuild?: (pkgName: string, version: string) => boolean
+    allowBuild?: AllowBuild
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean

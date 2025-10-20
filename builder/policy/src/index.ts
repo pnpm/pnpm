@@ -1,3 +1,4 @@
+import { type AllowBuild } from '@pnpm/types'
 import { expandPackageVersionSpecs } from '@pnpm/matcher'
 import fs from 'fs'
 
@@ -7,7 +8,7 @@ export function createAllowBuildFunction (
     onlyBuiltDependencies?: string[]
     onlyBuiltDependenciesFile?: string
   }
-): undefined | ((pkgName: string, version: string) => boolean) {
+): undefined | AllowBuild {
   if (opts.onlyBuiltDependenciesFile != null || opts.onlyBuiltDependencies != null) {
     const onlyBuiltDeps = opts.onlyBuiltDependencies ?? []
     if (opts.onlyBuiltDependenciesFile) {

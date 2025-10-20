@@ -1232,6 +1232,9 @@ importers:
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
     devDependencies:
       '@pnpm/builder.policy':
         specifier: workspace:*

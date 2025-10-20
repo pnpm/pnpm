@@ -19,6 +19,7 @@ import pLimit from 'p-limit'
 import difference from 'ramda/src/difference'
 import isEmpty from 'ramda/src/isEmpty'
 import rimraf from '@zkochan/rimraf'
+import { type AllowBuild } from '@pnpm/types'
 
 const limitLinking = pLimit(16)
 
@@ -28,7 +29,7 @@ export async function linkHoistedModules (
   prevGraph: DependenciesGraph,
   hierarchy: DepHierarchy,
   opts: {
-    allowBuild?: (pkgName: string, version: string) => boolean
+    allowBuild?: AllowBuild
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
     force: boolean
@@ -88,7 +89,7 @@ async function linkAllPkgsInOrder (
   hierarchy: DepHierarchy,
   parentDir: string,
   opts: {
-    allowBuild?: (pkgName: string, version: string) => boolean
+    allowBuild?: AllowBuild
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
     force: boolean

@@ -31,7 +31,8 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/matcher": "workspace:*"
+    "@pnpm/matcher": "workspace:*",
+    "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/builder.policy": "workspace:*"

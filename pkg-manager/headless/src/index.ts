@@ -59,6 +59,7 @@ import {
 } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import {
+  type AllowBuild,
   type DepPath,
   type DependencyManifest,
   type HoistedDependencies,
@@ -853,7 +854,7 @@ async function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
-    allowBuild?: (pkgName: string, version: string) => boolean
+    allowBuild?: AllowBuild
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
