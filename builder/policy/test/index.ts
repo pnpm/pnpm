@@ -14,12 +14,15 @@ it('should neverBuiltDependencies', () => {
 
 it('should onlyBuiltDependencies', () => {
   const allowBuild = createAllowBuildFunction({
-    onlyBuiltDependencies: ['foo'],
+    onlyBuiltDependencies: ['foo', 'qar@1.0.0 || 2.0.0'],
   })
   expect(typeof allowBuild).toBe('function')
   if (allowBuild) {
     expect(allowBuild('foo', '1.0.0')).toBeTruthy()
     expect(allowBuild('bar', '1.0.0')).toBeFalsy()
+    expect(allowBuild('qar', '1.1.0')).toBeFalsy()
+    expect(allowBuild('qar', '1.0.0')).toBeTruthy()
+    expect(allowBuild('qar', '2.0.0')).toBeTruthy()
   }
 })
 
