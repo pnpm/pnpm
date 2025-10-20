@@ -7,8 +7,8 @@ it('should neverBuiltDependencies', () => {
   })
   expect(typeof allowBuild).toBe('function')
   if (allowBuild) {
-    expect(allowBuild('foo')).toBeFalsy()
-    expect(allowBuild('bar')).toBeTruthy()
+    expect(allowBuild('foo', '1.0.0')).toBeFalsy()
+    expect(allowBuild('bar', '1.0.0')).toBeTruthy()
   }
 })
 
@@ -18,8 +18,8 @@ it('should onlyBuiltDependencies', () => {
   })
   expect(typeof allowBuild).toBe('function')
   if (allowBuild) {
-    expect(allowBuild('foo')).toBeTruthy()
-    expect(allowBuild('bar')).toBeFalsy()
+    expect(allowBuild('foo', '1.0.0')).toBeTruthy()
+    expect(allowBuild('bar', '1.0.0')).toBeFalsy()
   }
 })
 
@@ -29,9 +29,9 @@ it('should onlyBuiltDependencies set via a file', () => {
   })
   expect(typeof allowBuild).toBe('function')
   if (allowBuild) {
-    expect(allowBuild('zoo')).toBeTruthy()
-    expect(allowBuild('qar')).toBeTruthy()
-    expect(allowBuild('bar')).toBeFalsy()
+    expect(allowBuild('zoo', '1.0.0')).toBeTruthy()
+    expect(allowBuild('qar', '1.0.0')).toBeTruthy()
+    expect(allowBuild('bar', '1.0.0')).toBeFalsy()
   }
 })
 
@@ -42,14 +42,13 @@ it('should onlyBuiltDependencies set via a file and config', () => {
   })
   expect(typeof allowBuild).toBe('function')
   if (allowBuild) {
-    expect(allowBuild('zoo')).toBeTruthy()
-    expect(allowBuild('qar')).toBeTruthy()
-    expect(allowBuild('bar')).toBeTruthy()
-    expect(allowBuild('esbuild')).toBeFalsy()
+    expect(allowBuild('zoo', '1.0.0')).toBeTruthy()
+    expect(allowBuild('qar', '1.0.0')).toBeTruthy()
+    expect(allowBuild('bar', '1.0.0')).toBeTruthy()
+    expect(allowBuild('esbuild', '1.0.0')).toBeFalsy()
   }
 })
 
 it('should return undefined if no policy is set', () => {
   expect(createAllowBuildFunction({})).toBeUndefined()
 })
-

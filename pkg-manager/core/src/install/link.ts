@@ -43,7 +43,7 @@ import { type ImporterToUpdate } from './index.js'
 const brokenModulesLogger = logger('_broken_node_modules')
 
 export interface LinkPackagesOptions {
-  allowBuild?: (pkgName: string) => boolean
+  allowBuild?: (pkgName: string, version: string) => boolean
   currentLockfile: LockfileObject
   dedupeDirectDeps: boolean
   dependenciesByProjectId: Record<string, Map<string, DepPath>>
@@ -318,7 +318,7 @@ function resolvePath (where: string, spec: string): string {
 }
 
 interface LinkNewPackagesOptions {
-  allowBuild?: (pkgName: string) => boolean
+  allowBuild?: (pkgName: string, version: string) => boolean
   depsStateCache: DepsStateCache
   disableRelinkLocalDirDeps?: boolean
   force: boolean
@@ -451,7 +451,7 @@ async function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
-    allowBuild?: (pkgName: string) => boolean
+    allowBuild?: (pkgName: string, version: string) => boolean
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
@@ -468,7 +468,7 @@ async function linkAllPkgs (
       depNode.requiresBuild = files.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && files.sideEffects && !isEmpty(files.sideEffects)) {
-        if (opts?.allowBuild?.(depNode.name) !== false) {
+        if (opts?.allowBuild?.(depNode.name, depNode.version) !== false) {
           sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
             includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
             patchFileHash: depNode.patch?.file.hash,

@@ -11,12 +11,6 @@
   "references": [
     {
       "path": "../../config/matcher"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/types"
     }
   ]
 }

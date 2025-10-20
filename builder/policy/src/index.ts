@@ -1,3 +1,4 @@
+import { expandPackageVersionSpecs } from '@pnpm/matcher'
 import fs from 'fs'
 
 export function createAllowBuildFunction (
@@ -6,14 +7,14 @@ export function createAllowBuildFunction (
     onlyBuiltDependencies?: string[]
     onlyBuiltDependenciesFile?: string
   }
-): undefined | ((pkgName: string) => boolean) {
-  if (opts.onlyBuiltDependenciesFile || opts.onlyBuiltDependencies != null) {
+): undefined | ((pkgName: string, version: string) => boolean) {
+  if (opts.onlyBuiltDependenciesFile != null || opts.onlyBuiltDependencies != null) {
     const onlyBuiltDeps = opts.onlyBuiltDependencies ?? []
     if (opts.onlyBuiltDependenciesFile) {
       onlyBuiltDeps.push(...JSON.parse(fs.readFileSync(opts.onlyBuiltDependenciesFile, 'utf8')))
     }
-    const onlyBuiltDependencies = new Set(onlyBuiltDeps)
-    return (pkgName) => onlyBuiltDependencies.has(pkgName)
+    const onlyBuiltDependencies = expandPackageVersionSpecs(onlyBuiltDeps)
+    return (pkgName, version) => onlyBuiltDependencies.has(pkgName) || onlyBuiltDependencies.has(`${pkgName}@${version}`)
   }
   if (opts.neverBuiltDependencies != null && opts.neverBuiltDependencies.length > 0) {
     const neverBuiltDependencies = new Set(opts.neverBuiltDependencies)
@@ -21,4 +22,3 @@ export function createAllowBuildFunction (
   }
   return undefined
 }
-
