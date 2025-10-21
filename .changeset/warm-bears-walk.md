@@ -2,4 +2,4 @@
 "@pnpm/matcher": minor
 ---
 
-Implemented `createPackageVersionPolicy` function.
+Export Matcher and MatcherWithIndex.
