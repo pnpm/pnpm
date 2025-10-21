@@ -1,5 +1,5 @@
 import { type AllowBuild } from '@pnpm/types'
-import { expandPackageVersionSpecs } from '@pnpm/matcher'
+import { expandPackageVersionSpecs } from '@pnpm/config.version-policy'
 import fs from 'fs'
 
 export function createAllowBuildFunction (

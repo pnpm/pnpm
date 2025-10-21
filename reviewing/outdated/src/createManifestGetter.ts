@@ -3,7 +3,7 @@ import {
   createResolver,
   type ResolveFunction,
 } from '@pnpm/client'
-import { createPackageVersionPolicy } from '@pnpm/matcher'
+import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
 import { type PackageVersionPolicy, type DependencyManifest } from '@pnpm/types'
 
 interface GetManifestOpts {

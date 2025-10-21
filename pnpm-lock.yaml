@@ -1229,9 +1229,9 @@ importers:
 
   builder/policy:
     dependencies:
-      '@pnpm/matcher':
+      '@pnpm/config.version-policy':
         specifier: workspace:*
-        version: link:../../config/matcher
+        version: link:../../config/version-policy
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1813,25 +1813,13 @@ importers:
 
   config/matcher:
     dependencies:
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       escape-string-regexp:
         specifier: 'catalog:'
         version: 4.0.0
-      semver:
-        specifier: 'catalog:'
-        version: 7.7.1
     devDependencies:
       '@pnpm/matcher':
         specifier: workspace:*
         version: 'link:'
-      '@types/semver':
-        specifier: 'catalog:'
-        version: 7.5.3
 
   config/normalize-registries:
     dependencies:
@@ -1987,6 +1975,28 @@ importers:
       read-yaml-file:
         specifier: 'catalog:'
         version: 2.1.0
+
+  config/version-policy:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/matcher':
+        specifier: workspace:*
+        version: link:../matcher
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.1
+    devDependencies:
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
 
   crypto/hash:
     dependencies:
@@ -6046,6 +6056,9 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: link:../../config/version-policy
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
@@ -6073,9 +6086,6 @@ importers:
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
-      '@pnpm/matcher':
-        specifier: workspace:*
-        version: link:../../config/matcher
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
@@ -7578,6 +7588,9 @@ importers:
       '@pnpm/client':
         specifier: workspace:*
         version: link:../../pkg-manager/client
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: link:../../config/version-policy
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
