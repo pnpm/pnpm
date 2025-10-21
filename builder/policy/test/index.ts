@@ -6,10 +6,8 @@ it('should neverBuiltDependencies', () => {
     neverBuiltDependencies: ['foo'],
   })
   expect(typeof allowBuild).toBe('function')
-  if (allowBuild) {
-    expect(allowBuild('foo', '1.0.0')).toBeFalsy()
-    expect(allowBuild('bar', '1.0.0')).toBeTruthy()
-  }
+  expect(allowBuild!('foo', '1.0.0')).toBeFalsy()
+  expect(allowBuild!('bar', '1.0.0')).toBeTruthy()
 })
 
 it('should onlyBuiltDependencies', () => {
@@ -17,13 +15,19 @@ it('should onlyBuiltDependencies', () => {
     onlyBuiltDependencies: ['foo', 'qar@1.0.0 || 2.0.0'],
   })
   expect(typeof allowBuild).toBe('function')
-  if (allowBuild) {
-    expect(allowBuild('foo', '1.0.0')).toBeTruthy()
-    expect(allowBuild('bar', '1.0.0')).toBeFalsy()
-    expect(allowBuild('qar', '1.1.0')).toBeFalsy()
-    expect(allowBuild('qar', '1.0.0')).toBeTruthy()
-    expect(allowBuild('qar', '2.0.0')).toBeTruthy()
-  }
+  expect(allowBuild!('foo', '1.0.0')).toBeTruthy()
+  expect(allowBuild!('bar', '1.0.0')).toBeFalsy()
+  expect(allowBuild!('qar', '1.1.0')).toBeFalsy()
+  expect(allowBuild!('qar', '1.0.0')).toBeTruthy()
+  expect(allowBuild!('qar', '2.0.0')).toBeTruthy()
+})
+
+it('should not allow patterns in onlyBuiltDependencies', () => {
+  const allowBuild = createAllowBuildFunction({
+    onlyBuiltDependencies: ['is-*'],
+  })
+  expect(typeof allowBuild).toBe('function')
+  expect(allowBuild!('is-odd', '1.0.0')).toBeFalsy()
 })
 
 it('should onlyBuiltDependencies set via a file', () => {
@@ -31,11 +35,9 @@ it('should onlyBuiltDependencies set via a file', () => {
     onlyBuiltDependenciesFile: path.join(__dirname, 'onlyBuild.json'),
   })
   expect(typeof allowBuild).toBe('function')
-  if (allowBuild) {
-    expect(allowBuild('zoo', '1.0.0')).toBeTruthy()
-    expect(allowBuild('qar', '1.0.0')).toBeTruthy()
-    expect(allowBuild('bar', '1.0.0')).toBeFalsy()
-  }
+  expect(allowBuild!('zoo', '1.0.0')).toBeTruthy()
+  expect(allowBuild!('qar', '1.0.0')).toBeTruthy()
+  expect(allowBuild!('bar', '1.0.0')).toBeFalsy()
 })
 
 it('should onlyBuiltDependencies set via a file and config', () => {
@@ -44,12 +46,10 @@ it('should onlyBuiltDependencies set via a file and config', () => {
     onlyBuiltDependenciesFile: path.join(__dirname, 'onlyBuild.json'),
   })
   expect(typeof allowBuild).toBe('function')
-  if (allowBuild) {
-    expect(allowBuild('zoo', '1.0.0')).toBeTruthy()
-    expect(allowBuild('qar', '1.0.0')).toBeTruthy()
-    expect(allowBuild('bar', '1.0.0')).toBeTruthy()
-    expect(allowBuild('esbuild', '1.0.0')).toBeFalsy()
-  }
+  expect(allowBuild!('zoo', '1.0.0')).toBeTruthy()
+  expect(allowBuild!('qar', '1.0.0')).toBeTruthy()
+  expect(allowBuild!('bar', '1.0.0')).toBeTruthy()
+  expect(allowBuild!('esbuild', '1.0.0')).toBeFalsy()
 })
 
 it('should return undefined if no policy is set', () => {
