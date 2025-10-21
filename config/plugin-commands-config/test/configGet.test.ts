@@ -1,13 +1,11 @@
 import path from 'path'
 import * as ini from 'ini'
 import { config } from '@pnpm/plugin-commands-config'
-import { getOutputString } from './utils/index.js'
+import { getOutputString, DEFAULT_OPTS } from './utils/index.js'
 
 test('config get', async () => {
   const getResult = await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir: process.cwd(),
+    ...DEFAULT_OPTS,
     global: true,
     rawConfig: {
       'store-dir': '~/store',
@@ -19,9 +17,7 @@ test('config get', async () => {
 
 test('config get works with camelCase', async () => {
   const getResult = await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir: process.cwd(),
+    ...DEFAULT_OPTS,
     global: true,
     rawConfig: {
       'store-dir': '~/store',
@@ -33,9 +29,7 @@ test('config get works with camelCase', async () => {
 
 test('config get a boolean should return string format', async () => {
   const getResult = await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir: process.cwd(),
+    ...DEFAULT_OPTS,
     global: true,
     rawConfig: {
       'update-notifier': true,
@@ -47,9 +41,7 @@ test('config get a boolean should return string format', async () => {
 
 test('config get on array should return a comma-separated list', async () => {
   const getResult = await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir: process.cwd(),
+    ...DEFAULT_OPTS,
     global: true,
     rawConfig: {
       'public-hoist-pattern': [
@@ -64,9 +56,7 @@ test('config get on array should return a comma-separated list', async () => {
 
 test('config get on object should return an ini string', async () => {
   const getResult = await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir: process.cwd(),
+    ...DEFAULT_OPTS,
     global: true,
     rawConfig: {
       catalog: {
@@ -84,17 +74,13 @@ test('config get without key show list all settings ', async () => {
     'fetch-retries': '2',
   }
   const getOutput = await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir: process.cwd(),
+    ...DEFAULT_OPTS,
     global: true,
     rawConfig,
   }, ['get'])
 
   const listOutput = await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir: process.cwd(),
+    ...DEFAULT_OPTS,
     rawConfig,
   }, ['list'])
 
@@ -130,9 +116,7 @@ describe('config get with a property path', () => {
       ['packageExtensions["jest-circus"].dependencies.slash', rawConfig['package-extensions']['jest-circus'].dependencies.slash],
     ] as Array<[string, unknown]>)('%s', async (propertyPath, expected) => {
       const getResult = await config.handler({
-        dir: process.cwd(),
-        cliOptions: {},
-        configDir: process.cwd(),
+        ...DEFAULT_OPTS,
         global: true,
         json: true,
         rawConfig,
@@ -152,9 +136,7 @@ describe('config get with a property path', () => {
       ['packageExtensions["jest-circus"].dependencies', rawConfig['package-extensions']['jest-circus'].dependencies],
     ] as Array<[string, unknown]>)('%s', async (propertyPath, expected) => {
       const getResult = await config.handler({
-        dir: process.cwd(),
-        cliOptions: {},
-        configDir: process.cwd(),
+        ...DEFAULT_OPTS,
         global: true,
         rawConfig,
       }, ['get', propertyPath])
@@ -169,9 +151,7 @@ describe('config get with a property path', () => {
       ['packageExtensions["jest-circus"].dependencies.slash', rawConfig['package-extensions']['jest-circus'].dependencies.slash],
     ] as Array<[string, string]>)('%s', async (propertyPath, expected) => {
       const getResult = await config.handler({
-        dir: process.cwd(),
-        cliOptions: {},
-        configDir: process.cwd(),
+        ...DEFAULT_OPTS,
         global: true,
         rawConfig,
       }, ['get', propertyPath])
@@ -183,9 +163,7 @@ describe('config get with a property path', () => {
 
 test('config get with scoped registry key (global: false)', async () => {
   const getResult = await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir: process.cwd(),
+    ...DEFAULT_OPTS,
     global: false,
     rawConfig: {
       '@scope:registry': 'https://custom-registry.example.com/',
@@ -197,9 +175,7 @@ test('config get with scoped registry key (global: false)', async () => {
 
 test('config get with scoped registry key (global: true)', async () => {
   const getResult = await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir: process.cwd(),
+    ...DEFAULT_OPTS,
     global: true,
     rawConfig: {
       '@scope:registry': 'https://custom-registry.example.com/',
@@ -211,9 +187,7 @@ test('config get with scoped registry key (global: true)', async () => {
 
 test('config get with scoped registry key that does not exist', async () => {
   const getResult = await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
-    configDir: process.cwd(),
+    ...DEFAULT_OPTS,
     global: false,
     rawConfig: {},
   }, ['get', '@scope:registry'])
@@ -222,16 +196,16 @@ test('config get with scoped registry key that does not exist', async () => {
 })
 
 test('config get globalconfig', async () => {
-  // configDir is normally set by getConfigDir() in production.
-  // Here we just verify that 'rc' is appended to whatever configDir value is provided.
+  // globalconfig is set to configDir/rc in getConfig
   const configDir = process.cwd()
+  const expectedGlobalconfigPath = path.join(configDir, 'rc')
   const getResult = await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
+    ...DEFAULT_OPTS,
     configDir,
     global: true,
+    globalconfig: expectedGlobalconfigPath,
     rawConfig: {},
   }, ['get', 'globalconfig'])
 
-  expect(getOutputString(getResult)).toBe(path.join(configDir, 'rc'))
+  expect(getOutputString(getResult)).toBe(expectedGlobalconfigPath)
 })

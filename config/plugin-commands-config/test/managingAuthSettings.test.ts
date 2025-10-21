@@ -1,6 +1,7 @@
 import { config } from '@pnpm/plugin-commands-config'
 import { runNpm } from '@pnpm/run-npm'
 import { jest } from '@jest/globals'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 jest.mock('@pnpm/run-npm', () => ({
   runNpm: jest.fn(),
@@ -19,10 +20,8 @@ describe.each(
 )('settings related to auth are handled by npm CLI', (key) => {
   describe('without --json', () => {
     const configOpts = {
-      dir: process.cwd(),
-      cliOptions: {},
+      ...DEFAULT_OPTS,
       configDir: __dirname, // this doesn't matter, it won't be used
-      rawConfig: {},
     }
     it(`should set ${key}`, async () => {
       await config.handler(configOpts, ['set', `${key}=123`])
@@ -36,11 +35,9 @@ describe.each(
 
   describe('with --json', () => {
     const configOpts = {
+      ...DEFAULT_OPTS,
       json: true,
-      dir: process.cwd(),
-      cliOptions: {},
       configDir: __dirname, // this doesn't matter, it won't be used
-      rawConfig: {},
     }
     it(`should set ${key}`, async () => {
       await config.handler(configOpts, ['set', key, '"123"'])
@@ -65,11 +62,9 @@ describe.each(
   ]
 )('non-string values should be rejected', (key) => {
   const configOpts = {
+    ...DEFAULT_OPTS,
     json: true,
-    dir: process.cwd(),
-    cliOptions: {},
     configDir: __dirname, // this doesn't matter, it won't be used
-    rawConfig: {},
   }
   it(`${key} should reject a non-string value`, async () => {
     await expect(config.handler(configOpts, ['set', key, '{}'])).rejects.toMatchObject({
@@ -85,10 +80,8 @@ describe.each(
   ]
 )('%p is handled by npm CLI', (propertyPath) => {
   const configOpts = {
-    dir: process.cwd(),
-    cliOptions: {},
+    ...DEFAULT_OPTS,
     configDir: __dirname, // this doesn't matter, it won't be used
-    rawConfig: {},
   }
   it('should set _auth', async () => {
     await config.handler(configOpts, ['set', propertyPath, '123'])

@@ -3,6 +3,7 @@ import path from 'path'
 import { tempDir } from '@pnpm/prepare'
 import { config } from '@pnpm/plugin-commands-config'
 import { readIniFileSync } from 'read-ini-file'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 test('config delete', async () => {
   const tmp = tempDir()
@@ -12,11 +13,9 @@ test('config delete', async () => {
 cache-dir=~/cache`)
 
   await config.handler({
-    dir: process.cwd(),
-    cliOptions: {},
+    ...DEFAULT_OPTS,
     configDir,
     global: true,
-    rawConfig: {},
   }, ['delete', 'store-dir'])
 
   expect(readIniFileSync(path.join(configDir, 'rc'))).toEqual({

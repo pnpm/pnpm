@@ -1,4 +1,3 @@
-import path from 'path'
 import kebabCase from 'lodash.kebabcase'
 import { encode } from 'ini'
 import { globalWarn } from '@pnpm/logger'
@@ -11,7 +10,7 @@ import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
   if (key === 'globalconfig') {
-    return { output: path.join(opts.configDir, 'rc'), exitCode: 0 }
+    return { output: opts.globalconfig, exitCode: 0 }
   }
 
   const isScopedKey = key.startsWith('@')
