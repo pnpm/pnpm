@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/pkg-manager.direct-dep-linker",
-  "version": "1000.0.11",
+  "version": "1000.0.12",
   "description": "Fast installation using only pnpm-lock.yaml",
   "keywords": [
     "pnpm",

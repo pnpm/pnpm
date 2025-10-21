@@ -1,5 +1,15 @@
 # @pnpm/registry.pkg-metadata-filter
 
+## 1000.1.0
+
+### Minor Changes
+
+- 7c1382f: Allow excluding certain trusted versions from the date check.
+
+### Patch Changes
+
+- @pnpm/registry.types@1000.0.1
+
 ## 1000.0.0
 
 ### Major Changes

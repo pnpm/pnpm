@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.find-packages",
-  "version": "1000.0.16",
+  "version": "1000.0.17",
   "description": "Find all packages inside a directory",
   "keywords": [
     "pnpm",

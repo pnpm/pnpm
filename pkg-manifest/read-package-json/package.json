@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-package-json",
-  "version": "1000.1.1",
+  "version": "1000.1.2",
   "description": "Read a package.json",
   "keywords": [
     "pnpm",

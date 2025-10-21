@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/matcher",
-  "version": "1000.0.0",
+  "version": "1000.1.0",
   "description": "A simple pattern matcher for pnpm",
   "keywords": [
     "pnpm",

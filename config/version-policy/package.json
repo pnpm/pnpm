@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.version-policy",
-  "version": "1000.0.0-0",
+  "version": "1000.0.0",
   "description": "Parses and evaluates package version policy specs and produces package-version matchers",
   "keywords": [
     "pnpm",

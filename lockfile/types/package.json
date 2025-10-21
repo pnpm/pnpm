@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.types",
-  "version": "1002.0.1",
+  "version": "1002.0.2",
   "description": "Types for the pnpm-lock.yaml lockfile",
   "keywords": [
     "pnpm",

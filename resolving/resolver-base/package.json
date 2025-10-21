@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolver-base",
-  "version": "1005.0.1",
+  "version": "1005.1.0",
   "description": "Types for pnpm-compatible resolvers",
   "keywords": [
     "pnpm",
