@@ -8,5 +8,15 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": []
+  "references": [
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../matcher"
+    }
+  ]
 }

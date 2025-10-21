@@ -1,18 +1,15 @@
 {
-  "name": "@pnpm/matcher",
-  "version": "1000.0.0",
-  "description": "A simple pattern matcher for pnpm",
+  "name": "@pnpm/builder.policy",
+  "version": "1000.0.0-0",
+  "description": "Create a function for filtering out dependencies that are not allowed to be built",
   "keywords": [
     "pnpm",
-    "pnpm10",
-    "match",
-    "pattern",
-    "wildcard"
+    "pnpm10"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/config/matcher",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/config/matcher#readme",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/builder/policy",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/builder/policy#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -34,10 +31,11 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "escape-string-regexp": "catalog:"
+    "@pnpm/config.version-policy": "workspace:*",
+    "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/matcher": "workspace:*"
+    "@pnpm/builder.policy": "workspace:*"
   },
   "engines": {
     "node": ">=18.12"

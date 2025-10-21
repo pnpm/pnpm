@@ -8,5 +8,12 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": []
+  "references": [
+    {
+      "path": "../../config/version-policy"
+    },
+    {
+      "path": "../../packages/types"
+    }
+  ]
 }

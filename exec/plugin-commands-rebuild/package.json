@@ -32,7 +32,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/builder.policy": "catalog:",
+    "@pnpm/builder.policy": "workspace:*",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
