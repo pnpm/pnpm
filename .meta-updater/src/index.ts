@@ -383,6 +383,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     repository,
     scripts,
     exports: {
+      ...manifest.exports,
       '.': manifest.name === 'pnpm' ? './package.json' : './lib/index.js',
     },
   })
