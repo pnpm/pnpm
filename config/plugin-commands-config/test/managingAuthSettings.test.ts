@@ -21,6 +21,7 @@ describe.each(
   describe('without --json', () => {
     const configOpts = {
       ...DEFAULT_OPTS,
+      dir: process.cwd(),
       configDir: __dirname, // this doesn't matter, it won't be used
     }
     it(`should set ${key}`, async () => {
@@ -36,6 +37,7 @@ describe.each(
   describe('with --json', () => {
     const configOpts = {
       ...DEFAULT_OPTS,
+      dir: process.cwd(),
       json: true,
       configDir: __dirname, // this doesn't matter, it won't be used
     }
@@ -63,6 +65,7 @@ describe.each(
 )('non-string values should be rejected', (key) => {
   const configOpts = {
     ...DEFAULT_OPTS,
+    dir: process.cwd(),
     json: true,
     configDir: __dirname, // this doesn't matter, it won't be used
   }
@@ -81,6 +84,7 @@ describe.each(
 )('%p is handled by npm CLI', (propertyPath) => {
   const configOpts = {
     ...DEFAULT_OPTS,
+    dir: process.cwd(),
     configDir: __dirname, // this doesn't matter, it won't be used
   }
   it('should set _auth', async () => {

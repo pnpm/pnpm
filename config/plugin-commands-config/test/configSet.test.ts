@@ -15,6 +15,7 @@ test('config set using the global option', async () => {
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     global: true,
   }, ['set', 'fetch-retries', '1'])
@@ -33,6 +34,7 @@ test('config set using the location=global option', async () => {
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     location: 'global',
   }, ['set', 'fetchRetries', '1'])
@@ -50,6 +52,7 @@ test('config set using the location=project option. The setting is written to pn
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     location: 'project',
   }, ['set', 'virtual-store-dir', '.pnpm'])
@@ -66,6 +69,7 @@ test('config delete using the location=project option. The setting in pnpm-works
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     location: 'project',
   }, ['set', 'virtual-store-dir', '.pnpm'])
@@ -76,6 +80,7 @@ test('config delete using the location=project option. The setting in pnpm-works
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     location: 'project',
   }, ['delete', 'virtual-store-dir'])
@@ -91,6 +96,7 @@ test('config set using the location=project option', async () => {
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     location: 'project',
   }, ['set', 'fetch-retries', '1'])
@@ -108,6 +114,7 @@ test('config set saves the setting in the right format to pnpm-workspace.yaml', 
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     location: 'project',
   }, ['set', 'fetch-timeout', '1000'])
@@ -124,6 +131,7 @@ test('config set in project .npmrc file', async () => {
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     global: false,
     location: 'project',
@@ -143,6 +151,7 @@ test('config set key=value', async () => {
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     location: 'project',
   }, ['set', 'fetch-retries=1'])
@@ -161,6 +170,7 @@ test('config set key=value, when value contains a "="', async () => {
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     location: 'project',
   }, ['set', 'foo=bar=qar'])
@@ -179,12 +189,14 @@ test('config set or delete throws missing params error', async () => {
 
   await expect(config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     location: 'project',
   }, ['set'])).rejects.toThrow(new PnpmError('CONFIG_NO_PARAMS', '`pnpm config set` requires the config key'))
 
   await expect(config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     location: 'project',
   }, ['delete'])).rejects.toThrow(new PnpmError('CONFIG_NO_PARAMS', '`pnpm config delete` requires the config key'))
@@ -198,6 +210,7 @@ test('config set with dot leading key', async () => {
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     global: true,
   }, ['set', '.fetchRetries', '1'])
@@ -216,6 +229,7 @@ test('config set with subscripted key', async () => {
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     global: true,
   }, ['set', '["fetch-retries"]', '1'])
@@ -234,6 +248,7 @@ test('config set rejects complex property path', async () => {
 
   await expect(config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     global: true,
   }, ['set', '.catalog.react', '19'])).rejects.toMatchObject({
@@ -248,6 +263,7 @@ test('config set with location=project and json=true', async () => {
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     location: 'project',
     json: true,
@@ -267,6 +283,7 @@ test('config set registry-specific setting with --location=project should create
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     location: 'project',
   }, ['set', '//registry.example.com/:_auth', 'test-auth-value'])
@@ -284,6 +301,7 @@ test('config set scoped registry with --location=project should create .npmrc', 
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     location: 'project',
   }, ['set', '@myorg:registry', 'https://test-registry.example.com/'])
@@ -303,6 +321,7 @@ test('config set when both pnpm-workspace.yaml and .npmrc exist, pnpm-workspace.
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     location: 'project',
   }, ['set', 'fetch-timeout', '2000'])
@@ -324,6 +343,7 @@ test('config set when only pnpm-workspace.yaml exists, writes to it', async () =
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     location: 'project',
   }, ['set', 'fetch-timeout', '3000'])

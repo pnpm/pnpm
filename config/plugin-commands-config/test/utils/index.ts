@@ -10,10 +10,8 @@ export function getOutputString (result: config.ConfigHandlerResult): string {
   throw new Error('unreachable')
 }
 
-export const DEFAULT_OPTS: ConfigCommandOptions = {
-  dir: process.cwd(),
+export const DEFAULT_OPTS: Omit<ConfigCommandOptions, 'dir' | 'configDir'> = {
   cliOptions: {},
-  configDir: process.cwd(),
   globalconfig: path.join(process.cwd(), 'rc'),
   global: false,
   npmPath: undefined,

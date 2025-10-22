@@ -14,6 +14,7 @@ cache-dir=~/cache`)
 
   await config.handler({
     ...DEFAULT_OPTS,
+    dir: tmp,
     configDir,
     global: true,
   }, ['delete', 'store-dir'])

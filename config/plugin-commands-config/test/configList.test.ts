@@ -5,6 +5,8 @@ import { getOutputString, DEFAULT_OPTS } from './utils/index.js'
 test('config list', async () => {
   const output = await config.handler({
     ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    configDir: process.cwd(),
     rawConfig: {
       'store-dir': '~/store',
       'fetch-retries': '2',
@@ -20,6 +22,8 @@ test('config list', async () => {
 test('config list --json', async () => {
   const output = await config.handler({
     ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    configDir: process.cwd(),
     json: true,
     rawConfig: {
       'store-dir': '~/store',
