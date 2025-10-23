@@ -3,7 +3,7 @@
 // because it breaks pnpm's CLI output
 process.setMaxListeners(0)
 
-const argv = process.argv.slice(2)
+const argv = process.argv.slice(2).filter(arg => arg !== "''") // The result of processing the empty string passed in cmd is different, so it is filtered out here.
 
 // eslint-disable-next-line @typescript-eslint/no-floating-promises
 ; (async () => {
