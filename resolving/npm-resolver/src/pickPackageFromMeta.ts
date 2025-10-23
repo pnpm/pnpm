@@ -33,9 +33,9 @@ export function pickPackageFromMeta (
   meta: PackageMeta
 ): PackageInRegistry | null {
   if (publishedBy) {
-    assertMetaHasTime(meta)
     const excludeResult = publishedByExclude?.(meta.name) ?? false
     if (excludeResult !== true) {
+      assertMetaHasTime(meta)
       const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
       meta = filterPkgMetadataByPublishDate(meta, publishedBy, trustedVersions)
     }
