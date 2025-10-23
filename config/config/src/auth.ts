@@ -45,9 +45,6 @@ const PNPM_COMPAT_SETTINGS = [
   //       in pnpm-workspace.yaml currently causes pnpm to be unresponsive (probably
   //       due to an infinite loop of some kind).
   'manage-package-manager-versions',
-  // NOTE: this field is kept in .npmrc to allow the test at pnpm/test/verifyDepsBeforeRun/install.ts
-  //       to pass.
-  'optional',
 ] satisfies Array<keyof typeof types>
 
 const NPM_AUTH_SETTINGS = [

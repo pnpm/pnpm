@@ -168,6 +168,7 @@ export async function getConfig (opts: {
     'ignore-workspace-cycles': false,
     'ignore-workspace-root-check': false,
     'optimistic-repeat-install': false,
+    optional: true,
     'init-package-manager': true,
     'init-type': 'module',
     'inject-workspace-packages': false,
