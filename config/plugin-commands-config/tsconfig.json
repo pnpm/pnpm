@@ -31,6 +31,9 @@
       "path": "../../packages/logger"
     },
     {
+      "path": "../../packages/naming-cases"
+    },
+    {
       "path": "../../workspace/manifest-writer"
     },
     {
