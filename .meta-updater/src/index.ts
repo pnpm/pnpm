@@ -330,8 +330,8 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
 && shx cp pnpmrc dist/pnpmrc'
   } else {
     scripts.prepublishOnly = 'pnpm run compile'
-    homepage = `https://github.com/pnpm/pnpm/blob/main/${relative}#readme`
-    repository = `https://github.com/pnpm/pnpm/blob/main/${relative}`
+    homepage = `https://github.com/pnpm/pnpm/tree/main/${relative}#readme`
+    repository = `https://github.com/pnpm/pnpm/tree/main/${relative}`
   }
   if (scripts.lint) {
     if (fs.existsSync(path.join(dir, 'test'))) {

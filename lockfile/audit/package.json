@@ -9,8 +9,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/audit",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/audit#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/lockfile/audit",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/lockfile/audit#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

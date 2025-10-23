@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/config/version-policy",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/config/version-policy#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/config/version-policy",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/config/version-policy#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

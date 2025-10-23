@@ -10,8 +10,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/pruner",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/pruner#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/lockfile/pruner",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/lockfile/pruner#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

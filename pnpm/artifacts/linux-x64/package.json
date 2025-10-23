@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/linux-x64",
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/linux-x64#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/linux-x64",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/linux-x64#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

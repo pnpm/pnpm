@@ -10,8 +10,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/walker",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/walker#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/lockfile/walker",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/lockfile/walker#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

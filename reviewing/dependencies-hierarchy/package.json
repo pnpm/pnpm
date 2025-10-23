@@ -11,8 +11,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/dependencies-hierarchy",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/dependencies-hierarchy#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/reviewing/dependencies-hierarchy",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/reviewing/dependencies-hierarchy#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
