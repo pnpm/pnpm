@@ -5,13 +5,10 @@ on:
     tags:
       - "v*.*.*"
 
-permissions:
-  id-token: write  # Required for OIDC
-  contents: read
-
 jobs:
   release:
     permissions:
+      id-token: write  # Required for OIDC
       contents: write  # for softprops/action-gh-release to create GitHub release
     runs-on: ubuntu-latest
     environment: release
