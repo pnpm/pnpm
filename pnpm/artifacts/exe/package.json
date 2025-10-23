@@ -4,7 +4,8 @@
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
-    "pnpm10"
+    "pnpm10",
+    "pnpm-artifact"
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
