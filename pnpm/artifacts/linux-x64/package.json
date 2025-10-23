@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/linux-x64",
-  "version": "10.19.0",
+  "version": "10.19.1-oidc-test.0",
   "keywords": [
     "pnpm",
     "pnpm10",
