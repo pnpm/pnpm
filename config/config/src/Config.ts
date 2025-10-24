@@ -233,6 +233,7 @@ export interface Config extends OptionsFromRootManifest {
   minimumReleaseAgeExclude?: string[]
   fetchWarnTimeoutMs?: number
   fetchMinSpeedKiBps?: number
+  attestationCheck?: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
