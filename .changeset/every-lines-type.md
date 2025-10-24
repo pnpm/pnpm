@@ -1,5 +1,5 @@
 ---
-"pnpm": major
+"pnpm": patch
 ---
 
-dadada
+`create` command should not verify patch info.
