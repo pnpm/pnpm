@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/headless",
-  "version": "1005.0.0",
+  "version": "1006.0.0",
   "description": "Fast installation using only pnpm-lock.yaml",
   "keywords": [
     "pnpm",
@@ -10,8 +10,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/headless",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/headless#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/headless",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/headless#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:*",
-    "@pnpm/builder.policy": "catalog:",
+    "@pnpm/builder.policy": "workspace:*",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",

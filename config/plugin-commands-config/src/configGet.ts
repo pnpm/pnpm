@@ -9,13 +9,25 @@ import { parseConfigPropertyPath } from './parseConfigPropertyPath.js'
 import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
-  if (opts.global && settingShouldFallBackToNpm(key)) {
+  const isScopedKey = key.startsWith('@')
+  // Exclude scoped keys from npm fallback because they are pnpm-native config
+  // that can be read directly from rawConfig (e.g., '@scope:registry')
+  if (opts.global && settingShouldFallBackToNpm(key) && !isScopedKey) {
     const { status: exitCode } = runNpm(opts.npmPath, ['config', 'get', key])
     return { output: '', exitCode: exitCode ?? 0 }
   }
-  const config = isStrictlyKebabCase(key)
-    ? opts.rawConfig[kebabCase(key)] // we don't parse kebab-case keys as property paths because it's not a valid JS syntax
-    : getConfigByPropertyPath(opts.rawConfig, key)
+
+  let config: unknown
+  if (isStrictlyKebabCase(key)) {
+    // we don't parse kebab-case keys as property paths because it's not a valid JS syntax
+    config = opts.rawConfig[kebabCase(key)]
+  } else if (isScopedKey) {
+    // scoped registry keys like '@scope:registry' are used as-is
+    config = opts.rawConfig[key]
+  } else {
+    config = getConfigByPropertyPath(opts.rawConfig, key)
+  }
+
   const output = displayConfig(config, opts)
   return { output, exitCode: 0 }
 }

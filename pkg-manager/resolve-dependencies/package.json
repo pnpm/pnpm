@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "1008.2.3",
+  "version": "1008.3.0",
   "description": "Resolves dependency graph of a package",
   "keywords": [
     "pnpm",
@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/resolve-dependencies",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/resolve-dependencies#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/resolve-dependencies",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pkg-manager/resolve-dependencies#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -35,6 +35,7 @@
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
@@ -44,7 +45,6 @@
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
-    "@pnpm/matcher": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/patching.types": "workspace:*",

@@ -4,6 +4,7 @@ packages:
   - __typings__
   - __utils__/*
   - '!__utils__/build-artifacts'
+  - builder/*
   - cache/*
   - catalogs/*
   - cli/*
@@ -44,6 +45,8 @@ packages:
   - '!resolving/local-resolver/example-package/**'
 
 auditConfig:
+  ignoreCves:
+    - CVE-2025-56200
   ignoreGhsas:
     - GHSA-76c9-3jph-rj3q
     - GHSA-ffrw-9mx8-89p8
@@ -59,7 +62,6 @@ catalog:
   '@eslint/eslintrc': 3.1.0
   '@eslint/js': 9.9.1
   '@jest/globals': 30.0.5
-  '@pnpm/builder.policy': 3.0.1
   '@pnpm/byline': ^1.0.0
   '@pnpm/colorize-semver-diff': ^1.0.1
   '@pnpm/config.env-replace': ^3.0.2

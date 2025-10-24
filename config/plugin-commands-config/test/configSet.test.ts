@@ -290,3 +290,86 @@ test('config set with location=project and json=true', async () => {
     },
   })
 })
+
+test('config set registry-specific setting with --location=project should create .npmrc', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', '//registry.example.com/:_auth', 'test-auth-value'])
+
+  expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
+    '//registry.example.com/:_auth': 'test-auth-value',
+  })
+  expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBeFalsy()
+})
+
+test('config set scoped registry with --location=project should create .npmrc', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', '@myorg:registry', 'https://test-registry.example.com/'])
+
+  expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
+    '@myorg:registry': 'https://test-registry.example.com/',
+  })
+  expect(fs.existsSync(path.join(tmp, 'pnpm-workspace.yaml'))).toBeFalsy()
+})
+
+test('config set when both pnpm-workspace.yaml and .npmrc exist, pnpm-workspace.yaml has priority', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(tmp, '.npmrc'), 'store-dir=~/store')
+  fs.writeFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'fetchRetries: 5')
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', 'fetch-timeout', '2000'])
+
+  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
+    fetchRetries: 5,
+    fetchTimeout: 2000,
+  })
+  expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
+    'store-dir': '~/store',
+  })
+})
+
+test('config set when only pnpm-workspace.yaml exists, writes to it', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'fetchRetries: 5')
+
+  await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', 'fetch-timeout', '3000'])
+
+  expect(readYamlFile(path.join(tmp, 'pnpm-workspace.yaml'))).toEqual({
+    fetchRetries: 5,
+    fetchTimeout: 3000,
+  })
+  expect(fs.existsSync(path.join(tmp, '.npmrc'))).toBeFalsy()
+})

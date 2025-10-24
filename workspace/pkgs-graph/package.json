@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.pkgs-graph",
-  "version": "1000.0.23",
+  "version": "1000.0.24",
   "description": "Create a graph from an array of packages",
   "keywords": [
     "pnpm",
@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/pkgs-graph",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/pkgs-graph#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/workspace/pkgs-graph",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/workspace/pkgs-graph#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

@@ -2,6 +2,7 @@ import { PnpmError } from '@pnpm/error'
 import { filterPkgMetadataByPublishDate } from '@pnpm/registry.pkg-metadata-filter'
 import { type PackageInRegistry, type PackageMeta, type PackageMetaWithTime } from '@pnpm/registry.types'
 import { type VersionSelectors } from '@pnpm/resolver-base'
+import { type PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 import util from 'util'
 import { type RegistryPackageSpec } from './parseBareSpecifier.js'
@@ -15,16 +16,29 @@ export interface PickVersionByVersionRangeOptions {
 
 export type PickVersionByVersionRange = (options: PickVersionByVersionRangeOptions) => string | null
 
+export interface PickPackageFromMetaOptions {
+  preferredVersionSelectors: VersionSelectors | undefined
+  publishedBy?: Date
+  publishedByExclude?: PackageVersionPolicy
+}
+
 export function pickPackageFromMeta (
   pickVersionByVersionRangeFn: PickVersionByVersionRange,
+  {
+    preferredVersionSelectors,
+    publishedBy,
+    publishedByExclude,
+  }: PickPackageFromMetaOptions,
   spec: RegistryPackageSpec,
-  preferredVersionSelectors: VersionSelectors | undefined,
-  meta: PackageMeta,
-  publishedBy?: Date
+  meta: PackageMeta
 ): PackageInRegistry | null {
   if (publishedBy) {
     assertMetaHasTime(meta)
-    meta = filterPkgMetadataByPublishDate(meta, publishedBy)
+    const excludeResult = publishedByExclude?.(meta.name) ?? false
+    if (excludeResult !== true) {
+      const trustedVersions = Array.isArray(excludeResult) ? excludeResult : undefined
+      meta = filterPkgMetadataByPublishDate(meta, publishedBy, trustedVersions)
+    }
   }
   if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {
     // Unfortunately, the npm registry doesn't return the time field in the abbreviated metadata.

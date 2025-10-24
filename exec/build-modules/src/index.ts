@@ -11,7 +11,7 @@ import { hardLinkDir } from '@pnpm/worker'
 import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type StoreController } from '@pnpm/store-controller-types'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
-import { type DependencyManifest } from '@pnpm/types'
+import { type AllowBuild, type DependencyManifest } from '@pnpm/types'
 import pDefer, { type DeferredPromise } from 'p-defer'
 import { pickBy } from 'ramda'
 import runGroups from 'run-groups'
@@ -23,7 +23,7 @@ export async function buildModules<T extends string> (
   depGraph: DependenciesGraph<T>,
   rootDepPaths: T[],
   opts: {
-    allowBuild?: (pkgName: string) => boolean
+    allowBuild?: AllowBuild
     ignorePatchFailures?: boolean
     ignoredBuiltDependencies?: string[]
     childConcurrency?: number
@@ -76,7 +76,7 @@ export async function buildModules<T extends string> (
       () => {
         let ignoreScripts = Boolean(buildDepOpts.ignoreScripts)
         if (!ignoreScripts) {
-          if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].name)) {
+          if (depGraph[depPath].requiresBuild && !allowBuild(depGraph[depPath].name, depGraph[depPath].version)) {
             ignoredPkgs.add(depGraph[depPath].name)
             ignoreScripts = true
           }
