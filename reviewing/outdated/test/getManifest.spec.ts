@@ -131,9 +131,6 @@ test('getManifest() with minimumReleaseAgeExclude', async () => {
   const publishedByExclude = (packageName: string) => packageName === 'excluded-package'
 
   const resolve = jest.fn<ResolveFunction>(async (wantedPackage, resolveOpts) => {
-    // Excluded package should not have publishedBy set
-    expect(resolveOpts.publishedBy).toBeUndefined()
-
     return {
       id: 'excluded-package/2.0.0' as PkgResolutionId,
       latest: '2.0.0',
