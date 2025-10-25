@@ -37,7 +37,7 @@ test('should print json format error when add dependency on workspace root', asy
   ])
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  const { status, stdout } = execPnpmSync(['add', 'nanoid', '-p'])
+  const { status, stdout } = execPnpmSync(['add', 'nanoid', '--parseable'])
 
   expect(status).toBe(1)
   const { error } = JSON.parse(stdout.toString())
