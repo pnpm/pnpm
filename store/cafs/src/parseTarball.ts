@@ -263,7 +263,7 @@ export function parseTarball (buffer: Buffer): IParseResult {
     const end = clamp(indexOf(val, SPACE, offset, val.length), val.length, val.length)
     while (offset < end && val[offset] === 0) offset++
     if (end === offset) return 0
-    return parseInt(val.slice(offset, end).toString(), 8)
+    return parseInt(val.subarray(offset, end).toString(), 8)
   }
   // eslint-enable no-var
 }
