@@ -5,6 +5,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'
 import { renderTree } from '../lib/renderTree.js'
+import { renderParseable } from '../lib/renderParseable.js'
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color
@@ -837,4 +838,139 @@ ${DEPENDENCIES}
 @scope/a ${VERSION_CLR('link:packages/a')}
 └─┬ @scope/b ${VERSION_CLR('link:packages/b')}
   └── @scope/c ${VERSION_CLR('link:packages/c')}`)
+})
+
+test('renderTree displays npm: protocol for aliased packages', async () => {
+  const testPath = '/test/path'
+  const output = await renderTree(
+    [
+      {
+        name: 'test-project',
+        path: testPath,
+        version: '1.0.0',
+        dependencies: [
+          {
+            alias: 'foo',
+            name: '@pnpm.e2e/pkg-with-1-dep',
+            version: '100.0.0',
+            path: '/test/path/node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+          },
+        ],
+      },
+    ],
+    {
+      alwaysPrintRootPackage: false,
+      depth: 0,
+      long: false,
+      search: false,
+      showExtraneous: false,
+    }
+  )
+
+  // renderTree uses chalk for coloring, so we check parts separately
+  expect(output).toContain('foo')
+  expect(output).toContain('npm:@pnpm.e2e/pkg-with-1-dep@100.0.0')
+})
+
+test('renderTree displays file: protocol correctly for aliased packages', async () => {
+  const testPath = '/test/path'
+  const output = await renderTree(
+    [
+      {
+        name: 'test-project',
+        path: testPath,
+        version: '1.0.0',
+        dependencies: [
+          {
+            alias: 'my-alias',
+            name: 'my-local-pkg',
+            version: 'my-local-pkg@file:local-pkg',
+            path: '/test/path/local-pkg',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+          },
+        ],
+      },
+    ],
+    {
+      alwaysPrintRootPackage: false,
+      depth: 0,
+      long: false,
+      search: false,
+      showExtraneous: false,
+    }
+  )
+
+  // renderTree uses chalk for coloring, so we check parts separately
+  // instead of matching the complete string with color codes
+  expect(output).toContain('my-alias')
+  expect(output).toContain('my-local-pkg@file:local-pkg')
+})
+
+test('renderParseable displays npm: protocol for aliased packages', async () => {
+  const testPath = '/test/path'
+  const output = await renderParseable(
+    [
+      {
+        name: 'test-project',
+        path: testPath,
+        version: '1.0.0',
+        dependencies: [
+          {
+            alias: 'foo',
+            name: '@pnpm.e2e/pkg-with-1-dep',
+            version: '100.0.0',
+            path: '/test/path/node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+          },
+        ],
+      },
+    ],
+    {
+      alwaysPrintRootPackage: false,
+      depth: 0,
+      long: true,
+      search: false,
+    }
+  )
+
+  expect(output).toContain('foo npm:@pnpm.e2e/pkg-with-1-dep@100.0.0')
+})
+
+test('renderParseable displays file: protocol correctly for aliased packages', async () => {
+  const testPath = '/test/path'
+  const output = await renderParseable(
+    [
+      {
+        name: 'test-project',
+        path: testPath,
+        version: '1.0.0',
+        dependencies: [
+          {
+            alias: 'my-alias',
+            name: 'my-local-pkg',
+            version: 'my-local-pkg@file:local-pkg',
+            path: '/test/path/local-pkg',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+          },
+        ],
+      },
+    ],
+    {
+      alwaysPrintRootPackage: false,
+      depth: 0,
+      long: true,
+      search: false,
+    }
+  )
+
+  expect(output).toContain('my-alias my-local-pkg@file:local-pkg')
 })

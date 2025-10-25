@@ -56,7 +56,21 @@ function renderParseableForPackage (
     }
     return [
       firstLine,
-      ...pkgs.map((pkg) => `${pkg.path}:${pkg.name}@${pkg.version}`),
+      ...pkgs.map((pkgNode) => {
+        const node = pkgNode as PackageNode
+        if (node.alias !== node.name) {
+          // Only add npm: prefix if version doesn't already contain @ (to avoid file:, link:, etc.)
+          if (!node.version.includes('@')) {
+            return `${node.path}:${node.alias} npm:${node.name}@${node.version}`
+          }
+          return `${node.path}:${node.alias} ${node.version}`
+        }
+        // If version already contains @, it's in full format (e.g., name@file:path)
+        if (node.version.includes('@')) {
+          return `${node.path}:${node.version}`
+        }
+        return `${node.path}:${node.name}@${node.version}`
+      }),
     ].join('\n')
   }
   return [
@@ -66,6 +80,7 @@ function renderParseableForPackage (
 }
 
 interface PackageInfo {
+  alias: string
   name: string
   version: string
   path: string
