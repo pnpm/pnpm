@@ -131,3 +131,55 @@ test('installing a new configurational dependency', async () => {
     '@pnpm.e2e/foo': `100.0.0+${getIntegrity('@pnpm.e2e/foo', '100.0.0')}`,
   })
 })
+
+test('install detects onlyBuiltDependencies changes', async () => {
+  prepare({})
+  writeYamlFile('pnpm-workspace.yaml', {
+    onlyBuiltDependencies: ['@pnpm.e2e/install-script-example'],
+  })
+
+  await execPnpm(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+  })
+
+  // Remove the generated file to verify rebuild
+  rimraf('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  rimraf('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')
+
+  await execPnpm(['install'], { env: { ...process.env, CI: 'true' } })
+
+  // Now pre-and-postinstall should be built but install-script should not
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
+})
+
+test('install detects neverBuiltDependencies changes', async () => {
+  prepare({})
+  writeYamlFile('pnpm-workspace.yaml', {
+    neverBuiltDependencies: ['@pnpm.e2e/install-script-example'],
+  })
+
+  await execPnpm(['add', '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'])
+
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeFalsy()
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    neverBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+  })
+
+  // Remove the generated file to verify rebuild
+  rimraf('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  rimraf('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')
+
+  await execPnpm(['install'], { env: { ...process.env, CI: 'true' } })
+
+  // Now install-script should be built but pre-and-postinstall should not
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
+})
