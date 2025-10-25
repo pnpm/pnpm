@@ -196,3 +196,118 @@ pkg@1.0.0 ${pkgDir}
 dependencies:
 dep file:../dep`)
 })
+
+test('listing packages with --lockfile-only (without node_modules)', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execa('node', [pnpmBin, 'install'])
+  await execa('rm', ['-rf', 'node_modules'])
+
+  {
+    const output = await list.handler({
+      dev: false,
+      dir: process.cwd(),
+      lockfileOnly: true,
+      optional: false,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, [])
+
+    expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+
+project@0.0.0 ${process.cwd()}
+
+dependencies:
+is-positive 1.0.0`)
+  }
+
+  {
+    const output = await list.handler({
+      dir: process.cwd(),
+      lockfileOnly: true,
+      optional: false,
+      production: false,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, [])
+
+    expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+
+project@0.0.0 ${process.cwd()}
+
+devDependencies:
+is-negative 1.0.0`)
+  }
+
+  {
+    const output = await list.handler({
+      dir: process.cwd(),
+      lockfileOnly: true,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, [])
+
+    expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+
+project@0.0.0 ${process.cwd()}
+
+dependencies:
+is-positive 1.0.0
+
+devDependencies:
+is-negative 1.0.0`)
+  }
+})
+
+test('listing packages with --lockfile-only in JSON format', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await execa('node', [pnpmBin, 'install'])
+  await execa('rm', ['-rf', 'node_modules'])
+
+  const output = await list.handler({
+    dir: process.cwd(),
+    json: true,
+    lockfileOnly: true,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, [])
+
+  const parsedOutput = JSON.parse(output)
+  expect(parsedOutput).toHaveLength(1)
+  expect(parsedOutput[0].name).toBe('project')
+  expect(parsedOutput[0].dependencies).toHaveProperty('is-positive')
+  expect(parsedOutput[0].dependencies['is-positive'].version).toBe('1.0.0')
+})
+
+test('listing specific package with --lockfile-only', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execa('node', [pnpmBin, 'install'])
+  await execa('rm', ['-rf', 'node_modules'])
+
+  const output = await list.handler({
+    dir: process.cwd(),
+    lockfileOnly: true,
+    virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+  }, ['is-positive'])
+
+  expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+
+project@0.0.0 ${process.cwd()}
+
+dependencies:
+is-positive 1.0.0`)
+})
