@@ -34,7 +34,7 @@ function getHelpText (all: boolean): string {
     description: all ? '' : 'These are common pnpm commands used in various situations, use \'pnpm --help -a\' to list all commands',
     descriptionLists: [
       {
-        title: 'Manage you--r dependencies',
+        title: 'Manage your dependencies',
 
         list: [
           {
