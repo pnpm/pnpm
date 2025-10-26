@@ -104,6 +104,8 @@ export interface CommandDefinition {
   shorthands?: Record<string, string | string[]>
 }
 
+const helpByCommandName: Record<string, () => string> = {}
+
 const commands: CommandDefinition[] = [
   add,
   audit,
@@ -154,10 +156,10 @@ const commands: CommandDefinition[] = [
   unlink,
   update,
   why,
+  createHelp(helpByCommandName),
 ]
 
 const handlerByCommandName: Record<string, Command> = {}
-const helpByCommandName: Record<string, () => string> = {}
 const cliOptionsTypesByCommandName: Record<string, () => Record<string, unknown>> = {}
 const aliasToFullName = new Map<string, string>()
 const completionByCommandName: Record<string, CompletionFunc> = {}
@@ -195,7 +197,6 @@ for (let i = 0; i < commands.length; i++) {
   }
 }
 
-handlerByCommandName.help = createHelp(helpByCommandName)
 handlerByCommandName['completion-server'] = createCompletionServer({
   cliOptionsTypesByCommandName,
   completionByCommandName,

@@ -1,21 +1,31 @@
 import { packageManager, detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
 import renderHelp from 'render-help'
-import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
+import { type CommandDefinition } from '.'
 
-export function createHelp (helpByCommandName: Record<string, () => string>): (opts: unknown, params: string[]) => string {
-  return function (opts: unknown, params: string[]) {
-    let helpText!: string
-    if (params.length === 0) {
-      const all = (opts as ParsedCliArgs).argv.original.includes('-a')
-      helpText = getHelpText(all)
-    } else if (helpByCommandName[params[0]]) {
-      helpText = helpByCommandName[params[0]]()
-    } else {
-      helpText = `No results for "${params[0]}"`
-    }
-    return `Version ${packageManager.version}\
-${detectIfCurrentPkgIsExecutable() != null ? ` (compiled to binary; bundled Node.js ${process.version})` : ''}\
-\n${helpText}\n`
+export function createHelp (helpByCommandName: Record<string, () => string>): CommandDefinition {
+  return {
+    commandNames: ['help'],
+    shorthands: {
+      a: '--all',
+    },
+    cliOptionsTypes: () => ({
+      all: Boolean,
+    }),
+    rcOptionsTypes: () => ({}),
+    help: () => getHelpText(false),
+    handler: function (opts: { all?: boolean }, params: string[]) {
+      let helpText!: string
+      if (params.length === 0) {
+        helpText = getHelpText(opts.all ?? false)
+      } else if (helpByCommandName[params[0]]) {
+        helpText = helpByCommandName[params[0]]()
+      } else {
+        helpText = `No results for "${params[0]}"`
+      }
+      return `Version ${packageManager.version}\
+  ${detectIfCurrentPkgIsExecutable() != null ? ` (compiled to binary; bundled Node.js ${process.version})` : ''}\
+  \n${helpText}\n`
+    },
   }
 }
 
@@ -24,7 +34,7 @@ function getHelpText (all: boolean): string {
     description: all ? '' : 'These are common pnpm commands used in various situations, use \'pnpm --help -a\' to list all commands',
     descriptionLists: [
       {
-        title: 'Manage your dependencies',
+        title: 'Manage you--r dependencies',
 
         list: [
           {
