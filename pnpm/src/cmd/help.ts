@@ -1,6 +1,6 @@
 import { packageManager, detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
 import renderHelp from 'render-help'
-import { type CommandDefinition } from '.'
+import { type CommandDefinition } from './index.js'
 
 export function createHelp (helpByCommandName: Record<string, () => string>): CommandDefinition {
   return {
