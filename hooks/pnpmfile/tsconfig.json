@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../crypto/hash"
+    },
+    {
       "path": "../../fetching/fetcher-base"
     },
     {
@@ -17,9 +23,6 @@
     },
     {
       "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/crypto.base32-hash"
     },
     {
       "path": "../../packages/error"

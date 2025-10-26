@@ -2,32 +2,175 @@
 import fs from 'fs'
 import path from 'path'
 import { readProjectManifest, tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { fixtures } from '@pnpm/test-fixtures'
 import tempy from 'tempy'
+import { type ProjectManifest } from '@pnpm/types'
 
-const fixtures = path.join(__dirname, '../fixtures')
+const f = fixtures(__dirname)
 
 test('readProjectManifest()', async () => {
   expect(
-    (await tryReadProjectManifest(path.join(fixtures, 'package-json'))).manifest
+    (await tryReadProjectManifest(f.find('package-json'))).manifest
   ).toStrictEqual(
     { name: 'foo', version: '1.0.0' }
   )
 
   expect(
-    (await tryReadProjectManifest(path.join(fixtures, 'package-json5'))).manifest
+    (await tryReadProjectManifest(f.find('package-json5'))).manifest
   ).toStrictEqual(
     { name: 'foo', version: '1.0.0' }
   )
 
   expect(
-    (await tryReadProjectManifest(path.join(fixtures, 'package-yaml'))).manifest
+    (await tryReadProjectManifest(f.find('package-yaml'))).manifest
   ).toStrictEqual(
     { name: 'foo', version: '1.0.0' }
   )
 
   expect(
-    (await tryReadProjectManifest(fixtures)).manifest
+    (await tryReadProjectManifest(__dirname)).manifest
   ).toStrictEqual(null)
+})
+
+test('readProjectManifest() converts devEngines runtime to devDependencies', async () => {
+  const dir = f.prepare('package-json-with-dev-engines')
+  const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir)
+  expect(manifest).toStrictEqual(
+    {
+      devDependencies: {
+        node: 'runtime:24',
+      },
+      devEngines: {
+        runtime: {
+          name: 'node',
+          version: '24',
+          onFail: 'download',
+        },
+      },
+    }
+  )
+  await writeProjectManifest(manifest!)
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+  expect(pkgJson).toStrictEqual({
+    devDependencies: {},
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '24',
+        onFail: 'download',
+      },
+    },
+  })
+})
+
+test.each([
+  {
+    name: 'creates devEngines when it is missing',
+    manifest: {
+      devDependencies: {
+        node: 'runtime:22',
+      },
+    },
+    expected: {
+      runtime: {
+        name: 'node',
+        version: '22',
+        onFail: 'download',
+      },
+    },
+  },
+  {
+    name: 'updates devEngines.runtime when it is a single node entry',
+    manifest: {
+      devEngines: {
+        runtime: {
+          name: 'node',
+          version: '16',
+        },
+      },
+      devDependencies: {
+        node: 'runtime:22',
+      },
+    },
+    expected: {
+      runtime: {
+        name: 'node',
+        version: '22',
+        onFail: 'download',
+      },
+    },
+  },
+  {
+    name: 'converts devEngines.runtime to an array when it is a single non-node entry',
+    manifest: {
+      devEngines: {
+        runtime: {
+          name: 'deno',
+          version: '1',
+        },
+      },
+      devDependencies: {
+        node: 'runtime:22',
+      },
+    },
+    expected: {
+      runtime: [
+        {
+          name: 'deno',
+          version: '1',
+        },
+        {
+          name: 'node',
+          version: '22',
+          onFail: 'download',
+        },
+      ],
+    },
+  },
+  {
+    name: 'updates devEngines.runtime when it is an array',
+    manifest: {
+      devEngines: {
+        runtime: [
+          {
+            name: 'deno',
+            version: '1',
+          },
+          {
+            name: 'node',
+            version: '16',
+            onFail: 'download',
+          },
+        ],
+      },
+      devDependencies: {
+        node: 'runtime:22',
+      },
+    },
+    expected: {
+      runtime: [
+        {
+          name: 'deno',
+          version: '1',
+        },
+        {
+          name: 'node',
+          version: '22',
+          onFail: 'download',
+        },
+      ],
+    },
+  },
+])('readProjectManifest() converts devDependencies to devEngines: $name', async ({ manifest, expected }) => {
+  const dir = f.prepare('package-json')
+
+  const { writeProjectManifest } = await tryReadProjectManifest(dir)
+  await writeProjectManifest(manifest as ProjectManifest)
+
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+
+  expect(pkgJson.devEngines).toStrictEqual(expected)
+  expect(pkgJson.devDependencies).toStrictEqual({})
 })
 
 test('preserve tab indentation in json file', async () => {
@@ -84,9 +227,9 @@ test('preserve space indentation in json5 file', async () => {
 
 test('preserve comments in json5 file', async () => {
   const originalManifest = fs.readFileSync(
-    path.join(fixtures, 'commented-package-json5/package.json5'), 'utf8')
+    f.find('commented-package-json5/package.json5'), 'utf8')
   const modifiedManifest = fs.readFileSync(
-    path.join(fixtures, 'commented-package-json5/modified.json5'), 'utf8')
+    f.find('commented-package-json5/modified.json5'), 'utf8')
 
   process.chdir(tempy.directory())
   fs.writeFileSync('package.json5', originalManifest, 'utf8')
@@ -131,7 +274,7 @@ test('do not save manifest if it had no changes', async () => {
 test('fail on invalid JSON', async () => {
   let err!: Error & { code: string }
   try {
-    await readProjectManifest(path.join(fixtures, 'invalid-package-json'))
+    await readProjectManifest(f.find('invalid-package-json'))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -152,7 +295,7 @@ test('fail on invalid JSON', async () => {
 test('fail on invalid JSON5', async () => {
   let err!: Error & { code: string }
   try {
-    await readProjectManifest(path.join(fixtures, 'invalid-package-json5'))
+    await readProjectManifest(f.find('invalid-package-json5'))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -165,7 +308,7 @@ test('fail on invalid JSON5', async () => {
 test('fail on invalid YAML', async () => {
   let err!: Error & { code: string }
   try {
-    await readProjectManifest(path.join(fixtures, 'invalid-package-yaml'))
+    await readProjectManifest(f.find('invalid-package-yaml'))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }

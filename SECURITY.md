@@ -4,10 +4,12 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 9.x   | :white_check_mark: |
-| 8.x   | :white_check_mark: till 2025 April 30 |
-| <= 7.x   | :x:                |
+| 10.x  | :white_check_mark: |
+| 9.x   | :white_check_mark: till 2026 April 30 |
+| <= 8.x   | :x:                |
 
 ## Reporting a Vulnerability
 
-Send and email to security@pnpm.io
+Submit your findings here: https://github.com/pnpm/pnpm/security/advisories
+
+**We do not operate a bounty program.**

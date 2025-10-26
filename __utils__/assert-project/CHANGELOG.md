@@ -1,5 +1,240 @@
 # @pnpm/assert-project
 
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/lockfile.types@1002.0.2
+  - @pnpm/modules-yaml@1000.3.6
+  - @pnpm/assert-store@1000.0.3
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/assert-store@1000.0.2
+
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/assert-store@1000.0.1
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.types@1002.0.1
+  - @pnpm/modules-yaml@1000.3.5
+  - @pnpm/assert-store@1000.0.1
+
+## 4.0.16
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [f91922c]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/assert-store@2.0.16
+
+## 4.0.15
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/modules-yaml@1000.3.4
+  - @pnpm/assert-store@2.0.15
+
+## 4.0.14
+
+### Patch Changes
+
+- @pnpm/assert-store@2.0.14
+
+## 4.0.13
+
+### Patch Changes
+
+- @pnpm/assert-store@2.0.13
+
+## 4.0.12
+
+### Patch Changes
+
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/modules-yaml@1000.3.3
+  - @pnpm/assert-store@2.0.12
+
+## 4.0.11
+
+### Patch Changes
+
+- Updated dependencies [5b73df1]
+  - @pnpm/types@1000.5.0
+  - @pnpm/lockfile.types@1001.0.7
+  - @pnpm/modules-yaml@1000.3.2
+  - @pnpm/assert-store@2.0.11
+
+## 4.0.10
+
+### Patch Changes
+
+- @pnpm/assert-store@2.0.10
+
+## 4.0.9
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/lockfile.types@1001.0.6
+  - @pnpm/modules-yaml@1000.3.1
+  - @pnpm/assert-store@2.0.9
+
+## 4.0.8
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [64f6b4f]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/modules-yaml@1000.3.0
+  - @pnpm/lockfile.types@1001.0.5
+  - @pnpm/assert-store@2.0.8
+
+## 4.0.7
+
+### Patch Changes
+
+- Updated dependencies [d612dcf]
+- Updated dependencies [d612dcf]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/assert-store@2.0.7
+
+## 4.0.6
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/lockfile.types@1001.0.4
+  - @pnpm/modules-yaml@1000.1.4
+  - @pnpm/assert-store@2.0.6
+
+## 4.0.5
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/lockfile.types@1001.0.3
+  - @pnpm/modules-yaml@1000.1.3
+  - @pnpm/assert-store@2.0.5
+
+## 4.0.4
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/assert-store@2.0.4
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/modules-yaml@1000.1.2
+
+## 4.0.3
+
+### Patch Changes
+
+- @pnpm/assert-store@2.0.3
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lockfile.types@1001.0.1
+  - @pnpm/modules-yaml@1000.1.1
+  - @pnpm/assert-store@2.0.2
+
+## 4.0.1
+
+### Patch Changes
+
+- Updated dependencies [4771813]
+  - @pnpm/modules-yaml@1000.1.0
+
+## 4.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/lockfile.types@1001.0.0
+  - @pnpm/assert-store@2.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- d433cb9: Some registries allow identical content to be published under different package names or versions. To accommodate this, index files in the store are now stored using both the content hash and package identifier.
+
+  This approach ensures that we can:
+
+  1. Validate that the integrity in the lockfile corresponds to the correct package,
+     which might not be the case after a poorly resolved Git conflict.
+  2. Allow the same content to be referenced by different packages or different versions of the same package.
+
+  Related PR: [#8510](https://github.com/pnpm/pnpm/pull/8510)
+  Related issue: [#8204](https://github.com/pnpm/pnpm/issues/8204)
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [d433cb9]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/assert-store@2.0.0
+
+## 2.3.62
+
+### Patch Changes
+
+- @pnpm/assert-store@1.0.92
+
+## 2.3.61
+
+### Patch Changes
+
+- @pnpm/assert-store@1.0.91
+
 ## 2.3.60
 
 ### Patch Changes

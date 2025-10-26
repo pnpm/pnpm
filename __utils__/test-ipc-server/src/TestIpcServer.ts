@@ -1,6 +1,6 @@
 import net from 'node:net'
-import { promisify } from 'node:util'
-import { computeHandlePath } from './computeHandlePath'
+import { promisify, stripVTControlCharacters } from 'node:util'
+import { computeHandlePath } from './computeHandlePath.js'
 
 // Polyfilling Symbol.asyncDispose for Jest.
 //
@@ -66,11 +66,12 @@ export class TestIpcServer implements AsyncDisposable {
 
   /**
    * Return the buffer as an array of strings split by the new line character.
+   * VT control sequences are removed
    */
   public getLines (): string[] {
     return this.buffer === ''
       ? []
-      : this.buffer.trim().split('\n')
+      : stripVTControlCharacters(this.buffer).trim().split('\n')
   }
 
   /**

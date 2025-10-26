@@ -2,7 +2,7 @@ import { PnpmError } from '@pnpm/error'
 
 export function tryBuildRegExpFromCommand (command: string): RegExp | null {
   // https://github.com/stdlib-js/regexp-regexp/blob/6428051ac9ef7c9d03468b19bdbb1dc6fc2a5509/lib/regexp.js
-  const regExpDetectRegExpScriptCommand = /^\/((?:\\\/|[^/])+)\/([dgimuys]*)$/
+  const regExpDetectRegExpScriptCommand = /^\/((?:\\\/|[^/])+)\/([dgimuvys]*)$/
   const match = command.match(regExpDetectRegExpScriptCommand)
 
   // if the passed script selector is not in the format of RegExp literal like /build:.*/, return null and handle it as a string script command

@@ -5,8 +5,8 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { type ProjectRootDir } from '@pnpm/types'
 import { sync as rimraf } from '@zkochan/rimraf'
-import { createPeersDirSuffix } from '@pnpm/dependency-path'
-import { testDefaults } from '../utils'
+import { createPeerDepGraphHash } from '@pnpm/dependency-path'
+import { testDefaults } from '../utils/index.js'
 
 test('auto install non-optional peer dependencies', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
@@ -79,7 +79,7 @@ test('don\'t fail on linked package, when peers are auto installed', async () =>
     },
   ])
   process.chdir('pkg')
-  const updatedManifest = await addDependenciesToPackage(pkgManifest, ['@pnpm.e2e/peer-b'], testDefaults({ autoInstallPeers: true }))
+  const { updatedManifest } = await addDependenciesToPackage(pkgManifest, ['@pnpm.e2e/peer-b'], testDefaults({ autoInstallPeers: true }))
   expect(Object.keys(updatedManifest.dependencies ?? {})).toStrictEqual(['linked', '@pnpm.e2e/peer-b'])
 })
 
@@ -87,7 +87,7 @@ test('hoist a peer dependency in order to reuse it by other dependencies, when i
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['@pnpm/xyz-parent-parent-parent-parent', '@pnpm/xyz-parent-parent-with-xyz'], testDefaults({ autoInstallPeers: true }))
   const lockfile = project.readLockfile()
-  const suffix = createPeersDirSuffix([{ name: '@pnpm/x', version: '1.0.0' }, { name: '@pnpm/y', version: '1.0.0' }, { name: '@pnpm/z', version: '1.0.0' }])
+  const suffix = createPeerDepGraphHash([{ name: '@pnpm/x', version: '1.0.0' }, { name: '@pnpm/y', version: '1.0.0' }, { name: '@pnpm/z', version: '1.0.0' }])
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
     '@pnpm/x@1.0.0',
     '@pnpm/xyz-parent-parent-with-xyz@1.0.0',
@@ -110,8 +110,8 @@ test('don\'t hoist a peer dependency when there is a root dependency by that nam
     `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm/y/-/y-2.0.0.tgz`,
   ], testDefaults({ autoInstallPeers: true }))
   const lockfile = project.readLockfile()
-  const suffix1 = createPeersDirSuffix([{ name: '@pnpm/y', version: '2.0.0' }, { name: '@pnpm/z', version: '1.0.0' }, { name: '@pnpm.e2e/peer-a', version: '1.0.0' }])
-  const suffix2 = createPeersDirSuffix([{ name: '@pnpm/x', version: '1.0.0' }, { name: '@pnpm/y', version: '1.0.0' }, { name: '@pnpm/z', version: '1.0.0' }])
+  const suffix1 = createPeerDepGraphHash([{ name: '@pnpm/y', version: '2.0.0' }, { name: '@pnpm/z', version: '1.0.0' }, { name: '@pnpm.e2e/peer-a', version: '1.0.0' }])
+  const suffix2 = createPeerDepGraphHash([{ name: '@pnpm/x', version: '1.0.0' }, { name: '@pnpm/y', version: '1.0.0' }, { name: '@pnpm/z', version: '1.0.0' }])
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
     '@pnpm.e2e/peer-a@1.0.0',
     '@pnpm/x@1.0.0',
@@ -137,7 +137,7 @@ test('don\'t auto-install a peer dependency, when that dependency is in the root
     `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm/y/-/y-2.0.0.tgz`,
   ], testDefaults({ autoInstallPeers: true }))
   const lockfile = project.readLockfile()
-  const suffix = createPeersDirSuffix([{ name: '@pnpm/y', version: '2.0.0' }, { name: '@pnpm/z', version: '1.0.0' }, { name: '@pnpm.e2e/peer-a', version: '1.0.0' }])
+  const suffix = createPeerDepGraphHash([{ name: '@pnpm/y', version: '2.0.0' }, { name: '@pnpm/z', version: '1.0.0' }, { name: '@pnpm.e2e/peer-a', version: '1.0.0' }])
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
     `@pnpm/xyz-parent-parent-parent-parent@1.0.0${suffix}`,
     `@pnpm/xyz-parent-parent-parent@1.0.0${suffix}`,
@@ -184,7 +184,7 @@ test('prefer the peer dependency version already used in the root', async () => 
 test('automatically install root peer dependencies', async () => {
   const project = prepareEmpty()
 
-  let manifest = await install({
+  let { updatedManifest: manifest } = await install({
     dependencies: {
       'is-negative': '^1.0.1',
     },
@@ -219,7 +219,7 @@ test('automatically install root peer dependencies', async () => {
   project.has('is-negative')
 
   // The auto installed peer is not removed when a new dependency is added
-  manifest = await addDependenciesToPackage(manifest, ['is-odd@1.0.0'], testDefaults({ autoInstallPeers: true, resolutionMode: 'lowest-direct' }))
+  manifest = (await addDependenciesToPackage(manifest, ['is-odd@1.0.0'], testDefaults({ autoInstallPeers: true, resolutionMode: 'lowest-direct' }))).updatedManifest
   project.has('is-odd')
   project.has('is-positive')
   project.has('is-negative')
@@ -428,6 +428,11 @@ test('installation on a workspace with many complex circular dependencies does n
     ignoreScripts: true,
     lockfileOnly: true,
     strictPeerDependencies: false,
+    registries: {
+      // A temporary workaround due to stylus removal from the npm registry.
+      // Related issue: https://github.com/stylus/stylus/issues/2938
+      default: 'https://registry.npmmirror.com',
+    },
     allProjects: [
       {
         buildIndex: 0,

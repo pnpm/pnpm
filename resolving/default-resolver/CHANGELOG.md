@@ -1,5 +1,417 @@
 # @pnpm/default-resolver
 
+## 1002.2.11
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/npm-resolver@1004.4.0
+  - @pnpm/resolving.bun-resolver@1002.0.0
+  - @pnpm/resolving.deno-resolver@1002.0.0
+  - @pnpm/node.resolver@1001.0.5
+  - @pnpm/local-resolver@1002.1.4
+  - @pnpm/git-resolver@1001.1.5
+  - @pnpm/tarball-resolver@1002.1.4
+
+## 1002.2.10
+
+### Patch Changes
+
+- @pnpm/node.resolver@1001.0.4
+- @pnpm/resolving.bun-resolver@1001.0.1
+- @pnpm/resolving.deno-resolver@1001.0.1
+
+## 1002.2.9
+
+### Patch Changes
+
+- @pnpm/resolving.bun-resolver@1001.0.0
+- @pnpm/resolving.deno-resolver@1001.0.0
+
+## 1002.2.8
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/npm-resolver@1004.3.0
+  - @pnpm/resolving.bun-resolver@1000.0.7
+  - @pnpm/resolving.deno-resolver@1000.0.7
+  - @pnpm/node.resolver@1001.0.3
+  - @pnpm/local-resolver@1002.1.3
+
+## 1002.2.7
+
+### Patch Changes
+
+- Updated dependencies [baf8bf6]
+- Updated dependencies [702ddb9]
+  - @pnpm/npm-resolver@1004.2.3
+  - @pnpm/resolving.bun-resolver@1000.0.6
+  - @pnpm/resolving.deno-resolver@1000.0.6
+
+## 1002.2.6
+
+### Patch Changes
+
+- Updated dependencies [121b44e]
+- Updated dependencies [02f8b69]
+  - @pnpm/npm-resolver@1004.2.2
+  - @pnpm/resolving.bun-resolver@1000.0.5
+  - @pnpm/resolving.deno-resolver@1000.0.5
+
+## 1002.2.5
+
+### Patch Changes
+
+- @pnpm/node.resolver@1001.0.2
+- @pnpm/error@1000.0.5
+- @pnpm/resolving.bun-resolver@1000.0.4
+- @pnpm/resolving.deno-resolver@1000.0.4
+- @pnpm/npm-resolver@1004.2.1
+- @pnpm/local-resolver@1002.1.2
+
+## 1002.2.4
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+  - @pnpm/npm-resolver@1004.2.0
+  - @pnpm/resolving.bun-resolver@1000.0.3
+  - @pnpm/resolving.deno-resolver@1000.0.3
+  - @pnpm/node.resolver@1001.0.1
+  - @pnpm/local-resolver@1002.1.1
+  - @pnpm/resolver-base@1005.0.1
+  - @pnpm/git-resolver@1001.1.4
+  - @pnpm/tarball-resolver@1002.1.3
+
+## 1002.2.3
+
+### Patch Changes
+
+- @pnpm/resolving.bun-resolver@1000.0.2
+- @pnpm/resolving.deno-resolver@1000.0.2
+
+## 1002.2.2
+
+### Patch Changes
+
+- @pnpm/node.resolver@1001.0.0
+- @pnpm/git-resolver@1001.1.3
+- @pnpm/npm-resolver@1004.1.3
+- @pnpm/tarball-resolver@1002.1.2
+
+## 1002.2.1
+
+### Patch Changes
+
+- Updated dependencies [2b0d35f]
+  - @pnpm/resolving.deno-resolver@1000.0.1
+  - @pnpm/resolving.bun-resolver@1000.0.1
+
+## 1002.2.0
+
+### Minor Changes
+
+- d1edf73: Add support for installing deno runtime.
+- 86b33e9: Added support for installing Bun runtime.
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [5dedada]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/resolving.deno-resolver@1000.0.0
+  - @pnpm/node.resolver@1001.0.0
+  - @pnpm/resolving.bun-resolver@1000.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/local-resolver@1002.1.0
+  - @pnpm/error@1000.0.4
+  - @pnpm/npm-resolver@1004.1.3
+  - @pnpm/git-resolver@1001.1.2
+  - @pnpm/tarball-resolver@1002.1.2
+
+## 1002.1.2
+
+### Patch Changes
+
+- Updated dependencies [1ba2e15]
+- Updated dependencies [1a07b8f]
+  - @pnpm/fetching-types@1000.2.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/node.resolver@1000.1.0
+  - @pnpm/local-resolver@1002.0.2
+  - @pnpm/npm-resolver@1004.1.2
+  - @pnpm/tarball-resolver@1002.1.1
+  - @pnpm/git-resolver@1001.1.1
+  - @pnpm/error@1000.0.3
+
+## 1002.1.1
+
+### Patch Changes
+
+- @pnpm/local-resolver@1002.0.1
+- @pnpm/npm-resolver@1004.1.1
+
+## 1002.1.0
+
+### Minor Changes
+
+- 2721291: Create different resolver result types which provide more information.
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/tarball-resolver@1002.1.0
+  - @pnpm/local-resolver@1002.0.0
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/git-resolver@1001.1.0
+  - @pnpm/npm-resolver@1004.1.0
+
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [c307634]
+- Updated dependencies [5055399]
+  - @pnpm/tarball-resolver@1002.0.2
+  - @pnpm/git-resolver@1001.0.2
+
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [09cf46f]
+- Updated dependencies [6b6ccf9]
+  - @pnpm/local-resolver@1001.0.1
+  - @pnpm/npm-resolver@1004.0.1
+  - @pnpm/git-resolver@1001.0.1
+  - @pnpm/tarball-resolver@1002.0.1
+  - @pnpm/resolver-base@1003.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+
+### Minor Changes
+
+- 9c3dd03: **Added support for installing JSR packages.** You can now install JSR packages using the following syntax:
+
+  ```
+  pnpm add jsr:<pkg_name>
+  ```
+
+  or with a version range:
+
+  ```
+  pnpm add jsr:<pkg_name>@<range>
+  ```
+
+  For example, running:
+
+  ```
+  pnpm add jsr:@foo/bar
+  ```
+
+  will add the following entry to your `package.json`:
+
+  ```json
+  {
+    "dependencies": {
+      "@foo/bar": "jsr:^0.1.2"
+    }
+  }
+  ```
+
+  When publishing, this entry will be transformed into a format compatible with npm, older versions of Yarn, and previous pnpm versions:
+
+  ```json
+  {
+    "dependencies": {
+      "@foo/bar": "npm:@jsr/foo__bar@^0.1.2"
+    }
+  }
+  ```
+
+  Related issue: [#8941](https://github.com/pnpm/pnpm/issues/8941).
+
+  Note: The `@jsr` scope defaults to <https://npm.jsr.io/> if the `@jsr:registry` setting is not defined.
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+  - @pnpm/tarball-resolver@1002.0.0
+  - @pnpm/local-resolver@1001.0.0
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/git-resolver@1001.0.0
+  - @pnpm/npm-resolver@1004.0.0
+
+## 1001.0.13
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/npm-resolver@1003.0.0
+  - @pnpm/git-resolver@1000.0.11
+  - @pnpm/local-resolver@1000.0.12
+  - @pnpm/tarball-resolver@1001.0.8
+
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [72cff38]
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/npm-resolver@1002.0.0
+  - @pnpm/local-resolver@1000.0.11
+  - @pnpm/git-resolver@1000.0.10
+  - @pnpm/tarball-resolver@1001.0.7
+
+## 1001.0.11
+
+### Patch Changes
+
+- @pnpm/local-resolver@1000.0.10
+- @pnpm/npm-resolver@1001.0.1
+- @pnpm/resolver-base@1000.2.1
+- @pnpm/git-resolver@1000.0.9
+- @pnpm/tarball-resolver@1001.0.6
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/npm-resolver@1001.0.0
+  - @pnpm/git-resolver@1000.0.8
+  - @pnpm/local-resolver@1000.0.9
+  - @pnpm/tarball-resolver@1001.0.5
+
+## 1001.0.9
+
+### Patch Changes
+
+- @pnpm/local-resolver@1000.0.8
+- @pnpm/npm-resolver@1000.1.7
+
+## 1001.0.8
+
+### Patch Changes
+
+- Updated dependencies [8371664]
+  - @pnpm/npm-resolver@1000.1.6
+
+## 1001.0.7
+
+### Patch Changes
+
+- @pnpm/local-resolver@1000.0.7
+- @pnpm/npm-resolver@1000.1.5
+- @pnpm/resolver-base@1000.1.4
+- @pnpm/git-resolver@1000.0.7
+- @pnpm/tarball-resolver@1001.0.4
+
+## 1001.0.6
+
+### Patch Changes
+
+- @pnpm/local-resolver@1000.0.6
+- @pnpm/npm-resolver@1000.1.4
+- @pnpm/resolver-base@1000.1.3
+- @pnpm/git-resolver@1000.0.6
+- @pnpm/tarball-resolver@1001.0.3
+
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [d6a4ff1]
+  - @pnpm/git-resolver@1000.0.5
+  - @pnpm/local-resolver@1000.0.5
+
+## 1001.0.4
+
+### Patch Changes
+
+- @pnpm/error@1000.0.2
+- @pnpm/npm-resolver@1000.1.3
+- @pnpm/local-resolver@1000.0.4
+- @pnpm/resolver-base@1000.1.2
+- @pnpm/git-resolver@1000.0.4
+- @pnpm/tarball-resolver@1001.0.2
+
+## 1001.0.3
+
+### Patch Changes
+
+- @pnpm/local-resolver@1000.0.3
+
+## 1001.0.2
+
+### Patch Changes
+
+- @pnpm/local-resolver@1000.0.2
+- @pnpm/npm-resolver@1000.1.2
+- @pnpm/resolver-base@1000.1.1
+- @pnpm/git-resolver@1000.0.3
+- @pnpm/tarball-resolver@1001.0.1
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [b100962]
+  - @pnpm/git-resolver@1000.0.2
+  - @pnpm/npm-resolver@1000.1.1
+  - @pnpm/tarball-resolver@1001.0.0
+
+## 1001.0.0
+
+### Major Changes
+
+- b0f3c71: Dependencies specified via a URL are now recorded in the lockfile using their final resolved URL. Thus, if the original URL redirects, the final redirect target will be saved in the lockfile [#8833](https://github.com/pnpm/pnpm/issues/8833).
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+- Updated dependencies [b0f3c71]
+- Updated dependencies [b0f3c71]
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/npm-resolver@1000.1.0
+  - @pnpm/tarball-resolver@1001.0.0
+  - @pnpm/fetching-types@1000.1.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/git-resolver@1000.0.1
+  - @pnpm/local-resolver@1000.0.1
+
+## 20.0.10
+
+### Patch Changes
+
+- Updated dependencies [3be45b7]
+- Updated dependencies [501c152]
+  - @pnpm/tarball-resolver@9.0.8
+  - @pnpm/npm-resolver@22.0.0
+  - @pnpm/error@6.0.3
+  - @pnpm/local-resolver@12.0.10
+
+## 20.0.9
+
+### Patch Changes
+
+- Updated dependencies [222d10a]
+  - @pnpm/npm-resolver@21.1.1
+
 ## 20.0.8
 
 ### Patch Changes

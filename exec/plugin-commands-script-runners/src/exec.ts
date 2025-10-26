@@ -2,7 +2,8 @@ import path from 'path'
 import { docsUrl, type RecursiveSummary, throwOnCommandFail, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { type LifecycleMessage, lifecycleLogger } from '@pnpm/core-loggers'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types } from '@pnpm/config'
+import { type Config, types, getWorkspaceConcurrency } from '@pnpm/config'
+import { type CheckDepsStatusOptions } from '@pnpm/deps.status'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
@@ -14,18 +15,19 @@ import pLimit from 'p-limit'
 import { prependDirsToPath } from '@pnpm/env.path'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { existsInDir } from './existsInDir'
-import { makeEnv } from './makeEnv'
+import { existsInDir } from './existsInDir.js'
+import { makeEnv } from './makeEnv.js'
 import {
   PARALLEL_OPTION_HELP,
   REPORT_SUMMARY_OPTION_HELP,
   RESUME_FROM_OPTION_HELP,
   shorthands as runShorthands,
-} from './run'
+} from './run.js'
 import { PnpmError } from '@pnpm/error'
 import which from 'which'
 import writeJsonFile from 'write-json-file'
-import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint'
+import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint.js'
+import { runDepsStatusCheck } from './runDepsStatusCheck.js'
 
 export const shorthands: Record<string, string | string[]> = {
   parallel: runShorthands.parallel,
@@ -157,8 +159,9 @@ export type ExecOpts = Required<Pick<Config, 'selectedProjectsGraph'>> & {
 | 'recursive'
 | 'reporterHidePrefix'
 | 'userAgent'
+| 'verifyDepsBeforeRun'
 | 'workspaceDir'
->
+> & CheckDepsStatusOptions
 
 export async function handler (
   opts: ExecOpts,
@@ -168,7 +171,14 @@ export async function handler (
   if (params[0] === '--') {
     params.shift()
   }
-  const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
+  if (!params[0]) {
+    throw new PnpmError('EXEC_MISSING_COMMAND', '\'pnpm exec\' requires a command to run')
+  }
+  const limitRun = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
+
+  if (opts.verifyDepsBeforeRun) {
+    await runDepsStatusCheck(opts)
+  }
 
   let chunks!: ProjectRootDir[][]
   if (opts.recursive) {
@@ -193,6 +203,10 @@ export async function handler (
         },
       }
     }
+  }
+
+  if (!opts.selectedProjectsGraph) {
+    throw new PnpmError('RECURSIVE_EXEC_NO_PACKAGE', 'No package found in this workspace')
   }
 
   if (opts.resumeFrom) {
@@ -267,11 +281,14 @@ export async function handler (
             }
             child.stdout!.on('data', logFn('stdout'))
             child.stderr!.on('data', logFn('stderr'))
-            void child.once('close', exitCode => {
-              lifecycleLogger.debug({
-                ...lifecycleOpts,
-                exitCode: exitCode ?? 1,
-                optional: false,
+            await new Promise<void>((resolve) => {
+              void child.once('close', exitCode => {
+                lifecycleLogger.debug({
+                  ...lifecycleOpts,
+                  exitCode: exitCode ?? 1,
+                  optional: false,
+                })
+                resolve()
               })
             })
             await child

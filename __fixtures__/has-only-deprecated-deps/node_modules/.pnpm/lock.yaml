@@ -1,0 +1,20 @@
+lockfileVersion: '9.0'
+
+importers:
+
+  '.':
+    dependencies:
+
+      '@pnpm.e2e/deprecated':
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+
+  '@pnpm.e2e/deprecated@1.0.0':
+    resolution: {integrity: sha512-oidipeQzM+eKHKOmDnruTG7wP+jySQAxskX54lMYTeaq1rBjC+G1u+l3TolCKShyyOz73mO2N9laBqyFB06t6A==}
+    deprecated: This package is deprecated. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+
+snapshots:
+
+  '@pnpm.e2e/deprecated@1.0.0': {}

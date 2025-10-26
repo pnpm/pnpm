@@ -3,12 +3,11 @@ import fs from 'fs/promises'
 import { docsUrl } from '@pnpm/cli-utils'
 import { install } from '@pnpm/plugin-commands-installation'
 import { type Config, types as allTypes } from '@pnpm/config'
-import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { PnpmError } from '@pnpm/error'
-import { type ProjectRootDir } from '@pnpm/types'
 import renderHelp from 'render-help'
 import { prompt } from 'enquirer'
 import pick from 'ramda/src/pick'
+import { updatePatchedDependencies } from './updatePatchedDependencies.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -28,14 +27,11 @@ export function help (): string {
   })
 }
 
-export type PatchRemoveCommandOptions = install.InstallCommandOptions & Pick<Config, 'dir' | 'lockfileDir' | 'patchesDir' | 'rootProjectManifest'>
+export type PatchRemoveCommandOptions = install.InstallCommandOptions & Pick<Config, 'dir' | 'lockfileDir' | 'patchesDir' | 'rootProjectManifest' | 'patchedDependencies'>
 
 export async function handler (opts: PatchRemoveCommandOptions, params: string[]): Promise<void> {
   let patchesToRemove = params
-  const lockfileDir = (opts.lockfileDir ?? opts.dir ?? process.cwd()) as ProjectRootDir
-  const { writeProjectManifest, manifest } = await tryReadProjectManifest(lockfileDir)
-  const rootProjectManifest = opts.rootProjectManifest ?? manifest ?? {}
-  const patchedDependencies = rootProjectManifest.pnpm?.patchedDependencies ?? {}
+  const patchedDependencies = opts.patchedDependencies ?? {}
 
   if (!params.length) {
     const allPatches = Object.keys(patchedDependencies)
@@ -58,19 +54,19 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
     throw new PnpmError('NO_PATCHES_TO_REMOVE', 'There are no patches that need to be removed')
   }
 
+  for (const patch of patchesToRemove) {
+    if (!Object.hasOwn(patchedDependencies, patch)) {
+      throw new PnpmError('PATCH_NOT_FOUND', `Patch "${patch}" not found in patched dependencies`)
+    }
+  }
+
   const patchesDirs = new Set<string>()
   await Promise.all(patchesToRemove.map(async (patch) => {
-    if (Object.prototype.hasOwnProperty.call(patchedDependencies, patch)) {
-      const patchFile = path.join(lockfileDir, patchedDependencies[patch])
+    if (Object.hasOwn(patchedDependencies, patch)) {
+      const patchFile = patchedDependencies[patch]
       patchesDirs.add(path.dirname(patchFile))
       await fs.rm(patchFile, { force: true })
-      delete rootProjectManifest.pnpm!.patchedDependencies![patch]
-      if (!Object.keys(rootProjectManifest.pnpm!.patchedDependencies!).length) {
-        delete rootProjectManifest.pnpm!.patchedDependencies
-        if (!Object.keys(rootProjectManifest.pnpm!).length) {
-          delete rootProjectManifest.pnpm
-        }
-      }
+      delete patchedDependencies![patch]
     }
   }))
 
@@ -82,16 +78,10 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
       }
     } catch {}
   }))
-
-  await writeProjectManifest(rootProjectManifest)
-
-  if (opts?.selectedProjectsGraph?.[lockfileDir]) {
-    opts.selectedProjectsGraph[lockfileDir].package.manifest = rootProjectManifest
-  }
-
-  if (opts?.allProjectsGraph?.[lockfileDir].package.manifest) {
-    opts.allProjectsGraph[lockfileDir].package.manifest = rootProjectManifest
-  }
+  await updatePatchedDependencies(patchedDependencies, {
+    ...opts,
+    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+  })
 
   return install.handler(opts)
 }

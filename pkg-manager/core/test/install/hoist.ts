@@ -16,12 +16,12 @@ import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDistTag } from '@pnpm/registry-mock'
 import symlinkDir from 'symlink-dir'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('should hoist dependencies', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['express', '@foo/has-dep-from-same-scope'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['express@4.21.2', '@foo/has-dep-from-same-scope'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   project.has('express')
   project.has('.pnpm/node_modules/debug')
@@ -51,7 +51,7 @@ test('should hoist dependencies to the root of node_modules when publicHoistPatt
   const project = prepareEmpty()
 
   await addDependenciesToPackage({},
-    ['express', '@foo/has-dep-from-same-scope'],
+    ['express@4.21.2', '@foo/has-dep-from-same-scope'],
     testDefaults({ fastUnpack: false, publicHoistPattern: '*' }))
 
   project.has('express')
@@ -87,7 +87,7 @@ test('should hoist some dependencies to the root of node_modules when publicHois
   const project = prepareEmpty()
 
   await addDependenciesToPackage({},
-    ['express', '@foo/has-dep-from-same-scope'],
+    ['express@4.21.2', '@foo/has-dep-from-same-scope'],
     testDefaults({ fastUnpack: false, hoistPattern: '*', publicHoistPattern: '@foo/*' }))
 
   project.has('express')
@@ -104,7 +104,7 @@ test('should hoist some dependencies to the root of node_modules when publicHois
 test('should hoist dependencies by pattern', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['express'], testDefaults({ fastUnpack: false, hoistPattern: 'mime' }))
+  await addDependenciesToPackage({}, ['express@4.21.2'], testDefaults({ fastUnpack: false, hoistPattern: 'mime' }))
 
   project.has('express')
   project.hasNot('.pnpm/node_modules/debug')
@@ -118,7 +118,7 @@ test('should hoist dependencies by pattern', async () => {
 test('should remove hoisted dependencies', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['express'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['express@4.21.2'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
   await mutateModulesInSingleProject({
     dependencyNames: ['express'],
     manifest,
@@ -135,7 +135,7 @@ test('should not override root packages with hoisted dependencies', async () => 
   const project = prepareEmpty()
 
   // this installs debug@3.1.0
-  const manifest = await addDependenciesToPackage({}, ['debug@3.1.0'], testDefaults({ hoistPattern: '*' }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['debug@3.1.0'], testDefaults({ hoistPattern: '*' }))
   // this installs express@4.16.2, that depends on debug 2.6.9, but we don't want to flatten debug@2.6.9
   await addDependenciesToPackage(manifest, ['express@4.16.2'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
@@ -146,7 +146,7 @@ test('should rehoist when uninstalling a package', async () => {
   const project = prepareEmpty()
 
   // this installs debug@3.1.0 and express@4.16.0
-  const manifest = await addDependenciesToPackage({}, ['debug@3.1.0', 'express@4.16.0'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['debug@3.1.0', 'express@4.16.0'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
   // uninstall debug@3.1.0 to check if debug@2.6.9 gets reflattened
   await mutateModulesInSingleProject({
     dependencyNames: ['debug'],
@@ -198,14 +198,14 @@ test('should rehoist after running a general install', async () => {
 test('should not override aliased dependencies', async () => {
   const project = prepareEmpty()
   // now I install is-negative, but aliased as "debug". I do not want the "debug" dependency of express to override my alias
-  await addDependenciesToPackage({}, ['debug@npm:is-negative@1.0.0', 'express'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
+  await addDependenciesToPackage({}, ['debug@npm:is-negative@1.0.0', 'express@4.21.2'], testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   expect(project.requireModule('debug/package.json').version).toEqual('1.0.0')
 })
 
 test('hoistPattern=* throws exception when executed on node_modules installed w/o the option', async () => {
   prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['is-positive'], testDefaults({ hoistPattern: undefined }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive'], testDefaults({ hoistPattern: undefined }))
 
   await expect(
     addDependenciesToPackage(manifest, ['is-negative'], testDefaults({
@@ -218,7 +218,7 @@ test('hoistPattern=* throws exception when executed on node_modules installed w/
 test('hoistPattern=undefined throws exception when executed on node_modules installed with hoist-pattern=*', async () => {
   prepareEmpty()
   const opts = testDefaults({ hoistPattern: '*' })
-  const manifest = await addDependenciesToPackage({}, ['is-positive'], opts)
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive'], opts)
 
   await expect(
     addDependenciesToPackage(manifest, ['is-negative'], {
@@ -255,7 +255,7 @@ test('hoist by alias', async () => {
 test('should remove aliased hoisted dependencies', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-aliased-dep'], testDefaults({ hoistPattern: '*' }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-aliased-dep'], testDefaults({ hoistPattern: '*' }))
   await mutateModulesInSingleProject({
     dependencyNames: ['@pnpm.e2e/pkg-with-1-aliased-dep'],
     manifest,
@@ -332,7 +332,7 @@ test('should hoist correctly peer dependencies', async () => {
 
 test('should uninstall correctly peer dependencies', async () => {
   prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/using-ajv'], testDefaults({ hoistPattern: '*' }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/using-ajv'], testDefaults({ hoistPattern: '*' }))
   await mutateModulesInSingleProject({
     dependencyNames: ['@pnpm.e2e/using-ajv'],
     manifest,
@@ -512,13 +512,14 @@ test('hoist when updating in one of the workspace projects', async () => {
     const modulesManifest = rootModules.readModulesManifest()
     expect(modulesManifest?.hoistedDependencies).toStrictEqual({
       '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': { '@pnpm.e2e/dep-of-pkg-with-1-dep': 'private' },
+      '@pnpm.e2e/foo@100.0.0': { '@pnpm.e2e/foo': 'private' },
     })
   }
 })
 
 test('should recreate node_modules with hoisting', async () => {
   const project = prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ hoistPattern: undefined }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ hoistPattern: undefined }))
 
   project.hasNot('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
   {
@@ -572,7 +573,7 @@ test('hoisting should not create a broken symlink to a skipped optional dependen
 test('the hoisted packages should not override the bin files of the direct dependencies', async () => {
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/hello-world-js-bin-parent'], testDefaults({ fastUnpack: false, publicHoistPattern: '*' }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/hello-world-js-bin-parent'], testDefaults({ fastUnpack: false, publicHoistPattern: '*' }))
 
   {
     const cmd = await fs.promises.readFile('node_modules/.bin/hello-world-js-bin', 'utf-8')

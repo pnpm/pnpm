@@ -1,0 +1,41 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`ignoredBuilds lists automatically ignored dependencies 1`] = `
+"Automatically ignored builds during installation:
+  foo
+hint: To allow the execution of build scripts for a package, add its name to "pnpm.onlyBuiltDependencies" in your "package.json", then run "pnpm rebuild".
+hint: If you don't want to build a package, add it to the "pnpm.ignoredBuiltDependencies" list.
+"
+`;
+
+exports[`ignoredBuilds lists both automatically and explicitly ignored dependencies 1`] = `
+"Automatically ignored builds during installation:
+  foo
+  bar
+hint: To allow the execution of build scripts for a package, add its name to "pnpm.onlyBuiltDependencies" in your "package.json", then run "pnpm rebuild".
+hint: If you don't want to build a package, add it to the "pnpm.ignoredBuiltDependencies" list.
+
+Explicitly ignored package builds (via pnpm.ignoredBuiltDependencies):
+  qar
+  zoo
+"
+`;
+
+exports[`ignoredBuilds lists explicitly ignored dependencies 1`] = `
+"Automatically ignored builds during installation:
+  None
+
+Explicitly ignored package builds (via pnpm.ignoredBuiltDependencies):
+  bar
+"
+`;
+
+exports[`ignoredBuilds prints an info message when there is no node_modules 1`] = `
+"Automatically ignored builds during installation:
+  Cannot identify as no node_modules found
+
+Explicitly ignored package builds (via pnpm.ignoredBuiltDependencies):
+  qar
+  zoo
+"
+`;

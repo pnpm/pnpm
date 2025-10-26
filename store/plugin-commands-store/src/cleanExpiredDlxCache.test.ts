@@ -2,9 +2,12 @@ import fs from 'fs'
 import path from 'path'
 import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
-import { cleanExpiredDlxCache, cleanOrphans } from './cleanExpiredDlxCache'
+import { cleanExpiredDlxCache, cleanOrphans } from './cleanExpiredDlxCache.js'
 
-const createCacheKey = (...pkgs: string[]): string => dlx.createCacheKey(pkgs, { default: 'https://registry.npmjs.com/' })
+const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({
+  packages,
+  registries: { default: 'https://registry.npmjs.com/' },
+})
 
 function createSampleDlxCacheLinkTarget (dirPath: string): void {
   fs.mkdirSync(path.join(dirPath, 'node_modules', '.pnpm'), { recursive: true })

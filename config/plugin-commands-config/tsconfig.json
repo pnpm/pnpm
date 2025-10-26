@@ -19,10 +19,19 @@
       "path": "../../exec/run-npm"
     },
     {
+      "path": "../../object/key-sorting"
+    },
+    {
+      "path": "../../object/property-path"
+    },
+    {
       "path": "../../packages/error"
     },
     {
       "path": "../../packages/logger"
+    },
+    {
+      "path": "../../workspace/manifest-writer"
     },
     {
       "path": "../config"

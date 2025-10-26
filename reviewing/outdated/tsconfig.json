@@ -25,6 +25,9 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
+      "path": "../../config/version-policy"
+    },
+    {
       "path": "../../hooks/read-package-hook"
     },
     {
@@ -50,9 +53,6 @@
     },
     {
       "path": "../../pkg-manager/client"
-    },
-    {
-      "path": "../../pkg-manager/modules-yaml"
     },
     {
       "path": "../../pkg-manifest/manifest-utils"

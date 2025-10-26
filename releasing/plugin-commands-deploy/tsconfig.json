@@ -16,16 +16,16 @@
       "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../catalogs/resolver"
-    },
-    {
-      "path": "../../catalogs/types"
+      "path": "../../__utils__/test-fixtures"
     },
     {
       "path": "../../cli/cli-utils"
     },
     {
       "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../config/config"
     },
     {
       "path": "../../fetching/directory-fetcher"
@@ -37,7 +37,16 @@
       "path": "../../fs/is-empty-dir-or-nothing"
     },
     {
+      "path": "../../lockfile/fs"
+    },
+    {
       "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/dependency-path"
     },
     {
       "path": "../../packages/error"

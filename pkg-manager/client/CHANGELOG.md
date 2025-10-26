@@ -1,5 +1,461 @@
 # @pnpm/client
 
+## 1001.1.3
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/fetching.binary-fetcher@1002.0.0
+  - @pnpm/git-fetcher@1003.0.0
+  - @pnpm/tarball-fetcher@1003.0.0
+  - @pnpm/directory-fetcher@1000.1.14
+  - @pnpm/fetch@1000.2.6
+  - @pnpm/default-resolver@1002.2.11
+  - @pnpm/node.fetcher@1001.0.8
+
+## 1001.1.2
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1001.0.7
+- @pnpm/default-resolver@1002.2.10
+- @pnpm/git-fetcher@1002.0.1
+- @pnpm/tarball-fetcher@1002.0.1
+
+## 1001.1.1
+
+### Patch Changes
+
+- @pnpm/fetching.binary-fetcher@1001.0.0
+- @pnpm/git-fetcher@1002.0.0
+- @pnpm/tarball-fetcher@1002.0.0
+- @pnpm/node.fetcher@1001.0.6
+- @pnpm/default-resolver@1002.2.9
+
+## 1001.1.0
+
+### Minor Changes
+
+- fb4da0c: Added network performance monitoring to pnpm by implementing warnings for slow network requests, including both metadata fetches and tarball downloads.
+
+  Added configuration options for warning thresholds: `fetchWarnTimeoutMs` and `fetchMinSpeedKiBps`.
+  Warning messages are displayed when requests exceed time thresholds or fall below speed minimums
+
+  Related PR: [#10025](https://github.com/pnpm/pnpm/pull/10025).
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/tarball-fetcher@1001.1.0
+  - @pnpm/git-fetcher@1001.0.16
+  - @pnpm/node.fetcher@1001.0.5
+  - @pnpm/default-resolver@1002.2.8
+  - @pnpm/directory-fetcher@1000.1.13
+
+## 1001.0.7
+
+### Patch Changes
+
+- @pnpm/default-resolver@1002.2.7
+
+## 1001.0.6
+
+### Patch Changes
+
+- @pnpm/default-resolver@1002.2.6
+
+## 1001.0.5
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1001.0.4
+- @pnpm/default-resolver@1002.2.5
+- @pnpm/fetching.binary-fetcher@1000.0.3
+- @pnpm/tarball-fetcher@1001.0.15
+- @pnpm/network.auth-header@1000.0.6
+- @pnpm/git-fetcher@1001.0.15
+- @pnpm/directory-fetcher@1000.1.12
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/default-resolver@1002.2.4
+  - @pnpm/directory-fetcher@1000.1.11
+  - @pnpm/git-fetcher@1001.0.14
+  - @pnpm/tarball-fetcher@1001.0.14
+  - @pnpm/fetch@1000.2.5
+  - @pnpm/resolver-base@1005.0.1
+  - @pnpm/node.fetcher@1001.0.3
+  - @pnpm/fetching.binary-fetcher@1000.0.2
+
+## 1001.0.3
+
+### Patch Changes
+
+- @pnpm/git-fetcher@1001.0.13
+- @pnpm/tarball-fetcher@1001.0.13
+- @pnpm/node.fetcher@1001.0.2
+- @pnpm/default-resolver@1002.2.3
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [87d3aa8]
+  - @pnpm/fetch@1000.2.4
+  - @pnpm/tarball-fetcher@1001.0.12
+  - @pnpm/default-resolver@1002.2.2
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [2b0d35f]
+  - @pnpm/fetching.binary-fetcher@1000.0.1
+  - @pnpm/node.fetcher@1001.0.1
+  - @pnpm/default-resolver@1002.2.1
+
+## 1001.0.0
+
+### Major Changes
+
+- d1edf73: Removed node fetcher. The binary fetcher should be used for downloading node assets.
+- f91922c: Changed how the integrity of the node.js artifact is stored in the lockfile.
+
+### Minor Changes
+
+- d1edf73: Added support for binary fetcher.
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/default-resolver@1002.2.0
+  - @pnpm/node.fetcher@1001.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/fetching.binary-fetcher@1000.0.0
+  - @pnpm/directory-fetcher@1000.1.10
+  - @pnpm/git-fetcher@1001.0.12
+  - @pnpm/tarball-fetcher@1001.0.12
+  - @pnpm/network.auth-header@1000.0.5
+
+## 1000.1.0
+
+### Minor Changes
+
+- 1a07b8f: Added support for resolving and downloading the Node.js runtime specified in the [devEngines](https://github.com/openjs-foundation/package-metadata-interoperability-collab-space/issues/15) field of `package.json`.
+
+  Usage example:
+
+  ```json
+  {
+    "devEngines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.4.0",
+        "onFail": "download"
+      }
+    }
+  }
+  ```
+
+  When running `pnpm install`, pnpm will resolve Node.js to the latest version that satisfies the specified range and install it as a dependency of the project. As a result, when running scripts, the locally installed Node.js version will be used.
+
+  Unlike the existing options, `useNodeVersion` and `executionEnv.nodeVersion`, this new field supports version ranges, which are locked to exact versions during installation. The resolved version is stored in the pnpm lockfile, along with an integrity checksum for future validation of the Node.js content's validity.
+
+  Related PR: [#9755](https://github.com/pnpm/pnpm/pull/9755).
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1ba2e15]
+- Updated dependencies [1ba2e15]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/fetching-types@1000.2.0
+  - @pnpm/node.fetcher@1000.1.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/directory-fetcher@1000.1.9
+  - @pnpm/git-fetcher@1001.0.11
+  - @pnpm/tarball-fetcher@1001.0.11
+  - @pnpm/fetch@1000.2.3
+  - @pnpm/default-resolver@1002.1.2
+  - @pnpm/network.auth-header@1000.0.4
+
+## 1000.0.21
+
+### Patch Changes
+
+- @pnpm/git-fetcher@1001.0.10
+- @pnpm/tarball-fetcher@1001.0.10
+- @pnpm/default-resolver@1002.1.1
+
+## 1000.0.20
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/default-resolver@1002.1.0
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/directory-fetcher@1000.1.8
+  - @pnpm/git-fetcher@1001.0.9
+  - @pnpm/tarball-fetcher@1001.0.9
+
+## 1000.0.19
+
+### Patch Changes
+
+- @pnpm/default-resolver@1002.0.2
+- @pnpm/git-fetcher@1001.0.8
+- @pnpm/tarball-fetcher@1001.0.8
+
+## 1000.0.18
+
+### Patch Changes
+
+- Updated dependencies [51bd373]
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/network.auth-header@1000.0.3
+  - @pnpm/directory-fetcher@1000.1.7
+  - @pnpm/tarball-fetcher@1001.0.7
+  - @pnpm/git-fetcher@1001.0.7
+  - @pnpm/fetch@1000.2.2
+  - @pnpm/types@1000.6.0
+  - @pnpm/default-resolver@1002.0.1
+  - @pnpm/resolver-base@1003.0.1
+
+## 1000.0.17
+
+### Patch Changes
+
+- @pnpm/git-fetcher@1001.0.6
+- @pnpm/tarball-fetcher@1001.0.6
+
+## 1000.0.16
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/default-resolver@1002.0.0
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/directory-fetcher@1000.1.6
+  - @pnpm/tarball-fetcher@1001.0.5
+  - @pnpm/fetch@1000.2.1
+  - @pnpm/git-fetcher@1001.0.5
+
+## 1000.0.15
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/directory-fetcher@1000.1.5
+  - @pnpm/default-resolver@1001.0.13
+  - @pnpm/git-fetcher@1001.0.4
+  - @pnpm/tarball-fetcher@1001.0.4
+
+## 1000.0.14
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/fetch@1000.2.0
+  - @pnpm/directory-fetcher@1000.1.4
+  - @pnpm/git-fetcher@1001.0.3
+  - @pnpm/tarball-fetcher@1001.0.3
+  - @pnpm/default-resolver@1001.0.12
+
+## 1000.0.13
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/directory-fetcher@1000.1.3
+  - @pnpm/git-fetcher@1001.0.2
+  - @pnpm/tarball-fetcher@1001.0.2
+  - @pnpm/fetch@1000.1.6
+  - @pnpm/resolver-base@1000.2.1
+  - @pnpm/default-resolver@1001.0.11
+
+## 1000.0.12
+
+### Patch Changes
+
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/directory-fetcher@1000.1.2
+  - @pnpm/default-resolver@1001.0.10
+  - @pnpm/git-fetcher@1001.0.1
+  - @pnpm/tarball-fetcher@1001.0.1
+
+## 1000.0.11
+
+### Patch Changes
+
+- @pnpm/git-fetcher@1001.0.0
+- @pnpm/tarball-fetcher@1001.0.0
+
+## 1000.0.10
+
+### Patch Changes
+
+- @pnpm/git-fetcher@1000.0.9
+- @pnpm/tarball-fetcher@1000.0.9
+- @pnpm/default-resolver@1001.0.9
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/default-resolver@1001.0.8
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/directory-fetcher@1000.1.1
+  - @pnpm/git-fetcher@1000.0.8
+  - @pnpm/tarball-fetcher@1000.0.8
+  - @pnpm/fetch@1000.1.5
+  - @pnpm/resolver-base@1000.1.4
+  - @pnpm/default-resolver@1001.0.7
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+  - @pnpm/types@1000.2.0
+  - @pnpm/directory-fetcher@1000.1.0
+  - @pnpm/git-fetcher@1000.0.7
+  - @pnpm/tarball-fetcher@1000.0.7
+  - @pnpm/fetch@1000.1.4
+  - @pnpm/resolver-base@1000.1.3
+  - @pnpm/default-resolver@1001.0.6
+
+## 1000.0.6
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@1000.0.5
+- @pnpm/default-resolver@1001.0.5
+- @pnpm/git-fetcher@1000.0.6
+- @pnpm/tarball-fetcher@1000.0.6
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/directory-fetcher@1000.0.4
+  - @pnpm/git-fetcher@1000.0.5
+  - @pnpm/tarball-fetcher@1000.0.5
+  - @pnpm/fetch@1000.1.3
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/network.auth-header@1000.0.2
+  - @pnpm/default-resolver@1001.0.4
+
+## 1000.0.4
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@1000.0.3
+- @pnpm/default-resolver@1001.0.3
+- @pnpm/git-fetcher@1000.0.4
+- @pnpm/tarball-fetcher@1000.0.4
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/directory-fetcher@1000.0.2
+  - @pnpm/git-fetcher@1000.0.3
+  - @pnpm/tarball-fetcher@1000.0.3
+  - @pnpm/fetch@1000.1.2
+  - @pnpm/resolver-base@1000.1.1
+  - @pnpm/default-resolver@1001.0.2
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@1000.0.2
+- @pnpm/fetch@1000.1.1
+- @pnpm/git-fetcher@1000.0.2
+- @pnpm/default-resolver@1001.0.1
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+- Updated dependencies [b0f3c71]
+- Updated dependencies [b0f3c71]
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/default-resolver@1001.0.0
+  - @pnpm/fetch@1000.1.0
+  - @pnpm/fetching-types@1000.1.0
+  - @pnpm/directory-fetcher@1000.0.1
+  - @pnpm/tarball-fetcher@1000.0.1
+  - @pnpm/network.auth-header@1000.0.1
+  - @pnpm/git-fetcher@1000.0.1
+
+## 11.1.13
+
+### Patch Changes
+
+- @pnpm/git-fetcher@14.0.0
+- @pnpm/default-resolver@20.0.10
+- @pnpm/tarball-fetcher@20.0.0
+- @pnpm/network.auth-header@3.0.3
+- @pnpm/directory-fetcher@8.0.10
+
+## 11.1.12
+
+### Patch Changes
+
+- @pnpm/default-resolver@20.0.9
+- @pnpm/git-fetcher@13.0.16
+- @pnpm/tarball-fetcher@19.0.16
+- @pnpm/directory-fetcher@8.0.9
+
+## 11.1.11
+
+### Patch Changes
+
+- @pnpm/git-fetcher@13.0.15
+- @pnpm/tarball-fetcher@19.0.15
+- @pnpm/directory-fetcher@8.0.9
+
 ## 11.1.10
 
 ### Patch Changes

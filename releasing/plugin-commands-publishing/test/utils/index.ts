@@ -31,7 +31,7 @@ export const DEFAULT_OPTS = {
   networkConcurrency: 16,
   offline: false,
   pending: false,
-  pnpmfile: './.pnpmfile.cjs',
+  pnpmfile: ['./.pnpmfile.cjs'],
   pnpmHomeDir: '',
   proxy: undefined,
   rawConfig: { registry: REGISTRY },
@@ -46,7 +46,7 @@ export const DEFAULT_OPTS = {
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 export async function checkPkgExists (packageName: string, expectedVersion: string): Promise<void> {

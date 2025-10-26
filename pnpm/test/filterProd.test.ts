@@ -1,5 +1,5 @@
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm } from './utils'
+import { execPnpm } from './utils/index.js'
 import {
   preparePackages,
 } from '@pnpm/prepare'
@@ -52,7 +52,7 @@ test.each([
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['install'])
 
-  await execPnpm(['recursive', 'test', filter, '...project-3'])
+  await execPnpm([filter, '...project-3', 'test'])
 
   expect(server.getLines().sort()).toEqual(expected)
 })

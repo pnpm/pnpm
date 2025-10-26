@@ -11,6 +11,8 @@ export const DEFAULT_OPTS = {
   ca: undefined,
   cacheDir: '../cache',
   cert: undefined,
+  ci: false,
+  excludeLinksFromLockfile: false,
   extraEnv: {},
   cliOptions: {},
   deployAllFiles: false,
@@ -34,8 +36,9 @@ export const DEFAULT_OPTS = {
   networkConcurrency: 16,
   offline: false,
   pending: false,
-  pnpmfile: './.pnpmfile.cjs',
+  pnpmfile: ['./.pnpmfile.cjs'],
   pnpmHomeDir: '',
+  preferWorkspacePackages: true,
   proxy: undefined,
   rawConfig: { registry: REGISTRY },
   rawLocalConfig: {},
@@ -51,7 +54,7 @@ export const DEFAULT_OPTS = {
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 export const DEFAULT_OUTDATED_OPTS = {

@@ -1,5 +1,57 @@
 # @pnpm/store-path
 
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/error@1000.0.5
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/error@1000.0.4
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/constants@1001.2.0
+  - @pnpm/error@1000.0.3
+
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/error@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/error@1000.0.1
+
+## 9.0.3
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/error@6.0.3
+
 ## 9.0.2
 
 ### Patch Changes

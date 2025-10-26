@@ -14,6 +14,7 @@ const DEFAULT_OPTIONS = {
   bin: 'node_modules/.bin',
   cliOptions: {},
   deployAllFiles: false,
+  excludeLinksFromLockfile: false,
   extraEnv: {},
   include: {
     dependencies: true,
@@ -21,7 +22,8 @@ const DEFAULT_OPTIONS = {
     optionalDependencies: true,
   },
   lock: true,
-  pnpmfile: '.pnpmfile.cjs',
+  preferWorkspacePackages: true,
+  pnpmfile: ['.pnpmfile.cjs'],
   pnpmHomeDir: '',
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
@@ -32,7 +34,7 @@ const DEFAULT_OPTIONS = {
   sort: true,
   userConfig: {},
   workspaceConcurrency: 1,
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 test('fetch dependencies', async () => {

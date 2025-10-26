@@ -3,11 +3,16 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { types } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import pick from 'ramda/src/pick'
-import * as dlx from './dlx'
+import * as dlx from './dlx.js'
 
 export const commandNames = ['create']
 
-export async function handler (_opts: dlx.DlxCommandOptions, params: string[]): Promise<{ exitCode: number }> {
+export async function handler (_opts: dlx.DlxCommandOptions, params: string[]): Promise<{ exitCode: number } | string> {
+  // If the first argument is --help or -h, we show the help message.
+  if (params[0] === '--help' || params[0] === '-h') {
+    return help()
+  }
+
   const [packageName, ...packageArgs] = params
   if (packageName === undefined) {
     throw new PnpmError(
@@ -33,12 +38,24 @@ export function rcOptionsTypes (): Record<string, unknown> {
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
     ...rcOptionsTypes(),
+    'allow-build': [String, Array],
   }
 }
 
 export function help (): string {
   return renderHelp({
     description: 'Creates a project from a `create-*` starter kit.',
+    descriptionLists: [
+      {
+        title: 'Options',
+        list: [
+          {
+            description: 'A list of package names that are allowed to run postinstall scripts during installation',
+            name: '--allow-build',
+          },
+        ],
+      },
+    ],
     url: docsUrl('create'),
     usages: [
       'pnpm create <name>',

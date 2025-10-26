@@ -1,11 +1,13 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { PnpmError } from '@pnpm/error'
 import renderHelp from 'render-help'
-import { envRemove } from './envRemove'
-import { envUse } from './envUse'
-import { type NvmNodeCommandOptions } from './node'
-import { envList } from './envList'
-import { envAdd } from './envAdd'
+import { envRemove } from './envRemove.js'
+import { envUse } from './envUse.js'
+import { type NvmNodeCommandOptions } from './node.js'
+import { envList } from './envList.js'
+import { envAdd } from './envAdd.js'
+
+export const skipPackageManagerCheck = true
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {}

@@ -1,7 +1,7 @@
-import { parsePref, type RegistryPackageSpec } from '@pnpm/npm-resolver'
+import { parseBareSpecifier, type RegistryPackageSpec } from '@pnpm/npm-resolver'
 import { type WorkspacePackagesByVersion, type WorkspacePackages } from '@pnpm/resolver-base'
 import semver from 'semver'
-import { type WantedDependency } from './getNonDevWantedDependencies'
+import { type WantedDependency } from './getNonDevWantedDependencies.js'
 
 export function wantedDepIsLocallyAvailable (
   workspacePackages: WorkspacePackages,
@@ -11,7 +11,7 @@ export function wantedDepIsLocallyAvailable (
     registry: string
   }
 ): boolean {
-  const spec = parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
+  const spec = parseBareSpecifier(wantedDependency.bareSpecifier, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
   if ((spec == null) || !workspacePackages.has(spec.name)) return false
   return pickMatchingLocalVersionOrNull(workspacePackages.get(spec.name)!, spec) !== null
 }

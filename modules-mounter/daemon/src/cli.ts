@@ -4,7 +4,7 @@ import path from 'path'
 
 import { getStorePath } from '@pnpm/store-path'
 import Fuse from 'fuse-native'
-import { createFuseHandlers } from './createFuseHandlers'
+import { createFuseHandlers } from './createFuseHandlers.js'
 (async () => { /* eslint-disable-line */
   const mnt = path.join(process.cwd(), 'node_modules')
   await fs.mkdir(mnt, { recursive: true })
@@ -12,12 +12,12 @@ import { createFuseHandlers } from './createFuseHandlers'
     cliOptions: {},
     packageManager: { name: '', version: '' },
   })
-  const cafsDir = path.join(await getStorePath({
+  const storeDir = await getStorePath({
     pkgRoot: process.cwd(),
     storePath: config.storeDir,
     pnpmHomeDir: config.pnpmHomeDir,
-  }), 'files')
-  const fuse = new Fuse(mnt, await createFuseHandlers(process.cwd(), cafsDir), { debug: true })
+  })
+  const fuse = new Fuse(mnt, await createFuseHandlers(process.cwd(), storeDir), { debug: true })
   fuse.mount(function (err?: Error) {
     if (err != null) console.error(err)
   })

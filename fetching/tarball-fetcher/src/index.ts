@@ -14,11 +14,12 @@ import { TarballIntegrityError } from '@pnpm/worker'
 import {
   createDownloader,
   type DownloadFunction,
-} from './remoteTarballFetcher'
-import { createLocalTarballFetcher } from './localTarballFetcher'
-import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher'
+  type CreateDownloaderOptions,
+} from './remoteTarballFetcher.js'
+import { createLocalTarballFetcher } from './localTarballFetcher.js'
+import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher.js'
 
-export { BadTarballError } from './errorTypes'
+export { BadTarballError } from './errorTypes/index.js'
 
 export { TarballIntegrityError }
 
@@ -38,11 +39,12 @@ export function createTarballFetcher (
     timeout?: number
     retry?: RetryTimeoutOptions
     offline?: boolean
-  }
+  } & Pick<CreateDownloaderOptions, 'fetchMinSpeedKiBps'>
 ): TarballFetchers {
   const download = createDownloader(fetchFromRegistry, {
     retry: opts.retry,
     timeout: opts.timeout,
+    fetchMinSpeedKiBps: opts.fetchMinSpeedKiBps,
   })
 
   const remoteTarballFetcher = fetchFromTarball.bind(null, {

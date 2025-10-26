@@ -1,10 +1,10 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { PnpmError } from '@pnpm/error'
 import renderHelp from 'render-help'
-import { configGet } from './configGet'
-import { configSet } from './configSet'
-import { configList } from './configList'
-import { type ConfigCommandOptions } from './ConfigCommandOptions'
+import { configGet } from './configGet.js'
+import { configSet } from './configSet.js'
+import { configList } from './configList.js'
+import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {}
@@ -54,7 +54,7 @@ export function help (): string {
             shortAlias: '-g',
           },
           {
-            description: 'When set to "project", the .npmrc file at the nearest package.json will be used',
+            description: 'When set to "project", the pnpm-workspace.yaml file will be used if it exists. If only .npmrc exists, it will be used. If neither exists, a pnpm-workspace.yaml file will be created.',
             name: '--location <project|global>',
           },
           {
@@ -75,7 +75,9 @@ export function help (): string {
   })
 }
 
-export async function handler (opts: ConfigCommandOptions, params: string[]): Promise<string | undefined> {
+export type ConfigHandlerResult = string | undefined | { output: string, exitCode: number }
+
+export async function handler (opts: ConfigCommandOptions, params: string[]): Promise<ConfigHandlerResult> {
   if (params.length === 0) {
     throw new PnpmError('CONFIG_NO_SUBCOMMAND', 'Please specify the subcommand', {
       hint: help(),

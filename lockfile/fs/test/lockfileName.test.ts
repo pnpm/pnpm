@@ -1,12 +1,13 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { getCurrentBranch } from '@pnpm/git-utils'
-import { getWantedLockfileName } from '../lib/lockfileName'
+import { jest } from '@jest/globals'
+import { getWantedLockfileName } from '../lib/lockfileName.js'
 
 jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
 describe('lockfileName', () => {
   afterEach(() => {
-    (getCurrentBranch as jest.Mock).mockReset()
+    jest.mocked(getCurrentBranch).mockReset()
   })
 
   test('returns default lockfile name if useGitBranchLockfile is off', async () => {
@@ -14,17 +15,17 @@ describe('lockfileName', () => {
   })
 
   test('returns git branch lockfile name', async () => {
-    (getCurrentBranch as jest.Mock).mockReturnValue('main')
+    jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('main'))
     await expect(getWantedLockfileName({ useGitBranchLockfile: true })).resolves.toBe('pnpm-lock.main.yaml')
   })
 
   test('returns git branch lockfile name when git branch contains clashes', async () => {
-    (getCurrentBranch as jest.Mock).mockReturnValue('a/b/c')
+    jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('a/b/c'))
     await expect(getWantedLockfileName({ useGitBranchLockfile: true })).resolves.toBe('pnpm-lock.a!b!c.yaml')
   })
 
   test('returns git branch lockfile name when git branch contains uppercase', async () => {
-    (getCurrentBranch as jest.Mock).mockReturnValue('aBc')
+    jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('aBc'))
     await expect(getWantedLockfileName({ useGitBranchLockfile: true })).resolves.toBe('pnpm-lock.abc.yaml')
   })
 })

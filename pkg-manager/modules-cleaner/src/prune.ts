@@ -6,7 +6,7 @@ import {
 } from '@pnpm/core-loggers'
 import { filterLockfile, filterLockfileByImporters } from '@pnpm/lockfile.filtering'
 import {
-  type Lockfile,
+  type LockfileObject,
   type PackageSnapshots,
   type ProjectSnapshot,
 } from '@pnpm/lockfile.types'
@@ -28,7 +28,7 @@ import difference from 'ramda/src/difference'
 import equals from 'ramda/src/equals'
 import mergeAll from 'ramda/src/mergeAll'
 import pickAll from 'ramda/src/pickAll'
-import { removeDirectDependency, removeIfEmpty } from './removeDirectDependency'
+import { removeDirectDependency, removeIfEmpty } from './removeDirectDependency.js'
 
 export async function prune (
   importers: Array<{
@@ -46,8 +46,8 @@ export async function prune (
     hoistedDependencies: HoistedDependencies
     hoistedModulesDir?: string
     publicHoistedModulesDir?: string
-    wantedLockfile: Lockfile
-    currentLockfile: Lockfile
+    wantedLockfile: LockfileObject
+    currentLockfile: LockfileObject
     pruneStore?: boolean
     pruneVirtualStore?: boolean
     skipped: Set<DepPath>
@@ -241,7 +241,7 @@ function getPkgsDepPaths (
 ): Record<DepPath, string> {
   const acc: Record<DepPath, string> = {}
   for (const [depPath, pkg] of Object.entries(packages)) {
-    if (skipped.has(depPath)) return acc
+    if (skipped.has(depPath)) continue
     acc[depPath as DepPath] = packageIdFromSnapshot(depPath as DepPath, pkg)
   }
   return acc
@@ -249,7 +249,7 @@ function getPkgsDepPaths (
 
 function getPkgsDepPathsOwnedOnlyByImporters (
   importerIds: ProjectId[],
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   include: { [dependenciesField in DependenciesField]: boolean },
   skipped: Set<DepPath>
 ): Record<string, string> {

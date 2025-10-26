@@ -1,6 +1,6 @@
-import { type Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { type DepPath, type ProjectId } from '@pnpm/types'
-import { mergeLockfileChanges } from '../src'
+import { mergeLockfileChanges } from '../src/index.js'
 
 const simpleLockfile = {
   importers: {
@@ -58,7 +58,7 @@ test('picks the newer version when dependencies differ inside importer', () => {
 })
 
 test('picks the newer version when dependencies differ inside package', () => {
-  const base: Lockfile = {
+  const base: LockfileObject = {
     importers: {
       ['.' as ProjectId]: {
         dependencies: {

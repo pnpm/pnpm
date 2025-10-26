@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../object/key-sorting"
+    },
+    {
       "path": "../../packages/constants"
     },
     {
@@ -26,9 +29,6 @@
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../resolving/git-resolver"
     },
     {
       "path": "../merger"

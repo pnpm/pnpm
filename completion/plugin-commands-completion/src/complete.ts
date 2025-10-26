@@ -3,8 +3,8 @@ import { type CompletionFunc } from '@pnpm/command'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
-import { getOptionCompletions } from './getOptionType'
-import { optionTypesToCompletions } from './optionTypesToCompletions'
+import { getOptionCompletions } from './getOptionType.js'
+import { optionTypesToCompletions } from './optionTypesToCompletions.js'
 
 export async function complete (
   ctx: {

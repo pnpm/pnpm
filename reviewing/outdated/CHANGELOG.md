@@ -1,5 +1,515 @@
 # @pnpm/outdated
 
+## 1001.1.0
+
+### Minor Changes
+
+- 7c1382f: Added support for exact versions in `minimumReleaseAgeExclude` [#9985](https://github.com/pnpm/pnpm/issues/9985).
+
+  You can now list one or more specific versions that pnpm should allow to install, even if those versions don’t satisfy the maturity requirement set by `minimumReleaseAge`. For example:
+
+  ```yaml
+  minimumReleaseAge: 1440
+  minimumReleaseAgeExclude:
+    - nx@21.6.5
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+- Updated dependencies [dee39ec]
+- Updated dependencies [7c1382f]
+  - @pnpm/types@1000.9.0
+  - @pnpm/npm-resolver@1004.4.0
+  - @pnpm/config.version-policy@1000.0.0
+  - @pnpm/matcher@1000.1.0
+  - @pnpm/pick-registry-for-package@1000.0.11
+  - @pnpm/hooks.read-package-hook@1000.0.15
+  - @pnpm/lockfile.fs@1001.1.21
+  - @pnpm/lockfile.utils@1003.0.3
+  - @pnpm/dependency-path@1001.1.3
+  - @pnpm/client@1001.1.3
+  - @pnpm/manifest-utils@1001.0.6
+
+## 1001.0.36
+
+### Patch Changes
+
+- @pnpm/client@1001.1.2
+
+## 1001.0.35
+
+### Patch Changes
+
+- 39b728a: `pnpm outdated --long` should work [#10040](https://github.com/pnpm/pnpm/issues/10040).
+  - @pnpm/client@1001.1.1
+
+## 1001.0.34
+
+### Patch Changes
+
+- 2e07c4f: Outdated command respects `minimumReleaseAge` configuration [#10030](https://github.com/pnpm/pnpm/pull/10030).
+
+## 1001.0.33
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/npm-resolver@1004.3.0
+  - @pnpm/client@1001.1.0
+  - @pnpm/dependency-path@1001.1.2
+  - @pnpm/lockfile.fs@1001.1.20
+  - @pnpm/lockfile.utils@1003.0.2
+
+## 1001.0.32
+
+### Patch Changes
+
+- Updated dependencies [baf8bf6]
+- Updated dependencies [702ddb9]
+  - @pnpm/npm-resolver@1004.2.3
+  - @pnpm/client@1001.0.7
+
+## 1001.0.31
+
+### Patch Changes
+
+- Updated dependencies [121b44e]
+- Updated dependencies [02f8b69]
+  - @pnpm/npm-resolver@1004.2.2
+  - @pnpm/client@1001.0.6
+
+## 1001.0.30
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/error@1000.0.5
+  - @pnpm/npm-resolver@1004.2.1
+  - @pnpm/parse-overrides@1001.0.3
+  - @pnpm/hooks.read-package-hook@1000.0.14
+  - @pnpm/manifest-utils@1001.0.5
+  - @pnpm/client@1001.0.5
+
+## 1001.0.29
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/npm-resolver@1004.2.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/pick-registry-for-package@1000.0.10
+  - @pnpm/hooks.read-package-hook@1000.0.13
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/lockfile.utils@1003.0.1
+  - @pnpm/dependency-path@1001.1.1
+  - @pnpm/client@1001.0.4
+  - @pnpm/manifest-utils@1001.0.4
+
+## 1001.0.28
+
+### Patch Changes
+
+- @pnpm/client@1001.0.3
+
+## 1001.0.27
+
+### Patch Changes
+
+- @pnpm/client@1001.0.2
+- @pnpm/npm-resolver@1004.1.3
+
+## 1001.0.26
+
+### Patch Changes
+
+- @pnpm/client@1001.0.1
+
+## 1001.0.25
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/client@1001.0.0
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/error@1000.0.4
+  - @pnpm/npm-resolver@1004.1.3
+  - @pnpm/catalogs.resolver@1000.0.5
+  - @pnpm/parse-overrides@1001.0.2
+  - @pnpm/hooks.read-package-hook@1000.0.12
+  - @pnpm/manifest-utils@1001.0.3
+
+## 1001.0.24
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/client@1000.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/pick-registry-for-package@1000.0.9
+  - @pnpm/hooks.read-package-hook@1000.0.11
+  - @pnpm/lockfile.fs@1001.1.16
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/manifest-utils@1001.0.2
+  - @pnpm/npm-resolver@1004.1.2
+  - @pnpm/error@1000.0.3
+  - @pnpm/catalogs.resolver@1000.0.4
+  - @pnpm/parse-overrides@1001.0.1
+
+## 1001.0.23
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/npm-resolver@1004.1.1
+- @pnpm/lockfile.fs@1001.1.15
+- @pnpm/lockfile.utils@1002.0.1
+- @pnpm/client@1000.0.21
+
+## 1001.0.22
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/lockfile.fs@1001.1.14
+
+## 1001.0.21
+
+### Patch Changes
+
+- b0ead51: Read the current lockfile from `node_modules/.pnpm/lock.yaml`, when the project uses a global virtual store.
+- Updated dependencies [2721291]
+  - @pnpm/npm-resolver@1004.1.0
+  - @pnpm/client@1000.0.20
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/lockfile.fs@1001.1.13
+
+## 1001.0.20
+
+### Patch Changes
+
+- @pnpm/client@1000.0.19
+
+## 1001.0.19
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/npm-resolver@1004.0.1
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/client@1000.0.18
+  - @pnpm/manifest-utils@1001.0.1
+  - @pnpm/pick-registry-for-package@1000.0.8
+  - @pnpm/hooks.read-package-hook@1000.0.10
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/modules-yaml@1000.3.3
+
+## 1001.0.18
+
+### Patch Changes
+
+- @pnpm/client@1000.0.17
+
+## 1001.0.17
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/parse-overrides@1001.0.0
+  - @pnpm/npm-resolver@1004.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/manifest-utils@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/hooks.read-package-hook@1000.0.9
+  - @pnpm/client@1000.0.16
+  - @pnpm/catalogs.resolver@1000.0.3
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/pick-registry-for-package@1000.0.7
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/dependency-path@1000.0.8
+  - @pnpm/modules-yaml@1000.3.2
+
+## 1001.0.16
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/npm-resolver@1003.0.0
+  - @pnpm/lockfile.utils@1001.0.9
+  - @pnpm/client@1000.0.15
+  - @pnpm/lockfile.fs@1001.1.10
+
+## 1001.0.15
+
+### Patch Changes
+
+- 72cff38: The resolving function now takes a `registries` object, so it finds the required registry itself instead of receiving it from package requester.
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+  - @pnpm/types@1000.4.0
+  - @pnpm/npm-resolver@1002.0.0
+  - @pnpm/pick-registry-for-package@1000.0.6
+  - @pnpm/hooks.read-package-hook@1000.0.8
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/client@1000.0.14
+  - @pnpm/modules-yaml@1000.3.1
+  - @pnpm/manifest-utils@1000.0.8
+
+## 1001.0.14
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [64f6b4f]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/modules-yaml@1000.3.0
+  - @pnpm/pick-registry-for-package@1000.0.5
+  - @pnpm/hooks.read-package-hook@1000.0.7
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/client@1000.0.13
+  - @pnpm/manifest-utils@1000.0.7
+  - @pnpm/npm-resolver@1001.0.1
+
+## 1001.0.13
+
+### Patch Changes
+
+- Updated dependencies [d612dcf]
+- Updated dependencies [d612dcf]
+- Updated dependencies [3d52365]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/npm-resolver@1001.0.0
+  - @pnpm/lockfile.utils@1001.0.6
+  - @pnpm/client@1000.0.12
+  - @pnpm/lockfile.fs@1001.1.7
+
+## 1001.0.12
+
+### Patch Changes
+
+- @pnpm/client@1000.0.11
+
+## 1001.0.11
+
+### Patch Changes
+
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/npm-resolver@1000.1.7
+- @pnpm/lockfile.fs@1001.1.6
+- @pnpm/lockfile.utils@1001.0.5
+- @pnpm/client@1000.0.10
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [8371664]
+  - @pnpm/npm-resolver@1000.1.6
+  - @pnpm/client@1000.0.9
+
+## 1001.0.9
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/npm-resolver@1000.1.5
+  - @pnpm/pick-registry-for-package@1000.0.4
+  - @pnpm/hooks.read-package-hook@1000.0.6
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/client@1000.0.8
+  - @pnpm/modules-yaml@1000.1.4
+  - @pnpm/manifest-utils@1000.0.6
+
+## 1001.0.8
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/pick-registry-for-package@1000.0.3
+  - @pnpm/hooks.read-package-hook@1000.0.5
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/lockfile.utils@1001.0.3
+  - @pnpm/dependency-path@1000.0.3
+  - @pnpm/client@1000.0.7
+  - @pnpm/modules-yaml@1000.1.3
+  - @pnpm/manifest-utils@1000.0.5
+  - @pnpm/npm-resolver@1000.1.4
+
+## 1001.0.7
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.3
+
+## 1001.0.6
+
+### Patch Changes
+
+- Updated dependencies [e8c2b17]
+  - @pnpm/hooks.read-package-hook@1000.0.4
+  - @pnpm/client@1000.0.6
+
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/npm-resolver@1000.1.3
+  - @pnpm/pick-registry-for-package@1000.0.2
+  - @pnpm/hooks.read-package-hook@1000.0.3
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/client@1000.0.5
+  - @pnpm/modules-yaml@1000.1.2
+  - @pnpm/manifest-utils@1000.0.4
+  - @pnpm/catalogs.resolver@1000.0.2
+  - @pnpm/parse-overrides@1000.0.2
+
+## 1001.0.4
+
+### Patch Changes
+
+- @pnpm/client@1000.0.4
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/pick-registry-for-package@1000.0.1
+  - @pnpm/hooks.read-package-hook@1000.0.2
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/lockfile.utils@1001.0.1
+  - @pnpm/dependency-path@1000.0.1
+  - @pnpm/client@1000.0.3
+  - @pnpm/modules-yaml@1000.1.1
+  - @pnpm/manifest-utils@1000.0.3
+  - @pnpm/npm-resolver@1000.1.2
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [4771813]
+  - @pnpm/modules-yaml@1000.1.0
+  - @pnpm/manifest-utils@1000.0.2
+  - @pnpm/npm-resolver@1000.1.1
+  - @pnpm/client@1000.0.2
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [3f0e4f0]
+  - @pnpm/lockfile.fs@1001.1.0
+
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- a724295: Fix an exception when running `pnpm update --interactive` if catalogs are used.
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/npm-resolver@1000.1.0
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/client@1000.0.1
+  - @pnpm/catalogs.resolver@1000.0.1
+  - @pnpm/parse-overrides@1000.0.1
+  - @pnpm/hooks.read-package-hook@1000.0.1
+  - @pnpm/manifest-utils@1000.0.1
+
+## 15.1.8
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [dcd2917]
+- Updated dependencies [7fb4371]
+- Updated dependencies [501c152]
+- Updated dependencies [d55b259]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/hooks.read-package-hook@6.0.0
+  - @pnpm/npm-resolver@22.0.0
+  - @pnpm/lockfile.fs@1.0.6
+  - @pnpm/error@6.0.3
+  - @pnpm/lockfile.utils@1.0.5
+  - @pnpm/catalogs.resolver@0.1.2
+  - @pnpm/parse-overrides@5.1.2
+  - @pnpm/manifest-utils@6.0.10
+  - @pnpm/client@11.1.13
+
+## 15.1.7
+
+### Patch Changes
+
+- Updated dependencies [222d10a]
+  - @pnpm/npm-resolver@21.1.1
+  - @pnpm/dependency-path@5.1.7
+  - @pnpm/client@11.1.12
+  - @pnpm/lockfile.fs@1.0.5
+  - @pnpm/lockfile.utils@1.0.4
+
+## 15.1.6
+
+### Patch Changes
+
+- @pnpm/client@11.1.11
+- @pnpm/npm-resolver@21.1.0
+
 ## 15.1.5
 
 ### Patch Changes

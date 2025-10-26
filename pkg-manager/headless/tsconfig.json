@@ -22,6 +22,9 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
+      "path": "../../builder/policy"
+    },
+    {
       "path": "../../config/package-is-installable"
     },
     {
@@ -85,19 +88,16 @@
       "path": "../../store/cafs"
     },
     {
-      "path": "../../store/package-store"
-    },
-    {
       "path": "../../store/store-controller-types"
     },
     {
       "path": "../../store/store-path"
     },
     {
-      "path": "../../worker"
+      "path": "../../testing/temp-store"
     },
     {
-      "path": "../client"
+      "path": "../../worker"
     },
     {
       "path": "../direct-dep-linker"

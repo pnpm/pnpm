@@ -4,6 +4,7 @@ import { type Readable } from 'stream'
 import { promisify } from 'util'
 import path from 'path'
 import byline from '@pnpm/byline'
+import { STORE_VERSION } from '@pnpm/constants'
 import { type Project, prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import delay, { type ClearablePromise } from 'delay'
@@ -12,13 +13,12 @@ import isWindows from 'is-windows'
 
 import killcb from 'tree-kill'
 import writeJsonFile from 'write-json-file'
-import pAny from 'p-any'
 import {
   execPnpm,
   execPnpmSync,
   retryLoadJsonFile,
   spawnPnpm,
-} from './utils'
+} from './utils/index.js'
 
 const skipOnWindows = isWindows() ? test.skip : test
 
@@ -47,7 +47,7 @@ function prepareServerTest (serverStartArgs?: readonly string[]): TestSetup {
   const project = prepare()
 
   spawnPnpm(['server', 'start', ...(serverStartArgs ?? [])])
-  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
+  const serverJsonPath = path.resolve('..', `store/${STORE_VERSION}/server/server.json`)
 
   async function onTestEnd () {
     await expect(execPnpm(['server', 'stop'])).resolves.not.toThrow()
@@ -173,7 +173,7 @@ skipOnWindows('installation using store server started in the background', async
 
   await expect(execPnpm(['install', 'is-positive@1.0.0', '--use-store-server'])).resolves.not.toThrow()
 
-  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
+  const serverJsonPath = path.resolve('..', `store/${STORE_VERSION}/server/server.json`)
 
   try {
     const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
@@ -194,7 +194,7 @@ skipOnWindows('store server started in the background should use store location 
 
   await expect(execPnpm(['add', 'is-positive@1.0.0', '--use-store-server', '--store-dir', '../store2'])).resolves.not.toThrow()
 
-  const serverJsonPath = path.resolve('..', 'store2/v3/server/server.json')
+  const serverJsonPath = path.resolve('..', `store2/${STORE_VERSION}/server/server.json`)
 
   try {
     const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
@@ -257,7 +257,7 @@ async function testParallelServerStart (
 
   const timeoutMillis = options.timeoutMillis ?? 10000
   let timeoutPromise: ClearablePromise<void> | null = delay(timeoutMillis)
-  await pAny([
+  await Promise.any([
     (async () => {
       await completedPromise
       // Don't fire timeout if all server processes completed for some reason.
@@ -310,7 +310,7 @@ skipOnWindows('parallel server starts against the same store should result in on
     },
     timeoutMillis: 60000,
   })).resolves.not.toThrow()
-  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
+  const serverJsonPath = path.resolve('..', `store/${STORE_VERSION}/server/server.json`)
   expect(fs.existsSync(serverJsonPath)).toBeFalsy()
 })
 
@@ -319,7 +319,7 @@ skipOnWindows('installation without store server running in the background', asy
 
   await expect(execPnpm(['install', 'is-positive@1.0.0', '--no-use-store-server'])).resolves.not.toThrow()
 
-  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
+  const serverJsonPath = path.resolve('..', `store/${STORE_VERSION}/server/server.json`)
   expect(fs.existsSync(serverJsonPath)).toBeFalsy()
 
   expect(project.requireModule('is-positive')).toBeTruthy()
@@ -332,7 +332,7 @@ skipOnWindows('installation without store server running in the background', asy
 test.skip('fail if the store server is run by a different version of pnpm', async () => {
   prepare()
 
-  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
+  const serverJsonPath = path.resolve('..', `store/${STORE_VERSION}/server/server.json`)
   writeJsonFile.sync(serverJsonPath, { pnpmVersion: '2.0.0' })
 
   const result = execPnpmSync(['install', 'is-positive@1.0.0'])

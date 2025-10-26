@@ -1,5 +1,48 @@
 # @pnpm/constants
 
+## 1001.3.1
+
+### Patch Changes
+
+- 6365bc4: The full metadata cache should be stored not at the same location as the abbreviated metadata. This fixes a bug where pnpm was loading the abbreviated metadata from cache and couldn't find the "time" field as a result [#9963](https://github.com/pnpm/pnpm/issues/9963).
+
+## 1001.3.0
+
+### Minor Changes
+
+- d1edf73: Add support for installing deno runtime.
+- 86b33e9: Added support for installing Bun runtime.
+
+## 1001.2.0
+
+### Minor Changes
+
+- 1a07b8f: Add getNodeBinLocationForCurrentOS.
+
+## 1001.1.0
+
+### Minor Changes
+
+- 9a44e6c: `pnpm deploy` should inherit the `pnpm` object from the root `package.json` [#8991](https://github.com/pnpm/pnpm/pull/8991).
+
+## 1001.0.0
+
+### Major Changes
+
+- d2e83b0: Metadata directory version bumped to force fresh cache after we shipped a fix to the metadata write function. This change is backward compatible as install doesn't require a metadata cache.
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+## 10.0.0
+
+### Major Changes
+
+- 8108680: Changed the format of the side-effects cache key.
+- c4f5231: Store version bumped to v10. The new store layout has a different directory called "index" for storing the package content mappings. Previously these files were stored in the same directory where the package contents are (in "files"). The new store has also a new format for storing the mappings for side-effects cache.
+
+### Minor Changes
+
+- 19d5b51: Add `MANIFEST_BASE_NAMES`
+
 ## 9.0.0
 
 ### Major Changes

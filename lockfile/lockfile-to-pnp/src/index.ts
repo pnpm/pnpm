@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { type Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile.utils'
@@ -10,7 +10,7 @@ import { generateInlinedScript, type PackageRegistry } from '@yarnpkg/pnp'
 import normalizePath from 'normalize-path'
 
 export async function writePnpFile (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   opts: {
     importerNames: Record<string, string>
     lockfileDir: string
@@ -31,7 +31,7 @@ export async function writePnpFile (
 }
 
 export function lockfileToPackageRegistry (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   opts: {
     importerNames: { [importerId: string]: string }
     lockfileDir: string
@@ -77,8 +77,8 @@ export function lockfileToPackageRegistry (
     }
   }
   for (const [relDepPath, pkgSnapshot] of Object.entries(lockfile.packages ?? {})) {
-    const { name, version, peersSuffix } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
-    const pnpVersion = toPnPVersion(version, peersSuffix)
+    const { name, version, peerDepGraphHash } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+    const pnpVersion = toPnPVersion(version, peerDepGraphHash)
     let packageStore = packageRegistry.get(name)
     if (!packageStore) {
       packageStore = new Map()
@@ -95,6 +95,9 @@ export function lockfileToPackageRegistry (
     if (!packageLocation.startsWith('../')) {
       packageLocation = `./${packageLocation}`
     }
+    if (!packageLocation.endsWith('/')) {
+      packageLocation += '/'
+    }
     packageStore.set(pnpVersion, {
       packageDependencies: new Map([
         [name, pnpVersion],
@@ -109,7 +112,7 @@ export function lockfileToPackageRegistry (
 }
 
 function toPackageDependenciesMap (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   deps: {
     [depAlias: string]: string
   },
@@ -121,8 +124,8 @@ function toPackageDependenciesMap (
     }
     const relDepPath = refToRelative(ref, depAlias)
     if (!relDepPath) return [depAlias, ref]
-    const { name, version, peersSuffix } = nameVerFromPkgSnapshot(relDepPath, lockfile.packages![relDepPath])
-    const pnpVersion = toPnPVersion(version, peersSuffix)
+    const { name, version, peerDepGraphHash } = nameVerFromPkgSnapshot(relDepPath, lockfile.packages![relDepPath])
+    const pnpVersion = toPnPVersion(version, peerDepGraphHash)
     if (depAlias === name) {
       return [depAlias, pnpVersion]
     }
@@ -130,8 +133,8 @@ function toPackageDependenciesMap (
   })
 }
 
-function toPnPVersion (version: string, peersSuffix: string | undefined) {
-  return peersSuffix
-    ? `virtual:${version}${peersSuffix}#${version}`
+function toPnPVersion (version: string, peerDepGraphHash: string | undefined) {
+  return peerDepGraphHash
+    ? `virtual:${version}${peerDepGraphHash}#${version}`
     : version
 }

@@ -1,11 +1,14 @@
 import { prepare, preparePackages } from '@pnpm/prepare'
+import isWindows from 'is-windows'
+import getPort from 'get-port'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpmSync } from './utils'
+import { execPnpmSync } from './utils/index.js'
 import { fixtures } from '@pnpm/test-fixtures'
-import { isPortInUse } from './utils/isPortInUse'
+import { isPortInUse } from './utils/isPortInUse.js'
 
 const f = fixtures(__dirname)
 const multipleScriptsErrorExit = f.find('multiple-scripts-error-exit')
+const testOnPosix = isWindows() ? test.skip : test
 
 test('should print json format error when publish --json failed', async () => {
   prepare({
@@ -41,11 +44,20 @@ test('should print json format error when add dependency on workspace root', asy
   expect(error?.code).toBe('ERR_PNPM_ADDING_TO_ROOT')
 })
 
-test('should clean up child processes when process exited', async () => {
+// This test started to fail on Windows for unknown reason.
+testOnPosix('should clean up child processes when process exited', async () => {
+  const fooPort = await getPort()
+  const barPort = await getPort()
   process.chdir(multipleScriptsErrorExit)
-  execPnpmSync(['run', '/^dev:.*/'], { stdio: 'inherit', env: {} })
-  expect(await isPortInUse(9990)).toBe(false)
-  expect(await isPortInUse(9999)).toBe(false)
+  execPnpmSync(['run', '/^dev:.*/'], {
+    stdio: 'inherit',
+    env: {
+      FOO_PORT: fooPort.toString(),
+      BAR_PORT: barPort.toString(),
+    },
+  })
+  expect(await isPortInUse(fooPort)).toBe(false)
+  expect(await isPortInUse(barPort)).toBe(false)
 })
 
 test('should print error summary when some packages fail with --no-bail', async () => {

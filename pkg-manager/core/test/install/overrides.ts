@@ -6,9 +6,9 @@ import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type MutatedProject, type ProjectOptions, addDependenciesToPackage, mutateModulesInSingleProject, mutateModules } from '@pnpm/core'
-import { type LockfileFileV9 } from '@pnpm/lockfile.types'
+import { type LockfileFile } from '@pnpm/lockfile.types'
 import { type ProjectRootDir, type ProjectManifest } from '@pnpm/types'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('versions are replaced with versions specified through overrides option', async () => {
   const project = prepareEmpty()
@@ -21,7 +21,7 @@ test('versions are replaced with versions specified through overrides option', a
     '@pnpm.e2e/bar@^100.0.0': '100.1.0',
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
   }
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/pkg-with-1-dep@100.0.0', '@pnpm.e2e/foobar@100.0.0', '@pnpm.e2e/foobarqar@1.0.0'],
     testDefaults({ overrides })
   )
@@ -112,7 +112,7 @@ test('when adding a new dependency that is present in the overrides, use the spe
   const overrides = {
     '@pnpm.e2e/bar': '100.1.0',
   }
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/bar'],
     testDefaults({ overrides })
   )
@@ -129,7 +129,7 @@ test('explicitly specifying a version at install will ignore overrides', async (
     '@pnpm.e2e/bar': '100.1.0',
   }
   const EXACT_VERSION = '100.0.0'
-  const manifest = await addDependenciesToPackage({},
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
     [`@pnpm.e2e/bar@${EXACT_VERSION}`],
     testDefaults({ overrides })
   )
@@ -206,7 +206,7 @@ test('overrides with local file and link specs', async () => {
     },
   })
 
-  const lockfile = readYamlFile<LockfileFileV9>(WANTED_LOCKFILE)
+  const lockfile = readYamlFile<LockfileFile>(WANTED_LOCKFILE)
 
   expect(lockfile.importers?.['packages/direct']).toStrictEqual({
     dependencies: {

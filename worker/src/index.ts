@@ -3,15 +3,19 @@ import path from 'path'
 import os from 'os'
 import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
 import { PnpmError } from '@pnpm/error'
+import { execSync } from 'child_process'
+import isWindows from 'is-windows'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'
+import pLimit from 'p-limit'
+import { join as shellQuote } from 'shlex'
 import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,
   type LinkPkgMessage,
   type SymlinkAllModulesMessage,
   type HardLinkDirMessage,
-} from './types'
+} from './types.js'
 
 let workerPool: WorkerPool | undefined
 
@@ -26,7 +30,7 @@ export async function finishWorkers (): Promise<void> {
 }
 
 function createTarballWorkerPool (): WorkerPool {
-  const maxWorkers = Math.max(2, (os.availableParallelism?.() ?? os.cpus().length) - Math.abs(process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0)) - 1
+  const maxWorkers = calcMaxWorkers()
   const workerPool = new WorkerPool({
     id: 'pnpm',
     maxWorkers,
@@ -48,13 +52,28 @@ function createTarballWorkerPool (): WorkerPool {
   return workerPool
 }
 
+function calcMaxWorkers () {
+  if (process.env.PNPM_MAX_WORKERS) {
+    return parseInt(process.env.PNPM_MAX_WORKERS)
+  }
+  if (process.env.PNPM_WORKERS) {
+    const idleCPUs = Math.abs(parseInt(process.env.PNPM_WORKERS))
+    return Math.max(2, availableParallelism() - idleCPUs) - 1
+  }
+  return Math.max(1, availableParallelism() - 1)
+}
+
+function availableParallelism (): number {
+  return os.availableParallelism?.() ?? os.cpus().length
+}
+
 interface AddFilesResult {
   filesIndex: Record<string, string>
   manifest: DependencyManifest
   requiresBuild: boolean
 }
 
-type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files'>
+type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files'>
 
 export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<AddFilesResult> {
   if (!workerPool) {
@@ -72,7 +91,7 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
     })
     localWorker.postMessage({
       type: 'add-dir',
-      cafsDir: opts.cafsDir,
+      storeDir: opts.storeDir,
       dir: opts.dir,
       filesIndexFile: opts.filesIndexFile,
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
@@ -117,7 +136,7 @@ If you think that this is the case, then run "pnpm store prune" and rerun the co
   }
 }
 
-type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'cafsDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg'> & {
+type AddFilesFromTarballOptions = Pick<TarballExtractMessage, 'buffer' | 'storeDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg'> & {
   url: string
 }
 
@@ -145,7 +164,7 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
     localWorker.postMessage({
       type: 'extract',
       buffer: opts.buffer,
-      cafsDir: opts.cafsDir,
+      storeDir: opts.storeDir,
       integrity: opts.integrity,
       filesIndexFile: opts.filesIndexFile,
       readManifest: opts.readManifest,
@@ -155,7 +174,7 @@ export async function addFilesFromTarball (opts: AddFilesFromTarballOptions): Pr
 }
 
 export async function readPkgFromCafs (
-  cafsDir: string,
+  storeDir: string,
   verifyStoreIntegrity: boolean,
   filesIndexFile: string,
   readManifest?: boolean
@@ -175,7 +194,7 @@ export async function readPkgFromCafs (
     })
     localWorker.postMessage({
       type: 'readPkgFromCafs',
-      cafsDir,
+      storeDir,
       filesIndexFile,
       readManifest,
       verifyStoreIntegrity,
@@ -183,25 +202,33 @@ export async function readPkgFromCafs (
   })
 }
 
+// The workers are doing lots of file system operations
+// so, running them in parallel helps only to a point.
+// With local experimenting it was discovered that running 4 workers gives the best results.
+// Adding more workers actually makes installation slower.
+const limitImportingPackage = pLimit(4)
+
 export async function importPackage (
   opts: Omit<LinkPkgMessage, 'type'>
 ): Promise<{ isBuilt: boolean, importMethod: string | undefined }> {
-  if (!workerPool) {
-    workerPool = createTarballWorkerPool()
-  }
-  const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
-    localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-      workerPool!.checkinWorker(localWorker)
-      if (status === 'error') {
-        reject(new PnpmError(error.code ?? 'LINKING_FAILED', error.message as string))
-        return
-      }
-      resolve(value)
-    })
-    localWorker.postMessage({
-      type: 'link',
-      ...opts,
+  return limitImportingPackage(async () => {
+    if (!workerPool) {
+      workerPool = createTarballWorkerPool()
+    }
+    const localWorker = await workerPool.checkoutWorkerAsync(true)
+    return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
+      localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+        workerPool!.checkinWorker(localWorker)
+        if (status === 'error') {
+          reject(new PnpmError(error.code ?? 'LINKING_FAILED', error.message as string))
+          return
+        }
+        resolve(value)
+      })
+      localWorker.postMessage({
+        type: 'link',
+        ...opts,
+      })
     })
   })
 }
@@ -217,7 +244,8 @@ export async function symlinkAllModules (
     localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', error.message as string))
+        const hint = opts.deps?.[0]?.modules != null ? createErrorHint(error, opts.deps[0].modules) : undefined
+        reject(new PnpmError(error.code ?? 'SYMLINK_FAILED', error.message as string, { hint }))
         return
       }
       resolve(value)
@@ -227,6 +255,29 @@ export async function symlinkAllModules (
       ...opts,
     } as SymlinkAllModulesMessage)
   })
+}
+
+function createErrorHint (err: Error, checkedDir: string): string | undefined {
+  if ('code' in err && err.code === 'EISDIR' && isWindows()) {
+    const checkedDrive = `${checkedDir.split(':')[0]}:`
+    if (isDriveExFat(checkedDrive)) {
+      return `The "${checkedDrive}" drive is exFAT, which does not support symlinks. This will cause installation to fail. You can set the node-linker to "hoisted" to avoid this issue.`
+    }
+  }
+  return undefined
+}
+
+// In Windows system exFAT drive, symlink will result in error.
+function isDriveExFat (drive: string): boolean {
+  try {
+    // cspell:disable-next-line
+    const output = execSync(`wmic logicaldisk where ${shellQuote([`DeviceID='${drive}'`])} get FileSystem`).toString()
+    const lines = output.trim().split('\n')
+    const name = lines.length > 1 ? lines[1].trim() : ''
+    return name === 'exFAT'
+  } catch {
+    return false
+  }
 }
 
 export async function hardLinkDir (src: string, destDirs: string[]): Promise<void> {
@@ -248,5 +299,26 @@ export async function hardLinkDir (src: string, destDirs: string[]): Promise<voi
       src,
       destDirs,
     } as HardLinkDirMessage)
+  })
+}
+
+export async function initStoreDir (storeDir: string): Promise<void> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<void>((resolve, reject) => {
+    localWorker.once('message', ({ status, error }) => {
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError(error.code ?? 'INIT_CAFS_FAILED', error.message as string))
+        return
+      }
+      resolve()
+    })
+    localWorker.postMessage({
+      type: 'init-store',
+      storeDir,
+    })
   })
 }

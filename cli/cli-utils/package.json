@@ -1,16 +1,28 @@
 {
   "name": "@pnpm/cli-utils",
-  "version": "4.0.6",
+  "version": "1001.2.7",
   "description": "Utils for pnpm commands",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/cli/cli-utils",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/cli/cli-utils#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "commonjs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
@@ -18,39 +30,35 @@
     "test": "pnpm run compile && pnpm run _test",
     "_test": "jest"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/cli/cli-utils",
-  "keywords": [
-    "pnpm9",
-    "pnpm"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
+  "dependencies": {
+    "@pnpm/cli-meta": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/config.deps-installer": "workspace:*",
+    "@pnpm/default-reporter": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/manifest-utils": "workspace:*",
+    "@pnpm/package-is-installable": "workspace:*",
+    "@pnpm/pnpmfile": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/store-connection-manager": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
+    "chalk": "catalog:",
+    "load-json-file": "catalog:"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/cli-utils#readme",
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
   "devDependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/logger": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "catalog:"
   },
-  "dependencies": {
-    "@pnpm/cli-meta": "workspace:*",
-    "@pnpm/config": "workspace:*",
-    "@pnpm/default-reporter": "workspace:*",
-    "@pnpm/error": "workspace:*",
-    "@pnpm/manifest-utils": "workspace:*",
-    "@pnpm/package-is-installable": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/types": "workspace:*",
-    "chalk": "catalog:",
-    "load-json-file": "catalog:"
+  "engines": {
+    "node": ">=18.12"
   },
-  "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
-  },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

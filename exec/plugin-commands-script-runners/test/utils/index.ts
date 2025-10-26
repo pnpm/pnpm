@@ -15,6 +15,7 @@ export const DEFAULT_OPTS = {
   cacheDir: '../cache',
   cert: undefined,
   extraEnv: {},
+  excludeLinksFromLockfile: false,
   cliOptions: {},
   extraBinPaths: [],
   fetchRetries: 2,
@@ -36,8 +37,9 @@ export const DEFAULT_OPTS = {
   networkConcurrency: 16,
   offline: false,
   pending: false,
-  pnpmfile: './.pnpmfile.cjs',
+  pnpmfile: ['./.pnpmfile.cjs'],
   pnpmHomeDir: '',
+  preferWorkspacePackages: true,
   proxy: undefined,
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: {},
@@ -56,7 +58,7 @@ export const DEFAULT_OPTS = {
     cpu: ['current'],
     libc: ['current'],
   },
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 export const DLX_DEFAULT_OPTS = {
@@ -66,6 +68,7 @@ export const DLX_DEFAULT_OPTS = {
   bail: false,
   bin: 'node_modules/.bin',
   cacheDir: path.join(tmp, 'cache'),
+  excludeLinksFromLockfile: false,
   extraEnv: {},
   extraBinPaths: [],
   cliOptions: {},
@@ -77,16 +80,17 @@ export const DLX_DEFAULT_OPTS = {
   },
   linkWorkspacePackages: true,
   lock: true,
-  pnpmfile: '.pnpmfile.cjs',
+  pnpmfile: ['.pnpmfile.cjs'],
   pnpmHomeDir: '',
+  preferWorkspacePackages: true,
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
   registries: {
     default: REGISTRY_URL,
   },
-  rootProjectManifestDir: '',
   sort: true,
   storeDir: path.join(tmp, 'store'),
+  symlink: true,
   userConfig: {},
   workspaceConcurrency: 1,
   supportedArchitectures: {
@@ -94,5 +98,5 @@ export const DLX_DEFAULT_OPTS = {
     cpu: ['current'],
     libc: ['current'],
   },
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }

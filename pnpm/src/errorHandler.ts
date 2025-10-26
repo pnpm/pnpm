@@ -1,7 +1,7 @@
 import { promisify } from 'util'
 import { logger } from '@pnpm/logger'
 import pidTree from 'pidtree'
-import { type Global, REPORTER_INITIALIZED } from './main'
+import { type Global, REPORTER_INITIALIZED } from './main.js'
 
 declare const global: Global
 
@@ -26,23 +26,22 @@ export async function errorHandler (error: Error & { code?: string }): Promise<v
         message: error.message,
       },
     }, null, 2))
-    process.exitCode = 1
-    return
-  }
-  if (global[REPORTER_INITIALIZED] === 'silent') {
-    process.exitCode = 1
-    return
-  }
+  } else if (global[REPORTER_INITIALIZED] !== 'silent') {
+    // bole passes only the name, message and stack of an error
+    // that is why we pass error as a message as well, to pass
+    // any additional info
+    logger.error(error, error)
 
-  // bole passes only the name, message and stack of an error
-  // that is why we pass error as a message as well, to pass
-  // any additional info
-  logger.error(error, error)
-
-  // Deferring exit. Otherwise, the reporter wouldn't show the error
-  setTimeout(async () => {
-    await killProcesses('errno' in error && typeof error.errno === 'number' ? error.errno : 1)
-  }, 0)
+    // Deferring exit. Otherwise, the reporter wouldn't show the error
+    await new Promise<void>((resolve) => setTimeout(() => {
+      resolve()
+    }, 0))
+  }
+  await killProcesses(
+    error && typeof error === 'object' && 'errno' in error && typeof error.errno === 'number'
+      ? error.errno
+      : 1
+  )
 }
 
 async function killProcesses (status: number): Promise<void> {

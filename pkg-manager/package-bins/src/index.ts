@@ -1,6 +1,6 @@
 import path from 'path'
 import { type DependencyManifest, type PackageBin } from '@pnpm/types'
-import fastGlob from 'fast-glob'
+import { glob } from 'tinyglobby'
 import isSubdir from 'is-subdir'
 
 export interface Command {
@@ -25,10 +25,11 @@ export async function getBinsFromPackageManifest (manifest: DependencyManifest, 
 
 async function findFiles (dir: string): Promise<string[]> {
   try {
-    return await fastGlob('**', {
+    return await glob('**', {
       cwd: dir,
       onlyFiles: true,
       followSymbolicLinks: false,
+      expandDirectories: false,
     })
   } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {

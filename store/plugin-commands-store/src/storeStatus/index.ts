@@ -15,7 +15,7 @@ import pFilter from 'p-filter'
 import {
   extendStoreStatusOptions,
   type StoreStatusOptions,
-} from './extendStoreStatusOptions'
+} from './extendStoreStatusOptions.js'
 import { type TarballResolution } from '@pnpm/store-controller-types'
 
 export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<string[]> {
@@ -48,10 +48,9 @@ export async function storeStatus (maybeOpts: StoreStatusOptions): Promise<strin
       }
     })
 
-  const cafsDir = path.join(storeDir, 'files')
   const modified = await pFilter(pkgs, async ({ id, integrity, depPath, name }) => {
     const pkgIndexFilePath = integrity
-      ? getIndexFilePathInCafs(cafsDir, integrity)
+      ? getIndexFilePathInCafs(storeDir, integrity, id)
       : path.join(storeDir, dp.depPathToFilename(id, maybeOpts.virtualStoreDirMaxLength), 'integrity.json')
     const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
     return (await dint.check(path.join(virtualStoreDir, dp.depPathToFilename(depPath, maybeOpts.virtualStoreDirMaxLength), 'node_modules', name), files)) === false

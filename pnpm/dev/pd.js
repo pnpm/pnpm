@@ -6,15 +6,17 @@ const childProcess = require('child_process')
 const { createRequire } = require('module')
 const { findWorkspacePackagesNoCheck } = require('@pnpm/workspace.find-packages')
 const { findWorkspaceDir } = require('@pnpm/find-workspace-dir')
+const { readWorkspaceManifest } = require('@pnpm/workspace.read-manifest')
 
 const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'package.json'), 'utf8'))
 
 ;(async () => {
   const workspaceDir = await findWorkspaceDir(__dirname)
-  const pkgs = await findWorkspacePackagesNoCheck(workspaceDir)
+  const workspaceManifest = await readWorkspaceManifest(workspaceDir)
+  const pkgs = await findWorkspacePackagesNoCheck(workspaceDir, { patterns: workspaceManifest.packages })
   const localPackages = pkgs.map(pkg => pkg.manifest.name)
-  const dirByPackageName = pkgs.reduce((acc, pkg) => {
-    acc[pkg.manifest.name] = pkg.dir
+  const dirByPackageName = pkgs.reduce((acc, { manifest, rootDirRealPath }) => {
+    acc[manifest.name] = rootDirRealPath
     return acc
   })
 
@@ -85,8 +87,20 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
   const nodeBin = process.argv[0]
 
   // Invoke the script just built by esbuild, with Node's sourcemaps enabled
-  const { status } = childProcess.spawnSync(nodeBin, ['--enable-source-maps', pathLib.resolve(__dirname, 'dist/pnpm.cjs'), ...process.argv.slice(2)], {
-    stdio: 'inherit'
+  const { status } = childProcess.spawnSync(nodeBin, [
+    '--enable-source-maps',
+    pathLib.resolve(__dirname, 'dist/pnpm.cjs'),
+    '--config.manage-package-manager-versions=false',
+    ...process.argv.slice(2),
+  ], {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      // During local development we don't want to switch to another version of pnpm
+      // NOTE: Disabling through env variable stopped working for some reasone!
+      // We need to check why. We set it through CLI argument for now.
+      npm_config_manage_package_manager_versions: false,
+    },
   })
   process.exit(status)
 })()

@@ -1,7 +1,7 @@
 import path from 'path'
 import {
   getLockfileImporterId,
-  type Lockfile,
+  type LockfileObject,
   type ProjectSnapshot,
   readCurrentLockfile,
   readWantedLockfile,
@@ -11,17 +11,16 @@ import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
-import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type DependenciesField, DEPENDENCIES_FIELDS, type Registries } from '@pnpm/types'
+import { safeReadPackageJsonFromDir, readPackageJsonFromDirSync } from '@pnpm/read-package-json'
+import { type DependenciesField, type Finder, DEPENDENCIES_FIELDS, type Registries } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
-import { type PackageNode } from './PackageNode'
-import { type SearchFunction } from './types'
-import { getTree } from './getTree'
-import { getTreeNodeChildId } from './getTreeNodeChildId'
-import { getPkgInfo } from './getPkgInfo'
-import { type TreeNodeId } from './TreeNodeId'
+import { type PackageNode } from './PackageNode.js'
+import { getTree } from './getTree.js'
+import { getTreeNodeChildId } from './getTreeNodeChildId.js'
+import { getPkgInfo } from './getPkgInfo.js'
+import { type TreeNodeId } from './TreeNodeId.js'
 
 export interface DependenciesHierarchy {
   dependencies?: PackageNode[]
@@ -38,7 +37,7 @@ export async function buildDependenciesHierarchy (
     include?: { [dependenciesField in DependenciesField]: boolean }
     registries?: Registries
     onlyProjects?: boolean
-    search?: SearchFunction
+    search?: Finder
     lockfileDir: string
     modulesDir?: string
     virtualStoreDirMaxLength: number
@@ -53,7 +52,8 @@ export async function buildDependenciesHierarchy (
     ...maybeOpts?.registries,
     ...modules?.registries,
   })
-  const currentLockfile = (modules?.virtualStoreDir && await readCurrentLockfile(modules.virtualStoreDir, { ignoreIncompatible: false })) ?? null
+  const internalPnpmDir = path.join(modulesDir, '.pnpm')
+  const currentLockfile = await readCurrentLockfile(internalPnpmDir, { ignoreIncompatible: false }) ?? null
   const wantedLockfile = await readWantedLockfile(maybeOpts.lockfileDir, { ignoreIncompatible: false })
   if (projectPaths == null) {
     projectPaths = Object.keys(wantedLockfile?.importers ?? {})
@@ -100,15 +100,15 @@ export async function buildDependenciesHierarchy (
 
 async function dependenciesHierarchyForPackage (
   projectPath: string,
-  currentLockfile: Lockfile,
-  wantedLockfile: Lockfile | null,
+  currentLockfile: LockfileObject,
+  wantedLockfile: LockfileObject | null,
   opts: {
     depth: number
     excludePeerDependencies?: boolean
     include: { [dependenciesField in DependenciesField]: boolean }
     registries: Registries
     onlyProjects?: boolean
-    search?: SearchFunction
+    search?: Finder
     skipped: Set<string>
     lockfileDir: string
     modulesDir?: string
@@ -151,7 +151,7 @@ async function dependenciesHierarchyForPackage (
     result[dependenciesField] = []
     for (const alias in topDeps) {
       const ref = topDeps[alias]
-      const packageInfo = getPkgInfo({
+      const { pkgInfo: packageInfo, readManifest } = getPkgInfo({
         alias,
         currentPackages: currentLockfile.packages ?? {},
         depTypes,
@@ -165,7 +165,11 @@ async function dependenciesHierarchyForPackage (
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
       })
       let newEntry: PackageNode | null = null
-      const matchedSearched = opts.search?.(packageInfo)
+      const matchedSearched = opts.search?.({
+        name: packageInfo.name,
+        version: packageInfo.version,
+        readManifest,
+      })
       const nodeId = getTreeNodeChildId({
         parentId,
         dep: { alias, ref },
@@ -191,6 +195,9 @@ async function dependenciesHierarchyForPackage (
       if (newEntry != null) {
         if (matchedSearched) {
           newEntry.searched = true
+          if (typeof matchedSearched === 'string') {
+            newEntry.searchMessage = matchedSearched
+          }
         }
         result[dependenciesField]!.push(newEntry)
       }
@@ -218,11 +225,18 @@ async function dependenciesHierarchyForPackage (
         path: pkgPath,
         version,
       }
-      const matchedSearched = opts.search?.(pkg)
+      const matchedSearched = opts.search?.({
+        name: pkg.name,
+        version: pkg.version,
+        readManifest: () => readPackageJsonFromDirSync(pkgPath),
+      })
       if ((opts.search != null) && !matchedSearched) return
       const newEntry: PackageNode = pkg
       if (matchedSearched) {
         newEntry.searched = true
+        if (typeof matchedSearched === 'string') {
+          newEntry.searchMessage = matchedSearched
+        }
       }
       result.unsavedDependencies = result.unsavedDependencies ?? []
       result.unsavedDependencies.push(newEntry)

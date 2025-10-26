@@ -1,5 +1,11 @@
 # @pnpm/cafs-types
 
+## 6.0.0
+
+### Major Changes
+
+- 099e6af: Changed the structure of the index files in the store to store side effects cache information more efficiently. In the new version, side effects do not list all the files of the package but just the differences [#8636](https://github.com/pnpm/pnpm/pull/8636).
+
 ## 5.0.0
 
 ### Major Changes

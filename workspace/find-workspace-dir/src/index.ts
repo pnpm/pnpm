@@ -5,13 +5,14 @@ import findUp from 'find-up'
 
 const WORKSPACE_DIR_ENV_VAR = 'NPM_CONFIG_WORKSPACE_DIR'
 const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
+const INVALID_WORKSPACE_MANIFEST_FILENAME = ['pnpm-workspaces.yaml', 'pnpm-workspaces.yml', 'pnpm-workspace.yml']
 
 export async function findWorkspaceDir (cwd: string): Promise<string | undefined> {
   const workspaceManifestDirEnvVar = process.env[WORKSPACE_DIR_ENV_VAR] ?? process.env[WORKSPACE_DIR_ENV_VAR.toLowerCase()]
   const workspaceManifestLocation = workspaceManifestDirEnvVar
-    ? path.join(workspaceManifestDirEnvVar, 'pnpm-workspace.yaml')
-    : await findUp([WORKSPACE_MANIFEST_FILENAME, 'pnpm-workspace.yml'], { cwd: await getRealPath(cwd) })
-  if (workspaceManifestLocation?.endsWith('.yml')) {
+    ? path.join(workspaceManifestDirEnvVar, WORKSPACE_MANIFEST_FILENAME)
+    : await findUp([WORKSPACE_MANIFEST_FILENAME, ...INVALID_WORKSPACE_MANIFEST_FILENAME], { cwd: await getRealPath(cwd) })
+  if (workspaceManifestLocation && path.basename(workspaceManifestLocation) !== WORKSPACE_MANIFEST_FILENAME) {
     throw new PnpmError('BAD_WORKSPACE_MANIFEST_NAME', `The workspace manifest file should be named "pnpm-workspace.yaml". File found: ${workspaceManifestLocation}`)
   }
   return workspaceManifestLocation && path.dirname(workspaceManifestLocation)

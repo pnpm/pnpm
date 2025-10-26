@@ -11,7 +11,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  (logger.warn as jest.Mock).mockRestore()
+  jest.mocked(logger.warn).mockRestore()
 })
 
 test('findWorkspacePackagesNoCheck() skips engine checks', async () => {
@@ -45,7 +45,7 @@ test('findWorkspacePackages() output warnings for non-root workspace project', a
   const fooPath = path.join(fixturePath, 'packages/foo')
   const barPath = path.join(fixturePath, 'packages/bar')
   expect(
-    (logger.warn as jest.Mock).mock.calls
+    jest.mocked(logger.warn).mock.calls
       .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
   ).toStrictEqual([
     [{ prefix: barPath, message: `The field "pnpm.overrides" was found in ${barPath}/package.json. This will not take effect. You should configure "pnpm.overrides" at the root of the workspace instead.` }],

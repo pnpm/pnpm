@@ -8,6 +8,7 @@ import {
   writeWantedLockfile,
 } from '@pnpm/lockfile.fs'
 import { type DepPath, type ProjectId } from '@pnpm/types'
+import { jest } from '@jest/globals'
 import tempy from 'tempy'
 
 jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
@@ -33,7 +34,6 @@ test('readWantedLockfile()', async () => {
         dependenciesMeta: {
           foo: { injected: true },
         },
-        publishDirectory: undefined,
       },
     })
   }
@@ -202,7 +202,7 @@ test('existsNonEmptyWantedLockfile()', async () => {
 })
 
 test('readWantedLockfile() when useGitBranchLockfile', async () => {
-  (getCurrentBranch as jest.Mock).mockReturnValue('branch')
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('branch'))
   const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
     ignoreIncompatible: false,
   })
@@ -248,7 +248,7 @@ test('readWantedLockfile() when useGitBranchLockfile', async () => {
 })
 
 test('readWantedLockfile() when useGitBranchLockfile and mergeGitBranchLockfiles', async () => {
-  (getCurrentBranch as jest.Mock).mockReturnValue('branch')
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve('branch'))
   const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
     ignoreIncompatible: false,
     useGitBranchLockfile: true,
@@ -291,7 +291,7 @@ test('readWantedLockfile() with inlineSpecifiersFormat', async () => {
       },
     },
     packages: {
-      'is-positive/1.0.0': {
+      'is-positive@1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },

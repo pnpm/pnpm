@@ -22,10 +22,8 @@ export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
       return Rx.of({
         msg: boxen(`\
 Update available! ${chalk.red(log.currentVersion)} → ${chalk.green(log.latestVersion)}.
-${chalk.magenta('Changelog:')} https://github.com/pnpm/pnpm/releases/tag/v${log.latestVersion}
-${updateMessage}
-
-Follow ${chalk.magenta('@pnpmjs')} for updates: https://x.com/pnpmjs`,
+${chalk.magenta('Changelog:')} https://pnpm.io/v/${log.latestVersion}
+${updateMessage}`,
         {
           padding: 1,
           margin: 1,
@@ -47,12 +45,12 @@ interface UpdateMessageOptions {
 
 function renderUpdateMessage (opts: UpdateMessageOptions): string {
   const updateCommand = renderUpdateCommand(opts)
-  return `Run "${chalk.magenta(updateCommand)}" to update.`
+  return `To update, run: ${chalk.magenta(updateCommand)}`
 }
 
 function renderUpdateCommand (opts: UpdateMessageOptions): string {
   if (isExecutedByCorepack(opts.env)) {
-    return `corepack install -g pnpm@${opts.latestVersion}`
+    return `corepack use pnpm@${opts.latestVersion}`
   }
   if (opts.env.PNPM_HOME) {
     return 'pnpm self-update'

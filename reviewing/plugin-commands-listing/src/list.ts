@@ -1,11 +1,12 @@
+import { PnpmError } from '@pnpm/error'
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { list, listForPackages } from '@pnpm/list'
-import { type IncludedDependencies } from '@pnpm/types'
+import { type Finder, type IncludedDependencies } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { listRecursive } from './recursive'
+import { listRecursive } from './recursive.js'
 
 export const EXCLUDE_PEERS_HELP = {
   description: 'Exclude peer dependencies',
@@ -32,6 +33,7 @@ export const cliOptionsTypes = (): Record<string, unknown> => ({
   'exclude-peers': Boolean,
   'only-projects': Boolean,
   recursive: Boolean,
+  'find-by': [String, Array],
 })
 
 export const shorthands: Record<string, string> = {
@@ -124,6 +126,7 @@ export type ListCommandOptions = Pick<Config,
 | 'allProjects'
 | 'dev'
 | 'dir'
+| 'finders'
 | 'optional'
 | 'production'
 | 'selectedProjectsGraph'
@@ -139,6 +142,7 @@ export type ListCommandOptions = Pick<Config,
   parseable?: boolean
   onlyProjects?: boolean
   recursive?: boolean
+  findBy?: string[]
 }
 
 export async function handler (
@@ -178,8 +182,19 @@ export async function render (
     parseable?: boolean
     modulesDir?: string
     virtualStoreDirMaxLength: number
+    finders?: Record<string, Finder>
+    findBy?: string[]
   }
 ): Promise<string> {
+  const finders: Finder[] = []
+  if (opts.findBy) {
+    for (const finderName of opts.findBy) {
+      if (opts.finders?.[finderName] == null) {
+        throw new PnpmError('FINDER_NOT_FOUND', `No finder with name ${finderName} is found`)
+      }
+      finders.push(opts.finders[finderName])
+    }
+  }
   const listOpts = {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth ?? 0,
@@ -192,8 +207,9 @@ export async function render (
     showExtraneous: false,
     modulesDir: opts.modulesDir,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+    finders,
   }
-  return (params.length > 0)
+  return (params.length > 0) || listOpts.finders.length > 0
     ? listForPackages(params, prefixes, listOpts)
     : list(prefixes, listOpts)
 }

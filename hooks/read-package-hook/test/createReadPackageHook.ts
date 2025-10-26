@@ -1,4 +1,4 @@
-import { createReadPackageHook } from '../lib/createReadPackageHook'
+import { createReadPackageHook } from '../lib/createReadPackageHook.js'
 
 test('createReadPackageHook() is passing directory to all hooks', async () => {
   const hook1 = jest.fn((manifest) => manifest)
@@ -32,7 +32,7 @@ test('createReadPackageHook() runs the custom hook before the version overrider'
         targetPkg: {
           name: 'react',
         },
-        newPref: '16',
+        newBareSpecifier: '16',
       },
     ],
   })

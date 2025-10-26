@@ -1,7 +1,24 @@
 {
   "name": "@pnpm/macos-x64",
-  "version": "9.12.1",
+  "version": "10.19.1-oidc-test.3",
+  "keywords": [
+    "pnpm",
+    "pnpm10",
+    "pnpm-artifact"
+  ],
   "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/macos-x64",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/macos-x64#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "scripts": {
+    "prepublishOnly": "test -f pnpm || (echo 'Error: pnpm is missing' && exit 1)"
+  },
+  "devDependencies": {
+    "@pnpm/macos-x64": "workspace:*"
+  },
   "publishConfig": {
     "bin": {
       "pnpm": "pnpm"
@@ -12,17 +29,5 @@
     "cpu": [
       "x64"
     ]
-  },
-  "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/macos-x64",
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/artifacts/macos-x64#readme",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "keywords": [
-    "pnpm9"
-  ],
-  "devDependencies": {
-    "@pnpm/macos-x64": "workspace:*"
   }
 }

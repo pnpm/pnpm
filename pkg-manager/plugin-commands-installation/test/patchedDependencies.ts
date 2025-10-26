@@ -5,10 +5,11 @@ import { globalWarn } from '@pnpm/logger'
 import { add, install } from '@pnpm/plugin-commands-installation'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { DEFAULT_OPTS } from './utils'
+import { jest } from '@jest/globals'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 jest.mock('@pnpm/logger', () => {
-  const originalModule = jest.requireActual('@pnpm/logger')
+  const originalModule = jest.requireActual<object>('@pnpm/logger')
   return {
     ...originalModule,
     globalWarn: jest.fn(),
@@ -16,12 +17,12 @@ jest.mock('@pnpm/logger', () => {
 })
 
 beforeEach(() => {
-  ;(globalWarn as jest.Mock).mockClear()
+  jest.mocked(globalWarn).mockClear()
 })
 
 const f = fixtures(__dirname)
 
-function addPatch (key: string, patchFixture: string, patchDest: string): void {
+function addPatch (key: string, patchFixture: string, patchDest: string): ProjectManifest {
   fs.mkdirSync(path.dirname(patchDest), { recursive: true })
   fs.copyFileSync(patchFixture, patchDest)
   let manifestText = fs.readFileSync('package.json', 'utf-8')
@@ -35,6 +36,7 @@ function addPatch (key: string, patchFixture: string, patchDest: string): void {
   }
   manifestText = JSON.stringify(manifest, undefined, 2) + '\n'
   fs.writeFileSync('package.json', manifestText)
+  return manifest
 }
 
 const unpatchedModulesDir = (v: 1 | 2 | 3) => `node_modules/.pnpm/@pnpm.e2e+console-log@${v}.0.0/node_modules`
@@ -54,12 +56,13 @@ test('bare package name as a patchedDependencies key should apply to all version
   }, ['@pnpm.e2e/depends-on-console-log@1.0.0'])
   fs.rmSync('pnpm-lock.yaml')
 
-  addPatch('@pnpm.e2e/console-log', patchFixture, 'patches/console-log.patch')
+  const rootProjectManifest = addPatch('@pnpm.e2e/console-log', patchFixture, 'patches/console-log.patch')
 
   await install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     frozenLockfile: false,
+    patchedDependencies: rootProjectManifest.pnpm?.patchedDependencies,
   })
 
   {
@@ -105,12 +108,13 @@ test('bare package name as a patchedDependencies key should apply to all possibl
   }, ['@pnpm.e2e/depends-on-console-log@1.0.0'])
   fs.rmSync('pnpm-lock.yaml')
 
-  addPatch('@pnpm.e2e/console-log', patchFixture, 'patches/console-log.patch')
+  const rootProjectManifest = addPatch('@pnpm.e2e/console-log', patchFixture, 'patches/console-log.patch')
 
   await install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     frozenLockfile: false,
+    patchedDependencies: rootProjectManifest.pnpm?.patchedDependencies,
   })
 
   // the common patch does not apply to v1
@@ -153,12 +157,13 @@ test('package name with version is prioritized over bare package name as keys of
   fs.rmSync('pnpm-lock.yaml')
 
   addPatch('@pnpm.e2e/console-log', commonPatchFixture, 'patches/console-log.patch')
-  addPatch('@pnpm.e2e/console-log@2.0.0', specializedPatchFixture, 'patches/console-log@2.0.0.patch')
+  const rootProjectManifest = addPatch('@pnpm.e2e/console-log@2.0.0', specializedPatchFixture, 'patches/console-log@2.0.0.patch')
 
   await install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     frozenLockfile: false,
+    patchedDependencies: rootProjectManifest.pnpm?.patchedDependencies,
   })
 
   // the common patch applies to v1
@@ -209,12 +214,13 @@ test('package name with version as a patchedDependencies key does not affect oth
   fs.rmSync('pnpm-lock.yaml')
 
   addPatch('@pnpm.e2e/console-log@2.0.0', patchFixture2, 'patches/console-log@2.0.0.patch')
-  addPatch('@pnpm.e2e/console-log@3.0.0', patchFixture3, 'patches/console-log@3.0.0.patch')
+  const rootProjectManifest = addPatch('@pnpm.e2e/console-log@3.0.0', patchFixture3, 'patches/console-log@3.0.0.patch')
 
   await install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     frozenLockfile: false,
+    patchedDependencies: rootProjectManifest.pnpm?.patchedDependencies,
   })
 
   // v1 remains unpatched
@@ -254,12 +260,13 @@ test('failure to apply patch with package name and version would cause throw an 
   }, ['@pnpm.e2e/depends-on-console-log@1.0.0'])
   fs.rmSync('pnpm-lock.yaml')
 
-  addPatch('@pnpm.e2e/console-log@1.0.0', patchFixture, 'patches/console-log@1.0.0.patch')
+  const rootProjectManifest = addPatch('@pnpm.e2e/console-log@1.0.0', patchFixture, 'patches/console-log@1.0.0.patch')
 
   const promise = install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     frozenLockfile: false,
+    patchedDependencies: rootProjectManifest.pnpm?.patchedDependencies,
   })
   await expect(promise).rejects.toHaveProperty(['message'], expect.stringContaining('Could not apply patch'))
   await expect(promise).rejects.toHaveProperty(['message'], expect.stringContaining(path.resolve('patches/console-log@1.0.0.patch')))

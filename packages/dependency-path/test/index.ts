@@ -21,35 +21,35 @@ test('parse()', () => {
   /* eslint-enable @typescript-eslint/no-explicit-any */
   expect(parse('foo@1.0.0')).toStrictEqual({
     name: 'foo',
-    peersSuffix: undefined,
+    peerDepGraphHash: undefined,
     version: '1.0.0',
     patchHash: undefined,
   })
 
   expect(parse('@foo/bar@1.0.0')).toStrictEqual({
     name: '@foo/bar',
-    peersSuffix: undefined,
+    peerDepGraphHash: undefined,
     version: '1.0.0',
     patchHash: undefined,
   })
 
   expect(parse('foo@1.0.0(@types/babel__core@7.1.14)')).toStrictEqual({
     name: 'foo',
-    peersSuffix: '(@types/babel__core@7.1.14)',
+    peerDepGraphHash: '(@types/babel__core@7.1.14)',
     version: '1.0.0',
     patchHash: undefined,
   })
 
   expect(parse('foo@1.0.0(@types/babel__core@7.1.14)(foo@1.0.0)')).toStrictEqual({
     name: 'foo',
-    peersSuffix: '(@types/babel__core@7.1.14)(foo@1.0.0)',
+    peerDepGraphHash: '(@types/babel__core@7.1.14)(foo@1.0.0)',
     version: '1.0.0',
     patchHash: undefined,
   })
 
   expect(parse('@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)(foo@1.0.0)')).toStrictEqual({
     name: '@(-.-)/foo',
-    peersSuffix: '(@types/babel__core@7.1.14)(foo@1.0.0)',
+    peerDepGraphHash: '(@types/babel__core@7.1.14)(foo@1.0.0)',
     version: '1.0.0',
     patchHash: undefined,
   })
@@ -57,13 +57,13 @@ test('parse()', () => {
   expect(parse('tar-pkg@file:../tar-pkg-1.0.0.tgz')).toStrictEqual({
     name: 'tar-pkg',
     nonSemverVersion: 'file:../tar-pkg-1.0.0.tgz',
-    peersSuffix: undefined,
+    peerDepGraphHash: undefined,
     patchHash: undefined,
   })
 
   expect(parse('foo@1.0.0(patch_hash=0000)(@types/babel__core@7.1.14)')).toStrictEqual({
     name: 'foo',
-    peersSuffix: '(@types/babel__core@7.1.14)',
+    peerDepGraphHash: '(@types/babel__core@7.1.14)',
     version: '1.0.0',
     patchHash: '(patch_hash=0000)',
   })
@@ -96,8 +96,11 @@ test('depPathToFilename()', () => {
   expect(filename).toBe('file+test+foo-1.0.0.tgz_foo@2.0.0')
   expect(filename).not.toContain(':')
 
-  expect(depPathToFilename('abcd/'.repeat(200), 120)).toBe('abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abc_jvx2blbax4cyhfgrgozfgpdv24') // cspell:disable-line
-  expect(depPathToFilename('/JSONSteam@1.0.0', 120)).toBe('JSONSteam@1.0.0_jmswpk4sf667aelr6wp2xd3p54') // cspell:disable-line
+  expect(depPathToFilename('abcd/'.repeat(200), 120)).toBe('abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+abcd+ab_e7c10c3598ebbc0ca640b6524c68e602') // cspell:disable-line
+  expect(depPathToFilename('/JSONSteam@1.0.0', 120)).toBe('JSONSteam@1.0.0_533d3b11e9111b7a24f914844c021ddf') // cspell:disable-line
+
+  expect(depPathToFilename('foo@git+https://github.com/something/foo#1234', 120)).toBe('foo@git+https+++github.com+something+foo+1234')
+  expect(depPathToFilename('foo@https://codeload.github.com/something/foo/tar.gz/1234#path:packages/foo', 120)).toBe('foo@https+++codeload.github.com+something+foo+tar.gz+1234+path+packages+foo')
 })
 
 test('tryGetPackageId', () => {

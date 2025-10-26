@@ -1,4 +1,4 @@
-import { workspacePrefToNpm } from '../lib/workspacePrefToNpm'
+import { workspacePrefToNpm } from '../lib/workspacePrefToNpm.js'
 
 describe('workspacePrefToNpm', () => {
   test('resolve workspace only version aliases', async () => {

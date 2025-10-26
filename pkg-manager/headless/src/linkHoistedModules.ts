@@ -19,6 +19,7 @@ import pLimit from 'p-limit'
 import difference from 'ramda/src/difference'
 import isEmpty from 'ramda/src/isEmpty'
 import rimraf from '@zkochan/rimraf'
+import { type AllowBuild } from '@pnpm/types'
 
 const limitLinking = pLimit(16)
 
@@ -28,6 +29,7 @@ export async function linkHoistedModules (
   prevGraph: DependenciesGraph,
   hierarchy: DepHierarchy,
   opts: {
+    allowBuild?: AllowBuild
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
     force: boolean
@@ -87,6 +89,7 @@ async function linkAllPkgsInOrder (
   hierarchy: DepHierarchy,
   parentDir: string,
   opts: {
+    allowBuild?: AllowBuild
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
     force: boolean
@@ -113,10 +116,12 @@ async function linkAllPkgsInOrder (
         depNode.requiresBuild = filesResponse.requiresBuild
         let sideEffectsCacheKey: string | undefined
         if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-          sideEffectsCacheKey = _calcDepState(dir, {
-            isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
-            patchFileHash: depNode.patch?.file.hash,
-          })
+          if (opts?.allowBuild?.(depNode.name, depNode.version) !== false) {
+            sideEffectsCacheKey = _calcDepState(dir, {
+              includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
+              patchFileHash: depNode.patch?.file.hash,
+            })
+          }
         }
         // Limiting the concurrency here fixes an out of memory error.
         // It is not clear why it helps as importing is also limited inside fs.indexed-pkg-importer.

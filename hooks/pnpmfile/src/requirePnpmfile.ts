@@ -3,9 +3,9 @@ import fs from 'fs'
 import util from 'util'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import { type PackageManifest } from '@pnpm/types'
+import { type PackageManifest, type Finder } from '@pnpm/types'
 import chalk from 'chalk'
-import { type Hooks } from './Hooks'
+import { type Hooks } from './Hooks.js'
 
 export class BadReadPackageHookError extends PnpmError {
   public readonly pnpmfile: string
@@ -27,20 +27,22 @@ class PnpmFileFailError extends PnpmError {
   }
 }
 
+export type Finders = Record<string, Finder>
+
 export interface Pnpmfile {
   hooks?: Hooks
-  filename: string
+  finders?: Finders
 }
 
-export function requirePnpmfile (pnpmFilePath: string, prefix: string): Pnpmfile | undefined {
+export function requirePnpmfile (pnpmFilePath: string, prefix: string): { pnpmfileModule: Pnpmfile | undefined } | undefined {
   try {
-    const pnpmfile: { hooks?: { readPackage?: unknown }, filename?: unknown } = require(pnpmFilePath) // eslint-disable-line
+    const pnpmfile: Pnpmfile = require(pnpmFilePath) // eslint-disable-line
     if (typeof pnpmfile === 'undefined') {
       logger.warn({
         message: `Ignoring the pnpmfile at "${pnpmFilePath}". It exports "undefined".`,
         prefix,
       })
-      return undefined
+      return { pnpmfileModule: undefined }
     }
     if (pnpmfile?.hooks?.readPackage && typeof pnpmfile.hooks.readPackage !== 'function') {
       throw new TypeError('hooks.readPackage should be a function')
@@ -65,11 +67,10 @@ export function requirePnpmfile (pnpmFilePath: string, prefix: string): Pnpmfile
         return newPkg
       }
     }
-    pnpmfile.filename = pnpmFilePath
-    return pnpmfile as Pnpmfile
+    return { pnpmfileModule: pnpmfile }
   } catch (err: unknown) {
     if (err instanceof SyntaxError) {
-      console.error(chalk.red('A syntax error in the .pnpmfile.cjs\n'))
+      console.error(chalk.red(`A syntax error in the "${pnpmFilePath}"\n`))
       console.error(err)
       process.exit(1)
     }

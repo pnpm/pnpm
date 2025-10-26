@@ -9,15 +9,16 @@ import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnp
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/get-context'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
+import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { type DependenciesField, type ProjectRootDir } from '@pnpm/types'
+import { type DependenciesField, type ProjectRootDir, type Project } from '@pnpm/types'
 import { mutateModulesInSingleProject } from '@pnpm/core'
 import pick from 'ramda/src/pick'
 import without from 'ramda/src/without'
 import renderHelp from 'render-help'
-import { getSaveType } from './getSaveType'
-import { recursive } from './recursive'
+import { getSaveType } from './getSaveType.js'
+import { recursive } from './recursive.js'
 
 class RemoveMissingDepsError extends PnpmError {
   constructor (
@@ -129,6 +130,7 @@ export async function handler (
   | 'allProjectsGraph'
   | 'bail'
   | 'bin'
+  | 'configDependencies'
   | 'dev'
   | 'engineStrict'
   | 'globalPnpmfile'
@@ -137,7 +139,6 @@ export async function handler (
   | 'linkWorkspacePackages'
   | 'lockfileDir'
   | 'optional'
-  | 'pnpmfile'
   | 'production'
   | 'rawLocalConfig'
   | 'registries'
@@ -150,8 +151,10 @@ export async function handler (
   | 'workspaceDir'
   | 'workspacePackagePatterns'
   | 'sharedWorkspaceLockfile'
+  | 'cleanupUnusedCatalogs'
   > & {
     recursive?: boolean
+    pnpmfile: string[]
   },
   params: string[]
 ): Promise<void> {
@@ -161,26 +164,33 @@ export async function handler (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
+  const store = await createOrConnectStoreController(opts)
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
     await recursive(opts.allProjects, params, {
       ...opts,
       allProjectsGraph: opts.allProjectsGraph!,
       include,
       selectedProjectsGraph: opts.selectedProjectsGraph,
+      storeControllerAndDir: store,
       workspaceDir: opts.workspaceDir,
     }, 'remove')
     return
   }
-  const store = await createOrConnectStoreController(opts)
   const removeOpts = Object.assign(opts, {
     ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
+    linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     storeController: store.ctrl,
     storeDir: store.dir,
     include,
   })
+  const allProjects = opts.allProjects ?? (
+    opts.workspaceDir
+      ? await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns })
+      : undefined
+  )
   // @ts-expect-error
-  removeOpts['workspacePackages'] = opts.workspaceDir
-    ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, { ...opts, patterns: opts.workspacePackagePatterns }))
+  removeOpts['workspacePackages'] = allProjects
+    ? arrayOfWorkspacePackagesToMap(allProjects)
     : undefined
   const targetDependenciesField = getSaveType(opts)
   const {
@@ -211,5 +221,23 @@ export async function handler (
     },
     removeOpts
   )
-  await writeProjectManifest(mutationResult.manifest)
+  await writeProjectManifest(mutationResult.updatedProject.manifest)
+
+  const updatedProjects: Project[] = []
+  if (allProjects != null) {
+    for (const project of allProjects) {
+      if (project.rootDir === mutationResult.updatedProject.rootDir) {
+        updatedProjects.push({
+          ...project,
+          manifest: mutationResult.updatedProject.manifest,
+        })
+      } else {
+        updatedProjects.push(project)
+      }
+    }
+  }
+  await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+    cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
+    allProjects: updatedProjects,
+  })
 }

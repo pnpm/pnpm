@@ -1,7 +1,9 @@
-import { getPkgInfo } from '../lib/getPkgInfo'
+import path from 'path'
+import { getPkgInfo } from '../lib/getPkgInfo.js'
 
 export const DEFAULT_REGISTRIES = {
   default: 'https://registry.npmjs.org/',
+  '@jsr': 'https://npm.jsr.io/',
 }
 
 describe('licences', () => {
@@ -11,8 +13,8 @@ describe('licences', () => {
         {
           name: 'bogus-package',
           version: '1.0.0',
-          id: '/bogus-package@1.0.0',
-          depPath: '/bogus-package@1.0.0',
+          id: 'bogus-package@1.0.0',
+          depPath: 'bogus-package@1.0.0',
           snapshot: {
             resolution: {
               integrity: 'integrity-sha',
@@ -28,6 +30,6 @@ describe('licences', () => {
           virtualStoreDirMaxLength: 120,
         }
       )
-    ).rejects.toThrow('Failed to find package index file for /bogus-package@1.0.0, please consider running \'pnpm install\'')
+    ).rejects.toThrow(`Failed to find package index file for bogus-package@1.0.0 (at ${path.join('store-dir', 'index', 'b2', '16-bogus-package@1.0.0.json')}), please consider running 'pnpm install'`)
   })
 })

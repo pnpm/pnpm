@@ -6,6 +6,7 @@ import {
   readWantedLockfile,
   writeLockfiles,
 } from '@pnpm/lockfile.fs'
+import { jest } from '@jest/globals'
 import tempy from 'tempy'
 import yaml from 'yaml-tag'
 import { getCurrentBranch } from '@pnpm/git-utils'
@@ -81,6 +82,7 @@ test('writeLockfiles() when no specifiers but dependencies present', async () =>
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
+    packages: {},
   }
   await writeLockfiles({
     currentLockfile: wantedLockfile,
@@ -198,7 +200,7 @@ test('writeLockfiles() does not fail if the lockfile has undefined properties', 
 
 test('writeLockfiles() when useGitBranchLockfile', async () => {
   const branchName: string = 'branch'
-  ;(getCurrentBranch as jest.Mock).mockReturnValue(branchName)
+  jest.mocked(getCurrentBranch).mockReturnValue(Promise.resolve(branchName))
   const projectPath = tempy.directory()
   const wantedLockfile = {
     importers: {

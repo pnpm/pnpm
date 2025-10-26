@@ -5,10 +5,15 @@ export interface PkgNameVersion {
   version?: string
 }
 
+export interface InitStoreMessage {
+  type: 'init-store'
+  storeDir: string
+}
+
 export interface TarballExtractMessage {
   type: 'extract'
   buffer: Buffer
-  cafsDir: string
+  storeDir: string
   integrity?: string
   filesIndexFile: string
   readManifest?: boolean
@@ -39,7 +44,7 @@ export interface SymlinkAllModulesMessage {
 
 export interface AddDirToStoreMessage {
   type: 'add-dir'
-  cafsDir: string
+  storeDir: string
   dir: string
   filesIndexFile: string
   sideEffectsCacheKey?: string
@@ -50,7 +55,7 @@ export interface AddDirToStoreMessage {
 
 export interface ReadPkgFromCafsMessage {
   type: 'readPkgFromCafs'
-  cafsDir: string
+  storeDir: string
   filesIndexFile: string
   readManifest: boolean
   verifyStoreIntegrity: boolean

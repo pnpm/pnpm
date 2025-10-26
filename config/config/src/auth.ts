@@ -1,6 +1,6 @@
-import { type Config } from './Config'
-import { type InheritableConfig, inheritPickedConfig } from './inheritPickedConfig'
-import { type types } from './types'
+import { type Config } from './Config.js'
+import { type InheritableConfig, inheritPickedConfig } from './inheritPickedConfig.js'
+import { type types } from './types.js'
 
 const RAW_AUTH_CFG_KEYS = [
   'ca',

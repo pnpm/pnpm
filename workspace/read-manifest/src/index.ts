@@ -1,5 +1,6 @@
 import util from 'util'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
+import { type PnpmSettings } from '@pnpm/types'
 import path from 'node:path'
 import readYamlFile from 'read-yaml-file'
 import {
@@ -7,10 +8,10 @@ import {
   assertValidWorkspaceManifestCatalogs,
   type WorkspaceCatalog,
   type WorkspaceNamedCatalogs,
-} from './catalogs'
-import { InvalidWorkspaceManifestError } from './errors/InvalidWorkspaceManifestError'
+} from './catalogs.js'
+import { InvalidWorkspaceManifestError } from './errors/InvalidWorkspaceManifestError.js'
 
-export interface WorkspaceManifest {
+export interface WorkspaceManifest extends PnpmSettings {
   packages: string[]
 
   /**
@@ -75,7 +76,7 @@ function validateWorkspaceManifest (manifest: unknown): asserts manifest is Work
 
 function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown }): asserts manifest is { packages: string[] } {
   if (!manifest.packages) {
-    throw new InvalidWorkspaceManifestError('packages field missing or empty')
+    return
   }
 
   if (!Array.isArray(manifest.packages)) {

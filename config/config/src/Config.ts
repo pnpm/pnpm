@@ -1,5 +1,6 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
 import {
+  type Finder,
   type Project,
   type ProjectManifest,
   type ProjectsGraph,
@@ -7,6 +8,7 @@ import {
   type SslConfig,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
+import { type OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 
@@ -15,7 +17,9 @@ export interface WantedPackageManager {
   version?: string
 }
 
-export interface Config {
+export type VerifyDepsBeforeRun = 'install' | 'warn' | 'error' | 'prompt' | false
+
+export interface Config extends OptionsFromRootManifest {
   allProjects?: Project[]
   selectedProjectsGraph?: ProjectsGraph
   allProjectsGraph?: ProjectsGraph
@@ -38,15 +42,18 @@ export interface Config {
   global?: boolean
   dir: string
   bin: string
+  verifyDepsBeforeRun?: VerifyDepsBeforeRun
   ignoreDepScripts?: boolean
   ignoreScripts?: boolean
   ignoreCompatibilityDb?: boolean
   includeWorkspaceRoot?: boolean
+  optimisticRepeatInstall?: boolean
   save?: boolean
   saveProd?: boolean
   saveDev?: boolean
   saveOptional?: boolean
   savePeer?: boolean
+  saveCatalogName?: string
   saveWorkspaceProtocol?: boolean | 'rolling'
   lockfileIncludeTarballUrl?: boolean
   scriptShell?: string
@@ -87,7 +94,7 @@ export interface Config {
   sideEffectsCacheWrite?: boolean
   shamefullyHoist?: boolean
   dev?: boolean
-  ignoreCurrentPrefs?: boolean
+  ignoreCurrentSpecifiers?: boolean
   recursive?: boolean
   enablePrePostScripts?: boolean
   useNodeVersion?: string
@@ -99,6 +106,7 @@ export interface Config {
   failedToLoadBuiltInConfig: boolean
   resolvePeersFromWorkspaceRoot?: boolean
   deployAllFiles?: boolean
+  forceLegacyDeploy?: boolean
   reporterHidePrefix?: boolean
 
   // proxy
@@ -123,6 +131,7 @@ export interface Config {
   stateDir: string
   storeDir?: string
   virtualStoreDir?: string
+  enableGlobalVirtualStore?: boolean
   verifyStoreIntegrity?: boolean
   maxSockets?: number
   networkConcurrency?: number
@@ -130,8 +139,10 @@ export interface Config {
   lockfileOnly?: boolean // like npm's --package-lock-only
   childConcurrency?: number
   ignorePnpmfile?: boolean
-  pnpmfile: string
+  pnpmfile: string[] | string
+  tryLoadDefaultPnpmfile?: boolean
   hooks?: Hooks
+  finders?: Record<string, Finder>
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   hoistPattern?: string[]
   publicHoistPattern?: string[] | string
@@ -142,9 +153,12 @@ export interface Config {
   workspaceDir?: string
   workspacePackagePatterns?: string[]
   catalogs?: Catalogs
+  catalogMode?: 'strict' | 'prefer' | 'manual'
+  cleanupUnusedCatalogs?: boolean
   reporter?: string
   aggregateOutput: boolean
   linkWorkspacePackages: boolean | 'deep'
+  injectWorkspacePackages?: boolean
   preferWorkspacePackages: boolean
   reverse: boolean
   sort: boolean
@@ -196,7 +210,9 @@ export interface Config {
   dedupeDirectDeps?: boolean
   extendNodePath?: boolean
   gitBranchLockfile?: boolean
+  globalBinDir?: string
   globalDir?: string
+  globalPkgDir: string
   lockfile?: boolean
   dedupeInjectedDeps?: boolean
   nodeOptions?: string
@@ -206,6 +222,17 @@ export interface Config {
   peersSuffixMaxLength?: number
   strictStorePkgContentCheck: boolean
   managePackageManagerVersions: boolean
+  strictDepBuilds: boolean
+  syncInjectedDepsAfterScripts?: string[]
+  initPackageManager: boolean
+  initType: 'commonjs' | 'module'
+  dangerouslyAllowAllBuilds: boolean
+  ci: boolean
+  preserveAbsolutePaths?: boolean
+  minimumReleaseAge?: number
+  minimumReleaseAgeExclude?: string[]
+  fetchWarnTimeoutMs?: number
+  fetchMinSpeedKiBps?: number
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

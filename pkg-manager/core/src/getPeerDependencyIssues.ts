@@ -5,7 +5,7 @@ import { getContext, type GetContextOptions, type ProjectOptions } from '@pnpm/g
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { parseOverrides } from '@pnpm/parse-overrides'
-import { type InstallOptions } from './install/extendInstallOptions'
+import { type InstallOptions } from './install/extendInstallOptions.js'
 
 export type ListMissingPeersOptions = Partial<GetContextOptions>
 & Pick<InstallOptions, 'hooks'
@@ -46,7 +46,7 @@ export async function getPeerDependencyIssues (
   const projectsToResolve = Object.values(ctx.projects).map((project) => ({
     ...project,
     updatePackageManifest: false,
-    wantedDependencies: getWantedDependencies(project.manifest),
+    wantedDependencies: getWantedDependencies(project.manifest, opts),
   }))
   const preferredVersions = getPreferredVersionsFromLockfileAndManifests(
     ctx.wantedLockfile.packages,
@@ -61,7 +61,7 @@ export async function getPeerDependencyIssues (
     {
       currentLockfile: ctx.currentLockfile,
       allowedDeprecatedVersions: {},
-      allowNonAppliedPatches: false,
+      allowUnusedPatches: false,
       catalogs: opts.catalogs,
       defaultUpdateDepth: -1,
       dedupePeerDependents: opts.dedupePeerDependents,

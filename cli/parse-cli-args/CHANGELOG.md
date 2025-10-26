@@ -1,5 +1,82 @@
 # @pnpm/parse-cli-args
 
+## 1000.1.4
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/find-workspace-dir@1000.1.3
+
+## 1000.1.3
+
+### Patch Changes
+
+- 7e89138: Fix deprecation warning printed when executing pnpm with Node.js 24 [#9529](https://github.com/pnpm/pnpm/issues/9529).
+
+## 1000.1.2
+
+### Patch Changes
+
+- 778ba1e: Fix a regression in which `pnpm dlx pkg --help` doesn't pass `--help` to `pkg` [#9823](https://github.com/pnpm/pnpm/issues/9823).
+
+## 1000.1.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.4
+- @pnpm/find-workspace-dir@1000.1.2
+
+## 1000.1.0
+
+### Minor Changes
+
+- 6bcfa69: Allow `dlx` to parse CLI flags and options between the `dlx` command and the command to run or between the `dlx` command and `--` [#9719](https://github.com/pnpm/pnpm/issues/9719).
+
+### Patch Changes
+
+- @pnpm/error@1000.0.3
+- @pnpm/find-workspace-dir@1000.1.1
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [69f922a]
+  - @pnpm/find-workspace-dir@1000.1.0
+
+## 1000.0.3
+
+### Patch Changes
+
+- 48b4871: Allow scope registry CLI option without `--config.` prefix such as `--@scope:registry=https://scope.example.com/npm` [#9089](https://github.com/pnpm/pnpm/pull/9089).
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/error@1000.0.2
+- @pnpm/find-workspace-dir@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+- @pnpm/find-workspace-dir@1000.0.1
+
+## 8.0.4
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+- @pnpm/find-workspace-dir@7.0.3
+
+## 8.0.3
+
+### Patch Changes
+
+- f066efc: All commands should read settings from the `package.json` at the root of the workspace [#8667](https://github.com/pnpm/pnpm/issues/8667).
+
 ## 8.0.2
 
 ### Patch Changes

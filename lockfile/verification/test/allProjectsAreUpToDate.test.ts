@@ -1,10 +1,14 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { type WorkspacePackages } from '@pnpm/resolver-base'
-import { type DependencyManifest, type ProjectId, type ProjectRootDir } from '@pnpm/types'
+import { type DepPath, type DependencyManifest, type ProjectId, type ProjectRootDir } from '@pnpm/types'
 import { allProjectsAreUpToDate } from '@pnpm/lockfile.verification'
+import { createWriteStream } from 'fs'
 import { writeFile, mkdir } from 'fs/promises'
-import { type Lockfile } from '@pnpm/lockfile.types'
+import { type LockfileObject } from '@pnpm/lockfile.types'
+import tar from 'tar-stream'
+import { pipeline } from 'stream/promises'
+import { getTarballIntegrity } from '@pnpm/crypto.hash'
 
 const fooManifest = {
   name: 'foo',
@@ -436,7 +440,7 @@ describe('local file dependency', () => {
         },
       },
       lockfileVersion: LOCKFILE_VERSION,
-    } as Lockfile,
+    } as LockfileObject,
     workspacePackages,
     lockfileDir: process.cwd(),
   }
@@ -489,6 +493,210 @@ describe('local file dependency', () => {
   })
 })
 
+describe('local tgz file dependency', () => {
+  beforeEach(async () => {
+    prepareEmpty()
+  })
+
+  const projects = [
+    {
+      id: 'bar' as ProjectId,
+      manifest: {
+        dependencies: {
+          'local-tarball': 'file:local-tarball.tar',
+        },
+      },
+      rootDir: 'bar' as ProjectRootDir,
+    },
+    {
+      id: 'foo' as ProjectId,
+      manifest: fooManifest,
+      rootDir: 'foo' as ProjectRootDir,
+    },
+  ]
+
+  const wantedLockfile: LockfileObject = {
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      ['bar' as ProjectId]: {
+        dependencies: { 'local-tarball': 'file:local-tarball.tar' },
+        specifiers: { 'local-tarball': 'file:local-tarball.tar' },
+      },
+      ['foo' as ProjectId]: {
+        specifiers: {},
+      },
+    },
+    packages: {
+      ['local-tarball@file:local-tarball.tar' as DepPath]: {
+        resolution: {
+          integrity: 'sha512-nQP7gWOhNQ/5HoM/rJmzOgzZt6Wg6k56CyvO/0sMmiS3UkLSmzY5mW8mMrnbspgqpmOW8q/FHyb0YIr4n2A8VQ==',
+          tarball: 'file:local-tarball.tar',
+        },
+        version: '1.0.0',
+      },
+    },
+  }
+
+  const options = {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile,
+    workspacePackages,
+    lockfileDir: process.cwd(),
+  }
+
+  test('allProjectsAreUpToDate(): returns true if local file not changed', async () => {
+    expect.hasAssertions()
+
+    const pack = tar.pack()
+    pack.entry({ name: 'package.json', mtime: new Date('1970-01-01T00:00:00.000Z') }, JSON.stringify({
+      name: 'local-tarball',
+      version: '1.0.0',
+    }))
+    pack.finalize()
+
+    await pipeline(pack, createWriteStream('./local-tarball.tar'))
+
+    // Make the test is set up correctly and the local-tarball.tar created above
+    // has the expected integrity hash.
+    await expect(getTarballIntegrity('./local-tarball.tar')).resolves.toEqual('sha512-nQP7gWOhNQ/5HoM/rJmzOgzZt6Wg6k56CyvO/0sMmiS3UkLSmzY5mW8mMrnbspgqpmOW8q/FHyb0YIr4n2A8VQ==')
+
+    const lockfileDir = process.cwd()
+    expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir })).toBeTruthy()
+  })
+
+  test('allProjectsAreUpToDate(): returns false if local file has changed', async () => {
+    expect.hasAssertions()
+
+    const pack = tar.pack()
+    pack.entry({ name: 'package.json', mtime: new Date('2000-01-01T00:00:00') }, JSON.stringify({
+      name: 'local-tarball',
+      version: '1.0.0',
+    }))
+    pack.entry({ name: 'newly-added-file.txt' }, 'This file changes the tarball.')
+    pack.finalize()
+    await pipeline(pack, createWriteStream('./local-tarball.tar'))
+
+    const lockfileDir = process.cwd()
+    expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir })).toBeFalsy()
+  })
+
+  test('allProjectsAreUpToDate(): returns false if local dep does not exist', async () => {
+    expect.hasAssertions()
+
+    const lockfileDir = process.cwd()
+    expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir })).toBeFalsy()
+  })
+})
+
+// Regression tests for https://github.com/pnpm/pnpm/pull/9807.
+describe('local tgz file dependency with peer dependencies', () => {
+  beforeEach(async () => {
+    prepareEmpty()
+  })
+
+  const projects = [
+    {
+      id: 'bar' as ProjectId,
+      manifest: {
+        dependencies: {
+          '@pnpm.e2e/foo': '1.0.0',
+          'local-tarball': 'file:local-tarball.tar',
+        },
+      },
+      rootDir: 'bar' as ProjectRootDir,
+    },
+  ]
+
+  const wantedLockfile: LockfileObject = {
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      ['bar' as ProjectId]: {
+        dependencies: {
+          '@pnpm.e2e/foo': '1.0.0',
+          'local-tarball': 'file:local-tarball.tar(@pnpm.e2e/foo@1.0.0)',
+        },
+        specifiers: {
+          '@pnpm.e2e/foo': '1.0.0',
+          'local-tarball': 'file:local-tarball.tar',
+        },
+      },
+    },
+    packages: {
+      ['@pnpm.e2e/foo@1.0.0' as DepPath]: {
+        resolution: {
+          integrity: 'sha512-/HITDx7DEbvGeznQ5aq9qK5rn7YlVGST+fW2cQ0QAoO7/kVn/QJkN7VYAB0nvRIFkFsaAMJZ61zB8pJo9Fonng==',
+        },
+        version: '1.0.0',
+      },
+      ['local-tarball@file:local-tarball.tar(@pnpm.e2e/foo@1.0.0)' as DepPath]: {
+        resolution: {
+          integrity: 'sha512-dVXphRGPXHhIt6CKeest8Tkbva4FatStRw4PZbJ4zFszWppqAkZureR6mOF0mT/9Drr5wZ5y9tPaqcmsf/a5cw==',
+          tarball: 'file:local-tarball.tar',
+        },
+        version: '1.0.0',
+        dependencies: {
+          '@pnpm.e2e/foo': '1.0.0',
+        },
+      },
+    },
+  }
+
+  const options = {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile,
+    workspacePackages,
+    lockfileDir: process.cwd(),
+  }
+
+  test('allProjectsAreUpToDate(): returns true if local file not changed', async () => {
+    expect.hasAssertions()
+
+    const pack = tar.pack()
+    pack.entry({ name: 'package.json', mtime: new Date('1970-01-01T00:00:00.000Z') }, JSON.stringify({
+      name: 'local-tarball',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/foo': '1.0.0',
+      },
+    }))
+    pack.finalize()
+
+    await pipeline(pack, createWriteStream('./local-tarball.tar'))
+
+    // Make sure the test is set up correctly and the local-tarball.tar created
+    // above has the expected integrity hash.
+    await expect(getTarballIntegrity('./local-tarball.tar')).resolves.toEqual('sha512-dVXphRGPXHhIt6CKeest8Tkbva4FatStRw4PZbJ4zFszWppqAkZureR6mOF0mT/9Drr5wZ5y9tPaqcmsf/a5cw==')
+
+    const lockfileDir = process.cwd()
+    expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir })).toBeTruthy()
+  })
+
+  test('allProjectsAreUpToDate(): returns false if local file has changed', async () => {
+    expect.hasAssertions()
+
+    const pack = tar.pack()
+    pack.entry({ name: 'package.json', mtime: new Date('2000-01-01T00:00:00') }, JSON.stringify({
+      name: 'local-tarball',
+      // Incrementing the version from 1.0.0 to 2.0.0.
+      version: '2.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/foo': '1.0.0',
+      },
+    }))
+    pack.finalize()
+    await pipeline(pack, createWriteStream('./local-tarball.tar'))
+
+    const lockfileDir = process.cwd()
+    expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir })).toBeFalsy()
+  })
+})
+
 test('allProjectsAreUpToDate(): returns true if workspace dependency\'s version type is tag', async () => {
   const projects = [
     {
@@ -526,7 +734,7 @@ test('allProjectsAreUpToDate(): returns true if workspace dependency\'s version 
         },
       },
       lockfileVersion: LOCKFILE_VERSION,
-    } as Lockfile,
+    } as LockfileObject,
     workspacePackages,
     lockfileDir: process.cwd(),
   }
@@ -657,4 +865,38 @@ test('allProjectsAreUpToDate(): returns true if one of the importers is not pres
     workspacePackages,
     lockfileDir: '',
   })).toBeTruthy()
+})
+
+test('allProjectsAreUpToDate(): returns false if the lockfile is broken, the resolved versions do not satisfy the ranges', async () => {
+  expect(await allProjectsAreUpToDate([
+    {
+      id: '.' as ProjectId,
+      manifest: {
+        dependencies: {
+          '@apollo/client': '3.3.7',
+        },
+      },
+      rootDir: '.' as ProjectRootDir,
+    },
+  ], {
+    autoInstallPeers: false,
+    catalogs: {},
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        ['.' as ProjectId]: {
+          dependencies: {
+            '@apollo/client': '3.13.8(@types/react@18.3.23)(graphql@15.8.0)(react-dom@17.0.2(react@17.0.2))(react@17.0.2)(subscriptions-transport-ws@0.11.0(graphql@15.8.0))',
+          },
+          specifiers: {
+            '@apollo/client': '3.3.7',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+    },
+    workspacePackages,
+    lockfileDir: '',
+  })).toBeFalsy()
 })

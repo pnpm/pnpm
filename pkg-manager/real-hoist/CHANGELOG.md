@@ -1,5 +1,178 @@
 # @pnpm/real-hoist
 
+## 1001.0.20
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1003.0.3
+- @pnpm/dependency-path@1001.1.3
+
+## 1001.0.19
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.1.2
+- @pnpm/lockfile.utils@1003.0.2
+
+## 1001.0.18
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+
+## 1001.0.17
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1003.0.1
+- @pnpm/dependency-path@1001.1.1
+
+## 1001.0.16
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/error@1000.0.4
+
+## 1001.0.15
+
+### Patch Changes
+
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/error@1000.0.3
+
+## 1001.0.14
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/lockfile.utils@1002.0.1
+
+## 1001.0.13
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+
+## 1001.0.12
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.12
+
+## 1001.0.11
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.11
+- @pnpm/dependency-path@1000.0.9
+
+## 1001.0.10
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.10
+- @pnpm/dependency-path@1000.0.8
+
+## 1001.0.9
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.9
+
+## 1001.0.8
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.8
+- @pnpm/dependency-path@1000.0.7
+
+## 1001.0.7
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.7
+- @pnpm/dependency-path@1000.0.6
+
+## 1001.0.6
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.6
+
+## 1001.0.5
+
+### Patch Changes
+
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/lockfile.utils@1001.0.5
+
+## 1001.0.4
+
+### Patch Changes
+
+- @pnpm/dependency-path@1000.0.4
+- @pnpm/lockfile.utils@1001.0.4
+
+## 1001.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.3
+- @pnpm/dependency-path@1000.0.3
+
+## 1001.0.2
+
+### Patch Changes
+
+- @pnpm/error@1000.0.2
+- @pnpm/lockfile.utils@1001.0.2
+- @pnpm/dependency-path@1000.0.2
+
+## 1001.0.1
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.1
+- @pnpm/dependency-path@1000.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [a76da0c]
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/error@1000.0.1
+
+## 3.0.15
+
+### Patch Changes
+
+- Updated dependencies [dcd2917]
+- Updated dependencies [d55b259]
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/error@6.0.3
+  - @pnpm/lockfile.utils@1.0.5
+
+## 3.0.14
+
+### Patch Changes
+
+- @pnpm/dependency-path@5.1.7
+- @pnpm/lockfile.utils@1.0.4
+
 ## 3.0.13
 
 ### Patch Changes

@@ -6,9 +6,9 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import stripAnsi from 'strip-ansi'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 test('recursive list', async () => {
   preparePackages([
@@ -260,5 +260,5 @@ test('`pnpm recursive why` should fail if no package name was provided', async (
   }
 
   expect(err.code).toBe('ERR_PNPM_MISSING_PACKAGE_NAME')
-  expect(err.message).toBe('`pnpm why` requires the package name')
+  expect(err.message).toMatch('`pnpm why` requires the package name')
 })

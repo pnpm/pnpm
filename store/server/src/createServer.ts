@@ -9,7 +9,7 @@ import {
   type WantedDependency,
   type FetchPackageToStoreFunction,
 } from '@pnpm/store-controller-types'
-import { locking } from './lock'
+import { locking } from './lock.js'
 
 interface RequestBody {
   msgId: string
@@ -28,6 +28,7 @@ interface RequestBody {
 
 export interface StoreServerHandle {
   close: () => Promise<void>
+  waitForListen: Promise<void>
   waitForClose: Promise<void>
 }
 
@@ -169,17 +170,24 @@ export function createServer (
   })
 
   let listener: Server
-  if (opts.path) {
-    listener = server.listen(opts.path)
-  } else {
-    listener = server.listen(opts.port, opts.hostname)
-  }
+
+  const waitForListen = new Promise<void>((resolve) => {
+    if (opts.path) {
+      listener = server.listen(opts.path, () => {
+        resolve()
+      })
+    } else {
+      listener = server.listen(opts.port, opts.hostname, () => {
+        resolve()
+      })
+    }
+  })
 
   const waitForClose = new Promise<void>((resolve) => listener.once('close', () => {
     resolve()
   }))
 
-  return { close, waitForClose }
+  return { close, waitForListen, waitForClose }
 
   async function close (): Promise<void> {
     listener.close()

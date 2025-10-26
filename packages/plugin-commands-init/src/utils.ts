@@ -38,7 +38,7 @@ export function workWithInitConfig (localConfig: Record<string, string>): Record
   const packageJson: Record<string, string> = {}
   const authorInfo: Record<string, string> = {}
   for (const localConfigKey in localConfig) {
-    if (localConfigKey.startsWith('init')) {
+    if (localConfigKey.startsWith('init') && localConfigKey !== 'initPackageManager') {
       const pureKey = localConfigKey.replace('init', '')
       const value = localConfig[localConfigKey]
       if (pureKey.startsWith('Author')) {

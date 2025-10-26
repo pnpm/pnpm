@@ -19,21 +19,28 @@ import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
 import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
-import { isCI } from 'ci-info'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
-import stripAnsi from 'strip-ansi'
-import which from 'which'
-import { checkForUpdates } from './checkForUpdates'
-import { pnpmCmds, rcOptionsTypes } from './cmd'
-import { formatUnknownOptionsError } from './formatError'
-import { parseCliArgs } from './parseCliArgs'
-import { initReporter, type ReporterType } from './reporter'
-import { switchCliVersion } from './switchCliVersion'
+import { stripVTControlCharacters as stripAnsi } from 'util'
+import { checkForUpdates } from './checkForUpdates.js'
+import { pnpmCmds, rcOptionsTypes, skipPackageManagerCheckForCommand } from './cmd/index.js'
+import { formatUnknownOptionsError } from './formatError.js'
+import { parseCliArgs } from './parseCliArgs.js'
+import { initReporter, type ReporterType } from './reporter/index.js'
+import { switchCliVersion } from './switchCliVersion.js'
 
 export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 
 loudRejection()
+
+// This prevents the program from crashing when the pipe's read side closes early
+// (e.g., when running `pnpm config list | head`)
+process.stdout.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EPIPE') {
+    process.exit(0)
+  }
+  throw err
+})
 
 const DEPRECATED_OPTIONS = new Set([
   'independent-leaves',
@@ -98,6 +105,9 @@ export async function main (inputArgv: string[]): Promise<void> {
     // we don't need the write permission to it. Related issue: #2700
     const globalDirShouldAllowWrite = cmd !== 'root'
     const isDlxCommand = cmd === 'dlx'
+    if (cmd === 'link' && cliParams.length === 0) {
+      cliOptions.global = true
+    }
     config = await getConfig(cliOptions, {
       excludeReporter: false,
       globalDirShouldAllowWrite,
@@ -107,9 +117,9 @@ export async function main (inputArgv: string[]): Promise<void> {
       ignoreNonAuthSettingsFromLocal: isDlxCommand,
     }) as typeof config
     if (!isExecutedByCorepack() && cmd !== 'setup' && config.wantedPackageManager != null) {
-      if (config.managePackageManagerVersions) {
+      if (config.managePackageManagerVersions && config.wantedPackageManager?.name === 'pnpm' && cmd !== 'self-update') {
         await switchCliVersion(config)
-      } else {
+      } else if (!cmd || !skipPackageManagerCheckForCommand.has(cmd)) {
         checkPackageManager(config.wantedPackageManager, config)
       }
     }
@@ -157,7 +167,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   const reporterType: ReporterType = (() => {
     if (config.loglevel === 'silent') return 'silent'
     if (config.reporter) return config.reporter as ReporterType
-    if (isCI || !process.stdout.isTTY) return 'append-only'
+    if (config.ci || !process.stdout.isTTY) return 'append-only'
     return 'default'
   })()
 
@@ -170,25 +180,12 @@ export async function main (inputArgv: string[]): Promise<void> {
     global[REPORTER_INITIALIZED] = reporterType
   }
 
-  const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && cliParams.includes(packageManager.name)
-
-  if (selfUpdate) {
+  if (cmd === 'self-update') {
     await pnpmCmds.server(config as any, ['stop']) // eslint-disable-line @typescript-eslint/no-explicit-any
-    try {
-      const currentPnpmDir = path.dirname(which.sync('pnpm'))
-      if (path.relative(currentPnpmDir, config.bin) !== '') {
-        console.log(`The location of the currently running pnpm differs from the location where pnpm will be installed
- Current pnpm location: ${currentPnpmDir}
- Target location: ${config.bin}
-`)
-      }
-    } catch {
-      // if pnpm not found, then ignore
-    }
   }
 
   if (
-    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove') &&
+    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds') &&
     typeof workspaceDir === 'string'
   ) {
     cliOptions['recursive'] = true
@@ -242,8 +239,14 @@ export async function main (inputArgv: string[]): Promise<void> {
       if (printLogs) {
         console.log(`No projects matched the filters in "${wsDir}"`)
       }
-      process.exitCode = config.failIfNoMatch ? 1 : 0
-      return
+      if (config.failIfNoMatch) {
+        process.exitCode = 1
+        return
+      }
+      if (cmd !== 'list') {
+        process.exitCode = 0
+        return
+      }
     }
     if (filterResults.unmatchedFilters.length !== 0 && printLogs) {
       console.log(`No projects matched the filters "${filterResults.unmatchedFilters.join(', ')}" in "${wsDir}"`)
@@ -260,8 +263,8 @@ export async function main (inputArgv: string[]): Promise<void> {
 
     if (
       config.updateNotifier !== false &&
-      !isCI &&
-      !selfUpdate &&
+      !config.ci &&
+      cmd !== 'self-update' &&
       !config.offline &&
       !config.preferOffline &&
       !config.fallbackCommandUsed &&
@@ -310,8 +313,14 @@ export async function main (inputArgv: string[]): Promise<void> {
       config as Omit<typeof config, 'reporter'>,
       cliParams
     )
-    if (result instanceof Promise) {
-      result = await result
+    try {
+      if (result instanceof Promise) {
+        result = await result
+      }
+    } finally {
+      // When use-node-version is set and "pnpm run" is executed,
+      // this will be the only place where the tarball worker pool is finished.
+      await finishWorkers()
     }
     executionTimeLogger.debug({
       startedAt: global['pnpm__startedAt'],
@@ -325,9 +334,6 @@ export async function main (inputArgv: string[]): Promise<void> {
     }
     return result
   })()
-  // When use-node-version is set and "pnpm run" is executed,
-  // this will be the only place where the tarball worker pool is finished.
-  await finishWorkers()
   if (output) {
     if (!output.endsWith('\n')) {
       output = `${output}\n`
@@ -344,9 +350,9 @@ export async function main (inputArgv: string[]): Promise<void> {
 
 function printError (message: string, hint?: string): void {
   const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
-  console.log(`${message.startsWith(ERROR) ? '' : ERROR + ' '}${chalk.red(message)}`)
+  console.error(`${message.startsWith(ERROR) ? '' : ERROR + ' '}${chalk.red(message)}`)
   if (hint) {
-    console.log(hint)
+    console.error(hint)
   }
 }
 

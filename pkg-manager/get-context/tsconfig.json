@@ -19,9 +19,6 @@
       "path": "../../packages/core-loggers"
     },
     {
-      "path": "../../packages/error"
-    },
-    {
       "path": "../../packages/logger"
     },
     {

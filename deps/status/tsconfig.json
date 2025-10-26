@@ -1,0 +1,61 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/parse-overrides"
+    },
+    {
+      "path": "../../crypto/object-hasher"
+    },
+    {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/settings-checker"
+    },
+    {
+      "path": "../../lockfile/verification"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manager/get-context"
+    },
+    {
+      "path": "../../pkg-manifest/write-project-manifest"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../workspace/find-packages"
+    },
+    {
+      "path": "../../workspace/read-manifest"
+    },
+    {
+      "path": "../../workspace/state"
+    }
+  ]
+}

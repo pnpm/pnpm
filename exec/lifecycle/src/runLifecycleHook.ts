@@ -6,6 +6,7 @@ import { type DependencyManifest, type ProjectManifest, type PrepareExecutionEnv
 import { PnpmError } from '@pnpm/error'
 import { existsSync } from 'fs'
 import isWindows from 'is-windows'
+import { join as shellQuote } from 'shlex'
 
 function noop () {} // eslint-disable-line:no-empty
 
@@ -58,12 +59,12 @@ export async function runLifecycleHook (
   //
   // Note that npm (as of version 10.5.0) doesn't support setting script-shell
   // to a .bat or .cmd file either.
-  if (opts.scriptShell != null && isWindowsBatchFile(opts.scriptShell)) {
+  if (opts.scriptShell != null && typeof opts.scriptShell === 'string' && isWindowsBatchFile(opts.scriptShell)) {
     throw new PnpmError('ERR_PNPM_INVALID_SCRIPT_SHELL_WINDOWS', 'Cannot spawn .bat or .cmd as a script shell.', {
       hint: `\
-The .npmrc script-shell option was configured to a .bat or .cmd file. These cannot be used as a script shell reliably.
+The pnpm-workspace.yaml scriptShell option was configured to a .bat or .cmd file. These cannot be used as a script shell reliably.
 
-Please unset the script-shell option, or configure it to a .exe instead.
+Please unset the scriptShell option, or configure it to a .exe instead.
 `,
     })
   }
@@ -87,8 +88,11 @@ Please unset the script-shell option, or configure it to a .exe instead.
     break
   }
   if (opts.args?.length && m.scripts?.[stage]) {
-    const escapedArgs = opts.args.map((arg) => JSON.stringify(arg))
-    m.scripts[stage] = `${m.scripts[stage]} ${escapedArgs.join(' ')}`
+    // It is impossible to quote a command line argument that contains newline for Windows cmd.
+    const escapedArgs = isWindows()
+      ? opts.args.map((arg) => JSON.stringify(arg)).join(' ')
+      : shellQuote(opts.args)
+    m.scripts[stage] = `${m.scripts[stage]} ${escapedArgs}`
   }
   // This script is used to prevent the usage of npm or Yarn.
   // It does nothing, when pnpm is used, so we may skip its execution.

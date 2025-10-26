@@ -1,3 +1,3 @@
-import * as doctor from './doctor'
+import * as doctor from './doctor.js'
 
 export { doctor }

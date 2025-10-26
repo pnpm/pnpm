@@ -14,7 +14,7 @@ test('lockfileToDepGraph', () => {
           qar: '1.0.0',
         },
         resolution: {
-          integrity: '',
+          integrity: '0',
         },
       },
       ['bar@1.0.0' as DepPath]: {
@@ -22,12 +22,12 @@ test('lockfileToDepGraph', () => {
           qar: '1.0.0',
         },
         resolution: {
-          integrity: '',
+          integrity: '1',
         },
       },
       ['qar@1.0.0' as DepPath]: {
         resolution: {
-          integrity: '',
+          integrity: '2',
         },
       },
     },
@@ -36,18 +36,18 @@ test('lockfileToDepGraph', () => {
       children: {
         qar: 'qar@1.0.0',
       },
-      pkgIdWithPatchHash: 'bar@1.0.0',
+      fullPkgId: 'bar@1.0.0:1',
     },
     'foo@1.0.0': {
       children: {
         bar: 'bar@1.0.0',
         qar: 'qar@1.0.0',
       },
-      pkgIdWithPatchHash: 'foo@1.0.0',
+      fullPkgId: 'foo@1.0.0:0',
     },
     'qar@1.0.0': {
       children: {},
-      pkgIdWithPatchHash: 'qar@1.0.0',
+      fullPkgId: 'qar@1.0.0:2',
     },
   })
 })

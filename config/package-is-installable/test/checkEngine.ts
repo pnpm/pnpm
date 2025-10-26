@@ -1,4 +1,4 @@
-import { checkEngine } from '../lib/checkEngine'
+import { checkEngine } from '../lib/checkEngine.js'
 
 const packageId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -14,6 +14,10 @@ test('node version too old', () => {
   const err = checkEngine(packageId, { node: '0.10.24' }, { pnpm: '1.1.2', node: '0.10.18' })
   expect(err).toBeTruthy()
   expect(err?.wanted.node).toBe('0.10.24')
+})
+
+test('node range passed in instead of version', () => {
+  expect(() => checkEngine(packageId, { node: '21.0.0' }, { node: '>=20.0.0' })).toThrow('The nodeVersion setting is')
 })
 
 test('pnpm version too old', () => {

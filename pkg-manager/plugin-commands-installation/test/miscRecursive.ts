@@ -11,7 +11,7 @@ import { sync as readYamlFile } from 'read-yaml-file'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 import symlinkDir from 'symlink-dir'
 
 test('recursive add/remove', async () => {
@@ -755,46 +755,4 @@ test('installing in monorepo with shared lockfile should work on virtual drives'
   })
 
   projects['project-1'].has('is-positive')
-})
-
-test('pass readPackage with shared lockfile', async () => {
-  const projects = preparePackages([
-    {
-      name: 'project-1',
-      version: '1.0.0',
-      dependencies: {
-        'is-negative': '1.0.0',
-      },
-    },
-    {
-      name: 'project-2',
-      version: '1.0.0',
-      dependencies: {
-        'is-negative': '1.0.0',
-      },
-    },
-  ])
-
-  await install.handler({
-    ...DEFAULT_OPTS,
-    ...await filterPackagesFromDir(process.cwd(), []),
-    dir: process.cwd(),
-    recursive: true,
-    workspaceDir: process.cwd(),
-    hooks: {
-      readPackage: [
-        (pkg) => ({
-          ...pkg,
-          dependencies: {
-            'is-positive': '1.0.0',
-          },
-        }),
-      ],
-    },
-  })
-
-  projects['project-1'].has('is-positive')
-  projects['project-1'].hasNot('is-negative')
-  projects['project-2'].has('is-positive')
-  projects['project-2'].hasNot('is-negative')
 })

@@ -4,10 +4,9 @@ import { type Log, type RegistryLog } from '@pnpm/core-loggers'
 import { type LogLevel } from '@pnpm/logger'
 import * as Rx from 'rxjs'
 import { filter, map } from 'rxjs/operators'
-import { reportError } from '../reportError'
-import { formatWarn } from './utils/formatWarn'
-import { autozoom } from './utils/zooming'
-import { type PeerDependencyRules } from '@pnpm/types'
+import { reportError } from '../reportError.js'
+import { formatWarn } from './utils/formatWarn.js'
+import { autozoom } from './utils/zooming.js'
 
 // eslint-disable:object-literal-sort-keys
 export const LOG_LEVEL_NUMBER: Record<LogLevel, number> = {
@@ -31,7 +30,6 @@ export function reportMisc (
     logLevel?: LogLevel
     config?: Config
     zoomOutCurrent: boolean
-    peerDependencyRules?: PeerDependencyRules
   }
 ): Rx.Observable<Rx.Observable<{ msg: string }>> {
   const maxLogLevel = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
@@ -45,7 +43,7 @@ export function reportMisc (
         return reportWarning(obj)
       }
       case 'error': {
-        const errorOutput = reportError(obj, opts.config, opts.peerDependencyRules)
+        const errorOutput = reportError(obj, opts.config)
         if (!errorOutput) return Rx.NEVER
         if (obj['prefix'] && obj['prefix'] !== opts.cwd) {
           return Rx.of({

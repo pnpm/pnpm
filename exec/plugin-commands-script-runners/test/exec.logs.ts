@@ -4,8 +4,9 @@ import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
 import { logger } from '@pnpm/logger'
 import { exec } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
+import { jest } from '@jest/globals'
 import writeYamlFile from 'write-yaml-file'
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from './utils/index.js'
 
 jest.mock('@pnpm/logger', () => {
   const debug = jest.fn()
@@ -18,7 +19,7 @@ jest.mock('@pnpm/logger', () => {
 const lifecycleLogger = logger('lifecycle')
 
 afterEach(() => {
-  (lifecycleLogger.debug as jest.Mock).mockClear()
+  jest.mocked(lifecycleLogger.debug).mockClear()
 })
 
 test('pnpm exec --recursive --no-reporter-hide-prefix prints prefixes', async () => {

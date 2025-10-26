@@ -8,7 +8,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  (console.warn as jest.Mock).mockRestore()
+  jest.mocked(console.warn).mockRestore()
 })
 
 test('console a warning when the .npmrc has an env variable that does not exist', async () => {

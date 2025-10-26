@@ -1,44 +1,44 @@
 import { existsSync } from 'fs'
 import path from 'path'
+import { getTarballIntegrity } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
-import gfs from '@pnpm/graceful-fs'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
-import {
-  type DirectoryResolution,
-  type ResolveResult,
-  type TarballResolution,
-} from '@pnpm/resolver-base'
+import { type DirectoryResolution, type ResolveResult, type TarballResolution } from '@pnpm/resolver-base'
 import { type DependencyManifest } from '@pnpm/types'
-import ssri from 'ssri'
 import { logger } from '@pnpm/logger'
-import { parsePref, type WantedLocalDependency } from './parsePref'
+import { parseBareSpecifier, type WantedLocalDependency } from './parseBareSpecifier.js'
 
-export type { WantedLocalDependency }
+export { type WantedLocalDependency }
 
-export interface ResolveFromLocalResult extends ResolveResult {
-  normalizedPref: string
-  resolution: TarballResolution | DirectoryResolution
+export interface LocalResolveResult extends ResolveResult {
   manifest?: DependencyManifest
+  normalizedBareSpecifier: string
+  resolution: DirectoryResolution | TarballResolution
+  resolvedVia: 'local-filesystem'
 }
 
 /**
  * Resolves a package hosted on the local filesystem
  */
 export async function resolveFromLocal (
+  ctx: {
+    preserveAbsolutePaths?: boolean
+  },
   wantedDependency: WantedLocalDependency,
   opts: {
     lockfileDir?: string
     projectDir: string
   }
-): Promise<ResolveFromLocalResult | null> {
-  const spec = parsePref(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir)
+): Promise<LocalResolveResult | null> {
+  const preserveAbsolutePaths = ctx.preserveAbsolutePaths ?? false
+  const spec = parseBareSpecifier(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir, { preserveAbsolutePaths })
   if (spec == null) return null
   if (spec.type === 'file') {
     return {
       id: spec.id,
-      normalizedPref: spec.normalizedPref,
+      normalizedBareSpecifier: spec.normalizedBareSpecifier,
       resolution: {
-        integrity: await getFileIntegrity(spec.fetchSpec),
+        integrity: await getTarballIntegrity(spec.fetchSpec),
         tarball: spec.id,
       },
       resolvedVia: 'local-filesystem',
@@ -85,15 +85,11 @@ export async function resolveFromLocal (
   return {
     id: spec.id,
     manifest: localDependencyManifest,
-    normalizedPref: spec.normalizedPref,
+    normalizedBareSpecifier: spec.normalizedBareSpecifier,
     resolution: {
       directory: spec.dependencyPath,
       type: 'directory',
     },
     resolvedVia: 'local-filesystem',
   }
-}
-
-async function getFileIntegrity (filename: string): Promise<string> {
-  return (await ssri.fromStream(gfs.createReadStream(filename))).toString()
 }

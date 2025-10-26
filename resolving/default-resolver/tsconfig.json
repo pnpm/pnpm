@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../env/node.resolver"
+    },
+    {
       "path": "../../network/fetch"
     },
     {
@@ -17,6 +20,12 @@
     },
     {
       "path": "../../packages/error"
+    },
+    {
+      "path": "../bun-resolver"
+    },
+    {
+      "path": "../deno-resolver"
     },
     {
       "path": "../git-resolver"

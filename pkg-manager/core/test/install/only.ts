@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 test('production install (with --production flag)', async () => {
   const project = prepareEmpty()
@@ -71,7 +71,7 @@ test('production install with --no-optional', async () => {
 test('install dev dependencies only', async () => {
   const project = prepareEmpty()
 
-  const manifest = await install({
+  const { updatedManifest: manifest } = await install({
     dependencies: {
       'is-positive': '1.0.0',
       once: '^1.4.0',
@@ -111,7 +111,7 @@ test('fail if installing different types of dependencies in a project that uses 
 
   const lockfileDir = path.resolve('..')
 
-  const manifest = await install({
+  const { updatedManifest: manifest } = await install({
     dependencies: {
       'is-positive': '1.0.0',
       once: '^1.4.0',

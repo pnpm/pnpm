@@ -1,5 +1,296 @@
 # @pnpm/worker
 
+## 1000.3.0
+
+### Minor Changes
+
+- 8993f68: Export worker start function.
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.11
+- @pnpm/symlink-dependency@1000.0.12
+- @pnpm/store.cafs@1000.0.19
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/create-cafs-store@1000.0.20
+- @pnpm/fs.hard-link-dir@1000.0.2
+
+## 1000.2.0
+
+### Minor Changes
+
+- 06d2160: Allow to specify the max amount of pnpm workers via the `PNPM_MAX_WORKERS` environment variable [#10056](https://github.com/pnpm/pnpm/pull/10056).
+
+## 1000.1.14
+
+### Patch Changes
+
+- Updated dependencies [9b9faa5]
+  - @pnpm/fs.hard-link-dir@1000.0.2
+  - @pnpm/graceful-fs@1000.0.1
+  - @pnpm/store.cafs@1000.0.18
+  - @pnpm/create-cafs-store@1000.0.19
+  - @pnpm/symlink-dependency@1000.0.11
+
+## 1000.1.13
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/fs.hard-link-dir@1000.0.1
+- @pnpm/symlink-dependency@1000.0.11
+- @pnpm/create-cafs-store@1000.0.18
+
+## 1000.1.12
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.10
+- @pnpm/symlink-dependency@1000.0.11
+- @pnpm/store.cafs@1000.0.17
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/fs.hard-link-dir@1000.0.1
+- @pnpm/create-cafs-store@1000.0.18
+
+## 1000.1.11
+
+### Patch Changes
+
+- @pnpm/error@1000.0.4
+- @pnpm/store.cafs@1000.0.16
+- @pnpm/create-cafs-store@1000.0.17
+- @pnpm/fs.hard-link-dir@1000.0.1
+- @pnpm/symlink-dependency@1000.0.10
+
+## 1000.1.10
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.9
+- @pnpm/symlink-dependency@1000.0.10
+- @pnpm/store.cafs@1000.0.15
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/create-cafs-store@1000.0.16
+- @pnpm/error@1000.0.3
+- @pnpm/fs.hard-link-dir@1000.0.1
+
+## 1000.1.9
+
+### Patch Changes
+
+- 589ac1f: Replaced `shell-quote` with `shlex` for quoting command arguments [#9381](https://github.com/pnpm/pnpm/issues/9381).
+
+## 1000.1.8
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.14
+- @pnpm/create-cafs-store@1000.0.15
+- @pnpm/fs.hard-link-dir@1000.0.1
+- @pnpm/symlink-dependency@1000.0.9
+
+## 1000.1.7
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.13
+- @pnpm/create-cafs-store@1000.0.14
+- @pnpm/fs.hard-link-dir@1000.0.1
+- @pnpm/symlink-dependency@1000.0.9
+
+## 1000.1.6
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+  - @pnpm/create-cafs-store@1000.0.13
+  - @pnpm/symlink-dependency@1000.0.9
+  - @pnpm/fs.hard-link-dir@1000.0.1
+  - @pnpm/exec.pkg-requires-build@1000.0.8
+  - @pnpm/store.cafs@1000.0.12
+  - @pnpm/cafs-types@1000.0.0
+
+## 1000.1.5
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+  - @pnpm/logger@1001.0.0
+  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/create-cafs-store@1000.0.12
+  - @pnpm/symlink-dependency@1000.0.8
+  - @pnpm/exec.pkg-requires-build@1000.0.7
+  - @pnpm/cafs-types@1000.0.0
+  - @pnpm/fs.hard-link-dir@1000.0.0
+
+## 1000.1.4
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@1000.0.11
+- @pnpm/store.cafs@1000.0.10
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/symlink-dependency@1000.0.7
+
+## 1000.1.3
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.6
+- @pnpm/symlink-dependency@1000.0.7
+- @pnpm/store.cafs@1000.0.9
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/create-cafs-store@1000.0.10
+- @pnpm/fs.hard-link-dir@1000.0.0
+
+## 1000.1.2
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.5
+- @pnpm/symlink-dependency@1000.0.6
+- @pnpm/store.cafs@1000.0.8
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/create-cafs-store@1000.0.9
+
+## 1000.1.1
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.7
+- @pnpm/create-cafs-store@1000.0.8
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/symlink-dependency@1000.0.5
+
+## 1000.1.0
+
+### Minor Changes
+
+- 2e05789: The max amount of workers running for linking packages from the store has been reduced to 4 to achieve optimal results [#9286](https://github.com/pnpm/pnpm/issues/9286). The workers are performing many file system operations, so increasing the number of CPUs doesn't help performance after some point.
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [58d8597]
+  - @pnpm/crypto.polyfill@1000.1.0
+
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.4
+- @pnpm/symlink-dependency@1000.0.5
+- @pnpm/store.cafs@1000.0.6
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/create-cafs-store@1000.0.7
+
+## 1000.0.6
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@1000.0.6
+- @pnpm/exec.pkg-requires-build@1000.0.3
+- @pnpm/symlink-dependency@1000.0.4
+- @pnpm/store.cafs@1000.0.5
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/fs.hard-link-dir@1000.0.0
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/error@1000.0.2
+- @pnpm/exec.pkg-requires-build@1000.0.2
+- @pnpm/symlink-dependency@1000.0.3
+- @pnpm/store.cafs@1000.0.4
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/create-cafs-store@1000.0.5
+
+## 1000.0.4
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.3
+- @pnpm/create-cafs-store@1000.0.4
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/symlink-dependency@1000.0.2
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.1
+- @pnpm/symlink-dependency@1000.0.2
+- @pnpm/store.cafs@1000.0.2
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/create-cafs-store@1000.0.3
+
+## 1000.0.2
+
+### Patch Changes
+
+- 7272992: Print a hint, when installation fails due to an exFAT drive.
+  - @pnpm/symlink-dependency@1000.0.1
+  - @pnpm/create-cafs-store@1000.0.2
+  - @pnpm/fs.hard-link-dir@1000.0.0
+
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+- @pnpm/store.cafs@1000.0.1
+- @pnpm/create-cafs-store@1000.0.1
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/symlink-dependency@1000.0.0
+
+## 2.0.0
+
+### Major Changes
+
+- 099e6af: Changed the structure of the index files in the store to store side effects cache information more efficiently. In the new version, side effects do not list all the files of the package but just the differences [#8636](https://github.com/pnpm/pnpm/pull/8636).
+
+### Patch Changes
+
+- Updated dependencies [d433cb9]
+- Updated dependencies [099e6af]
+  - @pnpm/store.cafs@5.0.0
+  - @pnpm/cafs-types@6.0.0
+  - @pnpm/error@6.0.3
+  - @pnpm/create-cafs-store@7.0.12
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/symlink-dependency@8.0.8
+
+## 1.0.13
+
+### Patch Changes
+
+- 222d10a: Use `crypto.hash`, when available, for improved performance [#8629](https://github.com/pnpm/pnpm/pull/8629).
+- Updated dependencies [222d10a]
+- Updated dependencies [222d10a]
+- Updated dependencies [a1f4df2]
+  - @pnpm/crypto.polyfill@1.0.0
+  - @pnpm/store.cafs@4.0.2
+  - @pnpm/create-cafs-store@7.0.11
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/symlink-dependency@8.0.8
+
+## 1.0.12
+
+### Patch Changes
+
+- Updated dependencies [db7ff76]
+  - @pnpm/store.cafs@4.0.1
+  - @pnpm/create-cafs-store@7.0.10
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/symlink-dependency@8.0.8
+
 ## 1.0.11
 
 ### Patch Changes

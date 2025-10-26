@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { type Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import {
   type SupportedArchitectures,
@@ -12,7 +12,7 @@ import {
 import {
   type LicenseNode,
   lockfileToLicenseNodeTree,
-} from './lockfileToLicenseNodeTree'
+} from './lockfileToLicenseNodeTree.js'
 import semver from 'semver'
 
 export interface LicensePackage {
@@ -77,7 +77,7 @@ export async function findDependencyLicenses (opts: {
   virtualStoreDirMaxLength: number
   modulesDir?: string
   registries: Registries
-  wantedLockfile: Lockfile | null
+  wantedLockfile: LockfileObject | null
   includedImporterIds?: ProjectId[]
   supportedArchitectures?: SupportedArchitectures
 }): Promise<LicensePackage[]> {

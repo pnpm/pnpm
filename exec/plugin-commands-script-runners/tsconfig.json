@@ -28,16 +28,22 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../crypto/hash"
+    },
+    {
+      "path": "../../deps/status"
+    },
+    {
       "path": "../../env/path"
     },
     {
       "path": "../../env/plugin-commands-env"
     },
     {
-      "path": "../../packages/core-loggers"
+      "path": "../../env/system-node-version"
     },
     {
-      "path": "../../packages/crypto.base32-hash"
+      "path": "../../packages/core-loggers"
     },
     {
       "path": "../../packages/error"
@@ -46,7 +52,13 @@
       "path": "../../packages/logger"
     },
     {
+      "path": "../../packages/parse-wanted-dependency"
+    },
+    {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manager/client"
     },
     {
       "path": "../../pkg-manager/package-bins"
@@ -70,10 +82,16 @@
       "path": "../../workspace/filter-workspace-packages"
     },
     {
+      "path": "../../workspace/injected-deps-syncer"
+    },
+    {
       "path": "../../workspace/sort-packages"
     },
     {
       "path": "../lifecycle"
+    },
+    {
+      "path": "../pnpm-cli-runner"
     }
   ]
 }

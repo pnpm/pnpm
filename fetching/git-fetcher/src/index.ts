@@ -55,7 +55,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions): { git: G
     // Even though we have the index of the package,
     // the linking of files to the store is in progress.
     return addFilesFromDir({
-      cafsDir: cafs.cafsDir,
+      storeDir: cafs.storeDir,
       dir: pkgDir,
       files,
       filesIndexFile: opts.filesIndexFile,

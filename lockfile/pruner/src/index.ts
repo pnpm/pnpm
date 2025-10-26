@@ -1,6 +1,6 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import {
-  type Lockfile,
+  type LockfileObject,
   type PackageSnapshots,
   type ProjectSnapshot,
   type ResolvedDependencies,
@@ -17,12 +17,12 @@ export * from '@pnpm/lockfile.types'
 type DependenciesGraph = Record<DepPath, { optional?: boolean }>
 
 export function pruneSharedLockfile (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   opts?: {
     dependenciesGraph?: DependenciesGraph
     warn?: (msg: string) => void
   }
-): Lockfile {
+): LockfileObject {
   const copiedPackages = (lockfile.packages == null)
     ? {}
     : copyPackageSnapshots(lockfile.packages, {
@@ -33,7 +33,7 @@ export function pruneSharedLockfile (
       dependenciesGraph: opts?.dependenciesGraph,
     })
 
-  const prunedLockfile: Lockfile = {
+  const prunedLockfile: LockfileObject = {
     ...lockfile,
     packages: copiedPackages,
   }
@@ -44,14 +44,14 @@ export function pruneSharedLockfile (
 }
 
 export function pruneLockfile (
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   pkg: PackageManifest,
   importerId: ProjectId,
   opts: {
     warn?: (msg: string) => void
     dependenciesGraph?: DependenciesGraph
   }
-): Lockfile {
+): LockfileObject {
   const importer = lockfile.importers[importerId]
   const lockfileSpecs: ResolvedDependencies = importer.specifiers ?? {}
   const optionalDependencies = Object.keys(pkg.optionalDependencies ?? {})
@@ -94,7 +94,7 @@ export function pruneLockfile (
   const updatedImporter: ProjectSnapshot = {
     specifiers,
   }
-  const prunedLockfile: Lockfile = {
+  const prunedLockfile: LockfileObject = {
     importers: {
       ...lockfile.importers,
       [importerId]: updatedImporter,

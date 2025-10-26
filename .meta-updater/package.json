@@ -1,6 +1,6 @@
 {
   "name": "@pnpm-private/updater",
-  "version": "2.0.15",
+  "version": "1000.0.5",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,8 +9,12 @@
   },
   "dependencies": {
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/logger": "workspace:*",
     "@pnpm/meta-updater": "catalog:",
+    "@pnpm/object.key-sorting": "workspace:*",
+    "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.read-manifest": "workspace:*",
     "@types/normalize-path": "catalog:",
     "is-subdir": "catalog:",
     "load-json-file": "catalog:",
@@ -19,5 +23,9 @@
   },
   "devDependencies": {
     "@pnpm-private/updater": "workspace:*"
-  }
+  },
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ]
 }

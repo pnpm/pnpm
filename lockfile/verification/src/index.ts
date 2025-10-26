@@ -1,2 +1,5 @@
-export { allProjectsAreUpToDate } from './allProjectsAreUpToDate'
-export { satisfiesPackageManifest } from './satisfiesPackageManifest'
+export { allProjectsAreUpToDate } from './allProjectsAreUpToDate.js'
+export { getWorkspacePackagesByDirectory } from './getWorkspacePackagesByDirectory.js'
+export { localTarballDepsAreUpToDate } from './localTarballDepsAreUpToDate.js'
+export { linkedPackagesAreUpToDate } from './linkedPackagesAreUpToDate.js'
+export { satisfiesPackageManifest } from './satisfiesPackageManifest.js'

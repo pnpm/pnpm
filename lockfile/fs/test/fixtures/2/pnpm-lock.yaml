@@ -1,8 +1,11 @@
 lockfileVersion: '9.0'
-dependencies:
-  foo:
-    version: '1.0.0'
-    specifier: '1'
-dependenciesMeta:
-  foo:
-    injected: true
+
+importers:
+  .:
+    dependencies:
+      foo:
+        version: '1.0.0'
+        specifier: '1'
+    dependenciesMeta:
+      foo:
+        injected: true

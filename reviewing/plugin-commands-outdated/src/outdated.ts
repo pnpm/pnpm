@@ -20,13 +20,13 @@ import chalk from 'chalk'
 import pick from 'ramda/src/pick'
 import sortWith from 'ramda/src/sortWith'
 import renderHelp from 'render-help'
-import stripAnsi from 'strip-ansi'
+import { stripVTControlCharacters as stripAnsi } from 'util'
 import {
   DEFAULT_COMPARATORS,
   NAME_COMPARATOR,
   type OutdatedWithVersionDiff,
-} from './utils'
-import { outdatedRecursive } from './recursive'
+} from './utils.js'
+import { outdatedRecursive } from './recursive.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {
@@ -108,6 +108,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--no-optional',
           },
           {
+            description: 'Prints the outdated dependencies in the given format. Default is "table". Supported options: "table, list, json"',
+            name: '--format <format>',
+          },
+          {
             description: 'Specify the sorting method. Currently only `name` is supported.',
             name: '--sort-by',
           },
@@ -152,6 +156,8 @@ export type OutdatedCommandOptions = {
 | 'key'
 | 'localAddress'
 | 'lockfileDir'
+| 'minimumReleaseAge'
+| 'minimumReleaseAgeExclude'
 | 'networkConcurrency'
 | 'noProxy'
 | 'offline'
@@ -163,6 +169,7 @@ export type OutdatedCommandOptions = {
 | 'strictSsl'
 | 'tag'
 | 'userAgent'
+| 'updateConfig'
 > & Partial<Pick<Config, 'userConfig'>>
 
 export async function handler (
@@ -188,8 +195,10 @@ export async function handler (
   const [outdatedPackages] = await outdatedDepsOfProjects(packages, params, {
     ...opts,
     fullMetadata: opts.long,
-    ignoreDependencies: manifest?.pnpm?.updateConfig?.ignoreDependencies,
+    ignoreDependencies: opts.updateConfig?.ignoreDependencies,
     include,
+    minimumReleaseAge: opts.minimumReleaseAge,
+    minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,
@@ -251,25 +260,24 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
     ...sortOutdatedPackages(outdatedPackages, { sortBy: opts.sortBy })
       .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
   ]
-  let detailsColumnMaxWidth = 40
+  const tableOptions = {
+    ...TABLE_OPTIONS,
+  }
   if (opts.long) {
-    detailsColumnMaxWidth = outdatedPackages.filter(pkg => pkg.latestManifest && !pkg.latestManifest.deprecated).reduce((maxWidth, pkg) => {
+    const detailsColumnMaxWidth = outdatedPackages.filter(pkg => pkg.latestManifest && !pkg.latestManifest.deprecated).reduce((maxWidth, pkg) => {
       const cellWidth = pkg.latestManifest?.homepage?.length ?? 0
       return Math.max(maxWidth, cellWidth)
-    }, 0)
-  }
-
-  return table(data, {
-    ...TABLE_OPTIONS,
-    columns: {
-      ...TABLE_OPTIONS.columns,
+    }, 40)
+    tableOptions.columns = {
       // Detail column:
       3: {
         width: detailsColumnMaxWidth,
         wrapWord: true,
       },
-    },
-  })
+    }
+  }
+
+  return table(data, tableOptions)
 }
 
 function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean, sortBy?: 'name' }): string {

@@ -5,6 +5,8 @@ import {
   type ExecutionTimeLog,
   type HookLog,
   type InstallCheckLog,
+  type InstallingConfigDepsLog,
+  type IgnoredScriptsLog,
   type LifecycleLog,
   type LinkLog,
   type PackageImportMethodLog,
@@ -20,9 +22,9 @@ import {
   type StatsLog,
   type SummaryLog,
   type UpdateCheckLog,
-} from './all'
+} from './all.js'
 
-export * from './all'
+export * from './all.js'
 
 export type Log =
   | ContextLog
@@ -31,6 +33,8 @@ export type Log =
   | ExecutionTimeLog
   | HookLog
   | InstallCheckLog
+  | InstallingConfigDepsLog
+  | IgnoredScriptsLog
   | LifecycleLog
   | LinkLog
   | PackageManifestLog

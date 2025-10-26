@@ -5,7 +5,7 @@ import { createOrConnectStoreController, type CreateStoreControllerOptions } fro
 import { type InstallOptions, mutateModulesInSingleProject } from '@pnpm/core'
 import { type ProjectRootDir } from '@pnpm/types'
 import renderHelp from 'render-help'
-import { cliOptionsTypes } from './install'
+import { cliOptionsTypes } from './install.js'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -69,5 +69,10 @@ export async function handler (opts: FetchCommandOptions): Promise<void> {
     pruneStore: true,
     storeController: store.ctrl,
     storeDir: store.dir,
+    // Hoisting is skipped anyway,
+    // so we store these empty patterns in node_modules/.modules.yaml
+    // to let the subsequent install know that hoisting should be performed.
+    hoistPattern: [],
+    publicHoistPattern: [],
   } as InstallOptions)
 }

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { type LockfileV9 as Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileFile } from '@pnpm/lockfile.fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -12,12 +12,13 @@ import {
   mutateModules,
   type MutatedProject,
   mutateModulesInSingleProject,
+  type ProjectOptions,
 } from '@pnpm/core'
 import { sync as rimraf } from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
 import { sync as readYamlFile } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
-import { testDefaults } from '../utils'
+import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(__dirname)
 
@@ -34,7 +35,7 @@ test('local file', async () => {
   const project = prepareEmpty()
   f.copy('local-pkg', path.resolve('..', 'local-pkg'))
 
-  const manifest = await addDependenciesToPackage({}, ['link:../local-pkg'], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['link:../local-pkg'], testDefaults())
 
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
@@ -80,7 +81,7 @@ test('local directory with no package.json', async () => {
   fs.mkdirSync('pkg')
   fs.writeFileSync('pkg/index.js', 'hello', 'utf8')
 
-  const manifest = await addDependenciesToPackage({}, ['file:./pkg'], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['file:./pkg'], testDefaults())
 
   const expectedSpecs = { pkg: 'file:pkg' }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
@@ -96,7 +97,7 @@ test('local file via link:', async () => {
   const project = prepareEmpty()
   f.copy('local-pkg', path.resolve('..', 'local-pkg'))
 
-  const manifest = await addDependenciesToPackage({}, ['link:../local-pkg'], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['link:../local-pkg'], testDefaults())
 
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
@@ -132,7 +133,7 @@ test('local file with symlinked node_modules', async () => {
   fs.mkdirSync(path.join('..', 'node_modules'))
   await symlinkDir(path.join('..', 'node_modules'), 'node_modules')
 
-  const manifest = await addDependenciesToPackage({}, ['link:../local-pkg'], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['link:../local-pkg'], testDefaults())
 
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
@@ -164,7 +165,7 @@ test('local file with symlinked node_modules', async () => {
 
 test('package with a broken symlink', async () => {
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, [f.find('has-broken-symlink/has-broken-symlink.tar.gz')], testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, [f.find('has-broken-symlink.tar.gz')], testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('has-broken-symlink')
 
@@ -173,20 +174,20 @@ test('package with a broken symlink', async () => {
 
 test('tarball local package', async () => {
   const project = prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, [f.find('tar-pkg/tar-pkg-1.0.0.tgz')], testDefaults({ fastUnpack: false }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, [f.find('tar-pkg-1.0.0.tgz')], testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('tar-pkg')
 
   expect(m()).toBe('tar-pkg')
 
-  const pkgSpec = `file:${normalizePath(f.find('tar-pkg/tar-pkg-1.0.0.tgz'))}`
+  const pkgSpec = `file:${normalizePath(f.find('tar-pkg-1.0.0.tgz'))}`
   expect(manifest.dependencies).toStrictEqual({ 'tar-pkg': pkgSpec })
 
   const lockfile = project.readLockfile()
   expect(lockfile.packages[`tar-pkg@${lockfile.importers['.'].dependencies!['tar-pkg'].version}`]).toStrictEqual({
     resolution: {
       integrity: 'sha512-HP/5Rgt3pVFLzjmN9qJJ6vZMgCwoCIl/m2bPndYT283CUqnmFiMx0GeeIJ7SyK6TYoJM78SEvFEOQie++caHqw==',
-      tarball: `file:${normalizePath(path.relative(process.cwd(), f.find('tar-pkg/tar-pkg-1.0.0.tgz')))}`,
+      tarball: `file:${normalizePath(path.relative(process.cwd(), f.find('tar-pkg-1.0.0.tgz')))}`,
     },
     version: '1.0.0',
   })
@@ -195,9 +196,9 @@ test('tarball local package', async () => {
 test('tarball local package from project directory', async () => {
   const project = prepareEmpty()
 
-  f.copy('tar-pkg/tar-pkg-1.0.0.tgz', path.resolve('tar-pkg-1.0.0.tgz'))
+  f.copy('tar-pkg-1.0.0.tgz', path.resolve('tar-pkg-1.0.0.tgz'))
 
-  const manifest = await install({
+  const { updatedManifest: manifest } = await install({
     dependencies: {
       'tar-pkg': 'file:tar-pkg-1.0.0.tgz',
     },
@@ -225,7 +226,7 @@ test('update tarball local package when its integrity changes', async () => {
   const project = prepareEmpty()
 
   f.copy('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
-  const manifest = await addDependenciesToPackage({}, ['../tar.tgz'], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['../tar.tgz'], testDefaults())
 
   const lockfile1 = project.readLockfile()
   expect(lockfile1.snapshots['tar-pkg-with-dep@file:../tar.tgz'].dependencies!['is-positive']).toBe('1.0.0')
@@ -240,13 +241,73 @@ test('update tarball local package when its integrity changes', async () => {
   expect(manifestOfTarballDep.dependencies['is-positive']).toBe('^2.0.0')
 })
 
+// Similar to the test above, but for a filtered install.
+// Regression test for https://github.com/pnpm/pnpm/pull/9805.
+test('update tarball local package when its integrity changes (filtered install)', async () => {
+  const rootProject = prepareEmpty()
+  const lockfileDir = rootProject.dir()
+
+  const manifests = {
+    project1: {
+      name: 'project1',
+    },
+    project2: {
+      name: 'project2',
+    },
+  }
+  preparePackages(Object.values(manifests), { tempDir: lockfileDir })
+  const allProjects: ProjectOptions[] = Object.entries(manifests)
+    .map(([id, manifest]) => ({
+      buildIndex: 0,
+      manifest,
+      rootDir: path.join(lockfileDir, id) as ProjectRootDir,
+    }))
+
+  const options = {
+    ...testDefaults({
+      allProjects,
+    }),
+    lockfileDir,
+  }
+
+  f.copy('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz', path.resolve('.', 'tar.tgz'))
+  await addDependenciesToPackage(
+    manifests['project1'],
+    ['../tar.tgz'],
+    {
+      ...options,
+      dir: path.join(options.lockfileDir, 'project1'),
+    })
+
+  const manifestOfTarballDep1 = JSON.parse(fs.readFileSync('project1/node_modules/tar-pkg-with-dep/package.json').toString())
+  expect(manifestOfTarballDep1.dependencies['is-positive']).toBe('^1.0.0')
+
+  f.copy('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', path.resolve('.', 'tar.tgz'))
+
+  // Re-initialize the store controller that's created within the testDefaults()
+  // function. Otherwise the fetchingLocker will contain results from a prior
+  // installation and skip store fetches for the same package ID.
+  const nextOptions = {
+    ...options,
+    ...testDefaults(allProjects),
+  }
+  const project1InstallOptions: MutatedProject = {
+    mutation: 'install',
+    rootDir: path.join(lockfileDir, 'project1') as ProjectRootDir,
+  }
+  await mutateModules([project1InstallOptions], nextOptions)
+
+  const manifestOfTarballDep2 = JSON.parse(fs.readFileSync('project1/node_modules/tar-pkg-with-dep/package.json').toString())
+  expect(manifestOfTarballDep2.dependencies['is-positive']).toBe('^2.0.0')
+})
+
 // Covers https://github.com/pnpm/pnpm/issues/1878
 test('do not update deps when installing in a project that has local tarball dep', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   f.copy('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
-  const manifest = await addDependenciesToPackage({}, ['../tar.tgz', '@pnpm.e2e/peer-a'], testDefaults({ lockfileOnly: true }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['../tar.tgz', '@pnpm.e2e/peer-a'], testDefaults({ lockfileOnly: true }))
 
   const initialLockfile = project.readLockfile()
 
@@ -268,7 +329,7 @@ test('frozen-lockfile: installation fails if the integrity of a tarball dependen
   prepareEmpty()
 
   f.copy('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
-  const manifest = await addDependenciesToPackage({}, ['../tar.tgz'], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['../tar.tgz'], testDefaults())
 
   rimraf('node_modules')
 
@@ -313,7 +374,7 @@ test('deep local', async () => {
   process.chdir('project-1')
   await install(manifest1, testDefaults())
 
-  const lockfile = readYamlFile<Lockfile>('pnpm-lock.yaml')
+  const lockfile = readYamlFile<LockfileFile>('pnpm-lock.yaml')
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['project-2@file:../project-2', 'project-3@file:../project-2/project-3'])
 })
 
@@ -396,7 +457,7 @@ test('re-install should update local file dependency', async () => {
   const project = prepareEmpty()
   f.copy('local-pkg', path.resolve('..', 'local-pkg'))
 
-  const manifest = await addDependenciesToPackage({}, ['file:../local-pkg'], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['file:../local-pkg'], testDefaults())
 
   const expectedSpecs = { 'local-pkg': `file:..${path.sep}local-pkg` }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
@@ -505,7 +566,7 @@ test('local directory is not relinked if disableRelinkLocalDirDeps is set to tru
   fs.writeFileSync('pkg/index.js', 'hello', 'utf8')
   fs.writeFileSync('pkg/package.json', '{"name": "pkg"}', 'utf8')
 
-  const manifest = await addDependenciesToPackage({}, ['file:./pkg'], testDefaults())
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['file:./pkg'], testDefaults())
 
   fs.writeFileSync('pkg/new.js', 'hello', 'utf8')
 

@@ -2,7 +2,6 @@ import path from 'path'
 import { packageManager } from '@pnpm/cli-meta'
 import { type Config } from '@pnpm/config'
 import { createResolver } from '@pnpm/client'
-import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { updateCheckLogger } from '@pnpm/core-loggers'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
@@ -32,11 +31,10 @@ export async function checkForUpdates (config: Config): Promise<void> {
       retries: 0,
     },
   })
-  const resolution = await resolve({ alias: packageManager.name, pref: 'latest' }, {
+  const resolution = await resolve({ alias: packageManager.name, bareSpecifier: 'latest' }, {
     lockfileDir: config.lockfileDir ?? config.dir,
     preferredVersions: {},
     projectDir: config.dir,
-    registry: pickRegistryForPackage(config.registries, packageManager.name, 'latest'),
   })
   if (resolution?.manifest?.version) {
     updateCheckLogger.debug({

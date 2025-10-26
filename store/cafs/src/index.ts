@@ -1,22 +1,21 @@
-import { type AddToStoreResult, type FileWriteResult, type PackageFileInfo, type FilesIndex } from '@pnpm/cafs-types'
+import { type AddToStoreResult, type FileWriteResult, type PackageFiles, type PackageFileInfo, type FilesIndex } from '@pnpm/cafs-types'
 import ssri from 'ssri'
-import { addFilesFromDir } from './addFilesFromDir'
-import { addFilesFromTarball } from './addFilesFromTarball'
+import { addFilesFromDir } from './addFilesFromDir.js'
+import { addFilesFromTarball } from './addFilesFromTarball.js'
 import {
   checkPkgFilesIntegrity,
   type PackageFilesIndex,
-  type SideEffects,
   type VerifyResult,
-} from './checkPkgFilesIntegrity'
-import { readManifestFromStore } from './readManifestFromStore'
+} from './checkPkgFilesIntegrity.js'
+import { readManifestFromStore } from './readManifestFromStore.js'
 import {
   getIndexFilePathInCafs,
   contentPathFromHex,
   type FileType,
   getFilePathByModeInCafs,
   modeIsExecutable,
-} from './getFilePathInCafs'
-import { optimisticRenameOverwrite, writeBufferToCafs } from './writeBufferToCafs'
+} from './getFilePathInCafs.js'
+import { optimisticRenameOverwrite, writeBufferToCafs } from './writeBufferToCafs.js'
 
 export type { IntegrityLike } from 'ssri'
 
@@ -27,8 +26,8 @@ export {
   getFilePathByModeInCafs,
   getIndexFilePathInCafs,
   type PackageFileInfo,
+  type PackageFiles,
   type PackageFilesIndex,
-  type SideEffects,
   optimisticRenameOverwrite,
   type FilesIndex,
   type VerifyResult,
@@ -48,14 +47,14 @@ export interface CafsFunctions {
   getFilePathByModeInCafs: (integrity: string | ssri.IntegrityLike, mode: number) => string
 }
 
-export function createCafs (cafsDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}): CafsFunctions {
-  const _writeBufferToCafs = writeBufferToCafs.bind(null, cafsLocker ?? new Map(), cafsDir)
+export function createCafs (storeDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}): CafsFunctions {
+  const _writeBufferToCafs = writeBufferToCafs.bind(null, cafsLocker ?? new Map(), storeDir)
   const addBuffer = addBufferToCafs.bind(null, _writeBufferToCafs)
   return {
     addFilesFromDir: addFilesFromDir.bind(null, addBuffer),
     addFilesFromTarball: addFilesFromTarball.bind(null, addBuffer, ignoreFile ?? null),
-    getIndexFilePathInCafs: getIndexFilePathInCafs.bind(null, cafsDir),
-    getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, cafsDir),
+    getIndexFilePathInCafs: getIndexFilePathInCafs.bind(null, storeDir),
+    getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, storeDir),
   }
 }
 

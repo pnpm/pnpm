@@ -1,5 +1,291 @@
 # @pnpm/lifecycle
 
+## 1001.0.25
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/store-controller-types@1004.1.0
+  - @pnpm/directory-fetcher@1000.1.14
+  - @pnpm/core-loggers@1001.0.4
+  - @pnpm/link-bins@1000.2.6
+  - @pnpm/read-package-json@1000.1.2
+
+## 1001.0.24
+
+### Patch Changes
+
+- Updated dependencies [a8797c4]
+  - @pnpm/link-bins@1000.2.5
+
+## 1001.0.23
+
+### Patch Changes
+
+- a514bc0: Don't fail with a meaningless error when `scriptShell` is set to `false` [#8748](https://github.com/pnpm/pnpm/issues/8748).
+  - @pnpm/directory-fetcher@1000.1.13
+  - @pnpm/link-bins@1000.2.4
+
+## 1001.0.22
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/link-bins@1000.2.3
+- @pnpm/read-package-json@1000.1.1
+- @pnpm/directory-fetcher@1000.1.12
+
+## 1001.0.21
+
+### Patch Changes
+
+- a6856fd: Canceling a running process with Ctrl-C should make `pnpm run` return a non-zero exit code [#9626](https://github.com/pnpm/pnpm/issues/9626).
+- Updated dependencies [e792927]
+- Updated dependencies [e792927]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/link-bins@1000.2.2
+  - @pnpm/directory-fetcher@1000.1.11
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/store-controller-types@1004.0.2
+
+## 1001.0.20
+
+### Patch Changes
+
+- Updated dependencies [affdd5b]
+  - @pnpm/link-bins@1000.2.1
+
+## 1001.0.19
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [adb097c]
+  - @pnpm/link-bins@1000.2.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/error@1000.0.4
+  - @pnpm/directory-fetcher@1000.1.10
+  - @pnpm/store-controller-types@1004.0.1
+
+## 1001.0.18
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/link-bins@1000.1.0
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/directory-fetcher@1000.1.9
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/error@1000.0.3
+
+## 1001.0.17
+
+### Patch Changes
+
+- 589ac1f: Replaced `shell-quote` with `shlex` for quoting command arguments [#9381](https://github.com/pnpm/pnpm/issues/9381).
+
+## 1001.0.16
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@1000.1.8
+- @pnpm/store-controller-types@1003.0.3
+
+## 1001.0.15
+
+### Patch Changes
+
+- Updated dependencies [509948d]
+  - @pnpm/store-controller-types@1003.0.2
+
+## 1001.0.14
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [c24c66e]
+  - @pnpm/directory-fetcher@1000.1.7
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/link-bins@1000.0.13
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/read-package-json@1000.0.9
+
+## 1001.0.13
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+  - @pnpm/link-bins@1000.0.12
+
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/directory-fetcher@1000.1.6
+  - @pnpm/link-bins@1000.0.11
+  - @pnpm/read-package-json@1000.0.8
+
+## 1001.0.11
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@1000.1.5
+- @pnpm/store-controller-types@1002.0.1
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/directory-fetcher@1000.1.4
+  - @pnpm/link-bins@1000.0.10
+  - @pnpm/read-package-json@1000.0.7
+
+## 1001.0.9
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/directory-fetcher@1000.1.3
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/link-bins@1000.0.9
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/store-controller-types@1001.0.5
+
+## 1001.0.8
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@1000.1.2
+- @pnpm/store-controller-types@1001.0.4
+
+## 1001.0.7
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/link-bins@1000.0.8
+  - @pnpm/directory-fetcher@1000.1.1
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/store-controller-types@1001.0.3
+
+## 1001.0.6
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+  - @pnpm/types@1000.2.0
+  - @pnpm/directory-fetcher@1000.1.0
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/link-bins@1000.0.7
+  - @pnpm/read-package-json@1000.0.4
+  - @pnpm/store-controller-types@1001.0.2
+
+## 1001.0.5
+
+### Patch Changes
+
+- c0d1c01: Quote args for scripts with shell-quote to support new lines (on POSIX only) [#8980](https://github.com/pnpm/pnpm/issues/8980).
+  - @pnpm/directory-fetcher@1000.0.5
+  - @pnpm/link-bins@1000.0.6
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/directory-fetcher@1000.0.4
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/link-bins@1000.0.5
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/store-controller-types@1001.0.1
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/directory-fetcher@1000.0.3
+  - @pnpm/link-bins@1000.0.4
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/directory-fetcher@1000.0.2
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/link-bins@1000.0.3
+  - @pnpm/read-package-json@1000.0.2
+  - @pnpm/store-controller-types@1000.1.1
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/link-bins@1000.0.2
+
+## 1001.0.0
+
+### Major Changes
+
+- 3a6a417: Reduced the number of fields from `package.json` that are added as environment variables (`npm_package_` prefix) during script execution. Only the following fields are now included: `name`, `version`, `bin`, `engines`, and `config` [#8552](https://github.com/pnpm/pnpm/issues/8552).
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/directory-fetcher@1000.0.1
+  - @pnpm/link-bins@1000.0.1
+  - @pnpm/read-package-json@1000.0.1
+
+## 17.1.6
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+- @pnpm/store-controller-types@18.1.6
+- @pnpm/link-bins@10.0.12
+- @pnpm/read-package-json@9.0.10
+- @pnpm/directory-fetcher@8.0.10
+
 ## 17.1.5
 
 ### Patch Changes

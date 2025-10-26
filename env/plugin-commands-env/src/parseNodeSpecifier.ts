@@ -5,8 +5,24 @@ export interface NodeSpecifier {
   useNodeVersion: string
 }
 
-const isStableVersion = (version: string) => /^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)
+const isStableVersion = (version: string): boolean => /^\d+\.\d+\.\d+$/.test(version)
+const matchPrereleaseVersion = (version: string): RegExpMatchArray | null => version.match(/^\d+\.\d+\.\d+-((rc)(\..+)|(test|v8-canary|nightly)(.+))$/)
+
 const STABLE_RELEASE_ERROR_HINT = 'The correct syntax for stable release is strictly X.Y.Z or release/X.Y.Z'
+
+export function isValidVersion (specifier: string): boolean {
+  if (specifier.includes('/')) {
+    const [releaseChannel, useNodeVersion] = specifier.split('/')
+
+    if (releaseChannel === 'release') {
+      return isStableVersion(useNodeVersion)
+    }
+
+    return useNodeVersion.includes(releaseChannel)
+  }
+
+  return isStableVersion(specifier) || matchPrereleaseVersion(specifier) != null
+}
 
 export function parseNodeSpecifier (specifier: string): NodeSpecifier {
   if (specifier.includes('/')) {
@@ -25,9 +41,9 @@ export function parseNodeSpecifier (specifier: string): NodeSpecifier {
     return { releaseChannel, useNodeVersion }
   }
 
-  const prereleaseMatch = specifier.match(/^[0-9]+\.[0-9]+\.[0-9]+-(nightly|rc|test|v8-canary)(\..+)$/)
+  const prereleaseMatch = matchPrereleaseVersion(specifier)
   if (prereleaseMatch != null) {
-    return { releaseChannel: prereleaseMatch[1], useNodeVersion: specifier }
+    return { releaseChannel: prereleaseMatch[2], useNodeVersion: specifier }
   }
 
   if (isStableVersion(specifier)) {
@@ -37,7 +53,7 @@ export function parseNodeSpecifier (specifier: string): NodeSpecifier {
   let hint: string | undefined
   if (['nightly', 'rc', 'test', 'v8-canary'].includes(specifier)) {
     hint = `The correct syntax for ${specifier} release is strictly X.Y.Z-${specifier}.W`
-  } else if (/^[0-9]+\.[0-9]+$/.test(specifier) || /^[0-9]+$/.test(specifier) || ['release', 'stable', 'latest'].includes(specifier)) {
+  } else if (/^\d+\.\d+$/.test(specifier) || /^\d+$/.test(specifier) || ['release', 'stable', 'latest'].includes(specifier)) {
     hint = STABLE_RELEASE_ERROR_HINT
   }
   throw new PnpmError('INVALID_NODE_VERSION', `"${specifier}" is not a valid Node.js version`, { hint })

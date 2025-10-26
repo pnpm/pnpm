@@ -21,6 +21,8 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'force'
 | 'nodeVersion'
 | 'fetchTimeout'
+| 'fetchWarnTimeoutMs'
+| 'fetchMinSpeedKiBps'
 | 'gitShallowHosts'
 | 'ignoreScripts'
 | 'hooks'
@@ -29,14 +31,17 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'key'
 | 'localAddress'
 | 'maxSockets'
+| 'minimumReleaseAge'
 | 'networkConcurrency'
 | 'noProxy'
 | 'offline'
 | 'packageImportMethod'
 | 'preferOffline'
-| 'registry'
+| 'preserveAbsolutePaths'
+| 'registries'
 | 'registrySupportsTimeField'
 | 'resolutionMode'
+| 'saveWorkspaceProtocol'
 | 'strictSsl'
 | 'unsafePerm'
 | 'userAgent'
@@ -51,7 +56,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
 ): Promise<{ ctrl: StoreController, dir: string }> {
-  const fullMetadata = opts.fetchFullMetadata ?? (opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField)
+  const fullMetadata = opts.fetchFullMetadata ?? ((opts.resolutionMode === 'time-based' || Boolean(opts.minimumReleaseAge)) && !opts.registrySupportsTimeField)
   const { resolve, fetchers, clearResolutionCache } = createClient({
     customFetchers: opts.hooks?.fetchers,
     userConfig: opts.userConfig,
@@ -60,6 +65,8 @@ export async function createNewStoreController (
     ca: opts.ca,
     cacheDir: opts.cacheDir,
     cert: opts.cert,
+    fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs,
+    fetchMinSpeedKiBps: opts.fetchMinSpeedKiBps,
     fullMetadata,
     filterMetadata: fullMetadata,
     httpProxy: opts.httpProxy,
@@ -72,6 +79,7 @@ export async function createNewStoreController (
     preferOffline: opts.preferOffline,
     rawConfig: opts.rawConfig,
     sslConfigs: opts.sslConfigs,
+    registries: opts.registries,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,
@@ -89,6 +97,9 @@ export async function createNewStoreController (
     gitShallowHosts: opts.gitShallowHosts,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
     includeOnlyPackageFiles: !opts.deployAllFiles,
+    saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+    preserveAbsolutePaths: opts.preserveAbsolutePaths,
+    strictPublishedByCheck: Boolean(opts.minimumReleaseAge),
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {

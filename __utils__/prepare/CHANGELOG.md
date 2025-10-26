@@ -1,5 +1,175 @@
 # @pnpm/prepare
 
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/assert-project@1000.0.4
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/assert-project@1000.0.3
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/assert-project@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/assert-project@1000.0.1
+
+## 0.0.123
+
+### Patch Changes
+
+- @pnpm/assert-project@4.0.16
+
+## 0.0.122
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/assert-project@4.0.15
+
+## 0.0.121
+
+### Patch Changes
+
+- @pnpm/assert-project@4.0.14
+
+## 0.0.120
+
+### Patch Changes
+
+- @pnpm/assert-project@4.0.13
+
+## 0.0.119
+
+### Patch Changes
+
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+  - @pnpm/assert-project@4.0.12
+
+## 0.0.118
+
+### Patch Changes
+
+- Updated dependencies [5b73df1]
+  - @pnpm/types@1000.5.0
+  - @pnpm/assert-project@4.0.11
+
+## 0.0.117
+
+### Patch Changes
+
+- @pnpm/assert-project@4.0.10
+
+## 0.0.116
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/assert-project@4.0.9
+
+## 0.0.115
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/assert-project@4.0.8
+
+## 0.0.114
+
+### Patch Changes
+
+- @pnpm/assert-project@4.0.7
+
+## 0.0.113
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/assert-project@4.0.6
+
+## 0.0.112
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/assert-project@4.0.5
+
+## 0.0.111
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/assert-project@4.0.4
+
+## 0.0.110
+
+### Patch Changes
+
+- @pnpm/assert-project@4.0.3
+
+## 0.0.109
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/assert-project@4.0.2
+
+## 0.0.108
+
+### Patch Changes
+
+- @pnpm/assert-project@4.0.1
+
+## 0.0.107
+
+### Patch Changes
+
+- Updated dependencies [a76da0c]
+  - @pnpm/assert-project@4.0.0
+
+## 0.0.106
+
+### Patch Changes
+
+- Updated dependencies [d433cb9]
+  - @pnpm/assert-project@3.0.0
+
+## 0.0.105
+
+### Patch Changes
+
+- @pnpm/assert-project@2.3.62
+
+## 0.0.104
+
+### Patch Changes
+
+- @pnpm/assert-project@2.3.61
+
 ## 0.0.103
 
 ### Patch Changes

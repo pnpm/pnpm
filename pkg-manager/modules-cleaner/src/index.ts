@@ -1,1 +1,1 @@
-export { prune } from './prune'
+export { prune } from './prune.js'

@@ -1,5 +1,322 @@
 # @pnpm/node.fetcher
 
+## 1001.0.8
+
+### Patch Changes
+
+- @pnpm/fetching.binary-fetcher@1002.0.0
+- @pnpm/tarball-fetcher@1003.0.0
+- @pnpm/node.resolver@1001.0.5
+- @pnpm/create-cafs-store@1000.0.20
+
+## 1001.0.7
+
+### Patch Changes
+
+- @pnpm/node.resolver@1001.0.4
+- @pnpm/tarball-fetcher@1002.0.1
+
+## 1001.0.6
+
+### Patch Changes
+
+- @pnpm/fetching.binary-fetcher@1001.0.0
+- @pnpm/tarball-fetcher@1002.0.0
+
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/tarball-fetcher@1001.1.0
+  - @pnpm/create-cafs-store@1000.0.19
+  - @pnpm/node.resolver@1001.0.3
+  - @pnpm/crypto.shasums-file@1001.0.2
+
+## 1001.0.4
+
+### Patch Changes
+
+- @pnpm/node.resolver@1001.0.2
+- @pnpm/error@1000.0.5
+- @pnpm/crypto.shasums-file@1001.0.1
+- @pnpm/fetching.binary-fetcher@1000.0.3
+- @pnpm/tarball-fetcher@1001.0.15
+- @pnpm/create-cafs-store@1000.0.18
+
+## 1001.0.3
+
+### Patch Changes
+
+- @pnpm/node.resolver@1001.0.1
+- @pnpm/tarball-fetcher@1001.0.14
+- @pnpm/create-cafs-store@1000.0.18
+- @pnpm/fetching.binary-fetcher@1000.0.2
+
+## 1001.0.2
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@1001.0.13
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [2b0d35f]
+  - @pnpm/fetching.binary-fetcher@1000.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- d1edf73: Removed node fetcher. The binary fetcher should be used for downloading node assets.
+- f91922c: Changed how the integrity of the node.js artifact is stored in the lockfile.
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [f91922c]
+  - @pnpm/node.resolver@1001.0.0
+  - @pnpm/fetching.binary-fetcher@1000.0.0
+  - @pnpm/crypto.shasums-file@1001.0.0
+  - @pnpm/error@1000.0.4
+  - @pnpm/tarball-fetcher@1001.0.12
+  - @pnpm/create-cafs-store@1000.0.17
+
+## 1000.1.0
+
+### Minor Changes
+
+- 1a07b8f: Added support for resolving and downloading the Node.js runtime specified in the [devEngines](https://github.com/openjs-foundation/package-metadata-interoperability-collab-space/issues/15) field of `package.json`.
+
+  Usage example:
+
+  ```json
+  {
+    "devEngines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.4.0",
+        "onFail": "download"
+      }
+    }
+  }
+  ```
+
+  When running `pnpm install`, pnpm will resolve Node.js to the latest version that satisfies the specified range and install it as a dependency of the project. As a result, when running scripts, the locally installed Node.js version will be used.
+
+  Unlike the existing options, `useNodeVersion` and `executionEnv.nodeVersion`, this new field supports version ranges, which are locked to exact versions during installation. The resolved version is stored in the pnpm lockfile, along with an integrity checksum for future validation of the Node.js content's validity.
+
+  Related PR: [#9755](https://github.com/pnpm/pnpm/pull/9755).
+
+### Patch Changes
+
+- 1ba2e15: The integrities of the downloaded Node.js artifacts are verified [#9750](https://github.com/pnpm/pnpm/pull/9750).
+- Updated dependencies [1ba2e15]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/fetching-types@1000.2.0
+  - @pnpm/crypto.shasums-file@1000.0.0
+  - @pnpm/fetcher-base@1000.1.0
+  - @pnpm/node.resolver@1000.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/tarball-fetcher@1001.0.11
+  - @pnpm/worker@1000.1.10
+  - @pnpm/create-cafs-store@1000.0.16
+  - @pnpm/error@1000.0.3
+
+## 1000.0.20
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@1001.0.10
+
+## 1000.0.19
+
+### Patch Changes
+
+- Updated dependencies [6acf819]
+  - @pnpm/pick-fetcher@1000.0.1
+  - @pnpm/fetcher-base@1000.0.12
+  - @pnpm/tarball-fetcher@1001.0.9
+  - @pnpm/create-cafs-store@1000.0.15
+
+## 1000.0.18
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@1000.0.14
+- @pnpm/tarball-fetcher@1001.0.8
+
+## 1000.0.17
+
+### Patch Changes
+
+- Updated dependencies [09cf46f]
+  - @pnpm/tarball-fetcher@1001.0.7
+  - @pnpm/create-cafs-store@1000.0.13
+  - @pnpm/fetcher-base@1000.0.11
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.16
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@1001.0.6
+
+## 1000.0.15
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@1000.0.12
+- @pnpm/fetcher-base@1000.0.10
+- @pnpm/pick-fetcher@1000.0.0
+- @pnpm/tarball-fetcher@1001.0.5
+
+## 1000.0.14
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.9
+- @pnpm/pick-fetcher@1000.0.0
+- @pnpm/create-cafs-store@1000.0.11
+- @pnpm/tarball-fetcher@1001.0.4
+
+## 1000.0.13
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.8
+- @pnpm/tarball-fetcher@1001.0.3
+- @pnpm/create-cafs-store@1000.0.10
+- @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.12
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.7
+- @pnpm/tarball-fetcher@1001.0.2
+- @pnpm/create-cafs-store@1000.0.9
+- @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.11
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.6
+- @pnpm/pick-fetcher@1000.0.0
+- @pnpm/tarball-fetcher@1001.0.1
+- @pnpm/create-cafs-store@1000.0.8
+
+## 1000.0.10
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@1001.0.0
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@1000.0.9
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.5
+- @pnpm/tarball-fetcher@1000.0.8
+- @pnpm/create-cafs-store@1000.0.7
+- @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@1000.0.6
+- @pnpm/fetcher-base@1000.0.4
+- @pnpm/tarball-fetcher@1000.0.7
+- @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.6
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@1000.0.6
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/error@1000.0.2
+- @pnpm/fetcher-base@1000.0.3
+- @pnpm/tarball-fetcher@1000.0.5
+- @pnpm/create-cafs-store@1000.0.5
+- @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.4
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@1000.0.4
+- @pnpm/tarball-fetcher@1000.0.4
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.2
+- @pnpm/tarball-fetcher@1000.0.3
+- @pnpm/create-cafs-store@1000.0.3
+- @pnpm/pick-fetcher@1000.0.0
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@1000.0.2
+- @pnpm/create-cafs-store@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [b0f3c71]
+  - @pnpm/fetching-types@1000.1.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/create-cafs-store@1000.0.1
+  - @pnpm/fetcher-base@1000.0.1
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/tarball-fetcher@1000.0.1
+
+## 4.0.17
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+- @pnpm/create-cafs-store@7.0.12
+- @pnpm/fetcher-base@16.0.7
+- @pnpm/tarball-fetcher@20.0.0
+
+## 4.0.16
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@19.0.16
+- @pnpm/create-cafs-store@7.0.11
+
+## 4.0.15
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@7.0.10
+- @pnpm/tarball-fetcher@19.0.15
+
 ## 4.0.14
 
 ### Patch Changes

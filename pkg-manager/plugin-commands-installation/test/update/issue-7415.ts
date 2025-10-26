@@ -4,11 +4,11 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { update, install } from '@pnpm/plugin-commands-installation'
 import * as enquirer from 'enquirer'
 import { filterPackagesFromDir } from '@pnpm/workspace.filter-packages-from-dir'
+import { jest } from '@jest/globals'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
-// eslint-disable-next-line
-const prompt = enquirer.prompt as any as jest.Mock<any, any, any>
+const prompt = jest.mocked(enquirer.prompt)
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -18,6 +18,7 @@ const DEFAULT_OPTIONS = {
   },
   bail: false,
   bin: 'node_modules/.bin',
+  excludeLinksFromLockfile: false,
   extraEnv: {},
   cliOptions: {},
   deployAllFiles: false,
@@ -27,8 +28,9 @@ const DEFAULT_OPTIONS = {
     optionalDependencies: true,
   },
   lock: true,
-  pnpmfile: '.pnpmfile.cjs',
+  pnpmfile: ['.pnpmfile.cjs'],
   pnpmHomeDir: '',
+  preferWorkspacePackages: true,
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
   registries: {
@@ -38,7 +40,7 @@ const DEFAULT_OPTIONS = {
   sort: true,
   userConfig: {},
   workspaceConcurrency: 1,
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
 
 test('interactive recursive should not error on git specifier override', async () => {

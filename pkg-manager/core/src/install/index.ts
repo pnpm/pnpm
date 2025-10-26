@@ -1,19 +1,21 @@
-import crypto from 'crypto'
 import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
+import { resolveFromCatalog, matchCatalogResolveResult, type CatalogResultMatcher } from '@pnpm/catalogs.resolver'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
   LOCKFILE_MAJOR_VERSION,
-  LOCKFILE_VERSION_V6,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
+  ignoredScriptsLogger,
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
+import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import {
   calcPatchHashes,
   createOverridesMapFromParsed,
@@ -31,12 +33,12 @@ import {
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   type ProjectSnapshot,
-  type Lockfile,
+  type LockfileObject,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
   cleanGitBranchLockfiles,
-  type PatchFile,
+  type CatalogSnapshots,
 } from '@pnpm/lockfile.fs'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { extendProjectsWithTargetDirs } from '@pnpm/lockfile.utils'
@@ -45,9 +47,8 @@ import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.pre
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/manifest-utils'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
-import { readModulesDir } from '@pnpm/read-modules-dir'
+import { type PatchGroupRecord, groupPatchedDependencies } from '@pnpm/patching.config'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { removeBin } from '@pnpm/remove-bins'
 import {
   getWantedDependencies,
   type DependenciesGraph,
@@ -70,26 +71,25 @@ import {
   type ReadPackageHook,
   type ProjectRootDir,
 } from '@pnpm/types'
-import rimraf from '@zkochan/rimraf'
-import isInnerLink from 'is-inner-link'
 import isSubdir from 'is-subdir'
-import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import mapValues from 'ramda/src/map'
 import clone from 'ramda/src/clone'
 import isEmpty from 'ramda/src/isEmpty'
 import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
-import sortKeys from 'sort-keys'
-import { parseWantedDependencies } from '../parseWantedDependencies'
-import { removeDeps } from '../uninstall/removeDeps'
+import { parseWantedDependencies } from '../parseWantedDependencies.js'
+import { removeDeps } from '../uninstall/removeDeps.js'
 import {
   extendOptions,
   type InstallOptions,
   type ProcessedInstallOptions as StrictInstallOptions,
-} from './extendInstallOptions'
-import { linkPackages } from './link'
-import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
+} from './extendInstallOptions.js'
+import { linkPackages } from './link.js'
+import { reportPeerDependencyIssues } from './reportPeerDependencyIssues.js'
+import { validateModules } from './validateModules.js'
+import semver from 'semver'
+import { CatalogVersionMismatchError } from './checkCompatibility/CatalogVersionMismatchError.js'
 
 class LockfileConfigMismatchError extends PnpmError {
   constructor (outdatedLockfileSettingName: string) {
@@ -109,6 +109,7 @@ const DEV_PREINSTALL = 'pnpm:devPreinstall'
 
 interface InstallMutationOptions {
   update?: boolean
+  updateToLatest?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest?: boolean
 }
@@ -134,28 +135,32 @@ export interface UninstallSomeDepsMutation {
   targetDependenciesField?: DependenciesField
 }
 
-export interface UnlinkDepsMutation {
-  mutation: 'unlink'
-}
-
-export interface UnlinkSomeDepsMutation {
-  mutation: 'unlinkSome'
-  dependencyNames: string[]
-}
-
-export type DependenciesMutation = InstallDepsMutation | InstallSomeDepsMutation | UninstallSomeDepsMutation | UnlinkDepsMutation | UnlinkSomeDepsMutation
+export type DependenciesMutation = InstallDepsMutation | InstallSomeDepsMutation | UninstallSomeDepsMutation
 
 type Opts = Omit<InstallOptions, 'allProjects'> & {
   preferredVersions?: PreferredVersions
   pruneDirectDependencies?: boolean
+  binsDir?: string
 } & InstallMutationOptions
+
+export interface InstallResult {
+  /**
+   * A partial of new or updated catalog config entries. A change will be
+   * produced if a dependency using the catalog protocol was newly added or
+   * updated during this install. To obtain the full catalog, callers should
+   * merge this object with the current catalog configs in pnpm-workspace.yaml.
+   */
+  updatedCatalogs: Catalogs | undefined
+  updatedManifest: ProjectManifest
+  ignoredBuilds: string[] | undefined
+}
 
 export async function install (
   manifest: ProjectManifest,
   opts: Opts
-): Promise<ProjectManifest> {
+): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { updatedProjects: projects } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds } = await mutateModules(
     [
       {
         mutation: 'install',
@@ -163,6 +168,7 @@ export async function install (
         rootDir,
         update: opts.update,
         updateMatching: opts.updateMatching,
+        updateToLatest: opts.updateToLatest,
         updatePackageManifest: opts.updatePackageManifest,
       },
     ],
@@ -172,10 +178,11 @@ export async function install (
         buildIndex: 0,
         manifest,
         rootDir,
+        binsDir: opts.binsDir,
       }],
     }
   )
-  return projects[0].manifest
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds }
 }
 
 interface ProjectToBeInstalled {
@@ -195,6 +202,12 @@ export type MutateModulesOptions = InstallOptions & {
   } | InstallOptions['hooks']
 }
 
+export interface MutateModulesInSingleProjectResult {
+  updatedCatalogs: Catalogs | undefined
+  updatedProject: UpdatedProject
+  ignoredBuilds: string[] | undefined
+}
+
 export async function mutateModulesInSingleProject (
   project: MutatedProject & {
     binsDir?: string
@@ -203,12 +216,13 @@ export async function mutateModulesInSingleProject (
     modulesDir?: string
   },
   maybeOpts: Omit<MutateModulesOptions, 'allProjects'> & InstallMutationOptions
-): Promise<UpdatedProject> {
+): Promise<MutateModulesInSingleProjectResult> {
   const result = await mutateModules(
     [
       {
         ...project,
         update: maybeOpts.update,
+        updateToLatest: maybeOpts.updateToLatest,
         updateMatching: maybeOpts.updateMatching,
         updatePackageManifest: maybeOpts.updatePackageManifest,
       } as MutatedProject,
@@ -221,13 +235,26 @@ export async function mutateModulesInSingleProject (
       }],
     }
   )
-  return result.updatedProjects[0]
+  return {
+    updatedCatalogs: result.updatedCatalogs,
+    updatedProject: result.updatedProjects[0],
+    ignoredBuilds: result.ignoredBuilds,
+  }
 }
 
 export interface MutateModulesResult {
+  updatedCatalogs?: Catalogs
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
+  ignoredBuilds: string[] | undefined
+}
+
+const pickCatalogSpecifier: CatalogResultMatcher<string | undefined> = {
+  found: (found) =>
+    found.resolution.specifier,
+  misconfiguration: () => undefined,
+  unused: () => undefined,
 }
 
 export async function mutateModules (
@@ -247,30 +274,58 @@ export async function mutateModules (
 
   const installsOnly = allMutationsAreInstalls(projects)
   if (!installsOnly) opts.strictPeerDependencies = false
-  // @ts-expect-error
-  opts['forceNewModules'] = installsOnly
   const rootProjectManifest = opts.allProjects.find(({ rootDir }) => rootDir === opts.lockfileDir)?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
     // so reading its manifest explicitly here.
     await safeReadProjectManifestOnly(opts.lockfileDir)
 
-  const ctx = await getContext(opts)
+  let ctx = await getContext(opts)
 
-  if (opts.hooks.preResolution) {
-    await opts.hooks.preResolution({
-      currentLockfile: ctx.currentLockfile,
-      wantedLockfile: ctx.wantedLockfile,
-      existsCurrentLockfile: ctx.existsCurrentLockfile,
-      existsNonEmptyWantedLockfile: ctx.existsNonEmptyWantedLockfile,
-      lockfileDir: ctx.lockfileDir,
-      storeDir: ctx.storeDir,
-      registries: ctx.registries,
+  if (!opts.lockfileOnly && ctx.modulesFile != null) {
+    const { purged } = await validateModules(ctx.modulesFile, Object.values(ctx.projects), {
+      forceNewModules: installsOnly,
+      include: opts.include,
+      lockfileDir: opts.lockfileDir,
+      modulesDir: opts.modulesDir ?? 'node_modules',
+      registries: opts.registries,
+      storeDir: opts.storeDir,
+      virtualStoreDir: ctx.virtualStoreDir,
+      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+      confirmModulesPurge: opts.confirmModulesPurge && !opts.ci,
+
+      forceHoistPattern: opts.forceHoistPattern,
+      hoistPattern: opts.hoistPattern,
+      currentHoistPattern: ctx.currentHoistPattern,
+
+      forcePublicHoistPattern: opts.forcePublicHoistPattern,
+      publicHoistPattern: opts.publicHoistPattern,
+      currentPublicHoistPattern: ctx.currentPublicHoistPattern,
+      global: opts.global,
     })
+    if (purged) {
+      ctx = await getContext(opts)
+    }
   }
 
-  const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
+  if (opts.hooks.preResolution) {
+    for (const preResolution of opts.hooks.preResolution) {
+      // eslint-disable-next-line no-await-in-loop
+      await preResolution({
+        currentLockfile: ctx.currentLockfile,
+        wantedLockfile: ctx.wantedLockfile,
+        existsCurrentLockfile: ctx.existsCurrentLockfile,
+        existsNonEmptyWantedLockfile: ctx.existsNonEmptyWantedLockfile,
+        lockfileDir: ctx.lockfileDir,
+        storeDir: ctx.storeDir,
+        registries: ctx.registries,
+      })
+    }
+  }
+
+  const pruneVirtualStore = !opts.enableGlobalVirtualStore && (ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
     ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
     : true
+  )
 
   if (!maybeOpts.ignorePackageManifest) {
     for (const { manifest, rootDir } of Object.values(ctx.projects)) {
@@ -296,12 +351,22 @@ export async function mutateModules (
   }
 
   return {
+    updatedCatalogs: result.updatedCatalogs,
     updatedProjects: result.updatedProjects,
     stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     depsRequiringBuild: result.depsRequiringBuild,
+    ignoredBuilds: result.ignoredBuilds,
   }
 
-  async function _install (): Promise<{ updatedProjects: UpdatedProject[], stats?: InstallationResultStats, depsRequiringBuild?: DepPath[] }> {
+  interface InnerInstallResult {
+    readonly updatedCatalogs?: Catalogs
+    readonly updatedProjects: UpdatedProject[]
+    readonly stats?: InstallationResultStats
+    readonly depsRequiringBuild?: DepPath[]
+    readonly ignoredBuilds: string[] | undefined
+  }
+
+  async function _install (): Promise<InnerInstallResult> {
     const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
       extraBinPaths: opts.extraBinPaths,
       extraNodePaths: ctx.extraNodePaths,
@@ -330,7 +395,7 @@ export async function mutateModules (
         }
       )
     }
-    const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : createObjectChecksum(opts.packageExtensions!)
+    const packageExtensionsChecksum = hashObjectNullableWithPrefix(opts.packageExtensions)
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
@@ -341,6 +406,7 @@ export async function mutateModules (
         path: path.join(opts.lockfileDir, patchFile.path),
       }), patchedDependencies)
       : undefined
+    const patchGroups = patchedDependenciesWithResolvedPath && groupPatchedDependencies(patchedDependenciesWithResolvedPath)
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false
@@ -348,6 +414,7 @@ export async function mutateModules (
     if (!opts.ignorePackageManifest) {
       const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
         autoInstallPeers: opts.autoInstallPeers,
+        injectWorkspacePackages: opts.injectWorkspacePackages,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
         overrides: overridesMap,
@@ -361,16 +428,18 @@ export async function mutateModules (
         throw new LockfileConfigMismatchError(outdatedLockfileSettingName!)
       }
     }
+    const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
     const upToDateLockfileMajorVersion = ctx.wantedLockfile.lockfileVersion.toString().startsWith(`${LOCKFILE_MAJOR_VERSION}.`)
     let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
-      !upToDateLockfileMajorVersion && ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION_V6 ||
+      !upToDateLockfileMajorVersion ||
       opts.forceFullResolution
     if (needsFullResolution) {
       ctx.wantedLockfile.settings = {
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
+        injectWorkspacePackages: opts.injectWorkspacePackages,
       }
       ctx.wantedLockfile.overrides = overridesMap
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
@@ -382,155 +451,21 @@ export async function mutateModules (
         autoInstallPeers: opts.autoInstallPeers,
         excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         peersSuffixMaxLength: opts.peersSuffixMaxLength,
+        injectWorkspacePackages: opts.injectWorkspacePackages,
       }
     }
-    if (
-      !ctx.lockfileHadConflicts &&
-      !opts.fixLockfile &&
-      !opts.dedupe &&
-      installsOnly &&
-      (
-        frozenLockfile ||
-        opts.ignorePackageManifest ||
-        !needsFullResolution &&
-        opts.preferFrozenLockfile &&
-        (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
-        ctx.existsNonEmptyWantedLockfile &&
-        (
-          ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION ||
-          ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V6 ||
-          ctx.wantedLockfile.lockfileVersion === '6.1'
-        ) &&
-        await allProjectsAreUpToDate(Object.values(ctx.projects), {
-          catalogs: opts.catalogs,
-          autoInstallPeers: opts.autoInstallPeers,
-          excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-          linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
-          wantedLockfile: ctx.wantedLockfile,
-          workspacePackages: ctx.workspacePackages,
-          lockfileDir: opts.lockfileDir,
-        })
-      )
-    ) {
-      if (needsFullResolution) {
-        throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
-          'Cannot perform a frozen installation because the version of the lockfile is incompatible with this version of pnpm',
-          {
-            hint: `Try either:
-1. Aligning the version of pnpm that generated the lockfile with the version that installs from it, or
-2. Migrating the lockfile so that it is compatible with the newer version of pnpm, or
-3. Using "pnpm install --no-frozen-lockfile".
-Note that in CI environments, this setting is enabled by default.`,
-          }
-        )
-      }
-      if (!opts.ignorePackageManifest) {
-        const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
-          autoInstallPeers: opts.autoInstallPeers,
-          excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-        })
-        for (const { id, manifest, rootDir } of Object.values(ctx.projects)) {
-          const { satisfies, detailedReason } = _satisfiesPackageManifest(ctx.wantedLockfile.importers[id], manifest)
-          if (!satisfies) {
-            if (!ctx.existsWantedLockfile) {
-              throw new PnpmError('NO_LOCKFILE',
-                `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`, {
-                  hint: 'Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"',
-                })
-            }
 
-            throw new PnpmError('OUTDATED_LOCKFILE',
-              `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ` +
-              path.join('<ROOT>', path.relative(opts.lockfileDir, path.join(rootDir, 'package.json'))), {
-                hint: `Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"
-
-    Failure reason:
-    ${detailedReason ?? ''}`,
-              })
-          }
-        }
-      }
-      if (opts.lockfileOnly) {
-        // The lockfile will only be changed if the workspace will have new projects with no dependencies.
-        await writeWantedLockfile(ctx.lockfileDir, ctx.wantedLockfile)
-        return {
-          updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
-        }
-      }
-      if (!ctx.existsNonEmptyWantedLockfile) {
-        if (Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
-          throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
-        }
+    const frozenInstallResult = await tryFrozenInstall({
+      frozenLockfile,
+      needsFullResolution,
+      patchGroups,
+      upToDateLockfileMajorVersion,
+    })
+    if (frozenInstallResult !== null) {
+      if ('needsFullResolution' in frozenInstallResult) {
+        needsFullResolution = frozenInstallResult.needsFullResolution
       } else {
-        if (maybeOpts.ignorePackageManifest) {
-          logger.info({ message: 'Importing packages to virtual store', prefix: opts.lockfileDir })
-        } else {
-          logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
-        }
-        try {
-          const { stats } = await headlessInstall({
-            ...ctx,
-            ...opts,
-            currentEngine: {
-              nodeVersion: opts.nodeVersion,
-              pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-            },
-            currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
-            patchedDependencies: patchedDependenciesWithResolvedPath,
-            selectedProjectDirs: projects.map((project) => project.rootDir),
-            allProjects: ctx.projects,
-            prunedAt: ctx.modulesFile?.prunedAt,
-            pruneVirtualStore,
-            wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
-            useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
-          })
-          if (
-            opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles ||
-            !upToDateLockfileMajorVersion && !opts.frozenLockfile
-          ) {
-            await writeLockfiles({
-              currentLockfile: ctx.currentLockfile,
-              currentLockfileDir: ctx.virtualStoreDir,
-              wantedLockfile: ctx.wantedLockfile,
-              wantedLockfileDir: ctx.lockfileDir,
-              useGitBranchLockfile: opts.useGitBranchLockfile,
-              mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-            })
-          }
-          return {
-            updatedProjects: projects.map((mutatedProject) => {
-              const project = ctx.projects[mutatedProject.rootDir]
-              return {
-                ...project,
-                manifest: project.originalManifest ?? project.manifest,
-              }
-            }),
-            stats,
-          }
-        } catch (error: any) { // eslint-disable-line
-          if (
-            frozenLockfile ||
-            (
-              error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' &&
-              !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
-            ) ||
-            (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile)
-          ) throw error
-          if (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) {
-            needsFullResolution = true
-            // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
-            for (const project of projects) {
-              (project as InstallMutationOptions).update = true
-            }
-          }
-          // A broken lockfile may be caused by a badly resolved Git conflict
-          logger.warn({
-            error,
-            message: error.message,
-            prefix: ctx.lockfileDir,
-          })
-          logger.error(new PnpmError(error.code, 'The lockfile is broken! Resolution step will be performed to fix it.'))
-        }
+        return frozenInstallResult
       }
     }
 
@@ -558,78 +493,14 @@ Note that in CI environments, this setting is enabled by default.`,
       case 'install': {
         await installCase({
           ...projectOpts,
-          updatePackageManifest: (projectOpts as InstallDepsMutation).updatePackageManifest ?? (projectOpts as InstallDepsMutation).update,
+          updatePackageManifest: (projectOpts as InstallDepsMutation).updatePackageManifest ?? (projectOpts as InstallDepsMutation).update!,
         })
         break
       }
       case 'installSome': {
         await installSome({
-          ...projectOpts,
+          ...projectOpts as InstallSomeProject,
           updatePackageManifest: (projectOpts as InstallSomeDepsMutation).updatePackageManifest !== false,
-        })
-        break
-      }
-      case 'unlink': {
-        const packageDirs = await readModulesDir(projectOpts.modulesDir)
-        const externalPackages = await pFilter(
-          packageDirs!,
-          async (packageDir: string) => isExternalLink(ctx.storeDir, projectOpts.modulesDir, packageDir)
-        )
-        const allDeps = getAllDependenciesFromManifest(projectOpts.manifest)
-        const packagesToInstall: string[] = []
-        for (const pkgName of externalPackages) {
-          await rimraf(path.join(projectOpts.modulesDir, pkgName))
-          if (allDeps[pkgName]) {
-            packagesToInstall.push(pkgName)
-          }
-        }
-        if (packagesToInstall.length === 0) {
-          return {
-            updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
-          }
-        }
-
-        // TODO: install only those that were unlinked
-        // but don't update their version specs in package.json
-        await installCase({ ...projectOpts, mutation: 'install' })
-        break
-      }
-      case 'unlinkSome': {
-        if (projectOpts.manifest?.name && opts.globalBin) {
-          await removeBin(path.join(opts.globalBin, projectOpts.manifest?.name))
-        }
-        const packagesToInstall: string[] = []
-        const allDeps = getAllDependenciesFromManifest(projectOpts.manifest)
-        for (const depName of project.dependencyNames) {
-          try {
-            if (!await isExternalLink(ctx.storeDir, projectOpts.modulesDir, depName)) {
-              logger.warn({
-                message: `${depName} is not an external link`,
-                prefix: project.rootDir,
-              })
-              continue
-            }
-          } catch (err: any) { // eslint-disable-line
-            if (err['code'] !== 'ENOENT') throw err
-          }
-          await rimraf(path.join(projectOpts.modulesDir, depName))
-          if (allDeps[depName]) {
-            packagesToInstall.push(depName)
-          }
-        }
-        if (packagesToInstall.length === 0) {
-          return {
-            updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
-          }
-        }
-
-        // TODO: install only those that were unlinked
-        // but don't update their version specs in package.json
-        await installSome({
-          ...projectOpts,
-          dependencySelectors: packagesToInstall,
-          mutation: 'installSome',
-          updatePackageManifest: false,
         })
         break
       }
@@ -637,44 +508,32 @@ Note that in CI environments, this setting is enabled by default.`,
     }
     /* eslint-enable no-await-in-loop */
 
-    function isWantedDepPrefSame (alias: string, prevPref: string | undefined, nextPref: string): boolean {
-      if (prevPref !== nextPref) {
-        return false
-      }
+    type InstallCaseProject = Pick<ImporterToUpdate,
+    | 'binsDir'
+    | 'buildIndex'
+    | 'id'
+    | 'manifest'
+    | 'modulesDir'
+    | 'mutation'
+    | 'rootDir'
+    | 'updatePackageManifest'
+    >
 
-      // When pnpm catalogs are used, the specifiers can be the same (e.g.
-      // "catalog:default"), but the wanted versions for the dependency can be
-      // different after resolution if the catalog config was just edited.
-      const catalogName = parseCatalogProtocol(prevPref)
-
-      // If there's no catalog name, the catalog protocol was not used and we
-      // can assume the pref is the same since prevPref and nextPref match.
-      if (catalogName === null) {
-        return true
-      }
-
-      const prevCatalogEntrySpec = ctx.wantedLockfile.catalogs?.[catalogName]?.[alias]?.specifier
-      const nextCatalogEntrySpec = opts.catalogs[catalogName]?.[alias]
-
-      return prevCatalogEntrySpec === nextCatalogEntrySpec
-    }
-
-    async function installCase (project: any) { // eslint-disable-line
+    async function installCase (project: InstallCaseProject) {
       const wantedDependencies = getWantedDependencies(project.manifest, {
         autoInstallPeers: opts.autoInstallPeers,
         includeDirect: opts.includeDirect,
-        updateWorkspaceDependencies: project.update,
         nodeExecPath: opts.nodeExecPath,
       })
-        .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
+        .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
 
       if (ctx.wantedLockfile?.importers) {
-        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, isWantedDepPrefSame)
+        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepBareSpecifierSame)
       }
       if (opts.ignoreScripts && project.manifest?.scripts &&
-        (project.manifest.scripts.preinstall ||
-          project.manifest.scripts.install ||
-          project.manifest.scripts.postinstall ||
+        (project.manifest.scripts.preinstall != null ||
+          project.manifest.scripts.install != null ||
+          project.manifest.scripts.postinstall != null ||
           project.manifest.scripts.prepare)
       ) {
         ctx.pendingBuilds.push(project.id)
@@ -684,13 +543,29 @@ Note that in CI environments, this setting is enabled by default.`,
         pruneDirectDependencies: false,
         ...project,
         wantedDependencies,
-      })
+      } as ImporterToUpdate)
     }
 
-    async function installSome (project: any) { // eslint-disable-line
-      const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromManifest(project.manifest)
-      const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies || {}
-      const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies || {}
+    type InstallSomeProject = Pick<ImporterToUpdate,
+    | 'binsDir'
+    | 'buildIndex'
+    | 'id'
+    | 'manifest'
+    | 'modulesDir'
+    | 'mutation'
+    | 'rootDir'
+    | 'updatePackageManifest'
+    > & Pick<InstallSomeDepsMutation,
+    | 'allowNew'
+    | 'dependencySelectors'
+    | 'targetDependenciesField'
+    | 'update'
+    >
+
+    async function installSome (project: InstallSomeProject) {
+      const currentBareSpecifiers = opts.ignoreCurrentSpecifiers ? {} : getAllDependenciesFromManifest(project.manifest)
+      const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies ?? {}
+      const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies ?? {}
       if (preferredSpecs == null) {
         const manifests = []
         for (const versions of ctx.workspacePackages.values()) {
@@ -702,7 +577,7 @@ Note that in CI environments, this setting is enabled by default.`,
       }
       const wantedDeps = parseWantedDependencies(project.dependencySelectors, {
         allowNew: project.allowNew !== false,
-        currentPrefs,
+        currentBareSpecifiers,
         defaultTag: opts.tag,
         dev: project.targetDependenciesField === 'devDependencies',
         devDependencies,
@@ -710,13 +585,46 @@ Note that in CI environments, this setting is enabled by default.`,
         optionalDependencies,
         updateWorkspaceDependencies: project.update,
         preferredSpecs,
+        saveCatalogName: opts.saveCatalogName,
         overrides: opts.overrides,
+        defaultCatalog: opts.catalogs?.default,
       })
+
+      if (opts.catalogMode !== 'manual') {
+        const catalogBareSpecifier = `catalog:${opts.saveCatalogName == null || opts.saveCatalogName === 'default' ? '' : opts.saveCatalogName}`
+        for (const wantedDep of wantedDeps) {
+          const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })
+          const catalogDepSpecifier = matchCatalogResolveResult(catalog, pickCatalogSpecifier)
+
+          if (
+            !catalogDepSpecifier ||
+            wantedDep.bareSpecifier === catalogBareSpecifier ||
+            semver.validRange(wantedDep.bareSpecifier) &&
+            semver.validRange(catalogDepSpecifier) &&
+            semver.eq(wantedDep.bareSpecifier, catalogDepSpecifier)
+          ) {
+            wantedDep.saveCatalogName = opts.saveCatalogName ?? 'default'
+            continue
+          }
+
+          switch (opts.catalogMode) {
+          case 'strict':
+            throw new CatalogVersionMismatchError({ catalogDep: `${wantedDep.alias}@${catalogDepSpecifier}`, wantedDep: `${wantedDep.alias}@${wantedDep.bareSpecifier}` })
+
+          case 'prefer':
+            logger.warn({
+              message: `Catalog version mismatch for "${wantedDep.alias}": using direct version "${wantedDep.bareSpecifier}" instead of catalog version "${catalogDepSpecifier}".`,
+              prefix: opts.lockfileDir,
+            })
+          }
+        }
+      }
+
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
-        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentPrefs[wantedDep.alias], updateSpec: true, nodeExecPath: opts.nodeExecPath })),
-      })
+        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: !currentBareSpecifiers[wantedDep.alias], updateSpec: true, nodeExecPath: opts.nodeExecPath })),
+      } as ImporterToUpdate)
     }
 
     // Unfortunately, the private lockfile may differ from the public one.
@@ -733,30 +641,219 @@ Note that in CI environments, this setting is enabled by default.`,
       pruneVirtualStore,
       scriptsOpts,
       updateLockfileMinorVersion: true,
-      patchedDependencies: patchedDependenciesWithResolvedPath,
+      patchedDependencies: patchGroups,
     })
 
     return {
+      updatedCatalogs: result.updatedCatalogs,
       updatedProjects: result.projects,
       stats: result.stats,
       depsRequiringBuild: result.depsRequiringBuild,
+      ignoredBuilds: result.ignoredBuilds,
+    }
+  }
+
+  /**
+   * Attempt to perform a "frozen install".
+   *
+   * A "frozen install" will be performed if:
+   *
+   *   1. The --frozen-lockfile flag was explicitly specified or evaluates to
+   *      true based on conditions like running on CI.
+   *   2. No workspace modifications have been made that would invalidate the
+   *      pnpm-lock.yaml file. In other words, the pnpm-lock.yaml file is
+   *      known to be "up-to-date".
+   *
+   * A frozen install is significantly faster since the pnpm-lock.yaml file
+   * can treated as immutable, skipping expensive lookups to acquire new
+   * dependencies. For this reason, a frozen install should be performed even
+   * if --frozen-lockfile wasn't explicitly specified. This allows users to
+   * benefit from the increased performance of a frozen install automatically.
+   *
+   * If a frozen install is not possible, this function will return null.
+   * This indicates a standard mutable install needs to be performed.
+   *
+   * Note this function may update the pnpm-lock.yaml file if the lockfile was
+   * on a different major version, needs to be merged due to git conflicts,
+   * etc. These changes update the format of the pnpm-lock.yaml file, but do
+   * not change recorded dependency resolutions.
+   */
+  async function tryFrozenInstall ({
+    frozenLockfile,
+    needsFullResolution,
+    patchGroups,
+    upToDateLockfileMajorVersion,
+  }: {
+    frozenLockfile: boolean
+    needsFullResolution: boolean
+    patchGroups?: PatchGroupRecord
+    upToDateLockfileMajorVersion: boolean
+  }): Promise<InnerInstallResult | { needsFullResolution: boolean } | null> {
+    const isFrozenInstallPossible =
+      // A frozen install is never possible when any of these are true:
+      !ctx.lockfileHadConflicts &&
+      !opts.fixLockfile &&
+      !opts.dedupe &&
+
+      installsOnly &&
+      (
+        // If the user explicitly requested a frozen lockfile install, attempt
+        // to perform one. An error will be thrown if updates are required.
+        frozenLockfile ||
+
+        // Otherwise, check if a frozen-like install is possible for
+        // performance. This will be the case if all projects are up-to-date.
+        opts.ignorePackageManifest ||
+        !needsFullResolution &&
+        opts.preferFrozenLockfile &&
+        (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
+        ctx.existsNonEmptyWantedLockfile &&
+        ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
+        await allProjectsAreUpToDate(Object.values(ctx.projects), {
+          catalogs: opts.catalogs,
+          autoInstallPeers: opts.autoInstallPeers,
+          excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+          linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
+          wantedLockfile: ctx.wantedLockfile,
+          workspacePackages: ctx.workspacePackages,
+          lockfileDir: opts.lockfileDir,
+        })
+      )
+
+    if (!isFrozenInstallPossible) {
+      return null
+    }
+
+    if (needsFullResolution) {
+      throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
+        'Cannot perform a frozen installation because the version of the lockfile is incompatible with this version of pnpm',
+        {
+          hint: `Try either:
+1. Aligning the version of pnpm that generated the lockfile with the version that installs from it, or
+2. Migrating the lockfile so that it is compatible with the newer version of pnpm, or
+3. Using "pnpm install --no-frozen-lockfile".
+Note that in CI environments, this setting is enabled by default.`,
+        }
+      )
+    }
+    if (!opts.ignorePackageManifest) {
+      const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
+        autoInstallPeers: opts.autoInstallPeers,
+        excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      })
+      for (const { id, manifest, rootDir } of Object.values(ctx.projects)) {
+        const { satisfies, detailedReason } = _satisfiesPackageManifest(ctx.wantedLockfile.importers[id], manifest)
+        if (!satisfies) {
+          if (!ctx.existsWantedLockfile) {
+            throw new PnpmError('NO_LOCKFILE',
+              `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`, {
+                hint: 'Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"',
+              })
+          }
+
+          throw new PnpmError('OUTDATED_LOCKFILE',
+            `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ` +
+            path.join('<ROOT>', path.relative(opts.lockfileDir, path.join(rootDir, 'package.json'))), {
+              hint: `Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"
+
+  Failure reason:
+  ${detailedReason ?? ''}`,
+            })
+        }
+      }
+    }
+    if (opts.lockfileOnly) {
+      // The lockfile will only be changed if the workspace will have new projects with no dependencies.
+      await writeWantedLockfile(ctx.lockfileDir, ctx.wantedLockfile)
+      return {
+        updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
+        ignoredBuilds: undefined,
+      }
+    }
+    if (!ctx.existsNonEmptyWantedLockfile) {
+      if (Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
+        throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
+      }
+      return null
+    }
+
+    if (maybeOpts.ignorePackageManifest) {
+      logger.info({ message: 'Importing packages to virtual store', prefix: opts.lockfileDir })
+    } else {
+      logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
+    }
+    try {
+      const { stats, ignoredBuilds } = await headlessInstall({
+        ...ctx,
+        ...opts,
+        currentEngine: {
+          nodeVersion: opts.nodeVersion,
+          pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+        },
+        currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
+        patchedDependencies: patchGroups,
+        selectedProjectDirs: projects.map((project) => project.rootDir),
+        allProjects: ctx.projects,
+        prunedAt: ctx.modulesFile?.prunedAt,
+        pruneVirtualStore,
+        wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
+        useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
+      })
+      if (
+        opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles ||
+        !upToDateLockfileMajorVersion && !opts.frozenLockfile
+      ) {
+        const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
+        await writeLockfiles({
+          currentLockfile: ctx.currentLockfile,
+          currentLockfileDir,
+          wantedLockfile: ctx.wantedLockfile,
+          wantedLockfileDir: ctx.lockfileDir,
+          useGitBranchLockfile: opts.useGitBranchLockfile,
+          mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+        })
+      }
+      return {
+        updatedProjects: projects.map((mutatedProject) => {
+          const project = ctx.projects[mutatedProject.rootDir]
+          return {
+            ...project,
+            manifest: project.originalManifest ?? project.manifest,
+          }
+        }),
+        stats,
+        ignoredBuilds,
+      }
+    } catch (error: any) { // eslint-disable-line
+      if (
+        frozenLockfile ||
+        (
+          error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' &&
+          !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
+        ) ||
+        (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile)
+      ) throw error
+      if (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) {
+        needsFullResolution = true
+        // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
+        for (const project of projects) {
+          (project as InstallMutationOptions).update = true
+        }
+      }
+      // A broken lockfile may be caused by a badly resolved Git conflict
+      logger.warn({
+        error,
+        message: error.message,
+        prefix: ctx.lockfileDir,
+      })
+      logger.error(new PnpmError(error.code, 'The lockfile is broken! Resolution step will be performed to fix it.'))
+      return { needsFullResolution }
     }
   }
 }
 
-export function createObjectChecksum (obj: Record<string, unknown>): string {
-  const s = JSON.stringify(sortKeys(obj, { deep: true }))
-  return crypto.createHash('md5').update(s).digest('hex')
-}
-
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number): boolean {
   return ((Date.now() - new Date(prunedAt).valueOf()) / (1000 * 60)) > maxAgeInMinutes
-}
-
-async function isExternalLink (storeDir: string, modules: string, pkgName: string): Promise<boolean> {
-  const link = await isInnerLink(modules, pkgName)
-
-  return !link.isInner
 }
 
 function pkgHasDependencies (manifest: ProjectManifest): boolean {
@@ -772,14 +869,14 @@ function pkgHasDependencies (manifest: ProjectManifest): boolean {
 function forgetResolutionsOfPrevWantedDeps (
   importer: ProjectSnapshot,
   wantedDeps: WantedDependency[],
-  isWantedDepPrefSame: (alias: string, prevPref: string | undefined, nextPref: string) => boolean
+  isWantedDepBareSpecifierSame: (alias: string, prevBareSpecifier: string | undefined, nextBareSpecifier: string) => boolean
 ): void {
   if (!importer.specifiers) return
   importer.dependencies = importer.dependencies ?? {}
   importer.devDependencies = importer.devDependencies ?? {}
   importer.optionalDependencies = importer.optionalDependencies ?? {}
-  for (const { alias, pref } of wantedDeps) {
-    if (alias && !isWantedDepPrefSame(alias, importer.specifiers[alias], pref)) {
+  for (const { alias, bareSpecifier } of wantedDeps) {
+    if (alias && !isWantedDepBareSpecifierSame(alias, importer.specifiers[alias], bareSpecifier)) {
       if (!importer.dependencies[alias]?.startsWith('link:')) {
         delete importer.dependencies[alias]
       }
@@ -789,7 +886,7 @@ function forgetResolutionsOfPrevWantedDeps (
   }
 }
 
-function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: Lockfile): void {
+function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: LockfileObject): void {
   // Similar to the forgetResolutionsOfPrevWantedDeps function above, we can
   // delete existing resolutions in importers to make sure they're resolved
   // again.
@@ -808,6 +905,47 @@ function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: Lockfile): void {
       ({ dependencies, optionalDependencies, ...rest }) => rest,
       wantedLockfile.packages)
   }
+
+  // Also clear the resolutions in catalogs so they're re-resolved and deduped.
+  if ((wantedLockfile.catalogs != null) && !isEmpty(wantedLockfile.catalogs)) {
+    wantedLockfile.catalogs = undefined
+  }
+}
+
+/**
+ * Check if a wanted bareSpecifier is the same.
+ *
+ * It would be different if the user modified a dependency in package.json or a
+ * catalog entry in pnpm-workspace.yaml. This is normally a simple check to see
+ * if the specifier strings match, but catalogs make this more involved since we
+ * also have to check if the catalog config in pnpm-workspace.yaml is the same.
+ */
+function isWantedDepBareSpecifierSame (
+  prevCatalogs: CatalogSnapshots | undefined,
+  catalogsConfig: Catalogs | undefined,
+  alias: string,
+  prevBareSpecifier: string | undefined,
+  nextBareSpecifier: string
+): boolean {
+  if (prevBareSpecifier !== nextBareSpecifier) {
+    return false
+  }
+
+  // When pnpm catalogs are used, the specifiers can be the same (e.g.
+  // "catalog:default"), but the wanted versions for the dependency can be
+  // different after resolution if the catalog config was just edited.
+  const catalogName = parseCatalogProtocol(prevBareSpecifier)
+
+  // If there's no catalog name, the catalog protocol was not used and we
+  // can assume the bareSpecifier is the same since prevBareSpecifier and nextBareSpecifier match.
+  if (catalogName === null) {
+    return true
+  }
+
+  const prevCatalogEntrySpec = prevCatalogs?.[catalogName]?.[alias]?.specifier
+  const nextCatalogEntrySpec = catalogsConfig?.[catalogName]?.[alias]
+
+  return prevCatalogEntrySpec === nextCatalogEntrySpec
 }
 
 export async function addDependenciesToPackage (
@@ -820,9 +958,9 @@ export async function addDependenciesToPackage (
     pinnedVersion?: 'major' | 'minor' | 'patch'
     targetDependenciesField?: DependenciesField
   } & InstallMutationOptions
-): Promise<ProjectManifest> {
+): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { updatedProjects: projects } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds } = await mutateModules(
     [
       {
         allowNew: opts.allowNew,
@@ -835,6 +973,7 @@ export async function addDependenciesToPackage (
         update: opts.update,
         updateMatching: opts.updateMatching,
         updatePackageManifest: opts.updatePackageManifest,
+        updateToLatest: opts.updateToLatest,
       },
     ],
     {
@@ -849,7 +988,7 @@ export async function addDependenciesToPackage (
         },
       ],
     })
-  return projects[0].manifest
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds }
 }
 
 export type ImporterToUpdate = {
@@ -863,7 +1002,7 @@ export type ImporterToUpdate = {
   pruneDirectDependencies: boolean
   removePackages?: string[]
   updatePackageManifest: boolean
-  wantedDependencies: Array<WantedDependency & { isNew?: boolean, updateSpec?: boolean, preserveNonSemverVersionSpec?: boolean }>
+  wantedDependencies: Array<WantedDependency & { isNew?: boolean, updateSpec?: boolean }>
 } & DependenciesMutation
 
 export interface UpdatedProject {
@@ -874,17 +1013,19 @@ export interface UpdatedProject {
 }
 
 interface InstallFunctionResult {
-  newLockfile: Lockfile
+  updatedCatalogs?: Catalogs
+  newLockfile: LockfileObject
   projects: UpdatedProject[]
   stats?: InstallationResultStats
   depsRequiringBuild: DepPath[]
+  ignoredBuilds?: string[]
 }
 
 type InstallFunction = (
   projects: ImporterToUpdate[],
   ctx: PnpmContext,
   opts: Omit<StrictInstallOptions, 'patchedDependencies'> & {
-    patchedDependencies?: Record<string, PatchFile>
+    patchedDependencies?: PatchGroupRecord
     makePartialCurrentLockfile: boolean
     needsFullResolution: boolean
     neverBuiltDependencies?: string[]
@@ -987,6 +1128,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     dependenciesGraph,
     dependenciesByProjectId,
     linkedDependenciesByProjectId,
+    updatedCatalogs,
     newLockfile,
     outdatedDependencies,
     peerDependencyIssuesByProjects,
@@ -995,10 +1137,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   } = await resolveDependencies(
     projects,
     {
-      // In the next major allow build should be just () => true here always
-      allowBuild: opts.onlyBuiltDependenciesFile ? () => true : createAllowBuildFunction({ onlyBuiltDependencies: opts.onlyBuiltDependencies, neverBuiltDependencies: opts.neverBuiltDependencies }),
       allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
-      allowNonAppliedPatches: opts.allowNonAppliedPatches,
+      allowUnusedPatches: opts.allowUnusedPatches,
       autoInstallPeers: opts.autoInstallPeers,
       autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch,
       catalogs: opts.catalogs,
@@ -1008,6 +1148,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dedupeInjectedDeps: opts.dedupeInjectedDeps,
       dedupePeerDependents: opts.dedupePeerDependents,
       dryRun: opts.lockfileOnly,
+      enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
       engineStrict: opts.engineStrict,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
@@ -1028,7 +1169,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
       tag: opts.tag,
-      updateToLatest: opts.updateToLatest,
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: ctx.virtualStoreDirMaxLength,
       wantedLockfile: ctx.wantedLockfile,
@@ -1038,6 +1178,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
       supportedArchitectures: opts.supportedArchitectures,
       peersSuffixMaxLength: opts.peersSuffixMaxLength,
+      injectWorkspacePackages: opts.injectWorkspacePackages,
+      minimumReleaseAge: opts.minimumReleaseAge,
+      minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
@@ -1078,7 +1221,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   })
 
   newLockfile = ((opts.hooks?.afterAllResolved) != null)
-    ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as Lockfile // eslint-disable-line
+    ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as LockfileObject // eslint-disable-line
     : newLockfile
 
   if (opts.updateLockfileMinorVersion) {
@@ -1091,11 +1234,14 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
   let stats: InstallationResultStats | undefined
+  const allowBuild = createAllowBuildFunction(opts)
+  let ignoredBuilds: string[] | undefined
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,
       dependenciesGraph,
       {
+        allowBuild,
         currentLockfile: ctx.currentLockfile,
         dedupeDirectDeps: opts.dedupeDirectDeps,
         dependenciesByProjectId,
@@ -1165,8 +1311,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
           }
         }
-        await buildModules(dependenciesGraph, rootNodes, {
-          allowBuild: createAllowBuildFunction(opts),
+        ignoredBuilds = (await buildModules(dependenciesGraph, rootNodes, {
+          allowBuild,
+          ignorePatchFailures: opts.ignorePatchFailures,
+          ignoredBuiltDependencies: opts.ignoredBuiltDependencies,
           childConcurrency: opts.childConcurrency,
           depsStateCache,
           depsToBuild: new Set(result.newDepPaths),
@@ -1186,7 +1334,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           storeController: opts.storeController,
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
-        })
+        })).ignoredBuilds
+        if (ignoredBuilds == null && ctx.modulesFile?.ignoredBuilds?.length) {
+          ignoredBuilds = ctx.modulesFile.ignoredBuilds
+          ignoredScriptsLogger.debug({ packageNames: ignoredBuilds })
+        }
       }
     }
 
@@ -1272,11 +1424,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     })
+    const currentLockfileDir = path.join(ctx.rootModulesDir, '.pnpm')
     await Promise.all([
       opts.useLockfile && opts.saveLockfile
         ? writeLockfiles({
           currentLockfile: result.currentLockfile,
-          currentLockfileDir: ctx.virtualStoreDir,
+          currentLockfileDir,
           wantedLockfile: newLockfile,
           wantedLockfileDir: ctx.lockfileDir,
           ...lockfileOpts,
@@ -1298,6 +1451,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           hoistPattern: ctx.hoistPattern,
           included: ctx.include,
           injectedDeps,
+          ignoredBuilds,
           layoutVersion: LAYOUT_VERSION,
           nodeLinker: opts.nodeLinker,
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
@@ -1324,7 +1478,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         }
       }
       const projectsToBeBuilt = projectsWithTargetDirs.filter(({ mutation }) => mutation === 'install') as ProjectToBeInstalled[]
-      await runLifecycleHooksConcurrently(['preinstall', 'install', 'postinstall', 'prepare'],
+      await runLifecycleHooksConcurrently(['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
         projectsToBeBuilt,
         opts.childConcurrency,
         opts.scriptsOpts
@@ -1356,12 +1510,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }))
   }
 
-  summaryLogger.debug({ prefix: opts.lockfileDir })
-
   reportPeerDependencyIssues(peerDependencyIssuesByProjects, {
     lockfileDir: opts.lockfileDir,
     strictPeerDependencies: opts.strictPeerDependencies,
+    rules: opts.peerDependencyRules,
   })
+
+  summaryLogger.debug({ prefix: opts.lockfileDir })
 
   // Similar to the sequencing for when the original wanted lockfile is
   // copied, the new lockfile passed here should be as close as possible to
@@ -1372,6 +1527,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 
   return {
+    updatedCatalogs,
     newLockfile,
     projects: projects.map(({ id, manifest, rootDir }) => ({
       manifest,
@@ -1380,6 +1536,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     })),
     stats,
     depsRequiringBuild,
+    ignoredBuilds,
   }
 }
 
@@ -1394,66 +1551,55 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       const allProjectsLocatedInsideWorkspace = Object.values(ctx.projects)
         .filter((project) => isPathInsideWorkspace(project.rootDirRealPath ?? project.rootDir))
       if (allProjectsLocatedInsideWorkspace.length > projects.length) {
-        if (
-          allMutationsAreInstalls(projects) &&
-          await allProjectsAreUpToDate(allProjectsLocatedInsideWorkspace, {
-            catalogs: opts.catalogs,
-            autoInstallPeers: opts.autoInstallPeers,
-            excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-            linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
-            wantedLockfile: ctx.wantedLockfile,
-            workspacePackages: ctx.workspacePackages,
-            lockfileDir: opts.lockfileDir,
-          })
-        ) {
-          return installInContext(projects, ctx, {
-            ...opts,
-            frozenLockfile: true,
-          })
-        } else {
-          const newProjects = [...projects]
-          const getWantedDepsOpts = {
-            autoInstallPeers: opts.autoInstallPeers,
-            includeDirect: opts.includeDirect,
-            updateWorkspaceDependencies: false,
-            nodeExecPath: opts.nodeExecPath,
+        const newProjects = [...projects]
+        const getWantedDepsOpts = {
+          autoInstallPeers: opts.autoInstallPeers,
+          includeDirect: opts.includeDirect,
+          updateWorkspaceDependencies: false,
+          nodeExecPath: opts.nodeExecPath,
+          injectWorkspacePackages: opts.injectWorkspacePackages,
+        }
+        const _isWantedDepBareSpecifierSame = isWantedDepBareSpecifierSame.bind(null, ctx.wantedLockfile.catalogs, opts.catalogs)
+        for (const project of allProjectsLocatedInsideWorkspace) {
+          if (!newProjects.some(({ rootDir }) => rootDir === project.rootDir)) {
+            // This code block mirrors the installCase() function in
+            // mutateModules(). Consider a refactor that combines this logic to
+            // deduplicate code.
+            const wantedDependencies = getWantedDependencies(project.manifest, getWantedDepsOpts)
+              .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
+            forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies, _isWantedDepBareSpecifierSame)
+            newProjects.push({
+              mutation: 'install',
+              ...project,
+              wantedDependencies,
+              pruneDirectDependencies: false,
+              updatePackageManifest: false,
+            })
           }
-          for (const project of allProjectsLocatedInsideWorkspace) {
-            if (!newProjects.some(({ rootDir }) => rootDir === project.rootDir)) {
-              const wantedDependencies = getWantedDependencies(project.manifest, getWantedDepsOpts)
-                .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
-              newProjects.push({
-                mutation: 'install',
-                ...project,
-                wantedDependencies,
-                pruneDirectDependencies: false,
-                updatePackageManifest: false,
-              })
-            }
-          }
-          const result = await installInContext(newProjects, ctx, {
-            ...opts,
-            lockfileOnly: true,
-          })
-          const { stats } = await headlessInstall({
-            ...ctx,
-            ...opts,
-            currentEngine: {
-              nodeVersion: opts.nodeVersion,
-              pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-            },
-            currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
-            selectedProjectDirs: projects.map((project) => project.rootDir),
-            allProjects: ctx.projects,
-            prunedAt: ctx.modulesFile?.prunedAt,
-            wantedLockfile: result.newLockfile,
-            useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
-            hoistWorkspacePackages: opts.hoistWorkspacePackages,
-          })
-          return {
-            ...result,
-            stats,
-          }
+        }
+        const result = await installInContext(newProjects, ctx, {
+          ...opts,
+          lockfileOnly: true,
+        })
+        const { stats, ignoredBuilds } = await headlessInstall({
+          ...ctx,
+          ...opts,
+          currentEngine: {
+            nodeVersion: opts.nodeVersion,
+            pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+          },
+          currentHoistedLocations: ctx.modulesFile?.hoistedLocations,
+          selectedProjectDirs: projects.map((project) => project.rootDir),
+          allProjects: ctx.projects,
+          prunedAt: ctx.modulesFile?.prunedAt,
+          wantedLockfile: result.newLockfile,
+          useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
+          hoistWorkspacePackages: opts.hoistWorkspacePackages,
+        })
+        return {
+          ...result,
+          stats,
+          ignoredBuilds,
         }
       }
     }
@@ -1462,7 +1608,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         ...opts,
         lockfileOnly: true,
       })
-      const { stats } = await headlessInstall({
+      const { stats, ignoredBuilds } = await headlessInstall({
         ...ctx,
         ...opts,
         currentEngine: {
@@ -1480,13 +1626,8 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       return {
         ...result,
         stats,
+        ignoredBuilds,
       }
-    }
-    if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
-      logger.warn({
-        message: '`node_modules` is present. Lockfile only installation will make it out-of-date',
-        prefix: ctx.lockfileDir,
-      })
     }
     return await _installInContext(projects, ctx, opts)
   } catch (error: any) { // eslint-disable-line

@@ -2,7 +2,7 @@ import { type Config } from '@pnpm/config'
 import { initDefaultReporter } from '@pnpm/default-reporter'
 import { type Log } from '@pnpm/core-loggers'
 import { type LogLevel, type StreamParser, streamParser, writeToConsole } from '@pnpm/logger'
-import { silentReporter } from './silentReporter'
+import { silentReporter } from './silentReporter.js'
 
 export type ReporterType = 'default' | 'ndjson' | 'silent' | 'append-only'
 
@@ -28,7 +28,6 @@ export function initReporter (
         throttleProgress: 200,
         hideAddedPkgsProgress: opts.config.lockfileOnly,
         hideLifecyclePrefix: opts.config.reporterHidePrefix,
-        peerDependencyRules: opts.config.rootProjectManifest?.pnpm?.peerDependencyRules,
       },
       streamParser: streamParser as StreamParser<Log>,
     })
@@ -46,7 +45,6 @@ export function initReporter (
         logLevel: opts.config.loglevel as LogLevel,
         throttleProgress: 1000,
         hideLifecyclePrefix: opts.config.reporterHidePrefix,
-        peerDependencyRules: opts.config.rootProjectManifest?.pnpm?.peerDependencyRules,
       },
       streamParser: streamParser as StreamParser<Log>,
     })

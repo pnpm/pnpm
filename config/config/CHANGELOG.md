@@ -1,5 +1,539 @@
 # @pnpm/config
 
+## 1004.4.2
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+- Updated dependencies [7c1382f]
+  - @pnpm/types@1000.9.0
+  - @pnpm/matcher@1000.1.0
+  - @pnpm/pnpmfile@1002.1.3
+  - @pnpm/read-project-manifest@1001.1.4
+  - @pnpm/workspace.read-manifest@1000.2.5
+  - @pnpm/catalogs.config@1000.0.5
+
+## 1004.4.1
+
+### Patch Changes
+
+- 9865167: Fix a bug where pnpm would infinitely recurse when using `verifyDepsBeforeInstall: install` and pre/post install scripts that called other pnpm scripts [#10060](https://github.com/pnpm/pnpm/issues/10060).
+
+## 1004.4.0
+
+### Minor Changes
+
+- fb4da0c: Added network performance monitoring to pnpm by implementing warnings for slow network requests, including both metadata fetches and tarball downloads.
+
+  Added configuration options for warning thresholds: `fetchWarnTimeoutMs` and `fetchMinSpeedKiBps`.
+  Warning messages are displayed when requests exceed time thresholds or fall below speed minimums
+
+  Related PR: [#10025](https://github.com/pnpm/pnpm/pull/10025).
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1001.1.3
+- @pnpm/pnpmfile@1002.1.2
+
+## 1004.3.1
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/error@1000.0.5
+  - @pnpm/workspace.read-manifest@1000.2.4
+  - @pnpm/catalogs.config@1000.0.5
+  - @pnpm/pnpmfile@1002.1.1
+  - @pnpm/read-project-manifest@1001.1.2
+
+## 1004.3.0
+
+### Minor Changes
+
+- 38e2599: There have been several incidents recently where popular packages were successfully attacked. To reduce the risk of installing a compromised version, we are introducing a new setting that delays the installation of newly released dependencies. In most cases, such attacks are discovered quickly and the malicious versions are removed from the registry within an hour.
+
+  The new setting is called `minimumReleaseAge`. It specifies the number of minutes that must pass after a version is published before pnpm will install it. For example, setting `minimumReleaseAge: 1440` ensures that only packages released at least one day ago can be installed.
+
+  If you set `minimumReleaseAge` but need to disable this restriction for certain dependencies, you can list them under the `minimumReleaseAgeExclude` setting. For instance, with the following configuration pnpm will always install the latest version of webpack, regardless of its release time:
+
+  ```yaml
+  minimumReleaseAgeExclude:
+    - webpack
+  ```
+
+  Related issue: [#9921](https://github.com/pnpm/pnpm/issues/9921).
+
+- e792927: Added support for `finders` [#9946](https://github.com/pnpm/pnpm/pull/9946).
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/pnpmfile@1002.1.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/read-project-manifest@1001.1.1
+  - @pnpm/workspace.read-manifest@1000.2.3
+  - @pnpm/catalogs.config@1000.0.4
+
+## 1004.2.1
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/error@1000.0.4
+  - @pnpm/workspace.read-manifest@1000.2.2
+  - @pnpm/pnpmfile@1002.0.2
+  - @pnpm/catalogs.config@1000.0.4
+
+## 1004.2.0
+
+### Minor Changes
+
+- 6f7ac0f: Add `--cpu`, `--libc`, and `--os` to `pnpm install`, `pnpm add`, and `pnpm dlx` to customize `supportedArchitectures` via the CLI [#7510](https://github.com/pnpm/pnpm/issues/7510).
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/pnpmfile@1002.0.1
+  - @pnpm/workspace.read-manifest@1000.2.1
+  - @pnpm/error@1000.0.3
+  - @pnpm/catalogs.config@1000.0.3
+
+## 1004.1.0
+
+### Minor Changes
+
+- 623da6f: Prevent conflicts between local projects' config and the global config in `dangerously-allow-all-builds`, `only-built-dependencies`, `only-built-dependencies-file`, and `never-built-dependencies` [#9628](https://github.com/pnpm/pnpm/issues/9628).
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [e225310]
+- Updated dependencies [cf630a8]
+  - @pnpm/pnpmfile@1002.0.0
+
+## 1004.0.0
+
+### Major Changes
+
+- b0ead51: Don't return a default value for virtualStoreDir.
+
+### Minor Changes
+
+- b217bbb: Added a new setting called `ci` for explicitly telling pnpm if the current environment is a CI or not.
+- c8341cc: Added two new CLI options (`--save-catalog` and `--save-catalog-name=<name>`) to `pnpm add` to save new dependencies as catalog entries. `catalog:` or `catalog:<name>` will be added to `package.json` and the package specifier will be added to the `catalogs` or `catalog[<name>]` object in `pnpm-workspace.yaml` [#9425](https://github.com/pnpm/pnpm/issues/9425).
+- b0ead51: **Experimental**. Added support for global virtual stores. When the global virtual store is enabled, `node_modules` doesn’t contain regular files, only symlinks to a central virtual store (by default the central store is located at `<store-path>/links`; run `pnpm store path` to find `<store-path>`).
+
+  To enable the global virtual store, add `enableGlobalVirtualStore: true` to your root `pnpm-workspace.yaml`.
+
+  A global virtual store can make installations significantly faster when a warm cache is present. In CI, however, it will probably slow installations because there is usually no cache.
+
+  Related PR: [#8190](https://github.com/pnpm/pnpm/pull/8190).
+
+- 046af72: A new `catalogMode` setting is available for controlling if and how dependencies are added to the default catalog. It can be configured to several modes:
+
+  - `strict`: Only allows dependency versions from the catalog. Adding a dependency outside the catalog's version range will cause an error.
+  - `prefer`: Prefers catalog versions, but will fall back to direct dependencies if no compatible version is found.
+  - `manual` (default): Does not automatically add dependencies to the catalog.
+
+### Patch Changes
+
+- Updated dependencies [c8341cc]
+  - @pnpm/workspace.read-manifest@1000.2.0
+  - @pnpm/catalogs.config@1000.0.2
+  - @pnpm/pnpmfile@1001.2.3
+
+## 1003.1.1
+
+### Patch Changes
+
+- 8d175c0: Use `pnpm_config_` env variables instead of `npm_config_` [#9571](https://github.com/pnpm/pnpm/pull/9571).
+  - @pnpm/pnpmfile@1001.2.2
+
+## 1003.1.0
+
+### Minor Changes
+
+- b282bd1: A new setting added for `pnpm init` to create a `package.json` with `type=module`, when `init-type` is `module`. Works as a flag for the init command too [#9463](https://github.com/pnpm/pnpm/pull/9463).
+
+### Patch Changes
+
+- fdb1d98: Get `pack-destination` configuration from settings.
+- e4af08c: `pnpm link` should work from inside a workspace [#9506](https://github.com/pnpm/pnpm/issues/9506).
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- 36d1448: Set the default `workspaceConcurrency` to `Math.min(os.availableParallelism(), 4)` [#9493](https://github.com/pnpm/pnpm/pull/9493).
+- 9362b5f: Read `updateConfig` from `pnpm-workspace.yaml` [#9500](https://github.com/pnpm/pnpm/issues/9500).
+- 6cf010c: `pnpm run` should be able to run commands from the workspace root, if `ignoreScripts` is set tot `true` [#4858](https://github.com/pnpm/pnpm/issues/4858).
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/pnpmfile@1001.2.1
+  - @pnpm/types@1000.6.0
+  - @pnpm/read-project-manifest@1000.0.11
+  - @pnpm/workspace.read-manifest@1000.1.5
+  - @pnpm/catalogs.config@1000.0.2
+
+## 1003.0.1
+
+### Patch Changes
+
+- Updated dependencies [e5c58f0]
+  - @pnpm/pnpmfile@1001.2.0
+
+## 1003.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+
+### Minor Changes
+
+- 56bb69b: Added a new setting, `dangerouslyAllowAllBuilds`, for automatically running any scripts of dependencies without the need to approve any builds. It was already possible to allow all builds by adding this to `pnpm-workspace.yaml`:
+
+  ```yaml
+  neverBuiltDependencies: []
+  ```
+
+  `dangerouslyAllowAllBuilds` has the same effect but also allows to be set globally via:
+
+  ```
+  pnpm config set dangerouslyAllowAllBuilds true
+  ```
+
+  It can also be set when running a command:
+
+  ```
+  pnpm install --dangerously-allow-all-builds
+  ```
+
+- 9c3dd03: **Added support for installing JSR packages.** You can now install JSR packages using the following syntax:
+
+  ```
+  pnpm add jsr:<pkg_name>
+  ```
+
+  or with a version range:
+
+  ```
+  pnpm add jsr:<pkg_name>@<range>
+  ```
+
+  For example, running:
+
+  ```
+  pnpm add jsr:@foo/bar
+  ```
+
+  will add the following entry to your `package.json`:
+
+  ```json
+  {
+    "dependencies": {
+      "@foo/bar": "jsr:^0.1.2"
+    }
+  }
+  ```
+
+  When publishing, this entry will be transformed into a format compatible with npm, older versions of Yarn, and previous pnpm versions:
+
+  ```json
+  {
+    "dependencies": {
+      "@foo/bar": "npm:@jsr/foo__bar@^0.1.2"
+    }
+  }
+  ```
+
+  Related issue: [#8941](https://github.com/pnpm/pnpm/issues/8941).
+
+  Note: The `@jsr` scope defaults to <https://npm.jsr.io/> if the `@jsr:registry` setting is not defined.
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/pnpmfile@1001.1.2
+  - @pnpm/read-project-manifest@1000.0.10
+  - @pnpm/workspace.read-manifest@1000.1.4
+  - @pnpm/catalogs.config@1000.0.2
+
+## 1002.7.2
+
+### Patch Changes
+
+- @pnpm/pnpmfile@1001.1.1
+
+## 1002.7.1
+
+### Patch Changes
+
+- 5679712: `sharedWorkspaceLockfile` should be set in `pnpm-workspace.yaml` to take effect.
+- 01f2bcf: `pnpm audit --fix` should update the overrides in `pnpm-workspace.yaml`.
+- Updated dependencies [750ae7d]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/pnpmfile@1001.1.0
+  - @pnpm/read-project-manifest@1000.0.9
+  - @pnpm/workspace.read-manifest@1000.1.3
+  - @pnpm/catalogs.config@1000.0.2
+
+## 1002.7.0
+
+### Minor Changes
+
+- e57f1df: Replace leading `~/` in a path in `.npmrc` with the home directory [#9217](https://github.com/pnpm/pnpm/issues/9217).
+
+## 1002.6.0
+
+### Minor Changes
+
+- 9bcca9f: `pnpm config get` and `list` also show settings set in `pnpm-workspace.yaml` files [#9316](https://github.com/pnpm/pnpm/pull/9316).
+- 5b35dff: It should be possible to use env variables in `pnpm-workspace.yaml` setting names and value.
+- 9bcca9f: `pnpm config set --location=project` saves the setting to a `pnpm-workspace.yaml` file if no `.npmrc` file is present in the directory [#9316](https://github.com/pnpm/pnpm/pull/9316).
+- 5f7be64: Rename `pnpm.allowNonAppliedPatches` to `pnpm.allowUnusedPatches`. The old name is still supported but it would print a deprecation warning message.
+- 5f7be64: Add `pnpm.ignorePatchFailures` to manage whether pnpm would ignore patch application failures.
+
+  If `ignorePatchFailures` is not set, pnpm would throw an error when patches with exact versions or version ranges fail to apply, and it would ignore failures from name-only patches.
+
+  If `ignorePatchFailures` is explicitly set to `false`, pnpm would throw an error when any type of patch fails to apply.
+
+  If `ignorePatchFailures` is explicitly set to `true`, pnpm would print a warning when any type of patch fails to apply.
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/pnpmfile@1001.0.9
+  - @pnpm/read-project-manifest@1000.0.8
+  - @pnpm/workspace.read-manifest@1000.1.2
+  - @pnpm/catalogs.config@1000.0.2
+
+## 1002.5.4
+
+### Patch Changes
+
+- 936430a: Setting `workspace-concurrency` to less than or equal to 0 should work [#9297](https://github.com/pnpm/pnpm/issues/9297).
+  - @pnpm/pnpmfile@1001.0.8
+
+## 1002.5.3
+
+### Patch Changes
+
+- 6e4459c: `pnpm install --prod=false` should not crash, when executed in a project with a `pnpm-workspace.yaml` file [#9233](https://github.com/pnpm/pnpm/issues/9233). This fixes regression introduced via [#9211](https://github.com/pnpm/pnpm/pull/9211).
+
+## 1002.5.2
+
+### Patch Changes
+
+- @pnpm/pnpmfile@1001.0.7
+
+## 1002.5.1
+
+### Patch Changes
+
+- c3aa4d8: Don't ignore pnpm.patchedDependencies from `package.json` [#9226](https://github.com/pnpm/pnpm/issues/9226).
+
+## 1002.5.0
+
+### Minor Changes
+
+- d965748: `pnpm-workspace.yaml` can now hold all the settings that `.npmrc` accepts. The settings should use camelCase [#9211](https://github.com/pnpm/pnpm/pull/9211).
+
+  `pnpm-workspace.yaml` example:
+
+  ```yaml
+  verifyDepsBeforeRun: install
+  optimisticRepeatInstall: true
+  publicHoistPattern:
+    - "*types*"
+    - "!@types/react"
+  ```
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/pnpmfile@1001.0.6
+  - @pnpm/read-project-manifest@1000.0.7
+  - @pnpm/workspace.read-manifest@1000.1.1
+  - @pnpm/catalogs.config@1000.0.2
+
+## 1002.4.1
+
+### Patch Changes
+
+- 1c2eb8c: Specifying `overrides` in `pnpm-workspace.yaml` should work.
+
+## 1002.4.0
+
+### Minor Changes
+
+- 8fcc221: Allow to set the "pnpm" settings from `package.json` via the `pnpm-workspace.yaml` file.
+- e32b1a2: Added support for automatically syncing files of injected workspace packages after `pnpm run` [#9081](https://github.com/pnpm/pnpm/issues/9081). Use the `sync-injected-deps-after-scripts` setting to specify which scripts build the workspace package. This tells pnpm when syncing is needed. The setting should be defined in a `.npmrc` file at the root of the workspace. Example:
+
+  ```ini
+  sync-injected-deps-after-scripts[]=compile
+  ```
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/workspace.read-manifest@1000.1.0
+  - @pnpm/pnpmfile@1001.0.5
+  - @pnpm/read-project-manifest@1000.0.6
+  - @pnpm/catalogs.config@1000.0.2
+
+## 1002.3.1
+
+### Patch Changes
+
+- fee898f: Setting `init-package-manager` should work.
+
+## 1002.3.0
+
+### Minor Changes
+
+- f6006f2: Added a new setting called `strict-dep-builds`. When enabled, the installation will exit with a non-zero exit code if any dependencies have unreviewed build scripts (aka postinstall scripts) [#9071](https://github.com/pnpm/pnpm/pull/9071).
+
+## 1002.2.1
+
+### Patch Changes
+
+- Updated dependencies [1e229d7]
+  - @pnpm/read-project-manifest@1000.0.5
+
+## 1002.2.0
+
+### Minor Changes
+
+- f3ffaed: Added a new setting called `optimistic-repeat-install`. When enabled, a fast check will be performed before proceeding to installation. This way a repeat install or an install on a project with everything up-to-date becomes a lot faster. But some edge cases might arise, so we keep it disabled by default for now [#8977](https://github.com/pnpm/pnpm/pull/8977).
+
+### Patch Changes
+
+- c96eb2b: Fix infinite loop caused by lifecycle scripts using `pnpm` to execute other scripts during `pnpm install` with `verify-deps-before-run=install` [#8954](https://github.com/pnpm/pnpm/issues/8954).
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/workspace.read-manifest@1000.0.2
+  - @pnpm/pnpmfile@1001.0.4
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/catalogs.config@1000.0.2
+
+## 1002.1.2
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/pnpmfile@1001.0.3
+
+## 1002.1.1
+
+### Patch Changes
+
+- 1f5169f: Update `@pnpm/npm-conf` to v3.
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/pnpmfile@1001.0.2
+  - @pnpm/read-project-manifest@1000.0.2
+
+## 1002.1.0
+
+### Minor Changes
+
+- f891288: `pnpm deploy` now tries creating a dedicated lockfile from a shared lockfile for deployment. It will fallback to deployment without a lockfile if there is no shared lockfile or `force-legacy-deploy` is set to `true`.
+
+### Patch Changes
+
+- f90a94b: Fix reading options from pnpm.onlyBuiltDependencies [#8920](https://github.com/pnpm/pnpm/issues/8920).
+
+## 1002.0.0
+
+### Major Changes
+
+- 878ea8c: By default don't run lifecycle scripts of dependencies during installation. In order to allow lifecycle scripts of specific dependencies, they should be listed in the `pnpm.onlyBuiltDependencies` field of `package.json` [#8897](https://github.com/pnpm/pnpm/pull/8897).
+
+### Patch Changes
+
+- @pnpm/pnpmfile@1001.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- ac5b9d8: All dependencies are installed even when the `NODE_ENV` environment variable is set to `production [#8827](https://github.com/pnpm/pnpm/issues/8827).
+
+### Minor Changes
+
+- 6483b64: A new setting, `inject-workspace-packages`, has been added to allow hard-linking all local workspace dependencies instead of symlinking them. Previously, this behavior was achievable via the [`dependenciesMeta[].injected`](https://pnpm.io/package_json#dependenciesmetainjected) setting, which remains supported [#8836](https://github.com/pnpm/pnpm/pull/8836).
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [d47c426]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/pnpmfile@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/workspace.read-manifest@1000.0.1
+  - @pnpm/catalogs.config@1000.0.1
+  - @pnpm/read-project-manifest@1000.0.1
+
+## 22.0.0
+
+### Major Changes
+
+- 477e0c1: The `pnpm link` command adds overrides to the root `package.json`. In a workspace the override is added to the root of the workspace, so it links the dependency to all projects in a workspace.
+
+  To link a package globally, just run `pnpm link` from the package's directory. Previously, the command `pnpm link -g` was required to link a package globally.
+
+  Related PR: [#8653](https://github.com/pnpm/pnpm/pull/8653).
+
+- dfcf034: pnpm will now manage it's own versions according to the `packageManager` filed of `package.json`. To disable this, set `manage-package-manager-versions` to `false`.
+- 592e2ef: Do not hoist to the root of `node_modules` packages that contain the word `eslint` or `prettier` in their name. Changed the default value of the `public-hoist-pattern` setting [#8378](https://github.com/pnpm/pnpm/issues/8378).
+- e9985b6: The default value of `virtual-store-dir-max-length` on Windows reduced to 60 characters.
+
+### Minor Changes
+
+- 19d5b51: Add a feature to check dependencies before running scripts [#8585](https://github.com/pnpm/pnpm/issues/8585).
+
+### Patch Changes
+
+- 1dbc56a: Convert settings in local `.npmrc` files to their correct types. For instance, `child-concurrency` should be a number, not a string [#5075](https://github.com/pnpm/pnpm/issues/5075).
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [bcffd4d]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/pnpmfile@7.0.0
+  - @pnpm/error@6.0.3
+  - @pnpm/workspace.read-manifest@2.2.2
+  - @pnpm/catalogs.config@0.1.2
+  - @pnpm/read-project-manifest@6.0.10
+
+## 21.8.5
+
+### Patch Changes
+
+- @pnpm/pnpmfile@6.0.13
+
 ## 21.8.4
 
 ### Patch Changes

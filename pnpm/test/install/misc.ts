@@ -1,13 +1,14 @@
 import fs from 'fs'
 import path from 'path'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { type Lockfile } from '@pnpm/lockfile.types'
+import { STORE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { type LockfileObject } from '@pnpm/lockfile.types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
+import { fixtures } from '@pnpm/test-fixtures'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { sync as rimraf } from '@zkochan/rimraf'
@@ -18,9 +19,10 @@ import crossSpawn from 'cross-spawn'
 import {
   execPnpm,
   execPnpmSync,
-} from '../utils'
+} from '../utils/index.js'
 
 const skipOnWindows = isWindows() ? test.skip : test
+const f = fixtures(__dirname)
 
 test('bin files are found by lifecycle scripts', () => {
   prepare({
@@ -103,7 +105,7 @@ test('install with external lockfile directory', async () => {
 
   project.has('is-positive')
 
-  const lockfile = readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
+  const lockfile = readYamlFile<LockfileObject>(path.resolve('..', WANTED_LOCKFILE))
 
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project'])
 })
@@ -161,9 +163,9 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   const files = fs.readdirSync('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
   const storeDir = project.getStorePath()
   if (await dirIsCaseSensitive(storeDir)) {
-    expect([...files]).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
+    expect([...files].sort()).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
   } else {
-    expect([...files]).toStrictEqual(['Foo.js', 'package.json'])
+    expect([...files].map((f) => f.toLowerCase()).sort()).toStrictEqual(['foo.js', 'package.json'])
   }
 })
 
@@ -238,87 +240,13 @@ test('`pnpm -r add` should fail if no package name was provided', () => {
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - project`, 'utf8')
 
   const { status, stdout } = execPnpmSync(['-r', 'add'])
 
   expect(status).toBe(1)
   expect(stdout.toString()).toContain('`pnpm add` requires the package name')
-})
-
-test('install should fail if the used pnpm version does not satisfy the pnpm version specified in engines', async () => {
-  prepare({
-    name: 'project',
-    version: '1.0.0',
-
-    engines: {
-      pnpm: '99999',
-    },
-  })
-
-  const { status, stdout } = execPnpmSync(['install'])
-
-  expect(status).toBe(1)
-  expect(stdout.toString()).toContain('Your pnpm version is incompatible with')
-})
-
-test('install should not fail if the used pnpm version does not satisfy the pnpm version specified in packageManager', async () => {
-  prepare({
-    name: 'project',
-    version: '1.0.0',
-
-    packageManager: 'pnpm@0.0.0',
-  })
-
-  expect(execPnpmSync(['install']).status).toBe(0)
-
-  const { status, stdout } = execPnpmSync(['install', '--config.package-manager-strict-version=true'])
-
-  expect(status).toBe(1)
-  expect(stdout.toString()).toContain('This project is configured to use v0.0.0 of pnpm. Your current pnpm is')
-})
-
-test('install should fail if the project requires a different package manager', async () => {
-  prepare({
-    name: 'project',
-    version: '1.0.0',
-
-    packageManager: 'yarn@4.0.0',
-  })
-
-  const { status, stdout } = execPnpmSync(['install'])
-
-  expect(status).toBe(1)
-  expect(stdout.toString()).toContain('This project is configured to use yarn')
-
-  expect(execPnpmSync(['install', '--config.package-manager-strict=false']).status).toBe(0)
-})
-
-test('install should not fail for packageManager field with hash', async () => {
-  const versionProcess = execPnpmSync(['--version'])
-  const pnpmVersion = versionProcess.stdout.toString().trim()
-
-  prepare({
-    name: 'project',
-    version: '1.0.0',
-
-    packageManager: `pnpm@${pnpmVersion}+sha256.123456789`,
-  })
-
-  const { status } = execPnpmSync(['install'])
-  expect(status).toBe(0)
-})
-
-test('install should not fail for packageManager field with url', async () => {
-  prepare({
-    name: 'project',
-    version: '1.0.0',
-
-    packageManager: 'pnpm@https://github.com/pnpm/pnpm',
-  })
-
-  const { status } = execPnpmSync(['install'])
-  expect(status).toBe(0)
 })
 
 test('engine-strict=false: install should not fail if the used Node version does not satisfy the Node version specified in engines', async () => {
@@ -376,7 +304,8 @@ test('recursive install should fail if the used pnpm version does not satisfy th
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "*"`, 'utf8')
 
   process.chdir('project-1')
 
@@ -409,7 +338,8 @@ test('engine-strict=true: recursive install should fail if the used Node version
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "*"`, 'utf8')
 
   process.chdir('project-1')
 
@@ -442,7 +372,8 @@ test('engine-strict=false: recursive install should not fail if the used Node ve
     },
   ])
 
-  fs.writeFileSync('pnpm-workspace.yaml', '', 'utf8')
+  fs.writeFileSync('pnpm-workspace.yaml', `packages:
+  - "*"`, 'utf8')
 
   process.chdir('project-1')
 
@@ -460,7 +391,7 @@ test('using a custom virtual-store-dir location', async () => {
   await execPnpm(['install', '--virtual-store-dir=.pnpm'])
 
   expect(fs.existsSync('.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json')).toBeTruthy()
-  expect(fs.existsSync('.pnpm/lock.yaml')).toBeTruthy()
+  expect(fs.existsSync('node_modules/.pnpm/lock.yaml')).toBeTruthy()
   expect(fs.existsSync('.pnpm/node_modules/once/package.json')).toBeTruthy()
 
   rimraf('node_modules')
@@ -469,7 +400,7 @@ test('using a custom virtual-store-dir location', async () => {
   await execPnpm(['install', '--virtual-store-dir=.pnpm', '--frozen-lockfile'])
 
   expect(fs.existsSync('.pnpm/rimraf@2.5.1/node_modules/rimraf/package.json')).toBeTruthy()
-  expect(fs.existsSync('.pnpm/lock.yaml')).toBeTruthy()
+  expect(fs.existsSync('node_modules/.pnpm/lock.yaml')).toBeTruthy()
   expect(fs.existsSync('.pnpm/node_modules/once/package.json')).toBeTruthy()
 })
 
@@ -518,8 +449,7 @@ test('installation fails when the stored package name and version do not match t
 
   await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0', ...settings])
 
-  const cafsDir = path.join(storeDir, 'v3/files')
-  const cacheIntegrityPath = getIndexFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'))
+  const cacheIntegrityPath = getIndexFilePathInCafs(path.join(storeDir, STORE_VERSION), getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'), '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
   const cacheIntegrity = loadJsonFile.sync<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   cacheIntegrity.name = 'foo'
   writeJsonFile.sync(cacheIntegrityPath, {
@@ -533,4 +463,42 @@ test('installation fails when the stored package name and version do not match t
   ).rejects.toThrow()
 
   await execPnpm(['install', '--config.strict-store-pkg-content-check=false', ...settings])
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/8538
+test('do not fail to render peer dependencies warning, when cache was hit during peer resolution', () => {
+  prepare({
+    dependencies: {
+      '@udecode/plate-ui-table': '18.15.0',
+      '@udecode/plate-ui-toolbar': '18.15.0',
+    },
+  })
+
+  const result = execPnpmSync(['install', '--config.auto-install-peers=false'])
+
+  expect(result.status).toBe(0)
+  expect(result.stdout.toString()).toContain('Issues with peer dependencies found')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/8720
+test('do not hang on circular peer dependencies', () => {
+  const tempDir = f.prepare('workspace-with-circular-peers')
+  process.chdir(tempDir)
+
+  const result = execPnpmSync(['install', '--lockfile-only'])
+
+  expect(result.status).toBe(0)
+  expect(fs.existsSync(path.join(tempDir, WANTED_LOCKFILE))).toBeTruthy()
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/7697
+test('install success even though the url\'s hash contains slash', async () => {
+  prepare()
+  const settings = ['--fetch-retries=0']
+  const result = execPnpmSync([
+    'add',
+    'https://github.com/pnpm-e2e/simple-pkg.git#branch/with-slash',
+    ...settings,
+  ])
+  expect(result.status).toBe(0)
 })

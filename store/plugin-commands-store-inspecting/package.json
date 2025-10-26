@@ -1,16 +1,28 @@
 {
   "name": "@pnpm/plugin-commands-store-inspecting",
-  "version": "0.2.22",
+  "version": "1000.0.40",
   "description": "The inspecting store commands of pnpm",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/store/plugin-commands-store-inspecting",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/store/plugin-commands-store-inspecting#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "commonjs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=18.12"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -18,40 +30,31 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-store-inspecting",
-  "keywords": [
-    "pnpm9",
-    "pnpm"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
-  },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-store-inspecting#readme",
-  "devDependencies": {
-    "@pnpm/plugin-commands-store-inspecting": "workspace:*",
-    "@pnpm/prepare": "workspace:*",
-    "execa": "catalog:",
-    "tempy": "catalog:"
-  },
   "dependencies": {
     "@pnpm/client": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "chalk": "catalog:",
     "load-json-file": "catalog:",
-    "render-help": "catalog:",
-    "sort-keys": "catalog:"
+    "render-help": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "devDependencies": {
+    "@pnpm/plugin-commands-store-inspecting": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "execa": "catalog:",
+    "tempy": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

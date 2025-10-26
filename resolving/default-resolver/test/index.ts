@@ -6,6 +6,10 @@ test('createResolver()', () => {
   const getAuthHeader = () => undefined
   const { resolve } = createResolver(createFetchFromRegistry({}), getAuthHeader, {
     cacheDir: '.cache',
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+    rawConfig: {},
   })
   expect(typeof resolve).toEqual('function')
 })

@@ -1,37 +1,31 @@
 {
   "name": "@pnpm/symlink-dependency",
+  "version": "1000.0.12",
   "description": "Symlink a dependency to node_modules",
-  "version": "8.0.8",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/fs/symlink-dependency",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/fs/symlink-dependency#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
+  "type": "commonjs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "files": [
     "lib",
     "!*.map"
   ],
-  "peerDependencies": {
-    "@pnpm/logger": "^5.1.0"
-  },
-  "devDependencies": {
-    "@pnpm/logger": "workspace:*",
-    "@pnpm/prepare": "workspace:*",
-    "@pnpm/symlink-dependency": "workspace:*"
-  },
   "directories": {
     "test": "test"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/symlink-dependency#readme",
-  "keywords": [
-    "pnpm9",
-    "pnpm"
-  ],
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.12"
-  },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/fs/symlink-dependency",
   "scripts": {
     "start": "tsc --watch",
     "test": "pnpm run compile && pnpm run _test",
@@ -45,8 +39,18 @@
     "@pnpm/types": "workspace:*",
     "symlink-dir": "catalog:"
   },
-  "funding": "https://opencollective.com/pnpm",
-  "exports": {
-    ".": "./lib/index.js"
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/symlink-dependency": "workspace:*"
+  },
+  "engines": {
+    "node": ">=18.12"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
   }
 }

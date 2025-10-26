@@ -4,8 +4,8 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { addDependenciesToPackage } from '@pnpm/core'
 import deepRequireCwd from 'deep-require-cwd'
-import { createPeersDirSuffix } from '@pnpm/dependency-path'
-import { testDefaults } from '../utils'
+import { createPeerDepGraphHash } from '@pnpm/dependency-path'
+import { testDefaults } from '../utils/index.js'
 
 test('package with default peer dependency, when auto install peers is on', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
@@ -26,7 +26,7 @@ test('don\'t install the default peer dependency when it may be resolved from pa
   const lockfile = project.readLockfile()
   expect(Object.keys(lockfile.snapshots).sort()).toStrictEqual([
     '@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0',
-    `@pnpm.e2e/has-default-peer@1.0.0${createPeersDirSuffix([{ name: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0' }])}`,
+    `@pnpm.e2e/has-default-peer@1.0.0${createPeerDepGraphHash([{ name: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0' }])}`,
   ].sort())
 })
 

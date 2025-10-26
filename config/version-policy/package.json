@@ -1,0 +1,49 @@
+{
+  "name": "@pnpm/config.version-policy",
+  "version": "1000.0.0",
+  "description": "Parses and evaluates package version policy specs and produces package-version matchers",
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/config/version-policy",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/config/version-policy#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "commonjs",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "_test": "jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/error": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "semver": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/config.version-policy": "workspace:*",
+    "@types/semver": "catalog:"
+  },
+  "engines": {
+    "node": ">=18.12"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

@@ -7,8 +7,8 @@ import cliColumns from 'cli-columns'
 import sortBy from 'ramda/src/sortBy'
 import ramdaPath from 'ramda/src/path'
 import { type Ord } from 'ramda'
-import { getPkgInfo } from './getPkgInfo'
-import { type PackageDependencyHierarchy } from './types'
+import { getPkgInfo } from './getPkgInfo.js'
+import { type PackageDependencyHierarchy } from './types.js'
 
 const sortPackages = sortBy(ramdaPath(['name']) as (pkg: PackageNode) => Ord)
 
@@ -97,6 +97,7 @@ async function renderTreeForPackage (
       return null
     }))).filter(Boolean).join('\n')
 
+  // eslint-disable-next-line regexp/no-unused-capturing-group
   return `${chalk.bold.underline(label)}\n\n${output}`.replace(/(\n)+$/, '')
 }
 
@@ -113,12 +114,17 @@ export async function toArchyTree (
   return Promise.all(
     sortPackages(entryNodes).map(async (node) => {
       const nodes = await toArchyTree(getPkgColor, node.dependencies ?? [], opts)
+      const labelLines: string[] = [
+        printLabel(getPkgColor, node),
+      ]
+      if (node.searchMessage) {
+        labelLines.push(node.searchMessage)
+      }
       if (opts.long) {
         const pkg = await getPkgInfo(node)
-        const labelLines = [
-          printLabel(getPkgColor, node),
-          pkg.description,
-        ]
+        if (pkg.description) {
+          labelLines.push(pkg.description)
+        }
         if (pkg.repository) {
           labelLines.push(pkg.repository)
         }
@@ -128,14 +134,9 @@ export async function toArchyTree (
         if (pkg.path) {
           labelLines.push(pkg.path)
         }
-
-        return {
-          label: labelLines.join('\n'),
-          nodes,
-        }
       }
       return {
-        label: printLabel(getPkgColor, node),
+        label: labelLines.join('\n'),
         nodes,
       }
     })

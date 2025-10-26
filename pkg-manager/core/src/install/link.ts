@@ -12,7 +12,7 @@ import {
 import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
 import { type InstallationResultStats } from '@pnpm/headless'
 import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
-import { type Lockfile } from '@pnpm/lockfile.fs'
+import { type LockfileObject } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
@@ -24,6 +24,7 @@ import {
 import { type StoreController, type TarballResolution } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import {
+  type AllowBuild,
   type DepPath,
   type HoistedDependencies,
   type Registries,
@@ -35,16 +36,16 @@ import pathExists from 'path-exists'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import difference from 'ramda/src/difference'
-import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
 import pickBy from 'ramda/src/pickBy'
 import props from 'ramda/src/props'
-import { type ImporterToUpdate } from './index'
+import { type ImporterToUpdate } from './index.js'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
 export interface LinkPackagesOptions {
-  currentLockfile: Lockfile
+  allowBuild?: AllowBuild
+  currentLockfile: LockfileObject
   dedupeDirectDeps: boolean
   dependenciesByProjectId: Record<string, Map<string, DepPath>>
   disableRelinkLocalDirDeps?: boolean
@@ -71,13 +72,13 @@ export interface LinkPackagesOptions {
   storeController: StoreController
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
-  wantedLockfile: Lockfile
+  wantedLockfile: LockfileObject
   wantedToBeSkippedPackageIds: Set<string>
   hoistWorkspacePackages?: boolean
 }
 
 export interface LinkPackagesResult {
-  currentLockfile: Lockfile
+  currentLockfile: LockfileObject
   newDepPaths: DepPath[]
   newHoistedDependencies: HoistedDependencies
   removedDepPaths: Set<string>
@@ -148,6 +149,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     newCurrentLockfile,
     depGraph,
     {
+      allowBuild: opts.allowBuild,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       force: opts.force,
       depsStateCache: opts.depsStateCache,
@@ -167,7 +169,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
     stage: 'importing_done',
   })
 
-  let currentLockfile: Lockfile
+  let currentLockfile: LockfileObject
   const allImportersIncluded = equals(projectIds.sort(), Object.keys(opts.wantedLockfile.importers).sort())
   if (
     opts.makePartialCurrentLockfile ||
@@ -212,35 +214,38 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
   if (opts.hoistPattern == null && opts.publicHoistPattern == null) {
     newHoistedDependencies = {}
   } else if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
-    // It is important to keep the skipped packages in the lockfile which will be saved as the "current lockfile".
-    // pnpm is comparing the current lockfile to the wanted one and they should match.
-    // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
-    const hoistLockfile = {
-      ...currentLockfile,
-      packages: currentLockfile.packages != null ? omit(Array.from(opts.skipped), currentLockfile.packages) : {},
-    }
-    newHoistedDependencies = await hoist({
-      extraNodePath: opts.extraNodePaths,
-      lockfile: hoistLockfile,
-      importerIds: projectIds,
-      privateHoistedModulesDir: opts.hoistedModulesDir,
-      privateHoistPattern: opts.hoistPattern ?? [],
-      publicHoistedModulesDir: opts.rootModulesDir,
-      publicHoistPattern: opts.publicHoistPattern ?? [],
-      virtualStoreDir: opts.virtualStoreDir,
-      virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-      hoistedWorkspacePackages: opts.hoistWorkspacePackages
-        ? projects.reduce((hoistedWorkspacePackages, project) => {
-          if (project.manifest.name && project.id !== '.') {
-            hoistedWorkspacePackages[project.id] = {
-              dir: project.rootDir,
-              name: project.manifest.name,
+    newHoistedDependencies = {
+      ...opts.hoistedDependencies,
+      ...await hoist({
+        extraNodePath: opts.extraNodePaths,
+        graph: depGraph,
+        directDepsByImporterId: {
+          ...opts.dependenciesByProjectId,
+          '.': new Map(Array.from(opts.dependenciesByProjectId['.']?.entries() ?? []).filter(([alias]) => {
+            return newCurrentLockfile.importers['.' as ProjectId].specifiers[alias]
+          })),
+        },
+        importerIds: projectIds,
+        privateHoistedModulesDir: opts.hoistedModulesDir,
+        privateHoistPattern: opts.hoistPattern ?? [],
+        publicHoistedModulesDir: opts.rootModulesDir,
+        publicHoistPattern: opts.publicHoistPattern ?? [],
+        virtualStoreDir: opts.virtualStoreDir,
+        virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
+        hoistedWorkspacePackages: opts.hoistWorkspacePackages
+          ? projects.reduce((hoistedWorkspacePackages, project) => {
+            if (project.manifest.name && project.id !== '.') {
+              hoistedWorkspacePackages[project.id] = {
+                dir: project.rootDir,
+                name: project.manifest.name,
+              }
             }
-          }
-          return hoistedWorkspacePackages
-        }, {} as Record<string, HoistedWorkspaceProject>)
-        : undefined,
-    })
+            return hoistedWorkspacePackages
+          }, {} as Record<string, HoistedWorkspaceProject>)
+          : undefined,
+        skipped: opts.skipped,
+      }),
+    }
   } else {
     newHoistedDependencies = opts.hoistedDependencies
   }
@@ -305,7 +310,7 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
   }
 }
 
-const isAbsolutePath = /^[/]|^[A-Za-z]:/
+const isAbsolutePath = /^\/|^[A-Z]:/i
 
 // This function is copied from @pnpm/local-resolver
 function resolvePath (where: string, spec: string): string {
@@ -314,6 +319,7 @@ function resolvePath (where: string, spec: string): string {
 }
 
 interface LinkNewPackagesOptions {
+  allowBuild?: AllowBuild
   depsStateCache: DepsStateCache
   disableRelinkLocalDirDeps?: boolean
   force: boolean
@@ -333,8 +339,8 @@ interface LinkNewPackagesResult {
 }
 
 async function linkNewPackages (
-  currentLockfile: Lockfile,
-  wantedLockfile: Lockfile,
+  currentLockfile: LockfileObject,
+  wantedLockfile: LockfileObject,
   depGraph: DependenciesGraph,
   opts: LinkNewPackagesOptions
 ): Promise<LinkNewPackagesResult> {
@@ -392,6 +398,7 @@ async function linkNewPackages (
         optional: opts.optional,
       }),
     linkAllPkgs(opts.storeController, newPkgs, {
+      allowBuild: opts.allowBuild,
       depGraph,
       depsStateCache: opts.depsStateCache,
       disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
@@ -407,7 +414,7 @@ async function linkNewPackages (
 
 async function selectNewFromWantedDeps (
   wantedRelDepPaths: DepPath[],
-  currentLockfile: Lockfile,
+  currentLockfile: LockfileObject,
   depGraph: DependenciesGraph
 ): Promise<Set<DepPath>> {
   const newDeps = new Set<DepPath>()
@@ -445,6 +452,7 @@ async function linkAllPkgs (
   storeController: StoreController,
   depNodes: DependenciesGraphNode[],
   opts: {
+    allowBuild?: AllowBuild
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     disableRelinkLocalDirDeps?: boolean
@@ -461,10 +469,12 @@ async function linkAllPkgs (
       depNode.requiresBuild = files.requiresBuild
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && files.sideEffects && !isEmpty(files.sideEffects)) {
-        sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
-          isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
-          patchFileHash: depNode.patch?.file.hash,
-        })
+        if (opts?.allowBuild?.(depNode.name, depNode.version) !== false) {
+          sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
+            includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
+            patchFileHash: depNode.patch?.file.hash,
+          })
+        }
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,

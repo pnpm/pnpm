@@ -3,7 +3,7 @@ import { analyzeGraph, type Graph } from 'graph-cycles'
 import path from 'path'
 import pDefer from 'p-defer'
 import semver from 'semver'
-import { semverUtils } from '@yarnpkg/core'
+import * as semverUtils from '@yarnpkg/core/semverUtils'
 import {
   type DepPath,
   type ParentPackages,
@@ -12,20 +12,20 @@ import {
   type PkgIdWithPatchHash,
   type ProjectRootDir,
 } from '@pnpm/types'
-import { depPathToFilename, createPeersDirSuffix, type PeerId } from '@pnpm/dependency-path'
+import { depPathToFilename, createPeerDepGraphHash, type PeerId } from '@pnpm/dependency-path'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
-import { type NodeId } from './nextNodeId'
+import { type NodeId } from './nextNodeId.js'
 import {
   type ChildrenMap,
   type PeerDependencies,
   type DependenciesTree,
   type DependenciesTreeNode,
   type ResolvedPackage,
-} from './resolveDependencies'
-import { type ResolvedImporters } from './resolveDependencyTree'
-import { mergePeers } from './mergePeers'
-import { dedupeInjectedDeps } from './dedupeInjectedDeps'
+} from './resolveDependencies.js'
+import { type ResolvedImporters } from './resolveDependencyTree.js'
+import { mergePeers } from './mergePeers.js'
+import { dedupeInjectedDeps } from './dedupeInjectedDeps.js'
 
 export interface BaseGenericDependenciesGraphNode {
   // at this point the version is really needed only for logging
@@ -353,7 +353,7 @@ interface ResolvePeersContext {
   depPathsByPkgId?: Map<PkgIdWithPatchHash, Set<DepPath>>
 }
 
-type CalculateDepPath = (cycles: NodeId[][]) => Promise<void>
+type CalculateDepPath = (cycles: string[][]) => Promise<void>
 type FinishingResolutionPromise = Promise<void>
 
 interface ParentPkgInfo {
@@ -366,6 +366,7 @@ interface ParentPkgInfo {
 type ParentPkgsOfNode = Map<NodeId, Record<string, ParentPkgInfo>>
 
 async function resolvePeersOfNode<T extends PartialResolvedPackage> (
+  currentAlias: string,
   nodeId: NodeId,
   parentParentPkgs: ParentRefs,
   ctx: ResolvePeersContext & {
@@ -437,7 +438,10 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       if (ctx.peerDependencyIssues.missing[peerName] == null) {
         ctx.peerDependencyIssues.missing[peerName] = []
       }
-      const { parents } = getLocationFromParentNodeIds(ctx)
+      const { parents } = getLocationFromParentNodeIds({
+        dependenciesTree: ctx.dependenciesTree,
+        parentNodeIds,
+      })
       ctx.peerDependencyIssues.missing[peerName].push({
         optional,
         parents,
@@ -516,7 +520,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     addDepPathToGraph(resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
   } else {
     const peerIds: PeerId[] = []
-    const pendingPeerNodeIds: NodeId[] = []
+    const pendingPeers: PendingPeer[] = []
     for (const [alias, peerNodeId] of allResolvedPeers.entries()) {
       if (typeof peerNodeId === 'string' && peerNodeId.startsWith('link:')) {
         const linkedDir = peerNodeId.slice(5)
@@ -531,13 +535,13 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         peerIds.push(peerDepPath)
         continue
       }
-      pendingPeerNodeIds.push(peerNodeId)
+      pendingPeers.push({ alias, nodeId: peerNodeId })
     }
-    if (pendingPeerNodeIds.length === 0) {
-      const peersDirSuffix = createPeersDirSuffix(peerIds, ctx.peersSuffixMaxLength)
-      addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peersDirSuffix}` as DepPath)
+    if (pendingPeers.length === 0) {
+      const peerDepGraphHash = createPeerDepGraphHash(peerIds, ctx.peersSuffixMaxLength)
+      addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peerDepGraphHash}` as DepPath)
     } else {
-      calculateDepPathIfNeeded = calculateDepPath.bind(null, peerIds, pendingPeerNodeIds)
+      calculateDepPathIfNeeded = calculateDepPath.bind(null, peerIds, pendingPeers)
     }
   }
 
@@ -550,32 +554,32 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
 
   async function calculateDepPath (
     peerIds: PeerId[],
-    pendingPeerNodeIds: NodeId[],
-    cycles: NodeId[][]
+    pendingPeerNodes: PendingPeer[],
+    cycles: string[][]
   ): Promise<void> {
-    const cyclicPeerNodeIds = new Set()
+    const cyclicPeerAliases = new Set()
     for (const cycle of cycles) {
-      if (cycle.includes(nodeId)) {
-        for (const peerNodeId of cycle) {
-          cyclicPeerNodeIds.add(peerNodeId)
+      if (cycle.includes(currentAlias)) {
+        for (const peerAlias of cycle) {
+          cyclicPeerAliases.add(peerAlias)
         }
       }
     }
-    const peersDirSuffix = createPeersDirSuffix([
+    const peerDepGraphHash = createPeerDepGraphHash([
       ...peerIds,
-      ...await Promise.all(pendingPeerNodeIds
-        .map(async (peerNodeId) => {
-          if (cyclicPeerNodeIds.has(peerNodeId)) {
-            const { name, version } = (ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage as T)
+      ...await Promise.all(pendingPeerNodes
+        .map(async (pendingPeer) => {
+          if (cyclicPeerAliases.has(pendingPeer.alias)) {
+            const { name, version } = ctx.dependenciesTree.get(pendingPeer.nodeId)?.resolvedPackage as T
             const id = `${name}@${version}`
-            ctx.pathsByNodeIdPromises.get(peerNodeId)?.resolve(id as DepPath)
+            ctx.pathsByNodeIdPromises.get(pendingPeer.nodeId)?.resolve(id as DepPath)
             return id
           }
-          return ctx.pathsByNodeIdPromises.get(peerNodeId)!.promise
+          return ctx.pathsByNodeIdPromises.get(pendingPeer.nodeId)!.promise
         })
       ),
     ], ctx.peersSuffixMaxLength)
-    addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peersDirSuffix}` as DepPath)
+    addDepPathToGraph(`${resolvedPackage.pkgIdWithPatchHash}${peerDepGraphHash}` as DepPath)
   }
 
   function addDepPathToGraph (depPath: DepPath): void {
@@ -624,6 +628,11 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       }
     }
   }
+}
+
+interface PendingPeer {
+  alias: string
+  nodeId: NodeId
 }
 
 function parentPkgsMatch<T> (
@@ -788,6 +797,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   // We check repeated first as the peers resolution of those probably are cached already.
   const [repeated, notRepeated] = partition(([alias]) => parentPkgs[alias] != null, Object.entries(children))
   const nodeIds = Array.from(new Set([...repeated, ...notRepeated].map(([, nodeId]) => nodeId)))
+  const aliasByNodeId = Object.fromEntries(Object.entries(children).map(([alias, nodeId]) => [nodeId, alias]))
 
   for (const nodeId of nodeIds) {
     if (!ctx.pathsByNodeIdPromises.has(nodeId)) {
@@ -797,7 +807,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
 
   // Resolving non-repeated nodes before repeated nodes proved to be slightly faster.
   const calculateDepPaths: CalculateDepPath[] = []
-  const graph = []
+  const graph = new Map()
   const finishingList: FinishingResolutionPromise[] = []
   const parentDepPaths: Record<string, ParentPkgInfo> = {}
   for (const [name, parentPkg] of Object.entries(parentPkgs)) {
@@ -816,30 +826,45 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     ctx.parentPkgsOfNode.set(childNodeId, parentDepPaths)
   }
   for (const childNodeId of nodeIds) {
+    const currentAlias = aliasByNodeId[childNodeId]
     const {
       resolvedPeers,
       missingPeers,
       calculateDepPath,
       finishing,
-    } = await resolvePeersOfNode(childNodeId, parentPkgs, ctx) // eslint-disable-line no-await-in-loop
+    } = await resolvePeersOfNode(currentAlias, childNodeId, parentPkgs, ctx) // eslint-disable-line no-await-in-loop
     if (finishing) {
       finishingList.push(finishing)
     }
     if (calculateDepPath) {
       calculateDepPaths.push(calculateDepPath)
     }
-    const edges = []
+    const edges: string[] = []
     for (const [peerName, peerNodeId] of resolvedPeers) {
       allResolvedPeers.set(peerName, peerNodeId)
-      edges.push(peerNodeId)
+      edges.push(peerName)
     }
-    graph.push([childNodeId, edges])
+    addEdgesToGraph(currentAlias, edges)
+    const node = ctx.dependenciesTree.get(childNodeId)!
+    // We resolve peer dependencies via both the alias and the real name of the package.
+    // That's why we need to detect circular graphs via both the alias and the real name.
+    if (currentAlias !== node.resolvedPackage.name) {
+      addEdgesToGraph(node.resolvedPackage.name, edges)
+    }
     for (const [missingPeer, range] of missingPeers.entries()) {
       allMissingPeers.set(missingPeer, range)
     }
   }
+  function addEdgesToGraph (pkgName: string, edges: string[]) {
+    const existingEdges = graph.get(pkgName)
+    if (existingEdges == null) {
+      graph.set(pkgName, edges)
+    } else {
+      existingEdges.push(...edges)
+    }
+  }
   if (calculateDepPaths.length) {
-    const { cycles } = analyzeGraph(graph as unknown as Graph) as unknown as { cycles: NodeId[][] }
+    const { cycles } = analyzeGraph(Array.from(graph.entries()) as unknown as Graph) as unknown as { cycles: string[][] }
     finishingList.push(...calculateDepPaths.map((calculateDepPath) => calculateDepPath(cycles)))
   }
   const finishing = Promise.all(finishingList).then(() => {})

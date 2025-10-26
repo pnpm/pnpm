@@ -1,6 +1,7 @@
 import { cache } from '@pnpm/cache.commands'
 import { type CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
+import { approveBuilds, ignoredBuilds } from '@pnpm/exec.build-commands'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { generateCompletion, createCompletionServer } from '@pnpm/plugin-commands-completion'
 import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
@@ -21,7 +22,6 @@ import {
   exec,
   restart,
   run,
-  test,
 } from '@pnpm/plugin-commands-script-runners'
 import { server } from '@pnpm/plugin-commands-server'
 import { setup } from '@pnpm/plugin-commands-setup'
@@ -29,14 +29,14 @@ import { store } from '@pnpm/plugin-commands-store'
 import { catFile, catIndex, findHash } from '@pnpm/plugin-commands-store-inspecting'
 import { init } from '@pnpm/plugin-commands-init'
 import pick from 'ramda/src/pick'
-import { type PnpmOptions } from '../types'
-import { shorthands as universalShorthands } from '../shorthands'
-import { parseCliArgs } from '../parseCliArgs'
-import * as bin from './bin'
-import { createHelp } from './help'
-import * as installTest from './installTest'
-import * as recursive from './recursive'
-import * as root from './root'
+import { type PnpmOptions } from '../types.js'
+import { shorthands as universalShorthands } from '../shorthands.js'
+import { parseCliArgs } from '../parseCliArgs.js'
+import * as bin from './bin.js'
+import { createHelp } from './help.js'
+import * as installTest from './installTest.js'
+import * as recursive from './recursive.js'
+import * as root from './root.js'
 
 export const GLOBAL_OPTIONS = pick([
   'color',
@@ -102,12 +102,17 @@ export interface CommandDefinition {
    * ```
    */
   shorthands?: Record<string, string | string[]>
+  /**
+   * If true, this command should not care about what package manager is specified in the "packageManager" field of "package.json".
+   */
+  skipPackageManagerCheck?: boolean
 }
 
 const helpByCommandName: Record<string, () => string> = {}
 
 const commands: CommandDefinition[] = [
   add,
+  approveBuilds,
   audit,
   bin,
   cache,
@@ -124,6 +129,7 @@ const commands: CommandDefinition[] = [
   exec,
   fetch,
   generateCompletion,
+  ignoredBuilds,
   importCommand,
   selfUpdate,
   init,
@@ -152,7 +158,6 @@ const commands: CommandDefinition[] = [
   catFile,
   catIndex,
   findHash,
-  test,
   unlink,
   update,
   why,
@@ -165,6 +170,7 @@ const aliasToFullName = new Map<string, string>()
 const completionByCommandName: Record<string, CompletionFunc> = {}
 const shorthandsByCommandName: Record<string, Record<string, string | string[]>> = {}
 const rcOptionsTypes: Record<string, unknown> = {}
+const skipPackageManagerCheckForCommandArray = ['completion-server']
 
 for (let i = 0; i < commands.length; i++) {
   const {
@@ -175,6 +181,7 @@ for (let i = 0; i < commands.length; i++) {
     help,
     rcOptionsTypes,
     shorthands,
+    skipPackageManagerCheck,
   } = commands[i]
   if (!commandNames || commandNames.length === 0) {
     throw new Error(`The command at index ${i} doesn't have command names`)
@@ -188,6 +195,9 @@ for (let i = 0; i < commands.length; i++) {
       completionByCommandName[commandName] = completion
     }
     Object.assign(rcOptionsTypes, rcOptionsTypes())
+  }
+  if (skipPackageManagerCheck) {
+    skipPackageManagerCheckForCommandArray.push(...commandNames)
   }
   if (commandNames.length > 1) {
     const fullName = commandNames[0]
@@ -212,6 +222,8 @@ function initialCompletion (): Array<{ name: string }> {
 }
 
 export const pnpmCmds = handlerByCommandName
+
+export const skipPackageManagerCheckForCommand = new Set(skipPackageManagerCheckForCommandArray)
 
 export function getCliOptionsTypes (commandName: string): Record<string, unknown> {
   return cliOptionsTypesByCommandName[commandName]?.() || {}

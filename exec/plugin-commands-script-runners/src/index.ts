@@ -1,13 +1,7 @@
-import * as create from './create'
-import * as dlx from './dlx'
-import * as exec from './exec'
-import * as restart from './restart'
-import * as run from './run'
-import * as _test from './test'
+import * as create from './create.js'
+import * as dlx from './dlx.js'
+import * as exec from './exec.js'
+import * as restart from './restart.js'
+import * as run from './run.js'
 
-const test = {
-  ...run,
-  ..._test,
-}
-
-export { create, dlx, exec, restart, run, test }
+export { create, dlx, exec, restart, run }

@@ -1,9 +1,8 @@
 import * as pnpm from '@pnpm/core'
-import { testDefaults } from './utils'
+import { testDefaults } from './utils/index.js'
 
 test('API', () => {
   expect(typeof pnpm.install).toBe('function')
-  expect(typeof pnpm.link).toBe('function')
 })
 
 // TODO: some sort of this validation might need to exist

@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import fastGlob from 'fast-glob'
+import { glob } from 'tinyglobby'
 import { getIndexFilePathInCafs } from '@pnpm/store.cafs'
 import { type PackageMeta } from '@pnpm/npm-resolver'
 import getRegistryName from 'encode-registry'
@@ -14,10 +14,10 @@ interface CachedVersions {
 
 export async function cacheView (opts: { cacheDir: string, storeDir: string, registry?: string }, packageName: string): Promise<string> {
   const prefix = opts.registry ? `${getRegistryName(opts.registry)}` : '*'
-  const metaFilePaths = (await fastGlob(`${prefix}/${packageName}.json`, {
+  const metaFilePaths = (await glob(`${prefix}/${packageName}.json`, {
     cwd: opts.cacheDir,
+    expandDirectories: false,
   })).sort()
-  const cafsDir = path.join(opts.storeDir, 'files')
   const metaFilesByPath: Record<string, CachedVersions> = {}
   for (const filePath of metaFilePaths) {
     const metaObject = JSON.parse(fs.readFileSync(path.join(opts.cacheDir, filePath), 'utf8')) as PackageMeta
@@ -25,7 +25,7 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
     const nonCachedVersions: string[] = []
     for (const [version, manifest] of Object.entries(metaObject.versions)) {
       if (!manifest.dist.integrity) continue
-      const indexFilePath = getIndexFilePathInCafs(cafsDir, manifest.dist.integrity)
+      const indexFilePath = getIndexFilePathInCafs(opts.storeDir, manifest.dist.integrity, `${manifest.name}@${manifest.version}`)
       if (fs.existsSync(indexFilePath)) {
         cachedVersions.push(version)
       } else {

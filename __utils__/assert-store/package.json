@@ -1,19 +1,7 @@
 {
   "name": "@pnpm/assert-store",
   "description": "Utils for testing pnpm store",
-  "version": "1.0.90",
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/"
-  },
-  "contributors": [
-    {
-      "name": "Tejasvi Nareddy",
-      "email": "tejunareddy@gmail.com",
-      "url": "https://www.tejunareddy.com"
-    }
-  ],
+  "version": "1000.0.3",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -26,7 +14,10 @@
     "test": "test"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-store#readme",
-  "keywords": [],
+  "keywords": [
+    "pnpm",
+    "pnpm10"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=10"
@@ -44,6 +35,7 @@
     "@pnpm/store.cafs": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/assert-store": "workspace:*"
+    "@pnpm/assert-store": "workspace:*",
+    "@pnpm/constants": "workspace:*"
   }
 }

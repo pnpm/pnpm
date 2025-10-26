@@ -1,8 +1,10 @@
+import fs from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
 import { add, remove } from '@pnpm/plugin-commands-installation'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { type ProjectManifest } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import tempy from 'tempy'
 
@@ -16,6 +18,7 @@ const DEFAULT_OPTIONS = {
   bail: false,
   bin: 'node_modules/.bin',
   cacheDir: path.join(tmp, 'cache'),
+  excludeLinksFromLockfile: false,
   extraEnv: {},
   cliOptions: {},
   deployAllFiles: false,
@@ -25,7 +28,8 @@ const DEFAULT_OPTIONS = {
     optionalDependencies: true,
   },
   lock: true,
-  pnpmfile: '.pnpmfile.cjs',
+  preferWorkspacePackages: true,
+  pnpmfile: ['.pnpmfile.cjs'],
   pnpmHomeDir: '',
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
@@ -37,8 +41,10 @@ const DEFAULT_OPTIONS = {
   storeDir: path.join(tmp, 'store'),
   userConfig: {},
   workspaceConcurrency: 1,
-  virtualStoreDirMaxLength: 120,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
+
+const describeOnLinuxOnly = process.platform === 'linux' ? describe : describe.skip
 
 test('installing with "workspace:" should work even if link-workspace-packages is off', async () => {
   const projects = preparePackages([
@@ -89,7 +95,7 @@ test('installing with "workspace:" should work even if link-workspace-packages i
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^' })
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:*' })
 
   projects['project-1'].has('project-2')
 })
@@ -206,7 +212,7 @@ test('installing with "workspace=true" with linkWorkspacePackages on and saveWor
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': '^2.0.0' })
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
 
   projects['project-1'].has('project-2')
 })
@@ -317,7 +323,7 @@ test('pnpm add - should add prefix when set in .npmrc when a range is not specif
 
     expect(
       manifest.dependencies['is-positive']
-    ).toMatch(/~([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+)?$/)
+    ).toMatch(/~(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Z-]+(?:\.[0-9A-Z-]+)*))?(?:\+[0-9A-Z-]+)?$/i)
   }
 })
 
@@ -352,4 +358,90 @@ test('add: fail when global bin directory is not found', async () => {
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_NO_GLOBAL_BIN_DIR')
+})
+
+test('add: fail trying to install pnpm', async () => {
+  prepareEmpty()
+
+  let err!: PnpmError
+  try {
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      bin: path.resolve('project/bin'),
+      dir: path.resolve('project'),
+      global: true,
+      linkWorkspacePackages: false,
+      saveWorkspaceProtocol: false,
+      workspace: false,
+    }, ['pnpm'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_GLOBAL_PNPM_INSTALL')
+})
+
+test('add: fail trying to install @pnpm/exe', async () => {
+  prepareEmpty()
+
+  let err!: PnpmError
+  try {
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      bin: path.resolve('project/bin'),
+      dir: path.resolve('project'),
+      global: true,
+      linkWorkspacePackages: false,
+      saveWorkspaceProtocol: false,
+      workspace: false,
+    }, ['@pnpm/exe'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_GLOBAL_PNPM_INSTALL')
+})
+
+test('minimumReleaseAge makes install fail if there is no version that was published before the cutoff', async () => {
+  prepareEmpty()
+
+  const isOdd011ReleaseDate = new Date(2016, 11, 7 - 2) // 0.1.1 was released at 2016-12-07T07:18:01.205Z
+  const diff = Date.now() - isOdd011ReleaseDate.getTime()
+  const minimumReleaseAge = diff / (60 * 1000) // converting to minutes
+
+  await expect(add.handler({
+    ...DEFAULT_OPTIONS,
+    dir: path.resolve('project'),
+    minimumReleaseAge,
+    linkWorkspacePackages: false,
+  }, ['is-odd@0.1.1'])).rejects.toThrow(/No matching version found for is-odd@0\.1\.1.*satisfies the specs but/)
+})
+
+describeOnLinuxOnly('filters optional dependencies based on pnpm.supportedArchitectures.libc', () => {
+  test.each([
+    ['glibc', '@pnpm.e2e+only-linux-x64-glibc@1.0.0', '@pnpm.e2e+only-linux-x64-musl@1.0.0'],
+    ['musl', '@pnpm.e2e+only-linux-x64-musl@1.0.0', '@pnpm.e2e+only-linux-x64-glibc@1.0.0'],
+  ])('%p → installs %p, does not install %p', async (libc, found, notFound) => {
+    const rootProjectManifest: ProjectManifest = {
+      pnpm: {
+        supportedArchitectures: {
+          os: ['linux'],
+          cpu: ['x64'],
+          libc: [libc],
+        },
+      },
+    }
+
+    prepare(rootProjectManifest)
+
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      rootProjectManifest,
+      dir: process.cwd(),
+      linkWorkspacePackages: true,
+    }, ['@pnpm.e2e/support-different-architectures'])
+
+    const pkgDirs = fs.readdirSync(path.resolve('node_modules', '.pnpm'))
+    expect(pkgDirs).toContain('@pnpm.e2e+support-different-architectures@1.0.0')
+    expect(pkgDirs).toContain(found)
+    expect(pkgDirs).not.toContain(notFound)
+  })
 })

@@ -8,6 +8,7 @@ import {
   linkBinsOfPkgsByAliases,
 } from '@pnpm/link-bins'
 import { fixtures } from '@pnpm/test-fixtures'
+import { jest } from '@jest/globals'
 import CMD_EXTENSION from 'cmd-extension'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
@@ -30,7 +31,8 @@ const binsConflictLogger = logger('bins-conflict')
 const f = fixtures(__dirname)
 
 beforeEach(() => {
-  (binsConflictLogger.debug as jest.Mock).mockClear()
+  jest.mocked(binsConflictLogger.debug).mockClear()
+  jest.mocked(globalWarn).mockClear()
 })
 
 const POWER_SHELL_IS_SUPPORTED = isWindows()
@@ -532,6 +534,17 @@ testOnWindows('linkBins() should remove an existing .exe file from the target di
   await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
 
   expect(fs.readdirSync(binTarget)).toEqual(getExpectedBins(['simple']))
+})
+
+test('linkBins() should handle bin field pointing to a directory gracefully', async () => {
+  const binTarget = tempy.directory()
+  const binIsDirFixture = f.prepare('bin-is-directory')
+  const warn = jest.fn()
+
+  await linkBins(path.join(binIsDirFixture, 'node_modules'), binTarget, { warn })
+
+  expect(fs.readdirSync(binTarget)).toEqual([])
+  expect(globalWarn).toHaveBeenCalled()
 })
 
 describe('enable prefer-symlinked-executables', () => {

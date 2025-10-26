@@ -1,5 +1,732 @@
 # @pnpm/resolve-dependencies
 
+## 1008.3.0
+
+### Minor Changes
+
+- 7c1382f: Added support for exact versions in `minimumReleaseAgeExclude` [#9985](https://github.com/pnpm/pnpm/issues/9985).
+
+  You can now list one or more specific versions that pnpm should allow to install, even if those versions don’t satisfy the maturity requirement set by `minimumReleaseAge`. For example:
+
+  ```yaml
+  minimumReleaseAge: 1440
+  minimumReleaseAgeExclude:
+    - nx@21.6.5
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/npm-resolver@1004.4.0
+  - @pnpm/store-controller-types@1004.1.0
+  - @pnpm/config.version-policy@1000.0.0
+  - @pnpm/lockfile.preferred-versions@1000.0.22
+  - @pnpm/lockfile.pruner@1001.0.17
+  - @pnpm/lockfile.types@1002.0.2
+  - @pnpm/lockfile.utils@1003.0.3
+  - @pnpm/calc-dep-state@1002.0.8
+  - @pnpm/core-loggers@1001.0.4
+  - @pnpm/dependency-path@1001.1.3
+  - @pnpm/manifest-utils@1001.0.6
+  - @pnpm/read-package-json@1000.1.2
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/patching.config@1001.0.11
+
+## 1008.2.4
+
+### Patch Changes
+
+- 9c65b96: Preserve version and hasBin for variations packages [#10022](https://github.com/pnpm/pnpm/issues/10022).
+
+## 1008.2.3
+
+### Patch Changes
+
+- a004e37: When using pnpm catalogs and running a normal `pnpm install`, pnpm produced false positive warnings for "_skip adding to the default catalog because it already exists_". This warning now only prints when using `pnpm add --save-catalog` as originally intended.
+
+## 1008.2.2
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/npm-resolver@1004.3.0
+  - @pnpm/dependency-path@1001.1.2
+  - @pnpm/lockfile.pruner@1001.0.16
+  - @pnpm/lockfile.utils@1003.0.2
+  - @pnpm/calc-dep-state@1002.0.7
+  - @pnpm/patching.config@1001.0.10
+  - @pnpm/lockfile.preferred-versions@1000.0.21
+
+## 1008.2.1
+
+### Patch Changes
+
+- Updated dependencies [baf8bf6]
+- Updated dependencies [702ddb9]
+  - @pnpm/npm-resolver@1004.2.3
+
+## 1008.2.0
+
+### Minor Changes
+
+- 3a58aaa: The `minimumReleaseAgeExclude` setting now supports patterns. For instance:
+
+  ```yaml
+  minimumReleaseAge: 1440
+  minimumReleaseAgeExclude:
+    - "@eslint/*"
+  ```
+
+  Related PR: [#9984](https://github.com/pnpm/pnpm/pull/9984).
+
+### Patch Changes
+
+- Updated dependencies [121b44e]
+- Updated dependencies [02f8b69]
+  - @pnpm/npm-resolver@1004.2.2
+
+## 1008.1.1
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/lockfile.pruner@1001.0.15
+  - @pnpm/calc-dep-state@1002.0.6
+  - @pnpm/error@1000.0.5
+  - @pnpm/npm-resolver@1004.2.1
+  - @pnpm/patching.config@1001.0.9
+  - @pnpm/manifest-utils@1001.0.5
+  - @pnpm/read-package-json@1000.1.1
+  - @pnpm/lockfile.preferred-versions@1000.0.20
+
+## 1008.1.0
+
+### Minor Changes
+
+- 38e2599: There have been several incidents recently where popular packages were successfully attacked. To reduce the risk of installing a compromised version, we are introducing a new setting that delays the installation of newly released dependencies. In most cases, such attacks are discovered quickly and the malicious versions are removed from the registry within an hour.
+
+  The new setting is called `minimumReleaseAge`. It specifies the number of minutes that must pass after a version is published before pnpm will install it. For example, setting `minimumReleaseAge: 1440` ensures that only packages released at least one day ago can be installed.
+
+  If you set `minimumReleaseAge` but need to disable this restriction for certain dependencies, you can list them under the `minimumReleaseAgeExclude` setting. For instance, with the following configuration pnpm will always install the latest version of webpack, regardless of its release time:
+
+  ```yaml
+  minimumReleaseAgeExclude:
+    - webpack
+  ```
+
+  Related issue: [#9921](https://github.com/pnpm/pnpm/issues/9921).
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/npm-resolver@1004.2.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.preferred-versions@1000.0.19
+  - @pnpm/lockfile.pruner@1001.0.14
+  - @pnpm/lockfile.types@1002.0.1
+  - @pnpm/lockfile.utils@1003.0.1
+  - @pnpm/calc-dep-state@1002.0.5
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/dependency-path@1001.1.1
+  - @pnpm/manifest-utils@1001.0.4
+  - @pnpm/resolver-base@1005.0.1
+  - @pnpm/store-controller-types@1004.0.2
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/patching.config@1001.0.8
+
+## 1008.0.2
+
+### Patch Changes
+
+- 3482fe1: When resolving peer dependencies, pnpm looks whether the peer dependency is present in the root workspace project's dependencies. This change makes it so that the peer dependency is correctly resolved even from aliased npm-hosted dependencies or other types of dependencies [#9913](https://github.com/pnpm/pnpm/issues/9913).
+
+## 1008.0.1
+
+### Patch Changes
+
+- aa24e7f: When automatically installing missing peer dependencies, prefer versions that are already present in the direct dependencies of the root workspace package [#9835](https://github.com/pnpm/pnpm/pull/9835).
+
+## 1008.0.0
+
+### Major Changes
+
+- d1edf73: Removed node fetcher. The binary fetcher should be used for downloading node assets.
+- f91922c: Changed how the integrity of the node.js artifact is stored in the lockfile.
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [adb097c]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/lockfile.pruner@1001.0.13
+  - @pnpm/calc-dep-state@1002.0.4
+  - @pnpm/patching.config@1001.0.7
+  - @pnpm/error@1000.0.4
+  - @pnpm/npm-resolver@1004.1.3
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/lockfile.preferred-versions@1000.0.18
+  - @pnpm/catalogs.resolver@1000.0.5
+  - @pnpm/manifest-utils@1001.0.3
+
+## 1007.2.0
+
+### Minor Changes
+
+- 1a07b8f: Added support for resolving and downloading the Node.js runtime specified in the [devEngines](https://github.com/openjs-foundation/package-metadata-interoperability-collab-space/issues/15) field of `package.json`.
+
+  Usage example:
+
+  ```json
+  {
+    "devEngines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.4.0",
+        "onFail": "download"
+      }
+    }
+  }
+  ```
+
+  When running `pnpm install`, pnpm will resolve Node.js to the latest version that satisfies the specified range and install it as a dependency of the project. As a result, when running scripts, the locally installed Node.js version will be used.
+
+  Unlike the existing options, `useNodeVersion` and `executionEnv.nodeVersion`, this new field supports version ranges, which are locked to exact versions during installation. The resolved version is stored in the pnpm lockfile, along with an integrity checksum for future validation of the Node.js content's validity.
+
+  Related PR: [#9755](https://github.com/pnpm/pnpm/pull/9755).
+
+### Patch Changes
+
+- ece236d: Fixed getManifestFromResponse.
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/pick-fetcher@1000.1.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/lockfile.preferred-versions@1000.0.17
+  - @pnpm/lockfile.pruner@1001.0.12
+  - @pnpm/calc-dep-state@1002.0.3
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/manifest-utils@1001.0.2
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/npm-resolver@1004.1.2
+  - @pnpm/error@1000.0.3
+  - @pnpm/patching.config@1001.0.6
+  - @pnpm/catalogs.resolver@1000.0.4
+
+## 1007.1.3
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/npm-resolver@1004.1.1
+- @pnpm/lockfile.pruner@1001.0.11
+- @pnpm/lockfile.utils@1002.0.1
+- @pnpm/calc-dep-state@1002.0.2
+- @pnpm/patching.config@1001.0.5
+- @pnpm/lockfile.preferred-versions@1000.0.16
+
+## 1007.1.2
+
+### Patch Changes
+
+- 5d046bb: Fix a deadlock that sometimes happens during peer dependency resolution [#9673](https://github.com/pnpm/pnpm/issues/9673).
+
+## 1007.1.1
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/lockfile.pruner@1001.0.10
+  - @pnpm/calc-dep-state@1002.0.1
+  - @pnpm/patching.config@1001.0.4
+  - @pnpm/lockfile.preferred-versions@1000.0.15
+
+## 1007.1.0
+
+### Minor Changes
+
+- 5ab40c1: The `pnpm update` command now supports updating `catalog:` protocol dependencies and writes new specifiers to `pnpm-workspace.yaml`.
+- c8341cc: Added two new CLI options (`--save-catalog` and `--save-catalog-name=<name>`) to `pnpm add` to save new dependencies as catalog entries. `catalog:` or `catalog:<name>` will be added to `package.json` and the package specifier will be added to the `catalogs` or `catalog[<name>]` object in `pnpm-workspace.yaml` [#9425](https://github.com/pnpm/pnpm/issues/9425).
+- b0ead51: **Experimental**. Added support for global virtual stores. When the global virtual store is enabled, `node_modules` doesn’t contain regular files, only symlinks to a central virtual store (by default the central store is located at `<store-path>/links`; run `pnpm store path` to find `<store-path>`).
+
+  To enable the global virtual store, add `enableGlobalVirtualStore: true` to your root `pnpm-workspace.yaml`.
+
+  A global virtual store can make installations significantly faster when a warm cache is present. In CI, however, it will probably slow installations because there is usually no cache.
+
+  Related PR: [#8190](https://github.com/pnpm/pnpm/pull/8190).
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b3898db]
+- Updated dependencies [b0ead51]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/npm-resolver@1004.1.0
+  - @pnpm/pick-fetcher@1000.0.1
+  - @pnpm/calc-dep-state@1002.0.0
+  - @pnpm/lockfile.preferred-versions@1000.0.14
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/store-controller-types@1003.0.3
+
+## 1007.0.2
+
+### Patch Changes
+
+- 509948d: Fix a regression (in v10.9.0) causing the `--lockfile-only` flag on `pnpm update` to produce a different `pnpm-lock.yaml` than an update without the flag.
+- Updated dependencies [509948d]
+  - @pnpm/store-controller-types@1003.0.2
+
+## 1007.0.1
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [c24c66e]
+  - @pnpm/npm-resolver@1004.0.1
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/patching.config@1001.0.3
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/manifest-utils@1001.0.1
+  - @pnpm/lockfile.preferred-versions@1000.0.13
+  - @pnpm/lockfile.pruner@1001.0.9
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1007.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+- 5b73df1: Renamed `normalizedPref` to `specifiers`.
+
+### Minor Changes
+
+- 9c3dd03: **Added support for installing JSR packages.** You can now install JSR packages using the following syntax:
+
+  ```
+  pnpm add jsr:<pkg_name>
+  ```
+
+  or with a version range:
+
+  ```
+  pnpm add jsr:<pkg_name>@<range>
+  ```
+
+  For example, running:
+
+  ```
+  pnpm add jsr:@foo/bar
+  ```
+
+  will add the following entry to your `package.json`:
+
+  ```json
+  {
+    "dependencies": {
+      "@foo/bar": "jsr:^0.1.2"
+    }
+  }
+  ```
+
+  When publishing, this entry will be transformed into a format compatible with npm, older versions of Yarn, and previous pnpm versions:
+
+  ```json
+  {
+    "dependencies": {
+      "@foo/bar": "npm:@jsr/foo__bar@^0.1.2"
+    }
+  }
+  ```
+
+  Related issue: [#8941](https://github.com/pnpm/pnpm/issues/8941).
+
+  Note: The `@jsr` scope defaults to <https://npm.jsr.io/> if the `@jsr:registry` setting is not defined.
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/npm-resolver@1004.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/manifest-utils@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/catalogs.resolver@1000.0.3
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/lockfile.preferred-versions@1000.0.12
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/lockfile.pruner@1001.0.8
+  - @pnpm/lockfile.types@1001.0.7
+  - @pnpm/dependency-path@1000.0.8
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/patching.config@1001.0.2
+
+## 1006.0.0
+
+### Major Changes
+
+- 81f441c: Removed `raw` from `WantedDependency` object. Remove `updateWorkspaceDependencies` field.
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/npm-resolver@1003.0.0
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/lockfile.preferred-versions@1000.0.11
+  - @pnpm/lockfile.utils@1001.0.9
+  - @pnpm/store-controller-types@1002.0.1
+
+## 1005.0.1
+
+### Patch Changes
+
+- 72cff38: The resolving function now takes a `registries` object, so it finds the required registry itself instead of receiving it from package requester.
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/npm-resolver@1002.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/lockfile.preferred-versions@1000.0.10
+  - @pnpm/lockfile.pruner@1001.0.7
+  - @pnpm/lockfile.types@1001.0.6
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/manifest-utils@1000.0.8
+  - @pnpm/read-package-json@1000.0.7
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/patching.config@1001.0.1
+
+## 1005.0.0
+
+### Major Changes
+
+- 5f7be64: Add an ability to patch dependencies by version ranges. Exact versions override version ranges, which in turn override name-only patches. Version range `*` is the same as name-only, except that patch application failure will not be ignored.
+
+  For example:
+
+  ```yaml
+  patchedDependencies:
+    foo: patches/foo-1.patch
+    foo@^2.0.0: patches/foo-2.patch
+    foo@2.1.0: patches/foo-3.patch
+  ```
+
+  The above configuration would apply `patches/foo-3.patch` to `foo@2.1.0`, `patches/foo-2.patch` to all `foo` versions which satisfy `^2.0.0` except `2.1.0`, and `patches/foo-1.patch` to the remaining `foo` versions.
+
+  > [!WARNING]
+  > The version ranges should not overlap. If you want to specialize a sub range, make sure to exclude it from the other keys. For example:
+  >
+  > ```yaml
+  > # pnpm-workspace.yaml
+  > patchedDependencies:
+  >   # the specialized sub range
+  >   'foo@2.2.0-2.8.0': patches/foo.2.2.0-2.8.0.patch
+  >   # the more general patch, excluding the sub range above
+  >   'foo@>=2.0.0 <2.2.0 || >2.8.0': 'patches/foo.gte2.patch
+  > ```
+  >
+  > In most cases, however, it's sufficient to just define an exact version to override the range.
+
+- 5f7be64: Rename `pnpm.allowNonAppliedPatches` to `pnpm.allowUnusedPatches`. The old name is still supported but it would print a deprecation warning message.
+- 5f7be64: Add `pnpm.ignorePatchFailures` to manage whether pnpm would ignore patch application failures.
+
+  If `ignorePatchFailures` is not set, pnpm would throw an error when patches with exact versions or version ranges fail to apply, and it would ignore failures from name-only patches.
+
+  If `ignorePatchFailures` is explicitly set to `false`, pnpm would throw an error when any type of patch fails to apply.
+
+  If `ignorePatchFailures` is explicitly set to `true`, pnpm would print a warning when any type of patch fails to apply.
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/patching.config@1001.0.0
+  - @pnpm/patching.types@1000.1.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/lockfile.types@1001.0.5
+  - @pnpm/pick-registry-for-package@1000.0.5
+  - @pnpm/lockfile.preferred-versions@1000.0.9
+  - @pnpm/lockfile.pruner@1001.0.6
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/manifest-utils@1000.0.7
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/npm-resolver@1001.0.1
+  - @pnpm/resolver-base@1000.2.1
+  - @pnpm/store-controller-types@1001.0.5
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1004.0.7
+
+### Patch Changes
+
+- f0f95ab: Fix usages of the [`catalog:` protocol](https://pnpm.io/catalogs) in [injected local workspace packages](https://pnpm.io/package_json#dependenciesmetainjected). This previously errored with `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`. [#8715](https://github.com/pnpm/pnpm/issues/8715)
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/npm-resolver@1001.0.0
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/lockfile.preferred-versions@1000.0.8
+  - @pnpm/lockfile.utils@1001.0.6
+  - @pnpm/store-controller-types@1001.0.4
+
+## 1004.0.6
+
+### Patch Changes
+
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/npm-resolver@1000.1.7
+- @pnpm/lockfile.pruner@1001.0.5
+- @pnpm/lockfile.utils@1001.0.5
+- @pnpm/lockfile.preferred-versions@1000.0.7
+
+## 1004.0.5
+
+### Patch Changes
+
+- Updated dependencies [8371664]
+  - @pnpm/npm-resolver@1000.1.6
+
+## 1004.0.4
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/npm-resolver@1000.1.5
+  - @pnpm/pick-registry-for-package@1000.0.4
+  - @pnpm/lockfile.preferred-versions@1000.0.6
+  - @pnpm/lockfile.pruner@1001.0.4
+  - @pnpm/lockfile.types@1001.0.4
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/manifest-utils@1000.0.6
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/resolver-base@1000.1.4
+  - @pnpm/store-controller-types@1001.0.3
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1004.0.3
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/pick-registry-for-package@1000.0.3
+  - @pnpm/lockfile.preferred-versions@1000.0.5
+  - @pnpm/lockfile.pruner@1001.0.3
+  - @pnpm/lockfile.types@1001.0.3
+  - @pnpm/lockfile.utils@1001.0.3
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/dependency-path@1000.0.3
+  - @pnpm/manifest-utils@1000.0.5
+  - @pnpm/read-package-json@1000.0.4
+  - @pnpm/npm-resolver@1000.1.4
+  - @pnpm/resolver-base@1000.1.3
+  - @pnpm/store-controller-types@1001.0.2
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1004.0.2
+
+### Patch Changes
+
+- e8c2b17: Prevent `overrides` from adding invalid version ranges to `peerDependencies` by keeping the `peerDependencies` and overriding them with prod `dependencies` [#8978](https://github.com/pnpm/pnpm/issues/8978).
+- Updated dependencies [e8c2b17]
+  - @pnpm/semver.peer-range@1000.0.0
+
+## 1004.0.1
+
+### Patch Changes
+
+- ea58bfd: Allow `workspace:` and `catalog:` to be part of wider version range in `peerDependencies`.
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.pruner@1001.0.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/npm-resolver@1000.1.3
+  - @pnpm/pick-registry-for-package@1000.0.2
+  - @pnpm/lockfile.preferred-versions@1000.0.4
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/manifest-utils@1000.0.4
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/store-controller-types@1001.0.1
+  - @pnpm/catalogs.resolver@1000.0.2
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1004.0.0
+
+### Major Changes
+
+- 26fe994: Refuse to install when `peerDependencies` has specifications that don't make sense.
+
+### Patch Changes
+
+- dde650b: Fix a case in `resolveDependencies`, whereby an importer that should not have been updated altogether, was being updated when `updateToLatest` was specified in the options.
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+
+## 1003.0.0
+
+### Major Changes
+
+- c7eefdd: The `updateToLatest` option is now part of projects/importers, instead of an option of the resolution/installation.
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/pick-registry-for-package@1000.0.1
+  - @pnpm/lockfile.preferred-versions@1000.0.3
+  - @pnpm/lockfile.pruner@1001.0.1
+  - @pnpm/lockfile.types@1001.0.1
+  - @pnpm/lockfile.utils@1001.0.1
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/dependency-path@1000.0.1
+  - @pnpm/manifest-utils@1000.0.3
+  - @pnpm/read-package-json@1000.0.2
+  - @pnpm/npm-resolver@1000.1.2
+  - @pnpm/resolver-base@1000.1.1
+  - @pnpm/store-controller-types@1000.1.1
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1002.0.0
+
+### Major Changes
+
+- 512465c: Remove `allowBuild` from options.
+
+### Patch Changes
+
+- 3bc9d5c: Installation with hoisted node_modules should not fail, when a dependency has itself in its own peer dependencies [#8854](https://github.com/pnpm/pnpm/issues/8854).
+- Updated dependencies [516c4b3]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/manifest-utils@1000.0.2
+  - @pnpm/npm-resolver@1000.1.1
+  - @pnpm/lockfile.preferred-versions@1000.0.2
+
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Minor Changes
+
+- 6483b64: A new setting, `inject-workspace-packages`, has been added to allow hard-linking all local workspace dependencies instead of symlinking them. Previously, this behavior was achievable via the [`dependenciesMeta[].injected`](https://pnpm.io/package_json#dependenciesmetainjected) setting, which remains supported [#8836](https://github.com/pnpm/pnpm/pull/8836).
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/npm-resolver@1000.1.0
+  - @pnpm/lockfile.types@1001.0.0
+  - @pnpm/lockfile.pruner@1001.0.0
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/lockfile.preferred-versions@1000.0.1
+  - @pnpm/catalogs.resolver@1000.0.1
+  - @pnpm/manifest-utils@1000.0.1
+  - @pnpm/read-package-json@1000.0.1
+
+## 36.0.7
+
+### Patch Changes
+
+- 5b91ec4: Don't duplicate leaf nodes in dependenciesTree.
+- ee5dde3: Fix `Cannot read properties of undefined (reading 'name')` that is printed while trying to render the missing peer dependencies warning message [#8538](https://github.com/pnpm/pnpm/issues/8538).
+- 52d2965: Fixed some edge cases where resolving circular peer dependencies caused a dead lock [#8720](https://github.com/pnpm/pnpm/issues/8720).
+- bd01a2a: Detection of circular peer dependencies should not crash with aliased dependencies [#8759](https://github.com/pnpm/pnpm/issues/8759). Fixes a regression introduced in the previous version.
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [dcd2917]
+- Updated dependencies [501c152]
+- Updated dependencies [d55b259]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/npm-resolver@22.0.0
+  - @pnpm/lockfile.pruner@0.0.7
+  - @pnpm/error@6.0.3
+  - @pnpm/lockfile.utils@1.0.5
+  - @pnpm/store-controller-types@18.1.6
+  - @pnpm/catalogs.resolver@0.1.2
+  - @pnpm/manifest-utils@6.0.10
+  - @pnpm/read-package-json@9.0.10
+  - @pnpm/lockfile.preferred-versions@1.0.15
+
+## 36.0.6
+
+### Patch Changes
+
+- Updated dependencies [222d10a]
+  - @pnpm/npm-resolver@21.1.1
+  - @pnpm/dependency-path@5.1.7
+  - @pnpm/lockfile.pruner@0.0.6
+  - @pnpm/lockfile.utils@1.0.4
+  - @pnpm/lockfile.preferred-versions@1.0.14
+
 ## 36.0.5
 
 ### Patch Changes

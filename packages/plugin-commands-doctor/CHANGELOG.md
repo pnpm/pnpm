@@ -1,5 +1,370 @@
 # @pnpm/plugin-commands-doctor
 
+## 1000.1.41
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.7
+- @pnpm/config@1004.4.2
+
+## 1000.1.40
+
+### Patch Changes
+
+- Updated dependencies [9865167]
+  - @pnpm/config@1004.4.1
+  - @pnpm/cli-utils@1001.2.6
+
+## 1000.1.39
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.5
+
+## 1000.1.38
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/config@1004.4.0
+  - @pnpm/cli-utils@1001.2.4
+
+## 1000.1.37
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.3
+
+## 1000.1.36
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.2.2
+
+## 1000.1.35
+
+### Patch Changes
+
+- @pnpm/config@1004.3.1
+- @pnpm/cli-utils@1001.2.1
+
+## 1000.1.34
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/config@1004.3.0
+  - @pnpm/cli-utils@1001.2.0
+
+## 1000.1.33
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.1.2
+
+## 1000.1.32
+
+### Patch Changes
+
+- @pnpm/cli-utils@1001.1.1
+
+## 1000.1.31
+
+### Patch Changes
+
+- Updated dependencies [3ebc0ce]
+  - @pnpm/cli-utils@1001.1.0
+
+## 1000.1.30
+
+### Patch Changes
+
+- @pnpm/config@1004.2.1
+- @pnpm/cli-utils@1001.0.3
+
+## 1000.1.29
+
+### Patch Changes
+
+- Updated dependencies [6f7ac0f]
+  - @pnpm/config@1004.2.0
+  - @pnpm/cli-utils@1001.0.2
+
+## 1000.1.28
+
+### Patch Changes
+
+- Updated dependencies [7ad0bc3]
+  - @pnpm/cli-utils@1001.0.1
+
+## 1000.1.27
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+- Updated dependencies [e225310]
+  - @pnpm/config@1004.1.0
+  - @pnpm/cli-utils@1001.0.0
+
+## 1000.1.26
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.1.7
+
+## 1000.1.25
+
+### Patch Changes
+
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/config@1004.0.0
+  - @pnpm/cli-utils@1000.1.6
+
+## 1000.1.24
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/cli-utils@1000.1.5
+
+## 1000.1.23
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/cli-utils@1000.1.4
+
+## 1000.1.22
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.1.3
+- @pnpm/config@1003.0.1
+
+## 1000.1.21
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+  - @pnpm/config@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/cli-utils@1000.1.2
+
+## 1000.1.20
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.1.1
+- @pnpm/config@1002.7.2
+
+## 1000.1.19
+
+### Patch Changes
+
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [1413c25]
+  - @pnpm/config@1002.7.1
+  - @pnpm/cli-utils@1000.1.0
+
+## 1000.1.18
+
+### Patch Changes
+
+- Updated dependencies [e57f1df]
+  - @pnpm/config@1002.7.0
+  - @pnpm/cli-utils@1000.0.19
+
+## 1000.1.17
+
+### Patch Changes
+
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/cli-utils@1000.0.18
+
+## 1000.1.16
+
+### Patch Changes
+
+- Updated dependencies [936430a]
+  - @pnpm/config@1002.5.4
+  - @pnpm/cli-utils@1000.0.17
+
+## 1000.1.15
+
+### Patch Changes
+
+- Updated dependencies [6e4459c]
+  - @pnpm/config@1002.5.3
+  - @pnpm/cli-utils@1000.0.16
+
+## 1000.1.14
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.15
+- @pnpm/config@1002.5.2
+
+## 1000.1.13
+
+### Patch Changes
+
+- Updated dependencies [c3aa4d8]
+  - @pnpm/config@1002.5.1
+  - @pnpm/cli-utils@1000.0.14
+
+## 1000.1.12
+
+### Patch Changes
+
+- Updated dependencies [d965748]
+  - @pnpm/config@1002.5.0
+  - @pnpm/cli-utils@1000.0.13
+
+## 1000.1.11
+
+### Patch Changes
+
+- Updated dependencies [1c2eb8c]
+  - @pnpm/config@1002.4.1
+  - @pnpm/cli-utils@1000.0.12
+
+## 1000.1.10
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+  - @pnpm/config@1002.4.0
+  - @pnpm/cli-utils@1000.0.11
+
+## 1000.1.9
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+  - @pnpm/config@1002.3.1
+  - @pnpm/cli-utils@1000.0.10
+
+## 1000.1.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.9
+
+## 1000.1.7
+
+### Patch Changes
+
+- Updated dependencies [f6006f2]
+  - @pnpm/config@1002.3.0
+  - @pnpm/cli-utils@1000.0.8
+
+## 1000.1.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.7
+- @pnpm/config@1002.2.1
+
+## 1000.1.5
+
+### Patch Changes
+
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/config@1002.2.0
+  - @pnpm/cli-utils@1000.0.6
+
+## 1000.1.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@1000.0.5
+- @pnpm/config@1002.1.2
+
+## 1000.1.3
+
+### Patch Changes
+
+- Updated dependencies [1f5169f]
+  - @pnpm/config@1002.1.1
+  - @pnpm/cli-utils@1000.0.4
+
+## 1000.1.2
+
+### Patch Changes
+
+- Updated dependencies [f90a94b]
+- Updated dependencies [f891288]
+  - @pnpm/config@1002.1.0
+  - @pnpm/cli-utils@1000.0.3
+
+## 1000.1.1
+
+### Patch Changes
+
+- Updated dependencies [878ea8c]
+  - @pnpm/config@1002.0.0
+  - @pnpm/cli-utils@1000.0.2
+
+## 1000.1.0
+
+### Minor Changes
+
+- 835b4e8: Symlink are not supported in the exFAT driver, and installation of dependencies will result in errors. The doctor command checks if the current drive is exFAT and gives a warning message.
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [ac5b9d8]
+- Updated dependencies [6483b64]
+  - @pnpm/config@1001.0.0
+  - @pnpm/cli-utils@1000.0.1
+
+## 3.0.24
+
+### Patch Changes
+
+- Updated dependencies [477e0c1]
+- Updated dependencies [dfcf034]
+- Updated dependencies [592e2ef]
+- Updated dependencies [19d5b51]
+- Updated dependencies [1dbc56a]
+- Updated dependencies [e9985b6]
+  - @pnpm/config@22.0.0
+  - @pnpm/cli-utils@4.0.8
+
+## 3.0.23
+
+### Patch Changes
+
+- @pnpm/cli-utils@4.0.7
+- @pnpm/config@21.8.5
+
 ## 3.0.22
 
 ### Patch Changes

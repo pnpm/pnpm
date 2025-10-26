@@ -1,29 +1,27 @@
 import {
   LOCKFILE_VERSION,
-  LOCKFILE_VERSION_V6,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
   createLockfileObject,
   existsNonEmptyWantedLockfile,
   isEmptyLockfile,
-  type Lockfile,
+  type LockfileObject,
   readCurrentLockfile,
   readWantedLockfile,
   readWantedLockfileAndAutofixConflicts,
 } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import { type ProjectId, type ProjectRootDir } from '@pnpm/types'
-import { isCI } from 'ci-info'
 import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
 
 export interface PnpmContext {
-  currentLockfile: Lockfile
+  currentLockfile: LockfileObject
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   existsNonEmptyWantedLockfile: boolean
-  wantedLockfile: Lockfile
+  wantedLockfile: LockfileObject
 }
 
 export async function readLockfiles (
@@ -31,6 +29,7 @@ export async function readLockfiles (
     autoInstallPeers: boolean
     excludeLinksFromLockfile: boolean
     peersSuffixMaxLength: number
+    ci?: boolean
     force: boolean
     frozenLockfile: boolean
     projects: Array<{
@@ -42,15 +41,15 @@ export async function readLockfiles (
     useLockfile: boolean
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
-    virtualStoreDir: string
+    internalPnpmDir: string
   }
 ): Promise<{
-    currentLockfile: Lockfile
+    currentLockfile: LockfileObject
     currentLockfileIsUpToDate: boolean
     existsCurrentLockfile: boolean
     existsWantedLockfile: boolean
     existsNonEmptyWantedLockfile: boolean
-    wantedLockfile: Lockfile
+    wantedLockfile: LockfileObject
     wantedLockfileIsModified: boolean
     lockfileHadConflicts: boolean
   }> {
@@ -58,12 +57,12 @@ export async function readLockfiles (
   // ignore `pnpm-lock.yaml` on CI servers
   // a latest pnpm should not break all the builds
   const lockfileOpts = {
-    ignoreIncompatible: opts.force || isCI,
-    wantedVersions: [LOCKFILE_VERSION, LOCKFILE_VERSION_V6],
+    ignoreIncompatible: opts.force || opts.ci === true,
+    wantedVersions: [LOCKFILE_VERSION],
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
-  const fileReads = [] as Array<Promise<Lockfile | undefined | null>>
+  const fileReads = [] as Array<Promise<LockfileObject | undefined | null>>
   let lockfileHadConflicts: boolean = false
   if (opts.useLockfile) {
     if (!opts.frozenLockfile) {
@@ -97,17 +96,17 @@ export async function readLockfiles (
   fileReads.push(
     (async () => {
       try {
-        return await readCurrentLockfile(opts.virtualStoreDir, lockfileOpts)
+        return await readCurrentLockfile(opts.internalPnpmDir, lockfileOpts)
       } catch (err: any) { // eslint-disable-line
         logger.warn({
-          message: `Ignoring broken lockfile at ${opts.virtualStoreDir}: ${err.message as string}`,
+          message: `Ignoring broken lockfile at ${opts.internalPnpmDir}: ${err.message as string}`,
           prefix: opts.lockfileDir,
         })
         return undefined
       }
     })()
   )
-  const files = await Promise.all<Lockfile | null | undefined>(fileReads)
+  const files = await Promise.all<LockfileObject | null | undefined>(fileReads)
   const sopts = {
     autoInstallPeers: opts.autoInstallPeers,
     excludeLinksFromLockfile: opts.excludeLinksFromLockfile,

@@ -1,7 +1,8 @@
 {
   "name": "@pnpm/tsconfig",
   "description": "pnpm's TypeScript configuration",
-  "version": "2.0.0",
+  "private": true,
+  "version": "1000.0.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -18,7 +19,8 @@
     "@pnpm/tsconfig": "workspace:*"
   },
   "keywords": [
-    "pnpm8"
+    "pnpm",
+    "pnpm10"
   ],
   "engines": {
     "node": ">=14.6"

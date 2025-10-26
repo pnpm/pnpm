@@ -22,7 +22,10 @@
       "path": "../../config/config"
     },
     {
-      "path": "../../config/pick-registry-for-package"
+      "path": "../../config/config-writer"
+    },
+    {
+      "path": "../../crypto/hash"
     },
     {
       "path": "../../fetching/pick-fetcher"
@@ -67,7 +70,13 @@
       "path": "../../store/store-connection-manager"
     },
     {
+      "path": "../../store/store-path"
+    },
+    {
       "path": "../../workspace/filter-packages-from-dir"
+    },
+    {
+      "path": "../../workspace/read-manifest"
     },
     {
       "path": "../apply-patch"

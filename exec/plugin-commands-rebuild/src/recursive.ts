@@ -7,6 +7,7 @@ import {
 import {
   type Config,
   readLocalConfig,
+  getWorkspaceConcurrency,
 } from '@pnpm/config'
 import { logger } from '@pnpm/logger'
 import { sortPackages } from '@pnpm/sort-packages'
@@ -14,7 +15,7 @@ import { createOrConnectStoreController, type CreateStoreControllerOptions } fro
 import { type Project, type ProjectManifest, type ProjectRootDir } from '@pnpm/types'
 import mem from 'mem'
 import pLimit from 'p-limit'
-import { rebuildProjects as rebuildAll, type RebuildOptions, rebuildSelectedPkgs } from './implementation'
+import { rebuildProjects as rebuildAll, type RebuildOptions, rebuildSelectedPkgs } from './implementation/index.js'
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'hoistPattern'
@@ -110,7 +111,7 @@ export async function recursiveRebuild (
     )
     return
   }
-  const limitRebuild = pLimit(opts.workspaceConcurrency ?? 4)
+  const limitRebuild = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
     await Promise.all(chunk.map(async (rootDir) =>

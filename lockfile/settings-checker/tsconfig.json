@@ -16,7 +16,7 @@
       "path": "../../config/parse-overrides"
     },
     {
-      "path": "../../packages/crypto.base32-hash"
+      "path": "../../crypto/hash"
     },
     {
       "path": "../types"

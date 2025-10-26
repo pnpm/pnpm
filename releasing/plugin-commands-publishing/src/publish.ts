@@ -16,8 +16,8 @@ import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
-import * as pack from './pack'
-import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish'
+import * as pack from './pack.js'
+import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
@@ -112,6 +112,46 @@ export function help (): string {
 
 const GIT_CHECKS_HINT = 'If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks".'
 
+/**
+ * Remove pnpm-specific CLI options that npm doesn't recognize.
+ */
+export function removePnpmSpecificOptions (args: string[]): string[] {
+  const booleanOptions = new Set([
+    '--no-git-checks',
+    '--embed-readme',
+    '--no-embed-readme',
+  ])
+
+  const optionsWithValue = new Set([
+    '--publish-branch',
+    '--npm-path',
+  ])
+
+  const result: string[] = []
+  let i = 0
+
+  while (i < args.length) {
+    const arg = args[i]
+
+    if (booleanOptions.has(arg)) {
+      // Skip only the boolean option itself
+      i++
+    } else if (optionsWithValue.has(arg)) {
+      // Skip the option and its value
+      i++
+      // Skip the value if it exists and doesn't look like another option
+      if (i < args.length && args[i][0] !== '-') {
+        i++
+      }
+    } else {
+      result.push(arg)
+      i++
+    }
+  }
+
+  return result
+}
+
 export async function handler (
   opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
     argv: {
@@ -195,18 +235,9 @@ Do you want to continue?`,
   if (dirInParams) {
     args = args.filter(arg => arg !== params[0])
   }
-  const index = args.indexOf('--publish-branch')
-  if (index !== -1) {
-    // If --publish-branch follows with another cli option, only remove this argument
-    // otherwise remove the following argument as well
-    if (args[index + 1]?.startsWith('-')) {
-      args.splice(index, 1)
-    } else {
-      args.splice(index, 2)
-    }
-  }
+  args = removePnpmSpecificOptions(args)
 
-  if (dirInParams?.endsWith('.tgz')) {
+  if (dirInParams != null && (dirInParams.endsWith('.tgz') || dirInParams?.endsWith('.tar.gz'))) {
     const { status } = runNpm(opts.npmPath, ['publish', dirInParams, ...args])
     return { exitCode: status ?? 0 }
   }
@@ -237,13 +268,13 @@ Do you want to continue?`,
   // from the current working directory, ignoring the package.json file
   // that was generated and packed to the tarball.
   const packDestination = tempy.directory()
-  const tarballName = await pack.handler({
+  const { tarballPath } = await pack.api({
     ...opts,
     dir,
     packDestination,
   })
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
-  const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballName), ...args], {
+  const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballPath), ...args], {
     cwd: packDestination,
     env: getEnvWithTokens(opts),
   })

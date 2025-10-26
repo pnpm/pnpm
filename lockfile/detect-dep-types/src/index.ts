@@ -1,4 +1,4 @@
-import { type Lockfile, type PackageSnapshots, type ResolvedDependencies } from '@pnpm/lockfile.types'
+import { type LockfileObject, type PackageSnapshots, type ResolvedDependencies } from '@pnpm/lockfile.types'
 import * as dp from '@pnpm/dependency-path'
 import { type DepPath } from '@pnpm/types'
 
@@ -10,7 +10,7 @@ export enum DepType {
 
 export type DepTypes = Record<string, DepType>
 
-export function detectDepTypes (lockfile: Lockfile): DepTypes {
+export function detectDepTypes (lockfile: LockfileObject): DepTypes {
   const dev: DepTypes = {}
   const devDepPaths = Object.values(lockfile.importers)
     .map((deps) => resolvedDepsToDepPaths(deps.devDependencies ?? {})).flat()

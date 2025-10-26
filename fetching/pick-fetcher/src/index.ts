@@ -1,8 +1,8 @@
-import type { Resolution } from '@pnpm/resolver-base'
-import type { Fetchers, FetchFunction, DirectoryFetcher, GitFetcher } from '@pnpm/fetcher-base'
+import type { AtomicResolution } from '@pnpm/resolver-base'
+import type { Fetchers, FetchFunction, DirectoryFetcher, GitFetcher, BinaryFetcher } from '@pnpm/fetcher-base'
 
-export function pickFetcher (fetcherByHostingType: Partial<Fetchers>, resolution: Resolution): FetchFunction | DirectoryFetcher | GitFetcher {
-  let fetcherType = resolution.type
+export function pickFetcher (fetcherByHostingType: Partial<Fetchers>, resolution: AtomicResolution): FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher {
+  let fetcherType: keyof Fetchers | undefined = resolution.type
 
   if (resolution.type == null) {
     if (resolution.tarball.startsWith('file:')) {
@@ -14,7 +14,7 @@ export function pickFetcher (fetcherByHostingType: Partial<Fetchers>, resolution
     }
   }
 
-  const fetch = fetcherByHostingType[fetcherType! as keyof Fetchers]
+  const fetch = fetcherByHostingType[fetcherType!]
 
   if (!fetch) {
     throw new Error(`Fetching for dependency type "${resolution.type ?? 'undefined'}" is not supported`)

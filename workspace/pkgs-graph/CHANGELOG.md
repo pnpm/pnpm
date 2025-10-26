@@ -1,5 +1,205 @@
 # @pnpm/workspace.pkgs-graph
 
+## 1000.0.24
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/npm-resolver@1004.4.0
+
+## 1000.0.23
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/npm-resolver@1004.3.0
+
+## 1000.0.22
+
+### Patch Changes
+
+- Updated dependencies [baf8bf6]
+- Updated dependencies [702ddb9]
+  - @pnpm/npm-resolver@1004.2.3
+
+## 1000.0.21
+
+### Patch Changes
+
+- Updated dependencies [121b44e]
+- Updated dependencies [02f8b69]
+  - @pnpm/npm-resolver@1004.2.2
+
+## 1000.0.20
+
+### Patch Changes
+
+- @pnpm/npm-resolver@1004.2.1
+
+## 1000.0.19
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/npm-resolver@1004.2.0
+  - @pnpm/types@1000.8.0
+
+## 1000.0.18
+
+### Patch Changes
+
+- 0b6264e: Update @pnpm/npm-package-arg.
+  - @pnpm/npm-resolver@1004.1.3
+
+## 1000.0.17
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/npm-resolver@1004.1.2
+
+## 1000.0.16
+
+### Patch Changes
+
+- @pnpm/npm-resolver@1004.1.1
+
+## 1000.0.15
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+  - @pnpm/npm-resolver@1004.1.0
+
+## 1000.0.14
+
+### Patch Changes
+
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/npm-resolver@1004.0.1
+  - @pnpm/types@1000.6.0
+
+## 1000.0.13
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/npm-resolver@1004.0.0
+  - @pnpm/types@1000.5.0
+
+## 1000.0.12
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/npm-resolver@1003.0.0
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+  - @pnpm/types@1000.4.0
+  - @pnpm/npm-resolver@1002.0.0
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/npm-resolver@1001.0.1
+
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [3d52365]
+  - @pnpm/npm-resolver@1001.0.0
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/npm-resolver@1000.1.7
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [8371664]
+  - @pnpm/npm-resolver@1000.1.6
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/npm-resolver@1000.1.5
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/npm-resolver@1000.1.4
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/npm-resolver@1000.1.3
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/npm-resolver@1000.1.2
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/npm-resolver@1000.1.1
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+  - @pnpm/npm-resolver@1000.1.0
+
+## 4.0.8
+
+### Patch Changes
+
+- Updated dependencies [501c152]
+  - @pnpm/npm-resolver@22.0.0
+
+## 4.0.7
+
+### Patch Changes
+
+- Updated dependencies [222d10a]
+  - @pnpm/npm-resolver@21.1.1
+
 ## 4.0.6
 
 ### Patch Changes

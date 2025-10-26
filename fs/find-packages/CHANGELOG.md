@@ -1,5 +1,146 @@
 # @pnpm/fs.find-packages
 
+## 1000.0.17
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/read-project-manifest@1001.1.4
+
+## 1000.0.16
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1001.1.3
+
+## 1000.0.15
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1001.1.2
+
+## 1000.0.14
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/read-project-manifest@1001.1.1
+
+## 1000.0.13
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+  - @pnpm/read-project-manifest@1001.1.0
+
+## 1000.0.12
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+
+## 1000.0.11
+
+### Patch Changes
+
+- c00360b: Update `@pnpm/util.lex-comparator` to v3.0.2.
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+  - @pnpm/read-project-manifest@1000.0.11
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [5b73df1]
+  - @pnpm/types@1000.5.0
+  - @pnpm/read-project-manifest@1000.0.10
+
+## 1000.0.9
+
+### Patch Changes
+
+- c85aaf8: Do not hang indefinitely, when there is a glob that starts with `!/` in `pnpm-workspace.yaml`. This fixes a regression introduced by [#9169](https://github.com/pnpm/pnpm/pull/9169).
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/read-project-manifest@1000.0.9
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/read-project-manifest@1000.0.8
+
+## 1000.0.7
+
+### Patch Changes
+
+- b8b0c68: `fast-glob` replace with `tinyglobby` to reduce the size of the pnpm CLI dependencies [#9169](https://github.com/pnpm/pnpm/pull/9169).
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/read-project-manifest@1000.0.7
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/read-project-manifest@1000.0.6
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [1e229d7]
+  - @pnpm/read-project-manifest@1000.0.5
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/read-project-manifest@1000.0.4
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/read-project-manifest@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1000.0.1
+
+## 4.0.6
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@6.0.10
+
 ## 4.0.5
 
 ### Patch Changes

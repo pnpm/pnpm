@@ -1,3 +1,4 @@
+import path from 'path'
 import { readProjectManifestOnly } from '@pnpm/cli-utils'
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -5,8 +6,8 @@ import { getStorePath } from '@pnpm/store-path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
 import { findDependencyLicenses } from '@pnpm/license-scanner'
-import { type LicensesCommandResult } from './LicensesCommandResult'
-import { renderLicences } from './outputRenderer'
+import { type LicensesCommandResult } from './LicensesCommandResult.js'
+import { renderLicences } from './outputRenderer.js'
 
 export type LicensesCommandOptions = {
   compatible?: boolean
@@ -66,7 +67,7 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
     include,
     lockfileDir: opts.lockfileDir ?? opts.dir,
     storeDir,
-    virtualStoreDir: opts.virtualStoreDir ?? '.',
+    virtualStoreDir: opts.virtualStoreDir ?? path.join(opts.modulesDir ?? 'node_modules', '.pnpm'),
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     modulesDir: opts.modulesDir,
     registries: opts.registries,

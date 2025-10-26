@@ -16,6 +16,9 @@
       "path": "../../catalogs/types"
     },
     {
+      "path": "../../crypto/hash"
+    },
+    {
       "path": "../../packages/constants"
     },
     {

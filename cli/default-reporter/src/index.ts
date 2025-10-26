@@ -4,13 +4,12 @@ import { type LogLevel, type StreamParser } from '@pnpm/logger'
 import * as Rx from 'rxjs'
 import { filter, map, mergeAll } from 'rxjs/operators'
 import createDiffer from 'ansi-diff'
-import { EOL } from './constants'
-import { mergeOutputs } from './mergeOutputs'
-import { reporterForClient } from './reporterForClient'
-import { formatWarn } from './reporterForClient/utils/formatWarn'
-import { reporterForServer } from './reporterForServer'
-import { type FilterPkgsDiff } from './reporterForClient/reportSummary'
-import { type PeerDependencyRules } from '@pnpm/types'
+import { EOL } from './constants.js'
+import { mergeOutputs } from './mergeOutputs.js'
+import { reporterForClient } from './reporterForClient/index.js'
+import { formatWarn } from './reporterForClient/utils/formatWarn.js'
+import { reporterForServer } from './reporterForServer.js'
+import { type FilterPkgsDiff } from './reporterForClient/reportSummary.js'
 
 export { formatWarn }
 
@@ -29,7 +28,6 @@ export function initDefaultReporter (
       hideProgressPrefix?: boolean
       hideLifecycleOutput?: boolean
       hideLifecyclePrefix?: boolean
-      peerDependencyRules?: PeerDependencyRules
     }
     context: {
       argv: string[]
@@ -107,7 +105,6 @@ export function toOutput$ (
       appendOnly?: boolean
       logLevel?: LogLevel
       outputMaxWidth?: number
-      peerDependencyRules?: PeerDependencyRules
       streamLifecycleOutput?: boolean
       aggregateOutput?: boolean
       throttleProgress?: number
@@ -137,6 +134,8 @@ export function toOutput$ (
   const statsPushStream = new Rx.Subject<logs.StatsLog>()
   const packageImportMethodPushStream = new Rx.Subject<logs.PackageImportMethodLog>()
   const installCheckPushStream = new Rx.Subject<logs.InstallCheckLog>()
+  const installingConfigDepsStream = new Rx.Subject<logs.InstallingConfigDepsLog>()
+  const ignoredScriptsPushStream = new Rx.Subject<logs.IgnoredScriptsLog>()
   const registryPushStream = new Rx.Subject<logs.RegistryLog>()
   const rootPushStream = new Rx.Subject<logs.RootLog>()
   const packageManifestPushStream = new Rx.Subject<logs.PackageManifestLog>()
@@ -186,6 +185,12 @@ export function toOutput$ (
         break
       case 'pnpm:install-check':
         installCheckPushStream.next(log)
+        break
+      case 'pnpm:installing-config-deps':
+        installingConfigDepsStream.next(log)
+        break
+      case 'pnpm:ignored-scripts':
+        ignoredScriptsPushStream.next(log)
         break
       case 'pnpm:registry':
         registryPushStream.next(log)
@@ -238,6 +243,8 @@ export function toOutput$ (
     executionTime: Rx.from(executionTimePushStream),
     hook: Rx.from(hookPushStream),
     installCheck: Rx.from(installCheckPushStream),
+    installingConfigDeps: Rx.from(installingConfigDepsStream),
+    ignoredScripts: Rx.from(ignoredScriptsPushStream),
     lifecycle: Rx.from(lifecyclePushStream),
     link: Rx.from(linkPushStream),
     other,
@@ -264,7 +271,6 @@ export function toOutput$ (
       config: opts.context.config,
       env: opts.context.env ?? process.env,
       filterPkgsDiff: opts.filterPkgsDiff,
-      peerDependencyRules: opts.reportingOptions?.peerDependencyRules,
       process: opts.context.process ?? process,
       isRecursive: opts.context.config?.['recursive'] === true,
       logLevel: opts.reportingOptions?.logLevel,

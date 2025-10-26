@@ -1,7 +1,7 @@
 import { preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { sync as writeYamlFile } from 'write-yaml-file'
-import { execPnpm } from '../utils'
+import { execPnpm } from '../utils/index.js'
 
 test('pnpm recursive run finds bins from the root of the workspace', async () => {
   await using serverForBuild = await createTestIpcServer()

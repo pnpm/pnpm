@@ -1,6 +1,6 @@
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook'
-import { runLifecycleHooksConcurrently, type RunLifecycleHooksConcurrentlyOptions } from './runLifecycleHooksConcurrently'
+import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook.js'
+import { runLifecycleHooksConcurrently, type RunLifecycleHooksConcurrentlyOptions } from './runLifecycleHooksConcurrently.js'
 
 export function makeNodeRequireOption (modulePath: string): { NODE_OPTIONS: string } {
   let { NODE_OPTIONS } = process.env

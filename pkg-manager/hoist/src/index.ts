@@ -3,37 +3,46 @@ import path from 'path'
 import { linkLogger } from '@pnpm/core-loggers'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/link-bins'
-import {
-  type Lockfile,
-  nameVerFromPkgSnapshot,
-} from '@pnpm/lockfile.utils'
-import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile.walker'
 import { logger } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
-import { type DepPath, type HoistedDependencies, type ProjectId } from '@pnpm/types'
+import { type DepPath, type HoistedDependencies, type ProjectId, type DependenciesField } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
-import * as dp from '@pnpm/dependency-path'
 import isSubdir from 'is-subdir'
-import mapObjIndexed from 'ramda/src/mapObjIndexed'
 import resolveLinkTarget from 'resolve-link-target'
 import symlinkDir from 'symlink-dir'
 
+export interface DependenciesGraphNode<T extends string> {
+  dir: string
+  children: Record<string, T>
+  optionalDependencies: Set<string>
+  hasBin: boolean
+  name: string
+  depPath: DepPath
+}
+
+export type DependenciesGraph<T extends string> = Record<T, DependenciesGraphNode<T>>
+
+export interface DirectDependenciesByImporterId<T extends string> {
+  [importerId: string]: Map<string, T>
+}
+
 const hoistLogger = logger('hoist')
 
-export interface HoistOpts extends GetHoistedDependenciesOpts {
+export interface HoistOpts<T extends string> extends GetHoistedDependenciesOpts<T> {
   extraNodePath?: string[]
   preferSymlinkedExecutables?: boolean
   virtualStoreDir: string
   virtualStoreDirMaxLength: number
 }
 
-export async function hoist (opts: HoistOpts): Promise<HoistedDependencies> {
+export async function hoist<T extends string> (opts: HoistOpts<T>): Promise<HoistedDependencies | null> {
   const result = getHoistedDependencies(opts)
-  if (!result) return {}
-  const { hoistedDependencies, hoistedAliasesWithBins } = result
+  if (!result) return null
+  const { hoistedDependencies, hoistedAliasesWithBins, hoistedDependenciesByNodeId } = result
 
-  await symlinkHoistedDependencies(hoistedDependencies, {
-    lockfile: opts.lockfile,
+  await symlinkHoistedDependencies(hoistedDependenciesByNodeId, {
+    graph: opts.graph,
+    directDepsByImporterId: opts.directDepsByImporterId,
     privateHoistedModulesDir: opts.privateHoistedModulesDir,
     publicHoistedModulesDir: opts.publicHoistedModulesDir,
     virtualStoreDir: opts.virtualStoreDir,
@@ -55,8 +64,10 @@ export async function hoist (opts: HoistOpts): Promise<HoistedDependencies> {
   return hoistedDependencies
 }
 
-export interface GetHoistedDependenciesOpts {
-  lockfile: Lockfile
+export interface GetHoistedDependenciesOpts<T extends string> {
+  graph: DependenciesGraph<T>
+  skipped: Set<DepPath>
+  directDepsByImporterId: DirectDependenciesByImporterId<T>
   importerIds?: ProjectId[]
   privateHoistPattern: string[]
   privateHoistedModulesDir: string
@@ -70,12 +81,11 @@ export interface HoistedWorkspaceProject {
   dir: string
 }
 
-export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): HoistGraphResult | null {
-  if (opts.lockfile.packages == null) return null
-
-  const { directDeps, step } = lockfileWalker(
-    opts.lockfile,
-    opts.importerIds ?? Object.keys(opts.lockfile.importers) as ProjectId[]
+export function getHoistedDependencies<T extends string> (opts: GetHoistedDependenciesOpts<T>): HoistGraphResult<T> | null {
+  if (Object.keys(opts.graph ?? {}).length === 0) return null
+  const { directDeps, step } = graphWalker(
+    opts.graph,
+    opts.directDepsByImporterId
   )
   // We want to hoist all the workspace packages, not only those that are in the dependencies
   // of any other workspace packages.
@@ -85,19 +95,19 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): Hoist
     Object.entries(opts.hoistedWorkspacePackages ?? {})
       .map(([id, { name }]) => [name, id as ProjectId])
   )
-  const deps: Dependency[] = [
+  const deps: Array<Dependency<T>> = [
     {
       children: {
         ...hoistedWorkspaceDeps,
         ...directDeps
-          .reduce((acc, { alias, depPath }) => {
+          .reduce((acc, { alias, nodeId }) => {
             if (!acc[alias]) {
-              acc[alias] = depPath
+              acc[alias] = nodeId
             }
             return acc
-          }, {} as Record<string, DepPath>),
+          }, {} as Record<string, T>),
       },
-      depPath: '',
+      nodeId: '' as T,
       depth: -1,
     },
     ...getDependencies(0, step),
@@ -105,9 +115,10 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): Hoist
 
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
 
-  return hoistGraph(deps, opts.lockfile.importers['.' as ProjectId]?.specifiers ?? {}, {
+  return hoistGraph(deps, opts.directDepsByImporterId['.' as ProjectId] ?? new Map(), {
     getAliasHoistType,
-    lockfile: opts.lockfile,
+    graph: opts.graph,
+    skipped: opts.skipped,
   })
 }
 
@@ -154,20 +165,16 @@ async function linkAllBins (modulesDir: string, opts: LinkAllBinsOptions): Promi
   }
 }
 
-function getDependencies (
+function getDependencies<T extends string> (
   depth: number,
-  step: LockfileWalkerStep
-): Dependency[] {
-  const deps: Dependency[] = []
-  const nextSteps: LockfileWalkerStep[] = []
-  for (const { pkgSnapshot, depPath, next } of step.dependencies) {
-    const allDeps: Record<string, string> = {
-      ...pkgSnapshot.dependencies,
-      ...pkgSnapshot.optionalDependencies,
-    }
+  step: GraphWalkerStep<T>
+): Array<Dependency<T>> {
+  const deps: Array<Dependency<T>> = []
+  const nextSteps: Array<GraphWalkerStep<T>> = []
+  for (const { node, nodeId, next } of step.dependencies) {
     deps.push({
-      children: mapObjIndexed(dp.refToRelative, allDeps) as Record<string, DepPath>,
-      depPath,
+      children: node.children,
+      nodeId,
       depth,
     })
 
@@ -182,42 +189,47 @@ function getDependencies (
 
   return [
     ...deps,
-    ...nextSteps.flatMap(getDependencies.bind(null, depth + 1)),
+    ...(nextSteps.flatMap(getDependencies.bind(null, depth + 1)) as Array<Dependency<T>>),
   ]
 }
 
-export interface Dependency {
-  children: Record<string, DepPath | ProjectId>
-  depPath: string
+export interface Dependency<T extends string> {
+  children: Record<string, T | ProjectId>
+  nodeId: T
   depth: number
 }
 
-interface HoistGraphResult {
+interface HoistGraphResult<T extends string> {
   hoistedDependencies: HoistedDependencies
+  hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T>
   hoistedAliasesWithBins: string[]
 }
 
-function hoistGraph (
-  depNodes: Dependency[],
-  currentSpecifiers: Record<string, string>,
+type HoistedDependenciesByNodeId<T extends string> = Map<T | ProjectId, Record<string, 'public' | 'private'>>
+
+function hoistGraph<T extends string> (
+  depNodes: Array<Dependency<T>>,
+  currentSpecifiers: Map<string, T>,
   opts: {
     getAliasHoistType: GetAliasHoistType
-    lockfile: Lockfile
+    graph: DependenciesGraph<T>
+    skipped: Set<DepPath>
   }
-): HoistGraphResult {
-  const hoistedAliases = new Set(Object.keys(currentSpecifiers))
-  const hoistedDependencies: HoistedDependencies = {}
+): HoistGraphResult<T> {
+  const hoistedAliases = new Set(currentSpecifiers.keys())
+  const hoistedDependencies: HoistedDependencies = Object.create(null)
+  const hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T> = new Map()
   const hoistedAliasesWithBins = new Set<string>()
 
   depNodes
     // sort by depth and then alphabetically
     .sort((a, b) => {
       const depthDiff = a.depth - b.depth
-      return depthDiff === 0 ? lexCompare(a.depPath, b.depPath) : depthDiff
+      return depthDiff === 0 ? lexCompare(a.nodeId, b.nodeId) : depthDiff
     })
     // build the alias map and the id map
     .forEach((depNode) => {
-      for (const [childAlias, childPath] of Object.entries<DepPath | ProjectId>(depNode.children)) {
+      for (const [childAlias, childNodeId] of Object.entries<T | ProjectId>(depNode.children)) {
         const hoist = opts.getAliasHoistType(childAlias)
         if (!hoist) continue
         const childAliasNormalized = childAlias.toLowerCase()
@@ -225,24 +237,37 @@ function hoistGraph (
         if (hoistedAliases.has(childAliasNormalized)) {
           continue
         }
-        if (opts.lockfile.packages?.[childPath as DepPath]?.hasBin) {
+        if (!hoistedDependenciesByNodeId.has(childNodeId)) {
+          hoistedDependenciesByNodeId.set(childNodeId, {})
+        }
+        hoistedDependenciesByNodeId.get(childNodeId)![childAlias] = hoist
+        const node = opts.graph[childNodeId as T]
+        if (node?.depPath == null || opts.skipped.has(node.depPath)) {
+          continue
+        }
+        if (node.hasBin) {
           hoistedAliasesWithBins.add(childAlias)
         }
         hoistedAliases.add(childAliasNormalized)
-        if (!hoistedDependencies[childPath]) {
-          hoistedDependencies[childPath] = {}
+        if (!hoistedDependencies[node.depPath]) {
+          hoistedDependencies[node.depPath] = {}
         }
-        hoistedDependencies[childPath][childAlias] = hoist
+        hoistedDependencies[node.depPath][childAlias] = hoist
       }
     })
 
-  return { hoistedDependencies, hoistedAliasesWithBins: Array.from(hoistedAliasesWithBins) }
+  return {
+    hoistedDependencies,
+    hoistedDependenciesByNodeId,
+    hoistedAliasesWithBins: Array.from(hoistedAliasesWithBins),
+  }
 }
 
-async function symlinkHoistedDependencies (
-  hoistedDependencies: HoistedDependencies,
+async function symlinkHoistedDependencies<T extends string> (
+  hoistedDependenciesByNodeId: HoistedDependenciesByNodeId<T>,
   opts: {
-    lockfile: Lockfile
+    graph: DependenciesGraph<T>
+    directDepsByImporterId: DirectDependenciesByImporterId<T>
     privateHoistedModulesDir: string
     publicHoistedModulesDir: string
     virtualStoreDir: string
@@ -251,32 +276,31 @@ async function symlinkHoistedDependencies (
   }
 ): Promise<void> {
   const symlink = symlinkHoistedDependency.bind(null, opts)
-  await Promise.all(
-    Object.entries(hoistedDependencies)
-      .map(async ([hoistedDepId, pkgAliases]) => {
-        const pkgSnapshot = opts.lockfile.packages![hoistedDepId as DepPath]
-        let depLocation!: string
-        if (pkgSnapshot) {
-          const pkgName = nameVerFromPkgSnapshot(hoistedDepId, pkgSnapshot).name
-          const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(hoistedDepId, opts.virtualStoreDirMaxLength), 'node_modules')
-          depLocation = path.join(modules, pkgName as string)
-        } else {
-          if (!opts.lockfile.importers[hoistedDepId as ProjectId]) {
-            // This dependency is probably a skipped optional dependency.
-            hoistLogger.debug({ hoistFailedFor: hoistedDepId })
-            return
-          }
-          depLocation = opts.hoistedWorkspacePackages![hoistedDepId].dir
+  const promises: Array<Promise<void>> = []
+  for (const [hoistedDepNodeId, pkgAliases] of hoistedDependenciesByNodeId.entries()) {
+    promises.push((async () => {
+      const node = opts.graph[hoistedDepNodeId as T]
+      let depLocation!: string
+      if (node) {
+        depLocation = node.dir
+      } else {
+        if (!opts.directDepsByImporterId[hoistedDepNodeId as ProjectId]) {
+          // This dependency is probably a skipped optional dependency.
+          hoistLogger.debug({ hoistFailedFor: hoistedDepNodeId })
+          return
         }
-        await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
-          const targetDir = hoistType === 'public'
-            ? opts.publicHoistedModulesDir
-            : opts.privateHoistedModulesDir
-          const dest = path.join(targetDir, pkgAlias)
-          return symlink(depLocation, dest)
-        }))
-      })
-  )
+        depLocation = opts.hoistedWorkspacePackages![hoistedDepNodeId].dir
+      }
+      await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
+        const targetDir = hoistType === 'public'
+          ? opts.publicHoistedModulesDir
+          : opts.privateHoistedModulesDir
+        const dest = path.join(targetDir, pkgAlias)
+        return symlink(depLocation, dest)
+      }))
+    })())
+  }
+  await Promise.all(promises)
 }
 
 async function symlinkHoistedDependency (
@@ -312,4 +336,108 @@ async function symlinkHoistedDependency (
   await fs.promises.unlink(dest)
   await symlinkDir(depLocation, dest)
   linkLogger.debug({ target: dest, link: depLocation })
+}
+
+export function graphWalker<T extends string> (
+  graph: DependenciesGraph<T>,
+  directDepsByImporterId: DirectDependenciesByImporterId<T>,
+  opts?: {
+    include?: { [dependenciesField in DependenciesField]: boolean }
+    skipped?: Set<DepPath>
+  }
+): GraphWalker<T> {
+  const startNodeIds = [] as T[]
+  const allDirectDeps = [] as Array<{ alias: string, nodeId: T }>
+
+  for (const directDeps of Object.values(directDepsByImporterId)) {
+    for (const [alias, nodeId] of directDeps.entries()) {
+      const depNode = graph[nodeId]
+      if (depNode == null) continue
+      startNodeIds.push(nodeId)
+      allDirectDeps.push({ alias, nodeId })
+    }
+  }
+  const visited = new Set<T>()
+  return {
+    directDeps: allDirectDeps,
+    step: makeStep({
+      includeOptionalDependencies: opts?.include?.optionalDependencies !== false,
+      graph,
+      visited,
+      skipped: opts?.skipped,
+    }, startNodeIds),
+  }
+}
+
+function makeStep<T extends string> (
+  ctx: {
+    includeOptionalDependencies: boolean
+    graph: DependenciesGraph<T>
+    visited: Set<T>
+    skipped?: Set<DepPath>
+  },
+  nextNodeIds: T[]
+): GraphWalkerStep<T> {
+  const result: GraphWalkerStep<T> = {
+    dependencies: [],
+    links: [],
+    missing: [],
+  }
+  const _next = collectChildNodeIds.bind(null, {
+    includeOptionalDependencies: ctx.includeOptionalDependencies,
+  })
+  for (const nodeId of nextNodeIds) {
+    if (ctx.visited.has(nodeId)) continue
+    ctx.visited.add(nodeId)
+    const node = ctx.graph[nodeId]
+    if (node == null) {
+      if (nodeId.startsWith('link:')) {
+        result.links.push(nodeId)
+        continue
+      }
+      result.missing.push(nodeId)
+      continue
+    }
+    if (ctx.skipped?.has(node.depPath)) continue
+    result.dependencies.push({
+      nodeId,
+      next: () => makeStep<T>(ctx, _next(node) as T[]),
+      node,
+    })
+  }
+  return result
+}
+
+function collectChildNodeIds<T extends string> (opts: { includeOptionalDependencies: boolean }, nextPkg: DependenciesGraphNode<T>): T[] {
+  if (opts.includeOptionalDependencies) {
+    return Object.values(nextPkg.children)
+  } else {
+    const nextNodeIds: T[] = []
+    for (const [alias, nodeId] of Object.entries(nextPkg.children)) {
+      if (!nextPkg.optionalDependencies.has(alias)) {
+        nextNodeIds.push(nodeId)
+      }
+    }
+    return nextNodeIds
+  }
+}
+
+export interface GraphWalker<T extends string> {
+  directDeps: Array<{
+    alias: string
+    nodeId: T
+  }>
+  step: GraphWalkerStep<T>
+}
+
+export interface GraphWalkerStep<T extends string> {
+  dependencies: Array<GraphDependency<T>>
+  links: string[]
+  missing: string[]
+}
+
+export interface GraphDependency<T extends string> {
+  nodeId: T
+  node: DependenciesGraphNode<T>
+  next: () => GraphWalkerStep<T>
 }

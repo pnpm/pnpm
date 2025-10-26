@@ -1,15 +1,15 @@
 import path from 'path'
-import { type Lockfile, type TarballResolution } from '@pnpm/lockfile.types'
+import { type LockfileObject, type TarballResolution } from '@pnpm/lockfile.types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { type ProjectId, type DepPath } from '@pnpm/types'
-import { packageIdFromSnapshot } from './packageIdFromSnapshot'
-import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot'
+import { packageIdFromSnapshot } from './packageIdFromSnapshot.js'
+import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
 
 type GetLocalLocations = (depPath: DepPath, pkgName: string) => string[]
 
 export function extendProjectsWithTargetDirs<T> (
   projects: Array<T & { id: ProjectId }>,
-  lockfile: Lockfile,
+  lockfile: LockfileObject,
   ctx: {
     virtualStoreDir: string
     pkgLocationsByDepPath?: Record<DepPath, string[]>

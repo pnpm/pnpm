@@ -2,7 +2,7 @@ import path from 'path'
 import { prepare } from '@pnpm/prepare'
 import { type PackageManifest } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
-import { execPnpm } from '../utils'
+import { execPnpm } from '../utils/index.js'
 
 const basicPackageManifest = loadJsonFile.sync<PackageManifest>(path.join(__dirname, '../utils/simple-package.json'))
 
@@ -14,25 +14,6 @@ test('production install (with --production flag)', async () => {
   project.hasNot(Object.keys(basicPackageManifest.devDependencies!)[0])
   project.has('rimraf')
   project.has('is-positive')
-})
-
-test('production install (with production NODE_ENV)', async () => {
-  const project = prepare(basicPackageManifest)
-
-  await execPnpm(['install'], { env: { NODE_ENV: 'production' } })
-
-  project.hasNot(Object.keys(basicPackageManifest.devDependencies!)[0])
-  project.has('rimraf')
-  project.has('is-positive')
-})
-
-test('dev dependencies install (with production NODE_ENV)', async () => {
-  const project = prepare(basicPackageManifest)
-
-  await execPnpm(['install', '--dev'], { env: { NODE_ENV: 'production' } })
-
-  project.hasNot(Object.keys(basicPackageManifest.dependencies!)[0])
-  project.has('@rstacruz/tap-spec')
 })
 
 test('install dev dependencies only', async () => {

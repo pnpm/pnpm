@@ -1,20 +1,25 @@
 import fs from 'fs'
 import path from 'path'
-import { readWantedLockfile, type Lockfile } from '@pnpm/lockfile.fs'
+import { readWantedLockfile, type LockfileObject } from '@pnpm/lockfile.fs'
 import { type ProjectId, type ProjectManifest } from '@pnpm/types'
 import { createUpdateOptions, type FormatPluginFnOptions } from '@pnpm/meta-updater'
+import { sortDirectKeys, sortKeysByPriority } from '@pnpm/object.key-sorting'
+import { parsePkgAndParentSelector } from '@pnpm/parse-overrides'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import isSubdir from 'is-subdir'
 import loadJsonFile from 'load-json-file'
 import normalizePath from 'normalize-path'
 import writeJsonFile from 'write-json-file'
 
-const NEXT_TAG = 'next-9'
 const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => { // eslint-disable-line
+  const workspaceManifest = await readWorkspaceManifest(workspaceDir)!
   const pnpmManifest = loadJsonFile.sync<ProjectManifest>(path.join(workspaceDir, 'pnpm/package.json'))
   const pnpmVersion = pnpmManifest!.version!
-  const pnpmMajorKeyword = `pnpm${pnpmVersion.split('.')[0]}`
+  const pnpmMajorNumber = pnpmVersion.split('.')[0]
+  const pnpmMajorKeyword = `pnpm${pnpmMajorNumber}`
+  const nextTag = `next-${pnpmMajorNumber}`
   const utilsDir = path.join(workspaceDir, '__utils__')
   const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
   if (lockfile == null) {
@@ -26,8 +31,8 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         return manifest
       }
       if (manifest.name === 'monorepo-root') {
-        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${NEXT_TAG} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${NEXT_TAG} --access=public`
-        return manifest
+        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${nextTag} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${nextTag} --access=public`
+        return sortKeysInManifest(manifest)
       }
       if (manifest.name && manifest.name !== CLI_PKG_NAME) {
         manifest.devDependencies = {
@@ -37,14 +42,20 @@ export default async (workspaceDir: string) => { // eslint-disable-line
       } else if (manifest.name === CLI_PKG_NAME && manifest.devDependencies) {
         delete manifest.devDependencies[manifest.name]
       }
-      if (manifest.private === true || isSubdir(utilsDir, dir)) return manifest
       manifest.keywords = [
+        'pnpm',
         pnpmMajorKeyword,
-        ...(manifest.keywords ?? []).filter((keyword) => !/^pnpm[0-9]+$/.test(keyword)),
+        ...Array.from(new Set((manifest.keywords ?? []).filter((keyword) => keyword !== 'pnpm' && !/^pnpm\d+$/.test(keyword)))).sort(),
       ]
+      const smallestAllowedLibVersion = Number(pnpmMajorNumber) * 100
+      const libMajorVersion = Number(manifest.version!.split('.')[0])
       if (manifest.name !== CLI_PKG_NAME) {
+        if (libMajorVersion < smallestAllowedLibVersion || libMajorVersion >= smallestAllowedLibVersion + 100) {
+          manifest.version = `${smallestAllowedLibVersion}.0.0`
+        }
         for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
           if (!manifest[depType]) continue
+          manifest[depType] = sortDirectKeys(manifest[depType])
           for (const depName of Object.keys(manifest[depType] ?? {})) {
             if (!manifest[depType]?.[depName].startsWith('workspace:')) {
               manifest[depType]![depName] = 'catalog:'
@@ -52,6 +63,14 @@ export default async (workspaceDir: string) => { // eslint-disable-line
           }
         }
       } else {
+        manifest.pnpm = manifest.pnpm ?? {}
+        manifest.pnpm.overrides = { ...workspaceManifest!.overrides }
+        for (const selector in manifest.pnpm.overrides) {
+          if (manifest.pnpm.overrides[selector] === 'catalog:') {
+            const { targetPkg } = parsePkgAndParentSelector(selector)
+            manifest.pnpm.overrides[selector] = workspaceManifest!.catalog![targetPkg.name]
+          }
+        }
         for (const depType of ['devDependencies'] as const) {
           if (!manifest[depType]) continue
           for (const depName of Object.keys(manifest[depType] ?? {})) {
@@ -69,6 +88,23 @@ export default async (workspaceDir: string) => { // eslint-disable-line
           }
         }
       }
+      if (manifest.peerDependencies?.['@pnpm/logger'] != null) {
+        manifest.peerDependencies['@pnpm/logger'] = 'catalog:'
+      }
+      if (manifest.peerDependencies?.['@pnpm/worker'] != null) {
+        manifest.peerDependencies['@pnpm/worker'] = 'workspace:^'
+      }
+      const isUtil = isSubdir(utilsDir, dir)
+      if (manifest.name !== '@pnpm/make-dedicated-lockfile' && manifest.name !== '@pnpm/mount-modules' && !isUtil && manifest.name !== '@pnpm-private/updater') {
+        for (const depType of ['dependencies', 'optionalDependencies'] as const) {
+          if (manifest[depType]?.['@pnpm/logger']) {
+            delete manifest[depType]!['@pnpm/logger']
+          }
+          if (manifest[depType]?.['@pnpm/worker']) {
+            delete manifest[depType]!['@pnpm/worker']
+          }
+        }
+      }
       if (dir.includes('artifacts') || manifest.name === '@pnpm/exe') {
         manifest.version = pnpmVersion
         if (manifest.name === '@pnpm/exe') {
@@ -76,9 +112,10 @@ export default async (workspaceDir: string) => { // eslint-disable-line
             manifest.optionalDependencies![depName] = 'workspace:*'
           }
         }
-        return manifest
+        return sortKeysInManifest(manifest)
       }
-      return updateManifest(workspaceDir, manifest, dir)
+      if (manifest.private === true || isUtil) return manifest
+      return updateManifest(workspaceDir, manifest, dir, nextTag)
     },
     'tsconfig.json': updateTSConfig.bind(null, {
       lockfile,
@@ -95,7 +132,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
 
 async function updateTSConfig (
   context: {
-    lockfile: Lockfile
+    lockfile: LockfileObject
     workspaceDir: string
   },
   tsConfig: object | null,
@@ -205,17 +242,17 @@ async function updateTSConfig (
 }
 
 const registryMockPortForCore = 7769
-let registryMockPort = registryMockPortForCore
 
-type UpdatedManifest = ProjectManifest & Record<string, unknown>
-
-async function updateManifest (workspaceDir: string, manifest: ProjectManifest, dir: string): Promise<UpdatedManifest> {
+async function updateManifest (workspaceDir: string, manifest: ProjectManifest, dir: string, nextTag: string): Promise<ProjectManifest> {
   const relative = normalizePath(path.relative(workspaceDir, dir))
   let scripts: Record<string, string>
+  let preset = '@pnpm/jest-config'
   switch (manifest.name) {
   case '@pnpm/lockfile.types':
     scripts = { ...manifest.scripts }
     break
+  case '@pnpm/exec.build-commands':
+  case '@pnpm/config.deps-installer':
   case '@pnpm/headless':
   case '@pnpm/outdated':
   case '@pnpm/package-requester':
@@ -232,14 +269,18 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-deploy':
   case CLI_PKG_NAME:
   case '@pnpm/core': {
-    // @pnpm/core tests currently works only with port 7769 due to the usage of
-    // the next package: pkg-with-tarball-dep-from-registry
-    const port = manifest.name === '@pnpm/core' ? registryMockPortForCore : ++registryMockPort
+    preset = '@pnpm/jest-config/with-registry'
     scripts = {
       ...(manifest.scripts as Record<string, string>),
     }
     scripts.test = 'pnpm run compile && pnpm run _test'
-    scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} jest`
+    if (manifest.name === '@pnpm/core') {
+      // @pnpm/core tests currently works only with port 7769 due to the usage of
+      // the next package: pkg-with-tarball-dep-from-registry
+      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${registryMockPortForCore} jest`
+    } else {
+      scripts._test = 'jest'
+    }
     break
   }
   default:
@@ -258,7 +299,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     break
   }
   if (manifest.name === CLI_PKG_NAME) {
-    manifest.publishConfig!.tag = NEXT_TAG
+    manifest.publishConfig!.tag = nextTag
   }
   if (scripts._test) {
     if (scripts.pretest) {
@@ -274,12 +315,13 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   scripts.compile = 'tsc --build && pnpm run lint --fix'
   delete scripts.tsc
   let homepage: string
-  let repository: string | { type: 'git', url: string }
+  let repository: string | { type: 'git', url: string, directory: 'pnpm' }
   if (manifest.name === CLI_PKG_NAME) {
     homepage = 'https://pnpm.io'
     repository = {
       type: 'git',
       url: 'git+https://github.com/pnpm/pnpm.git',
+      directory: 'pnpm',
     }
     scripts.compile += ' && rimraf dist bin/nodes && pnpm run bundle \
 && shx cp -r node-gyp-bin dist/node-gyp-bin \
@@ -288,8 +330,8 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
 && shx cp pnpmrc dist/pnpmrc'
   } else {
     scripts.prepublishOnly = 'pnpm run compile'
-    homepage = `https://github.com/pnpm/pnpm/blob/main/${relative}#readme`
-    repository = `https://github.com/pnpm/pnpm/blob/main/${relative}`
+    homepage = `https://github.com/pnpm/pnpm/tree/main/${relative}#readme`
+    repository = `https://github.com/pnpm/pnpm/tree/main/${relative}`
   }
   if (scripts.lint) {
     if (fs.existsSync(path.join(dir, 'test'))) {
@@ -318,7 +360,15 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
     delete manifest.dependencies['@types/ramda']
   }
-  return {
+  if (scripts.test) {
+    Object.assign(manifest, {
+      jest: {
+        preset,
+      },
+    })
+  }
+  return sortKeysInManifest({
+    type: 'commonjs',
     ...manifest,
     bugs: {
       url: 'https://github.com/pnpm/pnpm/issues',
@@ -333,7 +383,61 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     repository,
     scripts,
     exports: {
+      ...manifest.exports,
       '.': manifest.name === 'pnpm' ? './package.json' : './lib/index.js',
     },
-  }
+  })
+}
+
+const priority = Object.fromEntries([
+  // Metadata
+  'name',
+  'private',
+  'version',
+  'description',
+  'keywords',
+  'license',
+  'author',
+  'contributors',
+  'funding',
+  'repository',
+  'homepage',
+  'bugs',
+
+  // Package Behavior
+  'type',
+  'main',
+  'types',
+  'module',
+  'browser',
+  'exports',
+  'files',
+  'bin',
+  'man',
+  'directories',
+  'unpkg',
+
+  // Scripts & Configuration
+  'scripts',
+  'config',
+
+  // Dependencies
+  'dependencies',
+  'peerDependencies',
+  'optionalDependencies',
+  'devDependencies',
+  'bundledDependencies', // alias: bundleDependencies
+
+  // Engines & Compatibility
+  'engines',
+  'os',
+  'cpu',
+
+  // pnpm/yarn/npm specific fields
+  'pnpm',
+  'packageManager',
+].map((key, index) => [key, index]))
+
+function sortKeysInManifest (manifest: ProjectManifest): ProjectManifest {
+  return sortKeysByPriority({ priority }, manifest)
 }

@@ -1,15 +1,15 @@
-import { type ResolvedDependencies, type Lockfile } from '@pnpm/lockfile.types'
+import { type ResolvedDependencies, type LockfileObject } from '@pnpm/lockfile.types'
 import {
   type ResolutionChangesByAlias,
   type DedupeCheckIssues,
   type SnapshotsChanges,
 } from '@pnpm/dedupe.types'
 import { type DepPath, DEPENDENCIES_FIELDS } from '@pnpm/types'
-import { DedupeCheckIssuesError } from './DedupeCheckIssuesError'
+import { DedupeCheckIssuesError } from './DedupeCheckIssuesError.js'
 
 const PACKAGE_SNAPSHOT_DEP_FIELDS = ['dependencies', 'optionalDependencies'] as const
 
-export function dedupeDiffCheck (prev: Lockfile, next: Lockfile): void {
+export function dedupeDiffCheck (prev: LockfileObject, next: LockfileObject): void {
   const issues: DedupeCheckIssues = {
     importerIssuesByImporterId: diffSnapshots(prev.importers, next.importers, DEPENDENCIES_FIELDS),
     packageIssuesByDepPath: diffSnapshots(prev.packages ?? {}, next.packages ?? {}, PACKAGE_SNAPSHOT_DEP_FIELDS),
