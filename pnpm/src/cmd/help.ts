@@ -79,6 +79,7 @@ function getHelpText ({ all }: { all: boolean }): string {
         {
           description: 'Generates a pnpm-lock.yaml from an npm package-lock.json (or npm-shrinkwrap.json) file',
           name: 'import',
+          advanced: true,
         },
         {
           description: 'Runs a pnpm install followed immediately by a pnpm test',
@@ -111,6 +112,7 @@ function getHelpText ({ all }: { all: boolean }): string {
     },
     {
       title: 'Patch your dependencies',
+      advanced: true,
 
       list: [
         {
@@ -120,12 +122,10 @@ function getHelpText ({ all }: { all: boolean }): string {
         {
           description: 'Generate a patch out of a directory',
           name: 'patch-commit',
-          advanced: true,
         },
         {
           description: 'Remove existing patch files',
           name: 'patch-remove',
-          advanced: true,
         },
       ],
     },
@@ -149,6 +149,7 @@ function getHelpText ({ all }: { all: boolean }): string {
         {
           description: 'Check licenses in consumed packages',
           name: 'licenses',
+          advanced: true,
         },
         {
           description: 'Shows all packages that depend on the specified package',
@@ -172,10 +173,12 @@ function getHelpText ({ all }: { all: boolean }): string {
           description: 'Runs a package\'s "test" script, if one was provided',
           name: 'test',
           shortAlias: 't',
+          advanced: true,
         },
         {
           description: 'Runs an arbitrary command specified in the package\'s "start" property of its "scripts" object',
           name: 'start',
+          advanced: true,
         },
         {
           description: 'Fetches a package from the registry without installing it as a dependency, hot loads it, and runs whatever default command binary it exposes',
@@ -184,6 +187,16 @@ function getHelpText ({ all }: { all: boolean }): string {
         {
           description: 'Create a project from a "create-*" or "@foo/create-*" starter kit',
           name: 'create',
+        },
+        {
+          description: 'Approve dependencies for running scripts during installation',
+          name: 'approve-builds',
+          advanced: true,
+        },
+        {
+          description: 'Print the list of packages with blocked build scripts',
+          name: 'ignored-builds',
+          advanced: true,
         },
       ],
     },
@@ -194,6 +207,7 @@ function getHelpText ({ all }: { all: boolean }): string {
         {
           description: 'Create a tarball from a package',
           name: 'pack',
+          advanced: true,
         },
         {
           description: 'Publishes a package to the registry',
@@ -236,6 +250,7 @@ function getHelpText ({ all }: { all: boolean }): string {
     },
     {
       title: 'Manage your environments',
+      advanced: true,
 
       list: [
         {
