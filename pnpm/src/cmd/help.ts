@@ -1,4 +1,5 @@
 import { packageManager, detectIfCurrentPkgIsExecutable } from '@pnpm/cli-meta'
+import { docsUrl } from '@pnpm/cli-utils'
 import renderHelp from 'render-help'
 import { type CommandDefinition } from './index.js'
 
@@ -12,8 +13,24 @@ export function createHelp (helpByCommandName: Record<string, () => string>): Co
       all: Boolean,
     }),
     rcOptionsTypes: () => ({}),
-    help: () => getHelpText({ all: false }),
-    handler: function (opts: { all?: boolean }, params: string[]) {
+    help: () => renderHelp({
+      description: 'Display help information about pnpm',
+      descriptionLists: [
+        {
+          title: 'Options',
+          list: [
+            {
+              description: 'Print all the available commands',
+              name: '--all',
+              shortAlias: '-a',
+            },
+          ],
+        },
+      ],
+      usages: [],
+      url: docsUrl('help'),
+    }),
+    handler (opts: { all?: boolean }, params: string[]) {
       let helpText!: string
       if (params.length === 0) {
         helpText = getHelpText({ all: opts.all ?? false })
