@@ -1,6 +1,5 @@
 ---
 "@pnpm/config": patch
-"@pnpm/constants": minor
 "pnpm": patch
 ---
 

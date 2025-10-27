@@ -1,7 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import util from 'util'
-import { DEFAULT_WORKSPACE_PACKAGE_PATTERNS } from '@pnpm/constants'
 import { readExactProjectManifest } from '@pnpm/read-project-manifest'
 import { type Project, type ProjectRootDir, type ProjectRootDirRealPath } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
@@ -25,7 +24,7 @@ export async function findPackages (root: string, opts?: Options): Promise<Proje
   opts = opts ?? {}
   const globOpts = { ...opts, cwd: root, expandDirectories: false }
   globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE
-  const patterns = normalizePatterns(opts.patterns ?? DEFAULT_WORKSPACE_PACKAGE_PATTERNS)
+  const patterns = normalizePatterns(opts.patterns ?? ['.', '**'])
   delete globOpts.patterns
   const paths: string[] = await glob(patterns, globOpts)
 
