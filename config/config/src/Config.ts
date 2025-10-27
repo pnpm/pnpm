@@ -201,7 +201,6 @@ export interface Config extends OptionsFromRootManifest {
   rootProjectManifest?: ProjectManifest
   userConfig: Record<string, string>
 
-  globalconfig: string
   hoist: boolean
   packageLock: boolean
   pending: boolean

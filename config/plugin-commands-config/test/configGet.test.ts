@@ -222,16 +222,32 @@ test('config get with scoped registry key that does not exist', async () => {
 })
 
 test('config get globalconfig', async () => {
-  // configDir is normally set by getConfigDir() in production.
-  // Here we just verify that 'rc' is appended to whatever configDir value is provided.
   const configDir = process.cwd()
+  const expectedGlobalconfigPath = path.join(configDir, 'rc')
   const getResult = await config.handler({
     dir: process.cwd(),
     cliOptions: {},
     configDir,
     global: true,
-    rawConfig: {},
+    rawConfig: {
+      globalconfig: expectedGlobalconfigPath,
+    },
   }, ['get', 'globalconfig'])
 
-  expect(getOutputString(getResult)).toBe(path.join(configDir, 'rc'))
+  expect(getOutputString(getResult)).toBe(expectedGlobalconfigPath)
+})
+
+test('config get npm-globalconfig', async () => {
+  const npmGlobalconfigPath = path.join('/root', '.npmrc')
+  const getResult = await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    rawConfig: {
+      'npm-globalconfig': npmGlobalconfigPath,
+    },
+  }, ['get', 'npm-globalconfig'])
+
+  expect(getOutputString(getResult)).toBe(npmGlobalconfigPath)
 })
