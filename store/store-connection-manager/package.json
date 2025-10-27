@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store-connection-manager",
-  "version": "1002.2.1",
+  "version": "1002.2.3",
   "description": "Create a direct pnpm store controller or connect to a running store server",
   "keywords": [
     "pnpm",
@@ -8,8 +8,8 @@
   ],
   "license": "MIT",
   "funding": "https://opencollective.com/pnpm",
-  "repository": "https://github.com/pnpm/pnpm/blob/main/store/store-connection-manager",
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/store/store-connection-manager#readme",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/store/store-connection-manager",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/store/store-connection-manager#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

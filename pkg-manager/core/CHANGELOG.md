@@ -1,5 +1,92 @@
 # @pnpm/core
 
+## 1012.0.0
+
+### Minor Changes
+
+- dee39ec: You can now allow specific versions of dependencies to run postinstall scripts. `onlyBuiltDependencies` now accepts package names with lists of trusted versions. For example:
+
+  ```yaml
+  onlyBuiltDependencies:
+    - nx@21.6.4 || 21.6.5
+    - esbuild@0.25.1
+  ```
+
+  Related PR: [#10104](https://github.com/pnpm/pnpm/pull/10104).
+
+- 7c1382f: Added support for exact versions in `minimumReleaseAgeExclude` [#9985](https://github.com/pnpm/pnpm/issues/9985).
+
+  You can now list one or more specific versions that pnpm should allow to install, even if those versions don’t satisfy the maturity requirement set by `minimumReleaseAge`. For example:
+
+  ```yaml
+  minimumReleaseAge: 1440
+  minimumReleaseAgeExclude:
+    - nx@21.6.5
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+### Patch Changes
+
+- Updated dependencies [8993f68]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+  - @pnpm/worker@1000.3.0
+  - @pnpm/types@1000.9.0
+  - @pnpm/builder.policy@1000.0.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/store-controller-types@1004.1.0
+  - @pnpm/package-requester@1008.0.0
+  - @pnpm/headless@1006.0.0
+  - @pnpm/build-modules@1002.0.0
+  - @pnpm/resolve-dependencies@1008.3.0
+  - @pnpm/matcher@1000.1.0
+  - @pnpm/normalize-registries@1000.1.4
+  - @pnpm/lifecycle@1001.0.25
+  - @pnpm/symlink-dependency@1000.0.12
+  - @pnpm/hooks.read-package-hook@1000.0.15
+  - @pnpm/hooks.types@1001.0.12
+  - @pnpm/lockfile.filtering@1001.0.21
+  - @pnpm/lockfile.fs@1001.1.21
+  - @pnpm/lockfile-to-pnp@1001.0.23
+  - @pnpm/lockfile.preferred-versions@1000.0.22
+  - @pnpm/lockfile.pruner@1001.0.17
+  - @pnpm/lockfile.utils@1003.0.3
+  - @pnpm/lockfile.verification@1001.2.9
+  - @pnpm/lockfile.walker@1001.0.16
+  - @pnpm/calc-dep-state@1002.0.8
+  - @pnpm/core-loggers@1001.0.4
+  - @pnpm/dependency-path@1001.1.3
+  - @pnpm/get-context@1001.1.8
+  - @pnpm/hoist@1002.0.8
+  - @pnpm/link-bins@1000.2.6
+  - @pnpm/modules-cleaner@1001.0.23
+  - @pnpm/modules-yaml@1000.3.6
+  - @pnpm/remove-bins@1000.0.15
+  - @pnpm/manifest-utils@1001.0.6
+  - @pnpm/read-project-manifest@1001.1.4
+  - @pnpm/crypto.hash@1000.2.1
+  - @pnpm/lockfile.settings-checker@1001.0.16
+  - @pnpm/pkg-manager.direct-dep-linker@1000.0.12
+  - @pnpm/patching.config@1001.0.11
+
+## 1011.0.1
+
+### Patch Changes
+
+- Updated dependencies [a8797c4]
+- Updated dependencies [9c65b96]
+  - @pnpm/link-bins@1000.2.5
+  - @pnpm/resolve-dependencies@1008.2.4
+  - @pnpm/build-modules@1001.0.1
+  - @pnpm/lifecycle@1001.0.24
+  - @pnpm/headless@1005.0.1
+  - @pnpm/hoist@1002.0.7
+  - @pnpm/package-requester@1007.0.0
+
 ## 1011.0.0
 
 ### Patch Changes

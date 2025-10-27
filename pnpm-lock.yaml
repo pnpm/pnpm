@@ -36,9 +36,6 @@ catalogs:
     '@jest/globals':
       specifier: 30.0.5
       version: 30.0.5
-    '@pnpm/builder.policy':
-      specifier: 3.0.1
-      version: 3.0.1
     '@pnpm/byline':
       specifier: ^1.0.0
       version: 1.0.0
@@ -1236,6 +1233,19 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  builder/policy:
+    dependencies:
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: link:../../config/version-policy
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/builder.policy':
+        specifier: workspace:*
+        version: 'link:'
+
   cache/api:
     dependencies:
       '@pnpm/config':
@@ -1990,6 +2000,28 @@ importers:
         specifier: 'catalog:'
         version: 2.1.0
 
+  config/version-policy:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/matcher':
+        specifier: workspace:*
+        version: link:../matcher
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      semver:
+        specifier: 'catalog:'
+        version: 7.7.2
+    devDependencies:
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.5.3
+
   crypto/hash:
     dependencies:
       '@pnpm/graceful-fs':
@@ -2657,8 +2689,8 @@ importers:
   exec/plugin-commands-rebuild:
     dependencies:
       '@pnpm/builder.policy':
-        specifier: 'catalog:'
-        version: 3.0.1
+        specifier: workspace:*
+        version: link:../../builder/policy
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
@@ -4817,8 +4849,8 @@ importers:
         specifier: workspace:*
         version: link:../../exec/build-modules
       '@pnpm/builder.policy':
-        specifier: 'catalog:'
-        version: 3.0.1
+        specifier: workspace:*
+        version: link:../../builder/policy
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
@@ -5180,8 +5212,8 @@ importers:
         specifier: workspace:*
         version: link:../../exec/build-modules
       '@pnpm/builder.policy':
-        specifier: 'catalog:'
-        version: 3.0.1
+        specifier: workspace:*
+        version: link:../../builder/policy
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
@@ -6060,6 +6092,9 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: link:../../config/version-policy
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
@@ -6087,9 +6122,6 @@ importers:
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
-      '@pnpm/matcher':
-        specifier: workspace:*
-        version: link:../../config/matcher
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
@@ -7604,6 +7636,9 @@ importers:
       '@pnpm/client':
         specifier: workspace:*
         version: link:../../pkg-manager/client
+      '@pnpm/config.version-policy':
+        specifier: workspace:*
+        version: link:../../config/version-policy
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
@@ -8776,9 +8811,21 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/link-bins':
+        specifier: workspace:*
+        version: link:../../pkg-manager/link-bins
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:*
+        version: link:../find-packages
       '@types/normalize-path':
         specifier: 'catalog:'
         version: 3.0.2
@@ -9935,10 +9982,6 @@ packages:
   '@pkgr/core@0.2.9':
     resolution: {integrity: sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
-
-  '@pnpm/builder.policy@3.0.1':
-    resolution: {integrity: sha512-CFmLQQs7qLM0KVe0f/ZyLqQwm2COdogJiLV5kXckf/7raN8ifsWOexxXgi6HDCm+8UUQvsjYDyjnWSNSQPCHUQ==}
-    engines: {node: '>=18.12'}
 
   '@pnpm/byline@1.0.0':
     resolution: {integrity: sha512-61tmh+k7hnKK6b2XbF4GvxmiaF3l2a+xQlZyeoOGBs7mXU3Ie8iCAeAnM0+r70KiqTrgWvBCjMeM+W3JarJqaQ==}
@@ -17731,8 +17774,6 @@ snapshots:
     optional: true
 
   '@pkgr/core@0.2.9': {}
-
-  '@pnpm/builder.policy@3.0.1': {}
 
   '@pnpm/byline@1.0.0': {}
 

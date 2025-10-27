@@ -1,5 +1,49 @@
 # @pnpm/resolve-dependencies
 
+## 1008.3.0
+
+### Minor Changes
+
+- 7c1382f: Added support for exact versions in `minimumReleaseAgeExclude` [#9985](https://github.com/pnpm/pnpm/issues/9985).
+
+  You can now list one or more specific versions that pnpm should allow to install, even if those versions don’t satisfy the maturity requirement set by `minimumReleaseAge`. For example:
+
+  ```yaml
+  minimumReleaseAge: 1440
+  minimumReleaseAgeExclude:
+    - nx@21.6.5
+    - webpack@4.47.0 || 5.102.1
+  ```
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/npm-resolver@1004.4.0
+  - @pnpm/store-controller-types@1004.1.0
+  - @pnpm/config.version-policy@1000.0.0
+  - @pnpm/lockfile.preferred-versions@1000.0.22
+  - @pnpm/lockfile.pruner@1001.0.17
+  - @pnpm/lockfile.types@1002.0.2
+  - @pnpm/lockfile.utils@1003.0.3
+  - @pnpm/calc-dep-state@1002.0.8
+  - @pnpm/core-loggers@1001.0.4
+  - @pnpm/dependency-path@1001.1.3
+  - @pnpm/manifest-utils@1001.0.6
+  - @pnpm/read-package-json@1000.1.2
+  - @pnpm/pick-fetcher@1001.0.0
+  - @pnpm/patching.config@1001.0.11
+
+## 1008.2.4
+
+### Patch Changes
+
+- 9c65b96: Preserve version and hasBin for variations packages [#10022](https://github.com/pnpm/pnpm/issues/10022).
+
 ## 1008.2.3
 
 ### Patch Changes

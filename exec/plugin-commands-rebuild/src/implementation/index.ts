@@ -308,8 +308,8 @@ async function _rebuild (
 
   const ignoredPkgs: string[] = []
   const _allowBuild = createAllowBuildFunction(opts) ?? (() => true)
-  const allowBuild = (pkgName: string) => {
-    if (_allowBuild(pkgName)) return true
+  const allowBuild = (pkgName: string, version: string) => {
+    if (_allowBuild(pkgName, version)) return true
     if (!opts.ignoredBuiltDependencies?.includes(pkgName)) {
       ignoredPkgs.push(pkgName)
     }
@@ -367,7 +367,7 @@ async function _rebuild (
           requiresBuild = pkgRequiresBuild(pgkManifest, {})
         }
 
-        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name) && await runPostinstallHooks({
+        const hasSideEffects = requiresBuild && allowBuild(pkgInfo.name, pkgInfo.version) && await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,

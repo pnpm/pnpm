@@ -1,4 +1,3 @@
-import fs from 'fs'
 import path from 'path'
 import util from 'util'
 import { types } from '@pnpm/config'
@@ -12,6 +11,7 @@ import kebabCase from 'lodash.kebabcase'
 import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
 import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
+import { getConfigFilePath } from './getConfigFilePath.js'
 import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
 export async function configSet (opts: ConfigCommandOptions, key: string, valueParam: string | null): Promise<void> {
@@ -24,20 +24,43 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   if (valueParam != null && opts.json) {
     value = JSON.parse(valueParam)
   }
-  if (opts.global && settingShouldFallBackToNpm(key)) {
-    const _runNpm = runNpm.bind(null, opts.npmPath)
-    if (value == null) {
-      _runNpm(['config', 'delete', key])
+
+  if (shouldFallbackToNpm) {
+    if (opts.global) {
+      const _runNpm = runNpm.bind(null, opts.npmPath)
+      if (value == null) {
+        _runNpm(['config', 'delete', key])
+        return
+      }
+      if (typeof value === 'string') {
+        _runNpm(['config', 'set', `${key}=${value}`])
+        return
+      }
+      throw new PnpmError('CONFIG_SET_AUTH_NON_STRING', `Cannot set ${key} to a non-string value (${JSON.stringify(value)})`)
+    } else {
+      const configPath = path.join(opts.dir, '.npmrc')
+      const settings = await safeReadIniFile(configPath)
+      if (value == null) {
+        if (settings[key] == null) return
+        delete settings[key]
+      } else {
+        settings[key] = value
+      }
+      await writeIniFile(configPath, settings)
       return
     }
-    if (typeof value === 'string') {
-      _runNpm(['config', 'set', `${key}=${value}`])
-      return
-    }
-    throw new PnpmError('CONFIG_SET_AUTH_NON_STRING', `Cannot set ${key} to a non-string value (${JSON.stringify(value)})`)
   }
-  if (opts.global === true || fs.existsSync(path.join(opts.dir, '.npmrc'))) {
-    const configPath = opts.global ? path.join(opts.configDir, 'rc') : path.join(opts.dir, '.npmrc')
+
+  const { configPath, isWorkspaceYaml } = getConfigFilePath(opts)
+
+  if (isWorkspaceYaml) {
+    key = validateWorkspaceKey(key)
+    await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+      updatedFields: ({
+        [key]: castField(value, kebabCase(key)),
+      }),
+    })
+  } else {
     const settings = await safeReadIniFile(configPath)
     key = validateRcKey(key)
     if (value == null) {
@@ -47,14 +70,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
       settings[key] = value
     }
     await writeIniFile(configPath, settings)
-    return
   }
-  key = validateWorkspaceKey(key)
-  await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
-    updatedFields: ({
-      [key]: castField(value, kebabCase(key)),
-    }),
-  })
 }
 
 function castField (value: unknown, key: string) {

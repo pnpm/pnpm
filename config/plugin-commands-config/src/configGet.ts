@@ -10,11 +10,14 @@ import { parseConfigPropertyPath } from './parseConfigPropertyPath.js'
 import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
 export function configGet (opts: ConfigCommandOptions, key: string): { output: string, exitCode: number } {
-  if (opts.global && settingShouldFallBackToNpm(key)) {
+  const isScopedKey = key.startsWith('@')
+  // Exclude scoped keys from npm fallback because they are pnpm-native config
+  // that can be read directly from rawConfig (e.g., '@scope:registry')
+  if (opts.global && settingShouldFallBackToNpm(key) && !isScopedKey) {
     const { status: exitCode } = runNpm(opts.npmPath, ['config', 'get', key])
     return { output: '', exitCode: exitCode ?? 0 }
   }
-  const configResult = getRcConfig(opts.rawConfig, key) ?? getConfigByPropertyPath(opts.rawConfig, key)
+  const configResult = getRcConfig(opts.rawConfig, key, isScopedKey) ?? getConfigByPropertyPath(opts.rawConfig, key)
   const output = displayConfig(configResult?.value, opts)
   return { output, exitCode: 0 }
 }
@@ -23,7 +26,11 @@ interface Found<Value> {
   value: Value
 }
 
-function getRcConfig (rawConfig: Record<string, unknown>, key: string): Found<unknown> | undefined {
+function getRcConfig (rawConfig: Record<string, unknown>, key: string, isScopedKey: boolean): Found<unknown> | undefined {
+  if (isScopedKey) {
+    const value = rawConfig[key]
+    return { value }
+  }
   const rcKey = isCamelCase(key) ? kebabCase(key) : key
   if (rcKey in types) {
     const value = rawConfig[rcKey]

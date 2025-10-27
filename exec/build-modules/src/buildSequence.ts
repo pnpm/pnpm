@@ -8,6 +8,7 @@ export interface DependenciesGraphNode<T extends string> {
   depPath: DepPath
   pkgIdWithPatchHash: PkgIdWithPatchHash
   name: string
+  version: string
   dir: string
   fetchingBundledManifest?: () => Promise<PackageManifest | undefined>
   filesIndexFile?: string
