@@ -329,10 +329,11 @@ ignoredBuiltDependencies:
 
 managePackageManagerVersions: true
 
-minimumReleaseAge: 0
+minimumReleaseAge: 1440 # At least a day
 
 minimumReleaseAgeExclude:
   - pnpm
+  - '@pnpm/*'
 
 nodeVersion: 18.18.0
 
