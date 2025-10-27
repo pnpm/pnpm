@@ -1022,7 +1022,7 @@ test.skip('respect mergeGitBranchLockfilesBranchPattern', async () => {
 
 // NOTE: new bug detected: it doesn't work with pnpm-workspace.yaml
 // TODO: fix it later
-test.skip('getConfig() sets mergeGiBranchLockfiles when branch matches mergeGitBranchLockfilesBranchPattern', async () => {
+test.skip('getConfig() sets mergeGitBranchLockfiles when branch matches mergeGitBranchLockfilesBranchPattern', async () => {
   prepareEmpty()
   {
     writeYamlFile('pnpm-workspace.yaml', {
