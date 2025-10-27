@@ -185,7 +185,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   }
 
   if (
-    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds') &&
+    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove' || cmd === 'approve-builds' || cmd === 'patch-convert') &&
     typeof workspaceDir === 'string'
   ) {
     cliOptions['recursive'] = true
