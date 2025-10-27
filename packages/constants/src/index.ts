@@ -19,6 +19,8 @@ export const FULL_FILTERED_META_DIR = 'metadata-ff-v1.3'
 
 export const USEFUL_NON_ROOT_PNPM_FIELDS = ['executionEnv'] as const
 
+export const DEFAULT_WORKSPACE_PACKAGE_PATTERNS = ['.', '**']
+
 export function getNodeBinLocationForCurrentOS (platform: string = process.platform): string {
   return platform === 'win32' ? 'node.exe' : 'bin/node'
 }

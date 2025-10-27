@@ -4,7 +4,7 @@ import os from 'os'
 import { isCI } from 'ci-info'
 import { omit } from 'ramda'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
-import { LAYOUT_VERSION } from '@pnpm/constants'
+import { DEFAULT_WORKSPACE_PACKAGE_PATTERNS, LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import loadNpmConf from '@pnpm/npm-conf'
 import type npmTypes from '@pnpm/npm-conf/lib/types'
@@ -376,7 +376,7 @@ export async function getConfig (opts: {
     if (pnpmConfig.workspaceDir != null) {
       const workspaceManifest = await readWorkspaceManifest(pnpmConfig.workspaceDir)
 
-      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
+      pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? DEFAULT_WORKSPACE_PACKAGE_PATTERNS
       if (workspaceManifest) {
         const newSettings = Object.assign(getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest), configFromCliOpts)
         for (const [key, value] of Object.entries(newSettings)) {
@@ -440,10 +440,6 @@ export async function getConfig (opts: {
 
   if (typeof pnpmConfig.filterProd === 'string') {
     pnpmConfig.filterProd = (pnpmConfig.filterProd as string).split(' ')
-  }
-
-  if (pnpmConfig.filter?.length > 0 || pnpmConfig.filterProd?.length > 0) {
-    delete pnpmConfig.workspacePackagePatterns
   }
 
   if (pnpmConfig.workspaceDir) {
