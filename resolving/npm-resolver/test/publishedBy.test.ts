@@ -17,6 +17,7 @@ const registries: Registries = {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const badDatesMeta = loadJsonFile.sync<any>(f.find('bad-dates.json'))
+const isPositiveMeta = loadJsonFile.sync<any>(f.find('is-positive-full.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const fetch = createFetchFromRegistry({})
@@ -116,4 +117,33 @@ test('do not pick version that does not satisfy the date requirement even if it 
   await expect(resolveFromNpm({ alias: 'foo', bareSpecifier: '1.0.0' }, {
     publishedBy: new Date('2015-08-17T19:26:00.508Z'),
   })).rejects.toThrow('No matching version found')
+})
+
+test('should skip time field validation for excluded packages', async () => {
+  const cacheDir = tempy.directory()
+  const { time: _time, ...metaWithoutTime } = isPositiveMeta
+
+  fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })
+  fs.writeFileSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/is-positive.json`), JSON.stringify(metaWithoutTime), 'utf8')
+
+  nock(registries.default)
+    .get('/is-positive')
+    .reply(200, metaWithoutTime)
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    cacheDir,
+    filterMetadata: true,
+    fullMetadata: true,
+    registries,
+  })
+
+  const publishedByExclude = (pkgName: string) => pkgName === 'is-positive'
+
+  const resolveResult = await resolveFromNpm({ alias: 'is-positive', bareSpecifier: 'latest' }, {
+    publishedBy: new Date('2015-08-17T19:26:00.508Z'),
+    publishedByExclude,
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.manifest.version).toBe('3.1.0')
 })
