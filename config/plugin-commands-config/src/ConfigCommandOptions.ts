@@ -5,7 +5,6 @@ export type ConfigCommandOptions = Pick<Config,
 | 'cliOptions'
 | 'dir'
 | 'global'
-| 'globalconfig'
 | 'npmPath'
 | 'rawConfig'
 | 'workspaceDir'

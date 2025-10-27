@@ -1,11 +1,11 @@
 import * as ini from 'ini'
 import { config } from '@pnpm/plugin-commands-config'
-import { getOutputString, DEFAULT_OPTS } from './utils/index.js'
+import { getOutputString } from './utils/index.js'
 
 test('config list', async () => {
   const output = await config.handler({
-    ...DEFAULT_OPTS,
     dir: process.cwd(),
+    cliOptions: {},
     configDir: process.cwd(),
     rawConfig: {
       'store-dir': '~/store',
@@ -21,8 +21,8 @@ test('config list', async () => {
 
 test('config list --json', async () => {
   const output = await config.handler({
-    ...DEFAULT_OPTS,
     dir: process.cwd(),
+    cliOptions: {},
     configDir: process.cwd(),
     json: true,
     rawConfig: {

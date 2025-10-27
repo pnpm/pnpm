@@ -157,6 +157,7 @@ export async function getConfig (opts: {
       'bitbucket.com',
       'bitbucket.org',
     ],
+    globalconfig: npmDefaults.globalconfig,
     'git-branch-lockfile': false,
     hoist: true,
     'hoist-pattern': ['*'],
@@ -251,7 +252,6 @@ export async function getConfig (opts: {
   delete pnpmConfig['maxsockets']
 
   pnpmConfig.configDir = configDir
-  pnpmConfig.globalconfig = path.join(configDir, 'rc')
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.workspaceRoot = cliOptions['workspace-root'] as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
   pnpmConfig.rawLocalConfig = Object.assign.apply(Object, [
