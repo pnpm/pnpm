@@ -51,14 +51,11 @@ function prepareInjectedDepsWorkspace (syncInjectedDepsAfterScripts: string[]) {
 
   writeYamlFile('pnpm-workspace.yaml', {
     packages: ['*'],
+    reporter: 'append-only',
+    injectWorkspacePackages: true,
+    dedupeInjectedDeps: false,
+    syncInjectedDepsAfterScripts,
   })
-
-  fs.writeFileSync('.npmrc', [
-    'reporter=append-only',
-    'inject-workspace-packages=true',
-    'dedupe-injected-deps=false',
-    ...syncInjectedDepsAfterScripts.map((scriptName) => `sync-injected-deps-after-scripts[]=${scriptName}`),
-  ].join('\n'))
 }
 
 test('with sync-injected-deps-after-scripts', async () => {
