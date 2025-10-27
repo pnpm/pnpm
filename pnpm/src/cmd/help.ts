@@ -3,7 +3,9 @@ import { docsUrl } from '@pnpm/cli-utils'
 import renderHelp from 'render-help'
 import { type CommandDefinition } from './index.js'
 
-export function createHelp (helpByCommandName: Record<string, () => string>): CommandDefinition {
+type HelpByCommandName = Record<string, () => string>
+
+export function createHelp (helpByCommandName: HelpByCommandName): CommandDefinition {
   return {
     commandNames: ['help'],
     shorthands: {
@@ -13,37 +15,43 @@ export function createHelp (helpByCommandName: Record<string, () => string>): Co
       all: Boolean,
     }),
     rcOptionsTypes: () => ({}),
-    help: () => renderHelp({
-      description: 'Display help information about pnpm',
-      descriptionLists: [
-        {
-          title: 'Options',
-          list: [
-            {
-              description: 'Print all the available commands',
-              name: '--all',
-              shortAlias: '-a',
-            },
-          ],
-        },
-      ],
-      usages: [],
-      url: docsUrl('help'),
-    }),
-    handler (opts: { all?: boolean }, params: string[]) {
-      let helpText!: string
-      if (params.length === 0) {
-        helpText = getHelpText({ all: opts.all ?? false })
-      } else if (helpByCommandName[params[0]]) {
-        helpText = helpByCommandName[params[0]]()
-      } else {
-        helpText = `No results for "${params[0]}"`
-      }
-      return `Version ${packageManager.version}\
-  ${detectIfCurrentPkgIsExecutable() != null ? ` (compiled to binary; bundled Node.js ${process.version})` : ''}\
-  \n${helpText}\n`
-    },
+    help: helpHelp,
+    handler: handler.bind(null, helpByCommandName),
   }
+}
+
+function helpHelp () {
+  return renderHelp({
+    description: 'Display help information about pnpm',
+    descriptionLists: [
+      {
+        title: 'Options',
+        list: [
+          {
+            description: 'Print all the available commands',
+            name: '--all',
+            shortAlias: '-a',
+          },
+        ],
+      },
+    ],
+    usages: [],
+    url: docsUrl('help'),
+  })
+}
+
+function handler (helpByCommandName: HelpByCommandName, opts: { all?: boolean }, params: string[]): string {
+  let helpText!: string
+  if (params.length === 0) {
+    helpText = getHelpText({ all: opts.all ?? false })
+  } else if (helpByCommandName[params[0]]) {
+    helpText = helpByCommandName[params[0]]()
+  } else {
+    helpText = `No results for "${params[0]}"`
+  }
+  return `Version ${packageManager.version}\
+${detectIfCurrentPkgIsExecutable() != null ? ` (compiled to binary; bundled Node.js ${process.version})` : ''}\
+\n${helpText}\n`
 }
 
 interface DescriptionItem {
@@ -363,7 +371,7 @@ function getHelpText ({ all }: { all: boolean }): string {
     }
   }
   return renderHelp({
-    description: all ? '' : 'These are common pnpm commands used in various situations, use \'pnpm --help -a\' to list all commands',
+    description: all ? '' : 'These are common pnpm commands used in various situations, use \'pnpm help -a\' to list all commands',
     descriptionLists: filteredDescriptionLists,
     usages: ['pnpm [command] [flags]', 'pnpm [ -h | --help | -v | --version ]'],
   })
