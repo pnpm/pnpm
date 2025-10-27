@@ -17,6 +17,7 @@ export interface LockfileBase {
   catalogs?: CatalogSnapshots
   ignoredOptionalDependencies?: string[]
   lockfileVersion: string
+  npmVersion?: string
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
   patchedDependencies?: Record<string, PatchFile>

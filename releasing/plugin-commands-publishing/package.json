@@ -51,6 +51,7 @@
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/run-npm": "workspace:*",
     "@pnpm/sort-packages": "workspace:*",
+    "@pnpm/tools.npm-manager": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "chalk": "catalog:",

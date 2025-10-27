@@ -10,6 +10,7 @@ import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
 import { loadToken } from '@pnpm/network.auth-header'
 import { prepareExecutionEnv } from '@pnpm/plugin-commands-env'
+import { resolveNpmVersion } from '@pnpm/tools.npm-manager'
 import { prompt } from 'enquirer'
 import rimraf from '@zkochan/rimraf'
 import pick from 'ramda/src/pick'
@@ -160,7 +161,7 @@ export async function handler (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'allProjects' | 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme'>,
+  } & Pick<Config, 'allProjects' | 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'wantedNpmVersion'>,
   params: string[]
 ): Promise<{ exitCode?: number } | undefined> {
   const result = await publish(opts, params)
@@ -181,7 +182,7 @@ export async function publish (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'allProjects' | 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>,
+  } & Pick<Config, 'allProjects' | 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel' | 'wantedNpmVersion'>,
   params: string[]
 ): Promise<PublishResult> {
   if (opts.gitChecks !== false && await isGitRepo()) {
@@ -237,8 +238,16 @@ Do you want to continue?`,
   }
   args = removePnpmSpecificOptions(args)
 
+  let npmPathToUse = opts.npmPath
+  if (opts.wantedNpmVersion != null) {
+    const { npmPath: resolvedNpmPath } = await resolveNpmVersion(opts.wantedNpmVersion, {
+      pnpmHomeDir: opts.pnpmHomeDir,
+    })
+    npmPathToUse = resolvedNpmPath
+  }
+
   if (dirInParams != null && (dirInParams.endsWith('.tgz') || dirInParams?.endsWith('.tar.gz'))) {
-    const { status } = runNpm(opts.npmPath, ['publish', dirInParams, ...args])
+    const { status } = runNpm(npmPathToUse, ['publish', dirInParams, ...args])
     return { exitCode: status ?? 0 }
   }
   const dir = dirInParams ?? opts.dir ?? process.cwd()
@@ -274,7 +283,7 @@ Do you want to continue?`,
     packDestination,
   })
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
-  const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballPath), ...args], {
+  const { status } = runNpm(npmPathToUse, ['publish', '--ignore-scripts', path.basename(tarballPath), ...args], {
     cwd: packDestination,
     env: getEnvWithTokens(opts),
   })
