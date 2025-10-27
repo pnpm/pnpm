@@ -239,7 +239,7 @@ function getHelpText ({ all }: { all: boolean }): string {
           name: 'publish',
         },
         {
-          description: 'Updates pnpm to the latest version.',
+          description: 'Updates pnpm to the latest version',
           name: 'self-update',
         },
         {
