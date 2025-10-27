@@ -458,6 +458,10 @@ export async function getConfig (opts: {
     pnpmConfig.filterProd = (pnpmConfig.filterProd as string).split(' ')
   }
 
+  if (pnpmConfig.filter?.length > 0 || pnpmConfig.filterProd?.length > 0) {
+    delete pnpmConfig.workspacePackagePatterns
+  }
+
   if (pnpmConfig.workspaceDir) {
     pnpmConfig.extraBinPaths = [path.join(pnpmConfig.workspaceDir, 'node_modules', '.bin')]
   } else {
