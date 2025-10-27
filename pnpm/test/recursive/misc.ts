@@ -314,9 +314,7 @@ test('recursive command with filter from config', async () => {
   ])
 
   fs.writeFileSync('package.json', '{}', 'utf8')
-  writeYamlFile('pnpm-workspace.yaml', {
-    filter: ['project-1', 'project-2'],
-  })
+  fs.writeFileSync('.npmrc', 'filter=project-1 project-2', 'utf8')
   await execPnpm(['recursive', 'install'])
 
   projects['project-1'].has('is-positive')
