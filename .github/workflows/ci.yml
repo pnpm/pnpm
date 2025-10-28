@@ -66,13 +66,13 @@ jobs:
         # restore-keys: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-
     - name: run tests (main)
       timeout-minutes: 60
-      if: github.ref_name == 'main'
+      if: github.ref_name == 'v10'
       run: pnpm run test-main
       env:
         PNPM_WORKERS: 3
     - name: run tests (branch)
       timeout-minutes: 60
-      if: github.ref_name != 'main'
+      if: github.ref_name != 'v10'
       run: pnpm run test-branch
       env:
         PNPM_WORKERS: 3
