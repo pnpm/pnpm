@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/registry.pkg-metadata-filter",
-  "version": "1000.1.0",
+  "version": "1000.1.1",
   "description": "Filters the package metadata from the registry",
   "keywords": [
     "pnpm",
