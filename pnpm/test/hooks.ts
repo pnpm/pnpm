@@ -139,11 +139,10 @@ test('importPackage hooks', async () => {
     }
   `
 
-  const npmrc = `
-    global-pnpmfile=.pnpmfile.cjs
-  `
+  writeYamlFile('pnpm-workspace.yaml', {
+    globalPnpmfile: '.pnpmfile.cjs',
+  })
 
-  fs.writeFileSync('.npmrc', npmrc, 'utf8')
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   await execPnpm(['add', 'is-positive@1.0.0'])
@@ -172,11 +171,10 @@ test('should use default fetchers if no custom fetchers are defined', async () =
     }
   `
 
-  const npmrc = `
-    global-pnpmfile=.pnpmfile.cjs
-  `
+  writeYamlFile('pnpm-workspace.yaml', {
+    globalPnpmfile: '.pnpmfile.cjs',
+  })
 
-  fs.writeFileSync('.npmrc', npmrc, 'utf8')
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   await execPnpm(['add', 'is-positive@1.0.0'])
@@ -204,11 +202,10 @@ test('custom fetcher can call default fetcher', async () => {
     }
   `
 
-  const npmrc = `
-    global-pnpmfile=.pnpmfile.cjs
-  `
+  writeYamlFile('pnpm-workspace.yaml', {
+    globalPnpmfile: '.pnpmfile.cjs',
+  })
 
-  fs.writeFileSync('.npmrc', npmrc, 'utf8')
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   await execPnpm(['add', 'is-positive@1.0.0'])

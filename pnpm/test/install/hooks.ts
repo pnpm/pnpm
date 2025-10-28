@@ -630,12 +630,13 @@ test('preResolution hook', async () => {
     }
   `
 
-  const npmrc = `
-    global-pnpmfile=.pnpmfile.cjs
-    @foo:registry=https://foo.com
-  `
-
+  const npmrc = '@foo:registry=https://foo.com'
   fs.writeFileSync('.npmrc', npmrc, 'utf8')
+
+  writeYamlFile('pnpm-workspace.yaml', {
+    globalPnpmfile: '.pnpmfile.cjs',
+  })
+
   fs.writeFileSync('.pnpmfile.cjs', pnpmfile, 'utf8')
 
   await execPnpm(['add', 'is-positive@1.0.0'])
