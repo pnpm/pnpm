@@ -54,7 +54,7 @@ test('filterPkgMetadataByPublishDate', () => {
       },
     },
     'dist-tags': {
-      latest: '2.9.9',
+      latest: '3.0.0',
       stable: '3.0.0',
     },
     time: {
