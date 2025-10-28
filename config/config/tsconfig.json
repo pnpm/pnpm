@@ -34,6 +34,9 @@
       "path": "../../packages/git-utils"
     },
     {
+      "path": "../../packages/naming-cases"
+    },
+    {
       "path": "../../packages/types"
     },
     {

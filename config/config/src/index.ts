@@ -6,8 +6,9 @@ import { omit } from 'ramda'
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
+import { isCamelCase } from '@pnpm/naming-cases'
 import loadNpmConf from '@pnpm/npm-conf'
-import type npmTypes from '@pnpm/npm-conf/lib/types'
+import type npmTypes from '@pnpm/npm-conf/lib/types.js'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import { createMatcher } from '@pnpm/matcher'
@@ -19,7 +20,7 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
-import { inheritAuthConfig } from './auth.js'
+import { inheritAuthConfig, isSupportedNpmConfig, pickNpmAuthConfig } from './auth.js'
 import { checkGlobalBinDir } from './checkGlobalBinDir.js'
 import { hasDependencyBuildOptions, extractAndRemoveDependencyBuildOptions } from './dependencyBuildOptions.js'
 import { getNetworkConfigs } from './getNetworkConfigs.js'
@@ -167,6 +168,7 @@ export async function getConfig (opts: {
     'ignore-workspace-cycles': false,
     'ignore-workspace-root-check': false,
     'optimistic-repeat-install': false,
+    optional: true,
     'init-package-manager': true,
     'init-type': 'module',
     'inject-workspace-packages': false,
@@ -240,7 +242,11 @@ export async function getConfig (opts: {
   )
 
   const pnpmConfig: ConfigWithDeprecatedSettings = Object.fromEntries(
-    rcOptions.map((configKey) => [camelcase(configKey, { locale: 'en-US' }), npmConfig.get(configKey)])
+    rcOptions
+      .map((configKey) => [
+        camelcase(configKey, { locale: 'en-US' }),
+        isSupportedNpmConfig(configKey) ? npmConfig.get(configKey) : (defaultOptions as Record<string, unknown>)[configKey],
+      ])
   ) as ConfigWithDeprecatedSettings
   const globalDepsBuildConfig = extractAndRemoveDependencyBuildOptions(pnpmConfig)
 
@@ -266,8 +272,8 @@ export async function getConfig (opts: {
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   pnpmConfig.rawConfig = Object.assign.apply(Object, [
     {},
-    ...[...npmConfig.list].reverse(),
-    cliOptions,
+    ...npmConfig.list.map(pickNpmAuthConfig).reverse(),
+    pickNpmAuthConfig(cliOptions),
     { 'user-agent': pnpmConfig.userAgent },
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   const networkConfigs = getNetworkConfigs(pnpmConfig.rawConfig)
@@ -281,6 +287,9 @@ export async function getConfig (opts: {
     if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
     return false
   })()
+  // NOTE: this block of code in this location is pointless.
+  // TODO: move this block of code to after the code that loads pnpm-workspace.yaml.
+  // TODO: unskip test `getConfig() sets mergeGiBranchLockfiles when branch matches mergeGitBranchLockfilesBranchPattern`.
   pnpmConfig.useGitBranchLockfile = (() => {
     if (typeof pnpmConfig.gitBranchLockfile === 'boolean') return pnpmConfig.gitBranchLockfile
     return false
@@ -380,9 +389,16 @@ export async function getConfig (opts: {
       if (workspaceManifest) {
         const newSettings = Object.assign(getOptionsFromPnpmSettings(pnpmConfig.workspaceDir, workspaceManifest, pnpmConfig.rootProjectManifest), configFromCliOpts)
         for (const [key, value] of Object.entries(newSettings)) {
+          if (!isCamelCase(key)) continue
+
           // @ts-expect-error
           pnpmConfig[key] = value
-          pnpmConfig.rawConfig[kebabCase(key)] = value
+
+          const kebabKey = kebabCase(key)
+          // Q: Why `types` instead of `rcOptionTypes`?
+          // A: `rcOptionTypes` includes options that would matter to the `npm` cli which wouldn't care about `pnpm-workspace.yaml`.
+          const targetKey = kebabKey in types ? kebabKey : key
+          pnpmConfig.rawConfig[targetKey] = value
         }
         // All the pnpm_config_ env variables should override the settings from pnpm-workspace.yaml,
         // as it happens with .npmrc.
@@ -551,6 +567,7 @@ export async function getConfig (opts: {
   pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache ?? pnpmConfig.sideEffectsCacheReadonly
   pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
 
+  // TODO: consider removing checkUnknownSetting entirely
   if (opts.checkUnknownSetting) {
     const settingKeys = Object.keys({
       ...npmConfig?.sources?.workspace?.data,

@@ -1648,6 +1648,9 @@ importers:
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../matcher
+      '@pnpm/naming-cases':
+        specifier: workspace:*
+        version: link:../../packages/naming-cases
       '@pnpm/npm-conf':
         specifier: 'catalog:'
         version: 3.0.0
@@ -1941,6 +1944,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/naming-cases':
+        specifier: workspace:*
+        version: link:../../packages/naming-cases
       '@pnpm/object.key-sorting':
         specifier: workspace:*
         version: link:../../object/key-sorting
@@ -4432,6 +4438,12 @@ importers:
         specifier: 'catalog:'
         version: safe-execa@0.2.0
 
+  packages/naming-cases:
+    devDependencies:
+      '@pnpm/naming-cases':
+        specifier: workspace:*
+        version: 'link:'
+
   packages/parse-wanted-dependency:
     dependencies:
       validate-npm-package-name:
@@ -6576,6 +6588,9 @@ importers:
       '@types/cross-spawn':
         specifier: 'catalog:'
         version: 6.0.6
+      '@types/ini':
+        specifier: 'catalog:'
+        version: 1.3.31
       '@types/is-windows':
         specifier: 'catalog:'
         version: 1.0.2
@@ -6624,6 +6639,9 @@ importers:
       get-port:
         specifier: 'catalog:'
         version: 7.1.0
+      ini:
+        specifier: 'catalog:'
+        version: 5.0.0
       is-windows:
         specifier: 'catalog:'
         version: 1.0.2
@@ -13982,11 +14000,9 @@ packages:
 
   lodash.clone@4.3.2:
     resolution: {integrity: sha512-Yc/0UmZvWkFsbx7NB4feSX5bSX03SR0ft8CTkI8RCb3w/TzT71HXew2iNDm0aml93P49tIR/NJHOIoE+XEKz9A==}
-    deprecated: This package is deprecated. Use structuredClone instead.
 
   lodash.clone@4.5.0:
     resolution: {integrity: sha512-GhrVeweiTD6uTmmn5hV/lzgCQhccwReIVRLHp7LT4SopOjqEZ5BbX8b5WWEtAKasjmy8hR7ZPwsYlxRCku5odg==}
-    deprecated: This package is deprecated. Use structuredClone instead.
 
   lodash.deburr@4.1.0:
     resolution: {integrity: sha512-m/M1U1f3ddMCs6Hq2tAsYThTBDaAKFDX3dwDo97GEYzamXi9SqUpjWi/Rrj/gf3X2n8ktwgZrlP1z6E3v/IExQ==}

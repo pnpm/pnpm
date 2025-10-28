@@ -6,6 +6,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { sync as rimraf } from '@zkochan/rimraf'
 import execa from 'execa'
 import isWindows from 'is-windows'
+import { sync as writeYamlFile } from 'write-yaml-file'
 import {
   execPnpm,
   execPnpmSync,
@@ -147,7 +148,9 @@ test('use the specified Node.js version for running scripts', async () => {
       test: "node -e \"require('fs').writeFileSync('version',process.version,'utf8')\"",
     },
   })
-  fs.writeFileSync('.npmrc', 'use-node-version=14.0.0', 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    useNodeVersion: '14.0.0',
+  })
   await execPnpm(['run', 'test'], {
     env: {
       PNPM_HOME: path.resolve('pnpm_home'),

@@ -2,6 +2,7 @@ import path from 'path'
 import util from 'util'
 import { types } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
+import { isCamelCase, isStrictlyKebabCase } from '@pnpm/naming-cases'
 import { parsePropertyPath } from '@pnpm/object.property-path'
 import { runNpm } from '@pnpm/run-npm'
 import { updateWorkspaceManifest } from '@pnpm/workspace.manifest-writer'
@@ -11,7 +12,6 @@ import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
 import { type ConfigCommandOptions } from './ConfigCommandOptions.js'
 import { getConfigFilePath } from './getConfigFilePath.js'
-import { isStrictlyKebabCase } from './isStrictlyKebabCase.js'
 import { settingShouldFallBackToNpm } from './settingShouldFallBackToNpm.js'
 
 export async function configSet (opts: ConfigCommandOptions, key: string, valueParam: string | null): Promise<void> {
@@ -54,7 +54,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
   const { configPath, isWorkspaceYaml } = getConfigFilePath(opts)
 
   if (isWorkspaceYaml) {
-    key = camelCase(key)
+    key = validateWorkspaceKey(key)
     await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
       updatedFields: ({
         [key]: castField(value, kebabCase(key)),
@@ -62,7 +62,7 @@ export async function configSet (opts: ConfigCommandOptions, key: string, valueP
     })
   } else {
     const settings = await safeReadIniFile(configPath)
-    key = kebabCase(key)
+    key = validateRcKey(key)
     if (value == null) {
       if (settings[key] == null) return
       delete settings[key]
@@ -138,6 +138,50 @@ function validateSimpleKey (key: string): string {
   if (!second.done) throw new ConfigSetDeepKeyError()
 
   return first.value.toString()
+}
+
+export class ConfigSetUnsupportedRcKeyError extends PnpmError {
+  readonly key: string
+  constructor (key: string) {
+    super('CONFIG_SET_UNSUPPORTED_RC_KEY', `Key ${JSON.stringify(key)} isn't supported by rc files`, {
+      hint: `Add ${JSON.stringify(camelCase(key))} to the project workspace manifest instead`,
+    })
+    this.key = key
+  }
+}
+
+/**
+ * Validate if the kebab-case of {@link key} is supported by rc files.
+ *
+ * Return the kebab-case if it is, throw an error otherwise.
+ */
+function validateRcKey (key: string): string {
+  const kebabKey = kebabCase(key)
+  if (kebabKey in types) {
+    return kebabKey
+  }
+  throw new ConfigSetUnsupportedRcKeyError(key)
+}
+
+export class ConfigSetUnsupportedWorkspaceKeyError extends PnpmError {
+  readonly key: string
+  constructor (key: string) {
+    super('CONFIG_SET_UNSUPPORTED_WORKSPACE_KEY', `The key ${JSON.stringify(key)} isn't supported by the workspace manifest`, {
+      hint: `Try ${JSON.stringify(camelCase(key))}`,
+    })
+    this.key = key
+  }
+}
+
+/**
+ * Only an rc option key would be allowed to be kebab-case, otherwise, it must be camelCase.
+ *
+ * Return the camelCase of {@link key} if it's valid.
+ */
+function validateWorkspaceKey (key: string): string {
+  if (key in types) return camelCase(key)
+  if (!isCamelCase(key)) throw new ConfigSetUnsupportedWorkspaceKeyError(key)
+  return key
 }
 
 async function safeReadIniFile (configPath: string): Promise<Record<string, unknown>> {

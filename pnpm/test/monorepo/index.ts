@@ -300,7 +300,7 @@ test('topological order of packages with self-dependencies in monorepo is correc
   expect(server2.getLines()).toStrictEqual(['project-2', 'project-3', 'project-1'])
 })
 
-test('test-pattern is respected by the test script', async () => {
+test('testPattern is respected by the test script', async () => {
   await using server = await createTestIpcServer()
 
   const remote = temporaryDirectory()
@@ -368,7 +368,7 @@ test('test-pattern is respected by the test script', async () => {
   expect(server.getLines().sort()).toEqual(['project-2', 'project-4'])
 })
 
-test('changed-files-ignore-pattern is respected', async () => {
+test('changedFilesIgnorePattern is respected', async () => {
   const remote = temporaryDirectory()
 
   preparePackages([
@@ -403,20 +403,20 @@ test('changed-files-ignore-pattern is respected', async () => {
   await execa('git', ['remote', 'add', 'origin', remote])
   await execa('git', ['push', '-u', 'origin', 'main'])
 
-  const npmrcLines = []
+  const changedFilesIgnorePattern: string[] = []
   fs.writeFileSync('project-2-change-is-never-ignored/index.js', '')
 
-  npmrcLines.push('changed-files-ignore-pattern[]=**/{*.spec.js,*.md}')
+  changedFilesIgnorePattern.push('**/{*.spec.js,*.md}')
   fs.writeFileSync('project-3-ignored-by-pattern/index.spec.js', '')
   fs.writeFileSync('project-3-ignored-by-pattern/README.md', '')
 
-  npmrcLines.push('changed-files-ignore-pattern[]=**/buildscript.js')
+  changedFilesIgnorePattern.push('**/buildscript.js')
   fs.mkdirSync('project-4-ignored-by-pattern/a/b/c', {
     recursive: true,
   })
   fs.writeFileSync('project-4-ignored-by-pattern/a/b/c/buildscript.js', '')
 
-  npmrcLines.push('changed-files-ignore-pattern[]=**/cache/**')
+  changedFilesIgnorePattern.push('**/cache/**')
   fs.mkdirSync('project-5-ignored-by-pattern/cache/a/b', {
     recursive: true,
   })
@@ -433,7 +433,10 @@ test('changed-files-ignore-pattern is respected', async () => {
     '--no-gpg-sign',
   ])
 
-  fs.writeFileSync('.npmrc', npmrcLines.join('\n'), 'utf8')
+  writeYamlFile('pnpm-workspace.yaml', {
+    changedFilesIgnorePattern,
+    packages: ['**', '!store/**'],
+  })
   await execPnpm(['install'])
 
   const getChangedProjects = async (opts?: {
