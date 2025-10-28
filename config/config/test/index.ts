@@ -1090,7 +1090,7 @@ test('preferSymlinkedExecutables should be true when nodeLinker is hoisted', asy
 })
 
 test('return a warning when the .npmrc has an env variable that does not exist', async () => {
-  fs.writeFileSync('.npmrc', 'foo=${ENV_VAR_123}', 'utf8') // eslint-disable-line
+  fs.writeFileSync('.npmrc', 'registry=${ENV_VAR_123}', 'utf8') // eslint-disable-line
   const { warnings } = await getConfig({
     cliOptions: {},
     packageManager: {
