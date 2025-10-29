@@ -38,7 +38,7 @@ export function filterPkgMetadataByPublishDate (
       distTagsWithinDate[tag] = distTagVersion
       continue
     }
-    // Repopulate the tag to the highest version available within date that has the same major as the original tag's version
+    // Repopulate the tag to the highest version available within date
     const originalSemVer = tryParseSemver(distTagVersion)
     if (!originalSemVer) continue
     const originalIsPrerelease = (originalSemVer.prerelease.length > 0)
@@ -48,7 +48,7 @@ export function filterPkgMetadataByPublishDate (
       const candidateParsed = tryParseSemver(candidate)
       if (
         !candidateParsed ||
-        candidateParsed.major !== originalSemVer.major ||
+        (tag !== 'latest' && candidateParsed.major !== originalSemVer.major) ||
         (candidateParsed.prerelease.length > 0) !== originalIsPrerelease
       ) continue
       if (!bestVersion) {
