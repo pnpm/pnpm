@@ -1,5 +1,4 @@
 import kebabCase from 'lodash.kebabcase'
-import { encode } from 'ini'
 import { types } from '@pnpm/config'
 import { isCamelCase, isStrictlyKebabCase } from '@pnpm/naming-cases'
 import { getObjectValueByPropertyPath } from '@pnpm/object.property-path'
@@ -63,7 +62,7 @@ function displayConfig (config: unknown, opts: DisplayConfigOptions): string {
     return JSON.stringify(config, undefined, 2)
   }
   if (typeof config === 'object' && config != null) {
-    return encode(config)
+    return JSON.stringify(config)
   }
   return String(config)
 }
