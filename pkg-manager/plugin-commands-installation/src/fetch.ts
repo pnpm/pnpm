@@ -1,6 +1,6 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type InstallOptions, mutateModulesInSingleProject } from '@pnpm/core'
 import { type ProjectRootDir } from '@pnpm/types'
@@ -62,7 +62,6 @@ export async function handler (opts: FetchCommandOptions): Promise<void> {
     rootDir: process.cwd() as ProjectRootDir,
   }, {
     ...opts,
-    ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
     ignorePackageManifest: true,
     include,
     modulesCacheMaxAge: 0,
